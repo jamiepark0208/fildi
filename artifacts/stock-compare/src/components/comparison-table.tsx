@@ -99,7 +99,6 @@ export function ComparisonTable({ stock1, stock2 }: ComparisonTableProps) {
               label="Market Cap" 
               val1={formatLargeNumber(stock1.marketCap)} 
               val2={formatLargeNumber(stock2.marketCap)} 
-              highlightBetter="higher" num1={stock1.marketCap} num2={stock2.marketCap}
             />
             <MetricRow 
               label="52-Week Range" 
@@ -165,7 +164,7 @@ export function ComparisonTable({ stock1, stock2 }: ComparisonTableProps) {
               highlightBetter="higher" num1={stock1.revenueGrowthYoY} num2={stock2.revenueGrowthYoY}
             />
             <MetricRow 
-              label="Projected Rev Growth" 
+              label="Earnings Growth (TTM)" 
               val1={formatPercent(stock1.revenueGrowthProjected)} 
               val2={formatPercent(stock2.revenueGrowthProjected)} 
               highlightBetter="higher" num1={stock1.revenueGrowthProjected} num2={stock2.revenueGrowthProjected}

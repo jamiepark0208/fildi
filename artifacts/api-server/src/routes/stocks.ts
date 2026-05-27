@@ -145,37 +145,57 @@ function buildScorecard(
     });
   }
 
-  addItem("P/E Ratio", 2, s1.peRatio, s2.peRatio, false, fmtNum,
-    "Lower P/E suggests a cheaper stock relative to earnings.");
-  addItem("PEG Ratio", 2, s1.pegRatio, s2.pegRatio, false, fmtNum,
-    "PEG < 1 signals undervalued growth. Lower is better.");
-  addItem("Revenue Growth (YoY)", 2, s1.revenueGrowthYoY, s2.revenueGrowthYoY, true, fmtPct,
-    "Higher revenue growth signals business expansion.");
-  addItem("Projected Revenue Growth", 1.5, s1.revenueGrowthProjected, s2.revenueGrowthProjected, true, fmtPct,
-    "Forward-looking growth expectation from analysts.");
-  addItem("Net Margin", 2, s1.netMargin, s2.netMargin, true, fmtPct,
-    "Higher net margin means more profit per dollar of revenue.");
-  addItem("Gross Margin", 1, s1.grossMargin, s2.grossMargin, true, fmtPct,
-    "Higher gross margin signals pricing power and efficiency.");
-  addItem("Return on Equity (ROE)", 2, s1.returnOnEquity, s2.returnOnEquity, true, fmtPct,
-    "ROE measures how efficiently equity generates profit.");
-  addItem("Return on Assets (ROA)", 1, s1.returnOnAssets, s2.returnOnAssets, true, fmtPct,
-    "ROA shows how effectively assets generate earnings.");
-  addItem("EPS Growth", 2, s1.epsGrowth, s2.epsGrowth, true, fmtPct,
-    "Higher EPS growth means rising per-share earnings power.");
-  addItem("Free Cash Flow", 1.5, s1.freeCashFlow, s2.freeCashFlow, true, fmtLargeNum,
-    "More free cash flow means more flexibility for growth and returns.");
+  // ── Tier 1: Valuation (highest weight) ──────────────────────────────────
+  // PEG is the gold standard: combines P/E with growth, penalising expensive growth
+  addItem("PEG Ratio", 3.0, s1.pegRatio, s2.pegRatio, false, fmtNum,
+    "The single best valuation shorthand. PEG < 1 = undervalued growth; > 2 = expensive. Invented by Peter Lynch.");
+
+  // Price-to-FCF: harder to manipulate than earnings; Buffett's preferred metric
+  const p2fcf1 = s1.marketCap !== null && s1.freeCashFlow !== null && s1.freeCashFlow > 0
+    ? s1.marketCap / s1.freeCashFlow : null;
+  const p2fcf2 = s2.marketCap !== null && s2.freeCashFlow !== null && s2.freeCashFlow > 0
+    ? s2.marketCap / s2.freeCashFlow : null;
+  addItem("Price / Free Cash Flow", 3.0, p2fcf1, p2fcf2, false, fmtNum,
+    "How many dollars you pay per $1 of free cash flow. FCF is harder to manipulate than net income — pros treat this as the real earnings multiple.");
+
+  // Analyst consensus upside: aggregated professional opinion on fair value
+  const upside1 = s1.analystTargetPrice !== null && s1.currentPrice !== null
+    ? (s1.analystTargetPrice / s1.currentPrice) - 1 : null;
+  const upside2 = s2.analystTargetPrice !== null && s2.currentPrice !== null
+    ? (s2.analystTargetPrice / s2.currentPrice) - 1 : null;
+  addItem("Analyst Upside to Target", 2.5, upside1, upside2, true, fmtPct,
+    "Wall Street consensus target price vs. today's price. Positive = analysts see upside; negative = stock is above consensus fair value.");
+
+  // Trailing P/E: familiar benchmark, but penalise vs PEG for high-growth stocks
+  addItem("P/E Ratio", 2.0, s1.peRatio, s2.peRatio, false, fmtNum,
+    "Price-to-earnings: how much investors pay per $1 of trailing profit. Useful for stable earners; less meaningful for high-growth companies (use PEG instead).");
+
+  // ── Tier 2: Growth quality ───────────────────────────────────────────────
+  addItem("Revenue Growth (YoY)", 2.5, s1.revenueGrowthYoY, s2.revenueGrowthYoY, true, fmtPct,
+    "Year-over-year revenue growth — the top-line engine. Sustained revenue growth above 20% is exceptional; below 5% for a growth stock is a red flag.");
+
+  addItem("EPS Growth", 2.5, s1.epsGrowth, s2.epsGrowth, true, fmtPct,
+    "Earnings-per-share growth (trailing vs. forward). The compounding driver of long-term stock price. Rising EPS with rising margins = quality growth.");
+
+  // ── Tier 3: Profitability ────────────────────────────────────────────────
+  addItem("Net Profit Margin", 2.0, s1.netMargin, s2.netMargin, true, fmtPct,
+    "How many cents of every revenue dollar become profit. Buffett looks for durable margins >15%. Expanding margins over time = pricing power.");
+
+  addItem("Return on Equity (ROE)", 2.0, s1.returnOnEquity, s2.returnOnEquity, true, fmtPct,
+    "Profit generated per dollar of shareholder equity. ROE > 15% consistently signals a durable competitive advantage. Buffett's key quality screen.");
+
+  addItem("Free Cash Flow", 2.0, s1.freeCashFlow, s2.freeCashFlow, true, fmtLargeNum,
+    "Actual cash left after capital expenditures. The lifeblood of the business — funds buybacks, dividends, acquisitions, and R&D without diluting shareholders.");
+
+  // ── Tier 4: Financial health ─────────────────────────────────────────────
+  addItem("Gross Margin", 1.5, s1.grossMargin, s2.grossMargin, true, fmtPct,
+    "Revenue minus direct costs. Software/platform companies typically run >60%; below 30% signals a commoditised business with little pricing power.");
+
   addItem("Debt-to-Equity", 1.5, s1.debtToEquity, s2.debtToEquity, false, fmtNum,
-    "Lower D/E ratio means less financial leverage and risk.");
-  addItem("Current Ratio", 1, s1.currentRatio, s2.currentRatio, true, fmtNum,
-    "Current ratio > 1 means the company can cover short-term liabilities.");
-  addItem("Price-to-Book", 1, s1.priceToBook, s2.priceToBook, false, fmtNum,
-    "Lower P/B may indicate undervaluation relative to assets.");
-  addItem("Fair Value vs. Price", 2, 
-    s1.fairValueEstimate !== null && s1.currentPrice !== null ? (s1.fairValueEstimate - s1.currentPrice) / s1.currentPrice : null,
-    s2.fairValueEstimate !== null && s2.currentPrice !== null ? (s2.fairValueEstimate - s2.currentPrice) / s2.currentPrice : null,
-    true, fmtPct,
-    "Positive margin of safety (fair value > price) suggests upside potential.");
+    "Total debt divided by shareholder equity. D/E < 0.5 is conservatively financed; > 2.0 warrants scrutiny. High leverage amplifies both gains and losses.");
+
+  addItem("Current Ratio", 1.0, s1.currentRatio, s2.currentRatio, true, fmtNum,
+    "Current assets ÷ current liabilities. > 1.5 is healthy; < 1.0 means the company cannot cover near-term obligations from existing assets alone.");
 
   const ticker1TotalScore = items.reduce((acc, it) => acc + it.ticker1Score * it.weight, 0);
   const ticker2TotalScore = items.reduce((acc, it) => acc + it.ticker2Score * it.weight, 0);
@@ -207,20 +227,36 @@ function buildScorecard(
 }
 
 function buildMetrics(quote: any, ticker: string) {
-  const eps = safeNum(quote.epsTrailingTwelveMonths);
-  const epsForward = safeNum(quote.epsForward);
-  const epsGrowth = eps !== null && epsForward !== null && eps !== 0
+  // Yahoo Finance v3: trailingEps / forwardEps (not epsTrailingTwelveMonths / epsForward)
+  const eps = safeNum(quote.trailingEps);
+  const epsForward = safeNum(quote.forwardEps);
+  const epsGrowth = eps !== null && epsForward !== null && eps > 0
     ? (epsForward - eps) / Math.abs(eps)
     : null;
+
+  // Prefer trailing P/E; fall back to forward P/E only if trailing is absent
   const peRatio = safeNum(quote.trailingPE) ?? safeNum(quote.forwardPE);
+
+  // Yahoo Finance returns revenueGrowth / earningsGrowth as decimals (0.84 = 84%)
   const revenueGrowthYoY = safeNum(quote.revenueGrowth);
+  // earningsGrowth (TTM) is Yahoo's best proxy for near-term growth momentum
+  const revenueGrowthProjected = safeNum(quote.earningsGrowth);
+
   const dividendYield = safeNum(quote.dividendYield);
+
+  // Prefer Yahoo's own PEG; fall back to computed P/E ÷ annualised EPS growth %
   const pegRatio = safeNum(quote.pegRatio) ??
-    (peRatio !== null && epsGrowth !== null && epsGrowth !== 0
+    (peRatio !== null && epsGrowth !== null && epsGrowth > 0
       ? peRatio / (epsGrowth * 100)
       : null);
+
   const stockType = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
   const fairValue = computeFairValue(eps, epsGrowth, peRatio);
+
+  // Yahoo Finance debtToEquity comes as a percentage figure (e.g. 247.7 means D/E ratio 2.477)
+  const debtToEquityRaw = safeNum(quote.debtToEquity);
+  const debtToEquity = debtToEquityRaw !== null ? debtToEquityRaw / 100 : null;
+  const leverageRatio = debtToEquity !== null ? debtToEquity + 1 : null;
 
   return {
     ticker: ticker.toUpperCase(),
@@ -231,11 +267,11 @@ function buildMetrics(quote: any, ticker: string) {
     pegRatio,
     priceToBook: safeNum(quote.priceToBook),
     priceToSales: safeNum(quote.priceToSalesTrailing12Months),
-    leverageRatio: safeNum(quote.debtToEquity) !== null ? (safeNum(quote.debtToEquity)! / 100) + 1 : null,
-    debtToEquity: safeNum(quote.debtToEquity) !== null ? safeNum(quote.debtToEquity)! / 100 : null,
+    leverageRatio,
+    debtToEquity,
     totalRevenue: safeNum(quote.totalRevenue),
     revenueGrowthYoY,
-    revenueGrowthProjected: safeNum(quote.revenueGrowth),
+    revenueGrowthProjected,
     netIncome: safeNum(quote.netIncomeToCommon),
     ebitda: safeNum(quote.ebitda),
     earningsPerShare: eps,
