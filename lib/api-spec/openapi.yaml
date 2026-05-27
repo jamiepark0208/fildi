@@ -25,6 +25,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /stocks/quote:
+    get:
+      operationId: getStockQuote
+      tags: [stocks]
+      summary: Get metrics for a single stock
+      description: Fetches all financial metrics for a single ticker symbol
+      parameters:
+        - name: ticker
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stock ticker symbol (e.g. AAPL)
+      responses:
+        "200":
+          description: Stock metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockMetrics"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticker not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /stocks/compare:
     get:
       operationId: compareStocks

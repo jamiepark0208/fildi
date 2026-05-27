@@ -18,9 +18,11 @@ import type {
 import type {
   CompareStocksParams,
   ErrorResponse,
+  GetStockQuoteParams,
   HealthStatus,
   SearchStocksParams,
   StockComparison,
+  StockMetrics,
   StockSearchResult
 } from './api.schemas';
 
@@ -102,6 +104,91 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStockQuoteUrl = (params: GetStockQuoteParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stocks/quote?${stringifiedParams}` : `/api/stocks/quote`
+}
+
+/**
+ * Fetches all financial metrics for a single ticker symbol
+ * @summary Get metrics for a single stock
+ */
+export const getStockQuote = async (params: GetStockQuoteParams, options?: RequestInit): Promise<StockMetrics> => {
+
+  return customFetch<StockMetrics>(getGetStockQuoteUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStockQuoteQueryKey = (params?: GetStockQuoteParams,) => {
+    return [
+    `/api/stocks/quote`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStockQuoteQueryOptions = <TData = Awaited<ReturnType<typeof getStockQuote>>, TError = ErrorType<ErrorResponse>>(params: GetStockQuoteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStockQuote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStockQuoteQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockQuote>>> = ({ signal }) => getStockQuote(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStockQuote>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStockQuoteQueryResult = NonNullable<Awaited<ReturnType<typeof getStockQuote>>>
+export type GetStockQuoteQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get metrics for a single stock
+ */
+
+export function useGetStockQuote<TData = Awaited<ReturnType<typeof getStockQuote>>, TError = ErrorType<ErrorResponse>>(
+ params: GetStockQuoteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStockQuote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStockQuoteQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -130,6 +130,13 @@ export interface StockComparison {
   scorecard: Scorecard;
 }
 
+export type GetStockQuoteParams = {
+/**
+ * Stock ticker symbol (e.g. AAPL)
+ */
+ticker: string;
+};
+
 export type CompareStocksParams = {
 /**
  * First stock ticker symbol (e.g. AAPL)

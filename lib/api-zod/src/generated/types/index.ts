@@ -8,6 +8,7 @@
 
 export * from './compareStocksParams';
 export * from './errorResponse';
+export * from './getStockQuoteParams';
 export * from './healthStatus';
 export * from './scorecard';
 export * from './scorecardItem';

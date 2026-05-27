@@ -392,4 +392,36 @@ router.get("/stocks/search", async (req, res) => {
   }
 });
 
+const quoteCache = new TTLCache<object>(10 * 60 * 1000);
+
+async function fetchQuoteSummary(ticker: string) {
+  return yahooFinance.quoteSummary(ticker.toUpperCase(), {
+    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
+  });
+}
+
+router.get("/stocks/quote", async (req, res) => {
+  const { ticker } = req.query as { ticker?: string };
+  if (!ticker || typeof ticker !== "string") {
+    return res.status(400).json({ error: "ticker is required" });
+  }
+  const key = ticker.toUpperCase();
+  const cached = quoteCache.get(key);
+  if (cached) return res.json(cached);
+
+  try {
+    const q = await fetchQuoteSummary(key);
+    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
+    const metrics = buildMetrics(merged, key);
+    quoteCache.set(key, metrics);
+    return res.json(metrics);
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
+      return res.status(404).json({ error: `Ticker not found: ${key}` });
+    }
+    return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
+  }
+});
+
 export default router;

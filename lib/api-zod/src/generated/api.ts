@@ -18,6 +18,55 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Fetches all financial metrics for a single ticker symbol
+ * @summary Get metrics for a single stock
+ */
+export const GetStockQuoteQueryParams = zod.object({
+  "ticker": zod.coerce.string().describe('Stock ticker symbol (e.g. AAPL)')
+})
+
+export const GetStockQuoteResponse = zod.object({
+  "ticker": zod.string(),
+  "companyName": zod.string(),
+  "currentPrice": zod.number().nullish(),
+  "marketCap": zod.number().nullish(),
+  "peRatio": zod.number().nullish(),
+  "pegRatio": zod.number().nullish(),
+  "priceToBook": zod.number().nullish(),
+  "priceToSales": zod.number().nullish(),
+  "leverageRatio": zod.number().nullish(),
+  "debtToEquity": zod.number().nullish(),
+  "totalRevenue": zod.number().nullish(),
+  "revenueGrowthYoY": zod.number().nullish(),
+  "revenueGrowthProjected": zod.number().nullish(),
+  "netIncome": zod.number().nullish(),
+  "ebitda": zod.number().nullish(),
+  "earningsPerShare": zod.number().nullish(),
+  "epsGrowth": zod.number().nullish(),
+  "freeCashFlow": zod.number().nullish(),
+  "dividendYield": zod.number().nullish(),
+  "returnOnEquity": zod.number().nullish(),
+  "returnOnAssets": zod.number().nullish(),
+  "currentRatio": zod.number().nullish(),
+  "grossMargin": zod.number().nullish(),
+  "operatingMargin": zod.number().nullish(),
+  "netMargin": zod.number().nullish(),
+  "beta": zod.number().nullish(),
+  "fiftyTwoWeekHigh": zod.number().nullish(),
+  "fiftyTwoWeekLow": zod.number().nullish(),
+  "analystTargetPrice": zod.number().nullish(),
+  "fairValueEstimate": zod.number().nullish(),
+  "stockType": zod.string().nullish().describe('Classified type - Growth, Value, Dividend, Blend'),
+  "sector": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "exchange": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "description": zod.string().nullish()
+})
+
+
+/**
  * Fetches and compares key financial metrics for two ticker symbols
  * @summary Compare two stocks
  */
