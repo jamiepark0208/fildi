@@ -7,6 +7,28 @@ import {
 
 const router = Router();
 
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+class TTLCache<T> {
+  private store = new Map<string, CacheEntry<T>>();
+  constructor(private ttlMs: number) {}
+  get(key: string): T | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) { this.store.delete(key); return undefined; }
+    return entry.value;
+  }
+  set(key: string, value: T) {
+    this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+  }
+}
+
+const searchCache = new TTLCache<object[]>(5 * 60 * 1000);
+const compareCache = new TTLCache<object>(10 * 60 * 1000);
+
 function safeNum(val: unknown): number | null {
   if (val === null || val === undefined || typeof val === "object") return null;
   const n = Number(val);
@@ -246,6 +268,10 @@ router.get("/stocks/compare", async (req, res) => {
     return res.status(400).json({ error: "ticker1 and ticker2 are required" });
   }
   const { ticker1, ticker2 } = parsed.data;
+  const cacheKey = `${ticker1.toUpperCase()}:${ticker2.toUpperCase()}`;
+
+  const cached = compareCache.get(cacheKey);
+  if (cached) return res.json(cached);
 
   try {
     const [q1, q2] = await Promise.all([
@@ -288,7 +314,9 @@ router.get("/stocks/compare", async (req, res) => {
     const stock2 = buildMetrics(merged2, ticker2);
     const scorecard = buildScorecard(stock1, stock2, ticker1.toUpperCase(), ticker2.toUpperCase());
 
-    return res.json({ stock1, stock2, scorecard });
+    const payload = { stock1, stock2, scorecard };
+    compareCache.set(cacheKey, payload);
+    return res.json(payload);
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
@@ -304,6 +332,10 @@ router.get("/stocks/search", async (req, res) => {
     return res.status(400).json({ error: "q is required" });
   }
   const { q } = parsed.data;
+  const cacheKey = q.toUpperCase();
+
+  const cached = searchCache.get(cacheKey);
+  if (cached) return res.json(cached);
 
   try {
     const results = await yahooFinance.search(q, { newsCount: 0, quotesCount: 8 });
@@ -316,6 +348,7 @@ router.get("/stocks/search", async (req, res) => {
         exchange: r.exchange ?? "",
         type: r.quoteType ?? "EQUITY",
       }));
+    searchCache.set(cacheKey, quotes);
     return res.json(quotes);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
