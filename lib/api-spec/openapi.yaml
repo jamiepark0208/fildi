@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Stock Comparison Tool API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: stocks
+    description: Stock data operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /stocks/compare:
+    get:
+      operationId: compareStocks
+      tags: [stocks]
+      summary: Compare two stocks
+      description: Fetches and compares key financial metrics for two ticker symbols
+      parameters:
+        - name: ticker1
+          in: query
+          required: true
+          schema:
+            type: string
+          description: First stock ticker symbol (e.g. AAPL)
+        - name: ticker2
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Second stock ticker symbol (e.g. MSFT)
+      responses:
+        "200":
+          description: Comparison data for both stocks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockComparison"
+        "400":
+          description: Bad request - invalid ticker
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticker not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error fetching stock data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/search:
+    get:
+      operationId: searchStocks
+      tags: [stocks]
+      summary: Search for stock tickers
+      description: Returns a list of matching ticker symbols and company names
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query (company name or ticker)
+      responses:
+        "200":
+          description: List of matching stocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSearchResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +106,174 @@ components:
           type: string
       required:
         - status
-
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    StockSearchResult:
+      type: object
+      properties:
+        ticker:
+          type: string
+        name:
+          type: string
+        exchange:
+          type: string
+        type:
+          type: string
+      required:
+        - ticker
+        - name
+    StockMetrics:
+      type: object
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        currentPrice:
+          type: ["number", "null"]
+        marketCap:
+          type: ["number", "null"]
+        peRatio:
+          type: ["number", "null"]
+        pegRatio:
+          type: ["number", "null"]
+        priceToBook:
+          type: ["number", "null"]
+        priceToSales:
+          type: ["number", "null"]
+        leverageRatio:
+          type: ["number", "null"]
+        debtToEquity:
+          type: ["number", "null"]
+        totalRevenue:
+          type: ["number", "null"]
+        revenueGrowthYoY:
+          type: ["number", "null"]
+        revenueGrowthProjected:
+          type: ["number", "null"]
+        netIncome:
+          type: ["number", "null"]
+        ebitda:
+          type: ["number", "null"]
+        earningsPerShare:
+          type: ["number", "null"]
+        epsGrowth:
+          type: ["number", "null"]
+        freeCashFlow:
+          type: ["number", "null"]
+        dividendYield:
+          type: ["number", "null"]
+        returnOnEquity:
+          type: ["number", "null"]
+        returnOnAssets:
+          type: ["number", "null"]
+        currentRatio:
+          type: ["number", "null"]
+        grossMargin:
+          type: ["number", "null"]
+        operatingMargin:
+          type: ["number", "null"]
+        netMargin:
+          type: ["number", "null"]
+        beta:
+          type: ["number", "null"]
+        fiftyTwoWeekHigh:
+          type: ["number", "null"]
+        fiftyTwoWeekLow:
+          type: ["number", "null"]
+        analystTargetPrice:
+          type: ["number", "null"]
+        fairValueEstimate:
+          type: ["number", "null"]
+        stockType:
+          type: ["string", "null"]
+          description: Classified type - Growth, Value, Dividend, Blend
+        sector:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        exchange:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+      required:
+        - ticker
+        - companyName
+    ScorecardItem:
+      type: object
+      properties:
+        metric:
+          type: string
+        weight:
+          type: number
+        ticker1Score:
+          type: number
+        ticker2Score:
+          type: number
+        ticker1Value:
+          type: ["string", "null"]
+        ticker2Value:
+          type: ["string", "null"]
+        winner:
+          type: ["string", "null"]
+        explanation:
+          type: string
+      required:
+        - metric
+        - weight
+        - ticker1Score
+        - ticker2Score
+        - explanation
+    Scorecard:
+      type: object
+      properties:
+        ticker1TotalScore:
+          type: number
+        ticker2TotalScore:
+          type: number
+        winner:
+          type: string
+        winnerTicker:
+          type: string
+        loserTicker:
+          type: string
+        confidence:
+          type: string
+          description: "High, Medium, or Low based on score gap"
+        summary:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScorecardItem"
+      required:
+        - ticker1TotalScore
+        - ticker2TotalScore
+        - winner
+        - winnerTicker
+        - loserTicker
+        - confidence
+        - summary
+        - items
+    StockComparison:
+      type: object
+      properties:
+        stock1:
+          $ref: "#/components/schemas/StockMetrics"
+        stock2:
+          $ref: "#/components/schemas/StockMetrics"
+        scorecard:
+          $ref: "#/components/schemas/Scorecard"
+      required:
+        - stock1
+        - stock2
+        - scorecard

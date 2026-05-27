@@ -5,20 +5,6 @@
  * Stock Comparison Tool API
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface ErrorResponse {
-  error: string;
-}
-
-export interface StockSearchResult {
-  ticker: string;
-  name: string;
-  exchange?: string;
-  type?: string;
-}
 
 export interface StockMetrics {
   ticker: string;
@@ -97,54 +83,3 @@ export interface StockMetrics {
   /** @nullable */
   description?: string | null;
 }
-
-export interface ScorecardItem {
-  metric: string;
-  weight: number;
-  ticker1Score: number;
-  ticker2Score: number;
-  /** @nullable */
-  ticker1Value?: string | null;
-  /** @nullable */
-  ticker2Value?: string | null;
-  /** @nullable */
-  winner?: string | null;
-  explanation: string;
-}
-
-export interface Scorecard {
-  ticker1TotalScore: number;
-  ticker2TotalScore: number;
-  winner: string;
-  winnerTicker: string;
-  loserTicker: string;
-  /** High, Medium, or Low based on score gap */
-  confidence: string;
-  summary: string;
-  items: ScorecardItem[];
-}
-
-export interface StockComparison {
-  stock1: StockMetrics;
-  stock2: StockMetrics;
-  scorecard: Scorecard;
-}
-
-export type CompareStocksParams = {
-/**
- * First stock ticker symbol (e.g. AAPL)
- */
-ticker1: string;
-/**
- * Second stock ticker symbol (e.g. MSFT)
- */
-ticker2: string;
-};
-
-export type SearchStocksParams = {
-/**
- * Search query (company name or ticker)
- */
-q: string;
-};
-
