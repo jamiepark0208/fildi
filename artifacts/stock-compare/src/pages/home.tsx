@@ -10,8 +10,12 @@ import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
 
-export default function Home() {
-  const [tickers, setTickers] = useState<string[]>([]);
+interface HomeProps {
+  tickers: string[];
+  setTickers: React.Dispatch<React.SetStateAction<string[]>>;
+}
+
+export default function Home({ tickers, setTickers }: HomeProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
   const inputRef = useRef<HTMLInputElement>(null);
 

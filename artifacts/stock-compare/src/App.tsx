@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,9 +10,13 @@ import Watchlist from "@/pages/watchlist";
 const queryClient = new QueryClient();
 
 function Router() {
+  const [tickers, setTickers] = useState<string[]>([]);
+
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/">
+        <Home tickers={tickers} setTickers={setTickers} />
+      </Route>
       <Route path="/watchlist" component={Watchlist} />
       <Route component={NotFound} />
     </Switch>

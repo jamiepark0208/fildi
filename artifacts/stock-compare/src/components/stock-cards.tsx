@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { StockMetrics } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { StockScore } from "@/lib/rankings";
@@ -19,15 +20,30 @@ interface StockCardsProps {
 export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, onAddClick, onRemove }: StockCardsProps) {
   const slots = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
 
+  const sortedSlots = useMemo(() => {
+    const active = slots
+      .map((ticker, originalIndex) => ({ ticker, originalIndex }))
+      .filter(s => s.ticker !== null)
+      .sort((a, b) => {
+        const rankA = rankings.find(r => r.ticker === a.ticker)?.rank ?? 999;
+        const rankB = rankings.find(r => r.ticker === b.ticker)?.rank ?? 999;
+        return rankA - rankB;
+      });
+    const empty = slots
+      .map((ticker, originalIndex) => ({ ticker, originalIndex }))
+      .filter(s => s.ticker === null);
+    return [...active, ...empty];
+  }, [slots, rankings]);
+
   return (
     <div className="grid grid-cols-5 gap-3 mb-4">
-      {slots.map((ticker, index) => {
-        const color = STOCK_COLORS[index];
+      {sortedSlots.map(({ ticker, originalIndex }) => {
+        const color = STOCK_COLORS[originalIndex];
 
         if (!ticker) {
           return (
             <button
-              key={`empty-${index}`}
+              key={`empty-${originalIndex}`}
               onClick={onAddClick}
               className="h-[120px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
               style={{ borderLeftColor: color, borderLeftWidth: 3 }}

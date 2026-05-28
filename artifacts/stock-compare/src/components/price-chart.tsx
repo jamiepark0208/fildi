@@ -157,7 +157,7 @@ export function PriceChart({ tickers, loadedStocks, selectedPeriod, onPeriodChan
                 contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
                 itemStyle={{ fontWeight: 'bold', fontFamily: 'monospace' }}
                 labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: 6, fontSize: '13px' }}
-                formatter={(val: number) => [`$${val.toFixed(2)}`, '']}
+                formatter={(val: number, name: string) => [`$${val.toFixed(2)}`, name]}
                 labelFormatter={(label) => {
                   const d = new Date(label as string);
                   if (selectedPeriod === "1D") return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
