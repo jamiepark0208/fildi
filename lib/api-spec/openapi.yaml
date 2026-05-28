@@ -303,6 +303,12 @@ components:
           type: ["string", "null"]
         description:
           type: ["string", "null"]
+        dayChange:
+          type: ["number", "null"]
+          description: Absolute price change for the day
+        dayChangePercent:
+          type: ["number", "null"]
+          description: Fractional price change for the day (0.03 = 3%)
       required:
         - ticker
         - companyName

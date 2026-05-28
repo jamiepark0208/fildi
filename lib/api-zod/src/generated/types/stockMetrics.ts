@@ -82,4 +82,14 @@ export interface StockMetrics {
   logoUrl?: string | null;
   /** @nullable */
   description?: string | null;
+  /**
+     * Absolute price change for the day
+     * @nullable
+     */
+  dayChange?: number | null;
+  /**
+     * Fractional price change for the day (0.03 = 3%)
+     * @nullable
+     */
+  dayChangePercent?: number | null;
 }

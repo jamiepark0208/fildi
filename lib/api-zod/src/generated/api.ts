@@ -62,7 +62,9 @@ export const GetStockQuoteResponse = zod.object({
   "exchange": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
 })
 
 
@@ -133,7 +135,9 @@ export const CompareStocksResponse = zod.object({
   "exchange": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
 }),
   "stock2": zod.object({
   "ticker": zod.string(),
@@ -172,7 +176,9 @@ export const CompareStocksResponse = zod.object({
   "exchange": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
 }),
   "scorecard": zod.object({
   "ticker1TotalScore": zod.number(),

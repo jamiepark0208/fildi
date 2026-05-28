@@ -75,10 +75,8 @@ export function PriceChart({ tickers, loadedStocks, selectedPeriod, onPeriodChan
     return { data: merged, yAxes: axes, hasRightAxis: hasRight };
   }, [tickers, queries, loadedStocks]);
 
-  if (tickers.length === 0) return null;
-
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm mb-8">
+    <div className="bg-card border border-border rounded-xl p-4 shadow-sm mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold tracking-tight">Price History</h2>

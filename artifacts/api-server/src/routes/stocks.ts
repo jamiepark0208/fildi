@@ -295,7 +295,9 @@ function buildMetrics(quote: any, ticker: string) {
     exchange: quote.exchangeName ?? quote.exchange ?? null,
     currency: quote.currency ?? "USD",
     logoUrl: null,
-    description: quote.longBusinessSummary?.slice(0, 300) ?? null,
+    description: quote.longBusinessSummary?.slice(0, 500) ?? null,
+    dayChange: safeNum(quote.regularMarketChange),
+    dayChangePercent: safeNum(quote.regularMarketChangePercent),
   };
 }
 
@@ -375,7 +377,7 @@ router.get("/stocks/search", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const results = await yahooFinance.search(q, { newsCount: 0, quotesCount: 8 });
+    const results = await yahooFinance.search(q, { newsCount: 0, quotesCount: 8 }, { validateResult: false });
     const quotes = (results.quotes ?? [])
       .filter((r: any) => r.isYahooFinance && r.symbol)
       .slice(0, 8)

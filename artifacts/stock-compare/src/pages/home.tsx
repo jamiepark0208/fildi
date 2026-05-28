@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, StockMetrics } from "@workspace/api-client-react";
 import { TickerShelf } from "@/components/ticker-shelf";
@@ -9,17 +9,15 @@ import { computeRankings } from "@/lib/rankings";
 import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
-import { Search } from "lucide-react";
 
 export default function Home() {
   const [tickers, setTickers] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
-  
-  const handleAddTickerClick = () => {
-    const input = document.querySelector('input[placeholder="Add ticker..."]') as HTMLInputElement;
-    if (input) {
-      input.focus();
-    }
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const focusInput = () => {
+    const el = document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]');
+    el?.focus();
   };
 
   const handleAddTicker = (ticker: string) => {
@@ -42,88 +40,69 @@ export default function Home() {
 
   const loadingTickers = useMemo(() => {
     const obj: Record<string, boolean> = {};
-    tickers.forEach((ticker, i) => {
-      obj[ticker] = queries[i]?.isLoading || false;
-    });
+    tickers.forEach((ticker, i) => { obj[ticker] = queries[i]?.isLoading || false; });
     return obj;
   }, [tickers, queries]);
 
   const loadedStocks = useMemo(() => {
     const stocks: StockMetrics[] = [];
     queries.forEach((q, i) => {
-      if (q.data) {
-        stocks.push(q.data);
-      } else if (!q.isLoading) {
-        stocks.push({ ticker: tickers[i], companyName: "Unknown" } as StockMetrics);
-      }
+      if (q.data) stocks.push(q.data);
+      else if (!q.isLoading) stocks.push({ ticker: tickers[i], companyName: "" } as StockMetrics);
     });
     return stocks;
   }, [queries, tickers]);
 
   const rankings = useMemo(() => {
-    const validStocks = loadedStocks.filter(s => s.currentPrice !== undefined);
+    const validStocks = loadedStocks.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
     return computeRankings(validStocks);
   }, [loadedStocks]);
 
+  const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
-      <Sidebar onAddTickerClick={handleAddTickerClick} />
+      <Sidebar />
 
-      <main className="flex-1 ml-[220px] p-6 lg:p-10 max-w-[1600px] w-full mx-auto">
-        {/* Header Area */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
+      <main className="flex-1 ml-[220px] min-w-0">
+        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Fundamental Analysis</h1>
-            <p className="text-muted-foreground text-sm">Evaluate up to 5 public equities simultaneously.</p>
+            <h1 className="text-lg font-bold tracking-tight leading-none">Fundamental Analysis</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Compare up to 5 equities simultaneously</p>
           </div>
-          
-          <div className="flex items-center min-h-[48px]">
-            <TickerShelf
-              tickers={tickers}
-              loadingTickers={loadingTickers}
-              onAdd={handleAddTicker}
-              onRemove={handleRemoveTicker}
-            />
-          </div>
+          <TickerShelf
+            tickers={tickers}
+            loadingTickers={loadingTickers}
+            onAdd={handleAddTicker}
+            onRemove={handleRemoveTicker}
+          />
         </div>
 
-        {tickers.length > 0 ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <StockCards 
-              tickers={tickers} 
-              loadedStocks={loadedStocks} 
-              loadingTickers={loadingTickers} 
-              rankings={rankings} 
-            />
+        <div className="p-5 space-y-4">
+          <StockCards
+            tickers={tickers}
+            loadedStocks={loadedStocks}
+            loadingTickers={loadingTickers}
+            rankings={rankings}
+            onAddClick={focusInput}
+            onRemove={handleRemoveTicker}
+          />
 
-            <PriceChart 
-              tickers={tickers}
-              loadedStocks={loadedStocks}
-              selectedPeriod={selectedPeriod}
-              onPeriodChange={setSelectedPeriod}
-            />
+          <PriceChart
+            tickers={tickers}
+            loadedStocks={loadedStocks}
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+          />
 
-            <div className="space-y-8">
-              {rankings.length >= 2 && (
-                <RankingsLeaderboard scores={rankings} />
-              )}
-              
+          {hasData && (
+            <div className="space-y-4">
+              {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} />}
               <MetricsTable stocks={loadedStocks} loadingTickers={loadingTickers} />
-              
-              {rankings.length >= 2 && (
-                <ScorecardBreakdown scores={rankings} />
-              )}
+              {rankings.length >= 2 && <ScorecardBreakdown scores={rankings} />}
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-32 text-muted-foreground border-2 border-dashed border-border/50 rounded-2xl bg-card/10 flex flex-col items-center justify-center">
-            <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-6">
-              <Search className="w-8 h-8 opacity-40" />
-            </div>
-            <h3 className="text-xl font-bold mb-2 text-foreground">No assets selected</h3>
-            <p className="max-w-sm">Add tickers using the search bar or the Add Ticker button in the sidebar to begin analysis.</p>
-          </div>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );
