@@ -13,6 +13,20 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface HistoricalPrice {
+  /** ISO date string */
+  date: string;
+  close: number;
+  /** @nullable */
+  open?: number | null;
+  /** @nullable */
+  high?: number | null;
+  /** @nullable */
+  low?: number | null;
+  /** @nullable */
+  volume?: number | null;
+}
+
 export interface StockSearchResult {
   ticker: string;
   name: string;
@@ -136,6 +150,28 @@ export type GetStockQuoteParams = {
  */
 ticker: string;
 };
+
+export type GetStockHistoryParams = {
+/**
+ * Stock ticker symbol (e.g. NVDA)
+ */
+ticker: string;
+/**
+ * Time period for historical data
+ */
+period: GetStockHistoryPeriod;
+};
+
+export type GetStockHistoryPeriod = typeof GetStockHistoryPeriod[keyof typeof GetStockHistoryPeriod];
+
+
+export const GetStockHistoryPeriod = {
+  '1D': '1D',
+  '1W': '1W',
+  '1M': '1M',
+  '3M': '3M',
+  '1Y': '1Y',
+} as const;
 
 export type CompareStocksParams = {
 /**

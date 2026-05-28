@@ -63,6 +63,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /stocks/history:
+    get:
+      operationId: getStockHistory
+      tags: [stocks]
+      summary: Get historical price data for a single stock
+      description: Returns OHLCV price history for the given ticker and period
+      parameters:
+        - name: ticker
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stock ticker symbol (e.g. NVDA)
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: ["1D", "1W", "1M", "3M", "1Y"]
+          description: Time period for historical data
+      responses:
+        "200":
+          description: Historical price data points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoricalPrice"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /stocks/compare:
     get:
       operationId: compareStocks
@@ -151,6 +192,25 @@ components:
           type: string
       required:
         - error
+    HistoricalPrice:
+      type: object
+      properties:
+        date:
+          type: string
+          description: ISO date string
+        close:
+          type: number
+        open:
+          type: ["number", "null"]
+        high:
+          type: ["number", "null"]
+        low:
+          type: ["number", "null"]
+        volume:
+          type: ["number", "null"]
+      required:
+        - date
+        - close
     StockSearchResult:
       type: object
       properties:

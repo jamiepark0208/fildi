@@ -392,6 +392,65 @@ router.get("/stocks/search", async (req, res) => {
   }
 });
 
+const historyCache = new TTLCache<object[]>(30 * 60 * 1000);
+const historyCache1D = new TTLCache<object[]>(5 * 60 * 1000);
+
+function getPeriod1(period: string): Date {
+  const now = new Date();
+  switch (period) {
+    case "1D": return new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+    case "1W": return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case "1M": return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case "3M": return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    case "1Y": return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    default:   return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+}
+
+function getInterval(period: string): string {
+  switch (period) {
+    case "1D": return "5m";
+    case "1W": return "1h";
+    default:   return "1d";
+  }
+}
+
+const VALID_PERIODS = new Set(["1D", "1W", "1M", "3M", "1Y"]);
+
+router.get("/stocks/history", async (req, res) => {
+  const { ticker, period } = req.query as { ticker?: string; period?: string };
+  if (!ticker || typeof ticker !== "string") {
+    return res.status(400).json({ error: "ticker is required" });
+  }
+  if (!period || !VALID_PERIODS.has(period)) {
+    return res.status(400).json({ error: "period must be one of: 1D, 1W, 1M, 3M, 1Y" });
+  }
+  const key = `${ticker.toUpperCase()}_${period}`;
+  const cache = period === "1D" ? historyCache1D : historyCache;
+  const cached = cache.get(key);
+  if (cached) return res.json(cached);
+
+  try {
+    const result = await yahooFinance.chart(ticker.toUpperCase(), {
+      period1: getPeriod1(period),
+      interval: getInterval(period) as any,
+    });
+    const quotes = (result?.quotes ?? []).filter((q: any) => q.close != null);
+    const data = quotes.map((q: any) => ({
+      date: new Date(q.date).toISOString(),
+      close: q.close,
+      open: q.open ?? null,
+      high: q.high ?? null,
+      low: q.low ?? null,
+      volume: q.volume ?? null,
+    }));
+    cache.set(key, data);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: `Failed to fetch history: ${String(err?.message ?? err)}` });
+  }
+});
+
 const quoteCache = new TTLCache<object>(10 * 60 * 1000);
 
 async function fetchQuoteSummary(ticker: string) {

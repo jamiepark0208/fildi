@@ -67,6 +67,26 @@ export const GetStockQuoteResponse = zod.object({
 
 
 /**
+ * Returns OHLCV price history for the given ticker and period
+ * @summary Get historical price data for a single stock
+ */
+export const GetStockHistoryQueryParams = zod.object({
+  "ticker": zod.coerce.string().describe('Stock ticker symbol (e.g. NVDA)'),
+  "period": zod.enum(['1D', '1W', '1M', '3M', '1Y']).describe('Time period for historical data')
+})
+
+export const GetStockHistoryResponseItem = zod.object({
+  "date": zod.string().describe('ISO date string'),
+  "close": zod.number(),
+  "open": zod.number().nullish(),
+  "high": zod.number().nullish(),
+  "low": zod.number().nullish(),
+  "volume": zod.number().nullish()
+})
+export const GetStockHistoryResponse = zod.array(GetStockHistoryResponseItem)
+
+
+/**
  * Fetches and compares key financial metrics for two ticker symbols
  * @summary Compare two stocks
  */

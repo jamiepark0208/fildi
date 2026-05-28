@@ -8,8 +8,11 @@
 
 export * from './compareStocksParams';
 export * from './errorResponse';
+export * from './getStockHistoryParams';
+export * from './getStockHistoryPeriod';
 export * from './getStockQuoteParams';
 export * from './healthStatus';
+export * from './historicalPrice';
 export * from './scorecard';
 export * from './scorecardItem';
 export * from './searchStocksParams';

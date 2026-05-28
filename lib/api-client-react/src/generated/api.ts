@@ -18,8 +18,10 @@ import type {
 import type {
   CompareStocksParams,
   ErrorResponse,
+  GetStockHistoryParams,
   GetStockQuoteParams,
   HealthStatus,
+  HistoricalPrice,
   SearchStocksParams,
   StockComparison,
   StockMetrics,
@@ -189,6 +191,91 @@ export function useGetStockQuote<TData = Awaited<ReturnType<typeof getStockQuote
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStockQuoteQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStockHistoryUrl = (params: GetStockHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stocks/history?${stringifiedParams}` : `/api/stocks/history`
+}
+
+/**
+ * Returns OHLCV price history for the given ticker and period
+ * @summary Get historical price data for a single stock
+ */
+export const getStockHistory = async (params: GetStockHistoryParams, options?: RequestInit): Promise<HistoricalPrice[]> => {
+
+  return customFetch<HistoricalPrice[]>(getGetStockHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStockHistoryQueryKey = (params?: GetStockHistoryParams,) => {
+    return [
+    `/api/stocks/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStockHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getStockHistory>>, TError = ErrorType<ErrorResponse>>(params: GetStockHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStockHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStockHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockHistory>>> = ({ signal }) => getStockHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStockHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStockHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getStockHistory>>>
+export type GetStockHistoryQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get historical price data for a single stock
+ */
+
+export function useGetStockHistory<TData = Awaited<ReturnType<typeof getStockHistory>>, TError = ErrorType<ErrorResponse>>(
+ params: GetStockHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStockHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStockHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
