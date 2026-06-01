@@ -44,3 +44,12 @@ next: [data-layer, watchlist-ui]
 - Before reading a file, state the name and reason
 - Max 5 files per task without explicit approval
 - Use find/grep to locate files before reading them
+
+## SESSION LOG
+Last completed: hooks wired, alpha vantage dropped, DB schema written (5 tables)
+Data source decision: yahoo-finance2 + technicalindicators (no external API keys needed)
+
+## NEXT SESSION — do these in order
+1. Fix TS error in stocks.ts:381 (type assertion on yahooFinance.search())
+2. Install technicalindicators, add RSI/MFI endpoints to API server
+3. Options chain fetch via yf2.options() using narrow slice from options-pricer.md
