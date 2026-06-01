@@ -50,7 +50,7 @@ export function Sidebar() {
         <div>
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">Main</div>
           <nav className="space-y-0.5">
-            {navItem("/", <LayoutDashboard className="w-4 h-4" />, "Dashboard")}
+            {navItem("/", <LayoutDashboard className="w-4 h-4" />, "Compare")}
             {navItem("/watchlist", <Bookmark className="w-4 h-4" />, "Watchlist")}
           </nav>
         </div>

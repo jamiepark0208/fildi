@@ -485,4 +485,108 @@ router.get("/stocks/quote", async (req, res) => {
   }
 });
 
+function scoreValue(pe: number | null, peg: number | null, pb: number | null, ps: number | null): number {
+  let sum = 0, n = 0;
+  if (pe !== null) { sum += pe < 10 ? 5 : pe < 15 ? 4 : pe < 20 ? 3 : pe < 35 ? 2 : 1; n++; }
+  if (peg !== null) { sum += peg < 0.5 ? 5 : peg < 1 ? 4 : peg < 1.5 ? 3 : peg < 2.5 ? 2 : 1; n++; }
+  if (pb !== null) { sum += pb < 1 ? 5 : pb < 2 ? 4 : pb < 3 ? 3 : pb < 6 ? 2 : 1; n++; }
+  if (ps !== null) { sum += ps < 1 ? 5 : ps < 3 ? 4 : ps < 6 ? 3 : ps < 12 ? 2 : 1; n++; }
+  return n > 0 ? Math.round(sum / n) : 3;
+}
+
+function scoreGrowth(revGrowth: number | null, epsGrowth: number | null): number {
+  let sum = 0, n = 0;
+  if (revGrowth !== null) { sum += revGrowth > 0.3 ? 5 : revGrowth > 0.2 ? 4 : revGrowth > 0.1 ? 3 : revGrowth > 0.05 ? 2 : revGrowth > 0 ? 1 : 0; n++; }
+  if (epsGrowth !== null) { sum += epsGrowth > 0.3 ? 5 : epsGrowth > 0.2 ? 4 : epsGrowth > 0.1 ? 3 : epsGrowth > 0.05 ? 2 : epsGrowth > 0 ? 1 : 0; n++; }
+  return n > 0 ? Math.round(sum / n) : 2;
+}
+
+function scoreHealth(currentRatio: number | null, dte: number | null, netMargin: number | null): number {
+  let sum = 0, n = 0;
+  if (currentRatio !== null) { sum += currentRatio > 3 ? 5 : currentRatio > 2 ? 4 : currentRatio > 1.5 ? 3 : currentRatio > 1 ? 2 : 1; n++; }
+  if (dte !== null) { sum += dte < 0.1 ? 5 : dte < 0.3 ? 4 : dte < 0.6 ? 3 : dte < 1.2 ? 2 : 1; n++; }
+  if (netMargin !== null) { sum += netMargin > 0.25 ? 5 : netMargin > 0.15 ? 4 : netMargin > 0.08 ? 3 : netMargin > 0 ? 2 : 1; n++; }
+  return n > 0 ? Math.round(sum / n) : 2;
+}
+
+function scorePast(roe: number | null, netMargin: number | null, fcf: number | null, marketCap: number | null): number {
+  let sum = 0, n = 0;
+  if (roe !== null) { sum += roe > 0.3 ? 5 : roe > 0.2 ? 4 : roe > 0.12 ? 3 : roe > 0.05 ? 2 : roe > 0 ? 1 : 0; n++; }
+  if (netMargin !== null) { sum += netMargin > 0.25 ? 5 : netMargin > 0.15 ? 4 : netMargin > 0.08 ? 3 : netMargin > 0 ? 2 : 1; n++; }
+  if (fcf !== null && marketCap !== null && marketCap > 0) {
+    const y = fcf / marketCap;
+    sum += y > 0.07 ? 5 : y > 0.04 ? 4 : y > 0.02 ? 3 : y > 0 ? 2 : 1; n++;
+  }
+  return n > 0 ? Math.round(sum / n) : 2;
+}
+
+function scoreDividend(yield_: number | null): number {
+  if (!yield_ || yield_ <= 0) return 0;
+  return yield_ > 0.06 ? 5 : yield_ > 0.04 ? 4 : yield_ > 0.025 ? 3 : yield_ > 0.01 ? 2 : 1;
+}
+
+const breakdownCache = new TTLCache<object>(10 * 60 * 1000);
+
+router.get("/stocks/breakdown", async (req, res) => {
+  const { ticker } = req.query as { ticker?: string };
+  if (!ticker || typeof ticker !== "string") {
+    return res.status(400).json({ error: "ticker is required" });
+  }
+  const key = ticker.toUpperCase();
+  const cached = breakdownCache.get(key);
+  if (cached) return res.json(cached);
+
+  try {
+    const [summary, newsRes] = await Promise.all([
+      yahooFinance.quoteSummary(key, {
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend"] as any,
+      }),
+      yahooFinance.search(key, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+    ]);
+
+    const merged = {
+      ...summary.price,
+      ...summary.summaryDetail,
+      ...summary.financialData,
+      ...summary.defaultKeyStatistics,
+      ...summary.assetProfile,
+    };
+    const metrics = buildMetrics(merged, key);
+
+    const recTrend = (summary as any).recommendationTrend?.trend?.[0];
+    const recommendations = recTrend ? {
+      strongBuy: recTrend.strongBuy ?? 0,
+      buy: recTrend.buy ?? 0,
+      hold: recTrend.hold ?? 0,
+      sell: recTrend.sell ?? 0,
+      strongSell: recTrend.strongSell ?? 0,
+    } : null;
+
+    const news = ((newsRes as any).news ?? []).slice(0, 6).map((n: any) => ({
+      title: n.title ?? "",
+      link: n.link ?? "",
+      publisher: n.publisher ?? "",
+      publishedAt: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null,
+    }));
+
+    const snowflake = {
+      value: scoreValue(metrics.peRatio, metrics.pegRatio, metrics.priceToBook, metrics.priceToSales),
+      growth: scoreGrowth(metrics.revenueGrowthYoY, metrics.epsGrowth),
+      health: scoreHealth(metrics.currentRatio, metrics.debtToEquity, metrics.netMargin),
+      past: scorePast(metrics.returnOnEquity, metrics.netMargin, metrics.freeCashFlow, metrics.marketCap),
+      dividend: scoreDividend(metrics.dividendYield),
+    };
+
+    const payload = { metrics, recommendations, news, snowflake };
+    breakdownCache.set(key, payload);
+    return res.json(payload);
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
+      return res.status(404).json({ error: `Ticker not found: ${key}` });
+    }
+    return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
+  }
+});
+
 export default router;
