@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.next/
+.cache/
+*.lock
+pnpm-lock.yaml
+package-lock.json
+attached_assets/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
