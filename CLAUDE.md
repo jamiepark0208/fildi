@@ -37,3 +37,10 @@ phase: scaffold
 working: []
 in_progress: []
 next: [data-layer, watchlist-ui]
+
+## READING RULES (always follow)
+- Never use Explore agents for broad sweeps
+- Read files directly and only when needed
+- Before reading a file, state the name and reason
+- Max 5 files per task without explicit approval
+- Use find/grep to locate files before reading them
