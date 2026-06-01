@@ -377,7 +377,8 @@ router.get("/stocks/search", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const results = await yahooFinance.search(q, { newsCount: 0, quotesCount: 8 }, { validateResult: false });
+    const raw = await yahooFinance.search(q, { newsCount: 0, quotesCount: 8 }, { validateResult: false });
+    const results = raw as { quotes?: unknown[] };
     const quotes = (results.quotes ?? [])
       .filter((r: any) => r.isYahooFinance && r.symbol)
       .slice(0, 8)
