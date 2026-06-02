@@ -16,9 +16,10 @@ interface MetricRowProps {
   formatValue: (v: number | null | undefined) => React.ReactNode;
   higherIsBetter?: boolean;
   lowerIsBetter?: boolean;
+  validFilter?: (v: number) => boolean;
 }
 
-function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, higherIsBetter, lowerIsBetter }: MetricRowProps) {
+function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, higherIsBetter, lowerIsBetter, validFilter }: MetricRowProps) {
   let winnerIndices: number[] = [];
 
   if ((higherIsBetter || lowerIsBetter) && stocks.length >= 2) {
@@ -26,7 +27,7 @@ function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, highe
     let bestValue = higherIsBetter ? -Infinity : Infinity;
 
     values.forEach((v) => {
-      if (v != null && isFinite(v)) {
+      if (v != null && isFinite(v) && (validFilter == null || validFilter(v))) {
         if (higherIsBetter && v > bestValue) bestValue = v;
         if (lowerIsBetter && v < bestValue) bestValue = v;
       }
@@ -34,7 +35,7 @@ function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, highe
 
     if (isFinite(bestValue)) {
       values.forEach((v, i) => {
-        if (v === bestValue) winnerIndices.push(i);
+        if (v === bestValue && (validFilter == null || validFilter(v))) winnerIndices.push(i);
       });
     }
   }
@@ -125,9 +126,9 @@ export function MetricsTable({ stocks, loadingTickers }: MetricsTableProps) {
 
             {/* Valuation */}
             <SectionHeader title="Valuation" colSpan={stocks.length + 1} />
-            <MetricRow 
+            <MetricRow
               label="P/E Ratio" stocks={stocks} loadingTickers={loadingTickers}
-              getValue={s => s.peRatio} formatValue={formatNumber} lowerIsBetter
+              getValue={s => s.peRatio} formatValue={formatNumber} lowerIsBetter validFilter={v => v > 0}
             />
             <MetricRow 
               label="PEG Ratio" stocks={stocks} loadingTickers={loadingTickers}

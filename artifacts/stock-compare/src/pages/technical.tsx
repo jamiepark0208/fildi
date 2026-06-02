@@ -2,38 +2,18 @@ import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { TickerShelf } from "@/components/ticker-shelf";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface IndicatorResult {
-  ticker: string;
-  scoredDate: string;
-  rsi: number;
-  mfi: number;
-  rsiThreshold: number;
-  mfiThreshold: number;
-  rsiOk: boolean;
-  mfiOk: boolean;
-  signal: "GO" | "WATCH" | "NO";
-  tier: 1 | 2 | 3;
-  atr: number | null;
-  macdCross: "BULLISH_CROSS" | "BEARISH_CROSS" | "BULLISH" | "BEARISH" | null;
-  stoch: number | null;
-  return5d: number | null;
-  position52w: number | null;
-  vsSpy20d: number | null;
-  earningsDate: string | null;
-  stale?: boolean;
-}
+import {
+  type IndicatorResult,
+  type TechnicalScore,
+  computeTechnicalRankings,
+} from "@/lib/technical-rankings";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_SLOTS  = 5;
+const MAX_SLOTS   = 5;
 const SLOT_COLORS = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#f472b6"];
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -94,14 +74,17 @@ interface TechnicalCardsProps {
   data: Record<string, IndicatorResult | null>;
   loading: Record<string, boolean>;
   errors: Record<string, boolean>;
+  scores: TechnicalScore[];
   onAddClick: () => void;
   onRemove: (t: string) => void;
   onRefresh: (t: string) => void;
   refreshing: Set<string>;
 }
 
-function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
-  const slots = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
+function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
+  const slots      = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
+  const scoreMap   = Object.fromEntries(scores.map(s => [s.ticker, s]));
+  const showRanks  = scores.length >= 2;
 
   return (
     <div className="grid grid-cols-5 gap-3">
@@ -170,6 +153,8 @@ function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, 
           ? (new Date(d.earningsDate + "T12:00:00").getTime() - Date.now()) / 86400000 < 14
           : false;
 
+        const ts = scoreMap[ticker];
+
         return (
           <div
             key={ticker}
@@ -179,7 +164,14 @@ function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, 
             {/* Header row */}
             <div className="flex items-start justify-between">
               <div>
-                <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
+                  {showRanks && ts && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                      #{ts.rank}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1 mt-0.5">
                   <TierBadge tier={d.tier} />
                   <SignalBadge signal={d.signal} />
@@ -190,6 +182,24 @@ function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, 
               </div>
               <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center shrink-0">×</button>
             </div>
+
+            {/* Score bar */}
+            {showRanks && ts && (
+              <div className="space-y-0.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground">Score</span>
+                  <span className="font-mono font-semibold tabular-nums text-muted-foreground">
+                    {ts.totalScore.toFixed(1)} / {ts.maxPossible.toFixed(1)}
+                  </span>
+                </div>
+                <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary/60 transition-all"
+                    style={{ width: `${(ts.totalScore / ts.maxPossible) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* RSI */}
             <div className="space-y-1">
@@ -278,6 +288,258 @@ function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, 
   );
 }
 
+// ── Technical Rankings Leaderboard ────────────────────────────────────────────
+
+function TechnicalLeaderboard({ scores }: { scores: TechnicalScore[] }) {
+  if (scores.length < 2) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center gap-2 mb-6">
+        <Trophy className="w-5 h-5 text-primary" />
+        <h2 className="text-lg font-bold tracking-tight">Technical Rankings Leaderboard</h2>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {scores.map((score, idx) => {
+          const isGold   = idx === 0;
+          const isSilver = idx === 1;
+          const isBronze = idx === 2;
+
+          const signalCls =
+            score.signal === "GO"    ? "text-green-400" :
+            score.signal === "WATCH" ? "text-yellow-400" :
+            "text-muted-foreground";
+
+          return (
+            <div
+              key={score.ticker}
+              className={cn(
+                "relative p-4 rounded-lg border flex items-center justify-between overflow-hidden",
+                isGold   ? "border-yellow-500/50 bg-yellow-500/10" :
+                isSilver ? "border-slate-400/50 bg-slate-400/10"   :
+                isBronze ? "border-amber-700/50 bg-amber-700/10"   :
+                "border-border bg-background/50"
+              )}
+            >
+              <div className="flex items-center gap-4 z-10">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0",
+                  isGold   ? "bg-yellow-500 text-yellow-950" :
+                  isSilver ? "bg-slate-400 text-slate-950"   :
+                  isBronze ? "bg-amber-700 text-amber-50"    :
+                  "bg-secondary text-secondary-foreground"
+                )}>
+                  #{score.rank}
+                </div>
+                <div>
+                  <div className="font-mono font-bold text-lg leading-none flex items-center gap-2">
+                    {score.ticker}
+                    <span className={cn("text-xs font-bold", signalCls)}>{score.signal}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">T{score.tier}</span>
+                  </div>
+                  {score.reason && (
+                    <div className="text-xs text-muted-foreground/80 mt-0.5 italic max-w-[320px]">
+                      {score.reason}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-right z-10 flex flex-col items-end shrink-0 ml-4">
+                <div className="font-bold text-lg leading-none mb-1">
+                  {score.totalScore.toFixed(2)} pts
+                </div>
+                <div className="w-24 h-1.5 bg-background rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      isGold   ? "bg-yellow-500" :
+                      isSilver ? "bg-slate-400"   :
+                      isBronze ? "bg-amber-700"   :
+                      "bg-primary"
+                    )}
+                    style={{ width: `${(score.totalScore / scores[0].totalScore) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Technical Metrics Table ───────────────────────────────────────────────────
+
+interface TechRowProps {
+  label: string;
+  tickers: string[];
+  data: Record<string, IndicatorResult | null>;
+  getValue: (d: IndicatorResult) => number | null;
+  lowerIsBetter?: boolean;
+  higherIsBetter?: boolean;
+  format: (v: number) => string;
+  colorFn?: (v: number) => string;
+}
+
+function TechRow({ label, tickers, data, getValue, lowerIsBetter, higherIsBetter, format, colorFn }: TechRowProps) {
+  const values = tickers.map(t => {
+    const d = data[t];
+    return d ? getValue(d) : null;
+  });
+
+  let bestIdx: number | null = null;
+  if ((lowerIsBetter || higherIsBetter) && tickers.length >= 2) {
+    let best = lowerIsBetter ? Infinity : -Infinity;
+    values.forEach((v, i) => {
+      if (v != null && isFinite(v)) {
+        if (lowerIsBetter && v < best) { best = v; bestIdx = i; }
+        if (higherIsBetter && v > best) { best = v; bestIdx = i; }
+      }
+    });
+  }
+
+  return (
+    <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors group">
+      <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card group-hover:bg-card">{label}</td>
+      {tickers.map((ticker, i) => {
+        const v = values[i];
+        const isWinner = bestIdx === i;
+        const colorClass = v != null && colorFn ? colorFn(v) : "";
+        return (
+          <td
+            key={ticker}
+            className={cn(
+              "p-3 text-right font-mono text-sm min-w-[100px]",
+              isWinner ? "text-primary font-bold bg-primary/5" : colorClass || "text-foreground"
+            )}
+          >
+            {v == null ? <span className="text-muted-foreground">—</span> : format(v)}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+function TechnicalMetricsTable({ tickers, data }: { tickers: string[]; data: Record<string, IndicatorResult | null> }) {
+  const loadedTickers = tickers.filter(t => data[t] != null);
+  if (loadedTickers.length === 0) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-max">
+          <thead>
+            <tr className="border-b border-border bg-card">
+              <th className="p-4 font-semibold text-muted-foreground sticky left-0 bg-card z-10 w-48">Metric</th>
+              {loadedTickers.map(ticker => (
+                <th key={ticker} className="p-4 font-bold text-xl text-right">
+                  <span className="font-mono">{ticker}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Signal row */}
+            <tr className="border-b border-border/50">
+              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">Signal</td>
+              {loadedTickers.map(ticker => {
+                const d = data[ticker];
+                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                const cls =
+                  d.signal === "GO"    ? "text-green-400" :
+                  d.signal === "WATCH" ? "text-yellow-400" :
+                  "text-muted-foreground";
+                return (
+                  <td key={ticker} className={cn("p-3 text-right font-bold text-sm", cls)}>
+                    {d.signal}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* RSI with threshold */}
+            <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
+              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card group-hover:bg-card">RSI 14</td>
+              {loadedTickers.map(ticker => {
+                const d = data[ticker];
+                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                return (
+                  <td key={ticker} className={cn("p-3 text-right font-mono text-sm font-semibold", d.rsiOk ? "text-green-400" : "text-red-400")}>
+                    {d.rsi.toFixed(1)}<span className="text-muted-foreground/60 font-normal text-xs"> /{d.rsiThreshold}</span>
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* MFI with threshold */}
+            <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
+              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">MFI 14</td>
+              {loadedTickers.map(ticker => {
+                const d = data[ticker];
+                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                return (
+                  <td key={ticker} className={cn("p-3 text-right font-mono text-sm font-semibold", d.mfiOk ? "text-green-400" : "text-red-400")}>
+                    {d.mfi.toFixed(1)}<span className="text-muted-foreground/60 font-normal text-xs"> /25</span>
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* MACD */}
+            <tr className="border-b border-border/50">
+              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">MACD</td>
+              {loadedTickers.map(ticker => {
+                const d = data[ticker];
+                if (!d || !d.macdCross) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                const isBull = d.macdCross.startsWith("BULLISH");
+                const isCross = d.macdCross.endsWith("_CROSS");
+                const label =
+                  d.macdCross === "BULLISH_CROSS" ? "Bullish ×" :
+                  d.macdCross === "BULLISH"        ? "Bullish"   :
+                  d.macdCross === "BEARISH_CROSS"  ? "Bearish ×" : "Bearish";
+                return (
+                  <td key={ticker} className={cn("p-3 text-right font-mono text-sm font-semibold", isBull ? "text-green-400" : "text-red-400", isCross && "font-bold")}>
+                    {label}
+                  </td>
+                );
+              })}
+            </tr>
+
+            <TechRow
+              label="Stoch %K" tickers={loadedTickers} data={data}
+              getValue={d => d.stoch} lowerIsBetter
+              format={v => v.toFixed(1)}
+              colorFn={v => v < 20 ? "text-green-400" : v > 80 ? "text-red-400" : ""}
+            />
+            <TechRow
+              label="52w Position" tickers={loadedTickers} data={data}
+              getValue={d => d.position52w} lowerIsBetter
+              format={v => `${v.toFixed(0)}%`}
+              colorFn={v => v < 30 ? "text-green-400" : v > 70 ? "text-red-400" : ""}
+            />
+            <TechRow
+              label="5d Return" tickers={loadedTickers} data={data}
+              getValue={d => d.return5d} lowerIsBetter
+              format={v => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
+              colorFn={v => v < 0 ? "text-green-400" : v > 5 ? "text-red-400" : ""}
+            />
+            <TechRow
+              label="vs SPY 20d" tickers={loadedTickers} data={data}
+              getValue={d => d.vsSpy20d} lowerIsBetter
+              format={v => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
+              colorFn={v => v < 0 ? "text-green-400" : v > 5 ? "text-red-400" : ""}
+            />
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const WATCHLIST = [
@@ -333,6 +595,13 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
     return m;
   }, [tickers, queries]);
 
+  const technicalScores = useMemo(() => {
+    const loaded = tickers
+      .map(t => dataMap[t])
+      .filter((d): d is IndicatorResult => d != null);
+    return computeTechnicalRankings(loaded);
+  }, [tickers, dataMap]);
+
   const handleRefresh = async (ticker: string) => {
     setRefreshing(s => new Set(s).add(ticker));
     try {
@@ -341,6 +610,8 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
       setRefreshing(s => { const n = new Set(s); n.delete(ticker); return n; });
     }
   };
+
+  const hasData = tickers.some(t => dataMap[t] != null);
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
@@ -361,17 +632,25 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
           />
         </div>
 
-        <div className="p-5">
+        <div className="p-5 space-y-4">
           <TechnicalCards
             tickers={tickers}
             data={dataMap}
             loading={loadingMap}
             errors={errorMap}
+            scores={technicalScores}
             onAddClick={focusInput}
             onRemove={handleRemove}
             onRefresh={handleRefresh}
             refreshing={refreshing}
           />
+
+          {hasData && (
+            <div className="space-y-4">
+              {technicalScores.length >= 2 && <TechnicalLeaderboard scores={technicalScores} />}
+              <TechnicalMetricsTable tickers={tickers} data={dataMap} />
+            </div>
+          )}
         </div>
       </main>
     </div>

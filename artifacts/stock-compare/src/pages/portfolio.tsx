@@ -1,21 +1,27 @@
 import { useState, useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { getGetStockQuoteQueryOptions } from "@workspace/api-client-react";
+import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { Sidebar } from "@/components/sidebar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  usePortfolio, PortfolioEntry, PositionType,
+  usePortfolio, PortfolioEntry, PositionType, entryPortfolio,
   positionLabel, isOptionsPosition, isShortPosition,
-  notionalValue, premiumReceived, daysToExpiry,
+  notionalValue, premiumReceived, daysToExpiry, cashCollateral,
 } from "@/hooks/use-portfolio";
-import { formatCurrency, formatLargeNumber } from "@/lib/format";
-import { Plus, Trash2, TrendingUp, TrendingDown, Clock, AlertTriangle } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
+import {
+  Plus, Trash2, TrendingUp, Clock, AlertTriangle,
+  Pencil, Wallet, ChevronDown, ChevronRight,
+  ArrowUpDown, ArrowUp, ArrowDown, FolderPlus,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PortfolioAnalysis } from "@/components/portfolio-analysis";
+import { DailyBrief } from "@/components/daily-brief";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Position types ────────────────────────────────────────────────────────────
 
 const POSITION_TYPES: { type: PositionType; label: string; desc: string; color: string }[] = [
   { type: "short_put",  label: "Short Put",  desc: "Sell put, collect premium",  color: "text-green-400" },
@@ -25,29 +31,78 @@ const POSITION_TYPES: { type: PositionType; label: string; desc: string; color: 
   { type: "long_call",  label: "Long Call",  desc: "Buy call for upside",        color: "text-purple-400" },
 ];
 
-// ── Add position dialog ───────────────────────────────────────────────────────
+// ── Sort helpers ──────────────────────────────────────────────────────────────
 
-function AddPositionDialog({ open, onClose, onAdd }: {
+type SortCol = "ticker" | "type" | "qty" | "strike" | "value" | "pnl";
+
+function getSortValue(e: PortfolioEntry, col: SortCol, priceMap: Record<string, number | undefined>): string | number {
+  switch (col) {
+    case "ticker": return e.ticker;
+    case "type":   return e.positionType;
+    case "qty":    return e.qty;
+    case "strike": return e.strike ?? e.avgPrice;
+    case "value":
+      if (e.positionType === "short_put") return cashCollateral(e);
+      if (e.positionType === "stock") return (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
+      return premiumReceived(e);
+    case "pnl":
+      if (e.positionType === "short_put") return premiumReceived(e);
+      if (e.positionType === "stock") {
+        const p = priceMap[e.ticker];
+        return p ? (p - e.avgPrice) * e.qty : 0;
+      }
+      return daysToExpiry(e.expiry) ?? 999;
+  }
+}
+
+const SORTABLE_COLS: { col: SortCol; label: string; align: "left" | "right" }[] = [
+  { col: "ticker", label: "Ticker",             align: "left" },
+  { col: "type",   label: "Type",               align: "left" },
+  { col: "qty",    label: "Qty",                align: "right" },
+  { col: "strike", label: "Strike / Price",     align: "right" },
+  { col: "value",  label: "Collateral / Value", align: "right" },
+  { col: "pnl",    label: "Premium / P&L",      align: "right" },
+];
+
+// ── Add/Edit position dialog ──────────────────────────────────────────────────
+
+function PositionDialog({
+  open, onClose, initial, onSubmit, portfolioNames, presetPortfolio,
+}: {
   open: boolean;
   onClose: () => void;
-  onAdd: (entry: Omit<PortfolioEntry, "id" | "openedAt">) => void;
+  initial?: PortfolioEntry;
+  onSubmit: (entry: Omit<PortfolioEntry, "id" | "openedAt">) => void;
+  portfolioNames: string[];
+  presetPortfolio?: string;
 }) {
-  const [step, setStep] = useState<"type" | "details">("type");
-  const [posType, setPosType] = useState<PositionType | null>(null);
-  const [ticker, setTicker] = useState("");
-  const [qty, setQty] = useState("");
-  const [price, setPrice] = useState("");
-  const [strike, setStrike] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [notes, setNotes] = useState("");
+  const isEdit = !!initial;
+
+  // Resolve the initial portfolio value, migrating from legacy `notes` field
+  const resolvedInitialPortfolio = (() => {
+    if (initial?.portfolioName) return initial.portfolioName;
+    if (initial?.notes && portfolioNames.includes(initial.notes)) return initial.notes;
+    return presetPortfolio ?? portfolioNames[0] ?? "";
+  })();
+
+  const [step,          setStep]          = useState<"type" | "details">(isEdit ? "details" : "type");
+  const [posType,       setPosType]       = useState<PositionType | null>(initial?.positionType ?? null);
+  const [ticker,        setTicker]        = useState(initial?.ticker ?? "");
+  const [qty,           setQty]           = useState(initial?.qty?.toString() ?? "");
+  const [price,         setPrice]         = useState(initial?.avgPrice?.toString() ?? "");
+  const [strike,        setStrike]        = useState(initial?.strike?.toString() ?? "");
+  const [expiry,        setExpiry]        = useState(initial?.expiry ?? "");
+  const [portfolio,     setPortfolio]     = useState(resolvedInitialPortfolio);
 
   const reset = () => {
-    setStep("type"); setPosType(null); setTicker(""); setQty("");
-    setPrice(""); setStrike(""); setExpiry(""); setNotes("");
+    setStep(isEdit ? "details" : "type");
+    if (!isEdit) {
+      setPosType(null); setTicker(""); setQty(""); setPrice("");
+      setStrike(""); setExpiry(""); setPortfolio(presetPortfolio ?? portfolioNames[0] ?? "");
+    }
   };
 
   const handleClose = () => { reset(); onClose(); };
-
   const handleSubmit = () => {
     if (!posType || !ticker || !qty || !price) return;
     const entry: Omit<PortfolioEntry, "id" | "openedAt"> = {
@@ -55,20 +110,21 @@ function AddPositionDialog({ open, onClose, onAdd }: {
       positionType: posType,
       qty: Number(qty),
       avgPrice: Number(price),
-      notes: notes || undefined,
+      portfolioName: portfolio || undefined,
+      notes: undefined, // clear legacy field on save
     };
     if (isOptionsPosition(posType)) {
       entry.strike = strike ? Number(strike) : undefined;
       entry.expiry = expiry || undefined;
     }
-    onAdd(entry);
+    onSubmit(entry);
     reset();
     onClose();
   };
 
   const isOptionsType = posType ? isOptionsPosition(posType) : false;
-  const isShort = posType ? isShortPosition(posType) : false;
-  const valid = !!(posType && ticker.trim() && qty && Number(qty) > 0 && price && Number(price) >= 0);
+  const isShort       = posType ? isShortPosition(posType) : false;
+  const valid         = !!(posType && ticker.trim() && qty && Number(qty) > 0 && price && Number(price) >= 0);
 
   const inputCls = "w-full h-9 px-3 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
   const labelCls = "block text-xs font-medium text-muted-foreground mb-1";
@@ -77,18 +133,17 @@ function AddPositionDialog({ open, onClose, onAdd }: {
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{step === "type" ? "Add Position — Select Type" : `Add ${posType ? positionLabel(posType) : ""}`}</DialogTitle>
+          <DialogTitle>
+            {step === "type" ? "Add Position — Select Type" : `${isEdit ? "Edit" : "Add"} ${posType ? positionLabel(posType) : ""}`}
+          </DialogTitle>
         </DialogHeader>
 
         {step === "type" ? (
           <div className="space-y-2 pt-1">
             {POSITION_TYPES.map(pt => (
-              <button
-                key={pt.type}
-                onClick={() => { setPosType(pt.type); setStep("details"); }}
-                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 hover:border-primary/40 transition-all text-left"
-              >
-                <div className="flex-1">
+              <button key={pt.type} onClick={() => { setPosType(pt.type); setStep("details"); }}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 hover:border-primary/40 transition-all text-left">
+                <div>
                   <div className={cn("font-semibold text-sm", pt.color)}>{pt.label}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{pt.desc}</div>
                 </div>
@@ -97,84 +152,73 @@ function AddPositionDialog({ open, onClose, onAdd }: {
           </div>
         ) : (
           <div className="space-y-4 pt-1">
+            {/* Portfolio */}
+            <div>
+              <label className={labelCls}>Portfolio *</label>
+              <select className={cn(inputCls, "cursor-pointer")} value={portfolio}
+                onChange={e => setPortfolio(e.target.value)}>
+                <option value="">— Unassigned —</option>
+                {portfolioNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+
+            {/* Ticker + Qty */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Ticker *</label>
-                <input
-                  className={cn(inputCls, "uppercase")}
-                  placeholder="NVDA"
-                  value={ticker}
-                  onChange={e => setTicker(e.target.value.toUpperCase())}
-                  autoFocus
-                />
+                <input className={cn(inputCls, "uppercase")} placeholder="NVDA" value={ticker}
+                  onChange={e => setTicker(e.target.value.toUpperCase())} autoFocus={!isEdit} />
               </div>
               <div>
                 <label className={labelCls}>{isOptionsType ? "Contracts *" : "Shares *"}</label>
-                <input
-                  className={inputCls}
-                  type="number"
-                  min="1"
-                  placeholder="1"
-                  value={qty}
-                  onChange={e => setQty(e.target.value)}
-                />
+                <input className={inputCls} type="number" min="1" placeholder="1" value={qty}
+                  onChange={e => setQty(e.target.value)} />
               </div>
             </div>
 
+            {/* Type (edit only) */}
+            {isEdit && (
+              <div>
+                <label className={labelCls}>Position Type</label>
+                <select className={cn(inputCls, "cursor-pointer")} value={posType ?? ""}
+                  onChange={e => setPosType(e.target.value as PositionType)}>
+                  {POSITION_TYPES.map(pt => <option key={pt.type} value={pt.type}>{pt.label}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Price / Premium */}
             <div>
               <label className={labelCls}>
                 {isShort ? "Premium Received (per contract) *" : isOptionsType ? "Premium Paid (per contract) *" : "Avg Price Per Share *"}
               </label>
-              <input
-                className={inputCls}
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={price}
-                onChange={e => setPrice(e.target.value)}
-              />
+              <input className={inputCls} type="number" step="0.01" min="0" placeholder="0.00"
+                value={price} onChange={e => setPrice(e.target.value)} />
             </div>
 
+            {/* Strike + Expiry */}
             {isOptionsType && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Strike Price</label>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    step="0.50"
-                    min="0"
-                    placeholder="850.00"
-                    value={strike}
-                    onChange={e => setStrike(e.target.value)}
-                  />
+                  <input className={inputCls} type="number" step="0.50" min="0" placeholder="850.00"
+                    value={strike} onChange={e => setStrike(e.target.value)} />
                 </div>
                 <div>
                   <label className={labelCls}>Expiry Date</label>
-                  <input
-                    className={inputCls}
-                    type="date"
-                    value={expiry}
-                    onChange={e => setExpiry(e.target.value)}
-                  />
+                  <input className={inputCls} type="date" value={expiry}
+                    onChange={e => setExpiry(e.target.value)} />
                 </div>
               </div>
             )}
 
-            <div>
-              <label className={labelCls}>Notes (optional)</label>
-              <input
-                className={inputCls}
-                placeholder="e.g. RSI 34 / MFI 18 at entry"
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-              />
-            </div>
-
+            {/* Actions */}
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setStep("type")}>Back</Button>
-              <Button className="flex-1" onClick={handleSubmit} disabled={!valid}>Add Position</Button>
+              {!isEdit && <Button variant="outline" className="flex-1" onClick={() => setStep("type")}>Back</Button>}
+              <Button variant="outline" className={isEdit ? "flex-1" : ""} onClick={handleClose}>Cancel</Button>
+              <Button className="flex-1" onClick={handleSubmit} disabled={!valid}>
+                {isEdit ? "Save Changes" : "Add Position"}
+              </Button>
             </div>
           </div>
         )}
@@ -183,49 +227,82 @@ function AddPositionDialog({ open, onClose, onAdd }: {
   );
 }
 
-// ── Summary cards ─────────────────────────────────────────────────────────────
+// ── Add Portfolio dialog ──────────────────────────────────────────────────────
 
-function SummaryCard({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon: React.ReactNode }) {
+function AddPortfolioDialog({ open, onClose, onAdd, existing }: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (name: string) => void;
+  existing: string[];
+}) {
+  const [name, setName] = useState("");
+  const trimmed = name.trim();
+  const isDupe  = existing.includes(trimmed);
+  const valid   = !!trimmed && !isDupe;
+
+  const handleSubmit = () => {
+    if (!valid) return;
+    onAdd(trimmed);
+    setName("");
+    onClose();
+  };
+
+  const inputCls = "w-full h-9 px-3 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
+
   return (
-    <Card>
-      <CardContent className="p-4 flex items-start gap-3">
-        <div className="mt-0.5 text-muted-foreground">{icon}</div>
-        <div>
-          <div className="text-xs text-muted-foreground font-medium mb-1">{label}</div>
-          <div className="text-xl font-bold font-mono tabular-nums">{value}</div>
-          {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
+    <Dialog open={open} onOpenChange={(v) => !v && (setName(""), onClose())}>
+      <DialogContent className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle>Add Portfolio</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Portfolio Name *</label>
+            <input
+              className={inputCls}
+              placeholder="e.g. Roth IRA, Margin, TFSA"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              autoFocus
+            />
+            {isDupe && <p className="text-xs text-red-400 mt-1">A portfolio with this name already exists.</p>}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setName(""); onClose(); }}>Cancel</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={!valid}>Create</Button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
 
-function PositionRow({ entry, currentPrice, onRemove }: {
+function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
   entry: PortfolioEntry;
   currentPrice: number | undefined;
   onRemove: (id: string) => void;
+  onEdit: (entry: PortfolioEntry) => void;
 }) {
-  const isOpt = isOptionsPosition(entry.positionType);
-  const isShort = isShortPosition(entry.positionType);
-  const dte = daysToExpiry(entry.expiry);
-  const premium = premiumReceived(entry);
+  const isOpt      = isOptionsPosition(entry.positionType);
+  const isShort    = isShortPosition(entry.positionType);
+  const dte        = daysToExpiry(entry.expiry);
+  const premium    = premiumReceived(entry);
+  const collateral = cashCollateral(entry);
 
-  const pnl = useMemo(() => {
+  const pnl = (() => {
     if (!currentPrice || entry.positionType !== "stock") return null;
     return (currentPrice - entry.avgPrice) * entry.qty;
-  }, [currentPrice, entry]);
+  })();
 
   const expiryWarning = dte !== null && dte >= 0 && dte <= 7;
-  const isExpired = dte !== null && dte < 0;
+  const isExpired     = dte !== null && dte < 0;
 
   return (
     <tr className="border-b border-border/30 hover:bg-secondary/20 transition-colors group">
-      <td className="py-2.5 px-4">
-        <div className="font-mono font-bold text-sm">{entry.ticker}</div>
-        {entry.notes && <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">{entry.notes}</div>}
-      </td>
+      <td className="py-2.5 px-4 font-mono font-bold text-sm">{entry.ticker}</td>
       <td className="py-2.5 px-4">
         <Badge variant="outline" className={cn(
           "text-[10px] font-medium",
@@ -238,26 +315,31 @@ function PositionRow({ entry, currentPrice, onRemove }: {
       </td>
       <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
         {entry.qty}
-        <span className="text-muted-foreground text-xs ml-1">{isOpt ? "ct" : "sh"}</span>
+        <span className="text-muted-foreground text-xs ml-1">{isOpt ? "contracts" : "shares"}</span>
       </td>
       <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {isOpt && entry.strike ? (
-          <span>${entry.strike.toFixed(2)}</span>
-        ) : (
-          <span>${entry.avgPrice.toFixed(2)}</span>
-        )}
+        {isOpt && entry.strike ? `$${entry.strike.toFixed(2)}` : `$${entry.avgPrice.toFixed(2)}`}
       </td>
       <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {isOpt ? (
-          <span className={cn("text-green-400", !isShort && "text-red-400")}>
+        {entry.positionType === "short_put" ? (
+          <div className="flex flex-col items-end">
+            <span className="text-yellow-400">{formatCurrency(collateral)}</span>
+            <span className="text-[10px] text-muted-foreground">collateral</span>
+          </div>
+        ) : isOpt ? (
+          <span className={isShort ? "text-green-400" : "text-red-400"}>
             {isShort ? "+" : "-"}{formatCurrency(Math.abs(isShort ? premium : entry.avgPrice * 100 * entry.qty))}
           </span>
         ) : (
-          currentPrice ? <span className="text-foreground">{formatCurrency(currentPrice * entry.qty)}</span> : <span className="text-muted-foreground">—</span>
+          currentPrice
+            ? <span>{formatCurrency(currentPrice * entry.qty)}</span>
+            : <span className="text-muted-foreground">—</span>
         )}
       </td>
       <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {pnl !== null ? (
+        {entry.positionType === "short_put" ? (
+          <span className="text-green-400">+{formatCurrency(premium)}</span>
+        ) : pnl !== null ? (
           <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>
             {pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}
           </span>
@@ -269,32 +351,201 @@ function PositionRow({ entry, currentPrice, onRemove }: {
             {expiryWarning && <AlertTriangle className="w-3 h-3" />}
             {isExpired ? "Expired" : dte === 0 ? "Today" : `${dte}d`}
           </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        ) : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="py-2.5 px-4 text-right">
-        <button
-          onClick={() => onRemove(entry.id)}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-red-400"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          <button onClick={() => onEdit(entry)}
+            className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-primary">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onRemove(entry.id)}
+            className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-red-400">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </td>
     </tr>
   );
 }
 
-// ── Concentration bar ─────────────────────────────────────────────────────────
+// ── Portfolio box ─────────────────────────────────────────────────────────────
 
-function ConcentrationBar({ ticker, pct, color }: { ticker: string; pct: number; color: string }) {
+function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition }: {
+  name: string;
+  entries: PortfolioEntry[];
+  priceMap: Record<string, number | undefined>;
+  onEdit: (entry: PortfolioEntry) => void;
+  onRemove: (id: string) => void;
+  onAddPosition: (portfolioName: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [sort, setSort]           = useState<{ col: SortCol; dir: "asc" | "desc" }>({ col: "ticker", dir: "asc" });
+
+  const toggleSort = (col: SortCol) =>
+    setSort(prev => prev.col === col
+      ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+      : { col, dir: "asc" }
+    );
+
+  const sortedEntries = useMemo(() =>
+    [...entries].sort((a, b) => {
+      const va = getSortValue(a, sort.col, priceMap);
+      const vb = getSortValue(b, sort.col, priceMap);
+      const cmp = typeof va === "string"
+        ? (va as string).localeCompare(vb as string)
+        : (va as number) - (vb as number);
+      return sort.dir === "asc" ? cmp : -cmp;
+    }),
+  [entries, sort, priceMap]);
+
+  const stats = useMemo(() => {
+    let collateral = 0, premium = 0, stockValue = 0;
+    entries.forEach(e => {
+      if (e.positionType === "short_put") {
+        collateral += cashCollateral(e); premium += premiumReceived(e);
+      } else if (e.positionType === "short_call") {
+        premium += premiumReceived(e);
+      } else if (e.positionType === "stock") {
+        stockValue += (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
+      }
+    });
+    return { collateral, premium, stockValue, total: collateral + premium + stockValue };
+  }, [entries, priceMap]);
+
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-14 font-mono font-bold text-right">{ticker}</span>
-      <div className="flex-1 bg-secondary rounded-full h-1.5 overflow-hidden">
-        <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
+    <Card>
+      {/* Box header */}
+      <div className="px-4 py-3 flex items-center justify-between border-b border-border/40">
+        {/* Left: collapse toggle + name */}
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="flex items-center gap-2 hover:text-foreground transition-colors text-left"
+        >
+          {collapsed
+            ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            : <ChevronDown  className="w-4 h-4 text-muted-foreground shrink-0" />}
+          <span className="font-bold text-sm">{name}</span>
+          <span className="text-xs text-muted-foreground">
+            {entries.length} position{entries.length !== 1 ? "s" : ""}
+          </span>
+        </button>
+
+        {/* Right: stats + Add Position */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+            {stats.collateral > 0 && (
+              <span className="text-yellow-400">
+                <span className="text-muted-foreground font-sans mr-1">collateral</span>
+                {formatCurrency(stats.collateral)}
+              </span>
+            )}
+            {stats.premium > 0 && (
+              <span className="text-green-400">
+                <span className="text-muted-foreground font-sans mr-1">premium</span>
+                +{formatCurrency(stats.premium)}
+              </span>
+            )}
+            {stats.stockValue > 0 && (
+              <span className="text-blue-400">
+                <span className="text-muted-foreground font-sans mr-1">stock</span>
+                {formatCurrency(stats.stockValue)}
+              </span>
+            )}
+            {stats.total > 0 && (
+              <span className="font-bold text-foreground border-l border-border pl-3">
+                {formatCurrency(stats.total)}
+              </span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAddPosition(name)}
+            className="gap-1.5 h-7 text-xs shrink-0"
+          >
+            <Plus className="w-3 h-3" /> Add Position
+          </Button>
+        </div>
       </div>
-      <span className="w-10 text-right text-muted-foreground tabular-nums">{pct.toFixed(0)}%</span>
+
+      {/* Table */}
+      {!collapsed && (
+        <CardContent className="p-0">
+          {entries.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-muted-foreground">No positions in {name} yet.</p>
+              <button
+                onClick={() => onAddPosition(name)}
+                className="mt-2 text-xs text-primary hover:underline"
+              >
+                Add your first {name} position →
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/40 bg-secondary/10">
+                    {SORTABLE_COLS.map(({ col, label, align }) => (
+                      <th
+                        key={col}
+                        onClick={() => toggleSort(col)}
+                        className={cn(
+                          "py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider",
+                          "cursor-pointer select-none hover:text-foreground transition-colors",
+                          align === "right" ? "text-right" : "text-left"
+                        )}
+                      >
+                        <div className={cn("flex items-center gap-1", align === "right" && "justify-end")}>
+                          {label}
+                          {sort.col === col
+                            ? sort.dir === "asc"
+                              ? <ArrowUp className="w-3 h-3 text-primary" />
+                              : <ArrowDown className="w-3 h-3 text-primary" />
+                            : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                        </div>
+                      </th>
+                    ))}
+                    <th className="py-2 px-4 w-16" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedEntries.map(entry => (
+                    <PositionRow
+                      key={entry.id}
+                      entry={entry}
+                      currentPrice={priceMap[entry.ticker]}
+                      onRemove={onRemove}
+                      onEdit={onEdit}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ── Aggregate summary card ────────────────────────────────────────────────────
+
+function AggCard({ label, value, sub, icon, highlight }: {
+  label: string; value: string; sub?: string; icon: React.ReactNode; highlight?: boolean;
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border p-4 flex items-start gap-3",
+      highlight ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+    )}>
+      <div className="mt-0.5 text-muted-foreground">{icon}</div>
+      <div>
+        <div className="text-xs text-muted-foreground font-medium mb-1">{label}</div>
+        <div className="text-xl font-bold font-mono tabular-nums">{value}</div>
+        {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
+      </div>
     </div>
   );
 }
@@ -302,8 +553,15 @@ function ConcentrationBar({ ticker, pct, color }: { ticker: string; pct: number;
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Portfolio() {
-  const { entries, isLoaded, addEntry, removeEntry } = usePortfolio();
-  const [showAdd, setShowAdd] = useState(false);
+  const {
+    entries, portfolioNames, isLoaded,
+    addEntry, removeEntry, updateEntry, addPortfolioName,
+  } = usePortfolio();
+
+  const [showAddPortfolio, setShowAddPortfolio] = useState(false);
+  const [showAddPosition,  setShowAddPosition]  = useState(false);
+  const [presetPortfolio,  setPresetPortfolio]  = useState<string | undefined>(undefined);
+  const [editingEntry,     setEditingEntry]      = useState<PortfolioEntry | null>(null);
 
   const uniqueTickers = useMemo(() => [...new Set(entries.map(e => e.ticker))], [entries]);
 
@@ -320,62 +578,55 @@ export default function Portfolio() {
     return m;
   }, [uniqueTickers, priceQueries]);
 
-  // Summary stats
-  const { totalPremium, totalStockValue, totalStockPnL, openOptions, expiringThisWeek } = useMemo(() => {
-    let totalPremium = 0;
-    let totalStockValue = 0;
-    let totalStockPnL = 0;
-    let openOptions = 0;
-    let expiringThisWeek = 0;
+  const stockDataMap = useMemo(() => {
+    const m: Record<string, StockMetrics> = {};
+    uniqueTickers.forEach((t, i) => { if (priceQueries[i]?.data) m[t] = priceQueries[i].data!; });
+    return m;
+  }, [uniqueTickers, priceQueries]);
 
+  // Group entries by portfolio, using legacy notes fallback
+  const grouped = useMemo(() => {
+    const g: Record<string, PortfolioEntry[]> = {};
     entries.forEach(e => {
-      if (isShortPosition(e.positionType)) {
-        totalPremium += premiumReceived(e);
-        openOptions++;
-        const dte = daysToExpiry(e.expiry);
-        if (dte !== null && dte >= 0 && dte <= 7) expiringThisWeek++;
+      const key = entryPortfolio(e) || "Unassigned";
+      if (!g[key]) g[key] = [];
+      g[key].push(e);
+    });
+    return g;
+  }, [entries]);
+
+  // Aggregate stats
+  const agg = useMemo(() => {
+    let totalCollateral = 0, totalPremium = 0, totalStockValue = 0, openOptions = 0, expiringThisWeek = 0;
+    entries.forEach(e => {
+      if (e.positionType === "short_put") {
+        totalCollateral += cashCollateral(e); totalPremium += premiumReceived(e); openOptions++;
+        if ((daysToExpiry(e.expiry) ?? 99) <= 7) expiringThisWeek++;
+      } else if (e.positionType === "short_call") {
+        totalPremium += premiumReceived(e); openOptions++;
+        if ((daysToExpiry(e.expiry) ?? 99) <= 7) expiringThisWeek++;
       } else if (e.positionType === "stock") {
-        const price = priceMap[e.ticker];
-        totalStockValue += (price ?? e.avgPrice) * e.qty;
-        totalStockPnL += price ? (price - e.avgPrice) * e.qty : 0;
-      } else {
-        openOptions++;
-      }
+        totalStockValue += (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
+      } else { openOptions++; }
     });
-
-    return { totalPremium, totalStockValue, totalStockPnL, openOptions, expiringThisWeek };
+    return { totalCollateral, totalPremium, totalStockValue, openOptions, expiringThisWeek,
+      totalValue: totalCollateral + totalPremium + totalStockValue };
   }, [entries, priceMap]);
 
-  // Concentration by notional
-  const concentration = useMemo(() => {
-    const byTicker: Record<string, number> = {};
-    entries.forEach(e => {
-      const n = e.positionType === "stock"
-        ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
-        : notionalValue(e);
-      byTicker[e.ticker] = (byTicker[e.ticker] ?? 0) + n;
-    });
-    const total = Object.values(byTicker).reduce((a, b) => a + b, 0);
-    if (total === 0) return [];
-    return Object.entries(byTicker)
-      .map(([ticker, val]) => ({ ticker, pct: (val / total) * 100 }))
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 10);
-  }, [entries, priceMap]);
+  // "Unassigned" entries — those not in any named portfolio
+  const unassignedEntries = useMemo(() =>
+    entries.filter(e => {
+      const key = entryPortfolio(e);
+      return !key || !portfolioNames.includes(key);
+    }),
+  [entries, portfolioNames]);
 
-  // Upcoming expirations (options only, sorted by date)
-  const upcoming = useMemo(() =>
-    entries
-      .filter(e => isOptionsPosition(e.positionType) && e.expiry)
-      .map(e => ({ entry: e, dte: daysToExpiry(e.expiry) }))
-      .filter(x => x.dte !== null && x.dte >= 0)
-      .sort((a, b) => (a.dte ?? 999) - (b.dte ?? 999))
-      .slice(0, 8),
-  [entries]);
+  const openAddPosition = (pName?: string) => {
+    setPresetPortfolio(pName);
+    setShowAddPosition(true);
+  };
 
   if (!isLoaded) return null;
-
-  const TABLE_HEADS = ["Ticker", "Type", "Qty", "Strike / Price", "Value / Premium", "P&L / DTE", ""];
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
@@ -387,171 +638,128 @@ export default function Portfolio() {
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Portfolio</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {entries.length === 0 ? "No positions yet" : `${entries.length} position${entries.length !== 1 ? "s" : ""} across ${uniqueTickers.length} ticker${uniqueTickers.length !== 1 ? "s" : ""}`}
+              {entries.length === 0
+                ? "No positions yet"
+                : `${entries.length} position${entries.length !== 1 ? "s" : ""} across ${uniqueTickers.length} ticker${uniqueTickers.length !== 1 ? "s" : ""} · ${portfolioNames.length} portfolio${portfolioNames.length !== 1 ? "s" : ""}`}
             </p>
           </div>
-          <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5 h-8">
-            <Plus className="w-3.5 h-3.5" /> Add Position
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
+              <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
+            </Button>
+            <Button size="sm" onClick={() => openAddPosition(undefined)} className="gap-1.5 h-8">
+              <Plus className="w-3.5 h-3.5" /> Add Position
+            </Button>
+          </div>
         </div>
 
         <div className="p-5 space-y-5">
-          {entries.length === 0 ? (
-            /* Empty state */
+          {entries.length === 0 && portfolioNames.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 gap-5 text-center">
               <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
                 <TrendingUp className="w-8 h-8 text-muted-foreground/50" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">No positions tracked yet</p>
+                <p className="text-sm font-medium">No positions tracked yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Add your stock and options holdings to track P&L, concentration risk, and upcoming expirations.
+                  Create portfolios (IRA, FILDI, MOM) then add positions to each.
                 </p>
               </div>
-              <Button onClick={() => setShowAdd(true)} className="gap-1.5">
-                <Plus className="w-4 h-4" /> Add your first position
+              <Button onClick={() => setShowAddPortfolio(true)} className="gap-1.5">
+                <FolderPlus className="w-4 h-4" /> Create first portfolio
               </Button>
             </div>
           ) : (
             <>
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <SummaryCard
-                  label="Premium Collected"
-                  value={formatCurrency(totalPremium)}
-                  sub={`from ${openOptions} option leg${openOptions !== 1 ? "s" : ""}`}
-                  icon={<TrendingUp className="w-4 h-4" />}
-                />
-                <SummaryCard
-                  label="Stock Exposure"
-                  value={formatLargeNumber(totalStockValue) ?? "—"}
-                  sub={totalStockPnL >= 0
-                    ? `+${formatCurrency(totalStockPnL)} unrealized`
-                    : `${formatCurrency(totalStockPnL)} unrealized`}
-                  icon={totalStockPnL >= 0
-                    ? <TrendingUp className="w-4 h-4 text-green-400" />
-                    : <TrendingDown className="w-4 h-4 text-red-400" />}
-                />
-                <SummaryCard
-                  label="Expiring This Week"
-                  value={String(expiringThisWeek)}
-                  sub="option legs"
-                  icon={<Clock className={cn("w-4 h-4", expiringThisWeek > 0 ? "text-yellow-400" : "")} />}
-                />
-                <SummaryCard
-                  label="Open Legs"
-                  value={String(openOptions)}
-                  sub="options positions"
-                  icon={<TrendingUp className="w-4 h-4" />}
-                />
-              </div>
+              {/* Aggregate summary */}
+              {entries.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <AggCard label="Total Portfolio Value" value={formatCurrency(agg.totalValue)}
+                    sub="collateral + premium + stock"
+                    icon={<Wallet className="w-4 h-4 text-primary" />} highlight />
+                  <AggCard label="Cash Collateral Tied Up" value={formatCurrency(agg.totalCollateral)}
+                    sub="locked for short puts (strike × 100 × qty)"
+                    icon={<Wallet className="w-4 h-4 text-yellow-400" />} />
+                  <AggCard label="Premium Collected" value={formatCurrency(agg.totalPremium)}
+                    sub={`from ${agg.openOptions} option leg${agg.openOptions !== 1 ? "s" : ""}`}
+                    icon={<TrendingUp className="w-4 h-4 text-green-400" />} />
+                  <AggCard label="Expiring This Week" value={String(agg.expiringThisWeek)}
+                    sub={`of ${agg.openOptions} open legs`}
+                    icon={<Clock className={cn("w-4 h-4", agg.expiringThisWeek > 0 ? "text-yellow-400" : "")} />} />
+                </div>
+              )}
 
-              {/* Holdings table */}
-              <Card>
-                <CardHeader className="pb-2 px-4 pt-4">
-                  <CardTitle className="text-sm font-semibold">Holdings</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/40">
-                          {TABLE_HEADS.map(h => (
-                            <th key={h} className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {entries.map(entry => (
-                          <PositionRow
-                            key={entry.id}
-                            entry={entry}
-                            currentPrice={priceMap[entry.ticker]}
-                            onRemove={removeEntry}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Daily AI Highlights */}
+              <DailyBrief tickers={uniqueTickers} />
 
-              {/* Bottom panels */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Concentration */}
-                {concentration.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2 px-4 pt-4">
-                      <CardTitle className="text-sm font-semibold">Concentration by Notional</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 space-y-2">
-                      {concentration.map((c, i) => (
-                        <ConcentrationBar
-                          key={c.ticker}
-                          ticker={c.ticker}
-                          pct={c.pct}
-                          color={
-                            i === 0 ? "bg-blue-500" :
-                            i === 1 ? "bg-purple-500" :
-                            i === 2 ? "bg-green-500" :
-                                      "bg-secondary-foreground/30"
-                          }
-                        />
-                      ))}
-                      {concentration.length === 1 && (
-                        <p className="text-xs text-muted-foreground pt-1">Add more positions to see concentration risk.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
+              {/* Named portfolio boxes */}
+              <div className="space-y-4">
+                {portfolioNames.map(name => (
+                  <PortfolioBox
+                    key={name}
+                    name={name}
+                    entries={grouped[name] ?? []}
+                    priceMap={priceMap}
+                    onEdit={setEditingEntry}
+                    onRemove={removeEntry}
+                    onAddPosition={openAddPosition}
+                  />
+                ))}
 
-                {/* Upcoming expirations */}
-                {upcoming.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2 px-4 pt-4">
-                      <CardTitle className="text-sm font-semibold">Upcoming Expirations</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 space-y-2">
-                      {upcoming.map(({ entry, dte }) => (
-                        <div key={entry.id} className="flex items-center justify-between text-xs py-1 border-b border-border/20 last:border-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold">{entry.ticker}</span>
-                            <Badge variant="outline" className={cn(
-                              "text-[10px]",
-                              isShortPosition(entry.positionType)
-                                ? "text-green-400 border-green-500/30 bg-green-500/10"
-                                : "text-orange-400 border-orange-500/30 bg-orange-500/10"
-                            )}>
-                              {positionLabel(entry.positionType)}
-                            </Badge>
-                            {entry.strike && <span className="text-muted-foreground">${entry.strike}</span>}
-                          </div>
-                          <span className={cn(
-                            "font-mono font-semibold",
-                            (dte ?? 99) <= 3 ? "text-red-400" :
-                            (dte ?? 99) <= 7 ? "text-yellow-400" : "text-muted-foreground"
-
-                          )}>
-                            {dte === 0 ? "Today" : `${dte}d`}
-                          </span>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
+                {/* Unassigned entries */}
+                {unassignedEntries.length > 0 && (
+                  <PortfolioBox
+                    name="Unassigned"
+                    entries={unassignedEntries}
+                    priceMap={priceMap}
+                    onEdit={setEditingEntry}
+                    onRemove={removeEntry}
+                    onAddPosition={openAddPosition}
+                  />
                 )}
               </div>
+
+              {/* Portfolio Analysis */}
+              {entries.length > 0 && (
+                <PortfolioAnalysis
+                  entries={entries}
+                  priceMap={priceMap}
+                  stockDataMap={stockDataMap}
+                  portfolioNames={portfolioNames}
+                />
+              )}
             </>
           )}
         </div>
       </main>
 
-      <AddPositionDialog
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        onAdd={addEntry}
+      {/* Add Portfolio dialog */}
+      <AddPortfolioDialog
+        open={showAddPortfolio}
+        onClose={() => setShowAddPortfolio(false)}
+        onAdd={addPortfolioName}
+        existing={portfolioNames}
       />
+
+      {/* Add Position dialog */}
+      <PositionDialog
+        open={showAddPosition}
+        onClose={() => { setShowAddPosition(false); setPresetPortfolio(undefined); }}
+        onSubmit={addEntry}
+        portfolioNames={portfolioNames}
+        presetPortfolio={presetPortfolio}
+      />
+
+      {/* Edit Position dialog */}
+      {editingEntry && (
+        <PositionDialog
+          open={!!editingEntry}
+          onClose={() => setEditingEntry(null)}
+          initial={editingEntry}
+          onSubmit={patch => { updateEntry(editingEntry.id, patch); setEditingEntry(null); }}
+          portfolioNames={portfolioNames}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "strategy": "Sell weekly OTM cash-secured puts on AI/tech/growth stocks (31-ticker watchlist). Target premium/strike >= 0.8-1%/week. Entry signal: RSI < per-tier threshold AND MFI < 25.",
+  "portfolios": "IRA (conservative, lower-beta), FILDI (core strategy, full watchlist), MOM (momentum/aggressive, higher beta allowed)",
+  "macroFocus": [
+    "Fed rate expectations — watch CME FedWatch for cut/hike probability shifts",
+    "CPI/PCE prints — above-expectation = rate pressure on growth multiples",
+    "10Y Treasury yield — above 4.5% historically pressures high-PE tech",
+    "VIX interpretation: <15 = low fear (IV crushed, less premium), 15-25 = normal, >25 = elevated fear (good premium but risky), >30 = consider sizing down",
+    "Dollar strength (UUP) — strong dollar = headwind for BABA and export-heavy names",
+    "AI sector rotation — watch NVDA, SMCI, PLTR as bellwethers"
+  ],
+  "watchSignals": [
+    "NVDA: new product cycles, blackwell/rubin ramp, China export restrictions",
+    "OPEN: Russell index inclusion/exclusion, housing market trends",
+    "HOOD: regulatory changes, new product launches (options, crypto, international expansion)",
+    "PLTR: government contract wins, AI platform adoption",
+    "TSLA: deliveries vs estimates, autonomous driving news, Elon distraction premium"
+  ],
+  "riskRules": [
+    "Avoid opening new puts < 2 weeks before known earnings",
+    "Reduce size when VIX > 25",
+    "Prioritize T1 tickers (NVDA, AAPL, AMZN, GOOGL, TSLA, NOW) for IRA",
+    "T2/T3 tickers (OPEN, ONDS, POET, RDW) for FILDI/MOM only",
+    "Target 0.20-0.25 delta strikes (~5-10% OTM)"
+  ],
+  "userNotes": "",
+  "lastUpdated": "2026-06-02"
+}

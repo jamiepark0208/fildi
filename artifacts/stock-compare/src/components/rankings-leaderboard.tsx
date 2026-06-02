@@ -45,9 +45,14 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
                 </div>
                 <div>
                   <div className="font-mono font-bold text-lg leading-none">{score.ticker}</div>
-                  <div className="text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[200px]">
+                  <div className="text-xs text-muted-foreground truncate max-w-[160px] sm:max-w-[240px]">
                     {score.companyName}
                   </div>
+                  {score.reason && (
+                    <div className="text-xs text-muted-foreground/70 mt-0.5 italic max-w-[280px]">
+                      {score.reason}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import { BarChart2, LayoutDashboard, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, ScanSearch } from "lucide-react";
+import { BarChart2, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, ScanSearch, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +67,7 @@ export function Sidebar() {
         <div>
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">General</div>
           <nav className="space-y-0.5">
+            {navItem("/scorecard-explanation", <BookOpen className="w-4 h-4" />, "Scorecard Guide")}
             {navItem("/settings", <Settings className="w-4 h-4" />, "Settings", true)}
           </nav>
         </div>

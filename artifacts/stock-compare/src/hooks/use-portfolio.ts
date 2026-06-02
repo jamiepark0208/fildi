@@ -11,30 +11,49 @@ export interface PortfolioEntry {
   strike?: number;     // options only
   expiry?: string;     // options only, "YYYY-MM-DD"
   openedAt: string;    // "YYYY-MM-DD"
-  notes?: string;
+  notes?: string;      // legacy — used as portfolio name for old entries
+  portfolioName?: string;
 }
 
-const STORAGE_KEY = "fildi_portfolio_v1";
+const STORAGE_KEY        = "fildi_portfolio_v1";
+const PORTFOLIOS_KEY     = "fildi_portfolio_names_v1";
+const DEFAULT_PORTFOLIOS = ["IRA", "FILDI", "MOM"];
 
-function load(): PortfolioEntry[] {
+function loadEntries(): PortfolioEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-function save(entries: PortfolioEntry[]) {
+function saveEntries(entries: PortfolioEntry[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 }
 
+function loadPortfolioNames(): string[] {
+  try {
+    const raw = localStorage.getItem(PORTFOLIOS_KEY);
+    return raw ? JSON.parse(raw) : [...DEFAULT_PORTFOLIOS];
+  } catch { return [...DEFAULT_PORTFOLIOS]; }
+}
+
+function savePortfolioNames(names: string[]) {
+  localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(names));
+}
+
+/** Resolve the portfolio an entry belongs to, handling legacy `notes` field. */
+export function entryPortfolio(entry: PortfolioEntry): string {
+  return entry.portfolioName?.trim() || entry.notes?.trim() || "";
+}
+
 export function usePortfolio() {
-  const [entries, setEntries] = useState<PortfolioEntry[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [entries,        setEntries]        = useState<PortfolioEntry[]>([]);
+  const [portfolioNames, setPortfolioNames] = useState<string[]>([]);
+  const [isLoaded,       setIsLoaded]       = useState(false);
 
   useEffect(() => {
-    setEntries(load());
+    setEntries(loadEntries());
+    setPortfolioNames(loadPortfolioNames());
     setIsLoaded(true);
   }, []);
 
@@ -46,7 +65,7 @@ export function usePortfolio() {
     };
     setEntries(prev => {
       const next = [...prev, newEntry];
-      save(next);
+      saveEntries(next);
       return next;
     });
   }, []);
@@ -54,7 +73,7 @@ export function usePortfolio() {
   const removeEntry = useCallback((id: string) => {
     setEntries(prev => {
       const next = prev.filter(e => e.id !== id);
-      save(next);
+      saveEntries(next);
       return next;
     });
   }, []);
@@ -62,12 +81,35 @@ export function usePortfolio() {
   const updateEntry = useCallback((id: string, patch: Partial<Omit<PortfolioEntry, "id">>) => {
     setEntries(prev => {
       const next = prev.map(e => e.id === id ? { ...e, ...patch } : e);
-      save(next);
+      saveEntries(next);
       return next;
     });
   }, []);
 
-  return { entries, isLoaded, addEntry, removeEntry, updateEntry };
+  const addPortfolioName = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setPortfolioNames(prev => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed];
+      savePortfolioNames(next);
+      return next;
+    });
+  }, []);
+
+  const removePortfolioName = useCallback((name: string) => {
+    setPortfolioNames(prev => {
+      const next = prev.filter(n => n !== name);
+      savePortfolioNames(next);
+      return next;
+    });
+  }, []);
+
+  return {
+    entries, portfolioNames, isLoaded,
+    addEntry, removeEntry, updateEntry,
+    addPortfolioName, removePortfolioName,
+  };
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────
@@ -90,9 +132,13 @@ export function positionLabel(type: PositionType): string {
   }[type];
 }
 
+export function cashCollateral(entry: PortfolioEntry): number {
+  if (entry.positionType !== "short_put") return 0;
+  return (entry.strike ?? 0) * 100 * entry.qty;
+}
+
 export function notionalValue(entry: PortfolioEntry): number {
   if (entry.positionType === "stock") return entry.qty * entry.avgPrice;
-  // options: strike × 100 × contracts = max notional exposure
   return (entry.strike ?? 0) * 100 * entry.qty;
 }
 

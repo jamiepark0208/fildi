@@ -4,6 +4,7 @@ import stocksRouter from "./stocks";
 import indicatorsRouter from "./indicators";
 import optionsRouter from "./options";
 import technicalRouter from "./technical";
+import dailyBriefRouter from "./daily-brief";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(stocksRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);
 router.use(technicalRouter);
+router.use(dailyBriefRouter);
 
 export default router;

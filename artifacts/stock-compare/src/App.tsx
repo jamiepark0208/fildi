@@ -9,6 +9,7 @@ import Watchlist from "@/pages/watchlist";
 import Technical from "@/pages/technical";
 import Breakdown from "@/pages/breakdown";
 import Portfolio from "@/pages/portfolio";
+import ScorecardExplanation from "@/pages/scorecard-explanation";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function Router() {
       </Route>
       <Route path="/breakdown" component={Breakdown} />
       <Route path="/portfolio" component={Portfolio} />
+      <Route path="/scorecard-explanation" component={ScorecardExplanation} />
       <Route component={NotFound} />
     </Switch>
   );

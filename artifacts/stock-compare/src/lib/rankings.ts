@@ -12,7 +12,7 @@ export const SCORECARD_METRICS: MetricDef[] = [
   { key: "peg",      label: "PEG Ratio",              weight: 3.0, higherIsBetter: false, getValue: s => s.pegRatio },
   { key: "pfcf",     label: "Price / FCF",             weight: 3.0, higherIsBetter: false, getValue: s => (s.marketCap && s.freeCashFlow && s.freeCashFlow > 0) ? s.marketCap / s.freeCashFlow : null },
   { key: "upside",   label: "Analyst Upside",          weight: 2.5, higherIsBetter: true,  getValue: s => (s.analystTargetPrice && s.currentPrice) ? (s.analystTargetPrice / s.currentPrice) - 1 : null },
-  { key: "pe",       label: "P/E Ratio",               weight: 2.0, higherIsBetter: false, getValue: s => s.peRatio },
+  { key: "pe",       label: "P/E Ratio",               weight: 2.0, higherIsBetter: false, getValue: s => (s.peRatio != null && s.peRatio > 0) ? s.peRatio : null },
   { key: "revgrow",  label: "Revenue Growth",          weight: 2.5, higherIsBetter: true,  getValue: s => s.revenueGrowthYoY },
   { key: "epsgrow",  label: "EPS Growth",              weight: 2.5, higherIsBetter: true,  getValue: s => s.epsGrowth },
   { key: "netmgn",   label: "Net Margin",              weight: 2.0, higherIsBetter: true,  getValue: s => s.netMargin },
@@ -30,6 +30,7 @@ export type StockScore = {
   maxPossible: number;
   rank: number;
   metricScores: Record<string, { value: number | null; weightedScore: number; rank: number }>;
+  reason: string;
 };
 
 export function computeRankings(stocks: StockMetrics[]): StockScore[] {
@@ -67,14 +68,29 @@ export function computeRankings(stocks: StockMetrics[]): StockScore[] {
   return ranked.map((r, rankIdx) => {
     const s = stocks[r.i];
     const ms: StockScore["metricScores"] = {};
+    const normForStock: Record<string, number> = {};
     for (const m of SCORECARD_METRICS) {
+      const norm = metricScores[m.key][r.i] ?? 0;
+      normForStock[m.key] = norm;
       ms[m.key] = {
         value: m.getValue(s) ?? null,
-        weightedScore: (metricScores[m.key][r.i] ?? 0) * m.weight,
-        rank: metricScores[m.key].indexOf(Math.max(...metricScores[m.key])) === r.i ? 1 :
-              [...metricScores[m.key]].sort((a, b) => b - a).indexOf(metricScores[m.key][r.i]) + 1,
+        weightedScore: norm * m.weight,
+        rank: [...metricScores[m.key]].sort((a, b) => b - a).indexOf(metricScores[m.key][r.i]) + 1,
       };
     }
+
+    const sortedByNorm = SCORECARD_METRICS
+      .map(m => ({ label: m.label, norm: normForStock[m.key] }))
+      .sort((a, b) => b.norm - a.norm);
+    const top = sortedByNorm.slice(0, 2).filter(m => m.norm >= 0.6).map(m => m.label);
+    const weak = sortedByNorm.slice(-2).filter(m => m.norm <= 0.25).map(m => m.label);
+
+    let reason: string;
+    const parts: string[] = [];
+    if (top.length > 0) parts.push(`Leads: ${top.join(" & ")}`);
+    if (weak.length > 0) parts.push(`Lags: ${weak.join(" & ")}`);
+    reason = parts.join(" · ") || (rankIdx === 0 ? "Tops peers on aggregate fundamentals" : "Competitive across most metrics");
+
     return {
       ticker: s.ticker,
       companyName: s.companyName,
@@ -82,6 +98,7 @@ export function computeRankings(stocks: StockMetrics[]): StockScore[] {
       maxPossible,
       rank: rankIdx + 1,
       metricScores: ms,
+      reason,
     };
   });
 }
