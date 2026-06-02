@@ -10,9 +10,11 @@ interface TickerShelfProps {
   loadingTickers: Record<string, boolean>;
   onAdd: (ticker: string) => void;
   onRemove: (ticker: string) => void;
+  /** When provided, filter from this list locally instead of calling the external search API. */
+  suggestions?: string[];
 }
 
-export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove }: TickerShelfProps) {
+export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggestions }: TickerShelfProps) {
   const [inputText, setInputText] = useState("");
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -22,11 +24,11 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove }: Ticker
 
   const debouncedSearch = useDebounce(inputText, 180);
 
-  const { data: results, isFetching } = useSearchStocks(
+  const { data: apiResults, isFetching } = useSearchStocks(
     { q: debouncedSearch },
     {
       query: {
-        enabled: debouncedSearch.length >= 2,
+        enabled: !suggestions && debouncedSearch.length >= 2,
         queryKey: getSearchStocksQueryKey({ q: debouncedSearch }),
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
@@ -34,7 +36,15 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove }: Ticker
     }
   );
 
-  const visibleResults = open && (results?.length ?? 0) > 0 ? results! : [];
+  const results = suggestions
+    ? (debouncedSearch.length >= 1
+        ? suggestions
+            .filter(t => t.includes(debouncedSearch) && !tickers.includes(t))
+            .map(t => ({ ticker: t, name: t, exchange: "", type: "EQUITY" }))
+        : [])
+    : (apiResults ?? []);
+
+  const visibleResults = open && results.length > 0 ? results : [];
 
   const selectTicker = useCallback((ticker: string) => {
     const upper = ticker.toUpperCase();

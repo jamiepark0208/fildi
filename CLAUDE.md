@@ -38,6 +38,15 @@ working: [technical-scorecard-endpoints, static-dynamic-data-arch, route-prefix-
 in_progress: []
 next: [options-comparison-table, strike-explorer-slider]
 
+## CODEGRAPH (use at start of every task)
+  codegraph sync                        — update index
+  codegraph context "<task>"            — get relevant files/symbols before touching anything
+  codegraph impact <symbol>             — check what breaks before changing a function
+  codegraph callers <symbol>            — find all usages before refactoring
+  codegraph affected [files]            — which tests need to run after a change
+
+Never read source files to understand structure — use codegraph context first.
+
 ## READING RULES (always follow)
 - Never use Explore agents for broad sweeps
 - Read files directly and only when needed

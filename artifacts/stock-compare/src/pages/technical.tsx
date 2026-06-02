@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { TickerShelf } from "@/components/ticker-shelf";
@@ -93,13 +93,14 @@ interface TechnicalCardsProps {
   tickers: string[];
   data: Record<string, IndicatorResult | null>;
   loading: Record<string, boolean>;
+  errors: Record<string, boolean>;
   onAddClick: () => void;
   onRemove: (t: string) => void;
   onRefresh: (t: string) => void;
   refreshing: Set<string>;
 }
 
-function TechnicalCards({ tickers, data, loading, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
+function TechnicalCards({ tickers, data, loading, errors, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
   const slots = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
 
   return (
@@ -137,6 +138,7 @@ function TechnicalCards({ tickers, data, loading, onAddClick, onRemove, onRefres
 
         const d = data[ticker];
         if (!d) {
+          const failed = errors[ticker];
           return (
             <div
               key={ticker}
@@ -147,7 +149,19 @@ function TechnicalCards({ tickers, data, loading, onAddClick, onRemove, onRefres
                 <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
                 <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center">×</button>
               </div>
-              <p className="text-xs text-muted-foreground">No data</p>
+              {failed ? (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-xs text-red-400">Fetch failed</p>
+                  <button
+                    onClick={() => onRefresh(ticker)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No data</p>
+              )}
             </div>
           );
         }
@@ -266,8 +280,18 @@ function TechnicalCards({ tickers, data, loading, onAddClick, onRemove, onRefres
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function Technical() {
-  const [tickers,   setTickers]   = useState<string[]>([]);
+const WATCHLIST = [
+  "NVDA","INTC","MRVL","PLTR","HOOD","RDDT","AAPL","AMZN","GOOGL","TSLA","NOW",
+  "BABA","SMCI","SNOW","AAOI","NFLX","NET","OPEN","ONDS","POET","SHOP","FSLY","RUM",
+  "JOBY","ACHR","BB","IONQ","SOFI","TTD","RKLB","RDW",
+];
+
+interface TechnicalProps {
+  tickers: string[];
+  setTickers: Dispatch<SetStateAction<string[]>>;
+}
+
+export default function Technical({ tickers, setTickers }: TechnicalProps) {
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
 
   const handleAdd    = (t: string) => { if (!tickers.includes(t) && tickers.length < MAX_SLOTS) setTickers(p => [...p, t]); };
@@ -277,19 +301,29 @@ export default function Technical() {
   const queries = useQueries({
     queries: tickers.map(ticker => ({
       queryKey: ["indicators", ticker],
-      queryFn: async (): Promise<IndicatorResult | null> => {
+      queryFn: async (): Promise<IndicatorResult> => {
         const res = await fetch(`/api/indicators/${ticker}`);
-        if (!res.ok) return null;
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as any).error ?? `HTTP ${res.status}`);
+        }
         return res.json();
       },
       staleTime: 4 * 60 * 1000,
-      retry: 1,
+      retry: 2,
+      retryDelay: (attempt: number) => Math.min(attempt * 3000, 10000),
     })),
   });
 
   const loadingMap = useMemo(() => {
     const m: Record<string, boolean> = {};
     tickers.forEach((t, i) => { m[t] = queries[i]?.isLoading ?? false; });
+    return m;
+  }, [tickers, queries]);
+
+  const errorMap = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    tickers.forEach((t, i) => { m[t] = queries[i]?.isError ?? false; });
     return m;
   }, [tickers, queries]);
 
@@ -302,12 +336,7 @@ export default function Technical() {
   const handleRefresh = async (ticker: string) => {
     setRefreshing(s => new Set(s).add(ticker));
     try {
-      const res = await fetch(`/api/technical/refresh/${ticker}`, { method: "POST" });
-      if (res.ok) {
-        const fresh: IndicatorResult = await res.json();
-        // Update the cached query data directly
-        queries[tickers.indexOf(ticker)]?.refetch?.();
-      }
+      await queries[tickers.indexOf(ticker)]?.refetch?.();
     } finally {
       setRefreshing(s => { const n = new Set(s); n.delete(ticker); return n; });
     }
@@ -318,7 +347,6 @@ export default function Technical() {
       <Sidebar />
 
       <main className="flex-1 ml-[220px] min-w-0">
-        {/* Header — matches Fundamental layout */}
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Technical Scorecard</h1>
@@ -329,6 +357,7 @@ export default function Technical() {
             loadingTickers={loadingMap}
             onAdd={handleAdd}
             onRemove={handleRemove}
+            suggestions={WATCHLIST}
           />
         </div>
 
@@ -337,6 +366,7 @@ export default function Technical() {
             tickers={tickers}
             data={dataMap}
             loading={loadingMap}
+            errors={errorMap}
             onAddClick={focusInput}
             onRemove={handleRemove}
             onRefresh={handleRefresh}
