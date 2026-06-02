@@ -34,10 +34,10 @@ App: signal status per ticker, narrow options chain slice finding put strike whe
 Phase 2: social 1%/week challenge.
 
 ## STATE
-phase: scaffold
-working: [scorecard-improvements, portfolio-overhaul, daily-brief-ai]
-in_progress: []
-next: [options-comparison-table, strike-explorer-slider]
+phase: build
+working: [options-comparison-table, strike-explorer-slider]
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill]
+next: [fundamental-improvements, sector-benchmarks, earnings-strip]
 
 ## CODEGRAPH (use at start of every task)
   codegraph sync                        — update index
@@ -113,3 +113,16 @@ See .claude/skills/build-and-run.md for diagnosis and all failure modes.
 - Fix one thing, verify it works, then move to next
 - Never refactor while debugging — fix only
 - If broken for >30min: stop, describe symptoms here, start fresh
+
+## SKILL AUTO-TRIGGER RULES
+When about to work on any of these areas, load the relevant skill BEFORE reading any code:
+- Options chain, strike selection, income%  → .claude/skills/options-pricer.md
+- RSI, MFI, RM filter, tier thresholds      → .claude/skills/signal-filters.md
+- Any UI component or new page              → .claude/skills/ui-components.md
+- Any new feature (planning phase)          → .claude/skills/feature-planner.md
+- Data fetching, caching, refresh logic     → .claude/skills/data-architecture.md
+- DB schema or migration                    → .claude/skills/db-patterns.md
+- Trader strategy, scoring, ranking         → .claude/skills/trader-context.md
+- Technical scorecard UI or signals         → .claude/skills/technical-scorecard.md
+- Server build or 502 errors               → .claude/skills/build-and-run.md
+- End of session                           → .claude/skills/session-wrap.md
