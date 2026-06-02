@@ -2,6 +2,7 @@ export interface IndicatorResult {
   ticker: string;
   scoredDate: string;
   rsi: number;
+  rsiYesterday?: number;
   mfi: number;
   rsiThreshold: number;
   mfiThreshold: number;
@@ -16,6 +17,10 @@ export interface IndicatorResult {
   position52w: number | null;
   vsSpy20d: number | null;
   earningsDate: string | null;
+  price?: number;
+  ivCurrent?: number;
+  ivPercentile?: number;
+  ma200?: number | null;
   stale?: boolean;
 }
 
@@ -29,13 +34,33 @@ type TechnicalMetricDef = {
 
 export const TECHNICAL_SCORECARD_METRICS: TechnicalMetricDef[] = [
   { key: "signal",   label: "Signal",         weight: 3.0, higherIsBetter: true,  getValue: d => d.signal === "GO" ? 2 : d.signal === "WATCH" ? 1 : 0 },
-  { key: "rsi",      label: "RSI 14",         weight: 3.0, higherIsBetter: true,  getValue: d => Math.max(0, Math.min(15, 15 * (1 - (d.rsi - d.rsiThreshold) / 20))) },
+  { key: "rsi",      label: "RSI 14",         weight: 3.0, higherIsBetter: true,  getValue: d => {
+    const rsiScore = Math.max(0, Math.min(15, 15 * (1 - (d.rsi - d.rsiThreshold) / 20)));
+    const rsiYesterday = d.rsiYesterday ?? d.rsi;
+    const drop = rsiYesterday - d.rsi;
+    const pctCovered = drop > 0 ? Math.max(0, Math.min(1, drop / rsiYesterday)) : 0;
+    const velocityBonus = Math.max(0, Math.min(5, pctCovered * 5));
+    return Math.min(15, rsiScore + velocityBonus);
+  } },
   { key: "mfi",      label: "MFI 14",         weight: 2.5, higherIsBetter: true,  getValue: d => Math.max(0, Math.min(10, 10 * (1 - (d.mfi - 25) / 20))) },
   { key: "macd",     label: "MACD",           weight: 2.0, higherIsBetter: true,  getValue: d => d.macdCross === "BULLISH_CROSS" ? 3 : d.macdCross === "BULLISH" ? 2 : d.macdCross === "BEARISH" ? 1 : d.macdCross === "BEARISH_CROSS" ? 0 : null },
   { key: "pos52w",   label: "52w Position",   weight: 2.0, higherIsBetter: false, getValue: d => d.position52w },
   { key: "return5d", label: "5d Return",      weight: 1.5, higherIsBetter: true,  getValue: d => d.return5d !== null ? Math.max(0, Math.min(15, 7.5 - d.return5d * 100 * 1.5)) : null },
   { key: "vsSpy",    label: "vs SPY 20d",     weight: 1.5, higherIsBetter: false, getValue: d => d.vsSpy20d },
   { key: "stoch",    label: "Stochastic %K",  weight: 1.5, higherIsBetter: false, getValue: d => d.stoch },
+  { key: "ivRank",      label: "IV rank",      weight: 8.0, higherIsBetter: true,  getValue: d => {
+    if (d.ivCurrent == null || d.ivPercentile == null) return null;
+    const absoluteScore = Math.max(0, Math.min(6, (d.ivCurrent - 20) / 80 * 6));
+    const relativeScore = Math.max(0, Math.min(10, d.ivPercentile / 10));
+    return absoluteScore + relativeScore;
+  } },
+  { key: "ma200Buffer", label: "MA200 buffer", weight: 5.0, higherIsBetter: true,  getValue: d => {
+    if (!d.ma200 || !d.price) return null;
+    const minOTM = d.tier === 1 ? 0.05 : d.tier === 2 ? 0.10 : 0.15;
+    const impliedStrike = d.price * (1 - minOTM);
+    const bufferPct = (d.ma200 - impliedStrike) / d.price;
+    return Math.max(0, Math.min(10, bufferPct * 100));
+  } },
 ];
 
 export type TechnicalScore = {

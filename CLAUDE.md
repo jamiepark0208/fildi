@@ -34,10 +34,10 @@ App: signal status per ticker, narrow options chain slice finding put strike whe
 Phase 2: social 1%/week challenge.
 
 ## STATE
-phase: build
-working: [options-comparison-table, strike-explorer-slider]
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill]
-next: [fundamental-improvements, sector-benchmarks, earnings-strip]
+phase: scaffold
+working: [options-scanner-enhancements]
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux]
+next: [options-comparison-table, strike-explorer-slider, fundamental-improvements]
 
 ## CODEGRAPH (use at start of every task)
   codegraph sync                        — update index
@@ -56,9 +56,24 @@ Never read source files to understand structure — use codegraph context first.
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
-Last completed (2026-06-02): Daily brief overhaul, watchlist→breakdown integration, build skill
+Last completed (2026-06-02): Indicators overhaul, options scanner UX fixes
 
-### Daily Brief overhaul
+### Indicators overhaul (2026-06-02)
+- **OHLCV lookback extended** — `cutoffStr()` changed from 90 → 290 calendar days (≈200 trading days) to support MA200
+- **New `IndicatorResult` fields**: `rsiYesterday`, `price`, `ivCurrent` (30d realized vol %), `ivPercentile` (0–100), `ma200` (200d SMA or null)
+- **RSI velocity bonus** — `rsiScore` in `technical-rankings.ts` adds up to +5pts based on day-over-day RSI drop as % of yesterday's RSI value
+- **IV rank metric** (weight 8.0) — absoluteScore (IV level vs 20–100% range) + relativeScore (ivPercentile/10); max 16pts
+- **MA200 buffer metric** (weight 5.0) — distance between implied strike (price × (1 − minOTM by tier)) and 200d MA; max 10pts; null when MA200 unavailable
+- `rowToResult` returns safe defaults for new fields (cached rows before today get 0/50/null — refresh populates real values)
+- **Bug fixed**: `return5d` and `vsSpy20d` were already stored as percentages; display code was doubling them with `* 100` → fixed
+
+### Options scanner UX (2026-06-02)
+- **Add/delete rows** — input field in controls bar to add any ticker; X button on each row removes it (watchlist tickers hidden, extra tickers removed from state)
+- **IV in parent row** — now shows `ivCurrent` from scorecard data (always loaded on mount) instead of waiting for options chain expand
+- **Sort by IV%** — default sort changed to IV%; IV sort uses `ivCurrent` from indicators, not options chain data (works without expanding)
+- **return5d display bug fixed** — was multiplying by 100 twice in `buildReasoning` and `strikeSummary`
+
+### Previous session (2026-06-02): Daily brief overhaul, watchlist→breakdown integration, build skill
 - **On-demand only** — removed auto-fetch on mount; brief only generates when user clicks "Generate Today's Brief"
 - **File-backed history** — `brief-history.json` stores up to 90 briefs; survives server restarts
 - New `GET /api/daily-brief/market` — fetches live prices for 9 instruments with no AI; called on every page load so chips are always fresh
@@ -87,6 +102,7 @@ Last completed (2026-06-02): Daily brief overhaul, watchlist→breakdown integra
 ## NEXT SESSION — do these in order
 1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
 2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
+3. Fundamental improvements (sector benchmarks, earnings strip)
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:

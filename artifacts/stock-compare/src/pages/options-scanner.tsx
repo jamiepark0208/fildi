@@ -9,7 +9,7 @@ import {
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { ChevronDown, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,9 +43,9 @@ type SortKey = "income" | "score" | "iv" | "otm" | "signal";
 const RED_TAG = "#ef4444";
 
 const SORT_LABELS: { key: SortKey; label: string }[] = [
+  { key: "iv",     label: "IV%" },
   { key: "income", label: "Income%" },
   { key: "score",  label: "Score" },
-  { key: "iv",     label: "IV" },
   { key: "otm",    label: "OTM buffer" },
   { key: "signal", label: "Signal" },
 ];
@@ -91,7 +91,8 @@ function strikeSummary(
   if (!chains) return "—";
   const strikes = viableStrikes(chains, 0.5, show1wk, show2wk);
   if (strikes.length === 0) {
-    if (indicator?.return5d != null && indicator.return5d * 100 > 3) {
+    // return5d is stored as a percentage (e.g. 22.2 = 22.2%), no * 100
+    if (indicator?.return5d != null && indicator.return5d > 3) {
       return "excluded · RM filter";
     }
     return "no viable strikes";
@@ -102,9 +103,13 @@ function strikeSummary(
 
 function buildReasoning(d: ScorecardRow, firstIV: number | null): string {
   if (d.signal === "GO") {
-    const ivPart  = firstIV != null ? ` — IV ${(firstIV * 100).toFixed(0)}%` : "";
+    // firstIV is from options chain (decimal), ivCurrent is already %
+    const ivPct = d.ivCurrent && d.ivCurrent > 0
+      ? d.ivCurrent.toFixed(0)
+      : firstIV != null ? (firstIV * 100).toFixed(0) : null;
+    const ivPart  = ivPct != null ? ` — IV ${ivPct}%` : "";
     const spyPart = d.vsSpy20d != null
-      ? `, ${d.vsSpy20d > 0 ? "up" : "down"} ${Math.abs(d.vsSpy20d * 100).toFixed(1)}% vs SPY`
+      ? `, ${d.vsSpy20d > 0 ? "up" : "down"} ${Math.abs(d.vsSpy20d).toFixed(1)}% vs SPY`
       : "";
     return `RSI ${d.rsi.toFixed(1)} / ${d.rsiThreshold}, MFI ${d.mfi.toFixed(1)} / 25${spyPart}${ivPart}`;
   }
@@ -112,8 +117,9 @@ function buildReasoning(d: ScorecardRow, firstIV: number | null): string {
     if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} slightly above 25 — monitor for weakening`;
     return `RSI ${d.rsi.toFixed(1)} near threshold ${d.rsiThreshold} — monitor`;
   }
-  if (d.return5d != null && d.return5d * 100 > 3) {
-    return `Up +${(d.return5d * 100).toFixed(1)}% in 5 days — wait for mean reversion`;
+  // return5d is stored as a percentage (e.g. 22.2), no * 100
+  if (d.return5d != null && d.return5d > 3) {
+    return `Up +${d.return5d.toFixed(1)}% in 5 days — wait for mean reversion`;
   }
   if (!d.rsiOk) return `RSI ${d.rsi.toFixed(1)} above threshold ${d.rsiThreshold}`;
   if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} above 25`;
@@ -184,6 +190,7 @@ interface ScannerRowProps {
   minIncomeOn: boolean;
   onExpand: () => void;
   onRefresh: () => void;
+  onDelete: () => void;
 }
 
 function ScannerRow({
@@ -199,6 +206,7 @@ function ScannerRow({
   minIncomeOn,
   onExpand,
   onRefresh,
+  onDelete,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? null;
@@ -213,7 +221,12 @@ function ScannerRow({
     ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
     : null;
 
-  const ivDisplay = firstIV != null ? `IV ${(firstIV * 100).toFixed(0)}%` : "IV —";
+  // Prefer ivCurrent from scorecard (always loaded); fall back to options chain iv
+  const ivPct = indicator?.ivCurrent && indicator.ivCurrent > 0
+    ? indicator.ivCurrent.toFixed(0)
+    : firstIV != null ? (firstIV * 100).toFixed(0) : null;
+  const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
+
   const summary   = optionsLoading
     ? null
     : strikeSummary(indicator, optionsData, show1wk, show2wk);
@@ -243,7 +256,7 @@ function ScannerRow({
           {score ? `score ${score.totalScore.toFixed(1)}` : "—"}
         </span>
 
-        {/* IV */}
+        {/* IV — always shown from scorecard data */}
         <span className="text-xs text-muted-foreground w-[50px] shrink-0">{ivDisplay}</span>
 
         {/* Strike summary */}
@@ -262,9 +275,16 @@ function ScannerRow({
           <button
             className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
             onClick={onRefresh}
-            title="Refresh this ticker"
+            title="Refresh options"
           >
             <RefreshCw className="w-3 h-3" />
+          </button>
+          <button
+            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors"
+            onClick={onDelete}
+            title="Remove from scanner"
+          >
+            <X className="w-3 h-3" />
           </button>
         </div>
         {expanded
@@ -331,14 +351,17 @@ function ScannerRow({
 export default function OptionsScanner() {
   const queryClient = useQueryClient();
 
-  const [expandedSet,  setExpandedSet]  = useState<Set<string>>(new Set());
-  const [fetchedOnce,  setFetchedOnce]  = useState<Set<string>>(new Set());
-  const [sort,         setSort]         = useState<SortKey>("income");
-  const [show1wk,      setShow1wk]      = useState(true);
-  const [show2wk,      setShow2wk]      = useState(true);
-  const [goOnly,       setGoOnly]       = useState(false);
-  const [minIncomeOn,  setMinIncomeOn]  = useState(true);
-  const [refreshedAt,  setRefreshedAt]  = useState(() => new Date());
+  const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
+  const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
+  const [sort,          setSort]          = useState<SortKey>("iv");
+  const [show1wk,       setShow1wk]       = useState(true);
+  const [show2wk,       setShow2wk]       = useState(true);
+  const [goOnly,        setGoOnly]        = useState(false);
+  const [minIncomeOn,   setMinIncomeOn]   = useState(true);
+  const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
+  const [extraTickers,  setExtraTickers]  = useState<string[]>([]);
+  const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(new Set());
+  const [addInput,      setAddInput]      = useState("");
 
   const { entries, isLoaded } = useWatchlist();
 
@@ -351,7 +374,14 @@ export default function OptionsScanner() {
     [entries],
   );
 
-  // ── Scorecard batch — 1 call on mount ───────────────────────────────────────
+  // Watchlist tickers minus hidden, plus user-added extras
+  const displayTickers = useMemo(() => {
+    const base  = activeTickers.filter(t => !hiddenTickers.has(t));
+    const extra = extraTickers.filter(t => !hiddenTickers.has(t));
+    return [...base, ...extra];
+  }, [activeTickers, extraTickers, hiddenTickers]);
+
+  // ── Scorecard batch — watchlist tickers ─────────────────────────────────────
   const { data: scorecardData, isLoading: scorecardLoading, refetch: refetchScorecard } = useQuery({
     queryKey:             ["technical-scorecard"],
     queryFn:              async () => {
@@ -363,9 +393,23 @@ export default function OptionsScanner() {
     refetchOnWindowFocus: false,
   });
 
+  // ── Individual indicator queries for extra tickers ───────────────────────────
+  const extraIndicatorQueries = useQueries({
+    queries: extraTickers.map(ticker => ({
+      queryKey:             ["indicators", ticker],
+      queryFn:              async () => {
+        const res = await fetch(`/api/indicators/${ticker}`);
+        if (!res.ok) throw new Error(`indicator fetch failed: ${ticker}`);
+        return res.json() as Promise<ScorecardRow>;
+      },
+      staleTime:            Infinity,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
   // ── Per-ticker options — enabled only after first expand ────────────────────
   const optionsQueries = useQueries({
-    queries: activeTickers.map(ticker => ({
+    queries: displayTickers.map(ticker => ({
       queryKey:             ["options", ticker],
       queryFn:              async () => {
         const res = await fetch(`/api/options/${ticker}`);
@@ -379,32 +423,40 @@ export default function OptionsScanner() {
   });
 
   // ── Derived maps ─────────────────────────────────────────────────────────────
-  const scorecardMap = useMemo(
-    () => new Map((scorecardData ?? []).map(r => [r.ticker, r])),
-    [scorecardData],
-  );
+  const scorecardMap = useMemo(() => {
+    const m = new Map((scorecardData ?? []).map(r => [r.ticker, r]));
+    extraTickers.forEach((t, i) => {
+      const d = extraIndicatorQueries[i]?.data;
+      if (d) m.set(t, d);
+    });
+    return m;
+  }, [scorecardData, extraTickers, extraIndicatorQueries]);
 
   const optionsMap = useMemo(() => {
     const m = new Map<string, OptionsChainResult[] | null>();
-    activeTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.data ?? null));
+    displayTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.data ?? null));
     return m;
-  }, [activeTickers, optionsQueries]);
+  }, [displayTickers, optionsQueries]);
 
   const optionsLoadingMap = useMemo(() => {
     const m = new Map<string, boolean>();
-    activeTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.isFetching ?? false));
+    displayTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.isFetching ?? false));
     return m;
-  }, [activeTickers, optionsQueries]);
+  }, [displayTickers, optionsQueries]);
 
   const rankings = useMemo(() => {
-    if (!scorecardData) return new Map<string, TechnicalScore>();
-    const active = scorecardData.filter(r => activeTickers.includes(r.ticker));
+    const allData: ScorecardRow[] = [...(scorecardData ?? [])];
+    extraTickers.forEach((t, i) => {
+      const d = extraIndicatorQueries[i]?.data;
+      if (d) allData.push(d);
+    });
+    const active = allData.filter(r => displayTickers.includes(r.ticker));
     return new Map(computeTechnicalRankings(active).map(s => [s.ticker, s]));
-  }, [scorecardData, activeTickers]);
+  }, [scorecardData, displayTickers, extraTickers, extraIndicatorQueries]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
   const sortedTickers = useMemo(() => {
-    let list = [...activeTickers];
+    let list = [...displayTickers];
     if (goOnly) list = list.filter(t => scorecardMap.get(t)?.signal === "GO");
 
     list.sort((a, b) => {
@@ -416,7 +468,8 @@ export default function OptionsScanner() {
         case "score":
           return (rankings.get(b)?.totalScore ?? 0) - (rankings.get(a)?.totalScore ?? 0);
         case "iv": {
-          const iv = (t: string) => optionsMap.get(t)?.[0]?.puts?.[0]?.iv ?? -1;
+          // Sort by ivCurrent from scorecard data (always loaded, no expand needed)
+          const iv = (t: string) => scorecardMap.get(t)?.ivCurrent ?? -1;
           return iv(b) - iv(a);
         }
         case "otm": {
@@ -449,7 +502,7 @@ export default function OptionsScanner() {
       }
     });
     return list;
-  }, [activeTickers, sort, goOnly, scorecardMap, rankings, optionsMap]);
+  }, [displayTickers, sort, goOnly, scorecardMap, rankings, optionsMap]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
@@ -464,6 +517,19 @@ export default function OptionsScanner() {
   const handleRowRefresh = (ticker: string) => {
     setFetchedOnce(prev => new Set([...prev, ticker]));
     queryClient.invalidateQueries({ queryKey: ["options", ticker] });
+  };
+
+  const handleDelete = (ticker: string) => {
+    setHiddenTickers(prev => new Set([...prev, ticker]));
+    setExtraTickers(prev => prev.filter(t => t !== ticker));
+    setExpandedSet(prev => { const n = new Set(prev); n.delete(ticker); return n; });
+  };
+
+  const handleAdd = () => {
+    const t = addInput.trim().toUpperCase();
+    if (!t || displayTickers.includes(t)) { setAddInput(""); return; }
+    setExtraTickers(prev => [...prev, t]);
+    setAddInput("");
   };
 
   const handleGlobalRefresh = () => {
@@ -483,7 +549,6 @@ export default function OptionsScanner() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Options Scanner</h1>
-            {/* Color legend */}
             <div className="flex items-center gap-3 mt-1">
               {nonRedColors.map(c => (
                 <span key={c} className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -553,6 +618,27 @@ export default function OptionsScanner() {
               {label}
             </button>
           ))}
+
+          <div className="w-px h-5 bg-border mx-1" />
+
+          {/* Add ticker input */}
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={addInput}
+              onChange={e => setAddInput(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === "Enter" && handleAdd()}
+              placeholder="Add ticker…"
+              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!addInput.trim()}
+              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 disabled:opacity-40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* Scanner table */}
@@ -582,6 +668,7 @@ export default function OptionsScanner() {
                 minIncomeOn={minIncomeOn}
                 onExpand={() => handleExpand(ticker)}
                 onRefresh={() => handleRowRefresh(ticker)}
+                onDelete={() => handleDelete(ticker)}
               />
             ))}
           </div>

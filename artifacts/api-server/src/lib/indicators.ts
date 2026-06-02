@@ -13,6 +13,7 @@ export interface IndicatorResult {
   scoredDate: string;
   // Core
   rsi: number;
+  rsiYesterday: number;
   mfi: number;
   rsiThreshold: number;
   mfiThreshold: number;
@@ -28,6 +29,10 @@ export interface IndicatorResult {
   position52w: number | null;
   vsSpy20d: number | null;
   earningsDate: string | null;
+  price: number;
+  ivCurrent: number;
+  ivPercentile: number;
+  ma200: number | null;
 }
 
 export interface OHLCVRow { close: number; high: number; low: number; volume: number }
@@ -47,7 +52,7 @@ function todayStr(): string {
 
 function cutoffStr(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 90);
+  d.setDate(d.getDate() - 290);
   return d.toISOString().slice(0, 10);
 }
 
@@ -80,6 +85,7 @@ function computeIndicators(key: string, rows: OHLCVRow[], ctx: SeedContext = {})
   const rsiValues = RSI.calculate({ period: 14, values: closes });
   const mfiValues = MFI.calculate({ period: 14, high: highs, low: lows, close: closes, volume: volumes });
   const rsi = round2(lastOf(rsiValues));
+  const rsiYesterday = round2(rsiValues.length >= 2 ? rsiValues[rsiValues.length - 2] : rsi);
   const mfi = round2(lastOf(mfiValues));
 
   // ATR
@@ -140,6 +146,43 @@ function computeIndicators(key: string, rows: OHLCVRow[], ctx: SeedContext = {})
     vsSpy20d = round2(stockReturn - spyReturn);
   }
 
+  // Last close price
+  const price = closes[closes.length - 1];
+
+  // 30d realized volatility (annualized %)
+  let ivCurrent = 0;
+  const vol30Slice = closes.slice(-31);
+  if (vol30Slice.length >= 2) {
+    const lr = vol30Slice.slice(1).map((c, i) => Math.log(c / vol30Slice[i]));
+    const mean = lr.reduce((s, v) => s + v, 0) / lr.length;
+    const variance = lr.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (lr.length - 1);
+    ivCurrent = round2(Math.sqrt(variance * 252) * 100);
+  }
+
+  // IV percentile — ivCurrent's rank within rolling 30d vols over trailing 90 data points
+  let ivPercentile = 50;
+  const rollingVols: number[] = [];
+  for (let end = Math.max(30, closes.length - 90); end < closes.length; end++) {
+    const sl = closes.slice(end - 30, end + 1);
+    const lr2 = sl.slice(1).map((c, i) => Math.log(c / sl[i]));
+    const m2 = lr2.reduce((s, v) => s + v, 0) / lr2.length;
+    const vr2 = lr2.reduce((s, v) => s + Math.pow(v - m2, 2), 0) / (lr2.length - 1);
+    rollingVols.push(Math.sqrt(vr2 * 252) * 100);
+  }
+  if (rollingVols.length >= 2) {
+    const min90d = Math.min(...rollingVols);
+    const max90d = Math.max(...rollingVols);
+    if (max90d > min90d) {
+      ivPercentile = round2(Math.max(0, Math.min(100, (ivCurrent - min90d) / (max90d - min90d) * 100)));
+    }
+  }
+
+  // 200d simple moving average
+  let ma200: number | null = null;
+  if (closes.length >= 200) {
+    ma200 = round2(closes.slice(-200).reduce((s, c) => s + c, 0) / 200);
+  }
+
   const rsiThreshold = RSI_THRESHOLDS[key] ?? 40;
   const rsiOk = rsi < rsiThreshold;
   const mfiOk = mfi < MFI_THRESHOLD;
@@ -147,13 +190,14 @@ function computeIndicators(key: string, rows: OHLCVRow[], ctx: SeedContext = {})
   return {
     ticker:       key,
     scoredDate:   todayStr(),
-    rsi, mfi,
+    rsi, mfi, rsiYesterday,
     rsiThreshold,
     mfiThreshold: MFI_THRESHOLD,
     rsiOk, mfiOk,
     signal:       toSignal(rsiOk, mfiOk),
     tier:         getTier(key),
     atr, macdCross, stoch, return5d, position52w, vsSpy20d,
+    price, ivCurrent, ivPercentile, ma200,
     earningsDate: ctx.earningsDate ?? null,
   };
 }
@@ -182,6 +226,11 @@ function rowToResult(r: typeof indicatorCache.$inferSelect): IndicatorResult {
     position52w:  r.position52w  != null ? Number(r.position52w) : null,
     vsSpy20d:     r.vsSpy20d     != null ? Number(r.vsSpy20d)    : null,
     earningsDate: r.earningsDate ?? null,
+    rsiYesterday: 0,
+    price:        0,
+    ivCurrent:    0,
+    ivPercentile: 50,
+    ma200:        null,
   };
 }
 
