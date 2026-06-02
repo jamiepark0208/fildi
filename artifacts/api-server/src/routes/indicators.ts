@@ -9,6 +9,7 @@ const router = Router();
 router.get("/indicators/:ticker", async (req, res) => {
   const ticker  = req.params.ticker.toUpperCase();
   const refresh = req.query.refresh === "true";
+  if (!WATCHLIST.includes(ticker)) return res.status(404).json({ error: `Unknown ticker: ${ticker}` });
   try {
     const result = await getIndicators(ticker, refresh);
     return res.json(result);
