@@ -22,11 +22,8 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
-    // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
-    // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
-    // Examples of unbundleable packages:
-    // - uses native modules and loads them dynamically (e.g. sharp)
-    // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
+    // @workspace/* packages use TypeScript sources and must be bundled (not external).
+    // All other npm packages are externalized — they load from node_modules at runtime.
     external: [
       "*.node",
       "sharp",
@@ -100,13 +97,19 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
-      "yahoo-finance2",
-      "technicalindicators",
-      "drizzle-orm",
+      // ── externalized: confirmed present in api-server/node_modules ─────────
+      "yahoo-finance2",        // ~1.5MB dep tree
+      "technicalindicators",   // ~60KB
+      "drizzle-orm",           // ~300KB
       "drizzle-orm/*",
-      "@neondatabase/serverless",
-      "pino",
+      "express",               // pulls in mime-db (199KB) + iconv-lite (150KB)
+      "express/*",
+      "pino",                  // handled separately by esbuild-plugin-pino
       "pino/*",
+      "pino-http",
+      "@neondatabase/serverless",
+      "zod",
+      "zod/*",
       "pg",
       "pg-*",
     ],

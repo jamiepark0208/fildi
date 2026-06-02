@@ -34,9 +34,9 @@ Phase 2: social 1%/week challenge.
 
 ## STATE
 phase: scaffold
-working: []
+working: [technical-scorecard-endpoints, static-dynamic-data-arch, route-prefix-fix, vite-proxy]
 in_progress: []
-next: [data-layer, watchlist-ui]
+next: [options-comparison-table, strike-explorer-slider]
 
 ## READING RULES (always follow)
 - Never use Explore agents for broad sweeps
@@ -46,16 +46,20 @@ next: [data-layer, watchlist-ui]
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
-Last completed: hooks wired, alpha vantage dropped, DB schema written (5 tables)
-Data source decision: yahoo-finance2 + technicalindicators (no external API keys needed)
+Last completed: Technical tab end-to-end working — static/dynamic data arch, route fix, Vite proxy, 75KB bundle
 
 ## NEXT SESSION — do these in order
-1. Fix TS error in stocks.ts:381 (type assertion on yahooFinance.search())
-2. Install technicalindicators, add RSI/MFI endpoints to API server
-3. Options chain fetch via yf2.options() using narrow slice from options-pricer.md
+1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
+2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
 
 ## RATE LIMIT RULES
 - Max 3 bash tool calls per response
 - After a build command: wait for output before next call
 - Never chain more than 2 curl/test commands back to back
 - If 429 error appears: stop, wait 60s, resume with single tool call
+
+## ROUTING RULES (never repeat this bug)
+- Route files define paths WITHOUT /api prefix (e.g. /indicators/:ticker)
+- The router is mounted at /api in index.ts — prefix is added there only
+- Vite proxy must have "/api" entry pointing to http://localhost:8080
+- Check both of these whenever adding a new route file
