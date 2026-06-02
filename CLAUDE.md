@@ -72,3 +72,11 @@ Last completed: Technical tab end-to-end working — static/dynamic data arch, r
 - The router is mounted at /api in index.ts — prefix is added there only
 - Vite proxy must have "/api" entry pointing to http://localhost:8080
 - Check both of these whenever adding a new route file
+
+## DEBUGGING RULES (follow strictly)
+- When something is broken: codegraph context "<broken feature>" FIRST
+- State the exact error or symptom before reading any file
+- Read maximum 2 files before attempting a fix
+- Fix one thing, verify it works, then move to next
+- Never refactor while debugging — fix only
+- If broken for >30min: stop, describe symptoms here, start fresh
