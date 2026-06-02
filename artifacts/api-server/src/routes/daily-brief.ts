@@ -9,11 +9,14 @@ const yahooFinance = new YahooFinanceClass();
 const anthropic    = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 const router       = Router();
 
-// ── Context file (persistent learning/preferences) ────────────────────────────
+// ── Paths ─────────────────────────────────────────────────────────────────────
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-// Walk up from dist/ → project root where brief-context.json lives
-const CONTEXT_PATH = join(__dir, "..", "brief-context.json");
+const __dir       = dirname(fileURLToPath(import.meta.url));
+const ROOT        = join(__dir, "..");
+const CONTEXT_PATH = join(ROOT, "brief-context.json");
+const HISTORY_PATH = join(ROOT, "brief-history.json");
+
+// ── Context file ──────────────────────────────────────────────────────────────
 
 interface BriefContext {
   version: number;
@@ -61,10 +64,37 @@ export interface DailyBrief {
   fromCache: boolean;
 }
 
-// ── Brief cache (in-memory, keyed by date+tickers) ───────────────────────────
+// ── History (file-backed, one brief per date) ─────────────────────────────────
 
-const cache  = new Map<string, { value: DailyBrief; ts: number }>();
-const TTL_MS = 6 * 60 * 60 * 1000;
+const MAX_HISTORY = 90;
+
+function loadHistory(): DailyBrief[] {
+  try {
+    if (existsSync(HISTORY_PATH)) {
+      const raw = JSON.parse(readFileSync(HISTORY_PATH, "utf8"));
+      return Array.isArray(raw) ? raw : (raw.briefs ?? []);
+    }
+  } catch {}
+  return [];
+}
+
+function saveHistory(briefs: DailyBrief[]) {
+  const sorted = [...briefs]
+    .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())
+    .slice(0, MAX_HISTORY);
+  writeFileSync(HISTORY_PATH, JSON.stringify(sorted, null, 2));
+}
+
+function upsertBrief(brief: DailyBrief) {
+  const history = loadHistory();
+  const idx = history.findIndex(b => b.date === brief.date);
+  if (idx >= 0) history[idx] = brief; else history.push(brief);
+  saveHistory(history);
+}
+
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
 
 // ── Market instruments ────────────────────────────────────────────────────────
 
@@ -88,9 +118,9 @@ async function fetchMarketData(): Promise<MarketDataPoint[]> {
       const q = await yahooFinance.quote(symbol, {}, { validateResult: false });
       return {
         symbol, label,
-        price:     q.regularMarketPrice            ?? null,
-        change:    q.regularMarketChange           ?? null,
-        changePct: q.regularMarketChangePercent    ?? null,
+        price:     q.regularMarketPrice         ?? null,
+        change:    q.regularMarketChange        ?? null,
+        changePct: q.regularMarketChangePercent ?? null,
       } as MarketDataPoint;
     })
   );
@@ -114,7 +144,7 @@ async function fetchTickerNews(tickers: string[]): Promise<{ ticker: string; hea
     .filter(r => r.headlines.length > 0);
 }
 
-// ── Brief generator ───────────────────────────────────────────────────────────
+// ── AI brief generator ────────────────────────────────────────────────────────
 
 async function generateBrief(
   marketData: MarketDataPoint[],
@@ -136,12 +166,12 @@ async function generateBrief(
     : "No specific ticker news retrieved.";
 
   const contextBlock = [
-    ctx.strategy && `INVESTOR STRATEGY: ${ctx.strategy}`,
+    ctx.strategy   && `INVESTOR STRATEGY: ${ctx.strategy}`,
     ctx.portfolios && `PORTFOLIOS: ${ctx.portfolios}`,
-    ctx.macroFocus.length > 0 && `MACRO PRIORITIES:\n${ctx.macroFocus.map(f => `• ${f}`).join("\n")}`,
+    ctx.macroFocus.length  > 0 && `MACRO PRIORITIES:\n${ctx.macroFocus.map(f => `• ${f}`).join("\n")}`,
     ctx.watchSignals.length > 0 && `TICKER WATCH SIGNALS:\n${ctx.watchSignals.map(s => `• ${s}`).join("\n")}`,
-    ctx.riskRules.length > 0 && `RISK RULES:\n${ctx.riskRules.map(r => `• ${r}`).join("\n")}`,
-    ctx.userNotes && `USER NOTES: ${ctx.userNotes}`,
+    ctx.riskRules.length   > 0 && `RISK RULES:\n${ctx.riskRules.map(r => `• ${r}`).join("\n")}`,
+    ctx.userNotes  && `USER NOTES: ${ctx.userNotes}`,
   ].filter(Boolean).join("\n\n");
 
   const prompt = `You are a sharp portfolio analyst writing a daily briefing for a specific investor. Today is ${date}.
@@ -187,22 +217,35 @@ Be specific and data-driven. Use numbers from the market data. Reference the inv
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// GET /api/daily-brief
+// GET /api/daily-brief/market — live prices only, no AI, called on every page load
+router.get("/daily-brief/market", async (_req, res) => {
+  try {
+    const marketData = await fetchMarketData();
+    return res.json({ marketData });
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /api/daily-brief/history — all past briefs, newest first
+router.get("/daily-brief/history", (_req, res) => {
+  const history = loadHistory().sort(
+    (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
+  );
+  return res.json(history);
+});
+
+// GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates
 router.get("/daily-brief", async (req, res) => {
   const raw     = typeof req.query["tickers"] === "string" ? req.query["tickers"] : "";
   const refresh = req.query["refresh"] === "true";
-  const tickers = raw
-    ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean)
-    : [];
-
-  const today    = new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
-  const cacheKey = `${today}|${tickers.sort().join(",")}`;
+  const tickers = raw ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean) : [];
+  const today   = todayLabel();
 
   if (!refresh) {
-    const hit = cache.get(cacheKey);
-    if (hit && Date.now() - hit.ts < TTL_MS) {
-      return res.json({ ...hit.value, fromCache: true });
-    }
+    const todayBrief = loadHistory().find(b => b.date === today);
+    if (todayBrief) return res.json({ ...todayBrief, fromCache: true });
+    return res.json({ noData: true });
   }
 
   try {
@@ -211,7 +254,6 @@ router.get("/daily-brief", async (req, res) => {
       fetchMarketData(),
       fetchTickerNews(tickers),
     ]);
-
     const content = await generateBrief(marketData, tickerNews, tickers, today, ctx);
 
     const brief: DailyBrief = {
@@ -220,34 +262,30 @@ router.get("/daily-brief", async (req, res) => {
       tickers, fromCache: false,
     };
 
-    cache.set(cacheKey, { value: brief, ts: Date.now() });
+    upsertBrief(brief);
     return res.json(brief);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
 });
 
-// GET /api/daily-brief/context  — read current context
+// GET /api/daily-brief/context
 router.get("/daily-brief/context", (_req, res) => {
   return res.json(loadContext());
 });
 
-// PATCH /api/daily-brief/context  — update context fields
+// PATCH /api/daily-brief/context
 router.patch("/daily-brief/context", (req, res) => {
   try {
-    const ctx = loadContext();
+    const ctx  = loadContext();
     const body = req.body as Partial<BriefContext>;
-
     if (body.strategy      !== undefined) ctx.strategy      = body.strategy;
     if (body.portfolios    !== undefined) ctx.portfolios    = body.portfolios;
     if (body.macroFocus    !== undefined) ctx.macroFocus    = body.macroFocus;
     if (body.watchSignals  !== undefined) ctx.watchSignals  = body.watchSignals;
     if (body.riskRules     !== undefined) ctx.riskRules     = body.riskRules;
     if (body.userNotes     !== undefined) ctx.userNotes     = body.userNotes;
-
     saveContext(ctx);
-    // Bust the cache so next brief uses new context
-    cache.clear();
     return res.json({ ok: true, ctx });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

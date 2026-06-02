@@ -4,47 +4,15 @@ import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
 import { useQueries } from "@tanstack/react-query";
 import {
   getGetStockQuoteQueryOptions,
-  getGetStockQuoteQueryKey,
-  getGetStockHistoryQueryKey,
-  useGetStockQuote,
-  useGetStockHistory,
   useSearchStocks,
   getSearchStocksQueryKey,
   StockMetrics
 } from "@workspace/api-client-react";
-import { PriceChart, Period } from "@/components/price-chart";
+import { StockBreakdown } from "@/components/stock-breakdown";
 import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+// Loader2 used in search dropdown
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatLargeNumber, formatNumber } from "@/lib/format";
-
-// ── Performance pill ───────────────────────────────────────────────────────────
-
-function PerformancePill({ data, label }: { data?: any[], label: string }) {
-  if (!data || data.length < 2) {
-    return (
-      <div className="flex items-center gap-1.5 bg-secondary/30 px-2 py-1 rounded text-xs">
-        <span className="text-muted-foreground font-medium">{label}</span>
-        <span className="text-muted-foreground">—</span>
-      </div>
-    );
-  }
-
-  const firstClose = data[0].close;
-  const lastClose = data[data.length - 1].close;
-  const changePct = ((lastClose - firstClose) / firstClose) * 100;
-
-  const isPositive = changePct >= 0;
-  const colorClass = isPositive ? "text-green-500" : "text-red-500";
-  const sign = isPositive ? "+" : "";
-
-  return (
-    <div className="flex items-center gap-1.5 bg-secondary/30 px-2 py-1 rounded text-xs font-mono">
-      <span className="text-muted-foreground font-sans font-medium">{label}</span>
-      <span className={colorClass}>{sign}{changePct.toFixed(2)}%</span>
-    </div>
-  );
-}
 
 // ── Tab button ────────────────────────────────────────────────────────────────
 
@@ -205,27 +173,6 @@ function WatchlistView() {
     entries.forEach(e => { if (e.colorTag) colors.add(e.colorTag); });
     return Array.from(colors);
   }, [entries]);
-
-  const { data: detailQuote } = useGetStockQuote(
-    { ticker: selectedTicker || "" },
-    { query: { enabled: !!selectedTicker, staleTime: 60 * 1000, queryKey: getGetStockQuoteQueryKey({ ticker: selectedTicker || "" }) } }
-  );
-
-  const { data: history1W } = useGetStockHistory(
-    { ticker: selectedTicker || "", period: "1W" },
-    { query: { enabled: !!selectedTicker, staleTime: 5 * 60 * 1000, queryKey: getGetStockHistoryQueryKey({ ticker: selectedTicker || "", period: "1W" }) } }
-  );
-  const { data: history1M } = useGetStockHistory(
-    { ticker: selectedTicker || "", period: "1M" },
-    { query: { enabled: !!selectedTicker, staleTime: 5 * 60 * 1000, queryKey: getGetStockHistoryQueryKey({ ticker: selectedTicker || "", period: "1M" }) } }
-  );
-  const { data: history3M } = useGetStockHistory(
-    { ticker: selectedTicker || "", period: "3M" },
-    { query: { enabled: !!selectedTicker, staleTime: 5 * 60 * 1000, queryKey: getGetStockHistoryQueryKey({ ticker: selectedTicker || "", period: "3M" }) } }
-  );
-
-  const [chartPeriod, setChartPeriod] = useState<Period>("1M");
-  const [descExpanded, setDescExpanded] = useState(false);
 
   if (!isLoaded) return null;
 
@@ -418,8 +365,8 @@ function WatchlistView() {
         </div>
       </div>
 
-      {/* Right Panel */}
-      <div className="flex-1 bg-background overflow-y-auto">
+      {/* Right Panel — full StockBreakdown when a ticker is selected */}
+      <div className="flex-1 bg-background overflow-hidden flex flex-col">
         {!selectedTicker ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground/60 space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
@@ -427,150 +374,8 @@ function WatchlistView() {
             </div>
             <p className="text-sm font-medium">Select a security from your watchlist</p>
           </div>
-        ) : !detailQuote ? (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
         ) : (
-          <div className="p-6 max-w-4xl mx-auto space-y-6">
-
-            {/* Header */}
-            <div className="flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-bold font-mono tracking-tight flex items-center gap-3">
-                  {detailQuote.ticker}
-                  <span className="text-lg font-sans font-medium text-muted-foreground">
-                    {detailQuote.companyName}
-                  </span>
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
-                  {detailQuote.sector || "Unknown Sector"} • {detailQuote.industry || "Unknown Industry"}
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-4xl font-bold font-mono tracking-tight">
-                  ${detailQuote.currentPrice?.toFixed(2)}
-                </div>
-                <div className={cn(
-                  "text-sm font-mono font-medium mt-1",
-                  (detailQuote.dayChange ?? 0) >= 0 ? "text-green-500" : "text-red-500"
-                )}>
-                  {(detailQuote.dayChange ?? 0) >= 0 ? "+" : ""}
-                  {detailQuote.dayChange?.toFixed(2)} (
-                  {(detailQuote.dayChangePercent ?? 0) >= 0 ? "+" : ""}
-                  {((detailQuote.dayChangePercent ?? 0) * 100).toFixed(2)}%)
-                </div>
-              </div>
-            </div>
-
-            {/* Chart */}
-            <div className="h-[280px]">
-              <PriceChart
-                tickers={[selectedTicker]}
-                loadedStocks={[detailQuote]}
-                selectedPeriod={chartPeriod}
-                onPeriodChange={setChartPeriod}
-              />
-            </div>
-
-            {/* Description */}
-            {detailQuote.description && (
-              <div className="border-t border-border/40 pt-4 mt-4">
-                <p className={cn(
-                  "text-sm italic text-muted-foreground leading-relaxed",
-                  !descExpanded && "line-clamp-3"
-                )}>
-                  {detailQuote.description}
-                </p>
-                {detailQuote.description.length > 200 && (
-                  <button
-                    onClick={() => setDescExpanded(!descExpanded)}
-                    className="text-xs text-primary hover:underline mt-2 font-medium"
-                  >
-                    {descExpanded ? "Show less" : "Read more"}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Performance */}
-            <div className="border-t border-border/40 pt-4 mt-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Performance</h3>
-              <div className="flex flex-wrap gap-2">
-                <PerformancePill label="1W" data={history1W} />
-                <PerformancePill label="1M" data={history1M} />
-                <PerformancePill label="3M" data={history3M} />
-              </div>
-            </div>
-
-            {/* Key Metrics */}
-            <div className="border-t border-border/40 pt-4 mt-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Key Metrics</h3>
-              <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">P/E Ratio</span>
-                  <span className="font-mono font-medium">{formatNumber(detailQuote.peRatio)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">PEG Ratio</span>
-                  <span className="font-mono font-medium">{formatNumber(detailQuote.pegRatio)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">Gross Margin</span>
-                  <span className="font-mono font-medium">{((detailQuote.grossMargin ?? 0) * 100).toFixed(2)}%</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">Net Margin</span>
-                  <span className="font-mono font-medium">{((detailQuote.netMargin ?? 0) * 100).toFixed(2)}%</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">ROE</span>
-                  <span className="font-mono font-medium">{((detailQuote.returnOnEquity ?? 0) * 100).toFixed(2)}%</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">Beta</span>
-                  <span className="font-mono font-medium">{formatNumber(detailQuote.beta)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">52W High</span>
-                  <span className="font-mono font-medium">{formatCurrency(detailQuote.fiftyTwoWeekHigh)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">52W Low</span>
-                  <span className="font-mono font-medium">{formatCurrency(detailQuote.fiftyTwoWeekLow)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/30 col-span-2 sm:col-span-1">
-                  <span className="text-muted-foreground">Market Cap</span>
-                  <span className="font-mono font-medium">{formatLargeNumber(detailQuote.marketCap)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Analyst */}
-            <div className="border-t border-border/40 pt-4 mt-4 pb-8">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Analyst</h3>
-              <div className="bg-secondary/20 rounded-lg p-4 flex items-center justify-between border border-border/40 max-w-md">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Target Price</div>
-                  <div className="text-xl font-bold font-mono">
-                    {formatCurrency(detailQuote.analystTargetPrice)}
-                  </div>
-                </div>
-                {detailQuote.analystTargetPrice && detailQuote.currentPrice && (
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground mb-1">Upside</div>
-                    <div className={cn(
-                      "text-lg font-bold font-mono",
-                      detailQuote.analystTargetPrice > detailQuote.currentPrice ? "text-green-500" : "text-red-500"
-                    )}>
-                      {((detailQuote.analystTargetPrice / detailQuote.currentPrice - 1) * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
+          <StockBreakdown ticker={selectedTicker} />
         )}
       </div>
     </div>

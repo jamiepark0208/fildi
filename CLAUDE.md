@@ -8,6 +8,7 @@ First time only: tell Claude "read .claude/skills/replit-setup.md and follow the
 ## SKILLS INDEX (load one at a time — never all at once)
 | Need | Skill |
 |---|---|
+| **Build + restart server** | **.claude/skills/build-and-run.md** |
 | First-time setup | .claude/skills/replit-setup.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Data fetch and cache | .claude/skills/data-architecture.md |
@@ -55,52 +56,43 @@ Never read source files to understand structure — use codegraph context first.
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
-Last completed (2026-06-02): Major portfolio overhaul + AI daily brief + scorecard improvements
+Last completed (2026-06-02): Daily brief overhaul, watchlist→breakdown integration, build skill
 
-### Scorecard improvements
-- Fixed negative P/E bug — OPEN's -468 PE no longer highlighted as "best value"
-- Added `reason` field to `StockScore` — leaderboard shows data-driven explanation per stock
-- New `technical-rankings.ts` — 8-metric technical scoring for the Technical tab (RSI, MFI, MACD, signal, etc.)
-- Technical tab now shows rank chips, score bars, leaderboard, and metrics comparison table
-- New `/scorecard-explanation` page — explains both scoring systems, metric weights, edge cases
-- Added "Scorecard Guide" nav link in sidebar (General section, above Settings)
+### Daily Brief overhaul
+- **On-demand only** — removed auto-fetch on mount; brief only generates when user clicks "Generate Today's Brief"
+- **File-backed history** — `brief-history.json` stores up to 90 briefs; survives server restarts
+- New `GET /api/daily-brief/market` — fetches live prices for 9 instruments with no AI; called on every page load so chips are always fresh
+- `GET /api/daily-brief` (no `?refresh`) — returns today's stored brief from history or `{noData:true}`; zero AI cost
+- `GET /api/daily-brief?refresh=true` — regenerates, saves/overwrites today's entry in history
+- `GET /api/daily-brief/history` — returns full history array sorted newest-first
+- **Minimizable Highlights** — collapse button (chevron) shows market chips + first bullet from Portfolio Implications as "Key takeaway"; expand shows full 5-section brief
+- **Past Briefs tab** — "Past Briefs" tab fetches history; click any date to expand that day's brief + historical chips inline
 
-### Portfolio overhaul
-- `PortfolioEntry` gains `portfolioName` field; `entryPortfolio()` helper falls back to legacy `notes` field
-- `usePortfolio()` now manages a separate `portfolioNames` list (persisted to `fildi_portfolio_names_v1`)
-- Default portfolios: IRA, FILDI, MOM (auto-created on first load)
-- Per-portfolio boxes: each named portfolio gets its own collapsible card with sortable columns
-- "Add Portfolio" button creates new portfolio boxes; "Add Position" per-box pre-selects that portfolio
-- Position dialog: "Notes" field replaced with a "Portfolio" dropdown (select only, not free text)
-- Legacy entries using `notes: "IRA"` still group correctly via `entryPortfolio()` fallback
-- Columns fully sortable (ticker, type, qty, strike, value, pnl) with asc/desc toggle
-- "shares" and "contracts" spelled out in full
-- `cashCollateral()` = strike × 100 × qty for short puts — included in Total Portfolio Value
-- Portfolio analysis component: allocation donut, sector donut, beta bar, DTE histogram, risk stats
-- Covered call detection: when stock + short_call exist for same ticker, beta adjusted by δ×0.70
-- New risk metrics: net portfolio delta (approx), annualized income yield, at-risk puts table
-- Short Put Position Health table: strike, premium, break-even, current price, OTM%, Safe/Watch/At Risk
+### Watchlist → Stock Breakdown integration
+- Clicking a watchlist ticker now renders full `StockBreakdown` (snowflake, valuation grid, analyst donut, news) in right panel
+- `StockBreakdown` accepts optional `ticker` prop — when set, hides search bar and drives ticker from parent
+- "Stock Breakdown" removed from sidebar nav (route `/breakdown` still exists by URL)
+- Removed dead query hooks (`useGetStockQuote`, `useGetStockHistory`) from `WatchlistView` detail panel
 
-### AI Daily Brief
-- New backend route `GET /api/daily-brief` — fetches VIX, SPY, QQQ, TNX, ES=F, NQ=F, GLD, UUP, TLT
-- Pulls recent news headlines per ticker via Yahoo Finance search
-- Calls Claude Haiku with market data + news + persistent context → structured 5-section brief
-- 6-hour in-memory cache keyed by date + tickers
-- `GET /api/daily-brief/context` — read persistent learning context
-- `PATCH /api/daily-brief/context` — update context (clears cache automatically)
-- `brief-context.json` on server: strategy, portfolios, macroFocus, watchSignals, riskRules, userNotes
-- Frontend `DailyBrief` component: market chips row (9 instruments), AI brief sections, gear icon → inline context editor
-- Added `@anthropic-ai/sdk` to api-server dependencies
+### Build skill
+- New `.claude/skills/build-and-run.md` — covers check-running, rebuild one-liner, failure mode table, routing rules
+- Root cause of 502 errors: API server process dies between sessions and must be manually restarted
+- CLAUDE.md updated with skill index entry (bolded) and exact rebuild one-liner in backend build rule
+
+### Previous sessions (2026-06-02)
+- Scorecard: negative P/E fix, `reason` field, technical-rankings.ts, scorecard-explanation page
+- Portfolio: named portfolios (IRA/FILDI/MOM), per-portfolio cards, covered call detection, risk metrics
+- AI Daily Brief (v1): initial implementation with in-memory cache
 
 ## NEXT SESSION — do these in order
 1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
 2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
 
-## BACKEND BUILD RULE (critical — burned us this session)
-After ANY change to api-server/src/**:
-  cd artifacts/api-server && node build.mjs
-Then restart the server process (it runs from dist/index.mjs, not live TypeScript).
-The server does NOT hot-reload. Forgetting this causes 404s on new routes.
+## BACKEND BUILD RULE (critical — causes 502s if skipped)
+After ANY change to api-server/src/**, run the one-liner from build-and-run.md:
+  pkill -f "api-server/dist/index" 2>/dev/null; sleep 0.3 && cd /home/runner/workspace/artifacts/api-server && node build.mjs && PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs >> /tmp/api-server.log 2>&1 & sleep 2 && curl -s "http://localhost:8080/api/daily-brief" | head -c 60
+The server does NOT hot-reload. Forgetting this = 502 or 404 on all API calls.
+See .claude/skills/build-and-run.md for diagnosis and all failure modes.
 
 ## RATE LIMIT RULES
 - Max 3 bash tool calls per response

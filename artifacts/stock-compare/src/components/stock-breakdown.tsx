@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown
@@ -296,13 +296,22 @@ function NewsCard({ item }: { item: NewsItem }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function StockBreakdown() {
-  const [inputText, setInputText] = useState("");
-  const [activeTicker, setActiveTicker] = useState<string | null>(null);
+export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {}) {
+  const [inputText, setInputText] = useState(propTicker ?? "");
+  const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("3M");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When driven by watchlist click, sync ticker from prop
+  useEffect(() => {
+    if (propTicker) {
+      setActiveTicker(propTicker);
+      setInputText(propTicker);
+      setChartPeriod("3M");
+    }
+  }, [propTicker]);
 
   const debouncedQuery = useDebounce(inputText, 180);
 
@@ -371,8 +380,8 @@ export function StockBreakdown() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Search header */}
-      <div className="shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-6 py-3 z-10">
+      {/* Search header — hidden when ticker is driven by parent (e.g. watchlist) */}
+      {!propTicker && <div className="shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-6 py-3 z-10">
         <div className="max-w-3xl mx-auto flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
@@ -421,7 +430,7 @@ export function StockBreakdown() {
             Analyze
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
