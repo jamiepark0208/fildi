@@ -6,6 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Watchlist from "@/pages/watchlist";
+import Technical from "@/pages/technical";
+import Breakdown from "@/pages/breakdown";
+import Portfolio from "@/pages/portfolio";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +21,9 @@ function Router() {
         <Home tickers={tickers} setTickers={setTickers} />
       </Route>
       <Route path="/watchlist" component={Watchlist} />
+      <Route path="/technical" component={Technical} />
+      <Route path="/breakdown" component={Breakdown} />
+      <Route path="/portfolio" component={Portfolio} />
       <Route component={NotFound} />
     </Switch>
   );

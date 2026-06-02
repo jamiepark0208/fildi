@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { Sidebar } from "@/components/sidebar";
-import { StockBreakdown } from "@/components/stock-breakdown";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
 import { useQueries } from "@tanstack/react-query";
 import {
@@ -14,7 +13,7 @@ import {
   StockMetrics
 } from "@workspace/api-client-react";
 import { PriceChart, Period } from "@/components/price-chart";
-import { Search, Loader2, X, BarChart2 } from "lucide-react";
+import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber } from "@/lib/format";
@@ -49,28 +48,33 @@ function PerformancePill({ data, label }: { data?: any[], label: string }) {
 
 // ── Tab button ────────────────────────────────────────────────────────────────
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
-        active
-          ? "border-primary text-foreground"
-          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 // ── Watchlist list view ────────────────────────────────────────────────────────
+
+type SortField = "symbol" | "last" | "chg" | "chgPct";
+type SortDir = "asc" | "desc";
+
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (field !== sortField) return <ChevronsUpDown className="w-3 h-3 opacity-30 inline ml-0.5" />;
+  return sortDir === "asc"
+    ? <ChevronUp className="w-3 h-3 inline ml-0.5" />
+    : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
+}
 
 function WatchlistView() {
   const { entries, isLoaded, addEntry, removeEntry } = useWatchlist();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [filterColor, setFilterColor] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("symbol");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir(field === "symbol" ? "asc" : "desc");
+    }
+  };
 
   const [inputText, setInputText] = useState("");
   const [open, setOpen] = useState(false);
@@ -154,17 +158,47 @@ function WatchlistView() {
     }
   };
 
-  const visibleEntries = useMemo(() => {
+  const filteredEntries = useMemo(() => {
     if (!filterColor) return entries;
     return entries.filter(e => e.colorTag === filterColor);
   }, [entries, filterColor]);
 
   const listQueries = useQueries({
-    queries: visibleEntries.map((entry) => ({
+    queries: filteredEntries.map((entry) => ({
       ...getGetStockQuoteQueryOptions({ ticker: entry.ticker }),
       staleTime: 60 * 1000,
     })),
   });
+
+  // Build quote map for sort access before sorting
+  const quoteMap = useMemo(() => {
+    const m: Record<string, import("@workspace/api-client-react").StockMetrics | undefined> = {};
+    filteredEntries.forEach((e, i) => { m[e.ticker] = listQueries[i]?.data; });
+    return m;
+  }, [filteredEntries, listQueries]);
+
+  const visibleEntries = useMemo(() => {
+    const sorted = [...filteredEntries].sort((a, b) => {
+      const qa = quoteMap[a.ticker];
+      const qb = quoteMap[b.ticker];
+      let va = 0, vb = 0;
+      if (sortField === "symbol") {
+        const r = a.ticker.localeCompare(b.ticker);
+        return sortDir === "asc" ? r : -r;
+      } else if (sortField === "last") {
+        va = qa?.currentPrice ?? 0;
+        vb = qb?.currentPrice ?? 0;
+      } else if (sortField === "chg") {
+        va = qa?.dayChange ?? 0;
+        vb = qb?.dayChange ?? 0;
+      } else {
+        va = qa?.dayChangePercent ?? 0;
+        vb = qb?.dayChangePercent ?? 0;
+      }
+      return sortDir === "asc" ? va - vb : vb - va;
+    });
+    return sorted;
+  }, [filteredEntries, quoteMap, sortField, sortDir]);
 
   const usedColors = useMemo(() => {
     const colors = new Set<string>();
@@ -304,10 +338,16 @@ function WatchlistView() {
         {/* Table Header */}
         <div className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 py-2 border-b border-border/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-sidebar/30 backdrop-blur-md z-10">
           <div />
-          <div>Symbol</div>
-          <div className="text-right">Last</div>
-          <div className="text-right">Chg</div>
-          <div className="text-right">Chg%</div>
+          {(["symbol", "last", "chg", "chgPct"] as SortField[]).map((field, i) => (
+            <button
+              key={field}
+              onClick={() => handleSort(field)}
+              className={cn("flex items-center gap-0.5 hover:text-foreground transition-colors select-none", i > 0 && "justify-end")}
+            >
+              {field === "symbol" ? "Symbol" : field === "last" ? "Last" : field === "chg" ? "Chg" : "Chg%"}
+              <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+            </button>
+          ))}
         </div>
 
         {/* Table Body */}
@@ -318,8 +358,8 @@ function WatchlistView() {
             </div>
           ) : (
             <div className="divide-y divide-border/20">
-              {visibleEntries.map((entry, i) => {
-                const quote = listQueries[i]?.data;
+              {visibleEntries.map((entry) => {
+                const quote = quoteMap[entry.ticker];
                 const isSelected = selectedTicker === entry.ticker;
                 const dayChg = quote?.dayChange ?? 0;
                 const dayChgPct = quote?.dayChangePercent ?? 0;
@@ -537,32 +577,18 @@ function WatchlistView() {
   );
 }
 
-// ── Main Watchlist page with tabs ─────────────────────────────────────────────
+// ── Main Watchlist page ───────────────────────────────────────────────────────
 
 export default function Watchlist() {
-  const [activeTab, setActiveTab] = useState<"watchlist" | "breakdown">("watchlist");
-
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex">
       <Sidebar />
       <main className="flex-1 ml-[220px] flex flex-col h-[100dvh] overflow-hidden">
-
-        {/* Tab bar */}
-        <div className="shrink-0 border-b border-border bg-background flex items-end px-4 gap-0">
-          <TabButton active={activeTab === "watchlist"} onClick={() => setActiveTab("watchlist")}>
-            Watchlist
-          </TabButton>
-          <TabButton active={activeTab === "breakdown"} onClick={() => setActiveTab("breakdown")}>
-            Stock Breakdown
-          </TabButton>
+        <div className="shrink-0 border-b border-border bg-background px-6 py-4">
+          <h1 className="text-lg font-bold tracking-tight leading-none">Watchlist</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">31 tracked tickers across 3 tiers</p>
         </div>
-
-        {/* Tab content */}
-        {activeTab === "watchlist" ? (
-          <WatchlistView />
-        ) : (
-          <StockBreakdown />
-        )}
+        <WatchlistView />
       </main>
     </div>
   );

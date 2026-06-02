@@ -1,4 +1,4 @@
-import { BarChart2, LayoutDashboard, LineChart, BarChart, Bookmark, Settings } from "lucide-react";
+import { BarChart2, LayoutDashboard, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, ScanSearch } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -50,8 +50,8 @@ export function Sidebar() {
         <div>
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">Main</div>
           <nav className="space-y-0.5">
-            {navItem("/", <LayoutDashboard className="w-4 h-4" />, "Compare")}
             {navItem("/watchlist", <Bookmark className="w-4 h-4" />, "Watchlist")}
+            {navItem("/portfolio", <BriefcaseBusiness className="w-4 h-4" />, "Portfolio")}
           </nav>
         </div>
 
@@ -59,7 +59,8 @@ export function Sidebar() {
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">Analysis</div>
           <nav className="space-y-0.5">
             {navItem("/", <BarChart className="w-4 h-4" />, "Fundamental")}
-            {navItem("/technical", <LineChart className="w-4 h-4" />, "Technical", true, true)}
+            {navItem("/technical", <LineChart className="w-4 h-4" />, "Technical")}
+            {navItem("/breakdown", <ScanSearch className="w-4 h-4" />, "Stock Breakdown")}
           </nav>
         </div>
 
