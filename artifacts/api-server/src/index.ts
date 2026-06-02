@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runSeed } from "./lib/seeder";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Fire-and-forget: pre-populate indicator_cache for all tickers missing today's data.
+  // This runs in the background so the server starts instantly.
+  runSeed().catch(e => logger.error({ err: e }, "seed crashed"));
 });

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, primaryKey, index, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boolean, primaryKey, index } from 'drizzle-orm/pg-core'
 import { createInsertSchema } from 'drizzle-zod'
 import { z } from 'zod/v4'
 
@@ -15,6 +15,20 @@ export const watchlist = pgTable('watchlist', {
 export const insertWatchlistSchema = createInsertSchema(watchlist).omit({ addedAt: true })
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>
 export type Watchlist = typeof watchlist.$inferSelect
+
+// ── ticker_config ─────────────────────────────────────────────────────────────
+// Static per-ticker config — editable without a code deploy.
+
+export const tickerConfig = pgTable('ticker_config', {
+  ticker:       text('ticker').primaryKey(),
+  tier:         integer('tier').notNull(),
+  rsiThreshold: numeric('rsi_threshold').notNull(),
+  notes:        text('notes'),
+})
+
+export const insertTickerConfigSchema = createInsertSchema(tickerConfig)
+export type InsertTickerConfig = z.infer<typeof insertTickerConfigSchema>
+export type TickerConfig = typeof tickerConfig.$inferSelect
 
 // ── positions ─────────────────────────────────────────────────────────────────
 
@@ -82,16 +96,32 @@ export const insertPriceSchema = createInsertSchema(pricesHistorical)
 export type InsertPrice = z.infer<typeof insertPriceSchema>
 export type PriceRow = typeof pricesHistorical.$inferSelect
 
-// ── scorecard_cache ───────────────────────────────────────────────────────────
+// ── indicator_cache ───────────────────────────────────────────────────────────
+// One row per (ticker, date). Written by the seed job after market close.
+// Layer 1 — "static daily" data that the Technical tab reads instantly.
 
-export const scorecardCache = pgTable('scorecard_cache', {
-  ticker:     text('ticker').notNull(),
-  scoredDate: date('scored_date').notNull(),
-  scores:     jsonb('scores').notNull(),
+export const indicatorCache = pgTable('indicator_cache', {
+  ticker:       text('ticker').notNull(),
+  scoredDate:   date('scored_date').notNull(),
+  // Core
+  rsi:          numeric('rsi').notNull(),
+  mfi:          numeric('mfi').notNull(),
+  rsiThreshold: numeric('rsi_threshold').notNull(),
+  signal:       text('signal').notNull(),    // GO | WATCH | NO
+  // Extended — computed from OHLCV
+  atr:          numeric('atr'),
+  macdCross:    text('macd_cross'),          // BULLISH_CROSS | BEARISH_CROSS | BULLISH | BEARISH
+  stoch:        numeric('stoch'),            // %K last value
+  return5d:     numeric('return_5d'),        // 5-day price return %
+  // Context — requires SPY + 52w data
+  position52w:  numeric('position_52w'),     // 0-100, lower = near 52w low = better
+  vsSpy20d:     numeric('vs_spy_20d'),       // negative = relatively weak = better
+  // Earnings
+  earningsDate: date('earnings_date'),
 }, t => ({
   pk: primaryKey({ columns: [t.ticker, t.scoredDate] }),
 }))
 
-export const insertScorecardCacheSchema = createInsertSchema(scorecardCache)
-export type InsertScorecardCache = z.infer<typeof insertScorecardCacheSchema>
-export type ScorecardCache = typeof scorecardCache.$inferSelect
+export const insertIndicatorCacheSchema = createInsertSchema(indicatorCache)
+export type InsertIndicatorCache = z.infer<typeof insertIndicatorCacheSchema>
+export type IndicatorCacheRow = typeof indicatorCache.$inferSelect

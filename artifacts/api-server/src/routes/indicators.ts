@@ -6,7 +6,7 @@ const router = Router();
 
 // GET /api/indicators/:ticker
 // ?refresh=true  forces recompute for this ticker only, overwrites scorecard_cache
-router.get("/api/indicators/:ticker", async (req, res) => {
+router.get("/indicators/:ticker", async (req, res) => {
   const ticker  = req.params.ticker.toUpperCase();
   const refresh = req.query.refresh === "true";
   try {
@@ -20,7 +20,7 @@ router.get("/api/indicators/:ticker", async (req, res) => {
 // GET /api/indicators/batch
 // ?tickers=NVDA,AAPL  (omit = all 31)
 // ?refresh=true        re-fetches only the tickers listed (or all if none listed)
-router.get("/api/indicators/batch", async (req, res) => {
+router.get("/indicators/batch", async (req, res) => {
   const raw     = typeof req.query.tickers === "string" ? req.query.tickers : "";
   const refresh = req.query.refresh === "true";
   const tickers = raw

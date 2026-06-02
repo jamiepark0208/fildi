@@ -1,17 +1,18 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
+import { TickerShelf } from "@/components/ticker-shelf";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface IndicatorResult {
   ticker: string;
+  scoredDate: string;
   rsi: number;
   mfi: number;
   rsiThreshold: number;
@@ -20,57 +21,33 @@ interface IndicatorResult {
   mfiOk: boolean;
   signal: "GO" | "WATCH" | "NO";
   tier: 1 | 2 | 3;
-  scoredDate: string;
+  atr: number | null;
+  macdCross: "BULLISH_CROSS" | "BEARISH_CROSS" | "BULLISH" | "BEARISH" | null;
+  stoch: number | null;
+  return5d: number | null;
+  position52w: number | null;
+  vsSpy20d: number | null;
+  earningsDate: string | null;
+  stale?: boolean;
 }
 
-type BatchResponse = Record<string, IndicatorResult | { error: string }>;
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-function isError(v: IndicatorResult | { error: string }): v is { error: string } {
-  return "error" in v;
-}
+const MAX_SLOTS  = 5;
+const SLOT_COLORS = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#f472b6"];
 
-// ── Sort ──────────────────────────────────────────────────────────────────────
-
-type SortKey = "signal" | "rsi" | "mfi" | "tier";
-
-const SIGNAL_ORDER: Record<string, number> = { GO: 0, WATCH: 1, NO: 2 };
-
-function sortResults(rows: IndicatorResult[], key: SortKey): IndicatorResult[] {
-  return [...rows].sort((a, b) => {
-    if (key === "signal") {
-      const sd = SIGNAL_ORDER[a.signal] - SIGNAL_ORDER[b.signal];
-      return sd !== 0 ? sd : a.rsi - b.rsi;
-    }
-    if (key === "rsi") return a.rsi - b.rsi;
-    if (key === "mfi") return a.mfi - b.mfi;
-    // tier
-    const td = a.tier - b.tier;
-    return td !== 0 ? td : SIGNAL_ORDER[a.signal] - SIGNAL_ORDER[b.signal];
-  });
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function IndicatorBar({ value, threshold, ok }: { value: number; threshold: number; ok: boolean }) {
-  const pct = Math.min(100, (value / threshold) * 100);
-  const color = ok
-    ? "bg-green-500"
-    : value >= threshold - 5
-    ? "bg-yellow-500"
-    : "bg-red-500";
-  return (
-    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-      <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
+// ── Small helpers ─────────────────────────────────────────────────────────────
 
 function TierBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const cls =
     tier === 1 ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
     tier === 2 ? "bg-purple-500/15 text-purple-400 border-purple-500/20" :
                  "bg-orange-500/15 text-orange-400 border-orange-500/20";
-  return <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-semibold", cls)}>T{tier}</Badge>;
+  return (
+    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-semibold", cls)}>
+      T{tier}
+    </Badge>
+  );
 }
 
 function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
@@ -78,236 +55,293 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
     signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
     signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
                          "bg-muted text-muted-foreground border-border";
-  return <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>{signal}</Badge>;
-}
-
-function TickerCard({
-  result,
-  onRefresh,
-  refreshing,
-}: {
-  result: IndicatorResult;
-  onRefresh: (ticker: string) => void;
-  refreshing: boolean;
-}) {
-  const borderColor =
-    result.signal === "GO"    ? "border-l-green-500" :
-    result.signal === "WATCH" ? "border-l-yellow-500" :
-                                "border-l-border/40";
-
-  const dateLabel = result.scoredDate
-    ? new Date(result.scoredDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    : "—";
-
   return (
-    <Card className={cn("border-l-2 transition-all hover:shadow-md", borderColor, result.signal === "NO" && "opacity-60")}>
-      <CardContent className="p-3 space-y-2.5">
-        {/* Top row */}
-        <div className="flex items-center justify-between">
-          <TierBadge tier={result.tier} />
-          <SignalBadge signal={result.signal} />
-        </div>
-
-        {/* Ticker */}
-        <div className="text-xl font-mono font-bold tracking-tight leading-none">{result.ticker}</div>
-
-        {/* Divider */}
-        <div className="h-px bg-border/40" />
-
-        {/* RSI */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground font-medium">RSI</span>
-            <span className={cn("font-mono tabular-nums font-semibold", result.rsiOk ? "text-green-400" : "text-red-400")}>
-              {result.rsi.toFixed(1)}<span className="text-muted-foreground font-normal"> / {result.rsiThreshold}</span>
-            </span>
-          </div>
-          <IndicatorBar value={result.rsi} threshold={result.rsiThreshold} ok={result.rsiOk} />
-        </div>
-
-        {/* MFI */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground font-medium">MFI</span>
-            <span className={cn("font-mono tabular-nums font-semibold", result.mfiOk ? "text-green-400" : "text-red-400")}>
-              {result.mfi.toFixed(1)}<span className="text-muted-foreground font-normal"> / 25</span>
-            </span>
-          </div>
-          <IndicatorBar value={result.mfi} threshold={result.mfiThreshold} ok={result.mfiOk} />
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-border/40" />
-
-        {/* Footer */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => onRefresh(result.ticker)}
-            disabled={refreshing}
-            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-            title="Refresh this ticker"
-          >
-            <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
-          </button>
-          <span className="text-[10px] text-muted-foreground/60">{dateLabel}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>
+      {signal}
+    </Badge>
   );
 }
 
-function SkeletonCard() {
+function IndicatorBar({ value, threshold, ok }: { value: number; threshold: number; ok: boolean }) {
+  const pct   = Math.min(100, (value / threshold) * 100);
+  const color = ok ? "bg-green-500" : value >= threshold - 5 ? "bg-yellow-500" : "bg-red-500";
   return (
-    <Card className="border-l-2 border-l-border/40">
-      <CardContent className="p-3 space-y-2.5">
-        <div className="flex justify-between">
-          <Skeleton className="h-4 w-8" />
-          <Skeleton className="h-4 w-12" />
-        </div>
-        <Skeleton className="h-6 w-16" />
-        <div className="h-px bg-border/40" />
-        <div className="space-y-1">
-          <div className="flex justify-between">
-            <Skeleton className="h-3 w-8" />
-            <Skeleton className="h-3 w-16" />
+    <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
+      <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function MacdBadge({ cross }: { cross: IndicatorResult["macdCross"] }) {
+  if (!cross) return null;
+  const isBull  = cross.startsWith("BULLISH");
+  const isCross = cross.endsWith("_CROSS");
+  const label   = isCross ? (isBull ? "MACD↑" : "MACD↓") : (isBull ? "MACD+" : "MACD−");
+  const cls     = isBull
+    ? "bg-green-500/10 text-green-400 border-green-500/20"
+    : "bg-red-500/10 text-red-400 border-red-500/20";
+  return (
+    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4", isCross && "font-bold", cls)}>
+      {label}
+    </Badge>
+  );
+}
+
+// ── 5-slot card row ───────────────────────────────────────────────────────────
+
+interface TechnicalCardsProps {
+  tickers: string[];
+  data: Record<string, IndicatorResult | null>;
+  loading: Record<string, boolean>;
+  onAddClick: () => void;
+  onRemove: (t: string) => void;
+  onRefresh: (t: string) => void;
+  refreshing: Set<string>;
+}
+
+function TechnicalCards({ tickers, data, loading, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
+  const slots = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
+
+  return (
+    <div className="grid grid-cols-5 gap-3">
+      {slots.map((ticker, i) => {
+        const color = SLOT_COLORS[i];
+
+        if (!ticker) {
+          return (
+            <button
+              key={`empty-${i}`}
+              onClick={onAddClick}
+              className="h-[200px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+            >
+              <div className="w-8 h-8 rounded-full border border-dashed border-current flex items-center justify-center group-hover:border-solid transition-all">
+                <Plus className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-medium">Add Ticker</span>
+            </button>
+          );
+        }
+
+        if (loading[ticker]) {
+          return (
+            <div
+              key={ticker}
+              className="h-[200px] rounded-xl border border-border bg-card shadow-sm flex items-center justify-center"
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+            >
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          );
+        }
+
+        const d = data[ticker];
+        if (!d) {
+          return (
+            <div
+              key={ticker}
+              className="h-[200px] rounded-xl border border-border bg-card shadow-sm p-3 flex flex-col justify-between"
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
+                <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center">×</button>
+              </div>
+              <p className="text-xs text-muted-foreground">No data</p>
+            </div>
+          );
+        }
+
+        const earningsSoon = d.earningsDate
+          ? (new Date(d.earningsDate + "T12:00:00").getTime() - Date.now()) / 86400000 < 14
+          : false;
+
+        return (
+          <div
+            key={ticker}
+            className="rounded-xl border border-border bg-card shadow-sm p-3 flex flex-col gap-2.5"
+            style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+          >
+            {/* Header row */}
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <TierBadge tier={d.tier} />
+                  <SignalBadge signal={d.signal} />
+                  {earningsSoon && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-400 border-orange-500/20">EARN</Badge>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center shrink-0">×</button>
+            </div>
+
+            {/* RSI */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-muted-foreground">RSI 14</span>
+                <span className={cn("font-mono font-semibold tabular-nums", d.rsiOk ? "text-green-400" : "text-red-400")}>
+                  {d.rsi.toFixed(1)}<span className="text-muted-foreground font-normal"> /{d.rsiThreshold}</span>
+                </span>
+              </div>
+              <IndicatorBar value={d.rsi} threshold={d.rsiThreshold} ok={d.rsiOk} />
+            </div>
+
+            {/* MFI */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-muted-foreground">MFI 14</span>
+                <span className={cn("font-mono font-semibold tabular-nums", d.mfiOk ? "text-green-400" : "text-red-400")}>
+                  {d.mfi.toFixed(1)}<span className="text-muted-foreground font-normal"> /25</span>
+                </span>
+              </div>
+              <IndicatorBar value={d.mfi} threshold={d.mfiThreshold} ok={d.mfiOk} />
+            </div>
+
+            <div className="h-px bg-border/30" />
+
+            {/* Extended metrics */}
+            <div className="space-y-1 text-[11px]">
+              {d.return5d != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">5d return</span>
+                  <span className={cn("font-mono tabular-nums font-semibold",
+                    d.return5d > 8 ? "text-red-400" : d.return5d > 3 ? "text-yellow-400" : d.return5d < 0 ? "text-green-400" : "text-foreground"
+                  )}>
+                    {d.return5d > 0 ? "+" : ""}{d.return5d.toFixed(1)}%
+                  </span>
+                </div>
+              )}
+              {d.position52w != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">52w pos</span>
+                  <span className={cn("font-mono tabular-nums font-semibold",
+                    d.position52w < 30 ? "text-green-400" : d.position52w > 70 ? "text-red-400" : "text-foreground"
+                  )}>
+                    {d.position52w.toFixed(0)}%
+                  </span>
+                </div>
+              )}
+              {d.vsSpy20d != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">vs SPY 20d</span>
+                  <span className={cn("font-mono tabular-nums font-semibold",
+                    d.vsSpy20d < 0 ? "text-green-400" : d.vsSpy20d > 5 ? "text-red-400" : "text-foreground"
+                  )}>
+                    {d.vsSpy20d > 0 ? "+" : ""}{d.vsSpy20d.toFixed(1)}%
+                  </span>
+                </div>
+              )}
+              {d.stoch != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stoch %K</span>
+                  <span className={cn("font-mono tabular-nums font-semibold",
+                    d.stoch < 20 ? "text-green-400" : d.stoch > 80 ? "text-red-400" : "text-foreground"
+                  )}>
+                    {d.stoch.toFixed(1)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer: MACD badge + refresh */}
+            <div className="flex items-center justify-between mt-auto">
+              <MacdBadge cross={d.macdCross} />
+              <button
+                onClick={() => onRefresh(ticker)}
+                disabled={refreshing.has(ticker)}
+                className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 ml-auto"
+                title="Recompute from live data"
+              >
+                <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
+              </button>
+            </div>
           </div>
-          <Skeleton className="h-1.5 w-full" />
-        </div>
-        <div className="space-y-1">
-          <div className="flex justify-between">
-            <Skeleton className="h-3 w-8" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <Skeleton className="h-1.5 w-full" />
-        </div>
-      </CardContent>
-    </Card>
+        );
+      })}
+    </div>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const SORT_LABELS: { key: SortKey; label: string }[] = [
-  { key: "signal", label: "Signal" },
-  { key: "rsi",    label: "RSI" },
-  { key: "mfi",    label: "MFI" },
-  { key: "tier",   label: "Tier" },
-];
-
 export default function Technical() {
-  const [sortKey, setSortKey] = useState<SortKey>("signal");
-  const [refreshingTickers, setRefreshingTickers] = useState<Set<string>>(new Set());
-  const queryClient = useQueryClient();
+  const [tickers,   setTickers]   = useState<string[]>([]);
+  const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery<BatchResponse>({
-    queryKey: ["indicators", "batch"],
-    queryFn: async () => {
-      const res = await fetch("/api/indicators/batch");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return res.json();
-    },
-    staleTime: 4 * 60 * 1000,
-    retry: 1,
+  const handleAdd    = (t: string) => { if (!tickers.includes(t) && tickers.length < MAX_SLOTS) setTickers(p => [...p, t]); };
+  const handleRemove = (t: string) => setTickers(p => p.filter(x => x !== t));
+  const focusInput   = () => document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]')?.focus();
+
+  const queries = useQueries({
+    queries: tickers.map(ticker => ({
+      queryKey: ["indicators", ticker],
+      queryFn: async (): Promise<IndicatorResult | null> => {
+        const res = await fetch(`/api/indicators/${ticker}`);
+        if (!res.ok) return null;
+        return res.json();
+      },
+      staleTime: 4 * 60 * 1000,
+      retry: 1,
+    })),
   });
 
-  const handleRefreshTicker = async (ticker: string) => {
-    setRefreshingTickers(s => new Set(s).add(ticker));
+  const loadingMap = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    tickers.forEach((t, i) => { m[t] = queries[i]?.isLoading ?? false; });
+    return m;
+  }, [tickers, queries]);
+
+  const dataMap = useMemo(() => {
+    const m: Record<string, IndicatorResult | null> = {};
+    tickers.forEach((t, i) => { m[t] = (queries[i]?.data as IndicatorResult | null | undefined) ?? null; });
+    return m;
+  }, [tickers, queries]);
+
+  const handleRefresh = async (ticker: string) => {
+    setRefreshing(s => new Set(s).add(ticker));
     try {
-      await fetch(`/api/indicators/${ticker}?refresh=true`);
-      await queryClient.invalidateQueries({ queryKey: ["indicators", "batch"] });
+      const res = await fetch(`/api/technical/refresh/${ticker}`, { method: "POST" });
+      if (res.ok) {
+        const fresh: IndicatorResult = await res.json();
+        // Update the cached query data directly
+        queries[tickers.indexOf(ticker)]?.refetch?.();
+      }
     } finally {
-      setRefreshingTickers(s => { const n = new Set(s); n.delete(ticker); return n; });
+      setRefreshing(s => { const n = new Set(s); n.delete(ticker); return n; });
     }
   };
-
-  const results: IndicatorResult[] = data
-    ? sortResults(
-        Object.values(data).filter((v): v is IndicatorResult => !isError(v)),
-        sortKey,
-      )
-    : [];
-
-  const errorCount = data ? Object.values(data).filter(isError).length : 0;
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
       <Sidebar />
 
       <main className="flex-1 ml-[220px] min-w-0">
-        {/* Header */}
+        {/* Header — matches Fundamental layout */}
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Technical Scorecard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">RSI + MFI signal status — {results.length} tickers</p>
+            <p className="text-xs text-muted-foreground mt-0.5">RSI · MFI · MACD · 5d return · 52w position · vs SPY</p>
           </div>
-
-          <div className="flex items-center gap-3">
-            {/* Sort controls */}
-            <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-0.5">
-              {SORT_LABELS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setSortKey(key)}
-                  className={cn(
-                    "px-2.5 py-1 text-xs font-medium rounded transition-colors",
-                    sortKey === key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="h-8 gap-1.5"
-            >
-              <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
-              Refresh All
-            </Button>
-          </div>
+          <TickerShelf
+            tickers={tickers}
+            loadingTickers={loadingMap}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+          />
         </div>
 
-        {/* Info banner */}
-        <div className="px-5 py-2 bg-secondary/20 border-b border-border/30 text-[11px] text-muted-foreground flex items-center gap-2">
-          <span>Signals computed once daily from 90-day OHLCV.</span>
-          <span>Use ↻ on any card to force recalculate from live data.</span>
-          {errorCount > 0 && (
-            <span className="ml-auto flex items-center gap-1 text-yellow-500">
-              <AlertCircle className="w-3 h-3" />{errorCount} tickers failed
-            </span>
-          )}
-        </div>
-
-        {/* Content */}
         <div className="p-5">
-          {error ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-              <AlertCircle className="w-10 h-10 text-red-400" />
-              <p className="text-sm text-muted-foreground">Failed to load indicators.</p>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button>
-            </div>
-          ) : isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {Array.from({ length: 31 }).map((_, i) => <SkeletonCard key={i} />)}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {results.map(r => (
-                <TickerCard
-                  key={r.ticker}
-                  result={r}
-                  onRefresh={handleRefreshTicker}
-                  refreshing={refreshingTickers.has(r.ticker)}
-                />
-              ))}
-            </div>
-          )}
+          <TechnicalCards
+            tickers={tickers}
+            data={dataMap}
+            loading={loadingMap}
+            onAddClick={focusInput}
+            onRemove={handleRemove}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
         </div>
       </main>
     </div>

@@ -53,3 +53,9 @@ Data source decision: yahoo-finance2 + technicalindicators (no external API keys
 1. Fix TS error in stocks.ts:381 (type assertion on yahooFinance.search())
 2. Install technicalindicators, add RSI/MFI endpoints to API server
 3. Options chain fetch via yf2.options() using narrow slice from options-pricer.md
+
+## RATE LIMIT RULES
+- Max 3 bash tool calls per response
+- After a build command: wait for output before next call
+- Never chain more than 2 curl/test commands back to back
+- If 429 error appears: stop, wait 60s, resume with single tool call
