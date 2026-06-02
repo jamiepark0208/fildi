@@ -10,6 +10,7 @@ import Technical from "@/pages/technical";
 import Breakdown from "@/pages/breakdown";
 import Portfolio from "@/pages/portfolio";
 import ScorecardExplanation from "@/pages/scorecard-explanation";
+import OptionsScanner from "@/pages/options-scanner";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/breakdown" component={Breakdown} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/scorecard-explanation" component={ScorecardExplanation} />
+      <Route path="/options-scanner" component={OptionsScanner} />
       <Route component={NotFound} />
     </Switch>
   );

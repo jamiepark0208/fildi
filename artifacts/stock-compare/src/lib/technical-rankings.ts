@@ -29,11 +29,11 @@ type TechnicalMetricDef = {
 
 export const TECHNICAL_SCORECARD_METRICS: TechnicalMetricDef[] = [
   { key: "signal",   label: "Signal",         weight: 3.0, higherIsBetter: true,  getValue: d => d.signal === "GO" ? 2 : d.signal === "WATCH" ? 1 : 0 },
-  { key: "rsi",      label: "RSI 14",         weight: 3.0, higherIsBetter: false, getValue: d => d.rsi },
-  { key: "mfi",      label: "MFI 14",         weight: 2.5, higherIsBetter: false, getValue: d => d.mfi },
+  { key: "rsi",      label: "RSI 14",         weight: 3.0, higherIsBetter: true,  getValue: d => Math.max(0, Math.min(15, 15 * (1 - (d.rsi - d.rsiThreshold) / 20))) },
+  { key: "mfi",      label: "MFI 14",         weight: 2.5, higherIsBetter: true,  getValue: d => Math.max(0, Math.min(10, 10 * (1 - (d.mfi - 25) / 20))) },
   { key: "macd",     label: "MACD",           weight: 2.0, higherIsBetter: true,  getValue: d => d.macdCross === "BULLISH_CROSS" ? 3 : d.macdCross === "BULLISH" ? 2 : d.macdCross === "BEARISH" ? 1 : d.macdCross === "BEARISH_CROSS" ? 0 : null },
   { key: "pos52w",   label: "52w Position",   weight: 2.0, higherIsBetter: false, getValue: d => d.position52w },
-  { key: "return5d", label: "5d Return",      weight: 1.5, higherIsBetter: false, getValue: d => d.return5d },
+  { key: "return5d", label: "5d Return",      weight: 1.5, higherIsBetter: true,  getValue: d => d.return5d !== null ? Math.max(0, Math.min(15, 7.5 - d.return5d * 100 * 1.5)) : null },
   { key: "vsSpy",    label: "vs SPY 20d",     weight: 1.5, higherIsBetter: false, getValue: d => d.vsSpy20d },
   { key: "stoch",    label: "Stochastic %K",  weight: 1.5, higherIsBetter: false, getValue: d => d.stoch },
 ];

@@ -1,0 +1,592 @@
+import { useState, useMemo } from "react";
+import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { Sidebar } from "@/components/sidebar";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
+import {
+  computeTechnicalRankings,
+  type IndicatorResult,
+  type TechnicalScore,
+} from "@/lib/technical-rankings";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface OptionRow {
+  strike: number;
+  bid: number;
+  ask: number;
+  lastPrice: number;
+  iv: number;
+  volume: number | null;
+  incomePct: number;
+  meetsGate: boolean;
+}
+
+interface OptionsChainResult {
+  ticker: string;
+  expiry: string;
+  isWeekly: boolean;
+  daysToExpiry: number;
+  spot: number;
+  tier: 1 | 2 | 3;
+  puts: OptionRow[];
+  fetchedAt: number;
+}
+
+type ScorecardRow = IndicatorResult & { stale: boolean };
+type SortKey = "income" | "score" | "iv" | "otm" | "signal";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const RED_TAG = "#ef4444";
+
+const SORT_LABELS: { key: SortKey; label: string }[] = [
+  { key: "income", label: "Income%" },
+  { key: "score",  label: "Score" },
+  { key: "iv",     label: "IV" },
+  { key: "otm",    label: "OTM buffer" },
+  { key: "signal", label: "Signal" },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatExpiry(expiry: string, dte: number): string {
+  const d     = new Date(expiry + "T12:00:00");
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const weeks = Math.max(1, Math.round(dte / 7));
+  return `${month} ${d.getDate()} · ${weeks}wk`;
+}
+
+function minutesAgo(d: Date): string {
+  const mins = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  return `${mins} min ago`;
+}
+
+function viableStrikes(
+  chains: OptionsChainResult[],
+  minWeeklyIncome: number,
+  show1wk: boolean,
+  show2wk: boolean,
+): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
+  return chains
+    .filter(c => (show1wk && Math.round(c.daysToExpiry / 7) === 1) ||
+                 (show2wk && Math.round(c.daysToExpiry / 7) >= 2))
+    .flatMap(c => {
+      const w = Math.max(1, Math.round(c.daysToExpiry / 7));
+      return c.puts
+        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / w }))
+        .filter(x => x.weeklyIncome >= minWeeklyIncome);
+    });
+}
+
+function strikeSummary(
+  indicator: ScorecardRow | null,
+  chains: OptionsChainResult[] | null,
+  show1wk: boolean,
+  show2wk: boolean,
+): string {
+  if (!chains) return "—";
+  const strikes = viableStrikes(chains, 0.5, show1wk, show2wk);
+  if (strikes.length === 0) {
+    if (indicator?.return5d != null && indicator.return5d * 100 > 3) {
+      return "excluded · RM filter";
+    }
+    return "no viable strikes";
+  }
+  const best = Math.max(...strikes.map(s => s.weeklyIncome));
+  return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
+}
+
+function buildReasoning(d: ScorecardRow, firstIV: number | null): string {
+  if (d.signal === "GO") {
+    const ivPart  = firstIV != null ? ` — IV ${(firstIV * 100).toFixed(0)}%` : "";
+    const spyPart = d.vsSpy20d != null
+      ? `, ${d.vsSpy20d > 0 ? "up" : "down"} ${Math.abs(d.vsSpy20d * 100).toFixed(1)}% vs SPY`
+      : "";
+    return `RSI ${d.rsi.toFixed(1)} / ${d.rsiThreshold}, MFI ${d.mfi.toFixed(1)} / 25${spyPart}${ivPart}`;
+  }
+  if (d.signal === "WATCH") {
+    if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} slightly above 25 — monitor for weakening`;
+    return `RSI ${d.rsi.toFixed(1)} near threshold ${d.rsiThreshold} — monitor`;
+  }
+  if (d.return5d != null && d.return5d * 100 > 3) {
+    return `Up +${(d.return5d * 100).toFixed(1)}% in 5 days — wait for mean reversion`;
+  }
+  if (!d.rsiOk) return `RSI ${d.rsi.toFixed(1)} above threshold ${d.rsiThreshold}`;
+  if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} above 25`;
+  return "conditions not met";
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
+  const cls =
+    signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
+    signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
+                         "bg-muted text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>
+      {signal}
+    </Badge>
+  );
+}
+
+function StrikeCard({
+  chain,
+  put,
+  isBest,
+}: {
+  chain: OptionsChainResult;
+  put: OptionRow;
+  isBest: boolean;
+}) {
+  const weeksOut     = Math.max(1, Math.round(chain.daysToExpiry / 7));
+  const weeklyIncome = put.incomePct / weeksOut;
+  const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
+  const incomeColor  =
+    weeklyIncome >= 1.0 ? "text-green-400" :
+    weeklyIncome >= 0.7 ? "text-yellow-400" : "text-muted-foreground";
+
+  return (
+    <div className={cn(
+      "rounded-md border px-3 py-2.5 min-w-[118px] space-y-0.5 shrink-0",
+      isBest
+        ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20"
+        : "border-border bg-card",
+    )}>
+      {isBest && (
+        <div className="text-[9px] font-semibold text-green-400 uppercase tracking-wide mb-1">Best</div>
+      )}
+      <div className="text-[10px] text-muted-foreground">{formatExpiry(chain.expiry, chain.daysToExpiry)}</div>
+      <div className="font-semibold text-sm">${put.strike.toFixed(0)}</div>
+      <div className={cn("font-bold text-sm", incomeColor)}>{weeklyIncome.toFixed(2)}%/wk</div>
+      <div className="text-[11px] text-muted-foreground">{otmPct.toFixed(1)}% OTM</div>
+      <div className="text-[11px] text-muted-foreground">IV {(put.iv * 100).toFixed(0)}%</div>
+    </div>
+  );
+}
+
+// ── Scanner Row ───────────────────────────────────────────────────────────────
+
+interface ScannerRowProps {
+  ticker: string;
+  colorTag: string;
+  indicator: ScorecardRow | null;
+  score: TechnicalScore | null;
+  optionsData: OptionsChainResult[] | null;
+  optionsLoading: boolean;
+  expanded: boolean;
+  show1wk: boolean;
+  show2wk: boolean;
+  minIncomeOn: boolean;
+  onExpand: () => void;
+  onRefresh: () => void;
+}
+
+function ScannerRow({
+  ticker,
+  colorTag,
+  indicator,
+  score,
+  optionsData,
+  optionsLoading,
+  expanded,
+  show1wk,
+  show2wk,
+  minIncomeOn,
+  onExpand,
+  onRefresh,
+}: ScannerRowProps) {
+  const signal    = indicator?.signal ?? "NO";
+  const price     = optionsData?.[0]?.spot ?? null;
+  const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
+  const minIncome = minIncomeOn ? 0.5 : 0;
+
+  const strikes = optionsData
+    ? viableStrikes(optionsData, minIncome, show1wk, show2wk)
+    : [];
+
+  const bestStrike = strikes.length > 0
+    ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
+    : null;
+
+  const ivDisplay = firstIV != null ? `IV ${(firstIV * 100).toFixed(0)}%` : "IV —";
+  const summary   = optionsLoading
+    ? null
+    : strikeSummary(indicator, optionsData, show1wk, show2wk);
+
+  const borderColor = colorTag || "transparent";
+
+  return (
+    <div className="border-b border-border last:border-b-0">
+      {/* Collapsed header row */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
+        style={{ borderLeft: `4px solid ${borderColor}` }}
+        onClick={onExpand}
+      >
+        {/* Left: ticker + price + signal */}
+        <div className="flex items-center gap-2 w-[130px] shrink-0">
+          <span className="font-semibold text-sm">{ticker}</span>
+          {price != null && (
+            <span className="text-xs text-muted-foreground">${price.toFixed(2)}</span>
+          )}
+        </div>
+
+        <SignalBadge signal={signal} />
+
+        {/* Score */}
+        <span className="text-xs text-muted-foreground w-[60px] shrink-0">
+          {score ? `score ${score.totalScore.toFixed(1)}` : "—"}
+        </span>
+
+        {/* IV */}
+        <span className="text-xs text-muted-foreground w-[50px] shrink-0">{ivDisplay}</span>
+
+        {/* Strike summary */}
+        <span className={cn(
+          "text-xs flex-1",
+          summary?.startsWith("excluded") ? "text-muted-foreground italic" :
+          summary?.startsWith("no viable") ? "text-muted-foreground" : "text-foreground",
+        )}>
+          {optionsLoading ? (
+            <Loader2 className="w-3 h-3 animate-spin inline" />
+          ) : (summary ?? "—")}
+        </span>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          <button
+            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+            onClick={onRefresh}
+            title="Refresh this ticker"
+          >
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        </div>
+        {expanded
+          ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        }
+      </div>
+
+      {/* Expanded panel */}
+      {expanded && (
+        <div
+          className="px-4 pb-4 pt-1 space-y-3 bg-secondary/10"
+          style={{ borderLeft: `4px solid ${borderColor}` }}
+        >
+          {/* Reasoning line */}
+          {indicator && (
+            <p className="text-xs text-muted-foreground">
+              {buildReasoning(indicator, firstIV)}
+            </p>
+          )}
+
+          {/* Strike cards */}
+          {optionsLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading options…
+            </div>
+          )}
+
+          {!optionsLoading && optionsData && strikes.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {strikes.map(({ chain, put, weeklyIncome }) => (
+                <StrikeCard
+                  key={`${chain.expiry}-${put.strike}`}
+                  chain={chain}
+                  put={put}
+                  isBest={
+                    bestStrike != null &&
+                    put.strike === bestStrike.put.strike &&
+                    chain.expiry === bestStrike.chain.expiry
+                  }
+                />
+              ))}
+            </div>
+          )}
+
+          {!optionsLoading && optionsData && strikes.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              {strikeSummary(indicator, optionsData, show1wk, show2wk)}
+            </p>
+          )}
+
+          {!optionsLoading && !optionsData && (
+            <p className="text-xs text-muted-foreground italic">No options data.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function OptionsScanner() {
+  const queryClient = useQueryClient();
+
+  const [expandedSet,  setExpandedSet]  = useState<Set<string>>(new Set());
+  const [fetchedOnce,  setFetchedOnce]  = useState<Set<string>>(new Set());
+  const [sort,         setSort]         = useState<SortKey>("income");
+  const [show1wk,      setShow1wk]      = useState(true);
+  const [show2wk,      setShow2wk]      = useState(true);
+  const [goOnly,       setGoOnly]       = useState(false);
+  const [minIncomeOn,  setMinIncomeOn]  = useState(true);
+  const [refreshedAt,  setRefreshedAt]  = useState(() => new Date());
+
+  const { entries, isLoaded } = useWatchlist();
+
+  const activeTickers = useMemo(
+    () => entries.filter(e => e.colorTag !== RED_TAG).map(e => e.ticker),
+    [entries],
+  );
+  const colorMap = useMemo(
+    () => new Map(entries.map(e => [e.ticker, e.colorTag])),
+    [entries],
+  );
+
+  // ── Scorecard batch — 1 call on mount ───────────────────────────────────────
+  const { data: scorecardData, isLoading: scorecardLoading, refetch: refetchScorecard } = useQuery({
+    queryKey:             ["technical-scorecard"],
+    queryFn:              async () => {
+      const res = await fetch("/api/technical/scorecard");
+      if (!res.ok) throw new Error("scorecard fetch failed");
+      return res.json() as Promise<ScorecardRow[]>;
+    },
+    staleTime:            Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  // ── Per-ticker options — enabled only after first expand ────────────────────
+  const optionsQueries = useQueries({
+    queries: activeTickers.map(ticker => ({
+      queryKey:             ["options", ticker],
+      queryFn:              async () => {
+        const res = await fetch(`/api/options/${ticker}`);
+        if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
+        return res.json() as Promise<OptionsChainResult[]>;
+      },
+      enabled:              fetchedOnce.has(ticker),
+      staleTime:            Infinity,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
+  // ── Derived maps ─────────────────────────────────────────────────────────────
+  const scorecardMap = useMemo(
+    () => new Map((scorecardData ?? []).map(r => [r.ticker, r])),
+    [scorecardData],
+  );
+
+  const optionsMap = useMemo(() => {
+    const m = new Map<string, OptionsChainResult[] | null>();
+    activeTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.data ?? null));
+    return m;
+  }, [activeTickers, optionsQueries]);
+
+  const optionsLoadingMap = useMemo(() => {
+    const m = new Map<string, boolean>();
+    activeTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.isFetching ?? false));
+    return m;
+  }, [activeTickers, optionsQueries]);
+
+  const rankings = useMemo(() => {
+    if (!scorecardData) return new Map<string, TechnicalScore>();
+    const active = scorecardData.filter(r => activeTickers.includes(r.ticker));
+    return new Map(computeTechnicalRankings(active).map(s => [s.ticker, s]));
+  }, [scorecardData, activeTickers]);
+
+  // ── Sort + filter ─────────────────────────────────────────────────────────────
+  const sortedTickers = useMemo(() => {
+    let list = [...activeTickers];
+    if (goOnly) list = list.filter(t => scorecardMap.get(t)?.signal === "GO");
+
+    list.sort((a, b) => {
+      switch (sort) {
+        case "signal": {
+          const o = { GO: 2, WATCH: 1, NO: 0 } as const;
+          return (o[scorecardMap.get(b)?.signal ?? "NO"] ?? 0) - (o[scorecardMap.get(a)?.signal ?? "NO"] ?? 0);
+        }
+        case "score":
+          return (rankings.get(b)?.totalScore ?? 0) - (rankings.get(a)?.totalScore ?? 0);
+        case "iv": {
+          const iv = (t: string) => optionsMap.get(t)?.[0]?.puts?.[0]?.iv ?? -1;
+          return iv(b) - iv(a);
+        }
+        case "otm": {
+          const otm = (t: string) => {
+            const chains = optionsMap.get(t);
+            if (!chains) return -1;
+            const spot = chains[0]?.spot ?? 0;
+            const best = Math.max(...chains.flatMap(c => c.puts.filter(p => p.meetsGate).map(p => p.strike)), 0);
+            return spot > 0 && best > 0 ? ((spot - best) / spot) * 100 : -1;
+          };
+          return otm(b) - otm(a);
+        }
+        case "income":
+        default: {
+          const income = (t: string) => {
+            const chains = optionsMap.get(t);
+            if (!chains) return -1;
+            let best = -1;
+            for (const c of chains) {
+              const w = Math.max(1, Math.round(c.daysToExpiry / 7));
+              for (const p of c.puts) {
+                const wi = p.incomePct / w;
+                if (wi > best) best = wi;
+              }
+            }
+            return best;
+          };
+          return income(b) - income(a);
+        }
+      }
+    });
+    return list;
+  }, [activeTickers, sort, goOnly, scorecardMap, rankings, optionsMap]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
+  const handleExpand = (ticker: string) => {
+    setExpandedSet(prev => {
+      const next = new Set(prev);
+      next.has(ticker) ? next.delete(ticker) : next.add(ticker);
+      return next;
+    });
+    setFetchedOnce(prev => prev.has(ticker) ? prev : new Set([...prev, ticker]));
+  };
+
+  const handleRowRefresh = (ticker: string) => {
+    setFetchedOnce(prev => new Set([...prev, ticker]));
+    queryClient.invalidateQueries({ queryKey: ["options", ticker] });
+  };
+
+  const handleGlobalRefresh = () => {
+    refetchScorecard();
+    setRefreshedAt(new Date());
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  const nonRedColors = PRESET_COLORS.filter(c => c !== RED_TAG);
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 ml-[220px] p-6 space-y-4">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Options Scanner</h1>
+            {/* Color legend */}
+            <div className="flex items-center gap-3 mt-1">
+              {nonRedColors.map(c => (
+                <span key={c} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c }} />
+                </span>
+              ))}
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: RED_TAG }} />
+                excluded
+              </span>
+            </div>
+          </div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={handleGlobalRefresh}
+            disabled={scorecardLoading}
+          >
+            {scorecardLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <RefreshCw className="w-3.5 h-3.5" />
+            }
+            {minutesAgo(refreshedAt)}
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sort buttons */}
+          <div className="flex items-center gap-1 border border-border rounded-md p-0.5">
+            {SORT_LABELS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setSort(key)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded transition-colors",
+                  sort === key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-border mx-1" />
+
+          {/* Filter chips */}
+          {(
+            [
+              { label: "1wk", on: show1wk, toggle: () => setShow1wk(v => !v) },
+              { label: "2wk", on: show2wk, toggle: () => setShow2wk(v => !v) },
+              { label: "GO only", on: goOnly, toggle: () => setGoOnly(v => !v) },
+              { label: "≥0.5%/wk", on: minIncomeOn, toggle: () => setMinIncomeOn(v => !v) },
+            ] as const
+          ).map(({ label, on, toggle }) => (
+            <button
+              key={label}
+              onClick={toggle}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md border transition-colors",
+                on
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Scanner table */}
+        {scorecardLoading || !isLoaded ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading scorecard…
+          </div>
+        ) : sortedTickers.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-8 text-center">
+            No tickers match current filters.
+          </div>
+        ) : (
+          <div className="rounded-md border border-border overflow-hidden">
+            {sortedTickers.map(ticker => (
+              <ScannerRow
+                key={ticker}
+                ticker={ticker}
+                colorTag={colorMap.get(ticker) ?? ""}
+                indicator={scorecardMap.get(ticker) ?? null}
+                score={rankings.get(ticker) ?? null}
+                optionsData={optionsMap.get(ticker) ?? null}
+                optionsLoading={optionsLoadingMap.get(ticker) ?? false}
+                expanded={expandedSet.has(ticker)}
+                show1wk={show1wk}
+                show2wk={show2wk}
+                minIncomeOn={minIncomeOn}
+                onExpand={() => handleExpand(ticker)}
+                onRefresh={() => handleRowRefresh(ticker)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

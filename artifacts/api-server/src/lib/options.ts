@@ -102,43 +102,48 @@ async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsRespon
 }
 
 // ── Public API — no server-side caching, fresh on every click ─────────────────
+// Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 2-21 DTE).
 
-export async function getOptionsChain(ticker: string): Promise<OptionsChainResult> {
-  const key = ticker.toUpperCase();
-
-  let raw = await fetchChain(key);
-
-  const spot = raw.quote?.regularMarketPrice;
-  if (!spot) throw new Error(`No spot price for ${key}`);
-
-  const dates      = raw.expirationDates ?? [];
-  let expiryDate   = raw.options?.[0]?.expirationDate;
-  let puts         = raw.options?.[0]?.puts ?? [];
-
-  // Step to the next expiry if current one expires today or tomorrow
-  if (daysUntil(expiryDate) <= 1 && dates.length > 1) {
-    const next = dates[1];
-    raw        = await fetchChain(key, next instanceof Date ? next : undefined);
-    expiryDate = raw.options?.[0]?.expirationDate ?? next;
-    puts       = raw.options?.[0]?.puts ?? [];
-  }
-
+export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
+  const key    = ticker.toUpperCase();
   const tier   = getTier(key);
   const config = TIER_CONFIG[tier];
-  const dte    = daysUntil(expiryDate);
 
-  // Normalise income gate to weekly equivalent when using a 2-week expiry
-  const weeksOut  = Math.max(1, Math.round(dte / 7));
-  const weeklyMin = config.minIncome / weeksOut;
+  // Initial fetch — gets spot price, all expiry dates, and first expiry's puts
+  const raw0 = await fetchChain(key);
+  const spot  = raw0.quote?.regularMarketPrice;
+  if (!spot) throw new Error(`No spot price for ${key}`);
 
-  return {
-    ticker: key,
-    expiry: toDateStr(expiryDate),
-    isWeekly: isWeeklyExpiry(expiryDate),
-    daysToExpiry: dte,
-    spot,
-    tier,
-    puts: buildRows(puts, spot, config.minOTM, config.maxOTM, weeklyMin),
-    fetchedAt: Date.now(),
-  };
+  const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
+  // Keep expiries with 2–21 DTE (skip today/tomorrow, cap at ~3 weeks), take first 2
+  const targets = allDates.filter(d => daysUntil(d) >= 2 && daysUntil(d) <= 21).slice(0, 2);
+  if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
+
+  // The first raw fetch already contains puts for its expiry — reuse if DTE matches target[0]
+  const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
+
+  function buildResult(raw: RawOptionsResponse, fallbackDate: Date): OptionsChainResult {
+    const expiryDate = raw.options?.[0]?.expirationDate ?? fallbackDate;
+    const dte        = daysUntil(expiryDate);
+    const weeksOut   = Math.max(1, Math.round(dte / 7));
+    return {
+      ticker: key,
+      expiry:        toDateStr(expiryDate),
+      isWeekly:      isWeeklyExpiry(expiryDate),
+      daysToExpiry:  dte,
+      spot,
+      tier,
+      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot, config.minOTM, config.maxOTM, config.minIncome / weeksOut),
+      fetchedAt: Date.now(),
+    };
+  }
+
+  const results: OptionsChainResult[] = [];
+  for (let i = 0; i < targets.length; i++) {
+    const date       = targets[i];
+    const canReuse   = i === 0 && Math.abs(daysUntil(date) - firstRawDte) <= 1;
+    const raw        = canReuse ? raw0 : await fetchChain(key, date);
+    results.push(buildResult(raw, date));
+  }
+  return results;
 }
