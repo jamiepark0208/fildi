@@ -55,7 +55,7 @@ const SORT_LABELS: { key: SortKey; label: string }[] = [
 function formatExpiry(expiry: string, dte: number): string {
   const d     = new Date(expiry + "T12:00:00");
   const month = d.toLocaleString("en-US", { month: "short" });
-  const weeks = Math.max(1, Math.round(dte / 7));
+  const weeks = Math.ceil(dte / 7);
   return `${month} ${d.getDate()} · ${weeks}wk`;
 }
 
@@ -72,10 +72,10 @@ function viableStrikes(
   show2wk: boolean,
 ): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
   return chains
-    .filter(c => (show1wk && Math.round(c.daysToExpiry / 7) === 1) ||
-                 (show2wk && Math.round(c.daysToExpiry / 7) >= 2))
+    .filter(c => (show1wk && Math.ceil(c.daysToExpiry / 7) === 1) ||
+                 (show2wk && Math.ceil(c.daysToExpiry / 7) >= 2))
     .flatMap(c => {
-      const w = Math.max(1, Math.round(c.daysToExpiry / 7));
+      const w = Math.max(1, Math.ceil(c.daysToExpiry / 7));
       return c.puts
         .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / w }))
         .filter(x => x.weeklyIncome >= minWeeklyIncome);
@@ -149,7 +149,7 @@ function StrikeCard({
   put: OptionRow;
   isBest: boolean;
 }) {
-  const weeksOut     = Math.max(1, Math.round(chain.daysToExpiry / 7));
+  const weeksOut     = Math.ceil(chain.daysToExpiry / 7);
   const weeklyIncome = put.incomePct / weeksOut;
   const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
   const incomeColor  =
@@ -489,7 +489,7 @@ export default function OptionsScanner() {
             if (!chains) return -1;
             let best = -1;
             for (const c of chains) {
-              const w = Math.max(1, Math.round(c.daysToExpiry / 7));
+              const w = Math.max(1, Math.ceil(c.daysToExpiry / 7));
               for (const p of c.puts) {
                 const wi = p.incomePct / w;
                 if (wi > best) best = wi;
