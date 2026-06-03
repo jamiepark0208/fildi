@@ -160,3 +160,8 @@ When about to work on any of these areas, load the relevant skill BEFORE reading
 - Technical scorecard UI or signals         → .claude/skills/technical-scorecard.md
 - Server build or 502 errors               → .claude/skills/build-and-run.md
 - End of session                           → .claude/skills/session-wrap.md
+
+## HOOKS LOCATION
+All hooks are defined in .claude/settings.local.json under the "hooks" key.
+Never create or modify .claude/hooks/hooks.json — that file is not read.
+To add a new hook: edit .claude/settings.local.json directly.
