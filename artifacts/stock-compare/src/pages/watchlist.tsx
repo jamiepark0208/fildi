@@ -134,7 +134,7 @@ function WatchlistView() {
   const listQueries = useQueries({
     queries: filteredEntries.map((entry) => ({
       ...getGetStockQuoteQueryOptions({ ticker: entry.ticker }),
-      staleTime: 60 * 1000,
+      staleTime: 5 * 60 * 1000,
     })),
   });
 

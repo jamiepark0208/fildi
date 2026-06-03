@@ -13,7 +13,14 @@ import ScorecardExplanation from "@/pages/scorecard-explanation";
 import OptionsScanner from "@/pages/options-scanner";
 import Macro from "@/pages/macro";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function useSessionState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
   const [val, set] = useState<T>(() => {

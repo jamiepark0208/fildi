@@ -568,7 +568,7 @@ export default function Portfolio() {
   const priceQueries = useQueries({
     queries: uniqueTickers.map(ticker => ({
       ...getGetStockQuoteQueryOptions({ ticker }),
-      staleTime: 60 * 1000,
+      staleTime: 5 * 60 * 1000,
     })),
   });
 

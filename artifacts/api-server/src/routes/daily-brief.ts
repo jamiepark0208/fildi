@@ -12,7 +12,7 @@ const router       = Router();
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const __dir       = dirname(fileURLToPath(import.meta.url));
-const ROOT        = join(__dir, "..");
+const ROOT        = join(__dir, "..", "..");
 const CONTEXT_PATH = join(ROOT, "brief-context.json");
 const HISTORY_PATH = join(ROOT, "brief-history.json");
 
