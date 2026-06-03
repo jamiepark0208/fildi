@@ -34,10 +34,10 @@ App: signal status per ticker, narrow options chain slice finding put strike whe
 Phase 2: social 1%/week challenge.
 
 ## STATE
-phase: scaffold
-working: [options-scanner-enhancements]
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux]
-next: [options-comparison-table, strike-explorer-slider, fundamental-improvements]
+phase: build
+working: [macro-tab]
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix]
+next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
 
 ## CODEGRAPH (use at start of every task)
   codegraph sync                        — update index
@@ -56,7 +56,24 @@ Never read source files to understand structure — use codegraph context first.
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
-Last completed (2026-06-02): Indicators overhaul, options scanner UX fixes
+Last completed (2026-06-03): Macro tab, scorecard startup fix, indicators overhaul
+
+### Macro tab (2026-06-03)
+- New page `/macro` with Globe icon in sidebar nav under Analysis
+- **Backend** `artifacts/api-server/src/lib/macro-data.ts` — fetches 11 FRED CSV series (no API key needed) + Yahoo Finance for VIX/yields; 4h file cache at `macro-data.json`
+- **Routes** `artifacts/api-server/src/routes/macro.ts` — mounted at `/api/macro`; endpoints: `/data`, `/refresh`, `/fed-members`, `/events`, `/highlights` (GET + POST generate via Claude Haiku)
+- **Fed members** — 17 FOMC members (10 voting, 7 non-voting) hardcoded with hawkish/neutral/dovish stance + context notes
+- **Events calendar** — 16 upcoming events Jun–Jul 2026; filtered to future dates on request
+- **AI Highlights** — user-triggered via "Generate" button; Haiku model; stored in `macro-highlights.json`; survives restarts
+- **UI sections**: regime chips (VIX level, Core PCE trend, labor, Fed stance), market quick stats row, 6 metric cards (Inflation/Labor/Growth/Consumer/Rates/PMI), Fed members two-column grid, events calendar grouped by week
+- **Key context embedded in card notes**: inflation preventing cuts, AI unemployment thesis, prefer institutional GDP forecasts, yield curve inversion watch
+
+### Scorecard startup fix (2026-06-03)
+- `getAllCachedIndicators` now batch-fetches `pricesHistorical` for all tickers in one query and computes `price`, `ivCurrent`, `ivPercentile`, `rsiYesterday`, `ma200` in memory (no Yahoo Finance calls)
+- `technical.ts` scorecard route uses `getIndicatorsBatch` for any ticker missing today's cache so new-day startup auto-populates all 31 rows from stored OHLCV
+- `enrichWithOHLCV` helper extracted for reuse
+
+### Previous session (2026-06-02): Indicators overhaul, options scanner UX fixes
 
 ### Indicators overhaul (2026-06-02)
 - **OHLCV lookback extended** — `cutoffStr()` changed from 90 → 290 calendar days (≈200 trading days) to support MA200
@@ -103,6 +120,7 @@ Last completed (2026-06-02): Indicators overhaul, options scanner UX fixes
 1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
 2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
 3. Fundamental improvements (sector benchmarks, earnings strip)
+4. Macro live feed — auto-refresh FRED data, PMI/ISM integration
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:
