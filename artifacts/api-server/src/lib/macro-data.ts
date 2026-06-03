@@ -426,65 +426,87 @@ export async function fetchFredHistory(
     .map((p) => ({ date: p.date, value: p.val }));
 }
 
-// ── Yield Curve via Yahoo Finance ─────────────────────────────────────────────
-// Uses tickers available on Yahoo: ^IRX (3M), ^FVX (5Y), ^TNX (10Y), ^TYX (30Y)
-// month-ago values via yahooFinance.historical
+// ── Yield Curve via US Treasury CSV ──────────────────────────────────────────
+// https://home.treasury.gov — no API key needed, returns all maturities
 
-const YAHOO_YIELD_TICKERS = [
-  { ticker: "^IRX", label: "3M",  months: 3 },
-  { ticker: "^FVX", label: "5Y",  months: 60 },
-  { ticker: "^TNX", label: "10Y", months: 120 },
-  { ticker: "^TYX", label: "30Y", months: 360 },
+const TREASURY_MATURITIES: { col: string; label: string; months: number }[] = [
+  { col: "1 Mo",  label: "1M",  months: 1   },
+  { col: "3 Mo",  label: "3M",  months: 3   },
+  { col: "6 Mo",  label: "6M",  months: 6   },
+  { col: "1 Yr",  label: "1Y",  months: 12  },
+  { col: "2 Yr",  label: "2Y",  months: 24  },
+  { col: "3 Yr",  label: "3Y",  months: 36  },
+  { col: "5 Yr",  label: "5Y",  months: 60  },
+  { col: "7 Yr",  label: "7Y",  months: 84  },
+  { col: "10 Yr", label: "10Y", months: 120 },
+  { col: "20 Yr", label: "20Y", months: 240 },
+  { col: "30 Yr", label: "30Y", months: 360 },
 ];
+
+async function fetchTreasuryCSV(yyyymm: string): Promise<{ headers: string[]; rows: string[][] }> {
+  const year = yyyymm.slice(0, 4);
+  const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/${year}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${yyyymm}&t=1`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "TradeDash/1.0" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return { headers: [], rows: [] };
+    const text = await res.text();
+    const lines = text.trim().split("\n");
+    if (lines.length < 2) return { headers: [], rows: [] };
+    const headers = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
+    const rows = lines.slice(1).map((l) => l.split(",").map((c) => c.replace(/"/g, "").trim()));
+    return { headers, rows };
+  } catch {
+    clearTimeout(timer);
+    return { headers: [], rows: [] };
+  }
+}
+
+function parseYieldRow(
+  headers: string[],
+  row: string[],
+  monthAgoRow: string[] | null
+): YieldCurvePoint[] {
+  return TREASURY_MATURITIES.map((m) => {
+    const idx = headers.indexOf(m.col);
+    const cur = idx >= 0 ? parseFloat(row[idx]) : NaN;
+    const ago = monthAgoRow && idx >= 0 ? parseFloat(monthAgoRow[idx]) : NaN;
+    return {
+      maturity: m.label,
+      months: m.months,
+      current: isNaN(cur) ? null : cur,
+      monthAgo: isNaN(ago) ? null : ago,
+    };
+  });
+}
 
 export async function fetchYieldCurve(): Promise<YieldCurvePoint[]> {
   const now = new Date();
-  const monthAgoTarget = new Date(now);
-  monthAgoTarget.setDate(monthAgoTarget.getDate() - 30);
+  const curYYYYMM = now.toISOString().slice(0, 7).replace("-", "");
+  const prevDate = new Date(now);
+  prevDate.setDate(1);
+  prevDate.setMonth(prevDate.getMonth() - 1);
+  const prevYYYYMM = prevDate.toISOString().slice(0, 7).replace("-", "");
 
-  // Fetch current quotes and historical in parallel
-  const results = await Promise.allSettled(
-    YAHOO_YIELD_TICKERS.map(async (t) => {
-      const [quote, history] = await Promise.allSettled([
-        yahooFinance.quote(t.ticker, {}, { validateResult: false }),
-        yahooFinance.historical(
-          t.ticker,
-          {
-            period1: new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-            period2: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-            interval: "1d",
-          },
-          { validateResult: false }
-        ),
-      ]);
+  const [cur, prev] = await Promise.allSettled([
+    fetchTreasuryCSV(curYYYYMM),
+    fetchTreasuryCSV(prevYYYYMM),
+  ]);
 
-      const current =
-        quote.status === "fulfilled"
-          ? (safeQuote(quote.value).value)
-          : null;
+  const curData  = cur.status  === "fulfilled" ? cur.value  : { headers: [], rows: [] };
+  const prevData = prev.status === "fulfilled" ? prev.value : { headers: [], rows: [] };
 
-      let monthAgo: number | null = null;
-      if (history.status === "fulfilled" && Array.isArray(history.value) && history.value.length > 0) {
-        const hist = history.value as { date: Date; close: number }[];
-        // Pick the entry closest to 30 days ago
-        let best = hist[0];
-        let minDiff = Infinity;
-        for (const h of hist) {
-          const diff = Math.abs(h.date.getTime() - monthAgoTarget.getTime());
-          if (diff < minDiff) { minDiff = diff; best = h; }
-        }
-        monthAgo = best.close;
-      }
+  if (curData.rows.length === 0) return [];
 
-      return { maturity: t.label, months: t.months, current, monthAgo };
-    })
-  );
+  const latestRow   = curData.rows[curData.rows.length - 1];
+  const monthAgoRow = prevData.rows.length > 0 ? prevData.rows[prevData.rows.length - 1] : null;
 
-  return results.map((r, i) =>
-    r.status === "fulfilled"
-      ? r.value
-      : { maturity: YAHOO_YIELD_TICKERS[i].label, months: YAHOO_YIELD_TICKERS[i].months, current: null, monthAgo: null }
-  );
+  return parseYieldRow(curData.headers, latestRow, monthAgoRow);
 }
 
 // ── Market quote helpers ──────────────────────────────────────────────────────
@@ -558,10 +580,18 @@ export async function fetchMacroData(): Promise<MacroData> {
   const skewQuote = skewResult.status === "fulfilled" ? safeQuote(skewResult.value) : { value: null, change: null, changePct: null };
   const vxnQuote  = vxnResult.status  === "fulfilled" ? safeQuote(vxnResult.value)  : { value: null, change: null, changePct: null };
 
-  const yield2y: MarketQuote = { value: null, change: null, changePct: null };
+  const yieldCurveData: YieldCurvePoint[] =
+    yieldCurveResult.status === "fulfilled" ? yieldCurveResult.value : [];
+
+  const yield2yPoint = yieldCurveData.find((p) => p.label === "2Y" || p.maturity === "2Y");
+  const yield2y: MarketQuote = {
+    value: yield2yPoint?.current ?? null,
+    change: null,
+    changePct: null,
+  };
 
   const yield10yValue = tnxQuote.value;
-  const yield2yValue  = dgs2Series.value;
+  const yield2yValue  = yield2y.value;
   const yieldSpread =
     yield10yValue !== null && yield2yValue !== null
       ? (yield10yValue - yield2yValue) * 100
@@ -578,7 +608,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     yield10y:   tnxQuote,
     yield2y,
     yieldSpread,
-    yieldCurve: yieldCurveResult.status === "fulfilled" ? yieldCurveResult.value : [],
+    yieldCurve: yieldCurveData,
     usDebt:     usDebtSeries.value,
     skew:       skewQuote,
     vxn:        vxnQuote,
@@ -601,34 +631,30 @@ export async function fetchMacroData(): Promise<MacroData> {
 // ── Charts data (separate cache, longer history) ──────────────────────────────
 
 export async function fetchMacroCharts(): Promise<MacroCharts> {
-  const period1 = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const period1 = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
 
-  const [vixHistResult, fedFundsHistResult, tenYearHistResult] =
-    await Promise.allSettled([
-      yahooFinance.historical(
-        "^VIX",
-        { period1, interval: "1d" },
-        { validateResult: false }
-      ),
-      fetchFredHistory("DFF",   730),
-      fetchFredHistory("DGS10", 730),
-    ]);
+  const chartToPoints = (result: PromiseSettledResult<unknown>): ChartPoint[] => {
+    if (result.status !== "fulfilled") return [];
+    const quotes = (result.value as { quotes?: { date: unknown; close: number | null }[] })?.quotes ?? [];
+    return quotes
+      .filter((q) => q.close != null)
+      .map((q) => ({
+        date:  (q.date instanceof Date ? q.date : new Date(q.date as string)).toISOString().slice(0, 10),
+        value: q.close as number,
+      }));
+  };
 
-  const vixHistory: ChartPoint[] =
-    vixHistResult.status === "fulfilled"
-      ? (vixHistResult.value as { date: Date; close: number }[]).map((p) => ({
-          date:  p.date.toISOString().slice(0, 10),
-          value: p.close,
-        }))
-      : [];
+  const [vixResult, irxResult, tnxResult] = await Promise.allSettled([
+    yahooFinance.chart("^VIX", { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^IRX", { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^TNX", { period1, interval: "1d" }, { validateResult: false }),
+  ]);
 
   return {
-    fetchedAt:        new Date().toISOString(),
-    vixHistory,
-    fedFundsHistory:  fedFundsHistResult.status  === "fulfilled" ? fedFundsHistResult.value  : [],
-    tenYearHistory:   tenYearHistResult.status   === "fulfilled" ? tenYearHistResult.value   : [],
+    fetchedAt:       new Date().toISOString(),
+    vixHistory:      chartToPoints(vixResult),
+    fedFundsHistory: chartToPoints(irxResult),  // 3M T-bill (best available proxy)
+    tenYearHistory:  chartToPoints(tnxResult),
   };
 }
 

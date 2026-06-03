@@ -513,7 +513,7 @@ export default function MacroDashboard() {
         {/* ── Fed Funds + 10Y history ──────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <RateHistoryChart
-            title="Fed Funds Rate — 2 Year"
+            title="Fed Funds Rate — 3M T-Bill (2Y History)"
             data={macroCharts?.fedFundsHistory ?? []}
             color="#60a5fa"
             loading={!macroCharts}
@@ -843,7 +843,7 @@ function YieldCurveChart({ yieldCurve }: { yieldCurve: YieldCurvePoint[] }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <TrendingDown className="h-4 w-4 text-blue-400" />
-          Yield Curve
+          Treasury Yield Curve
         </h3>
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" /> Current</span>

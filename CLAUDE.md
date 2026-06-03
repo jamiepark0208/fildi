@@ -116,6 +116,13 @@ Last completed (2026-06-03): Macro tab, scorecard startup fix, indicators overha
 - Portfolio: named portfolios (IRA/FILDI/MOM), per-portfolio cards, covered call detection, risk metrics
 - AI Daily Brief (v1): initial implementation with in-memory cache
 
+### Macro tab charts fix (2026-06-03)
+- **Treasury Yield Curve** — replaced 4-ticker Yahoo Finance fetch with US Treasury CSV API (`home.treasury.gov`); now returns 11 maturities (1M→30Y) with current + month-ago rates
+- **VIX / rate history charts** — `yahooFinance.historical()` deprecated by Yahoo; replaced with `yahooFinance.chart()` across all three series (VIX, 3M T-bill as Fed Funds proxy, 10Y TNX); each returns 500+ data points
+- **`dgs2Series` undefined bug** — `yield2yValue` was referencing an undefined variable; now derived from yield curve's 2Y point; 2s10s spread now computes correctly
+- **Renamed** "Yield Curve" → "Treasury Yield Curve" in chart component
+- **Cache location** — macro cache files live at `/home/runner/workspace/artifacts/` (not `artifacts/api-server/`); `ROOT = join(__dirname, "..", "..")` from `dist/` resolves to `artifacts/`
+
 ## NEXT SESSION — do these in order
 1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
 2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
