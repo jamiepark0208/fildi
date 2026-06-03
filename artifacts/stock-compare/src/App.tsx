@@ -11,6 +11,7 @@ import Breakdown from "@/pages/breakdown";
 import Portfolio from "@/pages/portfolio";
 import ScorecardExplanation from "@/pages/scorecard-explanation";
 import OptionsScanner from "@/pages/options-scanner";
+import Macro from "@/pages/macro";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/scorecard-explanation" component={ScorecardExplanation} />
       <Route path="/options-scanner" component={OptionsScanner} />
+      <Route path="/macro" component={Macro} />
       <Route component={NotFound} />
     </Switch>
   );

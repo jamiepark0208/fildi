@@ -1,4 +1,4 @@
-import { BarChart2, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, BookOpen, ScanLine } from "lucide-react";
+import { BarChart2, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, BookOpen, ScanLine, Globe } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,7 @@ export function Sidebar() {
             {navItem("/", <BarChart className="w-4 h-4" />, "Fundamental")}
             {navItem("/technical", <LineChart className="w-4 h-4" />, "Technical")}
             {navItem("/options-scanner", <ScanLine className="w-4 h-4" />, "Options Scanner")}
+            {navItem("/macro", <Globe className="w-4 h-4" />, "Macro")}
           </nav>
         </div>
 
