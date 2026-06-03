@@ -355,7 +355,7 @@ async function fetchFredSeriesData(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
     const params = new URLSearchParams({ id: seriesId });
-    if (observationStart) params.set("observation_start", observationStart);
+    if (observationStart) params.set("cosd", observationStart);
     const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?${params.toString()}`;
     const res = await fetch(url, {
       signal: controller.signal,
@@ -382,6 +382,7 @@ async function fetchFredSeriesData(
 /**
  * Fetch latest value + MoM change + optional YoY.
  * periodsForYoY: 12 for monthly price-index series, 4 for quarterly, 0 to skip.
+ * Monthly FRED series are small (~900 rows), so no date filtering needed.
  */
 export async function fetchFredLatest(
   seriesId: string,
@@ -416,6 +417,7 @@ export async function fetchFredHistory(
   seriesId: string,
   days = 365
 ): Promise<ChartPoint[]> {
+  // DFF is daily but small; fetch without date filter, then slice to requested range
   const valid = await fetchFredSeriesData(seriesId);
   if (valid.length === 0) return [];
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -424,52 +426,65 @@ export async function fetchFredHistory(
     .map((p) => ({ date: p.date, value: p.val }));
 }
 
-// ── Yield Curve ───────────────────────────────────────────────────────────────
+// ── Yield Curve via Yahoo Finance ─────────────────────────────────────────────
+// Uses tickers available on Yahoo: ^IRX (3M), ^FVX (5Y), ^TNX (10Y), ^TYX (30Y)
+// month-ago values via yahooFinance.historical
 
-const YIELD_CURVE_MATURITIES = [
-  { id: "DGS1MO", label: "1M",  months: 1 },
-  { id: "DGS3MO", label: "3M",  months: 3 },
-  { id: "DGS6MO", label: "6M",  months: 6 },
-  { id: "DGS1",   label: "1Y",  months: 12 },
-  { id: "DGS2",   label: "2Y",  months: 24 },
-  { id: "DGS5",   label: "5Y",  months: 60 },
-  { id: "DGS7",   label: "7Y",  months: 84 },
-  { id: "DGS10",  label: "10Y", months: 120 },
-  { id: "DGS20",  label: "20Y", months: 240 },
-  { id: "DGS30",  label: "30Y", months: 360 },
+const YAHOO_YIELD_TICKERS = [
+  { ticker: "^IRX", label: "3M",  months: 3 },
+  { ticker: "^FVX", label: "5Y",  months: 60 },
+  { ticker: "^TNX", label: "10Y", months: 120 },
+  { ticker: "^TYX", label: "30Y", months: 360 },
 ];
 
 export async function fetchYieldCurve(): Promise<YieldCurvePoint[]> {
+  const now = new Date();
+  const monthAgoTarget = new Date(now);
+  monthAgoTarget.setDate(monthAgoTarget.getDate() - 30);
+
+  // Fetch current quotes and historical in parallel
   const results = await Promise.allSettled(
-    YIELD_CURVE_MATURITIES.map((m) => fetchFredSeriesData(m.id))
+    YAHOO_YIELD_TICKERS.map(async (t) => {
+      const [quote, history] = await Promise.allSettled([
+        yahooFinance.quote(t.ticker, {}, { validateResult: false }),
+        yahooFinance.historical(
+          t.ticker,
+          {
+            period1: new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            period2: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            interval: "1d",
+          },
+          { validateResult: false }
+        ),
+      ]);
+
+      const current =
+        quote.status === "fulfilled"
+          ? (safeQuote(quote.value).value)
+          : null;
+
+      let monthAgo: number | null = null;
+      if (history.status === "fulfilled" && Array.isArray(history.value) && history.value.length > 0) {
+        const hist = history.value as { date: Date; close: number }[];
+        // Pick the entry closest to 30 days ago
+        let best = hist[0];
+        let minDiff = Infinity;
+        for (const h of hist) {
+          const diff = Math.abs(h.date.getTime() - monthAgoTarget.getTime());
+          if (diff < minDiff) { minDiff = diff; best = h; }
+        }
+        monthAgo = best.close;
+      }
+
+      return { maturity: t.label, months: t.months, current, monthAgo };
+    })
   );
 
-  return YIELD_CURVE_MATURITIES.map((m, i) => {
-    const data = results[i].status === "fulfilled" ? (results[i] as PromiseFulfilledResult<{ date: string; val: number }[]>).value : [];
-    if (data.length === 0) {
-      return { maturity: m.label, months: m.months, current: null, monthAgo: null };
-    }
-
-    const current = data[data.length - 1].val;
-
-    // Find the data point closest to 30 calendar days before the latest date
-    const latestDate = new Date(data[data.length - 1].date);
-    const targetDate = new Date(latestDate);
-    targetDate.setDate(targetDate.getDate() - 30);
-
-    let monthAgo: number | null = null;
-    let minDiff = Infinity;
-    for (const p of data) {
-      const d = new Date(p.date);
-      const diff = Math.abs(d.getTime() - targetDate.getTime());
-      if (diff < minDiff) {
-        minDiff = diff;
-        monthAgo = p.val;
-      }
-    }
-
-    return { maturity: m.label, months: m.months, current, monthAgo };
-  });
+  return results.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : { maturity: YAHOO_YIELD_TICKERS[i].label, months: YAHOO_YIELD_TICKERS[i].months, current: null, monthAgo: null }
+  );
 }
 
 // ── Market quote helpers ──────────────────────────────────────────────────────
@@ -516,7 +531,6 @@ export async function fetchMacroData(): Promise<MacroData> {
     retailResult,
     sentimentResult,
     fedFundsResult,
-    dgs2Result,
     usDebtResult,
     yieldCurveResult,
   ] = await Promise.allSettled([
@@ -535,7 +549,6 @@ export async function fetchMacroData(): Promise<MacroData> {
     fetchFredLatest("RSXFS",           "$ billions",12),  // monthly dollar value → YoY
     fetchFredLatest("UMCSENT",         "index",    12),
     fetchFredLatest("DFF",             "%",        0),
-    fetchFredLatest("DGS2",            "%",        0),
     fetchFredLatest("GFDEBTN",         "$ millions",0),   // Federal Debt total
     fetchYieldCurve(),
   ]);
@@ -545,12 +558,7 @@ export async function fetchMacroData(): Promise<MacroData> {
   const skewQuote = skewResult.status === "fulfilled" ? safeQuote(skewResult.value) : { value: null, change: null, changePct: null };
   const vxnQuote  = vxnResult.status  === "fulfilled" ? safeQuote(vxnResult.value)  : { value: null, change: null, changePct: null };
 
-  const dgs2Series = dgs2Result.status === "fulfilled" ? dgs2Result.value : nullSeries("%");
-  const yield2y: MarketQuote = {
-    value:     dgs2Series.value,
-    change:    dgs2Series.change,
-    changePct: dgs2Series.changePct,
-  };
+  const yield2y: MarketQuote = { value: null, change: null, changePct: null };
 
   const yield10yValue = tnxQuote.value;
   const yield2yValue  = dgs2Series.value;
