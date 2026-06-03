@@ -1,6 +1,6 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { RSI, MFI, ATR, MACD, Stochastic } from "technicalindicators";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, inArray } from "drizzle-orm";
 import { db, pricesHistorical, indicatorCache } from "@workspace/db";
 import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 
@@ -358,10 +358,109 @@ export async function getIndicatorsBatch(
   return results;
 }
 
-// Read all cached rows for today (used by the technical scorecard endpoint)
+// Enrich an IndicatorResult with fields computed from stored OHLCV rows
+function enrichWithOHLCV(base: IndicatorResult, ohlcv: OHLCVRow[]): IndicatorResult {
+  const closes = ohlcv.map(r => r.close);
+  const price  = closes[closes.length - 1];
+
+  let rsiYesterday = base.rsi;
+  try {
+    const rsiVals = RSI.calculate({ period: 14, values: closes });
+    if (rsiVals.length >= 2) rsiYesterday = round2(rsiVals[rsiVals.length - 2]);
+  } catch {}
+
+  let ivCurrent = 0;
+  const vol30 = closes.slice(-31);
+  if (vol30.length >= 2) {
+    const lr  = vol30.slice(1).map((c, i) => Math.log(c / vol30[i]));
+    const avg = lr.reduce((s, v) => s + v, 0) / lr.length;
+    const vr  = lr.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / (lr.length - 1);
+    ivCurrent = round2(Math.sqrt(vr * 252) * 100);
+  }
+
+  let ivPercentile = 50;
+  const rollingVols: number[] = [];
+  for (let end = Math.max(30, closes.length - 90); end < closes.length; end++) {
+    const sl  = closes.slice(end - 30, end + 1);
+    const lr2 = sl.slice(1).map((c, i) => Math.log(c / sl[i]));
+    const m2  = lr2.reduce((s, v) => s + v, 0) / lr2.length;
+    const vr2 = lr2.reduce((s, v) => s + Math.pow(v - m2, 2), 0) / (lr2.length - 1);
+    rollingVols.push(Math.sqrt(vr2 * 252) * 100);
+  }
+  if (rollingVols.length >= 2) {
+    const lo = Math.min(...rollingVols);
+    const hi = Math.max(...rollingVols);
+    if (hi > lo) ivPercentile = round2(Math.max(0, Math.min(100, (ivCurrent - lo) / (hi - lo) * 100)));
+  }
+
+  let ma200: number | null = null;
+  if (closes.length >= 200) {
+    ma200 = round2(closes.slice(-200).reduce((s, c) => s + c, 0) / 200);
+  }
+
+  return { ...base, price, rsiYesterday, ivCurrent, ivPercentile, ma200 };
+}
+
+// Read cached indicators for today, enriched with OHLCV-computed fields.
+// On a new day (empty cache), falls back to yesterday's tickers and recomputes
+// fresh from stored OHLCV — no Yahoo Finance calls needed.
 export async function getAllCachedIndicators(): Promise<IndicatorResult[]> {
-  const rows = await db.select()
+  let cachedRows = await db.select()
     .from(indicatorCache)
     .where(eq(indicatorCache.scoredDate, todayStr()));
-  return rows.map(rowToResult);
+
+  let tickers: string[];
+  let useStoredCache = cachedRows.length > 0;
+
+  if (!useStoredCache) {
+    // New day — get tickers from yesterday's cache
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prev = await db.select({ ticker: indicatorCache.ticker })
+      .from(indicatorCache)
+      .where(eq(indicatorCache.scoredDate, yesterday.toISOString().slice(0, 10)));
+    if (prev.length === 0) return [];
+    tickers = prev.map(r => r.ticker);
+  } else {
+    tickers = cachedRows.map(r => r.ticker);
+  }
+
+  // Batch-fetch stored OHLCV — one query, no Yahoo Finance
+  const priceRows = await db.select()
+    .from(pricesHistorical)
+    .where(and(
+      inArray(pricesHistorical.ticker, tickers),
+      gte(pricesHistorical.date, cutoffStr()),
+    ))
+    .orderBy(pricesHistorical.ticker, pricesHistorical.date);
+
+  const ohlcvByTicker = new Map<string, OHLCVRow[]>();
+  for (const r of priceRows) {
+    if (!ohlcvByTicker.has(r.ticker)) ohlcvByTicker.set(r.ticker, []);
+    ohlcvByTicker.get(r.ticker)!.push({
+      close:  parseFloat(r.close  as string),
+      high:   parseFloat(r.high   as string),
+      low:    parseFloat(r.low    as string),
+      volume: Number(r.volume ?? 0),
+    });
+  }
+
+  if (useStoredCache) {
+    // Enrich today's cached rows with new fields
+    return cachedRows.map(r => {
+      const base  = rowToResult(r);
+      const ohlcv = ohlcvByTicker.get(r.ticker);
+      if (!ohlcv || ohlcv.length < 15) return base;
+      return enrichWithOHLCV(base, ohlcv);
+    });
+  } else {
+    // New day: recompute everything from stored OHLCV (RSI/MFI/signal included)
+    return tickers
+      .map(ticker => {
+        const ohlcv = ohlcvByTicker.get(ticker);
+        if (!ohlcv || ohlcv.length < 15) return null;
+        return computeIndicators(ticker, ohlcv);
+      })
+      .filter((r): r is IndicatorResult => r !== null);
+  }
 }
