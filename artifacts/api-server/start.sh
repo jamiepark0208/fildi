@@ -1,9 +1,12 @@
 #!/bin/bash
-set -e
+# No set -e — crash-restart loop must survive build failures
 cd /home/runner/workspace/artifacts/api-server
 
 echo "$(date): Building API server..." >> /tmp/api-server.log
-node build.mjs
+if ! node build.mjs >> /tmp/api-server.log 2>&1; then
+  echo "$(date): Build failed — server will not start. Check /tmp/api-server.log" >> /tmp/api-server.log
+  exit 1
+fi
 
 echo "$(date): API server built, starting..." >> /tmp/api-server.log
 while true; do
