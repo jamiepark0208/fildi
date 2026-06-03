@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-03T21:02:49.190Z",
+  "fetchedAt": "2026-06-03T22:21:44.650Z",
   "vix": {
     "value": 16.06,
     "change": 0.289999,
@@ -12,78 +12,84 @@
     "changePct": 0.80808645
   },
   "yield2y": {
-    "value": null,
+    "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": null,
+  "yieldSpread": 102.09999999999995,
   "yieldCurve": [
     {
       "maturity": "1M",
       "months": 1,
-      "current": null,
-      "monthAgo": null
+      "current": 3.72,
+      "monthAgo": 3.72
     },
     {
       "maturity": "3M",
       "months": 3,
-      "current": null,
-      "monthAgo": null
+      "current": 3.65,
+      "monthAgo": 3.65
     },
     {
       "maturity": "6M",
       "months": 6,
-      "current": null,
-      "monthAgo": null
+      "current": 3.58,
+      "monthAgo": 3.58
     },
     {
       "maturity": "1Y",
       "months": 12,
-      "current": null,
-      "monthAgo": null
+      "current": 3.47,
+      "monthAgo": 3.47
     },
     {
       "maturity": "2Y",
       "months": 24,
-      "current": null,
-      "monthAgo": null
+      "current": 3.47,
+      "monthAgo": 3.47
+    },
+    {
+      "maturity": "3Y",
+      "months": 36,
+      "current": 3.55,
+      "monthAgo": 3.55
     },
     {
       "maturity": "5Y",
       "months": 60,
-      "current": null,
-      "monthAgo": null
+      "current": 3.74,
+      "monthAgo": 3.74
     },
     {
       "maturity": "7Y",
       "months": 84,
-      "current": null,
-      "monthAgo": null
+      "current": 3.95,
+      "monthAgo": 3.95
     },
     {
       "maturity": "10Y",
       "months": 120,
-      "current": null,
-      "monthAgo": null
+      "current": 4.19,
+      "monthAgo": 4.19
     },
     {
       "maturity": "20Y",
       "months": 240,
-      "current": null,
-      "monthAgo": null
+      "current": 4.81,
+      "monthAgo": 4.81
     },
     {
       "maturity": "30Y",
       "months": 360,
-      "current": null,
-      "monthAgo": null
+      "current": 4.86,
+      "monthAgo": 4.86
     }
   ],
   "usDebt": 38514009,
   "skew": {
-    "value": 143.24,
-    "change": 0,
-    "changePct": 0
+    "value": 136.86,
+    "change": -6.380005,
+    "changePct": -4.4540663
   },
   "vxn": {
     "value": 23.84,
@@ -101,21 +107,21 @@
       "unit": "%"
     },
     "coreCpi": {
-      "value": 335.423,
-      "prev": 334.165,
-      "change": 1.2579999999999814,
-      "changePct": 0.3764607304774531,
-      "yoy": 2.988424575516597,
-      "date": "2026-04-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "corePce": {
-      "value": 129.63,
-      "prev": 129.321,
-      "change": 0.3089999999999975,
-      "changePct": 0.23894031131834545,
-      "yoy": 3.289190610508199,
-      "date": "2026-04-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "unemployment": {
@@ -155,12 +161,12 @@
       "unit": "%"
     },
     "ppi": {
-      "value": 283.764,
-      "prev": 276.42,
-      "change": 7.343999999999994,
-      "changePct": 2.6568265682656804,
-      "yoy": 9.819189448589745,
-      "date": "2026-04-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "retailSales": {
@@ -173,12 +179,12 @@
       "unit": "$ billions"
     },
     "consumerSentiment": {
-      "value": 49.8,
-      "prev": 53.3,
-      "change": -3.5,
-      "changePct": -6.566604127579738,
-      "yoy": -4.597701149425298,
-      "date": "2026-04-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "index"
     },
     "fedFundsRate": {
