@@ -1,0 +1,86 @@
+[
+  {
+    "date": "6/5/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 20,
+        "change": 4.6000004,
+        "changePct": 29.870132
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 736.265,
+        "change": -20.825012,
+        "changePct": -2.7506652
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 705.35,
+        "change": -35.26001,
+        "changePct": -4.7609415
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.5360003,
+        "change": 0.059000015,
+        "changePct": 1.317847
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7412.75,
+        "change": -188.25,
+        "changePct": -2.4766479
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29185.25,
+        "change": -1303,
+        "changePct": -4.2737775
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 396.04,
+        "change": -15.22998,
+        "changePct": -3.7031586
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.035,
+        "change": 0.1949997,
+        "changePct": 0.7004299
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 85.135,
+        "change": -0.36499786,
+        "changePct": -0.4268981
+      }
+    ],
+    "content": "# Daily Briefing – 6/5/2026\n\n## 🌍 Macro Environment\n\n- **Volatility spike signals stress**: VIX jumped +29.87% to 20.00, moving into elevated territory. This is high enough to compress put premium and suggest institutional hedging is active—typically unfavorable for new short volatility positions. Monitor if this sustains above 22.\n- **Rates accelerating upward**: 10Y yield surged +132 bps to 4.54%, the sharpest single-day move in recent memory. This will pressure growth/tech valuations and increase borrowing costs for unprofitable names in your portfolio (JOBY, POET, REBN). Refinancing risk is real.\n- **Risk-off confirmed across the board**: Dollar strength (+0.70%) and gold weakness (-3.70%) signal capital rotating to safety, not into equities. Bond weakness (TLT -0.43%) shows even fixed income is repricing higher. This is a macro contraction environment—be cautious on new leverage.\n\n## 📊 Market Pulse\n\n- **Tech carnage outpacing broad market**: QQQ down -4.76% vs. SPY -2.75% tells you growth is being punished disproportionately. NQ futures down -4.27% confirms overnight weakness is persisting. Your put-selling portfolio is exposed to exactly what's selling off hardest.\n- **Futures retesting support**: S&P futures at 7412.75 (-2.48%) suggest equity index volatility will persist into the cash open. Expect gap-down opens on your core tech/growth names (NVDA, AMZN, INTC, JOBY). This is *not* a day to chase new short volatility.\n- **Risk-off regime = elevated skew**: When VIX spikes and QQQ leads the decline, out-of-the-money puts trade at a premium to calls. The premium environment looks *temporarily attractive*, but the downside bias favors waiting for stabilization before selling new puts.\n\n## 🏭 Sector & Stock Catalysts\n\n- **NVDA in the crosshairs**: Goldman Sachs lists NVDA as a top-10 tech buy, but Morgan Stanley is \"resetting\" its forecast post-event. The headline conflict + QQQ's -4.76% drop suggests institutional confusion. Avoid new puts here until Morgan Stanley's reset is clarified (likely within 48 hours).\n- **HOOD gets a lifeline, but FINRA news is priced in**: PDT rule elimination is bullish, and SpaceX IPO access is a genuine growth catalyst. HOOD is down with the broad market, not on negative specifics. This looks like a *candidate for new puts* if it holds above key support today—premium will be fat from the VIX spike.\n- **Aerospace/space names buckling**: JOBY (+8.7% since earnings, now under pressure), RDW (-15% overnight on SpaceX IPO confusion), REBN (coffee play, but distressed coffers). These are speculative; avoid selling puts on high-beta, pre-revenue names when rates are spiking. The Hitachi/Intel AI partnership for INTC is white noise against the rate headwind.\n- **NVDY and AMZY dynamics**: The briefing notes that NVDY \"sells NVIDIA's best days\" to fund distributions—meaning it's a drag in down markets and dead weight in rallies. Don't sell puts on NVDY; it's a hedge product, not a core growth play.\n- **AMZN shipping-cost headwind from Iran tensions**: Operationally real. Prime Day logistics are under pressure. However, this is a cyclical cost, not structural. AMZN is large enough to absorb it. Wait for earnings/guidance to reassess.\n\n## ⚠️ Risks This Week\n\n- **Yield shock continuation**: If the 10Y moves past 4.75%, expect another leg down in unprofitable growth (POET, JOBY, REBN face margin calls and refinancing pressure). Watch for any Fed speaker signaling tightening or inflation data hotter than expected. This is the tail risk driving today's move.\n- **Earnings revisions cascade**: Tech earnings season is underway. Guidance cuts will accelerate if rates remain elevated. NVDA, INTC, AMZN, HOOD all have material downside if guidance is reduced. Don't sell new puts before earnings unless strike is deep OTM (>10 delta).\n\n## 💼 Portfolio Implications\n\n- **Pause new put sales; wait for stabilization**: VIX at 20 and QQQ down -4.76% means premium is fat, but directionality is still negative. The smart move is to **wait 2–3 days** for a bounce or for volatility to recede below 18 before opening new positions. Today's panic is likely not the bottom. Existing puts in IRA/FILDI should be monitored for gap-risk, especially on JOBY and POET (low liquidity).\n- **HOOD is the *only* buyable put candidate today**: If HOOD stabilizes above $26 (support level), selling -2",
+    "generatedAt": "2026-06-05T19:16:31.229Z",
+    "tickers": [
+      "HOOD",
+      "NVDA",
+      "OPEN",
+      "INTC",
+      "POET",
+      "HOOY",
+      "REBN",
+      "AMZN",
+      "NVDY",
+      "JOBY",
+      "RDW"
+    ],
+    "fromCache": false
+  }
+]
