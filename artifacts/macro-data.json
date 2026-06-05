@@ -1,9 +1,9 @@
 {
-  "fetchedAt": "2026-06-05T19:35:15.395Z",
+  "fetchedAt": "2026-06-05T20:45:57.287Z",
   "vix": {
-    "value": 20.96,
-    "change": 5.5599995,
-    "changePct": 36.12735,
+    "value": 21.51,
+    "change": 6.1100006,
+    "changePct": 39.67533,
     "level": "mid"
   },
   "yield10y": {
@@ -22,67 +22,89 @@
       "maturity": "1M",
       "months": 1,
       "current": 3.72,
-      "monthAgo": 3.72
+      "weekAgo": 3.7,
+      "monthAgo": 3.72,
+      "threeMonthAgo": 3.72
     },
     {
       "maturity": "3M",
       "months": 3,
       "current": 3.65,
-      "monthAgo": 3.65
+      "weekAgo": 3.62,
+      "monthAgo": 3.65,
+      "threeMonthAgo": 3.65
     },
     {
       "maturity": "6M",
       "months": 6,
       "current": 3.58,
-      "monthAgo": 3.58
+      "weekAgo": 3.57,
+      "monthAgo": 3.58,
+      "threeMonthAgo": 3.58
     },
     {
       "maturity": "1Y",
       "months": 12,
       "current": 3.47,
-      "monthAgo": 3.47
+      "weekAgo": 3.52,
+      "monthAgo": 3.47,
+      "threeMonthAgo": 3.47
     },
     {
       "maturity": "2Y",
       "months": 24,
       "current": 3.47,
-      "monthAgo": 3.47
+      "weekAgo": 3.54,
+      "monthAgo": 3.47,
+      "threeMonthAgo": 3.47
     },
     {
       "maturity": "3Y",
       "months": 36,
       "current": 3.55,
-      "monthAgo": 3.55
+      "weekAgo": 3.59,
+      "monthAgo": 3.55,
+      "threeMonthAgo": 3.55
     },
     {
       "maturity": "5Y",
       "months": 60,
       "current": 3.74,
-      "monthAgo": 3.74
+      "weekAgo": 3.75,
+      "monthAgo": 3.74,
+      "threeMonthAgo": 3.74
     },
     {
       "maturity": "7Y",
       "months": 84,
       "current": 3.95,
-      "monthAgo": 3.95
+      "weekAgo": 3.95,
+      "monthAgo": 3.95,
+      "threeMonthAgo": 3.95
     },
     {
       "maturity": "10Y",
       "months": 120,
       "current": 4.19,
-      "monthAgo": 4.19
+      "weekAgo": 4.18,
+      "monthAgo": 4.19,
+      "threeMonthAgo": 4.19
     },
     {
       "maturity": "20Y",
       "months": 240,
       "current": 4.81,
-      "monthAgo": 4.81
+      "weekAgo": 4.76,
+      "monthAgo": 4.81,
+      "threeMonthAgo": 4.81
     },
     {
       "maturity": "30Y",
       "months": 360,
       "current": 4.86,
-      "monthAgo": 4.86
+      "weekAgo": 4.82,
+      "monthAgo": 4.86,
+      "threeMonthAgo": 4.86
     }
   ],
   "usDebt": 38514009,
@@ -92,9 +114,9 @@
     "changePct": 0
   },
   "vxn": {
-    "value": 30.1,
-    "change": 6.880001,
-    "changePct": 29.629635
+    "value": 30.47,
+    "change": 7.25,
+    "changePct": 31.223085
   },
   "series": {
     "cpi": {
@@ -107,12 +129,12 @@
       "unit": "%"
     },
     "coreCpi": {
-      "value": 335.423,
-      "prev": 334.165,
-      "change": 1.2579999999999814,
-      "changePct": 0.3764607304774531,
-      "yoy": 2.988424575516597,
-      "date": "2026-04-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "corePce": {
@@ -161,12 +183,12 @@
       "unit": "%"
     },
     "ppi": {
-      "value": null,
-      "prev": null,
-      "change": null,
-      "changePct": null,
-      "yoy": null,
-      "date": null,
+      "value": 283.764,
+      "prev": 276.42,
+      "change": 7.343999999999994,
+      "changePct": 2.6568265682656804,
+      "yoy": 9.819189448589745,
+      "date": "2026-04-01",
       "unit": "%"
     },
     "retailSales": {
