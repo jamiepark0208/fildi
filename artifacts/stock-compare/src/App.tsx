@@ -40,17 +40,16 @@ function useSessionState<T>(key: string, initial: T): [T, Dispatch<SetStateActio
 }
 
 function Router() {
-  const [fundamentalTickers, setFundamentalTickers] = useSessionState<string[]>("fildi_fund_tickers", []);
-  const [technicalTickers,   setTechnicalTickers]   = useSessionState<string[]>("fildi_tech_tickers", []);
+  const [tickers, setTickers] = useSessionState<string[]>("fildi_tickers", []);
 
   return (
     <Switch>
       <Route path="/">
-        <Home tickers={fundamentalTickers} setTickers={setFundamentalTickers} />
+        <Home tickers={tickers} setTickers={setTickers} />
       </Route>
       <Route path="/watchlist" component={Watchlist} />
       <Route path="/technical">
-        <Technical tickers={technicalTickers} setTickers={setTechnicalTickers} />
+        <Technical tickers={tickers} setTickers={setTickers} />
       </Route>
       <Route path="/breakdown" component={Breakdown} />
       <Route path="/portfolio" component={Portfolio} />

@@ -188,9 +188,11 @@ interface ScannerRowProps {
   show1wk: boolean;
   show2wk: boolean;
   minIncomeOn: boolean;
+  overrideEnabled: boolean;
   onExpand: () => void;
   onRefresh: () => void;
   onDelete: () => void;
+  onOverride: () => void;
 }
 
 function ScannerRow({
@@ -204,9 +206,11 @@ function ScannerRow({
   show1wk,
   show2wk,
   minIncomeOn,
+  overrideEnabled,
   onExpand,
   onRefresh,
   onDelete,
+  onOverride,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? null;
@@ -219,6 +223,16 @@ function ScannerRow({
 
   const bestStrike = strikes.length > 0
     ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
+    : null;
+
+  // Override: show best put even when no viable strikes at current minIncome threshold
+  const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading &&
+    !strikeSummary(indicator, optionsData, show1wk, show2wk).startsWith("excluded");
+  const overrideStrikes = overrideEnabled && optionsData
+    ? viableStrikes(optionsData, 0, show1wk, show2wk)
+    : [];
+  const overrideBest = overrideStrikes.length > 0
+    ? overrideStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
     : null;
 
   // Prefer ivCurrent from scorecard (always loaded); fall back to options chain iv
@@ -243,7 +257,12 @@ function ScannerRow({
       >
         {/* Left: ticker + price + signal */}
         <div className="flex items-center gap-2 w-[130px] shrink-0">
-          <span className="font-semibold text-sm">{ticker}</span>
+          <span
+            className="font-semibold text-sm"
+            style={overrideEnabled ? { color: "#f87171" } : undefined}
+          >
+            {ticker}
+          </span>
           {price != null && (
             <span className="text-xs text-muted-foreground">${price.toFixed(2)}</span>
           )}
@@ -332,9 +351,34 @@ function ScannerRow({
           )}
 
           {!optionsLoading && optionsData && strikes.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              {strikeSummary(indicator, optionsData, show1wk, show2wk)}
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground italic">
+                {strikeSummary(indicator, optionsData, show1wk, show2wk)}
+              </p>
+              {canOverride && !overrideEnabled && (
+                <button
+                  onClick={e => { e.stopPropagation(); onOverride(); }}
+                  className="text-xs px-2.5 py-1 rounded border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                >
+                  Override — show best put anyway
+                </button>
+              )}
+              {overrideEnabled && overrideBest && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-red-400/80 italic">Overridden — recommendation below does not meet normal criteria</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <StrikeCard
+                      chain={overrideBest.chain}
+                      put={overrideBest.put}
+                      isBest
+                    />
+                  </div>
+                </div>
+              )}
+              {overrideEnabled && overrideStrikes.length === 0 && (
+                <p className="text-xs text-red-400/70 italic">No puts available even without income filter.</p>
+              )}
+            </div>
           )}
 
           {!optionsLoading && !optionsData && (
@@ -353,6 +397,7 @@ export default function OptionsScanner() {
 
   const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
   const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
+  const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("iv");
   const [show1wk,       setShow1wk]       = useState(true);
   const [show2wk,       setShow2wk]       = useState(true);
@@ -519,10 +564,16 @@ export default function OptionsScanner() {
     queryClient.invalidateQueries({ queryKey: ["options", ticker] });
   };
 
+  const handleOverride = (ticker: string) => {
+    setFetchedOnce(prev => new Set([...prev, ticker]));
+    setOverrides(prev => new Set([...prev, ticker]));
+  };
+
   const handleDelete = (ticker: string) => {
     setHiddenTickers(prev => new Set([...prev, ticker]));
     setExtraTickers(prev => prev.filter(t => t !== ticker));
     setExpandedSet(prev => { const n = new Set(prev); n.delete(ticker); return n; });
+    setOverrides(prev => { const n = new Set(prev); n.delete(ticker); return n; });
   };
 
   const handleAdd = () => {
@@ -666,9 +717,11 @@ export default function OptionsScanner() {
                 show1wk={show1wk}
                 show2wk={show2wk}
                 minIncomeOn={minIncomeOn}
+                overrideEnabled={overrides.has(ticker)}
                 onExpand={() => handleExpand(ticker)}
                 onRefresh={() => handleRowRefresh(ticker)}
                 onDelete={() => handleDelete(ticker)}
+                onOverride={() => handleOverride(ticker)}
               />
             ))}
           </div>
