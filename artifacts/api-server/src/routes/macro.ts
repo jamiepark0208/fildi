@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import {
   fetchMacroData,
   fetchMacroCharts,
+  fetchIndicatorHistory,
   loadMacroCache,
   saveMacroCache,
   isCacheStale,
@@ -17,6 +18,7 @@ import {
   BANK_RESEARCH_DEFAULT,
   SEP_PROJECTIONS,
   SEP_DATE,
+  INDICATOR_SERIES,
   MacroData,
   BankResearch,
 } from "../lib/macro-data.js";
@@ -73,6 +75,108 @@ router.get("/charts", async (_req: Request, res: Response) => {
   }
 });
 
+// ── Indicator history ─────────────────────────────────────────────────────────
+
+router.get("/indicator-history", async (req: Request, res: Response) => {
+  const key = req.query["key"] as string | undefined;
+  if (!key || !INDICATOR_SERIES[key]) {
+    return res.status(400).json({ error: "Unknown indicator key" });
+  }
+  const meta = INDICATOR_SERIES[key];
+  try {
+    const periodsForYoY = meta.isYoY ? 12 : 0;
+    const data = await fetchIndicatorHistory(meta.id, periodsForYoY, 4380); // ~12 years
+    return res.json({ key, label: meta.label, unit: meta.unit, isYoY: !!meta.isYoY, data });
+  } catch (err) {
+    console.error("[macro] indicator-history failed:", err);
+    return res.status(500).json({ error: "Failed to fetch indicator history" });
+  }
+});
+
+// ── SEP actuals ───────────────────────────────────────────────────────────────
+// Returns recent actual values for each SEP metric from FRED
+
+router.get("/sep-actuals", async (_req: Request, res: Response) => {
+  try {
+    const [gdpData, pcePData, unemploymentData, ffData] = await Promise.allSettled([
+      fetchIndicatorHistory("A191RL1Q225SBEA", 0, 3650),    // GDP quarterly
+      fetchIndicatorHistory("PCEPILFE", 12, 3650),           // Core PCE YoY
+      fetchIndicatorHistory("UNRATE", 0, 3650),              // Unemployment
+      fetchIndicatorHistory("DFF", 0, 3650),                 // Fed Funds
+    ]);
+
+    return res.json({
+      gdp:          gdpData.status === "fulfilled"          ? gdpData.value          : [],
+      corePce:      pcePData.status === "fulfilled"         ? pcePData.value         : [],
+      unemployment: unemploymentData.status === "fulfilled" ? unemploymentData.value : [],
+      fedFunds:     ffData.status === "fulfilled"           ? ffData.value           : [],
+    });
+  } catch (err) {
+    console.error("[macro] sep-actuals failed:", err);
+    return res.status(500).json({ error: "Failed to fetch SEP actuals" });
+  }
+});
+
+// ── Bank news ─────────────────────────────────────────────────────────────────
+
+interface NewsArticle {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+}
+
+async function fetchBankNews(bankName: string): Promise<NewsArticle[]> {
+  const query = encodeURIComponent(`${bankName} market outlook OR rate view OR trading strategy`);
+  const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "TradeDash/1.0 (news fetcher)" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const xml = await res.text();
+
+    // Parse RSS items via regex
+    const items: NewsArticle[] = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let m: RegExpExecArray | null;
+    while ((m = itemRegex.exec(xml)) !== null && items.length < 5) {
+      const block = m[1];
+      const title     = (/<title>([\s\S]*?)<\/title>/.exec(block)?.[1] ?? "")
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1").trim();
+      const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(block) ??
+                        /<a href="([^"]+)"/.exec(block);
+      const link      = linkMatch?.[1]?.trim() ?? "";
+      const pubDate   = (/<pubDate>([\s\S]*?)<\/pubDate>/.exec(block)?.[1] ?? "").trim();
+      const source    = (/<source[^>]*>([\s\S]*?)<\/source>/.exec(block)?.[1] ?? "")
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1").trim();
+      if (title && link) {
+        items.push({ title, url: link, source: source || "Google News", publishedAt: pubDate });
+      }
+    }
+    return items;
+  } catch {
+    clearTimeout(timer);
+    return [];
+  }
+}
+
+router.get("/bank-news", async (req: Request, res: Response) => {
+  const bank = req.query["bank"] as string | undefined;
+  if (!bank) return res.status(400).json({ error: "bank query param required" });
+  try {
+    const articles = await fetchBankNews(bank);
+    return res.json(articles);
+  } catch (err) {
+    console.error("[macro] bank-news failed:", err);
+    return res.status(500).json({ error: "Failed to fetch bank news" });
+  }
+});
+
 // ── Highlights ────────────────────────────────────────────────────────────────
 
 router.get("/highlights", (_req: Request, res: Response) => {
@@ -97,59 +201,52 @@ router.post("/highlights/generate", async (_req: Request, res: Response) => {
     }
     const s = macroData.series;
 
-    // Use YoY for price-index series, raw value for rates
     const fmtPct  = (v: number | null) => (v != null ? `${v.toFixed(1)}%` : "N/A");
     const fmtRate = (v: number | null) => (v != null ? `${v.toFixed(2)}%` : "N/A");
     const fmtK    = (v: number | null) => (v != null ? `${v.toLocaleString()}K` : "N/A");
 
-    const prompt = `You are a concise macro analyst writing for an options trader who sells weekly OTM puts.
+    const today = new Date().toISOString().slice(0, 10);
+    // Include today's and this-week's scheduled events for context
+    const todayOrThisWeek = ECONOMIC_EVENTS.filter((e) => {
+      const d = e.date;
+      return d >= today && d <= new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
+    });
+    const eventContext = todayOrThisWeek.length
+      ? "SCHEDULED EVENTS (today / next 7 days):\n" +
+        todayOrThisWeek.map((e) => `- ${e.date}: ${e.event} (${e.importance})`).join("\n")
+      : "No major events scheduled in the next 7 days.";
 
-Current macro snapshot (as of ${macroData.fetchedAt.slice(0, 10)}):
+    const prompt = `You are a sharp macro analyst writing a brief for an options trader who sells weekly OTM puts.
 
-MARKET CONDITIONS:
-- VIX: ${macroData.vix.value?.toFixed(2) ?? "N/A"} (${macroData.vix.level})
-- SKEW: ${macroData.skew.value?.toFixed(1) ?? "N/A"}
-- 10Y Yield: ${fmtRate(macroData.yield10y.value)}
-- 2Y Yield: ${fmtRate(macroData.yield2y.value)}
-- Yield Spread (10y-2y): ${macroData.yieldSpread?.toFixed(0) ?? "N/A"} bps
-- US Federal Debt: ${macroData.usDebt ? "$" + (macroData.usDebt / 1_000_000).toFixed(1) + "T" : "N/A"}
+TODAY: ${today}
 
-INFLATION (YoY %):
-- CPI: ${fmtPct(s.cpi.yoy)} YoY | MoM Δ: ${s.cpi.change?.toFixed(2) ?? "N/A"}
-- Core CPI: ${fmtPct(s.coreCpi.yoy)} YoY
-- Core PCE (Fed preferred): ${fmtPct(s.corePce.yoy)} YoY
-- PPI: ${fmtPct(s.ppi.yoy)} YoY
+${eventContext}
 
-LABOR:
-- Unemployment Rate: ${fmtRate(s.unemployment.value)} (Δ ${s.unemployment.change?.toFixed(2) ?? "N/A"})
-- Nonfarm Payrolls: ${fmtK(s.nonfarmPayrolls.value)} (MoM Δ ${fmtK(s.nonfarmPayrolls.change)})
-- JOLTS Openings: ${fmtK(s.jolts.value)}
+LIVE MARKET DATA:
+- VIX: ${macroData.vix.value?.toFixed(2) ?? "N/A"} (${macroData.vix.level}) | SKEW: ${macroData.skew.value?.toFixed(1) ?? "N/A"} | VXN: ${macroData.vxn.value?.toFixed(1) ?? "N/A"}
+- 10Y Yield: ${fmtRate(macroData.yield10y.value)} | 2Y Yield: ${fmtRate(macroData.yield2y.value)} | Spread: ${macroData.yieldSpread?.toFixed(0) ?? "N/A"} bps
+- Fed Funds: ${fmtRate(s.fedFundsRate.value)} | US Debt: ${macroData.usDebt ? "$" + (macroData.usDebt / 1_000_000).toFixed(1) + "T" : "N/A"}
 
-GROWTH / CONSUMER:
-- Real GDP Growth: ${fmtRate(s.gdp.value)} (annualized)
+RECENT RELEASES:
+- CPI YoY: ${fmtPct(s.cpi.yoy)} | Core CPI: ${fmtPct(s.coreCpi.yoy)} | Core PCE: ${fmtPct(s.corePce.yoy)} | PPI: ${fmtPct(s.ppi.yoy)}
+- Unemployment: ${fmtRate(s.unemployment.value)} (Δ ${s.unemployment.change?.toFixed(2) ?? "N/A"})
+- Nonfarm Payrolls: ${fmtK(s.nonfarmPayrolls.value)} (MoM ${fmtK(s.nonfarmPayrolls.change)})
+- JOLTS: ${fmtK(s.jolts.value)} | ADP context: payrolls trend matters here
+- Real GDP: ${fmtRate(s.gdp.value)} annualized | Consumer Sentiment: ${s.consumerSentiment.value?.toFixed(1) ?? "N/A"}
 - Retail Sales: $${s.retailSales.value ? (s.retailSales.value / 1000).toFixed(1) + "B" : "N/A"} (YoY ${fmtPct(s.retailSales.yoy)})
-- Consumer Sentiment: ${s.consumerSentiment.value?.toFixed(1) ?? "N/A"}
 
-POLICY:
-- Fed Funds Rate: ${fmtRate(s.fedFundsRate.value)}
+Identify the 4–6 MOST MARKET-MOVING macro developments RIGHT NOW — today's events, the most surprising recent data releases, or the most important shifts in the macro backdrop. Do NOT follow a fixed template. Write whichever topics are genuinely most critical for markets today (could be labor, could be geopolitics, could be rates, could be something else entirely).
 
-Write exactly 4 markdown bullet points (starting with -) covering:
-1. Inflation trajectory and Fed policy implications
-2. Labor market health
-3. Growth / consumer outlook
-4. Key risks and opportunities for a weekly OTM put seller
-
-Be specific, cite the numbers, and keep each bullet to 1-2 sentences. No intro or outro — just the 4 bullets.`;
+Format: markdown bullet points starting with - (one per topic). Each bullet: bold topic label, then 1-2 specific, number-cited sentences. Focus on what's actually moving markets today. No intro or outro text.`;
 
     const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 800,
+      max_tokens: 900,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const content =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const content = message.content[0].type === "text" ? message.content[0].text : "";
     const result = { content, generatedAt: new Date().toISOString() };
     writeFileSync(HIGHLIGHTS_FILE, JSON.stringify(result, null, 2), "utf-8");
     return res.json(result);
@@ -240,7 +337,6 @@ Base stances on publicly known views and the current macro context. Return ONLY 
     try {
       updated = JSON.parse(text) as BankResearch[];
     } catch {
-      // If parse fails, return existing
       return res.json(existing);
     }
 

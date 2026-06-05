@@ -15,7 +15,7 @@ export interface FredSeries {
   prev: number | null;
   change: number | null;
   changePct: number | null;
-  yoy: number | null;       // year-over-year % change (null if not computed)
+  yoy: number | null;
   date: string | null;
   unit: string;
 }
@@ -32,10 +32,31 @@ export interface ChartPoint {
 }
 
 export interface YieldCurvePoint {
-  maturity: string;   // "1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"
+  maturity: string;
   months: number;
   current: number | null;
+  weekAgo: number | null;
   monthAgo: number | null;
+  threeMonthAgo: number | null;
+}
+
+export interface VixCurvePoint {
+  tenor: string;
+  days: number;
+  value: number | null;
+  weekAgo: number | null;
+  monthAgo: number | null;
+  threeMonthAgo: number | null;
+}
+
+export interface FedFundsCurvePoint {
+  label: string;
+  meetingDate: string;
+  impliedRate: number | null;
+  weekAgo: number | null;
+  monthAgo: number | null;
+  threeMonthAgo: number | null;
+  isTbillProxy?: boolean;
 }
 
 export interface MacroCharts {
@@ -43,6 +64,8 @@ export interface MacroCharts {
   vixHistory: ChartPoint[];
   fedFundsHistory: ChartPoint[];
   tenYearHistory: ChartPoint[];
+  vixCurve: VixCurvePoint[];
+  fedFundsCurve: FedFundsCurvePoint[];
 }
 
 export interface FedMember {
@@ -52,6 +75,8 @@ export interface FedMember {
   stance: "hawkish" | "neutral" | "dovish";
   notes: string;
   recentChange?: string;
+  photoUrl?: string;
+  priority?: number;
 }
 
 export interface MacroEvent {
@@ -84,7 +109,7 @@ export interface MacroData {
   yield2y: MarketQuote;
   yieldSpread: number | null;
   yieldCurve: YieldCurvePoint[];
-  usDebt: number | null;      // raw FRED value in millions; display as /1_000_000 T
+  usDebt: number | null;
   skew: MarketQuote;
   vxn: MarketQuote;
   series: {
@@ -105,13 +130,24 @@ export interface MacroData {
 // ── Static Data ───────────────────────────────────────────────────────────────
 
 export const FED_MEMBERS: FedMember[] = [
-  // Voting members
+  // ── Voting members ──────────────────────────────────────────────────────────
+  {
+    name: "Kevin Warsh",
+    title: "Chair (Designate / Governor)",
+    voting: true,
+    stance: "hawkish",
+    priority: 100,
+    notes: "Strong rules-based framework advocate; skeptical of QE expansion; prefers tighter balance sheet",
+    recentChange: "Nominated as next Fed Chair by Trump (2026); historically hawkish",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/warsh.jpg",
+  },
   {
     name: "Jerome Powell",
     title: "Chair",
     voting: true,
     stance: "neutral",
     notes: "Data-dependent; cautious on premature cuts; inflation trajectory key",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/powell.jpg",
   },
   {
     name: "Philip Jefferson",
@@ -119,6 +155,7 @@ export const FED_MEMBERS: FedMember[] = [
     voting: true,
     stance: "neutral",
     notes: "Methodical; monitors core services inflation closely",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/jefferson.jpg",
   },
   {
     name: "Michelle Bowman",
@@ -127,14 +164,7 @@ export const FED_MEMBERS: FedMember[] = [
     stance: "hawkish",
     notes: "Skeptical of cuts; wants sustained disinflation progress",
     recentChange: "Confirmed as Vice Chair for Supervision (2026)",
-  },
-  {
-    name: "Kevin Warsh",
-    title: "Governor",
-    voting: true,
-    stance: "hawkish",
-    notes: "Strong rules-based framework advocate; skeptical of QE expansion; prefers tighter balance sheet",
-    recentChange: "Newly confirmed Governor (2026) — historically hawkish, close to Trump admin",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/bowman.jpg",
   },
   {
     name: "Lisa Cook",
@@ -142,6 +172,7 @@ export const FED_MEMBERS: FedMember[] = [
     voting: true,
     stance: "dovish",
     notes: "Labor market softening warrants measured easing",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/cook.jpg",
   },
   {
     name: "Christopher Waller",
@@ -149,6 +180,7 @@ export const FED_MEMBERS: FedMember[] = [
     voting: true,
     stance: "neutral",
     notes: "Open to cuts if core PCE cooperates; market-friendly",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/waller.jpg",
   },
   {
     name: "Adriana Kugler",
@@ -156,6 +188,7 @@ export const FED_MEMBERS: FedMember[] = [
     voting: true,
     stance: "dovish",
     notes: "Dual mandate balanced; labor softening supports cuts",
+    photoUrl: "https://www.federalreserve.gov/aboutthefed/bios/board/images/kugler.jpg",
   },
   {
     name: "John Williams",
@@ -166,26 +199,26 @@ export const FED_MEMBERS: FedMember[] = [
   },
   {
     name: "Austan Goolsbee",
-    title: "Chicago",
+    title: "Chicago Fed",
     voting: true,
     stance: "dovish",
     notes: "Disinflation on track; advocates for lower rates",
   },
   {
     name: "Susan Collins",
-    title: "Boston",
+    title: "Boston Fed",
     voting: true,
     stance: "neutral",
     notes: "Patient; wants durable evidence before easing",
   },
   {
     name: "Thomas Barkin",
-    title: "Richmond",
+    title: "Richmond Fed",
     voting: true,
     stance: "neutral",
     notes: "Wants inflation durably at 2%; risk of premature cuts",
   },
-  // Non-voting (influential)
+  // ── Non-voting (influential) ─────────────────────────────────────────────────
   {
     name: "Alberto Musalem",
     title: "St. Louis Fed",
@@ -246,7 +279,6 @@ export const SEP_PROJECTIONS: FedProjection[] = [
 ];
 export const SEP_DATE = "Mar 2026";
 
-// Bank research stances — static, update manually or via Generate endpoint
 export const BANK_RESEARCH_DEFAULT: BankResearch[] = [
   {
     name: "Goldman Sachs",
@@ -341,6 +373,21 @@ export const ECONOMIC_EVENTS: MacroEvent[] = [
   { date: "2026-07-30", event: "PCE (June)", importance: "high" },
 ];
 
+// Map each indicator label to its FRED series ID
+export const INDICATOR_SERIES: Record<string, { id: string; label: string; unit: string; isYoY?: boolean }> = {
+  cpi:               { id: "CPIAUCSL",        label: "CPI",              unit: "Index", isYoY: true },
+  coreCpi:           { id: "CPILFESL",        label: "Core CPI",         unit: "Index", isYoY: true },
+  corePce:           { id: "PCEPILFE",        label: "Core PCE",         unit: "Index", isYoY: true },
+  ppi:               { id: "PPIACO",          label: "PPI",              unit: "Index", isYoY: true },
+  unemployment:      { id: "UNRATE",          label: "Unemployment",     unit: "%" },
+  nonfarmPayrolls:   { id: "PAYEMS",          label: "Nonfarm Payrolls", unit: "Thousands" },
+  jolts:             { id: "JTSJOL",          label: "JOLTS Openings",   unit: "Thousands" },
+  gdp:               { id: "A191RL1Q225SBEA", label: "Real GDP (annl.)", unit: "%" },
+  retailSales:       { id: "RSXFS",           label: "Retail Sales",     unit: "$B" },
+  consumerSentiment: { id: "UMCSENT",         label: "Cons. Sentiment",  unit: "Index" },
+  fedFundsRate:      { id: "DFF",             label: "Fed Funds Rate",   unit: "%" },
+};
+
 // ── Core FRED Fetch Helpers ───────────────────────────────────────────────────
 
 function nullSeries(unit = ""): FredSeries {
@@ -349,7 +396,7 @@ function nullSeries(unit = ""): FredSeries {
 
 async function fetchFredSeriesData(
   seriesId: string,
-  observationStart?: string   // "YYYY-MM-DD" — limits response size dramatically for daily series
+  observationStart?: string
 ): Promise<{ date: string; val: number }[]> {
   try {
     const controller = new AbortController();
@@ -379,11 +426,6 @@ async function fetchFredSeriesData(
   }
 }
 
-/**
- * Fetch latest value + MoM change + optional YoY.
- * periodsForYoY: 12 for monthly price-index series, 4 for quarterly, 0 to skip.
- * Monthly FRED series are small (~900 rows), so no date filtering needed.
- */
 export async function fetchFredLatest(
   seriesId: string,
   unit = "",
@@ -412,12 +454,10 @@ export async function fetchFredLatest(
   return { value, prev: prevVal, change, changePct, yoy, date: current.date, unit };
 }
 
-/** Return recent N days of a FRED series for chart sparklines. */
 export async function fetchFredHistory(
   seriesId: string,
   days = 365
 ): Promise<ChartPoint[]> {
-  // DFF is daily but small; fetch without date filter, then slice to requested range
   const valid = await fetchFredSeriesData(seriesId);
   if (valid.length === 0) return [];
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -426,8 +466,44 @@ export async function fetchFredHistory(
     .map((p) => ({ date: p.date, value: p.val }));
 }
 
+/** Fetch FRED indicator history for chart, computing YoY if requested */
+export async function fetchIndicatorHistory(
+  seriesId: string,
+  periodsForYoY = 0,
+  days = 3650
+): Promise<ChartPoint[]> {
+  const extraDays = periodsForYoY > 0 ? 400 : 0;
+  const valid = await fetchFredSeriesData(
+    seriesId,
+    new Date(Date.now() - (days + extraDays) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  );
+  if (valid.length === 0) return [];
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  if (periodsForYoY === 0) {
+    return valid
+      .filter((p) => new Date(p.date) >= cutoff)
+      .map((p) => ({ date: p.date, value: p.val }));
+  }
+
+  // Compute YoY for price-index series
+  return valid
+    .filter((p, idx) => {
+      const yearAgoIdx = idx - periodsForYoY;
+      return new Date(p.date) >= cutoff && yearAgoIdx >= 0;
+    })
+    .map((p, _idx, arr) => {
+      const origIdx = valid.indexOf(p);
+      const yearAgoIdx = origIdx - periodsForYoY;
+      const yearAgo = yearAgoIdx >= 0 ? valid[yearAgoIdx] : null;
+      const yoy = yearAgo && yearAgo.val !== 0
+        ? ((p.val - yearAgo.val) / Math.abs(yearAgo.val)) * 100
+        : null;
+      return { date: p.date, value: yoy ?? p.val };
+    });
+}
+
 // ── Yield Curve via US Treasury CSV ──────────────────────────────────────────
-// https://home.treasury.gov — no API key needed, returns all maturities
 
 const TREASURY_MATURITIES: { col: string; label: string; months: number }[] = [
   { col: "1 Mo",  label: "1M",  months: 1   },
@@ -467,46 +543,234 @@ async function fetchTreasuryCSV(yyyymm: string): Promise<{ headers: string[]; ro
   }
 }
 
-function parseYieldRow(
-  headers: string[],
-  row: string[],
-  monthAgoRow: string[] | null
-): YieldCurvePoint[] {
-  return TREASURY_MATURITIES.map((m) => {
-    const idx = headers.indexOf(m.col);
-    const cur = idx >= 0 ? parseFloat(row[idx]) : NaN;
-    const ago = monthAgoRow && idx >= 0 ? parseFloat(monthAgoRow[idx]) : NaN;
-    return {
-      maturity: m.label,
-      months: m.months,
-      current: isNaN(cur) ? null : cur,
-      monthAgo: isNaN(ago) ? null : ago,
-    };
-  });
-}
-
 export async function fetchYieldCurve(): Promise<YieldCurvePoint[]> {
   const now = new Date();
   const curYYYYMM = now.toISOString().slice(0, 7).replace("-", "");
+
   const prevDate = new Date(now);
   prevDate.setDate(1);
   prevDate.setMonth(prevDate.getMonth() - 1);
   const prevYYYYMM = prevDate.toISOString().slice(0, 7).replace("-", "");
 
-  const [cur, prev] = await Promise.allSettled([
+  const threeMonthDate = new Date(now);
+  threeMonthDate.setDate(1);
+  threeMonthDate.setMonth(threeMonthDate.getMonth() - 3);
+  const threeMonthYYYYMM = threeMonthDate.toISOString().slice(0, 7).replace("-", "");
+
+  const [cur, prev, threeMonth] = await Promise.allSettled([
     fetchTreasuryCSV(curYYYYMM),
     fetchTreasuryCSV(prevYYYYMM),
+    fetchTreasuryCSV(threeMonthYYYYMM),
   ]);
 
-  const curData  = cur.status  === "fulfilled" ? cur.value  : { headers: [], rows: [] };
-  const prevData = prev.status === "fulfilled" ? prev.value : { headers: [], rows: [] };
+  const curData      = cur.status      === "fulfilled" ? cur.value      : { headers: [], rows: [] };
+  const prevData     = prev.status     === "fulfilled" ? prev.value     : { headers: [], rows: [] };
+  const threeMonthData = threeMonth.status === "fulfilled" ? threeMonth.value : { headers: [], rows: [] };
 
   if (curData.rows.length === 0) return [];
 
-  const latestRow   = curData.rows[curData.rows.length - 1];
-  const monthAgoRow = prevData.rows.length > 0 ? prevData.rows[prevData.rows.length - 1] : null;
+  const latestRow    = curData.rows[curData.rows.length - 1];
+  // ~1 week ago = ~5 trading days back in current month; if not enough rows, use earliest
+  const weekAgoIdx   = Math.max(0, curData.rows.length - 6);
+  const weekAgoRow   = curData.rows.length >= 2 ? curData.rows[weekAgoIdx] : null;
+  const monthAgoRow  = prevData.rows.length > 0 ? prevData.rows[prevData.rows.length - 1] : null;
+  const threeMonthAgoRow = threeMonthData.rows.length > 0 ? threeMonthData.rows[threeMonthData.rows.length - 1] : null;
 
-  return parseYieldRow(curData.headers, latestRow, monthAgoRow);
+  return TREASURY_MATURITIES.map((m) => {
+    const idx = curData.headers.indexOf(m.col);
+    const cur  = idx >= 0 ? parseFloat(latestRow[idx])           : NaN;
+    const wk   = weekAgoRow && idx >= 0 ? parseFloat(weekAgoRow[idx])   : NaN;
+    const mo   = monthAgoRow && idx >= 0 ? parseFloat(monthAgoRow[idx]) : NaN;
+    const threeM = threeMonthAgoRow && idx >= 0 ? parseFloat(threeMonthAgoRow[idx]) : NaN;
+    return {
+      maturity:      m.label,
+      months:        m.months,
+      current:       isNaN(cur)    ? null : cur,
+      weekAgo:       isNaN(wk)     ? null : wk,
+      monthAgo:      isNaN(mo)     ? null : mo,
+      threeMonthAgo: isNaN(threeM) ? null : threeM,
+    };
+  });
+}
+
+// ── VIX Term Structure ─────────────────────────────────────────────────────────
+
+const VIX_TENORS = [
+  { ticker: "^VXST", label: "9D",  days: 9   },
+  { ticker: "^VIX",  label: "30D", days: 30  },
+  { ticker: "^VIX3M", label: "93D", days: 93 },
+  { ticker: "^VIX6M", label: "6M",  days: 183 },
+  { ticker: "^VIX1Y", label: "1Y",  days: 365 },
+];
+
+export async function fetchVixCurve(): Promise<VixCurvePoint[]> {
+  const now = new Date();
+  const period1 = new Date(now.getTime() - 91 * 24 * 60 * 60 * 1000);
+
+  const results = await Promise.allSettled(
+    VIX_TENORS.map(async (t) => {
+      const [quoteResult, chartResult] = await Promise.allSettled([
+        yahooFinance.quote(t.ticker, {}, { validateResult: false }),
+        yahooFinance.chart(t.ticker, { period1, interval: "1d" }, { validateResult: false }),
+      ]);
+
+      const currentValue =
+        quoteResult.status === "fulfilled"
+          ? (safeQuote(quoteResult.value).value)
+          : null;
+
+      const quotes =
+        chartResult.status === "fulfilled"
+          ? ((chartResult.value as Record<string, unknown>)?.["quotes"] as Array<{date: unknown; close: number | null}> ?? [])
+          : [];
+
+      const findClose = (daysAgo: number): number | null => {
+        const target = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+        const targetStr = target.toISOString().slice(0, 10);
+        let best: number | null = null;
+        for (const q of quotes) {
+          if (q.close == null) continue;
+          const d = (q.date instanceof Date ? q.date : new Date(q.date as string))
+            .toISOString()
+            .slice(0, 10);
+          if (d <= targetStr) best = q.close;
+        }
+        return best;
+      };
+
+      return {
+        tenor: t.label,
+        days: t.days,
+        value: currentValue,
+        weekAgo:       findClose(7),
+        monthAgo:      findClose(30),
+        threeMonthAgo: findClose(91),
+      };
+    })
+  );
+
+  return results.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : { tenor: VIX_TENORS[i].label, days: VIX_TENORS[i].days, value: null, weekAgo: null, monthAgo: null, threeMonthAgo: null }
+  );
+}
+
+// ── Fed Funds Curve (CME 30-Day Fed Funds Futures) ────────────────────────────
+
+const MONTH_CODES = ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"];
+
+// Upcoming FOMC meeting dates — update periodically
+const FOMC_MEETINGS = [
+  { date: "2026-06-18", label: "Jun '26", month: 5,  year: 2026 },
+  { date: "2026-07-29", label: "Jul '26", month: 6,  year: 2026 },
+  { date: "2026-09-17", label: "Sep '26", month: 8,  year: 2026 },
+  { date: "2026-10-29", label: "Oct '26", month: 9,  year: 2026 },
+  { date: "2026-12-10", label: "Dec '26", month: 11, year: 2026 },
+  { date: "2027-01-28", label: "Jan '27", month: 0,  year: 2027 },
+  { date: "2027-03-19", label: "Mar '27", month: 2,  year: 2027 },
+  { date: "2027-05-06", label: "May '27", month: 4,  year: 2027 },
+  { date: "2027-07-29", label: "Jul '27", month: 6,  year: 2027 },
+];
+
+function getZQTicker(month: number, year: number): string {
+  const code = MONTH_CODES[month];
+  const yy = year % 100;
+  return `ZQ${code}${yy < 10 ? "0" + yy : yy}.CBT`;
+}
+
+export async function fetchFedFundsCurve(): Promise<FedFundsCurvePoint[]> {
+  const now = new Date();
+  const upcoming = FOMC_MEETINGS.filter((m) => new Date(m.date) >= now).slice(0, 7);
+  if (upcoming.length === 0) return [];
+
+  const period1 = new Date(now.getTime() - 91 * 24 * 60 * 60 * 1000);
+
+  const results = await Promise.allSettled(
+    upcoming.map(async (m) => {
+      const ticker = getZQTicker(m.month, m.year);
+      const [quoteResult, chartResult] = await Promise.allSettled([
+        yahooFinance.quote(ticker, {}, { validateResult: false }),
+        yahooFinance.chart(ticker, { period1, interval: "1d" }, { validateResult: false }),
+      ]);
+
+      const price =
+        quoteResult.status === "fulfilled"
+          ? (quoteResult.value as Record<string, unknown>)?.["regularMarketPrice"] as number | null
+          : null;
+      const impliedRate = price != null ? parseFloat((100 - price).toFixed(3)) : null;
+
+      const quotes =
+        chartResult.status === "fulfilled"
+          ? ((chartResult.value as Record<string, unknown>)?.["quotes"] as Array<{date: unknown; close: number | null}> ?? [])
+          : [];
+
+      const findHistRate = (daysAgo: number): number | null => {
+        const target = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+        const targetStr = target.toISOString().slice(0, 10);
+        let best: number | null = null;
+        for (const q of quotes) {
+          if (q.close == null) continue;
+          const d = (q.date instanceof Date ? q.date : new Date(q.date as string))
+            .toISOString()
+            .slice(0, 10);
+          if (d <= targetStr) best = parseFloat((100 - q.close).toFixed(3));
+        }
+        return best;
+      };
+
+      return {
+        label:         m.label,
+        meetingDate:   m.date,
+        impliedRate,
+        weekAgo:       findHistRate(7),
+        monthAgo:      findHistRate(30),
+        threeMonthAgo: findHistRate(91),
+        isTbillProxy:  false,
+      };
+    })
+  );
+
+  const points: FedFundsCurvePoint[] = results.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : {
+          label: upcoming[i].label,
+          meetingDate: upcoming[i].date,
+          impliedRate: null,
+          weekAgo: null,
+          monthAgo: null,
+          threeMonthAgo: null,
+          isTbillProxy: false,
+        }
+  );
+
+  // If all futures are null (Yahoo Finance doesn't have ZQ), fall back to Treasury short-end
+  const hasData = points.some((p) => p.impliedRate != null);
+  if (!hasData) {
+    // Use Treasury yield curve short-end as proxy
+    try {
+      const curve = await fetchYieldCurve();
+      const tenorMap: Record<string, string> = {
+        "1M": "Jun '26", "3M": "Jul '26", "6M": "Sep '26", "1Y": "Dec '26",
+      };
+      return curve
+        .filter((c) => tenorMap[c.maturity])
+        .map((c) => ({
+          label:         tenorMap[c.maturity],
+          meetingDate:   "",
+          impliedRate:   c.current,
+          weekAgo:       c.weekAgo,
+          monthAgo:      c.monthAgo,
+          threeMonthAgo: c.threeMonthAgo,
+          isTbillProxy:  true,
+        }));
+    } catch {
+      return points;
+    }
+  }
+
+  return points;
 }
 
 // ── Market quote helpers ──────────────────────────────────────────────────────
@@ -560,18 +824,18 @@ export async function fetchMacroData(): Promise<MacroData> {
     yahooFinance.quote("^TNX",  {}, { validateResult: false }),
     yahooFinance.quote("^SKEW", {}, { validateResult: false }),
     yahooFinance.quote("^VXN",  {}, { validateResult: false }),
-    fetchFredLatest("CPIAUCSL",        "%",        12),   // monthly price index → YoY
+    fetchFredLatest("CPIAUCSL",        "%",        12),
     fetchFredLatest("CPILFESL",        "%",        12),
     fetchFredLatest("PCEPILFE",        "%",        12),
-    fetchFredLatest("UNRATE",          "%",        0),    // already a rate
+    fetchFredLatest("UNRATE",          "%",        0),
     fetchFredLatest("PAYEMS",          "thousands",0),
     fetchFredLatest("JTSJOL",          "thousands",0),
-    fetchFredLatest("A191RL1Q225SBEA", "%",        0),    // already a growth rate
-    fetchFredLatest("PPIACO",          "%",        12),   // monthly price index → YoY
-    fetchFredLatest("RSXFS",           "$ billions",12),  // monthly dollar value → YoY
+    fetchFredLatest("A191RL1Q225SBEA", "%",        0),
+    fetchFredLatest("PPIACO",          "%",        12),
+    fetchFredLatest("RSXFS",           "$ billions",12),
     fetchFredLatest("UMCSENT",         "index",    12),
     fetchFredLatest("DFF",             "%",        0),
-    fetchFredLatest("GFDEBTN",         "$ millions",0),   // Federal Debt total
+    fetchFredLatest("GFDEBTN",         "$ millions",0),
     fetchYieldCurve(),
   ]);
 
@@ -583,7 +847,7 @@ export async function fetchMacroData(): Promise<MacroData> {
   const yieldCurveData: YieldCurvePoint[] =
     yieldCurveResult.status === "fulfilled" ? yieldCurveResult.value : [];
 
-  const yield2yPoint = yieldCurveData.find((p) => p.label === "2Y" || p.maturity === "2Y");
+  const yield2yPoint = yieldCurveData.find((p) => p.maturity === "2Y");
   const yield2y: MarketQuote = {
     value: yield2yPoint?.current ?? null,
     change: null,
@@ -628,7 +892,7 @@ export async function fetchMacroData(): Promise<MacroData> {
   };
 }
 
-// ── Charts data (separate cache, longer history) ──────────────────────────────
+// ── Charts data ───────────────────────────────────────────────────────────────
 
 export async function fetchMacroCharts(): Promise<MacroCharts> {
   const period1 = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
@@ -644,17 +908,21 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
       }));
   };
 
-  const [vixResult, irxResult, tnxResult] = await Promise.allSettled([
-    yahooFinance.chart("^VIX", { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^IRX", { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^TNX", { period1, interval: "1d" }, { validateResult: false }),
+  const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult] = await Promise.allSettled([
+    yahooFinance.chart("^VIX",  { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^IRX",  { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^TNX",  { period1, interval: "1d" }, { validateResult: false }),
+    fetchVixCurve(),
+    fetchFedFundsCurve(),
   ]);
 
   return {
     fetchedAt:       new Date().toISOString(),
     vixHistory:      chartToPoints(vixResult),
-    fedFundsHistory: chartToPoints(irxResult),  // 3M T-bill (best available proxy)
+    fedFundsHistory: chartToPoints(irxResult),
     tenYearHistory:  chartToPoints(tnxResult),
+    vixCurve:        vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
+    fedFundsCurve:   ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
   };
 }
 
@@ -668,8 +936,9 @@ export function loadMacroCache(): MacroData | null {
     if (!existsSync(CACHE_FILE)) return null;
     const raw  = readFileSync(CACHE_FILE, "utf-8");
     const data = JSON.parse(raw) as MacroData;
-    // Invalidate old cache format that lacks new fields
     if (!data.yieldCurve || data.usDebt === undefined) return null;
+    // Invalidate if yield curve doesn't have new weekAgo field
+    if (data.yieldCurve.length > 0 && !("weekAgo" in data.yieldCurve[0])) return null;
     return data;
   } catch {
     return null;
@@ -687,7 +956,10 @@ export function isCacheStale(data: MacroData, ttlHours = 4): boolean {
 export function loadChartsCache(): MacroCharts | null {
   try {
     if (!existsSync(CHARTS_CACHE_FILE)) return null;
-    return JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
+    const data = JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
+    // Invalidate if missing new curve fields
+    if (!data.vixCurve || !data.fedFundsCurve) return null;
+    return data;
   } catch {
     return null;
   }
