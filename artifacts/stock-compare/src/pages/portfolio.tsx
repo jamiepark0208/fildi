@@ -647,9 +647,6 @@ export default function Portfolio() {
             <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
               <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
             </Button>
-            <Button size="sm" onClick={() => openAddPosition(undefined)} className="gap-1.5 h-8">
-              <Plus className="w-3.5 h-3.5" /> Add Position
-            </Button>
           </div>
         </div>
 
