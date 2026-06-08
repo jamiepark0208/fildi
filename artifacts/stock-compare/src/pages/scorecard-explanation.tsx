@@ -1,14 +1,13 @@
 import { Sidebar } from "@/components/sidebar";
-import { SCORECARD_METRICS } from "@/lib/rankings";
+import { SCORECARD_METRICS_V2 } from "@/lib/rankings";
 import { TECHNICAL_SCORECARD_METRICS } from "@/lib/technical-rankings";
 import { BookOpen, TrendingDown, TrendingUp, Info } from "lucide-react";
 
-function MetricTable({
-  metrics,
-}: {
-  metrics: { key: string; label: string; weight: number; higherIsBetter: boolean }[];
-}) {
-  const maxWeight = Math.max(...metrics.map(m => m.weight));
+type MetricRow = { key: string; label: string; higherIsBetter: boolean; weight?: number; intraWeight?: number };
+function metricWeight(m: MetricRow) { return m.intraWeight ?? m.weight ?? 0; }
+
+function MetricTable({ metrics }: { metrics: MetricRow[] }) {
+  const maxWeight = Math.max(...metrics.map(metricWeight));
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
@@ -25,11 +24,11 @@ function MetricTable({
               <td className="p-3 font-medium">{m.label}</td>
               <td className="p-3 text-center">
                 <div className="flex items-center justify-center gap-2">
-                  <span className="font-mono font-bold text-primary">{m.weight.toFixed(1)}</span>
+                  <span className="font-mono font-bold text-primary">{metricWeight(m).toFixed(1)}</span>
                   <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary/60 rounded-full"
-                      style={{ width: `${(m.weight / maxWeight) * 100}%` }}
+                      style={{ width: `${(metricWeight(m) / maxWeight) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -52,7 +51,7 @@ function MetricTable({
           <tr className="bg-secondary/30">
             <td className="p-3 font-bold">Max Possible Score</td>
             <td className="p-3 text-center font-mono font-bold text-primary">
-              {metrics.reduce((s, m) => s + m.weight, 0).toFixed(1)}
+              {metrics.reduce((s, m) => s + metricWeight(m), 0).toFixed(1)}
             </td>
             <td />
           </tr>
@@ -111,10 +110,10 @@ export default function ScorecardExplanation() {
             <div className="p-5 border-b border-border">
               <h2 className="font-bold text-base">Fundamental Score</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Used in the <strong>Fundamental Analysis</strong> tab · 12 metrics · max {SCORECARD_METRICS.reduce((s, m) => s + m.weight, 0).toFixed(1)} pts
+                Used in the <strong>Fundamental Analysis</strong> tab · 13 metrics · max {SCORECARD_METRICS_V2.reduce((s, m) => s + metricWeight(m), 0).toFixed(1)} pts
               </p>
             </div>
-            <MetricTable metrics={SCORECARD_METRICS} />
+            <MetricTable metrics={SCORECARD_METRICS_V2} />
             <div className="p-4 bg-secondary/10 border-t border-border space-y-1.5 text-xs text-muted-foreground">
               <p>
                 <strong className="text-foreground">P/E Ratio:</strong> Negative P/E (company is losing money) is

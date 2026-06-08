@@ -5,7 +5,7 @@ import { TickerShelf } from "@/components/ticker-shelf";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { MetricsTable } from "@/components/metrics-table";
 import { ScorecardBreakdown } from "@/components/scorecard-breakdown";
-import { computeRankings } from "@/lib/rankings";
+import { computeRankingsV2 } from "@/lib/rankings";
 import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
@@ -59,7 +59,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
 
   const rankings = useMemo(() => {
     const validStocks = loadedStocks.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
-    return computeRankings(validStocks);
+    return computeRankingsV2(validStocks);
   }, [loadedStocks]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);

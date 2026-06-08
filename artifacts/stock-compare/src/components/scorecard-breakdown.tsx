@@ -1,4 +1,4 @@
-import { StockScore, SCORECARD_METRICS } from "@/lib/rankings";
+import { StockScore, SCORECARD_METRICS_V2 } from "@/lib/rankings";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ export function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
             </tr>
           </thead>
           <tbody>
-            {SCORECARD_METRICS.map((metric) => (
+            {SCORECARD_METRICS_V2.map((metric) => (
               <tr key={metric.key} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                 <td className="p-4 align-top sticky left-0 bg-card">
                   <div className="font-medium">{metric.label}</div>
@@ -37,12 +37,12 @@ export function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
                   </div>
                 </td>
                 <td className="p-4 align-top text-center text-sm font-mono text-muted-foreground">
-                  {metric.weight}x
+                  {metric.intraWeight}x
                 </td>
                 {scores.map((score) => {
                   const ms = score.metricScores[metric.key];
                   const val = ms?.value;
-                  const isPercent = ["revgrow", "epsgrow", "netmgn", "roe", "grossmgn", "upside"].includes(metric.key);
+                  const isPercent = ["earningsYield","fcfYield","revgrow","epsgrow","upside","grossmgn","operatingmgn","netmgn","roe","fcfmgn"].includes(metric.key);
                   const displayVal = val == null ? "-" : (isPercent ? formatPercent(val) : formatNumber(val));
                   
                   return (
