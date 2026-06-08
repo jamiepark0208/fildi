@@ -41,6 +41,16 @@ function savePortfolioNames(names: string[]) {
   localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(names));
 }
 
+/** Remove option entries whose expiry has passed (past 4 PM ET on expiry date). */
+function purgeExpiredOptions(entries: PortfolioEntry[]): PortfolioEntry[] {
+  const now = Date.now();
+  return entries.filter(e => {
+    if (e.positionType === "stock" || !e.expiry) return true;
+    const expiryMs = new Date(e.expiry + "T16:00:00").getTime();
+    return expiryMs > now;
+  });
+}
+
 /** Resolve the portfolio an entry belongs to, handling legacy `notes` field. */
 export function entryPortfolio(entry: PortfolioEntry): string {
   return entry.portfolioName?.trim() || entry.notes?.trim() || "";
@@ -52,7 +62,10 @@ export function usePortfolio() {
   const [isLoaded,       setIsLoaded]       = useState(false);
 
   useEffect(() => {
-    setEntries(loadEntries());
+    const raw = loadEntries();
+    const purged = purgeExpiredOptions(raw);
+    if (purged.length !== raw.length) saveEntries(purged);
+    setEntries(purged);
     setPortfolioNames(loadPortfolioNames());
     setIsLoaded(true);
   }, []);

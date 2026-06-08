@@ -1,5 +1,89 @@
 [
   {
+    "date": "6/8/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 18.53,
+        "change": -2.9799995,
+        "changePct": -13.860462
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 741.94,
+        "change": 4.3900146,
+        "changePct": 0.59521586
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 719.125,
+        "change": 14.065002,
+        "changePct": 1.994866
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.556,
+        "change": 0.01999998,
+        "changePct": 0.44091666
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7449.25,
+        "change": 48.75,
+        "changePct": 0.65873927
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29619.25,
+        "change": 592.75,
+        "changePct": 2.0420995
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 398.36,
+        "change": 2.119995,
+        "changePct": 0.5349875
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.015,
+        "change": -0.005001068,
+        "changePct": -0.017845089
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 84.88,
+        "change": -0.1800003,
+        "changePct": -0.21160324
+      }
+    ],
+    "content": "# Daily Briefing | 6/8/2026\n\n## 🌍 Macro Environment\n- **Yield regime tightening**: 10Y at 4.56% (+44 bps today) signals hawkish repricing—this compresses tech multiples but *improves* put-selling economics by widening bid-ask spreads and lifting implied volatility premiums on growth names you target.\n- **VIX compression confirms complacency**: 18.53 is down 13.86% and sitting in the lower third of your operational range. This is a *seller's environment*—premiums are deflated, but the lack of fear suggests forced liquidations are unlikely near-term. Suitable for defined-risk put spreads over naked puts.\n- **Dollar flat, gold grinding up**: Safe-haven inflows remain muted despite yield moves. Risk-off sentiment is not yet dominant; equity buyers are absorbing the rate shock, which keeps volatility cap-locked.\n\n## 📊 Market Pulse\n- **Tech leading broad market**: QQQ +1.99% vs. SPY +0.60%—NQ futures +2.04% outpace S&P futures +0.66% by 138 bps. This is the sweet spot for selling puts on high-beta growth; growth premiums are fat on relative strength.\n- **Risk-on bias intact despite yield spike**: 10Y ripping 44 bps would normally trigger flight-to-safety; instead, equities rallied. Interpretation: market pricing rate hikes are *transitory* or growth outlook offsets near-term duration pain. **Your put-selling edge is active**—buyers are still paying up for downside protection on names that won't fall hard.\n- **Futures breadth vs. cash mismatch**: S&P futures outpacing cash SPY suggests institutional rebalancing into closes. Monitor overnight gaps at open; if overnight futures cool, cash-open dips could present fresher entry strikes for new put sales.\n\n## 🏭 Sector & Stock Catalysts\n- **NVDA, AMZN catching AI tailwinds**: Bullish analyst calls on both as Fisher portfolio holdings; AMZN's Corning fiber deal signals capex confidence. Both are premium-rich on vols—*wait for a 1–2% dip before selling puts*; today's strength prices in momentum.\n- **HOOD caught between bull/bear calls**: Zacks highlighted bullish *and* bearish takes same day—classic binary. News flow is neutral; skip new puts until IV expansion or a catalyst clarifies direction.\n- **POET & JOBY momentum reversals**: POET up 72.6% in May, sinking in June; JOBY up 29.5% then plummeting. Both are fade candidates *if* they retest May lows. Flag these for put-selling entry if they drop 3–5% this week; the premium decay will be juicy.\n- **RDW space-sector pressure**: Analyst skepticism on SpaceX dominance headwinds. Weak fundamentals + sector rotation risk—avoid new puts; existing positions should tighten stops.\n- **INTC stabilizing on Hitachi deal**: Partnership news is constructive after underperformance. Semiconductor upside is capped by yields, but this is a reasonable *sell-puts-on-dips* candidate if it retraces 2–3%.\n\n## ⚠️ Risks This Week\n- **CPI or jobs data surprise**: Any macro print hotter than expected could drive 10Y to 4.70%+, forcing a repricing of growth multiples and a volatility expansion that closes profitable puts prematurely. Watch for Thursday/Friday data risk.\n- **Earnings whispers on mega-cap tech**: NVDA, AMZN, and INTC are in pre-earnings windows (Q1/Q2 reports likely next 2–3 weeks). Any pre-announcement guidance miss will gap these down hard, hurting short put P&L. Size positions accordingly.\n\n## 💼 Portfolio Implications\n- **Sell puts selectively today on secondary names**: POET, JOBY, and INTC offer better risk/reward for new puts given momentum exhaustion signals and lower absolute prices. VIX at 18.53 supports 30–45 DTE sales on $5–15 wide spreads. Avoid NVDA and AMZN until they correct 2–3%—paying up for premium into strength is a sucker's trade.\n- **IRA & FILDI: layer puts on dips, not rallies**: The 10Y rip today is a gift—if QQQ corrects 1–2% tomorrow, that's your entry. Your cash-secured puts need 15%+ margin buffer; at current leverage, deploy only 40–50% of available margin. MOM can be more aggressive given shorter horizon.\n- **Lock in tighter stops on winners (HOOD momentum plays)**: If any current short puts are >50% of max profit, close and redeploy. The VIX is telling you demand is light; don't wait for a gap—take wins at 50% and move to fresher strikes with better risk ratios.\n\n---\n\n**Action summary**:",
+    "generatedAt": "2026-06-08T16:59:28.376Z",
+    "tickers": [
+      "HOOD",
+      "NVDA",
+      "OPEN",
+      "INTC",
+      "POET",
+      "HOOY",
+      "REBN",
+      "AMZN",
+      "NVDY",
+      "JOBY",
+      "RDW"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "6/5/2026",
     "marketData": [
       {
