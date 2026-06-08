@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-06-08T13:53:33.242Z",
+  "fetchedAt": "2026-06-08T17:54:03.404Z",
   "vix": {
-    "value": 19.01,
-    "change": -2.5,
-    "changePct": -11.590172,
+    "value": 18.61,
+    "change": -2.8999996,
+    "changePct": -13.463324,
     "level": "low-mid"
   },
   "yield10y": {
-    "value": 4.516,
-    "change": -0.020000458,
-    "changePct": -0.44092718
+    "value": 4.554,
+    "change": 0.017999649,
+    "changePct": 0.39681762
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 104.59999999999998,
+  "yieldSpread": 108.4,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -114,9 +114,9 @@
     "changePct": 0
   },
   "vxn": {
-    "value": 27.39,
-    "change": -3.08,
-    "changePct": -10.128247
+    "value": 27.18,
+    "change": -3.289999,
+    "changePct": -10.793961
   },
   "series": {
     "cpi": {
@@ -183,12 +183,12 @@
       "unit": "%"
     },
     "ppi": {
-      "value": null,
-      "prev": null,
-      "change": null,
-      "changePct": null,
-      "yoy": null,
-      "date": null,
+      "value": 283.764,
+      "prev": 276.42,
+      "change": 7.343999999999994,
+      "changePct": 2.6568265682656804,
+      "yoy": 9.819189448589745,
+      "date": "2026-04-01",
       "unit": "%"
     },
     "retailSales": {
