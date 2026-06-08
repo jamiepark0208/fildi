@@ -116,6 +116,71 @@ Last completed (2026-06-03): Macro tab, scorecard startup fix, indicators overha
 - Portfolio: named portfolios (IRA/FILDI/MOM), per-portfolio cards, covered call detection, risk metrics
 - AI Daily Brief (v1): initial implementation with in-memory cache
 
+### Fundamental Scorer V2 — Phases 1–3 complete (2026-06-08)
+Phases 1–3 of the institutional factor-model scorer upgrade are done. **Phase 4 (switchover) is next.**
+
+**New files:**
+- `artifacts/stock-compare/src/lib/rankings-helpers.ts` — pure math: `safeDiv`, `winsorize`, `normalize` (auto z-score ≥8, ordinal <8); 34 tests pass
+- `artifacts/stock-compare/src/lib/rankings-helpers.test.ts` — test runner: `node --experimental-strip-types --experimental-transform-types --no-warnings --test`
+- `artifacts/stock-compare/scripts/compare-rankings.ts` — **TEMP, delete in Phase 4**
+
+**Modified file:**
+- `artifacts/stock-compare/src/lib/rankings.ts` — added `FamilyName`, `FamilyPreset`, `FAMILY_PRESETS`, `MetricDefV2`, `SCORECARD_METRICS_V2`, `computeRankingsV2`. Old `computeRankings` + `SCORECARD_METRICS` untouched.
+- `artifacts/stock-compare/package.json` — added `"test": "node --experimental-strip-types --experimental-transform-types --no-warnings --test src/lib/rankings-helpers.test.ts"`
+
+**V2 design (key decisions):**
+- 4 families: VALUE 20 / GROWTH 25 / QUALITY 35 / SAFETY 20 = maxPossible 100 (constant)
+- 13 metrics. Key replacements: earningsYield+fcfYield replace P/E+Price/FCF; netmgn recomputes from raw netIncome/totalRevenue (fixes Yahoo 0.00% floor on POET)
+- PEG clamped null when epsGrowth≤0 or netIncome<0 (prevents negative-PEG-ranks-best bug)
+- Whole-universe normalization (NOT sector-split — sector split created a 15-stock global group where JOBY's −963% margin made RKLB's −22% look neutral)
+- Base-effect growth guard: if totalRevenue < $100M AND revgrow > 500%, score revgrow at 0.5 (catches ONDS 1079% on tiny base; doesn't touch epsGrowth)
+- Null metric → excluded from family denominator (renormalized); zero-metric family → 0.5 neutral
+- metricRanks computed from raw values, not normScores (rank badges unaffected by scoring overrides)
+- Suspect flags: netmgn>100%, growth>1000%, |netIncome|>|totalRevenue|, earningsYield if same — display-only except growth guard
+
+**StockScore extended (optional fields, backward-compat):** `familyScores?`, `dataQuality?`, `gateStatus?`, `suspectMetrics?`
+
+**Phase 3 outcome (31 tickers):**
+- NVDA: #1→#2 (no longer uncontested on null-only metrics)
+- ONDS: #9→#7 (growth guard fires; was #2 before guard)
+- POET: #16→#20 (Quality=20%, correctly near bottom; Safety=85% from CR 35.4 inflates overall)
+- HOOD: #20→#18 (FCF null handled correctly; Quality=60%; Safety=30% is real brokerage risk)
+- RKLB: #29→#17 (null=0 bias removed; Quality=50% neutral; Safety=52% from high CR+no debt)
+- JOBY: #31→#23 (null=0 bias removed; Quality=37% correctly low; Safety=81% from cash pile)
+
+### Phase 4 — Fundamental Scorer Switchover (DO NEXT)
+**No backend changes. Pure frontend. No API rebuild needed.**
+
+3 component edits + 1 script delete:
+
+1. **`artifacts/stock-compare/src/pages/home.tsx`**
+   - Change import: `computeRankings` → `computeRankingsV2`
+   - Change call in useMemo: `computeRankings(validStocks)` → `computeRankingsV2(validStocks)`
+
+2. **`artifacts/stock-compare/src/components/scorecard-breakdown.tsx`**
+   - Change import: `SCORECARD_METRICS` → `SCORECARD_METRICS_V2`
+   - Change the `.map()` call from `SCORECARD_METRICS` to `SCORECARD_METRICS_V2`
+   - Update the hardcoded `isPercent` list (line ~45):
+     ```tsx
+     // OLD:
+     const isPercent = ["revgrow","epsgrow","netmgn","roe","grossmgn","upside"].includes(metric.key);
+     // NEW:
+     const isPercent = ["earningsYield","fcfYield","revgrow","epsgrow","upside",
+                        "grossmgn","operatingmgn","netmgn","roe","fcfmgn"].includes(metric.key);
+     ```
+
+3. **`artifacts/stock-compare/src/pages/scorecard-explanation.tsx`**
+   - Change import + usage: `SCORECARD_METRICS` → `SCORECARD_METRICS_V2`
+
+4. **Delete** `artifacts/stock-compare/scripts/compare-rankings.ts`
+
+5. **Run typecheck + tests:**
+   ```bash
+   cd /home/runner/workspace/artifacts/stock-compare && pnpm typecheck && pnpm test
+   ```
+
+6. **Verify in browser:** leaderboard renders, Metric Breakdown table shows 13 rows with correct labels/percent formatting, no console errors.
+
 ### Macro tab charts fix (2026-06-03)
 - **Treasury Yield Curve** — replaced 4-ticker Yahoo Finance fetch with US Treasury CSV API (`home.treasury.gov`); now returns 11 maturities (1M→30Y) with current + month-ago rates
 - **VIX / rate history charts** — `yahooFinance.historical()` deprecated by Yahoo; replaced with `yahooFinance.chart()` across all three series (VIX, 3M T-bill as Fed Funds proxy, 10Y TNX); each returns 500+ data points
@@ -124,10 +189,11 @@ Last completed (2026-06-03): Macro tab, scorecard startup fix, indicators overha
 - **Cache location** — macro cache files live at `/home/runner/workspace/artifacts/` (not `artifacts/api-server/`); `ROOT = join(__dirname, "..", "..")` from `dist/` resolves to `artifacts/`
 
 ## NEXT SESSION — do these in order
-1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
-2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
-3. Fundamental improvements (sector benchmarks, earnings strip)
-4. Macro live feed — auto-refresh FRED data, PMI/ISM integration
+1. **Phase 4 — fundamental scorer switchover** (see detail below — do this FIRST)
+2. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
+3. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
+4. Fundamental improvements (sector benchmarks, earnings strip)
+5. Macro live feed — auto-refresh FRED data, PMI/ISM integration
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:
