@@ -35,8 +35,8 @@ Phase 2: social 1%/week challenge.
 
 ## STATE
 phase: build
-working: [macro-tab]
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix]
+working: [fundamental-scorer-v2]
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2]
 next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
 
 ## CODEGRAPH (use at start of every task)
@@ -189,11 +189,10 @@ Phases 1–3 of the institutional factor-model scorer upgrade are done. **Phase 
 - **Cache location** — macro cache files live at `/home/runner/workspace/artifacts/` (not `artifacts/api-server/`); `ROOT = join(__dirname, "..", "..")` from `dist/` resolves to `artifacts/`
 
 ## NEXT SESSION — do these in order
-1. **Phase 4 — fundamental scorer switchover** (see detail below — do this FIRST)
-2. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
-3. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
-4. Fundamental improvements (sector benchmarks, earnings strip)
-5. Macro live feed — auto-refresh FRED data, PMI/ISM integration
+1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
+2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
+3. Fundamental improvements (sector benchmarks, earnings strip)
+4. Macro live feed — auto-refresh FRED data, PMI/ISM integration
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:
