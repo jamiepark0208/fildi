@@ -167,9 +167,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
 
   const filtered = useMemo(() =>
-    activePortfolio === "All"
+    (activePortfolio === "All"
       ? entries
-      : entries.filter(e => entryPortfolio(e) === activePortfolio),
+      : entries.filter(e => entryPortfolio(e) === activePortfolio)
+    ).filter(e => e.positionType !== "crypto"),
   [entries, activePortfolio]);
 
   // ── Covered call detection ──────────────────────────────────────────────────

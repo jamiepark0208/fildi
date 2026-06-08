@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { Sidebar } from "@/components/sidebar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,12 +24,24 @@ import { DailyBrief } from "@/components/daily-brief";
 // ── Position types ────────────────────────────────────────────────────────────
 
 const POSITION_TYPES: { type: PositionType; label: string; desc: string; color: string }[] = [
-  { type: "short_put",  label: "Short Put",  desc: "Sell put, collect premium",  color: "text-green-400" },
-  { type: "short_call", label: "Short Call", desc: "Sell call, collect premium", color: "text-green-400" },
-  { type: "stock",      label: "Stock",      desc: "Long equity position",       color: "text-blue-400" },
-  { type: "long_put",   label: "Long Put",   desc: "Buy put for protection",     color: "text-orange-400" },
-  { type: "long_call",  label: "Long Call",  desc: "Buy call for upside",        color: "text-purple-400" },
+  { type: "short_put",  label: "Short Put",  desc: "Sell put, collect premium",    color: "text-green-400" },
+  { type: "short_call", label: "Short Call", desc: "Sell call, collect premium",   color: "text-green-400" },
+  { type: "stock",      label: "Stock",      desc: "Long equity position",         color: "text-blue-400" },
+  { type: "long_put",   label: "Long Put",   desc: "Buy put for protection",       color: "text-orange-400" },
+  { type: "long_call",  label: "Long Call",  desc: "Buy call for upside",          color: "text-purple-400" },
+  { type: "crypto",     label: "Crypto",     desc: "Cryptocurrency (e.g. BTC-USD)", color: "text-cyan-400" },
 ];
+
+// ── Option position quote type ─────────────────────────────────────────────────
+interface OptionPositionQuote {
+  midPrice: number | null;
+  bid: number | null;
+  ask: number | null;
+  impliedVolatility: number | null;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+}
 
 // ── Sort helpers ──────────────────────────────────────────────────────────────
 
@@ -67,7 +79,7 @@ const SORTABLE_COLS: { col: SortCol; label: string; align: "left" | "right" }[] 
 // ── Add/Edit position dialog ──────────────────────────────────────────────────
 
 function PositionDialog({
-  open, onClose, initial, onSubmit, portfolioNames, presetPortfolio,
+  open, onClose, initial, onSubmit, portfolioNames, presetPortfolio, entries,
 }: {
   open: boolean;
   onClose: () => void;
@@ -75,6 +87,7 @@ function PositionDialog({
   onSubmit: (entry: Omit<PortfolioEntry, "id" | "openedAt">) => void;
   portfolioNames: string[];
   presetPortfolio?: string;
+  entries?: PortfolioEntry[];
 }) {
   const isEdit = !!initial;
 
@@ -126,6 +139,16 @@ function PositionDialog({
   const isShort       = posType ? isShortPosition(posType) : false;
   const valid         = !!(posType && ticker.trim() && qty && Number(qty) > 0 && price && Number(price) >= 0);
 
+  // Tickers this portfolio is already long — used to restrict covered call selection
+  const longTickersInPortfolio = useMemo(() => {
+    if (!entries || posType !== "short_call") return [];
+    return [...new Set(
+      entries
+        .filter(e => e.positionType === "stock" && entryPortfolio(e) === portfolio)
+        .map(e => e.ticker),
+    )];
+  }, [entries, portfolio, posType]);
+
   const inputCls = "w-full h-9 px-3 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
   const labelCls = "block text-xs font-medium text-muted-foreground mb-1";
 
@@ -165,12 +188,31 @@ function PositionDialog({
             {/* Ticker + Qty */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Ticker *</label>
-                <input className={cn(inputCls, "uppercase")} placeholder="NVDA" value={ticker}
-                  onChange={e => setTicker(e.target.value.toUpperCase())} autoFocus={!isEdit} />
+                <label className={labelCls}>
+                  Ticker *
+                  {posType === "crypto" && <span className="ml-1 font-normal text-muted-foreground/70">(e.g. BTC-USD)</span>}
+                </label>
+                {posType === "short_call" && longTickersInPortfolio.length > 0 ? (
+                  <>
+                    <select className={cn(inputCls, "cursor-pointer")} value={ticker}
+                      onChange={e => setTicker(e.target.value)}>
+                      <option value="">— select —</option>
+                      {longTickersInPortfolio.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Covered calls restricted to {portfolio} longs.
+                    </p>
+                  </>
+                ) : (
+                  <input className={cn(inputCls, "uppercase")}
+                    placeholder={posType === "crypto" ? "BTC-USD" : "NVDA"} value={ticker}
+                    onChange={e => setTicker(e.target.value.toUpperCase())} autoFocus={!isEdit} />
+                )}
               </div>
               <div>
-                <label className={labelCls}>{isOptionsType ? "Contracts *" : "Shares *"}</label>
+                <label className={labelCls}>
+                  {isOptionsType ? "Contracts *" : posType === "crypto" ? "Coins *" : "Shares *"}
+                </label>
                 <input className={inputCls} type="number" min="1" placeholder="1" value={qty}
                   onChange={e => setQty(e.target.value)} />
               </div>
@@ -190,7 +232,10 @@ function PositionDialog({
             {/* Price / Premium */}
             <div>
               <label className={labelCls}>
-                {isShort ? "Premium Received (per contract) *" : isOptionsType ? "Premium Paid (per contract) *" : "Avg Price Per Share *"}
+                {isShort ? "Premium Received (per contract) *"
+                  : isOptionsType ? "Premium Paid (per contract) *"
+                  : posType === "crypto" ? "Avg Cost Per Coin *"
+                  : "Avg Price Per Share *"}
               </label>
               <input className={inputCls} type="number" step="0.01" min="0" placeholder="0.00"
                 value={price} onChange={e => setPrice(e.target.value)} />
@@ -291,81 +336,153 @@ function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
   const dte        = daysToExpiry(entry.expiry);
   const premium    = premiumReceived(entry);
   const collateral = cashCollateral(entry);
+  const optionType: "call" | "put" = entry.positionType.includes("call") ? "call" : "put";
 
-  const pnl = (() => {
-    if (!currentPrice || entry.positionType !== "stock") return null;
-    return (currentPrice - entry.avgPrice) * entry.qty;
-  })();
+  const pnl      = (entry.positionType === "stock" && currentPrice != null)
+    ? (currentPrice - entry.avgPrice) * entry.qty : null;
+  const cryptoPnl = (entry.positionType === "crypto" && currentPrice != null)
+    ? (currentPrice - entry.avgPrice) * entry.qty : null;
 
   const expiryWarning = dte !== null && dte >= 0 && dte <= 7;
   const isExpired     = dte !== null && dte < 0;
 
+  // Live option quote — Greeks + current market price
+  const { data: optQuote } = useQuery<OptionPositionQuote | null>({
+    queryKey: ["opt-pos-quote", entry.ticker, entry.expiry, entry.strike, optionType],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        ticker: entry.ticker,
+        expiry: entry.expiry ?? "",
+        strike: String(entry.strike ?? 0),
+        type:   optionType,
+      });
+      const res = await fetch(`/api/options/position-quote?${params}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: isOpt && !!entry.expiry && !!entry.strike,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const optPnl = (optQuote?.midPrice != null)
+    ? (isShort
+        ? (entry.avgPrice - optQuote.midPrice) * 100 * entry.qty
+        : (optQuote.midPrice - entry.avgPrice) * 100 * entry.qty)
+    : null;
+
+  // Breakeven is purely from entry data — always available when strike is set
+  const breakeven = (entry.strike != null)
+    ? (optionType === "put" ? entry.strike - entry.avgPrice : entry.strike + entry.avgPrice)
+    : null;
+
+  const hasLiveData = optQuote?.delta != null || optQuote?.gamma != null || optQuote?.theta != null;
+
   return (
-    <tr className="border-b border-border/30 hover:bg-secondary/20 transition-colors group">
-      <td className="py-2.5 px-4 font-mono font-bold text-sm">{entry.ticker}</td>
-      <td className="py-2.5 px-4">
-        <Badge variant="outline" className={cn(
-          "text-[10px] font-medium",
-          isShort ? "text-green-400 border-green-500/30 bg-green-500/10" :
-          isOpt   ? "text-orange-400 border-orange-500/30 bg-orange-500/10" :
-                    "text-blue-400 border-blue-500/30 bg-blue-500/10"
-        )}>
-          {positionLabel(entry.positionType)}
-        </Badge>
-      </td>
-      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {entry.qty}
-        <span className="text-muted-foreground text-xs ml-1">{isOpt ? "contracts" : "shares"}</span>
-      </td>
-      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {isOpt && entry.strike ? `$${entry.strike.toFixed(2)}` : `$${entry.avgPrice.toFixed(2)}`}
-      </td>
-      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {entry.positionType === "short_put" ? (
-          <div className="flex flex-col items-end">
-            <span className="text-yellow-400">{formatCurrency(collateral)}</span>
-            <span className="text-[10px] text-muted-foreground">collateral</span>
-          </div>
-        ) : isOpt ? (
-          <span className={isShort ? "text-green-400" : "text-red-400"}>
-            {isShort ? "+" : "-"}{formatCurrency(Math.abs(isShort ? premium : entry.avgPrice * 100 * entry.qty))}
-          </span>
-        ) : (
-          currentPrice
-            ? <span>{formatCurrency(currentPrice * entry.qty)}</span>
-            : <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
-        {entry.positionType === "short_put" ? (
-          <span className="text-green-400">+{formatCurrency(premium)}</span>
-        ) : pnl !== null ? (
-          <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>
-            {pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}
-          </span>
-        ) : isOpt && entry.expiry ? (
-          <span className={cn(
-            "text-xs flex items-center justify-end gap-1",
-            isExpired ? "text-muted-foreground/50" : expiryWarning ? "text-yellow-400" : "text-muted-foreground"
+    <>
+      <tr className="border-b border-border/30 hover:bg-secondary/20 transition-colors group">
+        <td className="py-2.5 px-4 font-mono font-bold text-sm">{entry.ticker}</td>
+        <td className="py-2.5 px-4">
+          <Badge variant="outline" className={cn(
+            "text-[10px] font-medium",
+            isShort ? "text-green-400 border-green-500/30 bg-green-500/10" :
+            isOpt   ? "text-orange-400 border-orange-500/30 bg-orange-500/10" :
+            entry.positionType === "crypto" ? "text-cyan-400 border-cyan-500/30 bg-cyan-500/10" :
+                      "text-blue-400 border-blue-500/30 bg-blue-500/10"
           )}>
-            {expiryWarning && <AlertTriangle className="w-3 h-3" />}
-            {isExpired ? "Expired" : dte === 0 ? "Today" : `${dte}d`}
+            {positionLabel(entry.positionType)}
+          </Badge>
+        </td>
+        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
+          {entry.qty}
+          <span className="text-muted-foreground text-xs ml-1">
+            {isOpt ? "contracts" : entry.positionType === "crypto" ? "coins" : "shares"}
           </span>
-        ) : <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="py-2.5 px-4 text-right">
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-          <button onClick={() => onEdit(entry)}
-            className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-primary">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onRemove(entry.id)}
-            className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-red-400">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
+          {isOpt && entry.strike ? `$${entry.strike.toFixed(2)}` : `$${entry.avgPrice.toFixed(2)}`}
+        </td>
+        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
+          {entry.positionType === "short_put" ? (
+            <div className="flex flex-col items-end">
+              <span className="text-yellow-400">{formatCurrency(collateral)}</span>
+              <span className="text-[10px] text-muted-foreground">collateral</span>
+            </div>
+          ) : isOpt ? (
+            <span className={isShort ? "text-green-400" : "text-red-400"}>
+              {isShort ? "+" : "-"}{formatCurrency(Math.abs(isShort ? premium : entry.avgPrice * 100 * entry.qty))}
+            </span>
+          ) : (
+            currentPrice != null
+              ? <span>{formatCurrency(currentPrice * entry.qty)}</span>
+              : <span className="text-muted-foreground">—</span>
+          )}
+        </td>
+        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
+          {entry.positionType === "stock" ? (
+            pnl !== null
+              ? <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}</span>
+              : <span className="text-muted-foreground">—</span>
+          ) : entry.positionType === "crypto" ? (
+            cryptoPnl !== null
+              ? <span className={cryptoPnl >= 0 ? "text-green-400" : "text-red-400"}>{cryptoPnl >= 0 ? "+" : ""}{formatCurrency(cryptoPnl)}</span>
+              : <span className="text-muted-foreground">—</span>
+          ) : isOpt && optPnl !== null ? (
+            <div className="flex flex-col items-end">
+              <span className={cn("tabular-nums", optPnl >= 0 ? "text-green-400" : "text-red-400")}>
+                {optPnl >= 0 ? "+" : ""}{formatCurrency(optPnl)}
+              </span>
+              <span className="text-[10px] text-muted-foreground">@ ${optQuote!.midPrice!.toFixed(2)}</span>
+            </div>
+          ) : entry.positionType === "short_put" ? (
+            <span className="text-green-400">+{formatCurrency(premium)}</span>
+          ) : isOpt && entry.expiry ? (
+            <span className={cn(
+              "text-xs flex items-center justify-end gap-1",
+              isExpired ? "text-muted-foreground/50" : expiryWarning ? "text-yellow-400" : "text-muted-foreground"
+            )}>
+              {expiryWarning && <AlertTriangle className="w-3 h-3" />}
+              {isExpired ? "Expired" : dte === 0 ? "Today" : `${dte}d`}
+            </span>
+          ) : <span className="text-muted-foreground">—</span>}
+        </td>
+        <td className="py-2.5 px-4 text-right">
+          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+            <button onClick={() => onEdit(entry)}
+              className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-primary">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => onRemove(entry.id)}
+              className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-red-400">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isOpt && (hasLiveData || breakeven != null) && (
+        <tr className="border-b border-border/20 bg-secondary/5">
+          <td colSpan={7} className="px-4 py-1.5">
+            <div className="flex items-center gap-5 text-xs font-mono tabular-nums text-muted-foreground">
+              {optQuote?.delta != null && (
+                <span>Δ <span className="text-foreground/70">{optQuote.delta.toFixed(3)}</span></span>
+              )}
+              {optQuote?.gamma != null && (
+                <span>Γ <span className="text-foreground/70">{optQuote.gamma.toFixed(5)}</span></span>
+              )}
+              {optQuote?.theta != null && (
+                <span>Θ <span className="text-foreground/70">{optQuote.theta.toFixed(4)}/day</span></span>
+              )}
+              {breakeven != null && (
+                <span>BE <span className="text-foreground/70">${breakeven.toFixed(2)}</span></span>
+              )}
+              {optQuote?.impliedVolatility != null && (
+                <span>IV <span className="text-foreground/70">{(optQuote.impliedVolatility * 100).toFixed(1)}%</span></span>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -745,6 +862,7 @@ export default function Portfolio() {
         onSubmit={addEntry}
         portfolioNames={portfolioNames}
         presetPortfolio={presetPortfolio}
+        entries={entries}
       />
 
       {/* Edit Position dialog */}
@@ -755,6 +873,7 @@ export default function Portfolio() {
           initial={editingEntry}
           onSubmit={patch => { updateEntry(editingEntry.id, patch); setEditingEntry(null); }}
           portfolioNames={portfolioNames}
+          entries={entries}
         />
       )}
     </div>

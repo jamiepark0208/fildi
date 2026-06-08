@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-export type PositionType = "stock" | "short_put" | "short_call" | "long_put" | "long_call";
+export type PositionType = "stock" | "short_put" | "short_call" | "long_put" | "long_call" | "crypto";
 
 export interface PortfolioEntry {
   id: string;
@@ -128,7 +128,7 @@ export function usePortfolio() {
 // ── Derived helpers ───────────────────────────────────────────────────────────
 
 export function isOptionsPosition(type: PositionType): boolean {
-  return type !== "stock";
+  return type !== "stock" && type !== "crypto";
 }
 
 export function isShortPosition(type: PositionType): boolean {
@@ -142,6 +142,7 @@ export function positionLabel(type: PositionType): string {
     short_call: "Short Call",
     long_put: "Long Put",
     long_call: "Long Call",
+    crypto: "Crypto",
   }[type];
 }
 
@@ -151,7 +152,7 @@ export function cashCollateral(entry: PortfolioEntry): number {
 }
 
 export function notionalValue(entry: PortfolioEntry): number {
-  if (entry.positionType === "stock") return entry.qty * entry.avgPrice;
+  if (entry.positionType === "stock" || entry.positionType === "crypto") return entry.qty * entry.avgPrice;
   return (entry.strike ?? 0) * 100 * entry.qty;
 }
 

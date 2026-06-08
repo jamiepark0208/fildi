@@ -43,7 +43,116 @@ interface RawOptionsResponse {
   options?: Array<{
     expirationDate?: unknown;
     puts?: RawContract[];
+    calls?: RawContract[];
   }>;
+}
+
+// ── Black-Scholes Greeks ──────────────────────────────────────────────────────
+
+function normPDF(x: number): number {
+  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+}
+
+function normCDF(x: number): number {
+  const t   = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d   = 0.3989422820 * Math.exp(-x * x / 2);
+  const p   = d * t * (0.3193815310 + t * (-0.3565638140 + t * (1.7814779370 + t * (-1.8212559780 + t * 1.3302744290))));
+  return x > 0 ? 1 - p : p;
+}
+
+function bsGreeks(
+  S: number, K: number, T: number, r: number, sigma: number, isCall: boolean
+): { delta: number; gamma: number; theta: number } {
+  if (T <= 0 || sigma <= 0 || S <= 0) {
+    return { delta: 0, gamma: 0, theta: 0 };
+  }
+  const sqrtT = Math.sqrt(T);
+  const d1    = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const d2    = d1 - sigma * sqrtT;
+  const nd1   = normPDF(d1);
+
+  const delta = isCall ? normCDF(d1) : normCDF(d1) - 1;
+  const gamma = nd1 / (S * sigma * sqrtT);
+  const thetaAnnual = isCall
+    ? (-S * nd1 * sigma / (2 * sqrtT)) - r * K * Math.exp(-r * T) * normCDF(d2)
+    : (-S * nd1 * sigma / (2 * sqrtT)) + r * K * Math.exp(-r * T) * normCDF(-d2);
+
+  return { delta, gamma, theta: thetaAnnual / 365 };
+}
+
+// ── Option position quote ─────────────────────────────────────────────────────
+
+export interface OptionPositionQuoteResult {
+  ticker: string;
+  strike: number;
+  expiry: string;
+  optionType: "call" | "put";
+  bid: number | null;
+  ask: number | null;
+  lastPrice: number | null;
+  midPrice: number | null;
+  impliedVolatility: number | null;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+}
+
+export async function getOptionPositionQuote(
+  ticker: string,
+  expiry: string,
+  strike: number,
+  optionType: "call" | "put",
+): Promise<OptionPositionQuoteResult> {
+  const date = new Date(expiry + "T16:00:00");
+  const raw  = await fetchChain(ticker.toUpperCase(), date);
+  const spot = raw.quote?.regularMarketPrice ?? 0;
+
+  const contracts: RawContract[] = optionType === "call"
+    ? (raw.options?.[0]?.calls ?? [])
+    : (raw.options?.[0]?.puts  ?? []);
+
+  // Find closest strike to requested
+  const contract = contracts.reduce<RawContract | null>((best, c) => {
+    if (typeof c.strike !== "number") return best;
+    if (!best || Math.abs(c.strike - strike) < Math.abs((best.strike ?? 0) - strike)) return c;
+    return best;
+  }, null);
+
+  const bid       = contract?.bid       ?? null;
+  const ask       = contract?.ask       ?? null;
+  const lastPrice = contract?.lastPrice ?? null;
+  const iv        = contract?.impliedVolatility ?? null;
+  const midPrice  = bid != null && ask != null ? (bid + ask) / 2 : lastPrice;
+
+  // Time to expiry in years
+  const T = (date.getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
+  const r = 0.045;
+
+  let delta: number | null = null;
+  let gamma: number | null = null;
+  let theta: number | null = null;
+
+  if (iv && iv > 0 && spot > 0 && T > 0) {
+    const g = bsGreeks(spot, strike, T, r, iv, optionType === "call");
+    delta = parseFloat(g.delta.toFixed(4));
+    gamma = parseFloat(g.gamma.toFixed(5));
+    theta = parseFloat(g.theta.toFixed(4));
+  }
+
+  return {
+    ticker,
+    strike,
+    expiry,
+    optionType,
+    bid:               bid       != null ? parseFloat(bid.toFixed(3))       : null,
+    ask:               ask       != null ? parseFloat(ask.toFixed(3))       : null,
+    lastPrice:         lastPrice != null ? parseFloat(lastPrice.toFixed(3)) : null,
+    midPrice:          midPrice  != null ? parseFloat(midPrice.toFixed(3))  : null,
+    impliedVolatility: iv        != null ? parseFloat(iv.toFixed(4))        : null,
+    delta,
+    gamma,
+    theta,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
