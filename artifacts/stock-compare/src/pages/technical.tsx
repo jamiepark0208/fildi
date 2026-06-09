@@ -1,5 +1,5 @@
 import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { TickerShelf } from "@/components/ticker-shelf";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils";
 import {
   type IndicatorResult,
   type TechnicalScore,
-  computeTechnicalRankings,
+  type TechnicalRow,
+  computeTechnicalRankingsV2,
+  // V1 kept exported — remove after one release
+  computeTechnicalRankings as _computeTechnicalRankingsV1,
 } from "@/lib/technical-rankings";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -174,7 +177,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
                   <TierBadge tier={d.tier} />
-                  <SignalBadge signal={d.signal} />
+                  <SignalBadge signal={ts?.signal ?? d.signal} />
                   {earningsSoon && (
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-400 border-orange-500/20">EARN</Badge>
                   )}
@@ -424,7 +427,7 @@ function TechRow({ label, tickers, data, getValue, lowerIsBetter, higherIsBetter
   );
 }
 
-function TechnicalMetricsTable({ tickers, data }: { tickers: string[]; data: Record<string, IndicatorResult | null> }) {
+function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[]; data: Record<string, IndicatorResult | null>; scoreMap?: Record<string, TechnicalScore> }) {
   const loadedTickers = tickers.filter(t => data[t] != null);
   if (loadedTickers.length === 0) return null;
 
@@ -443,19 +446,20 @@ function TechnicalMetricsTable({ tickers, data }: { tickers: string[]; data: Rec
             </tr>
           </thead>
           <tbody>
-            {/* Signal row */}
+            {/* Signal row — uses V2 gate when scoreMap available */}
             <tr className="border-b border-border/50">
               <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">Signal</td>
               {loadedTickers.map(ticker => {
                 const d = data[ticker];
                 if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                const sig = scoreMap?.[ticker]?.signal ?? d.signal;
                 const cls =
-                  d.signal === "GO"    ? "text-green-400" :
-                  d.signal === "WATCH" ? "text-yellow-400" :
+                  sig === "GO"    ? "text-green-400" :
+                  sig === "WATCH" ? "text-yellow-400" :
                   "text-muted-foreground";
                 return (
                   <td key={ticker} className={cn("p-3 text-right font-bold text-sm", cls)}>
-                    {d.signal}
+                    {sig}
                   </td>
                 );
               })}
@@ -558,7 +562,20 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
 
   const handleAdd    = (t: string) => { if (!tickers.includes(t) && tickers.length < MAX_SLOTS) setTickers(p => [...p, t]); };
   const handleRemove = (t: string) => setTickers(p => p.filter(x => x !== t));
-  const focusInput   = () => document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]')?.focus();
+  const focusInput   = () => document.querySelector<HTMLInputElement>('input[placeholder^="Add ticker"]')?.focus();
+
+  // Fetch all 31 watchlist technicals for V2 scorer (stable ranks, self-relative scores)
+  const { data: allTechnicalsData } = useQuery({
+    queryKey: ["technicals", "all"],
+    queryFn: async (): Promise<TechnicalRow[]> => {
+      const res = await fetch("/api/technicals/all");
+      if (!res.ok) throw new Error("technicals/all fetch failed");
+      return res.json();
+    },
+    staleTime: 60 * 60 * 1000,  // 1h — server refreshes daily
+    gcTime: 2 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   const queries = useQueries({
     queries: tickers.map(ticker => ({
@@ -595,12 +612,11 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
     return m;
   }, [tickers, queries]);
 
+  // V2: self-relative scores computed over all 31 watchlist rows (invariant to shelf selection)
   const technicalScores = useMemo(() => {
-    const loaded = tickers
-      .map(t => dataMap[t])
-      .filter((d): d is IndicatorResult => d != null);
-    return computeTechnicalRankings(loaded);
-  }, [tickers, dataMap]);
+    if (!allTechnicalsData?.length) return [];
+    return computeTechnicalRankingsV2(allTechnicalsData);
+  }, [allTechnicalsData]);
 
   const handleRefresh = async (ticker: string) => {
     setRefreshing(s => new Set(s).add(ticker));
@@ -621,7 +637,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Technical Scorecard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">RSI · MFI · MACD · 5d return · 52w position · vs SPY</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Self-relative V2 · RSI pct · MACD direction · IV vs realized · support proximity</p>
           </div>
           <TickerShelf
             tickers={tickers}
@@ -648,7 +664,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
           {hasData && (
             <div className="space-y-4">
               {technicalScores.length >= 2 && <TechnicalLeaderboard scores={technicalScores} />}
-              <TechnicalMetricsTable tickers={tickers} data={dataMap} />
+              <TechnicalMetricsTable tickers={tickers} data={dataMap} scoreMap={Object.fromEntries(technicalScores.map(s => [s.ticker, s]))} />
             </div>
           )}
         </div>

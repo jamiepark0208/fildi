@@ -7,6 +7,7 @@ import technicalRouter from "./technical";
 import dailyBriefRouter from "./daily-brief";
 import macroRouter from "./macro";
 import fundamentalsRouter from "./fundamentals";
+import technicalsRouter from "./technicals";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(technicalRouter);
 router.use(dailyBriefRouter);
 router.use("/macro", macroRouter);
 router.use(fundamentalsRouter);
+router.use(technicalsRouter);
 
 export default router;

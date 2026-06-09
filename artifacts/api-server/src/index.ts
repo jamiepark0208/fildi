@@ -4,6 +4,7 @@ import { runSeed } from "./lib/seeder";
 import { WATCHLIST } from "./lib/constants";
 import { getStaleTickers } from "./lib/fundamentals-db";
 import { refreshFundamentals } from "./routes/fundamentals";
+import { getStaleTechnicalTickers, refreshTechnicals } from "./lib/technicals-db";
 
 const rawPort = process.env["PORT"];
 
@@ -38,4 +39,13 @@ app.listen(port, (err) => {
       return refreshFundamentals(stale);
     })
     .catch(e => logger.error({ err: e }, "startup: fundamentals stale check crashed"));
+
+  // Fire-and-forget: refresh technical indicators for any ticker whose data is >23h old.
+  getStaleTechnicalTickers(WATCHLIST)
+    .then(stale => {
+      if (stale.length === 0) return;
+      logger.info({ count: stale.length }, "startup: refreshing stale technicals");
+      return refreshTechnicals(stale);
+    })
+    .catch(e => logger.error({ err: e }, "startup: technicals stale check crashed"));
 });

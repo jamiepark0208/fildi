@@ -37,8 +37,21 @@ Phase 2: social 1%/week challenge.
 phase: build
 working: [options-comparison-table]
 in-progress: none
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phase1, fmp-phase2-helpers, fmp-phase3-scorer, fmp-phase4-verify, fmp-phase5-cleanup]
-next: [fmp-remaining-23-tickers, options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phase1, fmp-phase2-helpers, fmp-phase3-scorer, fmp-phase4-verify, fmp-phase5-cleanup, technical-scorer-v2-phase1, technical-scorer-v2-phase2, technical-scorer-v2-phase3, technical-scorer-v2-phase4, technical-scorer-v2-phase5]
+next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
+
+## TECHNICAL SCORER V2 — COMPLETE (all 5 phases done 2026-06-09)
+Full phase report: .claude/docs/phase-report-technical.md
+Architecture: self-relative, invariant to peer set
+DB: tickerTechnicals (55 cols), refreshed daily, GET /api/technicals/all
+Scorer: computeTechnicalRankingsV2 in technical-rankings.ts (alongside V1)
+OHLCV window: 420 calendar days (≈300 trading days), supports MA200
+UI: technical.tsx + options-scanner.tsx wired to V2; home.tsx BUG-01 fixed
+Known remaining items:
+  - ivRank/ivPercentile: still use realized vol as IV proxy (upgrade when ~60d of atmPutIv history accumulates)
+  - putCallVolumeRatio/basicSkew: absolute mapping (upgrade to percentileRank when ~60d history accumulates)
+  - Remove computeTechnicalRankings (V1) after one release
+  - scorecard-explanation.tsx: still shows V1 metrics — update in next UI pass
 
 ## CODEGRAPH (use at start of every task)
   codegraph sync                        — update index
@@ -57,6 +70,35 @@ Never read source files to understand structure — use codegraph context first.
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
+Last completed (2026-06-09): Technical Scorer V2 — all 5 phases complete
+
+### Technical Scorer V2 (2026-06-09)
+Full phase report: `.claude/docs/phase-report-technical.md`
+
+**New backend files:**
+- `artifacts/api-server/src/lib/technicals-db.ts` — OHLCV computation + options fetch + DB helpers; computes 55-column `tickerTechnicals` row per ticker
+- `artifacts/api-server/src/routes/technicals.ts` — POST /api/technicals/refresh, GET /api/technicals/status, GET /api/technicals/all
+
+**DB:** `tickerTechnicals` table (lib/db/src/schema/index.ts). One row per ticker. Refreshed daily on startup (23h staleness). 31/31 at 100% coverage.
+
+**OHLCV:** `cutoffStr()` extended from 290 → 420 calendar days (≈300 trading days) to support MA200 + percentile history.
+
+**Scorer (`artifacts/stock-compare/src/lib/technical-rankings.ts`):**
+- `computeTechnicalRankingsV2(rows: TechnicalRow[], tierMap?)` → `TechnicalScore[]`
+- Self-relative: every component from own DB row only. INVARIANT to peer set.
+- 6 components: oversoldDepth(0.25), reversalSignal(0.20), volatilityState(0.22), trendContext(0.18), optionsFlow(0.10), volumeConfirm(0.05)
+- Gate: GO/WATCH/NO from rsi14Pct, mfi14Pct, macdDirection, rsiVelocity, fallingKnife, earningsDaysOut. BEARISH regime NEVER blocks GO.
+- Helper functions: `percentileRank`, `zScoreVsHistory`, `macdTurnDirection`, `regimeFromPrice`, `fallingKnifeDetect`, `realizedVolatility`, `swingHighLow`, `vwap` in rankings-helpers.ts
+
+**UI wired:**
+- `technical.tsx`: fetches `/api/technicals/all`, computes V2 on all 31, signal badge uses `ts?.signal ?? d.signal`
+- `options-scanner.tsx`: fetches `/api/technicals/all`, GO filter and signal sort use V2 rankings
+- `home.tsx` BUG-01: background watchlistQueries for all 31 so fundamental z-score normalization is stable
+
+**Tests:** 181 passing (0 failures). Includes invariance tests.
+
+**Key Phase 4 results:** MRVL V1#1→V2#29 (RSI pct=82%, overbought), GOOGL V1#13→V2#2 (RSI pct=10%, very oversold), NFLX #1 with BEARISH regime + GO signal, RUM #23 (was near #1 in V1).
+
 Last completed (2026-06-03): Macro tab, scorecard startup fix, indicators overhaul
 
 ### Macro tab (2026-06-03)
@@ -169,25 +211,22 @@ Full details in `.claude/docs/phase-report.md`.
 
 ## NEXT SESSION — do this FIRST, before any other work
 
-### ⚡ FMP population check (161 calls, well within 220/day budget)
+### ⚡ Technicals stale check (runs automatically on startup)
+The server auto-refreshes stale technicals on startup. To force-refresh:
+`curl -s -X POST http://localhost:8080/api/technicals/refresh?force=true`
+To check status: `curl -s http://localhost:8080/api/technicals/status | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.tickers.filter(t=>t.coveragePct>=90).length+'/31 at 90%+ coverage')"`
 
-1. Check budget and current state:
-   `curl -s http://localhost:8080/api/fundamentals/status | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log('budget:', JSON.stringify(d.apiBudget), 'fetched:', d.tickers.filter(t=>t.lastFetched).length+'/31')"`
-
-2. Confirm `apiBudget.remaining ≥ 217`. If yes:
-   `curl -s -X POST http://localhost:8080/api/fundamentals/refresh`
-
-3. Wait ~3 min (23 tickers × 7 endpoints, batches of 5 with 500ms gaps), then confirm:
-   `curl -s http://localhost:8080/api/fundamentals/status | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const ok=d.tickers.filter(t=>t.lastFetched && t.coveragePct>70); console.log(ok.length+'/31 with coverage >70%'); d.tickers.forEach(t=>console.log(t.ticker, t.coveragePct+'%', t.lastFetched?'OK':'MISSING'))"`
-
-4. All 31 should show `fundamentalsLastFetched` and `coveragePct > 70%` before starting new work.
-   Thin tickers expected: BABA, POET, ONDS, RDW may be lower coverage (sparse FMP data).
-
-### After FMP population complete
+### Next features to build
 - Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
 - Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
 - Fundamental improvements (sector benchmarks, earnings strip)
 - Macro live feed — auto-refresh FRED data, PMI/ISM integration
+
+### Technical V2 remaining items (low priority — no blocker)
+- ivRank/ivPercentile: upgrade from realized vol proxy to atmPutIv history once ~60 daily rows accumulate
+- putCallVolumeRatio/basicSkew: upgrade to percentileRank when ~60d history accumulates
+- scorecard-explanation.tsx: update to show V2 metric definitions (TECHNICAL_SCORECARD_METRICS_V2)
+- Remove computeTechnicalRankings (V1) from technical-rankings.ts after next release
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:

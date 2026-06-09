@@ -52,7 +52,7 @@ function todayStr(): string {
 
 function cutoffStr(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 290);
+  d.setDate(d.getDate() - 420); // 420 calendar days ≈ 300 trading days; supports MA200 + 100d warmup
   return d.toISOString().slice(0, 10);
 }
 

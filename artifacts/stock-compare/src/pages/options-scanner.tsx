@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
 import {
-  computeTechnicalRankings,
+  computeTechnicalRankingsV2,
+  type TechnicalRow,
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
@@ -426,7 +427,19 @@ export default function OptionsScanner() {
     return [...base, ...extra];
   }, [activeTickers, extraTickers, hiddenTickers]);
 
-  // ── Scorecard batch — watchlist tickers ─────────────────────────────────────
+  // ── V2 technicals — all 31 rows for self-relative scoring ───────────────────
+  const { data: allTechnicalsData } = useQuery({
+    queryKey: ["technicals", "all"],
+    queryFn: async (): Promise<TechnicalRow[]> => {
+      const res = await fetch("/api/technicals/all");
+      if (!res.ok) throw new Error("technicals/all fetch failed");
+      return res.json();
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  // ── Scorecard batch — watchlist tickers (for display: RSI, MFI, IV, price) ─
   const { data: scorecardData, isLoading: scorecardLoading, refetch: refetchScorecard } = useQuery({
     queryKey:             ["technical-scorecard"],
     queryFn:              async () => {
@@ -489,26 +502,22 @@ export default function OptionsScanner() {
     return m;
   }, [displayTickers, optionsQueries]);
 
+  // V2: self-relative scores over all 31 watchlist rows — invariant to display filter
   const rankings = useMemo(() => {
-    const allData: ScorecardRow[] = [...(scorecardData ?? [])];
-    extraTickers.forEach((t, i) => {
-      const d = extraIndicatorQueries[i]?.data;
-      if (d) allData.push(d);
-    });
-    const active = allData.filter(r => displayTickers.includes(r.ticker));
-    return new Map(computeTechnicalRankings(active).map(s => [s.ticker, s]));
-  }, [scorecardData, displayTickers, extraTickers, extraIndicatorQueries]);
+    if (!allTechnicalsData?.length) return new Map<string, TechnicalScore>();
+    return new Map(computeTechnicalRankingsV2(allTechnicalsData).map(s => [s.ticker, s]));
+  }, [allTechnicalsData]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
   const sortedTickers = useMemo(() => {
     let list = [...displayTickers];
-    if (goOnly) list = list.filter(t => scorecardMap.get(t)?.signal === "GO");
+    if (goOnly) list = list.filter(t => rankings.get(t)?.signal === "GO");
 
     list.sort((a, b) => {
       switch (sort) {
         case "signal": {
           const o = { GO: 2, WATCH: 1, NO: 0 } as const;
-          return (o[scorecardMap.get(b)?.signal ?? "NO"] ?? 0) - (o[scorecardMap.get(a)?.signal ?? "NO"] ?? 0);
+          return (o[rankings.get(b)?.signal ?? "NO"] ?? 0) - (o[rankings.get(a)?.signal ?? "NO"] ?? 0);
         }
         case "score":
           return (rankings.get(b)?.totalScore ?? 0) - (rankings.get(a)?.totalScore ?? 0);

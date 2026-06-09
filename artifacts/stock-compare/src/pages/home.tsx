@@ -10,6 +10,14 @@ import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
 
+// BUG-01 fix: always normalise fundamental rankings against the full watchlist so
+// adding/removing tickers from the compare view doesn't change other tickers' scores.
+const FUNDAMENTAL_WATCHLIST = [
+  "NVDA","INTC","MRVL","PLTR","HOOD","RDDT","AAPL","AMZN","GOOGL","TSLA","NOW",
+  "BABA","SMCI","SNOW","AAOI","NFLX","NET","OPEN","ONDS","POET","SHOP","FSLY","RUM",
+  "JOBY","ACHR","BB","IONQ","SOFI","TTD","RKLB","RDW",
+];
+
 interface HomeProps {
   tickers: string[];
   setTickers: React.Dispatch<React.SetStateAction<string[]>>;
@@ -34,11 +42,22 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     setTickers((prev) => prev.filter((t) => t !== ticker));
   };
 
+  // Per-ticker queries for the selected tickers (display + loading state)
   const queries = useQueries({
     queries: tickers.map((ticker) => ({
       ...getGetStockQuoteQueryOptions({ ticker }),
       staleTime: 10 * 60 * 1000,
       gcTime: 15 * 60 * 1000,
+    })),
+  });
+
+  // BUG-01 fix: background queries for full watchlist → stable normalization reference
+  const watchlistQueries = useQueries({
+    queries: FUNDAMENTAL_WATCHLIST.map((ticker) => ({
+      ...getGetStockQuoteQueryOptions({ ticker }),
+      staleTime: 10 * 60 * 1000,
+      gcTime: 15 * 60 * 1000,
+      retry: 1,
     })),
   });
 
@@ -58,9 +77,12 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   }, [queries, tickers]);
 
   const rankings = useMemo(() => {
-    const validStocks = loadedStocks.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
+    // Prefer full watchlist data for normalization (n ≥ 8 → z-score, not ordinal rank)
+    const watchlistLoaded = watchlistQueries.map(q => q.data).filter((d): d is StockMetrics => d != null);
+    const ref = watchlistLoaded.length >= 8 ? watchlistLoaded : loadedStocks;
+    const validStocks = ref.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
     return computeRankingsV2(validStocks);
-  }, [loadedStocks]);
+  }, [watchlistQueries, loadedStocks]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 

@@ -47,18 +47,27 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
   const visibleResults = open && results.length > 0 ? results : [];
 
   const selectTicker = useCallback((ticker: string) => {
-    const upper = ticker.toUpperCase();
-    if (!tickers.includes(upper) && tickers.length < 5) {
+    const upper = ticker.toUpperCase().trim();
+    if (upper && !tickers.includes(upper)) {
       onAdd(upper);
     }
     setInputText("");
     setOpen(false);
     setFocusedIndex(-1);
-    inputRef.current?.blur();
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, [onAdd, tickers]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.toUpperCase();
+    if (val.includes(",")) {
+      const parts = val.split(",");
+      const toAdd = parts.slice(0, -1).map(t => t.trim()).filter(Boolean);
+      for (const t of toAdd) onAdd(t);
+      setInputText(parts[parts.length - 1].trim());
+      setOpen(false);
+      setFocusedIndex(-1);
+      return;
+    }
     setInputText(val);
     setOpen(true);
     setFocusedIndex(-1);
@@ -77,7 +86,16 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
     if (!open || visibleResults.length === 0) {
       if (e.key === "Enter" && inputText.trim()) {
         e.preventDefault();
-        selectTicker(inputText.trim());
+        const parts = inputText.split(",").map(t => t.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          for (const t of parts) onAdd(t.toUpperCase());
+          setInputText("");
+          setOpen(false);
+          setFocusedIndex(-1);
+          setTimeout(() => inputRef.current?.focus(), 0);
+        } else {
+          selectTicker(inputText.trim());
+        }
       }
       return;
     }
@@ -145,7 +163,7 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
             onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            placeholder="Add ticker..."
+            placeholder="Add ticker, AAPL, MSFT…"
             className={cn(
               "w-full h-8 pl-8 pr-8 text-sm font-mono uppercase rounded-full border border-border bg-card",
               "text-foreground placeholder:text-muted-foreground/50",

@@ -193,3 +193,92 @@ export const fmpApiUsage = pgTable('fmp_api_usage', {
   resetDate:  text('reset_date').notNull(), // YYYY-MM-DD
 })
 export type FmpApiUsageRow = typeof fmpApiUsage.$inferSelect
+
+// ── ticker_technicals ─────────────────────────────────────────────────────────
+// One row per ticker. Written by the daily technicals refresh job.
+// The /technicals/all endpoint returns all rows for the V2 technical scorer.
+// Computation source: pricesHistorical OHLCV (no Yahoo calls at query time).
+// Options fields: computed during refresh from Yahoo options chain.
+
+export const tickerTechnicals = pgTable('ticker_technicals', {
+  ticker:                   text('ticker').primaryKey(),
+  technicalsLastFetched:    timestamp('technicals_last_fetched', { withTimezone: true }),
+  technicalsCoverage:       numeric('technicals_coverage'),      // 0-1
+
+  // ── Momentum indicators ─────────────────────────────────────────────────────
+  rsi14:                    numeric('rsi14'),
+  rsi14Pct:                 numeric('rsi14_pct'),                // [0,1] self-relative; 0=most oversold
+  mfi14:                    numeric('mfi14'),
+  mfi14Pct:                 numeric('mfi14_pct'),
+  stoch:                    numeric('stoch'),                    // Stochastic %K
+  stochPct:                 numeric('stoch_pct'),
+  macdHist:                 numeric('macd_hist'),
+  macdDirection:            text('macd_direction'),              // UP|DOWN|FLAT
+  atr14:                    numeric('atr14'),
+  atr14Pct:                 numeric('atr14_pct'),               // expanding/contracting vs own history
+  rsiVelocity:              numeric('rsi_velocity'),             // RSI change over last 3 bars
+
+  // ── Volume ──────────────────────────────────────────────────────────────────
+  volumeRatio:              numeric('volume_ratio'),             // today / 20d avg
+  volumeRatioPct:           numeric('volume_ratio_pct'),        // self-relative percentile [0,1]
+
+  // ── Volatility ──────────────────────────────────────────────────────────────
+  realizedVol20d:           numeric('realized_vol_20d'),         // annualized 20d std of log returns (%)
+  bbUpper:                  numeric('bb_upper'),
+  bbLower:                  numeric('bb_lower'),
+  bbWidth:                  numeric('bb_width'),                 // (upper-lower)/middle
+  bbWidthPct:               numeric('bb_width_pct'),            // self-relative percentile [0,1]
+  priceZScore:              numeric('price_z_score'),            // (price - 20d mean) / 20d std
+
+  // ── Moving averages ─────────────────────────────────────────────────────────
+  ma20:                     numeric('ma20'),
+  ma50:                     numeric('ma50'),
+  ma200:                    numeric('ma200'),
+  ma50Slope10d:             numeric('ma50_slope_10d'),           // (ma50_now - ma50_10d_ago) / ma50_10d_ago
+  priceVsMa20Atr:           numeric('price_vs_ma20_atr'),        // (price - MA20) / ATR14
+  priceVsMa50Atr:           numeric('price_vs_ma50_atr'),
+  priceVsMa200Atr:          numeric('price_vs_ma200_atr'),
+
+  // ── Support / resistance ────────────────────────────────────────────────────
+  swingHigh20d:             numeric('swing_high_20d'),
+  swingLow20d:              numeric('swing_low_20d'),
+  swingHigh50d:             numeric('swing_high_50d'),
+  swingLow50d:              numeric('swing_low_50d'),
+  vwap20d:                  numeric('vwap_20d'),
+  priceVsVwapPct:           numeric('price_vs_vwap_pct'),       // (price-vwap)/vwap as % (e.g. -2.5)
+  pivotPoint:               numeric('pivot_point'),
+  pivotR1:                  numeric('pivot_r1'),
+  pivotS1:                  numeric('pivot_s1'),
+  nearestSupportDistPct:    numeric('nearest_support_dist_pct'), // % distance price to nearest support
+  nearestResistDistPct:     numeric('nearest_resist_dist_pct'),
+
+  // ── Regime + breakdown ──────────────────────────────────────────────────────
+  regime:                   text('regime'),                      // BULLISH|NEUTRAL|BEARISH
+  fallingKnife:             integer('falling_knife'),            // 0|1
+
+  // ── Options flow ────────────────────────────────────────────────────────────
+  // atmPutIv: true implied vol from ATM put (%). realizedVol20d is OHLCV-derived.
+  // NOTE: ivRank/ivPercentile currently use realized vol history (ATM IV history not stored yet).
+  atmPutIv:                 numeric('atm_put_iv'),               // ATM put IV % from options chain
+  ivRank:                   numeric('iv_rank'),                  // realized vol percentile [0,1]
+  ivPercentile:             numeric('iv_percentile'),            // 0-100
+  impliedMoveWeekly:        numeric('implied_move_weekly'),      // straddle/spot or atmPutIv/sqrt(52)
+  ivVsRealizedVol:          numeric('iv_vs_realized_vol'),       // atmPutIv% / realizedVol20d%
+  putCallVolumeRatio:       numeric('put_call_volume_ratio'),    // sum(put vol) / sum(call vol)
+  basicSkew:                numeric('basic_skew'),               // (OTM put IV - OTM call IV) * 100
+  ivTermStructure:          numeric('iv_term_structure'),        // near/far expiry ATM put IV ratio
+
+  // ── Tier 2 placeholders (always null — requires dealer/flow data) ───────────
+  gexNet:                   numeric('gex_net'),
+  putWallStrike:            numeric('put_wall_strike'),
+  callWallStrike:           numeric('call_wall_strike'),
+  maxPainStrike:            numeric('max_pain_strike'),
+  deltaSkew25:              numeric('delta_skew_25'),
+
+  // ── Earnings ────────────────────────────────────────────────────────────────
+  earningsDaysOut:          integer('earnings_days_out'),        // null if no known date
+})
+
+export const insertTickerTechnicalsSchema = createInsertSchema(tickerTechnicals)
+export type InsertTickerTechnicals = z.infer<typeof insertTickerTechnicalsSchema>
+export type TickerTechnicalsRow = typeof tickerTechnicals.$inferSelect

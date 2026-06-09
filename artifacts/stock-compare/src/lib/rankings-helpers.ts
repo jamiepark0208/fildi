@@ -183,3 +183,175 @@ export function roicWaccSpread(
   if (roic == null || wacc == null || !isFinite(roic) || !isFinite(wacc)) return null;
   return roic - wacc;
 }
+
+// ─── Phase 2 (Technical V2): Self-relative scoring helpers ───────────────────
+// All functions are pure, self-contained, and operate on a single ticker's own
+// history. No cross-sectional comparison. Used by computeTechnicalRankingsV2.
+
+/**
+ * Fraction of `series` values strictly below `current`. Result in [0,1].
+ * 0.0 = at/below minimum (most oversold for this stock).
+ * 1.0 = at/above maximum (most overbought).
+ * Linear interpolation is NOT applied — this is a strict rank fraction.
+ * Returns null if fewer than `minN` finite values exist in `series`.
+ */
+export function percentileRank(
+  current: number,
+  series: number[],
+  minN = 60,
+): number | null {
+  if (!isFinite(current)) return null;
+  const finite = series.filter(v => isFinite(v));
+  if (finite.length < minN) return null;
+  let below = 0;
+  for (const v of finite) if (v < current) below++;
+  return below / finite.length;
+}
+
+/**
+ * Maps `current` to [0,1] using its z-score within `series`.
+ * z = (current - mean) / std, clipped to [-3,3], then mapped via (z+3)/6.
+ * Returns 0.5 (neutral) when std === 0 (all values identical).
+ * Returns null if fewer than `minN` finite values.
+ */
+export function zScoreVsHistory(
+  current: number,
+  series: number[],
+  minN = 60,
+): number | null {
+  if (!isFinite(current)) return null;
+  const finite = series.filter(v => isFinite(v));
+  if (finite.length < minN) return null;
+  const mean = finite.reduce((s, v) => s + v, 0) / finite.length;
+  const variance = finite.reduce((s, v) => s + (v - mean) ** 2, 0) / finite.length;
+  const std = Math.sqrt(variance);
+  if (std === 0) return 0.5;
+  const z = Math.max(-3, Math.min(3, (current - mean) / std));
+  return (z + 3) / 6;
+}
+
+/**
+ * Determines if the MACD histogram trend is improving (UP), deteriorating (DOWN),
+ * or within noise (FLAT) by comparing the slope of the last `lookback` bars.
+ * UP = potential reversal / momentum building.
+ * Noise threshold = 5% of the absolute value of the oldest bar in the window.
+ * Returns null if series is too short (< lookback + 1).
+ */
+export function macdTurnDirection(
+  histSeries: number[],
+  lookback = 3,
+): "UP" | "DOWN" | "FLAT" | null {
+  if (histSeries.length < lookback) return null;
+  const window = histSeries.slice(-lookback);
+  const slope = window[window.length - 1] - window[0];
+  const noise = Math.max(0.001, Math.abs(window[0]) * 0.05);
+  if (slope > noise) return "UP";
+  if (slope < -noise) return "DOWN";
+  return "FLAT";
+}
+
+/**
+ * Classifies a stock's price regime from its own MAs and slope.
+ * BULLISH  = price > ma50 > ma200 AND ma50Slope10d > 0
+ * BEARISH  = price < ma50 < ma200 AND ma50Slope10d < 0
+ * NEUTRAL  = everything else (including when ma50 or ma200 are null)
+ * Uses ONLY the stock's own price data — no macro view.
+ */
+export function regimeFromPrice(
+  price: number,
+  ma50: number | null,
+  ma200: number | null,
+  ma50Slope10d: number | null,
+): "BULLISH" | "NEUTRAL" | "BEARISH" {
+  if (ma50 == null || ma200 == null || ma50Slope10d == null) return "NEUTRAL";
+  if (price > ma50 && ma50 > ma200 && ma50Slope10d > 0) return "BULLISH";
+  if (price < ma50 && ma50 < ma200 && ma50Slope10d < 0) return "BEARISH";
+  return "NEUTRAL";
+}
+
+/**
+ * Detects a confirmed stock-specific breakdown (falling knife).
+ * Returns true when ALL of:
+ *   priceVsMa50Atr  < -2.0  (price >2 ATR below MA50)
+ *   priceVsMa200Atr < -2.0  (price >2 ATR below MA200; null if MA200 unavailable)
+ *   macdDirection   = 'DOWN' (momentum still deteriorating)
+ * When priceVsMa200Atr is null (MA200 unavailable), uses priceVsMa50Atr alone.
+ * NEVER triggered by macro view — stock-specific breakdown only.
+ */
+export function fallingKnifeDetect(
+  priceVsMa50Atr: number | null,
+  priceVsMa200Atr: number | null,
+  macdDirection: string | null,
+): boolean {
+  if (priceVsMa50Atr == null || macdDirection !== "DOWN") return false;
+  if (priceVsMa50Atr >= -2.0) return false;
+  // If MA200 is available, require both conditions; otherwise MA50 alone suffices
+  if (priceVsMa200Atr !== null && priceVsMa200Atr >= -2.0) return false;
+  return true;
+}
+
+/**
+ * Annualized realized volatility from `window` daily log returns.
+ * Returns percentage (e.g. 35.2 for 35.2% annualized vol).
+ * Returns null if fewer than `window` finite close prices provided.
+ */
+export function realizedVolatility(
+  dailyCloses: number[],
+  window = 20,
+): number | null {
+  if (dailyCloses.length < window + 1) return null;
+  const slice = dailyCloses.slice(-(window + 1));
+  const logReturns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
+  const finite = logReturns.filter(v => isFinite(v));
+  if (finite.length < window) return null;
+  const mean = finite.reduce((s, v) => s + v, 0) / finite.length;
+  const variance = finite.reduce((s, v) => s + (v - mean) ** 2, 0) / (finite.length - 1);
+  return Math.sqrt(variance * 252) * 100;
+}
+
+/**
+ * Finds the highest swing high and lowest swing low within `lookback` closes.
+ * Swing high: close[i] > close[i-2] AND close[i] > close[i+2]  (local maximum)
+ * Swing low:  close[i] < close[i-2] AND close[i] < close[i+2]  (local minimum)
+ * Requires i±2 neighbors, so the last 2 bars can never be swing points.
+ * Returns { high: null, low: null } when data is insufficient or no swing found.
+ */
+export function swingHighLow(
+  closes: number[],
+  lookback: number,
+): { high: number | null; low: number | null } {
+  if (closes.length < lookback + 4) return { high: null, low: null };
+  const slice = closes.slice(-(lookback + 4));
+  let high: number | null = null;
+  let low: number | null = null;
+  for (let i = 2; i < slice.length - 2; i++) {
+    const c = slice[i];
+    if (!isFinite(c)) continue;
+    if (c > slice[i - 2] && c > slice[i + 2]) {
+      if (high === null || c > high) high = c;
+    }
+    if (c < slice[i - 2] && c < slice[i + 2]) {
+      if (low === null || c < low) low = c;
+    }
+  }
+  return { high, low };
+}
+
+/**
+ * Volume-weighted average price over the last `window` bars.
+ * vwap = sum(close × volume) / sum(volume)
+ * Returns null if window not met, volumes are missing, or total volume is 0.
+ */
+export function vwap(
+  closes: number[],
+  volumes: number[],
+  window = 20,
+): number | null {
+  if (closes.length < window || volumes.length < window) return null;
+  const c = closes.slice(-window);
+  const v = volumes.slice(-window);
+  const sumCV = c.reduce((s, ci, i) => s + ci * v[i], 0);
+  const sumV = v.reduce((s, vi) => s + vi, 0);
+  if (sumV === 0 || !isFinite(sumCV) || !isFinite(sumV)) return null;
+  return sumCV / sumV;
+}

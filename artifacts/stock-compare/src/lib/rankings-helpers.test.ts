@@ -4,7 +4,11 @@ import {
   safeDiv, winsorize, normalize, MIN_Z_N,
   cashRunway, dilutionRate, interestCoverage, approxWACC, roicWaccSpread,
   MAX_CASH_RUNWAY_QUARTERS, MAX_INTEREST_COVERAGE,
+  percentileRank, zScoreVsHistory, macdTurnDirection,
+  regimeFromPrice, fallingKnifeDetect, realizedVolatility,
+  swingHighLow, vwap,
 } from "./rankings-helpers.ts";
+import { computeTechnicalRankingsV2, type TechnicalRow } from "./technical-rankings.ts";
 
 // node:assert/strict doesn't have toBeCloseTo — simple helper
 function assertClose(actual: number | null, expected: number, tol = 1e-9, msg?: string) {
@@ -360,4 +364,479 @@ describe("roicWaccSpread", () => {
     assertClose(roicWaccSpread(0.30, 0.08), 0.22, 1e-9));
   it("deeply negative spread: -0.10 - 0.12 = -0.22", () =>
     assertClose(roicWaccSpread(-0.10, 0.12), -0.22, 1e-9));
+});
+
+// ─── Phase 2 Technical V2 helpers ────────────────────────────────────────────
+
+// helpers
+const range = (n: number, start = 1) => Array.from({ length: n }, (_, i) => start + i);
+
+// ─── percentileRank ──────────────────────────────────────────────────────────
+
+describe("percentileRank", () => {
+  it("returns null when series has fewer than minN finite values", () =>
+    assert.strictEqual(percentileRank(5, [1, 2, 3], 10), null));
+  it("returns null when series is empty", () =>
+    assert.strictEqual(percentileRank(5, [], 1), null));
+  it("all values equal: current equals each — 0 below → 0.0", () =>
+    assertClose(percentileRank(5, [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], 5), 0.0, 1e-9));
+  it("current below all values → 0.0", () =>
+    assertClose(percentileRank(0, range(60), 60), 0.0, 1e-9));
+  it("current above all values → 1.0 (all 60 below it)", () =>
+    assertClose(percentileRank(61, range(60), 60), 1.0, 1e-9));
+  it("current is the median of 1..61 (31) → 50/61 ≈ 0.82", () =>
+    assertClose(percentileRank(31, range(61), 60), 30 / 61, 1e-9));
+  it("ignores NaN in series", () => {
+    const series = [...range(60), NaN, NaN];
+    assertClose(percentileRank(30, series, 60), 29 / 60, 1e-9);
+  });
+  it("current = NaN returns null", () =>
+    assert.strictEqual(percentileRank(NaN, range(60), 60), null));
+  it("single-value series with minN=1: current equals it → 0.0 (strict less-than)", () =>
+    assertClose(percentileRank(5, [5], 1), 0.0, 1e-9));
+});
+
+// ─── zScoreVsHistory ─────────────────────────────────────────────────────────
+
+describe("zScoreVsHistory", () => {
+  it("returns null when fewer than minN values", () =>
+    assert.strictEqual(zScoreVsHistory(5, [1, 2, 3], 10), null));
+  it("all-equal series → 0.5 (neutral)", () =>
+    assertClose(zScoreVsHistory(5, [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], 5), 0.5, 1e-9));
+  it("zero std → 0.5", () =>
+    assertClose(zScoreVsHistory(0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 5), 0.5, 1e-9));
+  it("current = mean → 0.5", () => {
+    const s = range(100); // mean = 50.5
+    assertClose(zScoreVsHistory(50.5, s, 60), 0.5, 1e-6);
+  });
+  it("extreme high (>>3 std above mean) → clips to 1.0", () =>
+    assertClose(zScoreVsHistory(1e9, range(100), 60), 1.0, 1e-9));
+  it("extreme low (<< -3 std below mean) → clips to 0.0", () =>
+    assertClose(zScoreVsHistory(-1e9, range(100), 60), 0.0, 1e-9));
+  it("current = NaN → null", () =>
+    assert.strictEqual(zScoreVsHistory(NaN, range(100), 60), null));
+  it("ignores NaN in series (enough finite values remain)", () => {
+    const s = [...range(60), NaN, NaN];
+    const r = zScoreVsHistory(30.5, s, 60);
+    assert.ok(r !== null && r >= 0 && r <= 1);
+  });
+});
+
+// ─── macdTurnDirection ───────────────────────────────────────────────────────
+
+describe("macdTurnDirection", () => {
+  it("returns null when series shorter than lookback", () =>
+    assert.strictEqual(macdTurnDirection([1, 2], 3), null));
+  it("returns null for empty series", () =>
+    assert.strictEqual(macdTurnDirection([]), null));
+  it("clearly improving histogram → UP", () =>
+    assert.strictEqual(macdTurnDirection([-3, -2, -1], 3), "UP"));
+  it("clearly deteriorating → DOWN", () =>
+    assert.strictEqual(macdTurnDirection([1, 0.5, -0.5], 3), "DOWN"));
+  it("tiny change within noise (5% of first bar) → FLAT", () =>
+    assert.strictEqual(macdTurnDirection([10, 10, 10.0001], 3), "FLAT"));
+  it("uses only last `lookback` bars", () => {
+    // first 3 bars go DOWN, last 3 bars go UP — should report UP
+    assert.strictEqual(macdTurnDirection([5, 4, 3, -3, -2, -1], 3), "UP");
+  });
+  it("single large jump: -1 to +1 = UP", () =>
+    assert.strictEqual(macdTurnDirection([-1, 0, 1], 3), "UP"));
+  it("default lookback=3 works without second arg", () =>
+    assert.strictEqual(macdTurnDirection([0, 0.5, 1.0, 1.5]), "UP"));
+  it("histogram crossing zero upward → UP", () =>
+    assert.strictEqual(macdTurnDirection([-0.5, -0.1, 0.4], 3), "UP"));
+});
+
+// ─── regimeFromPrice ─────────────────────────────────────────────────────────
+
+describe("regimeFromPrice", () => {
+  it("BULLISH: price > ma50 > ma200, slope > 0", () =>
+    assert.strictEqual(regimeFromPrice(120, 100, 80, 0.001), "BULLISH"));
+  it("BEARISH: price < ma50 < ma200, slope < 0", () =>
+    assert.strictEqual(regimeFromPrice(60, 80, 100, -0.001), "BEARISH"));
+  it("NEUTRAL: price > ma50 > ma200 but slope = 0", () =>
+    assert.strictEqual(regimeFromPrice(120, 100, 80, 0), "NEUTRAL"));
+  it("NEUTRAL: price between ma50 and ma200", () =>
+    assert.strictEqual(regimeFromPrice(90, 100, 80, 0.001), "NEUTRAL"));
+  it("NEUTRAL: ma50 null", () =>
+    assert.strictEqual(regimeFromPrice(100, null, 80, 0.001), "NEUTRAL"));
+  it("NEUTRAL: ma200 null", () =>
+    assert.strictEqual(regimeFromPrice(100, 90, null, 0.001), "NEUTRAL"));
+  it("NEUTRAL: slope null", () =>
+    assert.strictEqual(regimeFromPrice(120, 100, 80, null), "NEUTRAL"));
+  it("BEARISH requires both MAs stacked (ma50 < ma200)", () =>
+    assert.strictEqual(regimeFromPrice(60, 90, 80, -0.001), "NEUTRAL"));
+});
+
+// ─── fallingKnifeDetect ──────────────────────────────────────────────────────
+
+describe("fallingKnifeDetect", () => {
+  it("all three conditions met → true", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, -2.5, "DOWN"), true));
+  it("macdDirection not DOWN → false", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, -2.5, "FLAT"), false));
+  it("macdDirection UP → false", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, -2.5, "UP"), false));
+  it("priceVsMa50Atr null → false", () =>
+    assert.strictEqual(fallingKnifeDetect(null, -2.5, "DOWN"), false));
+  it("priceVsMa50Atr = -1.9 (above threshold) → false", () =>
+    assert.strictEqual(fallingKnifeDetect(-1.9, -3, "DOWN"), false));
+  it("priceVsMa200Atr = -1.9 (above threshold) → false when MA200 available", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, -1.9, "DOWN"), false));
+  it("priceVsMa200Atr = null: uses MA50 alone → true when MA50 < -2.0 and DOWN", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, null, "DOWN"), true));
+  it("macdDirection null → false", () =>
+    assert.strictEqual(fallingKnifeDetect(-3, -3, null), false));
+  it("exact threshold -2.0: not strictly below → false", () =>
+    assert.strictEqual(fallingKnifeDetect(-2.0, -3, "DOWN"), false));
+});
+
+// ─── realizedVolatility ──────────────────────────────────────────────────────
+
+describe("realizedVolatility", () => {
+  it("returns null when fewer than window+1 closes", () =>
+    assert.strictEqual(realizedVolatility([100, 101, 102], 5), null));
+  it("returns null for empty array", () =>
+    assert.strictEqual(realizedVolatility([]), null));
+  it("flat prices → vol near 0", () => {
+    const flat = Array(25).fill(100);
+    assertClose(realizedVolatility(flat, 20), 0, 1e-6);
+  });
+  it("vol is annualized (≈ daily std × √252)", () => {
+    // daily returns of ±1% alternating → daily std ≈ 0.01
+    const closes = [100];
+    for (let i = 0; i < 25; i++) closes.push(closes[closes.length - 1] * (i % 2 === 0 ? 1.01 : 0.99));
+    const rv = realizedVolatility(closes, 20);
+    assert.ok(rv !== null && rv > 0 && rv < 300, `unreasonable vol: ${rv}`);
+  });
+  it("result is a percentage (e.g. ~35 not ~0.35)", () => {
+    // alternating ±2% returns → non-zero variance → result should be >> 1
+    const closes = [100];
+    for (let i = 0; i < 25; i++) closes.push(closes[closes.length - 1] * (i % 2 === 0 ? 1.02 : 0.98));
+    const rv = realizedVolatility(closes, 20);
+    assert.ok(rv !== null && rv > 1, `expected percentage scale, got ${rv}`);
+  });
+  it("uses exactly the last window+1 closes", () => {
+    // prepend junk values that shouldn't affect result
+    const signal = Array(25).fill(100);
+    const withJunk = [...Array(100).fill(50), ...signal];
+    const direct = realizedVolatility(signal, 20);
+    const withPre = realizedVolatility(withJunk, 20);
+    assertClose(direct, withPre!, 1e-6);
+  });
+});
+
+// ─── swingHighLow ────────────────────────────────────────────────────────────
+
+describe("swingHighLow", () => {
+  it("returns {null, null} when series too short", () => {
+    const r = swingHighLow([1, 2, 3], 20);
+    assert.strictEqual(r.high, null);
+    assert.strictEqual(r.low, null);
+  });
+  it("flat series → no swing high/low (all equal, no local extrema)", () => {
+    const flat = Array(30).fill(100);
+    const r = swingHighLow(flat, 20);
+    assert.strictEqual(r.high, null);
+    assert.strictEqual(r.low, null);
+  });
+  it("single spike up → detected as swing high", () => {
+    // ..100, 100, 200, 100, 100...
+    const closes = [...Array(10).fill(100), 200, ...Array(10).fill(100)];
+    const r = swingHighLow(closes, 15);
+    assert.strictEqual(r.high, 200);
+  });
+  it("single dip down → detected as swing low", () => {
+    const closes = [...Array(10).fill(100), 50, ...Array(10).fill(100)];
+    const r = swingHighLow(closes, 15);
+    assert.strictEqual(r.low, 50);
+  });
+  it("returns highest swing high (not first one found)", () => {
+    // two spikes — array must be >= lookback+4; use lookback=10, 17 elements ≥ 14
+    const closes = [...Array(5).fill(100), 150, ...Array(5).fill(100), 200, ...Array(5).fill(100)];
+    const r = swingHighLow(closes, 10);
+    assert.strictEqual(r.high, 200);
+  });
+  it("returns lowest swing low", () => {
+    const closes = [...Array(5).fill(100), 60, ...Array(5).fill(100), 40, ...Array(5).fill(100)];
+    const r = swingHighLow(closes, 10);
+    assert.strictEqual(r.low, 40);
+  });
+  it("skips NaN values without crashing", () => {
+    const closes = [...Array(10).fill(100), NaN, 200, NaN, ...Array(10).fill(100)];
+    const r = swingHighLow(closes, 15);
+    // NaN skipped — 200 may or may not qualify depending on neighbors
+    assert.ok(r.high === null || typeof r.high === "number");
+  });
+});
+
+// ─── vwap ────────────────────────────────────────────────────────────────────
+
+describe("vwap", () => {
+  it("returns null when fewer than window closes", () =>
+    assert.strictEqual(vwap([100, 101], [1000, 1000], 5), null));
+  it("returns null when fewer than window volumes", () =>
+    assert.strictEqual(vwap(range(20, 100), [1000], 20), null));
+  it("returns null when total volume is 0", () =>
+    assert.strictEqual(vwap(Array(20).fill(100), Array(20).fill(0), 20), null));
+  it("equal volumes → simple average of closes", () => {
+    const closes = [100, 102, 104, 106, 108];
+    const vols = [1000, 1000, 1000, 1000, 1000];
+    assertClose(vwap(closes, vols, 5)!, 104, 1e-9);
+  });
+  it("higher volume on lower price pulls VWAP down", () => {
+    const closes = [90, 110];
+    const vols =   [900, 100]; // 90% weight on 90, 10% on 110
+    const result = vwap(closes, vols, 2);
+    assert.ok(result !== null && result < 100, `expected < 100, got ${result}`);
+  });
+  it("uses only last window bars", () => {
+    const closes = [...Array(10).fill(50), ...Array(5).fill(100)];
+    const vols   = [...Array(10).fill(1000), ...Array(5).fill(1000)];
+    const result = vwap(closes, vols, 5);
+    assertClose(result!, 100, 1e-9);
+  });
+  it("single bar → returns that close", () =>
+    assertClose(vwap([123.45], [5000], 1)!, 123.45, 1e-9));
+  it("zero-volume bars excluded from numerator and denominator", () => {
+    // bar with price=200, vol=0 should not affect result
+    const closes = [100, 200, 100];
+    const vols   = [1000, 0, 1000];
+    const result = vwap(closes, vols, 3);
+    assertClose(result!, 100, 1e-9);
+  });
+});
+
+// ─── computeTechnicalRankingsV2 ───────────────────────────────────────────────
+
+// Factory: build a TechnicalRow with all fields set to known defaults
+function makeRow(overrides: Partial<TechnicalRow> = {}): TechnicalRow {
+  return {
+    ticker: "TEST",
+    technicalsCoverage: "1.0",
+    rsi14: "40",    rsi14Pct: "0.25",   // oversold for this stock
+    mfi14Pct: "0.30",
+    stoch: "30",    stochPct: "0.25",
+    macdHist: "0.5", macdDirection: "UP",
+    rsiVelocity: "2",
+    volumeRatioPct: "0.6",
+    realizedVol20d: "30",
+    ivRank: "0.5",  ivPercentile: "50",
+    ivVsRealizedVol: "1.2",
+    bbWidthPct: "0.4",
+    priceZScore: "-1.0",
+    ma50: "100", ma200: "90",
+    priceVsMa50Atr: "-1.0", priceVsMa200Atr: "2.0",
+    nearestSupportDistPct: "3",
+    priceVsVwapPct: "-2",
+    regime: "BULLISH",
+    fallingKnife: 0,
+    atmPutIv: "35",
+    putCallVolumeRatio: "1.2",
+    basicSkew: "8",
+    ivTermStructure: "1.1",
+    earningsDaysOut: null,
+    ...overrides,
+  };
+}
+
+describe("computeTechnicalRankingsV2", () => {
+
+  // ── INVARIANCE (most important) ──────────────────────────────────────────────
+
+  it("INVARIANCE: score is identical whether peer set has 1 or 5 tickers", () => {
+    const a = makeRow({ ticker: "A", rsi14Pct: "0.15" });
+    const b = makeRow({ ticker: "B", rsi14Pct: "0.40" });
+    const c = makeRow({ ticker: "C", rsi14Pct: "0.70" });
+    const d = makeRow({ ticker: "D", rsi14Pct: "0.55" });
+    const e = makeRow({ ticker: "E", rsi14Pct: "0.90" });
+
+    const solo  = computeTechnicalRankingsV2([a]);
+    const full  = computeTechnicalRankingsV2([a, b, c, d, e]);
+    const scoreAlone = solo.find(r => r.ticker === "A")!.totalScore;
+    const scoreInGroup = full.find(r => r.ticker === "A")!.totalScore;
+
+    assertClose(scoreAlone, scoreInGroup, 1e-6,
+      `A score changed: solo=${scoreAlone} vs group=${scoreInGroup}`);
+  });
+
+  it("INVARIANCE: removing a peer does not change any remaining ticker's score", () => {
+    const rows = ["X","Y","Z"].map(t => makeRow({ ticker: t, rsi14Pct: String(Math.random()) }));
+    const [rx, ry, rz] = rows;
+
+    const full    = computeTechnicalRankingsV2([rx, ry, rz]);
+    const without = computeTechnicalRankingsV2([rx, ry]);
+
+    for (const t of ["X", "Y"]) {
+      const f = full.find(r => r.ticker === t)!.totalScore;
+      const w = without.find(r => r.ticker === t)!.totalScore;
+      assertClose(f, w, 1e-6, `${t} score changed after removing Z: ${f} → ${w}`);
+    }
+  });
+
+  // ── maxPossible ──────────────────────────────────────────────────────────────
+
+  it("maxPossible is always 100 regardless of null components", () => {
+    const nullRow = makeRow({ ivRank: null, putCallVolumeRatio: null, basicSkew: null });
+    const [r] = computeTechnicalRankingsV2([nullRow]);
+    assert.strictEqual(r.maxPossible, 100);
+  });
+
+  it("maxPossible is 100 even when all options fields are null", () => {
+    const r = makeRow({ atmPutIv: null, ivVsRealizedVol: null, putCallVolumeRatio: null, basicSkew: null, ivTermStructure: null, ivRank: null });
+    const [s] = computeTechnicalRankingsV2([r]);
+    assert.strictEqual(s.maxPossible, 100);
+  });
+
+  it("totalScore ∈ [0, 100] for any valid input", () => {
+    const r = computeTechnicalRankingsV2([makeRow()]);
+    assert.ok(r[0].totalScore >= 0 && r[0].totalScore <= 100);
+  });
+
+  // ── Gate logic ───────────────────────────────────────────────────────────────
+
+  it("GO: all conditions met", () => {
+    const row = makeRow({
+      rsi14Pct: "0.20", mfi14Pct: "0.30",
+      macdDirection: "UP", fallingKnife: 0, earningsDaysOut: null,
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "GO");
+  });
+
+  it("GATE: regime=BEARISH does NOT prevent GO", () => {
+    const row = makeRow({
+      regime: "BEARISH",
+      rsi14Pct: "0.20", mfi14Pct: "0.30",
+      macdDirection: "UP", fallingKnife: 0, earningsDaysOut: null,
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "GO", "regime=BEARISH must not block GO");
+  });
+
+  it("GATE: fallingKnife=1 caps at WATCH even if all other GO conditions hold", () => {
+    const row = makeRow({
+      rsi14Pct: "0.20", mfi14Pct: "0.30",
+      macdDirection: "UP", fallingKnife: 1,
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "WATCH");
+  });
+
+  it("GATE: earningsDaysOut=5 caps at WATCH when other GO conditions hold", () => {
+    const row = makeRow({
+      rsi14Pct: "0.20", mfi14Pct: "0.30",
+      macdDirection: "UP", fallingKnife: 0, earningsDaysOut: 5,
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "WATCH");
+  });
+
+  it("WATCH: rsi14Pct approaching threshold (0.35) without full GO", () => {
+    const row = makeRow({
+      rsi14Pct: "0.35",            // between WATCH (0.40) and GO (0.30) threshold
+      mfi14Pct: "0.50",            // not at GO momentum threshold
+      macdDirection: "DOWN",       // no stabilization
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "WATCH");
+  });
+
+  it("NO: high RSI percentile, no approaching conditions", () => {
+    const row = makeRow({
+      rsi14Pct: "0.75",
+      mfi14Pct: "0.70",
+      stochPct: "0.80",
+      macdDirection: "DOWN",
+      priceZScore: "0.5",
+      earningsDaysOut: null,
+    });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "NO");
+  });
+
+  it("NO: technicalsCoverage < 0.5 → NO regardless of signals", () => {
+    const row = makeRow({ technicalsCoverage: "0.4", rsi14Pct: "0.10" });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.strictEqual(r.signal, "NO");
+  });
+
+  // ── BEARISH regime reduces trendContext score but does not zero it ───────────
+
+  it("trendContext BEARISH > 0: regime=BEARISH gives score > 0 (0.3 not 0.0)", () => {
+    const bullish = makeRow({ regime: "BULLISH", priceVsMa50Atr: "0", priceVsVwapPct: "0" });
+    const bearish = makeRow({ regime: "BEARISH", priceVsMa50Atr: "0", priceVsVwapPct: "0" });
+    const [sb] = computeTechnicalRankingsV2([bullish]);
+    const [sr] = computeTechnicalRankingsV2([bearish]);
+    // BEARISH score < BULLISH score, but bearish component > 0
+    assert.ok(sr.totalScore < sb.totalScore, "BEARISH should score lower than BULLISH");
+    assert.ok(sr.componentScores!["trendContext"]!.score! > 0, "BEARISH must not zero trendContext");
+  });
+
+  // ── Null handling ─────────────────────────────────────────────────────────────
+
+  it("null component excluded from denominator: totalScore not artificially deflated", () => {
+    // Remove volumeConfirm → 5 components. Score should not be 5% lower than expected.
+    const withVol    = makeRow({ volumeRatioPct: "0.8" });
+    const withoutVol = makeRow({ volumeRatioPct: null });
+    const [sv] = computeTechnicalRankingsV2([withVol]);
+    const [sn] = computeTechnicalRankingsV2([withoutVol]);
+    // If we incorrectly treated null as 0, withoutVol would score lower. Both should be close.
+    // (They differ by at most the volumeConfirm contribution)
+    const diff = Math.abs(sv.totalScore - sn.totalScore);
+    assert.ok(diff < 5, `null volumeRatioPct caused score gap of ${diff.toFixed(2)} (expected < 5)`);
+  });
+
+  // ── Output contract ──────────────────────────────────────────────────────────
+
+  it("output has all required TechnicalScore fields", () => {
+    const [r] = computeTechnicalRankingsV2([makeRow()]);
+    assert.ok("ticker" in r);
+    assert.ok("totalScore" in r);
+    assert.ok("maxPossible" in r);
+    assert.ok("rank" in r);
+    assert.ok("signal" in r);
+    assert.ok("tier" in r);
+    assert.ok("metricScores" in r);
+    assert.ok("reason" in r);
+  });
+
+  it("output has V2 optional fields", () => {
+    const [r] = computeTechnicalRankingsV2([makeRow()]);
+    assert.ok("gateStatus" in r);
+    assert.ok("regime" in r);
+    assert.ok("componentScores" in r);
+    assert.ok("dataQuality" in r);
+  });
+
+  it("reason string contains signal and regime", () => {
+    const [r] = computeTechnicalRankingsV2([makeRow({ regime: "BULLISH" })]);
+    assert.ok(r.reason.includes("BULLISH"), `reason missing BULLISH: ${r.reason}`);
+    assert.ok(r.reason.includes(r.signal),  `reason missing signal ${r.signal}: ${r.reason}`);
+  });
+
+  it("reason includes ⚠ falling knife when fallingKnife=1", () => {
+    const row = makeRow({ fallingKnife: 1 });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.ok(r.reason.includes("⚠"), `expected knife warning in reason: ${r.reason}`);
+  });
+
+  it("reason includes earnings notice when earningsDaysOut <= 14", () => {
+    const row = makeRow({ earningsDaysOut: 10 });
+    const [r] = computeTechnicalRankingsV2([row]);
+    assert.ok(r.reason.includes("earnings"), `expected earnings notice: ${r.reason}`);
+  });
+
+  it("empty input returns empty array", () =>
+    assert.deepStrictEqual(computeTechnicalRankingsV2([]), []));
+
+  it("tierMap default: unknown tickers get tier 1", () => {
+    const [r] = computeTechnicalRankingsV2([makeRow({ ticker: "UNKNOWN" })]);
+    assert.strictEqual(r.tier, 1);
+  });
+
+  it("tierMap: explicit tier is applied", () => {
+    const [r] = computeTechnicalRankingsV2([makeRow({ ticker: "AAA" })], { AAA: 3 });
+    assert.strictEqual(r.tier, 3);
+  });
 });
