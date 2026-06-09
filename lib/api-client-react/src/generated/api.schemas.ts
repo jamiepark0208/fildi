@@ -120,6 +120,32 @@ export interface StockMetrics {
      * @nullable
      */
   dayChangePercent?: number | null;
+  /** @nullable Weighted average cost of capital (decimal). Source: FMP. */
+  wacc?: number | null;
+  /** @nullable Return on invested capital (decimal). Source: FMP. */
+  roic?: number | null;
+  /** @nullable Annual interest expense in raw dollars (always positive). Source: FMP. */
+  interestExpense?: number | null;
+  /** @nullable Total debt in raw dollars. Source: FMP. */
+  totalDebt?: number | null;
+  /** @nullable Total stockholders equity in raw dollars. Source: FMP. */
+  totalStockholdersEquity?: number | null;
+  /** @nullable EBIT in raw dollars. Source: FMP. */
+  ebit?: number | null;
+  /** @nullable Effective tax rate (decimal). Source: FMP. */
+  effectiveTaxRate?: number | null;
+  /** @nullable Cash and cash equivalents in raw dollars. Source: FMP. */
+  cashAndEquivalents?: number | null;
+  /** @nullable Most recent quarterly operating cash flow (negative = burning). Source: FMP. */
+  quarterlyOperatingCashFlow?: number | null;
+  /** @nullable Current weighted average shares outstanding. Source: FMP. */
+  sharesOutstanding?: number | null;
+  /** @nullable Prior period shares outstanding (for dilution rate). Source: FMP. */
+  sharesOutstandingPrior?: number | null;
+  /** @nullable Fields where FMP and Yahoo values diverged by more than 20%. */
+  discrepancyFlags?: string[] | null;
+  /** @nullable ISO timestamp when FMP fundamentals were last fetched. */
+  fundamentalsLastFetched?: string | null;
 }
 
 export interface ScorecardItem {

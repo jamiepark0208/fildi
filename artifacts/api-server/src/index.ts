@@ -1,6 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seeder";
+import { WATCHLIST } from "./lib/constants";
+import { getStaleTickers } from "./lib/fundamentals-db";
+import { refreshFundamentals } from "./routes/fundamentals";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +28,14 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
 
   // Fire-and-forget: pre-populate indicator_cache for all tickers missing today's data.
-  // This runs in the background so the server starts instantly.
   runSeed().catch(e => logger.error({ err: e }, "seed crashed"));
+
+  // Fire-and-forget: refresh FMP fundamentals for any ticker whose data is >7 days old.
+  getStaleTickers(WATCHLIST)
+    .then(stale => {
+      if (stale.length === 0) return;
+      logger.info({ count: stale.length }, "startup: refreshing stale FMP fundamentals");
+      return refreshFundamentals(stale);
+    })
+    .catch(e => logger.error({ err: e }, "startup: fundamentals stale check crashed"));
 });

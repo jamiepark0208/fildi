@@ -42,7 +42,7 @@ export function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
                 {scores.map((score) => {
                   const ms = score.metricScores[metric.key];
                   const val = ms?.value;
-                  const isPercent = ["earningsYield","fcfYield","revgrow","epsgrow","upside","grossmgn","operatingmgn","netmgn","roe","fcfmgn"].includes(metric.key);
+                  const isPercent = ["earningsYield","fcfYield","revgrow","epsgrow","upside","grossmgn","operatingmgn","netmgn","roe","fcfmgn","dilution","roicwacc"].includes(metric.key);
                   const displayVal = val == null ? "-" : (isPercent ? formatPercent(val) : formatNumber(val));
                   
                   return (

@@ -309,6 +309,48 @@ components:
         dayChangePercent:
           type: ["number", "null"]
           description: Fractional price change for the day (0.03 = 3%)
+        wacc:
+          type: ["number", "null"]
+          description: Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.
+        roic:
+          type: ["number", "null"]
+          description: Return on invested capital (decimal). Source FMP.
+        interestExpense:
+          type: ["number", "null"]
+          description: Annual interest expense in raw dollars (always positive). Source FMP.
+        totalDebt:
+          type: ["number", "null"]
+          description: Total debt in raw dollars. Source FMP.
+        totalStockholdersEquity:
+          type: ["number", "null"]
+          description: Total stockholders equity in raw dollars. Source FMP.
+        ebit:
+          type: ["number", "null"]
+          description: Earnings before interest and taxes in raw dollars. Source FMP.
+        effectiveTaxRate:
+          type: ["number", "null"]
+          description: Effective tax rate (decimal, e.g. 0.21 = 21%). Source FMP.
+        cashAndEquivalents:
+          type: ["number", "null"]
+          description: Cash and cash equivalents in raw dollars. Source FMP.
+        quarterlyOperatingCashFlow:
+          type: ["number", "null"]
+          description: Most recent quarterly operating cash flow (negative = burning cash). Source FMP.
+        sharesOutstanding:
+          type: ["number", "null"]
+          description: Current weighted average shares outstanding. Source FMP.
+        sharesOutstandingPrior:
+          type: ["number", "null"]
+          description: Prior period weighted average shares outstanding (for dilution rate). Source FMP.
+        discrepancyFlags:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Fields where FMP and Yahoo values diverged by more than 20%.
+        fundamentalsLastFetched:
+          type: ["string", "null"]
+          description: ISO timestamp when FMP fundamentals were last fetched for this ticker.
       required:
         - ticker
         - companyName

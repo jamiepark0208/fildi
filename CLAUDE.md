@@ -35,9 +35,10 @@ Phase 2: social 1%/week challenge.
 
 ## STATE
 phase: build
-working: [fundamental-scorer-v2]
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2]
-next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
+working: [options-comparison-table]
+in-progress: none
+completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phase1, fmp-phase2-helpers, fmp-phase3-scorer, fmp-phase4-verify, fmp-phase5-cleanup]
+next: [fmp-remaining-23-tickers, options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
 
 ## CODEGRAPH (use at start of every task)
   codegraph sync                        — update index
@@ -148,38 +149,16 @@ Phases 1–3 of the institutional factor-model scorer upgrade are done. **Phase 
 - RKLB: #29→#17 (null=0 bias removed; Quality=50% neutral; Safety=52% from high CR+no debt)
 - JOBY: #31→#23 (null=0 bias removed; Quality=37% correctly low; Safety=81% from cash pile)
 
-### Phase 4 — Fundamental Scorer Switchover (DO NEXT)
-**No backend changes. Pure frontend. No API rebuild needed.**
+### FMP + WACC/Safety Metrics — All 5 Phases Complete (2026-06-09)
+Full details in `.claude/docs/phase-report.md`.
 
-3 component edits + 1 script delete:
+**Summary:** FMP stable endpoints replace Yahoo for fundamentals. 5 new Safety metrics (cashRunway, interestCoverage, dilutionRate, CR reweighted, D/E reweighted) + 1 new Quality metric (ROIC−WACC spread) added to computeRankingsV2. Daily API budget guard (220 calls/day max) protects against quota exhaustion. 8/31 tickers populated; 23 remain Yahoo-only pending tomorrow's refresh.
 
-1. **`artifacts/stock-compare/src/pages/home.tsx`**
-   - Change import: `computeRankings` → `computeRankingsV2`
-   - Change call in useMemo: `computeRankings(validStocks)` → `computeRankingsV2(validStocks)`
-
-2. **`artifacts/stock-compare/src/components/scorecard-breakdown.tsx`**
-   - Change import: `SCORECARD_METRICS` → `SCORECARD_METRICS_V2`
-   - Change the `.map()` call from `SCORECARD_METRICS` to `SCORECARD_METRICS_V2`
-   - Update the hardcoded `isPercent` list (line ~45):
-     ```tsx
-     // OLD:
-     const isPercent = ["revgrow","epsgrow","netmgn","roe","grossmgn","upside"].includes(metric.key);
-     // NEW:
-     const isPercent = ["earningsYield","fcfYield","revgrow","epsgrow","upside",
-                        "grossmgn","operatingmgn","netmgn","roe","fcfmgn"].includes(metric.key);
-     ```
-
-3. **`artifacts/stock-compare/src/pages/scorecard-explanation.tsx`**
-   - Change import + usage: `SCORECARD_METRICS` → `SCORECARD_METRICS_V2`
-
-4. **Delete** `artifacts/stock-compare/scripts/compare-rankings.ts`
-
-5. **Run typecheck + tests:**
-   ```bash
-   cd /home/runner/workspace/artifacts/stock-compare && pnpm typecheck && pnpm test
-   ```
-
-6. **Verify in browser:** leaderboard renders, Metric Breakdown table shows 13 rows with correct labels/percent formatting, no console errors.
+**Key arch decisions:**
+- FMP stable (not v3 legacy) — 7 endpoints/ticker; beta from Yahoo (FMP profile rate-limited)
+- FINANCIAL_TICKERS = {HOOD, SOFI} — excluded from roicWaccSpread (broker/bank capital structure)
+- fmp_api_usage DB table tracks daily calls; resets on date change; MAX=220
+- api-client-react dist/ must be rebuilt after any StockMetrics schema change: `cd lib/api-client-react && npx tsc --build`
 
 ### Macro tab charts fix (2026-06-03)
 - **Treasury Yield Curve** — replaced 4-ticker Yahoo Finance fetch with US Treasury CSV API (`home.treasury.gov`); now returns 11 maturities (1M→30Y) with current + month-ago rates
@@ -188,11 +167,27 @@ Phases 1–3 of the institutional factor-model scorer upgrade are done. **Phase 
 - **Renamed** "Yield Curve" → "Treasury Yield Curve" in chart component
 - **Cache location** — macro cache files live at `/home/runner/workspace/artifacts/` (not `artifacts/api-server/`); `ROOT = join(__dirname, "..", "..")` from `dist/` resolves to `artifacts/`
 
-## NEXT SESSION — do these in order
-1. Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
-2. Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
-3. Fundamental improvements (sector benchmarks, earnings strip)
-4. Macro live feed — auto-refresh FRED data, PMI/ISM integration
+## NEXT SESSION — do this FIRST, before any other work
+
+### ⚡ FMP population check (161 calls, well within 220/day budget)
+
+1. Check budget and current state:
+   `curl -s http://localhost:8080/api/fundamentals/status | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log('budget:', JSON.stringify(d.apiBudget), 'fetched:', d.tickers.filter(t=>t.lastFetched).length+'/31')"`
+
+2. Confirm `apiBudget.remaining ≥ 217`. If yes:
+   `curl -s -X POST http://localhost:8080/api/fundamentals/refresh`
+
+3. Wait ~3 min (23 tickers × 7 endpoints, batches of 5 with 500ms gaps), then confirm:
+   `curl -s http://localhost:8080/api/fundamentals/status | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const ok=d.tickers.filter(t=>t.lastFetched && t.coveragePct>70); console.log(ok.length+'/31 with coverage >70%'); d.tickers.forEach(t=>console.log(t.ticker, t.coveragePct+'%', t.lastFetched?'OK':'MISSING'))"`
+
+4. All 31 should show `fundamentalsLastFetched` and `coveragePct > 70%` before starting new work.
+   Thin tickers expected: BABA, POET, ONDS, RDW may be lower coverage (sparse FMP data).
+
+### After FMP population complete
+- Options comparison table (per-ticker: nearest expiry, best strike, income%, IV)
+- Strike explorer slider (filter puts by OTM%, show premium/strike ratio)
+- Fundamental improvements (sector benchmarks, earnings strip)
+- Macro live feed — auto-refresh FRED data, PMI/ISM integration
 
 ## BACKEND BUILD RULE (critical — causes 502s if skipped)
 After ANY change to api-server/src/**, run the one-liner from build-and-run.md:

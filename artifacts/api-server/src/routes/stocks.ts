@@ -5,6 +5,8 @@ import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
 } from "@workspace/api-zod";
+import { type TickerFundamentalsRow } from "@workspace/db";
+import { readFundamentalsRow } from "../lib/fundamentals-db.js";
 
 const router = Router();
 
@@ -226,78 +228,152 @@ function buildScorecard(
   };
 }
 
-function buildMetrics(quote: any, ticker: string) {
-  // Yahoo Finance v3: trailingEps / forwardEps (not epsTrailingTwelveMonths / epsForward)
-  const eps = safeNum(quote.trailingEps);
-  const epsForward = safeNum(quote.forwardEps);
-  const epsGrowth = eps !== null && epsForward !== null && eps > 0
-    ? (epsForward - eps) / Math.abs(eps)
-    : null;
+// Convert a Drizzle numeric column value (stored as string) to number | null.
+function fmpNum(v: string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  const n = parseFloat(v);
+  return isFinite(n) ? n : null;
+}
 
-  // Prefer trailing P/E; fall back to forward P/E only if trailing is absent
-  const peRatio = safeNum(quote.trailingPE) ?? safeNum(quote.forwardPE);
+// Build StockMetrics from Yahoo quote data + optional FMP fundamentals DB row.
+// FMP values take priority for all fundamental fields; Yahoo provides price/meta/fallback.
+function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: string) {
+  // ── Price & market data — always Yahoo ───────────────────────────────────────
+  const currentPrice = safeNum(quote.regularMarketPrice);
+  const marketCap    = safeNum(quote.marketCap);
 
-  // Yahoo Finance returns revenueGrowth / earningsGrowth as decimals (0.84 = 84%)
-  const revenueGrowthYoY = safeNum(quote.revenueGrowth);
-  // earningsGrowth (TTM) is Yahoo's best proxy for near-term growth momentum
+  // ── Valuation ratios — FMP primary, Yahoo fallback ───────────────────────────
+  const peRatio = fmpNum(fmp?.peRatio)
+    ?? safeNum(quote.trailingPE)
+    ?? safeNum(quote.forwardPE);
+
+  const pegRatio = fmpNum(fmp?.pegRatio) ?? safeNum(quote.pegRatio);
+
+  const priceToBook  = fmpNum(fmp?.priceToBook)  ?? safeNum(quote.priceToBook);
+  const priceToSales = fmpNum(fmp?.priceToSales) ?? safeNum(quote.priceToSalesTrailing12Months);
+
+  // D/E: FMP is raw ratio; Yahoo is ×100 (we divide only the Yahoo fallback).
+  const debtToEquity = fmpNum(fmp?.debtToEquity)
+    ?? (() => { const r = safeNum(quote.debtToEquity); return r !== null ? r / 100 : null; })();
+  const leverageRatio = debtToEquity !== null ? debtToEquity + 1 : null;
+
+  const dividendYield = fmpNum(fmp?.dividendYield) ?? safeNum(quote.dividendYield);
+
+  const analystTargetPrice = fmpNum(fmp?.analystTargetPrice) ?? safeNum(quote.targetMeanPrice);
+
+  // ── Growth — FMP primary, Yahoo fallback ─────────────────────────────────────
+  const revenueGrowthYoY = fmpNum(fmp?.revenueGrowthYoY) ?? safeNum(quote.revenueGrowth);
+  // revenueGrowthProjected has no FMP equivalent — Yahoo earningsGrowth is the proxy
   const revenueGrowthProjected = safeNum(quote.earningsGrowth);
 
-  const dividendYield = safeNum(quote.dividendYield);
+  // EPS growth: prefer FMP; fall back to computed trailing→forward delta from Yahoo
+  const epsGrowth = fmpNum(fmp?.epsGrowth) ?? (() => {
+    const eps = safeNum(quote.trailingEps);
+    const fwd = safeNum(quote.forwardEps);
+    return eps !== null && fwd !== null && eps > 0 ? (fwd - eps) / Math.abs(eps) : null;
+  })();
 
-  // Prefer Yahoo's own PEG; fall back to computed P/E ÷ annualised EPS growth %
-  const pegRatio = safeNum(quote.pegRatio) ??
-    (peRatio !== null && epsGrowth !== null && epsGrowth > 0
-      ? peRatio / (epsGrowth * 100)
-      : null);
+  const earningsPerShare = fmpNum(fmp?.earningsPerShare)
+    ?? safeNum(quote.trailingEps);
 
-  const stockType = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
-  const fairValue = computeFairValue(eps, epsGrowth, peRatio);
+  // ── Income statement — FMP primary, Yahoo fallback ───────────────────────────
+  const totalRevenue = fmpNum(fmp?.totalRevenue) ?? safeNum(quote.totalRevenue);
+  const netIncome    = fmpNum(fmp?.netIncome)    ?? safeNum(quote.netIncomeToCommon);
+  const ebitda       = fmpNum(fmp?.ebitda)       ?? safeNum(quote.ebitda);
+  // freeCashFlow: FMP doesn't fetch the annual cash-flow-statement, so Yahoo is primary here
+  const freeCashFlow = safeNum(quote.freeCashflow) ?? fmpNum(fmp?.freeCashFlow);
 
-  // Yahoo Finance debtToEquity comes as a percentage figure (e.g. 247.7 means D/E ratio 2.477)
-  const debtToEquityRaw = safeNum(quote.debtToEquity);
-  const debtToEquity = debtToEquityRaw !== null ? debtToEquityRaw / 100 : null;
-  const leverageRatio = debtToEquity !== null ? debtToEquity + 1 : null;
+  // ── Margins — FMP primary, Yahoo fallback ────────────────────────────────────
+  const grossMargin     = fmpNum(fmp?.grossMargin)     ?? safeNum(quote.grossMargins);
+  const operatingMargin = fmpNum(fmp?.operatingMargin) ?? safeNum(quote.operatingMargins);
+  const netMargin       = fmpNum(fmp?.netMargin)       ?? safeNum(quote.profitMargins);
+  const returnOnEquity  = fmpNum(fmp?.returnOnEquity)  ?? safeNum(quote.returnOnEquity);
+  const returnOnAssets  = fmpNum(fmp?.returnOnAssets)  ?? safeNum(quote.returnOnAssets);
+  const currentRatio    = fmpNum(fmp?.currentRatio)    ?? safeNum(quote.currentRatio);
+  const beta            = fmpNum(fmp?.beta)            ?? safeNum(quote.beta);
+
+  // ── Classification & fair value (computed locally) ───────────────────────────
+  const stockType  = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
+  const fairValue  = computeFairValue(earningsPerShare, epsGrowth, peRatio);
+
+  // ── New Phase 3 Safety/Quality fields — FMP only ─────────────────────────────
+  const wacc                    = fmpNum(fmp?.wacc);
+  const roic                    = fmpNum(fmp?.roic);
+  // NOTE: FMP income-statement reports net interest for companies where interest income
+  // exceeds interest expense (e.g. Apple). In those cases interestExpense = 0, which causes
+  // interestCoverage() to return MAX_INTEREST_COVERAGE (50) — directionally correct since
+  // the company is net interest-positive, but not from a traditional debt-service perspective.
+  const interestExpense         = fmpNum(fmp?.interestExpense);
+  const totalDebt               = fmpNum(fmp?.totalDebt);
+  const totalStockholdersEquity = fmpNum(fmp?.totalStockholdersEquity);
+  const ebit                    = fmpNum(fmp?.ebit);
+  const effectiveTaxRate        = fmpNum(fmp?.effectiveTaxRate);
+  const cashAndEquivalents      = fmpNum(fmp?.cashAndEquivalents);
+  const quarterlyOperatingCashFlow = fmpNum(fmp?.quarterlyOperatingCashFlow);
+  const sharesOutstanding       = fmpNum(fmp?.sharesOutstanding);
+  const sharesOutstandingPrior  = fmpNum(fmp?.sharesOutstandingPrior);
+
+  const discrepancyFlags = fmp?.discrepancyFlags
+    ? fmp.discrepancyFlags.split(",").filter(Boolean)
+    : null;
+  const fundamentalsLastFetched = fmp?.fundamentalsLastFetched
+    ? fmp.fundamentalsLastFetched.toISOString()
+    : null;
 
   return {
     ticker: ticker.toUpperCase(),
     companyName: quote.longName ?? quote.shortName ?? ticker.toUpperCase(),
-    currentPrice: safeNum(quote.regularMarketPrice),
-    marketCap: safeNum(quote.marketCap),
+    currentPrice,
+    marketCap,
     peRatio,
     pegRatio,
-    priceToBook: safeNum(quote.priceToBook),
-    priceToSales: safeNum(quote.priceToSalesTrailing12Months),
+    priceToBook,
+    priceToSales,
     leverageRatio,
     debtToEquity,
-    totalRevenue: safeNum(quote.totalRevenue),
+    totalRevenue,
     revenueGrowthYoY,
     revenueGrowthProjected,
-    netIncome: safeNum(quote.netIncomeToCommon),
-    ebitda: safeNum(quote.ebitda),
-    earningsPerShare: eps,
+    netIncome,
+    ebitda,
+    earningsPerShare,
     epsGrowth,
-    freeCashFlow: safeNum(quote.freeCashflow),
+    freeCashFlow,
     dividendYield,
-    returnOnEquity: safeNum(quote.returnOnEquity),
-    returnOnAssets: safeNum(quote.returnOnAssets),
-    currentRatio: safeNum(quote.currentRatio),
-    grossMargin: safeNum(quote.grossMargins),
-    operatingMargin: safeNum(quote.operatingMargins),
-    netMargin: safeNum(quote.profitMargins),
-    beta: safeNum(quote.beta),
+    returnOnEquity,
+    returnOnAssets,
+    currentRatio,
+    grossMargin,
+    operatingMargin,
+    netMargin,
+    beta,
     fiftyTwoWeekHigh: safeNum(quote.fiftyTwoWeekHigh),
-    fiftyTwoWeekLow: safeNum(quote.fiftyTwoWeekLow),
-    analystTargetPrice: safeNum(quote.targetMeanPrice),
+    fiftyTwoWeekLow:  safeNum(quote.fiftyTwoWeekLow),
+    analystTargetPrice,
     fairValueEstimate: fairValue,
     stockType,
-    sector: quote.sector ?? null,
-    industry: quote.industry ?? null,
-    exchange: quote.exchangeName ?? quote.exchange ?? null,
-    currency: quote.currency ?? "USD",
-    logoUrl: null,
+    sector:      quote.sector      ?? null,
+    industry:    quote.industry    ?? null,
+    exchange:    quote.exchangeName ?? quote.exchange ?? null,
+    currency:    quote.currency    ?? "USD",
+    logoUrl:     null,
     description: quote.longBusinessSummary?.slice(0, 500) ?? null,
-    dayChange: safeNum(quote.regularMarketChange),
+    dayChange:        safeNum(quote.regularMarketChange),
     dayChangePercent: safeNum(quote.regularMarketChangePercent),
+    // New FMP-sourced fields
+    wacc,
+    roic,
+    interestExpense,
+    totalDebt,
+    totalStockholdersEquity,
+    ebit,
+    effectiveTaxRate,
+    cashAndEquivalents,
+    quarterlyOperatingCashFlow,
+    sharesOutstanding,
+    sharesOutstandingPrior,
+    discrepancyFlags,
+    fundamentalsLastFetched,
   };
 }
 
@@ -313,44 +389,24 @@ router.get("/stocks/compare", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [q1, q2] = await Promise.all([
-      yahooFinance.quoteSummary(ticker1.toUpperCase(), {
-        modules: [
-          "price",
-          "summaryDetail",
-          "financialData",
-          "defaultKeyStatistics",
-          "assetProfile",
-        ],
+    const t1 = ticker1.toUpperCase();
+    const t2 = ticker2.toUpperCase();
+    const [q1, q2, fmp1, fmp2] = await Promise.all([
+      yahooFinance.quoteSummary(t1, {
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
       }),
-      yahooFinance.quoteSummary(ticker2.toUpperCase(), {
-        modules: [
-          "price",
-          "summaryDetail",
-          "financialData",
-          "defaultKeyStatistics",
-          "assetProfile",
-        ],
+      yahooFinance.quoteSummary(t2, {
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
       }),
+      readFundamentalsRow(t1),
+      readFundamentalsRow(t2),
     ]);
 
-    const merged1 = {
-      ...q1.price,
-      ...q1.summaryDetail,
-      ...q1.financialData,
-      ...q1.defaultKeyStatistics,
-      ...q1.assetProfile,
-    };
-    const merged2 = {
-      ...q2.price,
-      ...q2.summaryDetail,
-      ...q2.financialData,
-      ...q2.defaultKeyStatistics,
-      ...q2.assetProfile,
-    };
+    const merged1 = { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics, ...q1.assetProfile };
+    const merged2 = { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics, ...q2.assetProfile };
 
-    const stock1 = buildMetrics(merged1, ticker1);
-    const stock2 = buildMetrics(merged2, ticker2);
+    const stock1 = buildMetrics(merged1, fmp1, t1);
+    const stock2 = buildMetrics(merged2, fmp2, t2);
     const scorecard = buildScorecard(stock1, stock2, ticker1.toUpperCase(), ticker2.toUpperCase());
 
     const payload = { stock1, stock2, scorecard };
@@ -472,9 +528,12 @@ router.get("/stocks/quote", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const q = await fetchQuoteSummary(key);
+    const [q, fmpRow] = await Promise.all([
+      fetchQuoteSummary(key),
+      readFundamentalsRow(key),
+    ]);
     const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-    const metrics = buildMetrics(merged, key);
+    const metrics = buildMetrics(merged, fmpRow, key);
     quoteCache.set(key, metrics);
     return res.json(metrics);
   } catch (err: any) {
@@ -538,11 +597,12 @@ router.get("/stocks/breakdown", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [summary, newsRes] = await Promise.all([
+    const [summary, newsRes, fmpRow] = await Promise.all([
       yahooFinance.quoteSummary(key, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend"] as any,
       }),
       yahooFinance.search(key, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+      readFundamentalsRow(key),
     ]);
 
     const merged = {
@@ -552,7 +612,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       ...summary.defaultKeyStatistics,
       ...summary.assetProfile,
     };
-    const metrics = buildMetrics(merged, key);
+    const metrics = buildMetrics(merged, fmpRow, key);
 
     const recTrend = (summary as any).recommendationTrend?.trend?.[0];
     const recommendations = recTrend ? {

@@ -1,4 +1,6 @@
 export const MIN_Z_N = 8;
+export const MAX_CASH_RUNWAY_QUARTERS = 20;
+export const MAX_INTEREST_COVERAGE = 50;
 export const MIN_SECTOR_N = 6;
 
 export function safeDiv(
@@ -73,4 +75,111 @@ export function normalize(
   }
 
   return out;
+}
+
+// ─── Phase 2: Safety / Quality helper functions ──────────────────────────────
+
+/**
+ * Cash runway in quarters. Infinity when OCF ≥ 0 (no burn).
+ * Result capped at MAX_CASH_RUNWAY_QUARTERS when there is a burn rate.
+ * Null when either input is missing.
+ */
+export function cashRunway(
+  cash: number | null | undefined,
+  quarterlyOCF: number | null | undefined,
+): number | null {
+  if (cash == null || quarterlyOCF == null || !isFinite(cash) || !isFinite(quarterlyOCF))
+    return null;
+  if (quarterlyOCF >= 0) return Infinity;
+  const quarters = cash / Math.abs(quarterlyOCF);
+  return isFinite(quarters) ? Math.min(MAX_CASH_RUNWAY_QUARTERS, quarters) : null;
+}
+
+/**
+ * Share-count dilution rate: (current - prior) / prior. Positive = dilution, negative = buyback.
+ * Clamped to [-0.5, 1.0]. Null when either input is missing or prior is 0.
+ */
+export function dilutionRate(
+  current: number | null | undefined,
+  prior: number | null | undefined,
+): number | null {
+  if (current == null || prior == null || !isFinite(current) || !isFinite(prior) || prior === 0)
+    return null;
+  const rate = (current - prior) / prior;
+  return isFinite(rate) ? Math.max(-0.5, Math.min(1.0, rate)) : null;
+}
+
+/**
+ * Interest coverage ratio: EBIT / interestExpense, capped at MAX_INTEREST_COVERAGE.
+ * Returns MAX_INTEREST_COVERAGE when interestExpense is 0 (debt-free = best coverage).
+ * Null when EBIT or interestExpense is missing. Negative values (distressed) are valid.
+ */
+export function interestCoverage(
+  ebit: number | null | undefined,
+  interestExpense: number | null | undefined,
+): number | null {
+  if (ebit == null || interestExpense == null || !isFinite(ebit) || !isFinite(interestExpense))
+    return null;
+  if (interestExpense === 0) return MAX_INTEREST_COVERAGE;
+  const ratio = ebit / interestExpense;
+  if (!isFinite(ratio)) return null;
+  return Math.min(MAX_INTEREST_COVERAGE, ratio);
+}
+
+export interface WACCParams {
+  beta: number | null | undefined;
+  totalDebt: number | null | undefined;
+  totalStockholdersEquity: number | null | undefined;
+  effectiveTaxRate: number | null | undefined;
+  interestExpense: number | null | undefined;
+  riskFreeRate?: number;       // default 0.045
+  equityRiskPremium?: number;  // default 0.055
+}
+
+/**
+ * Approximate WACC via CAPM. Use only as fallback when FMP wacc is null.
+ * Returns decimal (e.g. 0.09 = 9%). Null when beta or equity is missing.
+ */
+export function approxWACC(params: WACCParams): number | null {
+  const { beta, totalStockholdersEquity, effectiveTaxRate, interestExpense } = params;
+  const rfr = params.riskFreeRate ?? 0.045;
+  const erp = params.equityRiskPremium ?? 0.055;
+
+  if (beta == null || !isFinite(beta)) return null;
+  if (totalStockholdersEquity == null || !isFinite(totalStockholdersEquity)) return null;
+
+  const costOfEquity = rfr + beta * erp;
+  const debt = (params.totalDebt != null && isFinite(params.totalDebt)) ? params.totalDebt : 0;
+  const taxRate =
+    effectiveTaxRate != null && isFinite(effectiveTaxRate)
+      ? Math.max(0, Math.min(1, effectiveTaxRate))
+      : 0.21;
+
+  let costOfDebt: number;
+  if (debt <= 0 || interestExpense == null || !isFinite(interestExpense) || interestExpense <= 0) {
+    costOfDebt = rfr;
+  } else {
+    costOfDebt = Math.max(rfr, interestExpense / debt);
+  }
+
+  const afterTaxCostOfDebt = costOfDebt * (1 - taxRate);
+  const totalCapital = debt + totalStockholdersEquity;
+  if (totalCapital <= 0 || !isFinite(totalCapital)) return null;
+
+  const equityWeight = totalStockholdersEquity / totalCapital;
+  const debtWeight = debt / totalCapital;
+  const wacc = equityWeight * costOfEquity + debtWeight * afterTaxCostOfDebt;
+  return isFinite(wacc) ? wacc : null;
+}
+
+/**
+ * ROIC minus WACC spread. Positive = value creation, negative = value destruction.
+ * Both inputs expected as decimals (e.g. 0.15 = 15%). Null when either is missing.
+ */
+export function roicWaccSpread(
+  roic: number | null | undefined,
+  wacc: number | null | undefined,
+): number | null {
+  if (roic == null || wacc == null || !isFinite(roic) || !isFinite(wacc)) return null;
+  return roic - wacc;
 }

@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { safeDiv, winsorize, normalize, MIN_Z_N } from "./rankings-helpers.ts";
+import {
+  safeDiv, winsorize, normalize, MIN_Z_N,
+  cashRunway, dilutionRate, interestCoverage, approxWACC, roicWaccSpread,
+  MAX_CASH_RUNWAY_QUARTERS, MAX_INTEREST_COVERAGE,
+} from "./rankings-helpers.ts";
 
 // node:assert/strict doesn't have toBeCloseTo — simple helper
 function assertClose(actual: number | null, expected: number, tol = 1e-9, msg?: string) {
@@ -186,4 +190,174 @@ describe("normalize", () => {
       `desc[last]=${desc[last]} should be < asc[last]=${asc[last]}`,
     );
   });
+});
+
+// ─── cashRunway ───────────────────────────────────────────────────────────────
+
+describe("cashRunway", () => {
+  it("returns null for null cash", () => assert.equal(cashRunway(null, -10), null));
+  it("returns null for undefined cash", () => assert.equal(cashRunway(undefined, -10), null));
+  it("returns null for null quarterlyOCF", () => assert.equal(cashRunway(100, null), null));
+  it("returns null for undefined quarterlyOCF", () => assert.equal(cashRunway(100, undefined), null));
+  it("returns null for Infinity cash", () => assert.equal(cashRunway(Infinity, -10), null));
+  it("returns null for NaN quarterlyOCF", () => assert.equal(cashRunway(100, NaN), null));
+
+  it("returns Infinity when OCF = 0 (no burn)", () => assert.equal(cashRunway(100, 0), Infinity));
+  it("returns Infinity when OCF > 0 (cash generating)", () => assert.equal(cashRunway(100, 50), Infinity));
+  it("returns Infinity when OCF positive and cash is 0", () => assert.equal(cashRunway(0, 10), Infinity));
+
+  it("basic burn rate: 100 / |(-5)| = 20 quarters", () =>
+    assertClose(cashRunway(100, -5), 20, 1e-9));
+  it("caps at MAX_CASH_RUNWAY_QUARTERS when cash/burn > 20", () =>
+    assertClose(cashRunway(500, -5), MAX_CASH_RUNWAY_QUARTERS, 1e-9)); // 500/5=100, capped
+  it("returns fractional quarters when cash < burn×20", () =>
+    assertClose(cashRunway(30, -5), 6, 1e-9)); // 30/5=6
+  it("returns 0 when cash = 0 and burning", () =>
+    assertClose(cashRunway(0, -10), 0, 1e-9));
+  it("caps exactly at 20 for cash/burn = 20", () =>
+    assertClose(cashRunway(100, -5), 20, 1e-9)); // 100/5=20, on boundary
+});
+
+// ─── dilutionRate ─────────────────────────────────────────────────────────────
+
+describe("dilutionRate", () => {
+  it("returns null for null current", () => assert.equal(dilutionRate(null, 100), null));
+  it("returns null for null prior", () => assert.equal(dilutionRate(110, null), null));
+  it("returns null for undefined inputs", () => assert.equal(dilutionRate(undefined, undefined), null));
+  it("returns null when prior = 0", () => assert.equal(dilutionRate(110, 0), null));
+  it("returns null for Infinity current", () => assert.equal(dilutionRate(Infinity, 100), null));
+
+  it("10% dilution: (110-100)/100 = 0.10", () =>
+    assertClose(dilutionRate(110e6, 100e6), 0.10, 1e-9));
+  it("10% buyback: (90-100)/100 = -0.10", () =>
+    assertClose(dilutionRate(90e6, 100e6), -0.10, 1e-9));
+  it("no change: (100-100)/100 = 0", () =>
+    assertClose(dilutionRate(100e6, 100e6), 0, 1e-9));
+
+  it("clamps at 1.0 upper bound (200% dilution → 1.0)", () =>
+    assertClose(dilutionRate(300e6, 100e6), 1.0, 1e-9));
+  it("clamps at -0.5 lower bound (70% buyback → -0.5)", () =>
+    assertClose(dilutionRate(20e6, 100e6), -0.5, 1e-9)); // -0.8 → clamped to -0.5
+  it("exactly at upper clamp boundary: 100% dilution → 1.0", () =>
+    assertClose(dilutionRate(200e6, 100e6), 1.0, 1e-9));
+  it("just below upper clamp: 99% dilution → 0.99", () =>
+    assertClose(dilutionRate(199e6, 100e6), 0.99, 1e-9));
+});
+
+// ─── interestCoverage ─────────────────────────────────────────────────────────
+
+describe("interestCoverage", () => {
+  it("returns null for null ebit", () => assert.equal(interestCoverage(null, 10), null));
+  it("returns null for null interestExpense", () => assert.equal(interestCoverage(100, null), null));
+  it("returns null for undefined inputs", () => assert.equal(interestCoverage(undefined, undefined), null));
+  it("returns null for Infinity ebit", () => assert.equal(interestCoverage(Infinity, 10), null));
+  it("returns null for NaN interestExpense", () => assert.equal(interestCoverage(100, NaN), null));
+
+  it("returns MAX (50) when interestExpense = 0 (debt-free)", () =>
+    assertClose(interestCoverage(100, 0), MAX_INTEREST_COVERAGE, 1e-9));
+  it("returns MAX even when ebit is negative and interestExpense = 0", () =>
+    assertClose(interestCoverage(-50, 0), MAX_INTEREST_COVERAGE, 1e-9));
+
+  it("basic: 100 ebit / 10 expense = 10x", () =>
+    assertClose(interestCoverage(100, 10), 10, 1e-9));
+  it("caps at 50 when ratio exceeds MAX_INTEREST_COVERAGE", () =>
+    assertClose(interestCoverage(600, 10), MAX_INTEREST_COVERAGE, 1e-9)); // 60 → 50
+  it("exactly at cap: 500 / 10 = 50 (on boundary)", () =>
+    assertClose(interestCoverage(500, 10), MAX_INTEREST_COVERAGE, 1e-9));
+  it("negative ebit (distressed): -50 / 10 = -5 (no cap on negatives)", () =>
+    assertClose(interestCoverage(-50, 10), -5, 1e-9));
+  it("fractional result: 15 / 4 = 3.75", () =>
+    assertClose(interestCoverage(15, 4), 3.75, 1e-9));
+});
+
+// ─── approxWACC ──────────────────────────────────────────────────────────────
+
+describe("approxWACC", () => {
+  const base = {
+    beta: 1.2,
+    totalDebt: 200e6,
+    totalStockholdersEquity: 1000e6,
+    effectiveTaxRate: 0.21,
+    interestExpense: 10e6,
+    riskFreeRate: 0.045,
+    equityRiskPremium: 0.055,
+  };
+
+  it("returns null for null beta", () =>
+    assert.equal(approxWACC({ ...base, beta: null }), null));
+  it("returns null for undefined beta", () =>
+    assert.equal(approxWACC({ ...base, beta: undefined }), null));
+  it("returns null for null equity", () =>
+    assert.equal(approxWACC({ ...base, totalStockholdersEquity: null }), null));
+  it("returns null for Infinity beta", () =>
+    assert.equal(approxWACC({ ...base, beta: Infinity }), null));
+  it("returns null when totalCapital <= 0 (debt + negative equity)", () =>
+    assert.equal(approxWACC({ ...base, totalStockholdersEquity: -300e6, totalDebt: 200e6 }), null));
+
+  it("debt-free company: WACC = costOfEquity only", () => {
+    const result = approxWACC({ ...base, totalDebt: 0, interestExpense: 0 });
+    // costOfEquity = 0.045 + 1.2*0.055 = 0.111
+    assertClose(result, 0.111, 1e-6);
+  });
+
+  it("null debt treated as 0 (debt-free path)", () => {
+    const result = approxWACC({ ...base, totalDebt: null, interestExpense: null });
+    assertClose(result, 0.111, 1e-6);
+  });
+
+  it("returns a number in plausible WACC range [0.03, 0.30] for normal inputs", () => {
+    const result = approxWACC(base);
+    assert.ok(result !== null, "should not be null");
+    assert.ok((result as number) >= 0.03 && (result as number) <= 0.30,
+      `WACC ${result} outside [0.03, 0.30]`);
+  });
+
+  it("uses 0.21 default tax rate when effectiveTaxRate is null", () => {
+    const withNull = approxWACC({ ...base, effectiveTaxRate: null });
+    const withExplicit = approxWACC({ ...base, effectiveTaxRate: 0.21 });
+    assertClose(withNull, withExplicit as number, 1e-9);
+  });
+
+  it("costOfDebt uses rfr as floor (interestExpense/debt < rfr → rfr)", () => {
+    // interestExpense=1M on 200M debt → 0.5% < rfr 4.5%, so costOfDebt = rfr
+    const lowDebtCost = approxWACC({ ...base, interestExpense: 1e6 });
+    const rfrDebtCost = approxWACC({ ...base, interestExpense: 0 }); // triggers rfr fallback
+    assertClose(lowDebtCost, rfrDebtCost as number, 1e-9);
+  });
+
+  it("uses default rfr=0.045 and erp=0.055 when not provided", () => {
+    const { riskFreeRate: _rfr, equityRiskPremium: _erp, ...noDefaults } = base;
+    const result = approxWACC(noDefaults);
+    const resultExplicit = approxWACC(base);
+    assertClose(result, resultExplicit as number, 1e-9);
+  });
+
+  it("higher beta → higher WACC", () => {
+    const low = approxWACC({ ...base, beta: 0.5 }) as number;
+    const high = approxWACC({ ...base, beta: 2.0 }) as number;
+    assert.ok(high > low, `high beta WACC ${high} should exceed low beta WACC ${low}`);
+  });
+});
+
+// ─── roicWaccSpread ───────────────────────────────────────────────────────────
+
+describe("roicWaccSpread", () => {
+  it("returns null for null roic", () => assert.equal(roicWaccSpread(null, 0.10), null));
+  it("returns null for null wacc", () => assert.equal(roicWaccSpread(0.15, null), null));
+  it("returns null for undefined inputs", () => assert.equal(roicWaccSpread(undefined, undefined), null));
+  it("returns null for Infinity roic", () => assert.equal(roicWaccSpread(Infinity, 0.10), null));
+  it("returns null for NaN wacc", () => assert.equal(roicWaccSpread(0.15, NaN), null));
+
+  it("positive spread (value creation): 0.15 - 0.10 = 0.05", () =>
+    assertClose(roicWaccSpread(0.15, 0.10), 0.05, 1e-9));
+  it("negative spread (value destruction): 0.05 - 0.10 = -0.05", () =>
+    assertClose(roicWaccSpread(0.05, 0.10), -0.05, 1e-9));
+  it("zero spread: 0.10 - 0.10 = 0", () =>
+    assertClose(roicWaccSpread(0.10, 0.10), 0, 1e-9));
+  it("both zero: 0 - 0 = 0", () =>
+    assertClose(roicWaccSpread(0, 0), 0, 1e-9));
+  it("large positive spread: 0.30 - 0.08 = 0.22", () =>
+    assertClose(roicWaccSpread(0.30, 0.08), 0.22, 1e-9));
+  it("deeply negative spread: -0.10 - 0.12 = -0.22", () =>
+    assertClose(roicWaccSpread(-0.10, 0.12), -0.22, 1e-9));
 });

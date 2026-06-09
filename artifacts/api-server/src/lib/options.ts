@@ -240,9 +240,9 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
       expiry:        toDateStr(expiryDate),
       isWeekly:      isWeeklyExpiry(expiryDate),
       daysToExpiry:  dte,
-      spot,
+      spot: spot as number,
       tier,
-      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot, config.minOTM, config.maxOTM, config.minIncome / weeksOut),
+      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot as number, config.minOTM, config.maxOTM, config.minIncome / weeksOut),
       fetchedAt: Date.now(),
     };
   }

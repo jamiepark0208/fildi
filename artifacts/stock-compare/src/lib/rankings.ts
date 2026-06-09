@@ -1,5 +1,9 @@
 import { StockMetrics } from "@workspace/api-client-react";
-import { safeDiv, normalize, MIN_SECTOR_N } from "./rankings-helpers.js";
+import {
+  safeDiv, normalize, MIN_SECTOR_N,
+  cashRunway, dilutionRate, interestCoverage, approxWACC, roicWaccSpread,
+  MAX_CASH_RUNWAY_QUARTERS,
+} from "./rankings-helpers.js";
 
 export type MetricDef = {
   key: string;
@@ -39,6 +43,9 @@ export type StockScore = {
   dataQuality?: "good" | "partial" | "insufficient";
   gateStatus?: "ok" | "flagged";
   suspectMetrics?: string[];
+  // Debug/display fields: FMP discrepancy flags and WACC computation inputs
+  dataSourceFlags?: string[];
+  waccInputs?: { beta: number | null; approxWacc: number | null };
 };
 
 export function computeRankings(stocks: StockMetrics[]): StockScore[] {
@@ -130,6 +137,11 @@ export type MetricDefV2 = {
   getValue: (s: StockMetrics) => number | null | undefined;
 };
 
+// Tickers where ROIC/WACC framework doesn't apply (regulated financial capital structure).
+// HOOD: broker-dealer; SOFI: bank holding company with SoFi Bank N.A. charter — deposits
+// appear as "debt", ROIC/WACC on a loan book vs. deposit funding is not meaningful.
+const FINANCIAL_TICKERS = new Set(["HOOD", "SOFI"]);
+
 // ─── V2 Metrics ──────────────────────────────────────────────────────────────
 
 export const SCORECARD_METRICS_V2: MetricDefV2[] = [
@@ -162,10 +174,40 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
   { key: "roe",    label: "Return on Equity", family: "quality", intraWeight: 2, higherIsBetter: true, getValue: s => s.returnOnEquity },
   { key: "fcfmgn", label: "FCF Margin",       family: "quality", intraWeight: 2, higherIsBetter: true,
     getValue: s => safeDiv(s.freeCashFlow, s.totalRevenue) },
+  // ROIC minus approxWACC: positive = value creation. Financial companies excluded (capital
+  // structure works differently — ROIC/WACC framework doesn't translate to broker/bank models).
+  { key: "roicwacc", label: "ROIC−WACC", family: "quality", intraWeight: 1.5, higherIsBetter: true,
+    getValue: s => {
+      if (FINANCIAL_TICKERS.has(s.ticker)) return null;
+      if (s.roic == null) return null;
+      const wacc = approxWACC({
+        beta: s.beta,
+        totalDebt: s.totalDebt,
+        totalStockholdersEquity: s.totalStockholdersEquity,
+        effectiveTaxRate: s.effectiveTaxRate,
+        interestExpense: s.interestExpense,
+      });
+      return roicWaccSpread(s.roic, wacc);
+    } },
 
-  // SAFETY
-  { key: "cr", label: "Current Ratio", family: "safety", intraWeight: 2, higherIsBetter: true,  getValue: s => s.currentRatio },
-  { key: "de", label: "Debt / Equity", family: "safety", intraWeight: 1, higherIsBetter: false, getValue: s => s.debtToEquity },
+  // SAFETY — weights: cashRunway 30%, interestCoverage 25%, dilutionRate 20%, CR 15%, D/E 10%
+  // Intra-weights sum to 10 so percentages read directly (3/10 = 30%, etc.)
+  { key: "cashrun", label: "Cash Runway",       family: "safety", intraWeight: 3,   higherIsBetter: true,
+    getValue: s => {
+      const raw = cashRunway(s.cashAndEquivalents, s.quarterlyOperatingCashFlow);
+      // Infinity = cash-generative; normalize() filters via isFinite() which would score these as null
+      // (same as missing data). Cap at MAX_CASH_RUNWAY_QUARTERS so they score as best-in-class.
+      if (raw === Infinity) return MAX_CASH_RUNWAY_QUARTERS;
+      return raw;
+    } },
+  { key: "intcov",  label: "Interest Coverage", family: "safety", intraWeight: 2.5, higherIsBetter: true,
+    // ebit and interestExpense are both FMP-sourced (income-statement endpoint), so this is
+    // equivalent to FMP's pre-computed interestCoverageRatio with our own null/cap handling.
+    getValue: s => interestCoverage(s.ebit, s.interestExpense) },
+  { key: "dilution",label: "Dilution Rate",     family: "safety", intraWeight: 2,   higherIsBetter: false,
+    getValue: s => dilutionRate(s.sharesOutstanding, s.sharesOutstandingPrior) },
+  { key: "cr",      label: "Current Ratio",     family: "safety", intraWeight: 1.5, higherIsBetter: true,  getValue: s => s.currentRatio },
+  { key: "de",      label: "Debt / Equity",     family: "safety", intraWeight: 1,   higherIsBetter: false, getValue: s => s.debtToEquity },
 ];
 
 // ─── computeRankingsV2 ───────────────────────────────────────────────────────
@@ -330,7 +372,6 @@ export function computeRankingsV2(
     const dataQuality: StockScore["dataQuality"] =
       overallCoverage >= 0.75 ? "good" : overallCoverage >= 0.4 ? "partial" : "insufficient";
 
-    // Safety gate is NO-OP: no distress inputs (interestExpense, totalDebt, cash) in StockMetrics
     const gateStatus: StockScore["gateStatus"] = "ok";
 
     const famsByScore = FAMILIES
@@ -360,6 +401,21 @@ export function computeRankingsV2(
       dataQuality,
       gateStatus,
       suspectMetrics: [...suspectSets[si]],
+      // Pass through FMP triangulation discrepancy flags for display/debugging
+      dataSourceFlags: s.discrepancyFlags?.filter(Boolean) ?? [],
+      // WACC inputs for tickers where roicWaccSpread was computable (not guarded, roic non-null)
+      waccInputs: (!FINANCIAL_TICKERS.has(s.ticker) && s.roic != null)
+        ? {
+            beta: s.beta ?? null,
+            approxWacc: approxWACC({
+              beta: s.beta,
+              totalDebt: s.totalDebt,
+              totalStockholdersEquity: s.totalStockholdersEquity,
+              effectiveTaxRate: s.effectiveTaxRate,
+              interestExpense: s.interestExpense,
+            }),
+          }
+        : undefined,
     };
   });
 }
