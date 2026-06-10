@@ -6,7 +6,8 @@ vite.config.ts.*
 *.tar.gz
 .claude-user
 **/.*.claude-user
-**/.claude
+/.claude/settings.local.json
+/.claude/state.json
 
 # compiled output
 dist
