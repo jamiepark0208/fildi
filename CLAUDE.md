@@ -91,35 +91,9 @@ Never read source files to understand structure — use codegraph context first.
 - Use find/grep to locate files before reading them
 
 ## SESSION LOG
-Last: 2026-06-10
-
-### Technical Scorer V2 (2026-06-09) — COMPLETE
-Full report: `.claude/docs/phase-report-technical.md`
-Self-relative V2. DB: tickerTechnicals (55 cols). Scorer: computeTechnicalRankingsV2. Tests: 181 passing.
-UI: technical.tsx + options-scanner.tsx wired to V2. home.tsx BUG-01 fixed.
-Known items: ivRank still uses realized vol proxy; V1 removal pending; scorecard-explanation.tsx still shows V1 metrics.
-
-### FMP + WACC/Safety Metrics (2026-06-09) — COMPLETE
-Full report: `.claude/docs/phase-report.md`
-FMP stable endpoints replace Yahoo. 6 new metrics (5 Safety + ROIC-WACC spread). Budget guard: 220 calls/day (fmp_api_usage table).
-FINANCIAL_TICKERS = {HOOD, SOFI} excluded from roicWaccSpread. api-client-react dist/ must rebuild after StockMetrics changes.
-
-### Fundamental Scorer V2 (2026-06-08) — COMPLETE
-V2 scorer: 4 families, 13 metrics, whole-universe z-score normalization.
-Key design: PEG clamp (no negative EPS), base-effect growth guard, null renormalization per family.
-Added: rankings-helpers.ts (pure math), computeRankingsV2 in rankings.ts (V1 untouched, backward-compat).
-
-### AI Score Explanations + Options Scanner Persistence (2026-06-10) — COMPLETE
-New: POST /api/explain/score (artifacts/api-server/src/routes/explain.ts) — Haiku, 200 tokens, no storage.
-Frontend: "Explain ▾" button in both Rankings Leaderboard (rankings-leaderboard.tsx) and Technical Leaderboard (technical.tsx); session-cached per ticker.
-Options Scanner: extraTickers + hiddenTickers now persisted to localStorage (fildi_scanner_extra, fildi_scanner_hidden) — survive tab close.
-CLAUDE.md: cleaned (273→157 lines), SESSION LOG archived to .claude/docs/session-history.md, ui-components.md stub created.
-
-### Context consolidation (2026-06-10) — COMPLETE
-.claude/ now git-tracked (skills, agents, docs, hooks, scripts — settings.local.json + state.json remain local).
-memory/ merged into .agents/memory/. .agents/tasks/ added. .kiro/steering/ created for Kiro IDE. .kiroignore added.
-
-Older sessions (pre-2026-06-08): archived → `.claude/docs/session-history.md`
+Full history: `.agents/sessions/INDEX.md` (rolling log, auto-updated on Stop)
+Deep history pre-2026-06-08: `.claude/docs/session-history.md`
+Phase reports: `.claude/docs/phase-report*.md`
 
 ## NEXT SESSION
 1. User management system — design pending (brainstorm interrupted; independent watchlists per user, session auth, admin-only refresh)
