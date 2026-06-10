@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -405,9 +405,16 @@ export default function OptionsScanner() {
   const [goOnly,        setGoOnly]        = useState(false);
   const [minIncomeOn,   setMinIncomeOn]   = useState(true);
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
-  const [extraTickers,  setExtraTickers]  = useState<string[]>([]);
-  const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(new Set());
+  const [extraTickers,  setExtraTickers]  = useState<string[]>(() => {
+    try { const s = localStorage.getItem("fildi_scanner_extra"); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(() => {
+    try { const s = localStorage.getItem("fildi_scanner_hidden"); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
+  });
   const [addInput,      setAddInput]      = useState("");
+
+  useEffect(() => { localStorage.setItem("fildi_scanner_extra",  JSON.stringify(extraTickers)); }, [extraTickers]);
+  useEffect(() => { localStorage.setItem("fildi_scanner_hidden", JSON.stringify([...hiddenTickers])); }, [hiddenTickers]);
 
   const { entries, isLoaded } = useWatchlist();
 

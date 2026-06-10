@@ -293,7 +293,69 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
 
 // ── Technical Rankings Leaderboard ────────────────────────────────────────────
 
-function TechnicalLeaderboard({ scores }: { scores: TechnicalScore[] }) {
+function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow> }) {
+  const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
+  const [loading,      setLoading]      = useState<Set<string>>(new Set());
+  const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
+
+  async function fetchExplanation(score: TechnicalScore) {
+    const { ticker } = score;
+
+    if (explanations.has(ticker)) {
+      setExpanded(prev => {
+        const next = new Set(prev);
+        next.has(ticker) ? next.delete(ticker) : next.add(ticker);
+        return next;
+      });
+      return;
+    }
+
+    const row = rowMap?.[ticker];
+    const cs  = score.componentScores ?? {};
+
+    setLoading(prev => new Set(prev).add(ticker));
+    try {
+      const res = await fetch("/api/explain/score", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker,
+          scoreType: "technical",
+          technicalData: {
+            totalScore:      score.totalScore,
+            rank:            score.rank,
+            signal:          score.signal,
+            regime:          score.regime ?? "NEUTRAL",
+            componentScores: {
+              oversoldDepth:   cs["oversoldDepth"]?.score   ?? 0,
+              reversalSignal:  cs["reversalSignal"]?.score  ?? 0,
+              volatilityState: cs["volatilityState"]?.score ?? 0,
+              trendContext:    cs["trendContext"]?.score     ?? 0,
+              optionsFlow:     cs["optionsFlow"]?.score      ?? 0,
+              volumeConfirm:   cs["volumeConfirm"]?.score    ?? 0,
+            },
+            rsi14:           parseFloat(row?.rsi14 ?? "0") || 0,
+            rsi14Pct:        parseFloat(row?.rsi14Pct ?? "50") || 50,
+            ivRank:          parseFloat(row?.ivRank ?? "0") || 0,
+            ivVsRealizedVol: parseFloat(row?.ivVsRealizedVol ?? "1") || 1,
+            macdDirection:   row?.macdDirection ?? "flat",
+            fallingKnife:    (row?.fallingKnife ?? 0) === 1,
+            earningsDaysOut: row?.earningsDaysOut ?? null,
+            reason:          score.reason,
+          },
+        }),
+      });
+      const data = await res.json() as { explanation?: string };
+      setExplanations(prev => new Map(prev).set(ticker, data.explanation ?? ""));
+      setExpanded(prev => new Set(prev).add(ticker));
+    } catch {
+      setExplanations(prev => new Map(prev).set(ticker, "Unable to generate explanation at this time."));
+      setExpanded(prev => new Set(prev).add(ticker));
+    } finally {
+      setLoading(prev => { const next = new Set(prev); next.delete(ticker); return next; });
+    }
+  }
+
   if (scores.length < 2) return null;
 
   return (
@@ -308,6 +370,9 @@ function TechnicalLeaderboard({ scores }: { scores: TechnicalScore[] }) {
           const isGold   = idx === 0;
           const isSilver = idx === 1;
           const isBronze = idx === 2;
+          const isLoading   = loading.has(score.ticker);
+          const explanation = explanations.get(score.ticker);
+          const isExpanded  = expanded.has(score.ticker);
 
           const signalCls =
             score.signal === "GO"    ? "text-green-400" :
@@ -318,52 +383,66 @@ function TechnicalLeaderboard({ scores }: { scores: TechnicalScore[] }) {
             <div
               key={score.ticker}
               className={cn(
-                "relative p-4 rounded-lg border flex items-center justify-between overflow-hidden",
+                "relative p-4 rounded-lg border overflow-hidden",
                 isGold   ? "border-yellow-500/50 bg-yellow-500/10" :
                 isSilver ? "border-slate-400/50 bg-slate-400/10"   :
                 isBronze ? "border-amber-700/50 bg-amber-700/10"   :
                 "border-border bg-background/50"
               )}
             >
-              <div className="flex items-center gap-4 z-10">
-                <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0",
-                  isGold   ? "bg-yellow-500 text-yellow-950" :
-                  isSilver ? "bg-slate-400 text-slate-950"   :
-                  isBronze ? "bg-amber-700 text-amber-50"    :
-                  "bg-secondary text-secondary-foreground"
-                )}>
-                  #{score.rank}
-                </div>
-                <div>
-                  <div className="font-mono font-bold text-lg leading-none flex items-center gap-2">
-                    {score.ticker}
-                    <span className={cn("text-xs font-bold", signalCls)}>{score.signal}</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">T{score.tier}</span>
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4 z-10">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 mt-0.5",
+                    isGold   ? "bg-yellow-500 text-yellow-950" :
+                    isSilver ? "bg-slate-400 text-slate-950"   :
+                    isBronze ? "bg-amber-700 text-amber-50"    :
+                    "bg-secondary text-secondary-foreground"
+                  )}>
+                    #{score.rank}
                   </div>
-                  {score.reason && (
-                    <div className="text-xs text-muted-foreground/80 mt-0.5 italic max-w-[320px]">
-                      {score.reason}
+                  <div>
+                    <div className="font-mono font-bold text-lg leading-none flex items-center gap-2">
+                      {score.ticker}
+                      <span className={cn("text-xs font-bold", signalCls)}>{score.signal}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">T{score.tier}</span>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="text-right z-10 flex flex-col items-end shrink-0 ml-4">
-                <div className="font-bold text-lg leading-none mb-1">
-                  {score.totalScore.toFixed(2)} pts
-                </div>
-                <div className="w-24 h-1.5 bg-background rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      isGold   ? "bg-yellow-500" :
-                      isSilver ? "bg-slate-400"   :
-                      isBronze ? "bg-amber-700"   :
-                      "bg-primary"
+                    {score.reason && (
+                      <div className="text-xs text-muted-foreground/80 mt-0.5 italic max-w-[320px]">
+                        {score.reason}
+                      </div>
                     )}
-                    style={{ width: `${(score.totalScore / scores[0].totalScore) * 100}%` }}
-                  />
+                    <button
+                      onClick={() => fetchExplanation(score)}
+                      disabled={isLoading}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1 disabled:opacity-50"
+                    >
+                      {isLoading ? "Generating…" : explanation ? (isExpanded ? "Explain ▴" : "Explain ▾") : "Explain ▾"}
+                    </button>
+                    {isExpanded && explanation && (
+                      <div className="mt-1.5 pl-3 border-l-2 border-border/60 text-xs text-muted-foreground/80 italic leading-relaxed max-w-[340px]">
+                        {explanation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-right z-10 flex flex-col items-end shrink-0 ml-4">
+                  <div className="font-bold text-lg leading-none mb-1">
+                    {score.totalScore.toFixed(2)} pts
+                  </div>
+                  <div className="w-24 h-1.5 bg-background rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full",
+                        isGold   ? "bg-yellow-500" :
+                        isSilver ? "bg-slate-400"   :
+                        isBronze ? "bg-amber-700"   :
+                        "bg-primary"
+                      )}
+                      style={{ width: `${(score.totalScore / scores[0].totalScore) * 100}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -663,7 +742,12 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
 
           {hasData && (
             <div className="space-y-4">
-              {technicalScores.length >= 2 && <TechnicalLeaderboard scores={technicalScores} />}
+              {technicalScores.length >= 2 && (
+                <TechnicalLeaderboard
+                  scores={technicalScores}
+                  rowMap={allTechnicalsData ? Object.fromEntries(allTechnicalsData.map(r => [r.ticker, r])) : undefined}
+                />
+              )}
               <TechnicalMetricsTable tickers={tickers} data={dataMap} scoreMap={Object.fromEntries(technicalScores.map(s => [s.ticker, s]))} />
             </div>
           )}
