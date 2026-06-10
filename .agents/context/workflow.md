@@ -80,3 +80,32 @@ The server does NOT hot-reload. Vite frontend hot-reloads automatically.
 - Live session state: `.claude/state.json` (local, ephemeral — Claude Code only)
 - Cross-agent tasks: `.agents/tasks/` (git-tracked, visible to all agents)
 - Claude Code hooks: `.claude/settings.local.json` (local, not tracked)
+
+## Codegraph (Claude Code only — use before touching any file)
+```bash
+codegraph context "<task>"    # relevant files + symbols before starting
+codegraph impact <symbol>     # what breaks before changing a function
+codegraph callers <symbol>    # all usages before refactoring
+codegraph sync                # update index after bulk changes
+```
+Never read source files to understand structure — use codegraph context first.
+**Kiro/other agents:** browse `artifacts/api-server/src/routes/` and `artifacts/stock-compare/src/` to understand structure manually.
+
+## Skills usage
+**Claude Code:** invoke via the Skill tool by name (e.g. `options-pricer`). Skills are in `.claude/skills/`.
+**Kiro/other agents:** read `.claude/skills/<name>.md` directly. Key skill files:
+- `build-and-run.md` — full server rebuild procedure and failure diagnosis
+- `signal-filters.md` — RSI/MFI thresholds per ticker (authoritative)
+- `options-pricer.md` — strike selection, income% calculation
+- `trader-context.md` — strategy rationale and scoring philosophy
+- `technical-scorecard.md` — V2 scorer architecture and DB schema
+
+## Claude Code automation (hooks — automatic in Claude Code, manual for other agents)
+These run automatically in Claude Code but must be applied manually in Kiro or other agents:
+
+| Hook | Trigger | What it checks | Manual equivalent |
+|---|---|---|---|
+| prompt-preprocessor | Before Task/TodoWrite | Model routing hints; prompt > 120 words → use skill file; options chain → cache check | Check model table in this file before starting; keep prompts under 120 words |
+| context-monitor | After every tool | Context > 40% → consider /compact; tool output > 15KB → summarize | Break large tasks into smaller steps; summarize large file reads before using |
+| session-wrap | On session Stop | Saves state, syncs `.kiro/steering/03-state.md`, writes session log | Run `node .claude/scripts/session-wrap.js` manually or update `.agents/context/state.md` |
+| rehydrate | On session Start | Shows session banner, syncs codegraph, auto-starts API server | Check API: `curl -s http://localhost:8080/api/daily-brief \| head -c 60`; start if needed with build command above |
