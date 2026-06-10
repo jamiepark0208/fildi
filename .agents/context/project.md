@@ -52,6 +52,7 @@ Extra/hidden tickers persisted to localStorage (`fildi_scanner_extra`, `fildi_sc
 `POST /api/explain/score` — Haiku, 200 tokens, no storage. "Explain" button in Rankings Leaderboard + Technical Leaderboard; session-cached per ticker.
 
 ## Context files
+- **API endpoints**: `.agents/context/api-endpoints.md` (all routes — check before adding new ones)
 - Full skills: `.claude/skills/` (tracked in git — readable by all agents)
 - Memory/lessons: `.agents/memory/` (MEMORY.md index)
 - Active tasks: `.agents/tasks/`
