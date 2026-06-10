@@ -1,4 +1,5 @@
 # TradeDash — Workflow Rules
+> last_updated: 2026-06-10 | update when build process, routing, or tooling changes
 
 ## Backend build (CRITICAL — causes 502s if skipped)
 After ANY change to `artifacts/api-server/src/**`, rebuild and restart:

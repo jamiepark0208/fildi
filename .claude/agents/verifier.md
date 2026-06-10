@@ -3,6 +3,15 @@ name: verifier
 description: Run after every feature. Checks tsc, eslint, tests. Returns structured report only.
 model: claude-haiku-4-5-20251001
 tools: ["Bash", "Read", "Grep"]
+capabilities:
+  - TypeScript type checking (tsc --noEmit)
+  - ESLint with zero-warning policy
+  - Vitest test suite execution
+constraints:
+  - Never fix code — report only, no edits
+  - Never read more than 3 files
+  - Return structured report format only, no prose
+escalate_to: sonnet (if errors require diagnosis beyond the report)
 ---
 
 Run these checks in order:

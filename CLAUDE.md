@@ -1,5 +1,5 @@
 # TradeDash — Claude Code Config
-> Pointers only. Full context in skills. Rehydrate runs on every session start.
+> Claude Code only. Full project context in .agents/. Rehydrate runs on every session start.
 
 ## STARTUP (every session)
 Run: node .claude/scripts/rehydrate.js
@@ -16,122 +16,43 @@ First time only: tell Claude "read .claude/skills/replit-setup.md and follow the
 | RSI/MFI/filter logic | .claude/skills/signal-filters.md |
 | UI components | .claude/skills/ui-components.md |
 | DB schema and queries | .claude/skills/db-patterns.md |
+| Trader strategy/scoring | .claude/skills/trader-context.md |
+| Technical scorecard | .claude/skills/technical-scorecard.md |
 | End of session | .claude/skills/session-wrap.md |
 
-## MODEL ROUTING
-haiku  = data fetching, cache boilerplate, scaffolding, verifier
-sonnet = UI, filter logic, API design, debugging (default)
-opus   = /opus flag only, architecture rewrites
-
 ## AGENTS
+Full catalog + handoff protocol: `.agents/AGENTS.md`
 verifier   = tsc + lint + tests after every feature (.claude/agents/verifier.md)
-data-agent = yfinance + Redis work (.claude/agents/data-agent.md)
-ui-agent   = React components (.claude/agents/ui-agent.md)
+data-agent = data fetching, cache boilerplate (.claude/agents/data-agent.md)
+ui-agent   = React components, props-driven (.claude/agents/ui-agent.md)
 
 ## CROSS-AGENT CONTEXT (git-tracked, readable by all agents — point any agent here)
-Project/workflow/state: .agents/context/   (canonical source — project.md, workflow.md, state.md)
-Memory/lessons:         .agents/memory/    (MEMORY.md index — 4 entries)
-Active tasks:           .agents/tasks/     (cross-agent task files — see README.md)
+Project/workflow/state: .agents/context/   (project.md, workflow.md, state.md)
+Agent catalog:          .agents/AGENTS.md  (capabilities, constraints, handoff protocol)
+Memory/lessons:         .agents/memory/    (MEMORY.md index)
 Session history:        .agents/sessions/  (INDEX.md rolling log)
-Skills (Claude only):   .claude/skills/    (loaded via Skill tool — also readable by Kiro)
 
-## APP SUMMARY
-Full context: `.agents/context/project.md` (architecture, scoring, data sources, DB tables)
-Workflow rules: `.agents/context/workflow.md` (build, routing, debugging, model routing)
-Current state: `.agents/context/state.md` (phase, next tasks — auto-synced on session Stop)
-
-## STATE
-phase: build
-working: []
-in-progress: none
-completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phase1, fmp-phase2-helpers, fmp-phase3-scorer, fmp-phase4-verify, fmp-phase5-cleanup, technical-scorer-v2-phase1, technical-scorer-v2-phase2, technical-scorer-v2-phase3, technical-scorer-v2-phase4, technical-scorer-v2-phase5]
-next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]
-
-## ROADMAP
-Living task file: FILDI_ROADMAP.md (root of repo — create if not present)
-Read before starting any new feature to understand what is pending, what is known-broken, and what the architectural decisions are.
-
-## TECHNICAL SCORER V2 — COMPLETE (all 5 phases done 2026-06-09)
-Full phase report: .claude/docs/phase-report-technical.md
-Architecture: self-relative, invariant to peer set
-DB: tickerTechnicals (55 cols), refreshed daily, GET /api/technicals/all
-Scorer: computeTechnicalRankingsV2 in technical-rankings.ts (alongside V1)
-OHLCV window: 420 calendar days (≈300 trading days), supports MA200
-UI: technical.tsx + options-scanner.tsx wired to V2; home.tsx BUG-01 fixed
-Known remaining items:
-  - ivRank/ivPercentile: still use realized vol as IV proxy (upgrade when ~60d of atmPutIv history accumulates)
-  - putCallVolumeRatio/basicSkew: absolute mapping (upgrade to percentileRank when ~60d history accumulates)
-  - Remove computeTechnicalRankings (V1) after one release
-  - scorecard-explanation.tsx: still shows V1 metrics — update in next UI pass
+## CURRENT STATE
+Next tasks + phase: `.agents/context/state.md`
+Roadmap + known issues: `FILDI_ROADMAP.md`
 
 ## CODEGRAPH (use at start of every task)
-  codegraph sync                        — update index
-  codegraph context "<task>"            — get relevant files/symbols before touching anything
-  codegraph impact <symbol>             — check what breaks before changing a function
-  codegraph callers <symbol>            — find all usages before refactoring
-  codegraph affected [files]            — which tests need to run after a change
+  codegraph context "<task>"   — relevant files/symbols before touching anything
+  codegraph impact <symbol>    — what breaks before changing a function
+  codegraph callers <symbol>   — all usages before refactoring
 
 Never read source files to understand structure — use codegraph context first.
 
-## READING RULES (always follow)
+## READING RULES
 - Never use Explore agents for broad sweeps
-- Read files directly and only when needed
-- Before reading a file, state the name and reason
+- State file name and reason before reading
 - Max 5 files per task without explicit approval
-- Use find/grep to locate files before reading them
+- Use find/grep to locate before reading
 
 ## SESSION LOG
-Full history: `.agents/sessions/INDEX.md` (rolling log, auto-updated on Stop)
-Deep history pre-2026-06-08: `.claude/docs/session-history.md`
+Full history: `.agents/sessions/INDEX.md` (auto-updated on Stop)
 Phase reports: `.claude/docs/phase-report*.md`
 
-## NEXT SESSION
-1. User management system — design pending (brainstorm interrupted; independent watchlists per user, session auth, admin-only refresh)
-2. POST /api/fundamentals/refresh — populate remaining FMP tickers (check budget first: GET /api/fundamentals/status)
-3. Options comparison table + strike explorer slider
-
-Technicals stale check (auto on startup). Force-refresh: `curl -s -X POST http://localhost:8080/api/technicals/refresh?force=true`
-
-## BACKEND BUILD RULE (critical — causes 502s if skipped)
-After ANY change to api-server/src/**, run the one-liner from build-and-run.md:
-  pkill -f "api-server/dist/index" 2>/dev/null; sleep 0.3 && cd /home/runner/workspace/artifacts/api-server && node build.mjs && PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs >> /tmp/api-server.log 2>&1 & sleep 2 && curl -s "http://localhost:8080/api/daily-brief" | head -c 60
-The server does NOT hot-reload. Forgetting this = 502 or 404 on all API calls.
-See .claude/skills/build-and-run.md for diagnosis and all failure modes.
-
-## RATE LIMIT RULES
-- Max 3 bash tool calls per response
-- After a build command: wait for output before next call
-- Never chain more than 2 curl/test commands back to back
-- If 429 error appears: stop, wait 60s, resume with single tool call
-
-## ROUTING RULES (never repeat this bug)
-- Route files define paths WITHOUT /api prefix (e.g. /indicators/:ticker)
-- The router is mounted at /api in index.ts — prefix is added there only
-- Vite proxy must have "/api" entry pointing to http://localhost:8080
-- Check both of these whenever adding a new route file
-
-## DEBUGGING RULES (follow strictly)
-- When something is broken: codegraph context "<broken feature>" FIRST
-- State the exact error or symptom before reading any file
-- Read maximum 2 files before attempting a fix
-- Fix one thing, verify it works, then move to next
-- Never refactor while debugging — fix only
-- If broken for >30min: stop, describe symptoms here, start fresh
-
-## SKILL AUTO-TRIGGER RULES
-When about to work on any of these areas, load the relevant skill BEFORE reading any code:
-- Options chain, strike selection, income%  → .claude/skills/options-pricer.md
-- RSI, MFI, RM filter, tier thresholds      → .claude/skills/signal-filters.md
-- Any UI component or new page              → .claude/skills/ui-components.md
-- Any new feature (planning phase)          → .claude/skills/feature-planner.md
-- Data fetching, caching, refresh logic     → .claude/skills/data-architecture.md
-- DB schema or migration                    → .claude/skills/db-patterns.md
-- Trader strategy, scoring, ranking         → .claude/skills/trader-context.md
-- Technical scorecard UI or signals         → .claude/skills/technical-scorecard.md
-- Server build or 502 errors               → .claude/skills/build-and-run.md
-- End of session                           → .claude/skills/session-wrap.md
-
 ## HOOKS LOCATION
-All hooks are defined in .claude/settings.local.json under the "hooks" key.
-Never create or modify .claude/hooks/hooks.json — that file is not read.
-To add a new hook: edit .claude/settings.local.json directly.
+Hooks are in .claude/settings.local.json under the "hooks" key.
+Never create .claude/hooks/hooks.json — that file is not read.

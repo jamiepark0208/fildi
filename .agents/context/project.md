@@ -1,4 +1,5 @@
 # TradeDash — Project Context
+> last_updated: 2026-06-10 | update when architecture or data sources change
 
 ## What this is
 Institutional-grade put-selling research tool. Surfaces put candidates by scoring fundamentals + technicals + options premium.
