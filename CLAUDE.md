@@ -52,7 +52,7 @@ Data sources: FMP (fundamentals, weekly), Yahoo chart() (OHLCV, daily), Yahoo op
 
 ## STATE
 phase: build
-working: [options-comparison-table]
+working: []
 in-progress: none
 completed: [scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phase1, fmp-phase2-helpers, fmp-phase3-scorer, fmp-phase4-verify, fmp-phase5-cleanup, technical-scorer-v2-phase1, technical-scorer-v2-phase2, technical-scorer-v2-phase3, technical-scorer-v2-phase4, technical-scorer-v2-phase5]
 next: [options-comparison-table, strike-explorer-slider, fundamental-improvements, macro-data-live-feed]

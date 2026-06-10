@@ -6,7 +6,7 @@
 **build** — last updated 2026-06-10
 
 ## Active work
-- Working: options-comparison-table
+- Working: none
 - In progress: none
 - Blocked: none
 
