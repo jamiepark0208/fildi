@@ -14,26 +14,24 @@ function parse() {
 function list(s) { return s ? s.split(',').map(x=>x.trim()).filter(Boolean) : []; }
 function read() { try { return JSON.parse(fs.readFileSync(STATE,'utf8')); } catch { return {}; } }
 
-// Sync Phase + Active work blocks in .kiro/steering/03-state.md.
+// Sync Phase + Active work blocks in a state markdown file.
 // Only updates the two machine-generated sections; Next tasks is left human-managed.
-function syncKiroState(state, dateStr) {
-  const kiroPath = path.join(ROOT, '.kiro/steering/03-state.md');
-  if (!fs.existsSync(kiroPath)) return;
-  let content = fs.readFileSync(kiroPath, 'utf8');
+function syncStateFile(filePath, state, dateStr) {
+  if (!fs.existsSync(filePath)) return;
+  let content = fs.readFileSync(filePath, 'utf8');
 
-  const phaseBlock   = `## Phase\n**${state.phase}** — last updated ${dateStr}`;
-  const activeBlock  = [
+  const phaseBlock  = `## Phase\n**${state.phase}** — last updated ${dateStr}`;
+  const activeBlock = [
     '## Active work',
     `- Working: ${(state.working||[]).join(', ')||'none'}`,
     `- In progress: ${(state.in_progress||[]).join(', ')||'none'}`,
     `- Blocked: ${(state.blocked||[]).join(', ')||'none'}`,
   ].join('\n');
 
-  // Replace each section — match content up to (but not including) the next ##
   content = content.replace(/## Phase\n[\s\S]*?(?=\n## )/, phaseBlock + '\n');
   content = content.replace(/## Active work\n[\s\S]*?(?=\n## )/, activeBlock + '\n');
 
-  fs.writeFileSync(kiroPath, content);
+  fs.writeFileSync(filePath, content);
 }
 
 // Append a timestamped entry to .agents/sessions/YYYY-MM-DD.md
@@ -96,7 +94,9 @@ const next = {
 fs.mkdirSync(path.dirname(STATE), { recursive:true });
 fs.writeFileSync(STATE, JSON.stringify(next, null, 2));
 
-syncKiroState(next, now.slice(0, 10));
+// Sync both state files — canonical source and Kiro steering
+syncStateFile(path.join(ROOT, '.agents/context/state.md'),      next, now.slice(0, 10));
+syncStateFile(path.join(ROOT, '.kiro/steering/03-state.md'),    next, now.slice(0, 10));
 writeSessionEntry(next, args.note||'', now);
 
 console.log(`✅ State saved at ${now}`);

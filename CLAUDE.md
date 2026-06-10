@@ -28,27 +28,17 @@ verifier   = tsc + lint + tests after every feature (.claude/agents/verifier.md)
 data-agent = yfinance + Redis work (.claude/agents/data-agent.md)
 ui-agent   = React components (.claude/agents/ui-agent.md)
 
-## CROSS-AGENT CONTEXT (git-tracked, readable by Claude Code + Kiro + sub-agents)
-Memory/lessons: .agents/memory/   (MEMORY.md index — 4 entries)
-Active tasks:   .agents/tasks/    (cross-agent task files — see README.md)
-Skills:         .claude/skills/   (now git-tracked — readable by all agents)
-Kiro context:   .kiro/steering/   (01-project, 02-workflow, 03-state — Kiro auto-loads these)
+## CROSS-AGENT CONTEXT (git-tracked, readable by all agents — point any agent here)
+Project/workflow/state: .agents/context/   (canonical source — project.md, workflow.md, state.md)
+Memory/lessons:         .agents/memory/    (MEMORY.md index — 4 entries)
+Active tasks:           .agents/tasks/     (cross-agent task files — see README.md)
+Session history:        .agents/sessions/  (INDEX.md rolling log)
+Skills (Claude only):   .claude/skills/    (loaded via Skill tool — also readable by Kiro)
 
 ## APP SUMMARY
-TradeDash — institutional-grade put-selling research tool.
-
-Architecture:
-- Frontend: React/Tailwind SPA on port 8081 (artifacts/stock-compare)
-- Backend: Node/Express API on port 8080 (artifacts/api-server)
-- DB: PostgreSQL via Drizzle ORM (lib/db)
-
-Two independent scoring layers (both self-relative, peer-set invariant):
-- Fundamental scorer (computeRankingsV2): 4 families (Value 20%, Growth 25%, Quality 35%, Safety 20%), FMP data source, weekly refresh, tickerFundamentals DB table
-- Technical scorer (computeTechnicalRankingsV2): 6 components (oversoldDepth 25%, reversalSignal 20%, volatilityState 22%, trendContext 18%, optionsFlow 10%, volumeConfirm 5%), Yahoo OHLCV, daily refresh, tickerTechnicals DB table
-
-Options scanner: combines both scores + options chain data to surface put candidates by premium/strike ratio, signal, and combined score.
-Watchlist: tickers in the `watchlist` DB table, 3 tiers. Tags: blue (holding/assigned), green (long conviction), yellow (moderate/income), purple (market context).
-Data sources: FMP (fundamentals, weekly), Yahoo chart() (OHLCV, daily), Yahoo options() (chain, 10min cache), FRED (macro, 4h cache), Treasury.gov (yield curve).
+Full context: `.agents/context/project.md` (architecture, scoring, data sources, DB tables)
+Workflow rules: `.agents/context/workflow.md` (build, routing, debugging, model routing)
+Current state: `.agents/context/state.md` (phase, next tasks — auto-synced on session Stop)
 
 ## STATE
 phase: build
