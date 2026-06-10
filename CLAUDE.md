@@ -28,6 +28,12 @@ verifier   = tsc + lint + tests after every feature (.claude/agents/verifier.md)
 data-agent = yfinance + Redis work (.claude/agents/data-agent.md)
 ui-agent   = React components (.claude/agents/ui-agent.md)
 
+## CROSS-AGENT CONTEXT (git-tracked, readable by Claude Code + Kiro + sub-agents)
+Memory/lessons: .agents/memory/   (MEMORY.md index — 4 entries)
+Active tasks:   .agents/tasks/    (cross-agent task files — see README.md)
+Skills:         .claude/skills/   (now git-tracked — readable by all agents)
+Kiro context:   .kiro/steering/   (01-project, 02-workflow, 03-state — Kiro auto-loads these)
+
 ## APP SUMMARY
 TradeDash — institutional-grade put-selling research tool.
 
@@ -108,6 +114,10 @@ New: POST /api/explain/score (artifacts/api-server/src/routes/explain.ts) — Ha
 Frontend: "Explain ▾" button in both Rankings Leaderboard (rankings-leaderboard.tsx) and Technical Leaderboard (technical.tsx); session-cached per ticker.
 Options Scanner: extraTickers + hiddenTickers now persisted to localStorage (fildi_scanner_extra, fildi_scanner_hidden) — survive tab close.
 CLAUDE.md: cleaned (273→157 lines), SESSION LOG archived to .claude/docs/session-history.md, ui-components.md stub created.
+
+### Context consolidation (2026-06-10) — COMPLETE
+.claude/ now git-tracked (skills, agents, docs, hooks, scripts — settings.local.json + state.json remain local).
+memory/ merged into .agents/memory/. .agents/tasks/ added. .kiro/steering/ created for Kiro IDE. .kiroignore added.
 
 Older sessions (pre-2026-06-08): archived → `.claude/docs/session-history.md`
 
