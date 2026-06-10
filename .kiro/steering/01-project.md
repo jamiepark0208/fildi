@@ -28,13 +28,13 @@ Institutional-grade put-selling research tool. Surfaces put candidates by scorin
 - **Treasury.gov CSV:** yield curve
 
 ## Watchlist
-31 tickers, 3 tiers. Tags: blue=holding/assigned, green=long conviction, yellow=moderate/income, purple=market context.
+Tickers defined in the `watchlist` DB table (3 tiers). Tags: blue=holding/assigned, green=long conviction, yellow=moderate/income, purple=market context.
 Financial tickers excluded from roicWaccSpread: HOOD, SOFI.
 
 ## Key DB tables
 | Table | Purpose |
 |---|---|
-| `watchlist` | 31 tickers with tier/status/tag |
+| `watchlist` | tickers with tier/status/tag |
 | `positions` | short_put / short_call / long_stock / long_call / long_put |
 | `signal_log` | fired signals with outcome tracking |
 | `prices_historical` | OHLCV, INSERT OR IGNORE |

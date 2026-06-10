@@ -34,17 +34,12 @@ scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill
   - `scorecard-explanation.tsx`: still shows V1 metrics — update in next UI pass
 
 ## FMP Data Layer — COMPLETE (2026-06-09)
-- 8/31 tickers populated at 97% coverage
-- Missing 23 tickers: MRVL, RDDT, NOW, BABA, SMCI, SNOW, AAOI, NFLX, NET, OPEN, ONDS, POET, SHOP, FSLY, RUM, JOBY, ACHR, BB, IONQ, SOFI, TTD, RKLB, RDW
+- Partial coverage — check live status: `GET /api/fundamentals/status`
 - Budget guard: 220 calls/day max via `fmp_api_usage` table
+- Populate remaining tickers: `POST /api/fundamentals/refresh`
 
-## RSI thresholds (authoritative — from signal-filters.md)
-| Tier | Tickers + thresholds |
-|---|---|
-| T1 | NVDA:45 INTC:45 MRVL:44 PLTR:42 HOOD:43 RDDT:42 AAPL:38 AMZN:40 GOOGL:40 TSLA:42 NOW:42 |
-| T2 | BABA:38 SMCI:40 SNOW:40 AAOI:42 NFLX:38 NET:40 OPEN:35 ONDS:35 POET:35 SHOP:40 FSLY:35 RUM:35 |
-| T3 | JOBY:32 ACHR:32 BB:34 IONQ:32 SOFI:34 TTD:36 RKLB:32 RDW:32 |
-
+## RSI / MFI thresholds
+Per-ticker thresholds live in `.claude/skills/signal-filters.md` (authoritative).
 MFI threshold: 25 (all tickers)
 
 ## Technicals stale check

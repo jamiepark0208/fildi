@@ -47,7 +47,7 @@ Two independent scoring layers (both self-relative, peer-set invariant):
 - Technical scorer (computeTechnicalRankingsV2): 6 components (oversoldDepth 25%, reversalSignal 20%, volatilityState 22%, trendContext 18%, optionsFlow 10%, volumeConfirm 5%), Yahoo OHLCV, daily refresh, tickerTechnicals DB table
 
 Options scanner: combines both scores + options chain data to surface put candidates by premium/strike ratio, signal, and combined score.
-Watchlist: 31 tickers across 3 tiers. Tags: blue (holding/assigned), green (long conviction), yellow (moderate/income), purple (market context).
+Watchlist: tickers in the `watchlist` DB table, 3 tiers. Tags: blue (holding/assigned), green (long conviction), yellow (moderate/income), purple (market context).
 Data sources: FMP (fundamentals, weekly), Yahoo chart() (OHLCV, daily), Yahoo options() (chain, 10min cache), FRED (macro, 4h cache), Treasury.gov (yield curve).
 
 ## STATE
@@ -97,7 +97,7 @@ Phase reports: `.claude/docs/phase-report*.md`
 
 ## NEXT SESSION
 1. User management system — design pending (brainstorm interrupted; independent watchlists per user, session auth, admin-only refresh)
-2. POST /api/fundamentals/refresh — populate remaining 23 FMP tickers (check budget first: GET /api/fundamentals/status)
+2. POST /api/fundamentals/refresh — populate remaining FMP tickers (check budget first: GET /api/fundamentals/status)
 3. Options comparison table + strike explorer slider
 
 Technicals stale check (auto on startup). Force-refresh: `curl -s -X POST http://localhost:8080/api/technicals/refresh?force=true`
