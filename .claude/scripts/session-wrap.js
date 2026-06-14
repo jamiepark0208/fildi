@@ -152,8 +152,7 @@ if (finalErrs.length) {
 fs.mkdirSync(path.dirname(STATE), { recursive: true });
 fs.writeFileSync(STATE, JSON.stringify(next, null, 2));
 
-syncStateFile(path.join(ROOT, '.agents/context/state.md'),   next, now.slice(0, 10));
-syncStateFile(path.join(ROOT, '.kiro/steering/03-state.md'), next, now.slice(0, 10));
+syncStateFile(path.join(ROOT, '.agents/context/state.md'), next, now.slice(0, 10));
 writeSessionEntry(next, args.note||'', now);
 
 console.log(`✅ State saved at ${now}`);
