@@ -2,7 +2,7 @@ import { StockMetrics } from "@workspace/api-client-react";
 import {
   safeDiv, normalize, MIN_SECTOR_N,
   cashRunway, dilutionRate, interestCoverage, approxWACC, roicWaccSpread,
-  MAX_CASH_RUNWAY_QUARTERS,
+  MAX_CASH_RUNWAY_QUARTERS, percentileRank,
 } from "./rankings-helpers.js";
 
 export type MetricDef = {
@@ -404,6 +404,254 @@ export function computeRankingsV2(
       // Pass through FMP triangulation discrepancy flags for display/debugging
       dataSourceFlags: s.discrepancyFlags?.filter(Boolean) ?? [],
       // WACC inputs for tickers where roicWaccSpread was computable (not guarded, roic non-null)
+      waccInputs: (!FINANCIAL_TICKERS.has(s.ticker) && s.roic != null)
+        ? {
+            beta: s.beta ?? null,
+            approxWacc: approxWACC({
+              beta: s.beta,
+              totalDebt: s.totalDebt,
+              totalStockholdersEquity: s.totalStockholdersEquity,
+              effectiveTaxRate: s.effectiveTaxRate,
+              interestExpense: s.interestExpense,
+            }),
+          }
+        : undefined,
+    };
+  });
+}
+
+// ─── computeRankingsV3 ───────────────────────────────────────────────────────
+// Like V2, but each metric's 0-1 score is derived from the ticker's own
+// multi-year history when >= 3 data points exist.  Falls back to V2's
+// cross-peer normalization when history is absent or too short.
+//
+// history shape: { [ticker]: { [metricKey]: number[] } }
+// The caller populates this from ticker_fundamentals_history via
+// StockDataManager.getMetricHistory().  Rankings.ts stays DB-free.
+//
+// HISTORY_MIN_N = 3: minimum years of history to use own-history scoring.
+const HISTORY_MIN_N = 3;
+
+// Maps MetricDefV2 keys to the equivalent ticker_fundamentals_history column.
+// Keys absent from this map always fall back to peer normalization.
+const METRIC_TO_HISTORY_KEY: Partial<Record<string, string>> = {
+  netmgn:      "net_margin",
+  grossmgn:    "gross_margin",
+  operatingmgn:"operating_margin",
+  revgrow:     "rev_growth",   // populated when caller provides it
+  epsgrow:     "eps",          // use EPS series as proxy for EPS growth history
+  earningsYield: "eps",        // same underlying series
+  fcfYield:    "eps",          // no direct FCF history column yet
+  fcfmgn:      "net_margin",   // fallback until FCF history exists
+  roe:         "roic",         // closest available column
+  roicwacc:    "roic",
+  peg:         "pe_ratio",
+  cr:          undefined,      // no history column
+  de:          undefined,
+  cashrun:     undefined,
+  intcov:      undefined,
+  dilution:    undefined,
+  upside:      undefined,
+};
+
+export type TickerHistory = Record<string, number[]>; // metricKey → values
+export type AllTickerHistory = Record<string, TickerHistory>; // ticker → TickerHistory
+
+function ownHistoryScore(
+  value: number | null,
+  history: number[] | undefined,
+  higherIsBetter: boolean,
+): number | null {
+  if (value == null || !isFinite(value)) return null;
+  if (!history || history.length < HISTORY_MIN_N) return null;
+  // percentileRank with minN=1 — we've already enforced HISTORY_MIN_N above
+  const pct = percentileRank(value, history, 1);
+  if (pct === null) return null;
+  return higherIsBetter ? pct : 1 - pct;
+}
+
+export function computeRankingsV3(
+  stocks: StockMetrics[],
+  history: AllTickerHistory = {},
+  preset: FamilyPreset = FAMILY_PRESETS.PUT_SELLER,
+): StockScore[] {
+  if (stocks.length === 0) return [];
+
+  const familyMetrics = Object.fromEntries(
+    FAMILIES.map(fam => [fam, SCORECARD_METRICS_V2.filter(m => m.family === fam)]),
+  ) as Record<FamilyName, MetricDefV2[]>;
+
+  const stockGroupKeys = stocks.map(() => "__global__");
+
+  // ── Raw values ──────────────────────────────────────────────────────────────
+  const rawValues: Record<string, (number | null)[]> = {};
+  SCORECARD_METRICS_V2.forEach(m => {
+    rawValues[m.key] = stocks.map(s => {
+      const v = m.getValue(s);
+      return v == null || !isFinite(v) ? null : v;
+    });
+  });
+
+  // ── Suspect detection (same as V2) ──────────────────────────────────────────
+  const suspectSets: Set<string>[] = stocks.map(() => new Set<string>());
+  stocks.forEach((s, i) => {
+    const nm = rawValues["netmgn"][i];
+    if (nm !== null && Math.abs(nm) > 1.0) suspectSets[i].add("netmgn");
+    const rg = rawValues["revgrow"][i];
+    if (rg !== null && Math.abs(rg) > 10.0) suspectSets[i].add("revgrow");
+    const eg = rawValues["epsgrow"][i];
+    if (eg !== null && Math.abs(eg) > 10.0) suspectSets[i].add("epsgrow");
+    if (s.netIncome != null && s.totalRevenue != null && s.totalRevenue !== 0 &&
+        Math.abs(s.netIncome) > Math.abs(s.totalRevenue)) {
+      suspectSets[i].add("earningsYield");
+      suspectSets[i].add("netmgn");
+    }
+  });
+
+  // ── Peer normalization (fallback for metrics without sufficient history) ─────
+  const peerNormScores: Record<string, (number | null)[]> = {};
+  SCORECARD_METRICS_V2.forEach(m => {
+    const raw = rawValues[m.key];
+    const result: (number | null)[] = new Array(stocks.length).fill(null);
+    const groups = new Map<string, number[]>();
+    stockGroupKeys.forEach((gk, i) => {
+      if (!groups.has(gk)) groups.set(gk, []);
+      groups.get(gk)!.push(i);
+    });
+    groups.forEach(idxs => {
+      const groupVals = idxs.map(i => raw[i]);
+      const groupNorm = normalize(groupVals, { higherIsBetter: m.higherIsBetter });
+      idxs.forEach((stockIdx, j) => { result[stockIdx] = groupNorm[j]; });
+    });
+    peerNormScores[m.key] = result;
+  });
+
+  // ── V3 norm: own-history where possible, peer fallback otherwise ─────────────
+  const normScores: Record<string, (number | null)[]> = {};
+  SCORECARD_METRICS_V2.forEach(m => {
+    normScores[m.key] = stocks.map((s, i) => {
+      const histKey = METRIC_TO_HISTORY_KEY[m.key];
+      if (histKey !== undefined) {
+        const tickerHist = history[s.ticker];
+        const metricHist = tickerHist?.[histKey];
+        const own = ownHistoryScore(rawValues[m.key][i], metricHist, m.higherIsBetter);
+        if (own !== null) return own;
+      }
+      return peerNormScores[m.key][i];
+    });
+  });
+
+  // ── Base-effect growth guard (same as V2) ────────────────────────────────────
+  const TINY_REV = 100_000_000;
+  const BASE_GROWTH_CAP = 5.0;
+  stocks.forEach((s, i) => {
+    const rg = rawValues["revgrow"][i];
+    if (s.totalRevenue != null && s.totalRevenue < TINY_REV &&
+        rg != null && rg > BASE_GROWTH_CAP) {
+      normScores["revgrow"][i] = 0.5;
+      suspectSets[i].add("revgrow");
+    }
+  });
+
+  // ── Per-metric ranks from raw values ─────────────────────────────────────────
+  const metricRanks: Record<string, number[]> = {};
+  SCORECARD_METRICS_V2.forEach(m => {
+    const raw = rawValues[m.key];
+    const sorted = raw
+      .map((v, i) => ({ v, i }))
+      .filter(x => x.v !== null)
+      .sort((a, b) => m.higherIsBetter
+        ? (b.v as number) - (a.v as number)
+        : (a.v as number) - (b.v as number));
+    const ranks = new Array(stocks.length).fill(0);
+    sorted.forEach(({ i }, ri) => { ranks[i] = ri + 1; });
+    metricRanks[m.key] = ranks;
+  });
+
+  // ── Family scores ─────────────────────────────────────────────────────────────
+  type FamilyEntry = { score: number; coverage: number; lowCoverage: boolean };
+  const familyScoreGrid: Record<FamilyName, FamilyEntry>[] = stocks.map(() => ({
+    value:   { score: 0.5, coverage: 0, lowCoverage: true },
+    growth:  { score: 0.5, coverage: 0, lowCoverage: true },
+    quality: { score: 0.5, coverage: 0, lowCoverage: true },
+    safety:  { score: 0.5, coverage: 0, lowCoverage: true },
+  }));
+
+  stocks.forEach((_, si) => {
+    FAMILIES.forEach(fam => {
+      const metrics = familyMetrics[fam];
+      const available = metrics.filter(m => normScores[m.key][si] !== null);
+      const coverage = available.length / metrics.length;
+      if (available.length === 0) {
+        familyScoreGrid[si][fam] = { score: 0.5, coverage: 0, lowCoverage: true };
+      } else {
+        const totalIntra = available.reduce((s, m) => s + m.intraWeight, 0);
+        const score = available.reduce((acc, m) =>
+          acc + (normScores[m.key][si] as number) * (m.intraWeight / totalIntra), 0);
+        familyScoreGrid[si][fam] = { score, coverage, lowCoverage: coverage < 0.6 };
+      }
+    });
+  });
+
+  // ── Total scores ──────────────────────────────────────────────────────────────
+  const maxPossible = 100;
+  const totals = stocks.map((_, si) =>
+    FAMILIES.reduce((sum, fam) => sum + familyScoreGrid[si][fam].score * preset[fam], 0),
+  );
+
+  const ranked = totals.map((score, i) => ({ i, score })).sort((a, b) => b.score - a.score);
+
+  return ranked.map(({ i: si }, rankIdx) => {
+    const s = stocks[si];
+    const fsg = familyScoreGrid[si];
+
+    const ms: StockScore["metricScores"] = {};
+    SCORECARD_METRICS_V2.forEach(m => {
+      const norm = normScores[m.key][si];
+      const availableInFamily = familyMetrics[m.family].filter(fm => normScores[fm.key][si] !== null);
+      const totalIntra = availableInFamily.reduce((acc, fm) => acc + fm.intraWeight, 0);
+      const weightedScore = (norm !== null && totalIntra > 0)
+        ? (norm * m.intraWeight / totalIntra) * preset[m.family]
+        : 0;
+      ms[m.key] = {
+        value: rawValues[m.key][si],
+        weightedScore: parseFloat(weightedScore.toFixed(3)),
+        rank: metricRanks[m.key][si] || 0,
+      };
+    });
+
+    const overallCoverage = FAMILIES.reduce((s, fam) => s + fsg[fam].coverage, 0) / FAMILIES.length;
+    const dataQuality: StockScore["dataQuality"] =
+      overallCoverage >= 0.75 ? "good" : overallCoverage >= 0.4 ? "partial" : "insufficient";
+
+    const famsByScore = FAMILIES
+      .map(fam => ({ fam, score: fsg[fam].score }))
+      .sort((a, b) => b.score - a.score);
+    const leading = famsByScore
+      .filter(f => f.score >= 0.65).slice(0, 2)
+      .map(f => f.fam.charAt(0).toUpperCase() + f.fam.slice(1));
+    const lagging = famsByScore
+      .filter(f => f.score <= 0.35)
+      .map(f => f.fam.charAt(0).toUpperCase() + f.fam.slice(1));
+    const parts: string[] = [];
+    if (leading.length) parts.push(`Leads: ${leading.join(" & ")}`);
+    if (lagging.length) parts.push(`Lags: ${lagging.join(" & ")}`);
+    const reason = parts.join(" · ") ||
+      (rankIdx === 0 ? "Tops peers across all four factors" : "Competitive across factors");
+
+    return {
+      ticker: s.ticker,
+      companyName: s.companyName,
+      totalScore: parseFloat(totals[si].toFixed(2)),
+      maxPossible,
+      rank: rankIdx + 1,
+      metricScores: ms,
+      reason,
+      familyScores: fsg,
+      dataQuality,
+      gateStatus: "ok" as const,
+      suspectMetrics: [...suspectSets[si]],
+      dataSourceFlags: s.discrepancyFlags?.filter(Boolean) ?? [],
       waccInputs: (!FINANCIAL_TICKERS.has(s.ticker) && s.roic != null)
         ? {
             beta: s.beta ?? null,

@@ -176,6 +176,10 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   quarterlyOperatingCashFlow: numeric('quarterly_operating_cash_flow'),
   sharesOutstanding:          numeric('shares_outstanding'),
   sharesOutstandingPrior:     numeric('shares_outstanding_prior'),
+
+  // Phase 1A additions — data source tracking
+  lastSource:         text('last_source').default('fmp'),
+  dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
 })
 
 export const insertTickerFundamentalsSchema = createInsertSchema(tickerFundamentals)
@@ -282,3 +286,82 @@ export const tickerTechnicals = pgTable('ticker_technicals', {
 export const insertTickerTechnicalsSchema = createInsertSchema(tickerTechnicals)
 export type InsertTickerTechnicals = z.infer<typeof insertTickerTechnicalsSchema>
 export type TickerTechnicalsRow = typeof tickerTechnicals.$inferSelect
+
+// ── data_sources ──────────────────────────────────────────────────────────────
+// Tracks available data providers, their daily call budgets, and usage.
+
+export const dataSources = pgTable('data_sources', {
+  id:            serial('id').primaryKey(),
+  name:          text('name').unique().notNull(), // factset | simfin | finnhub | edgar | fmp
+  priority:      integer('priority').notNull(),   // lower = higher priority
+  dailyLimit:    integer('daily_limit').notNull(),
+  callsToday:    integer('calls_today').notNull().default(0),
+  lastResetDate: text('last_reset_date').notNull(), // YYYY-MM-DD
+  isActive:      boolean('is_active').notNull().default(true),
+})
+
+export const insertDataSourceSchema = createInsertSchema(dataSources).omit({ id: true })
+export type InsertDataSource = z.infer<typeof insertDataSourceSchema>
+export type DataSourceRow = typeof dataSources.$inferSelect
+
+// ── ticker_registry ───────────────────────────────────────────────────────────
+// Master list of tracked tickers with metadata, peers, and index memberships.
+
+export const tickerRegistry = pgTable('ticker_registry', {
+  ticker:           text('ticker').primaryKey(),
+  name:             text('name'),
+  sector:           text('sector'),
+  industryGroup:    text('industry_group'),
+  peerTickers:      text('peer_tickers').array(),           // array of ticker strings
+  indexMemberships: text('index_memberships').array(),      // 'SP100' | 'NDX100' | 'DJIA'
+  isActive:         boolean('is_active').notNull().default(true),
+  addedAt:          timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const insertTickerRegistrySchema = createInsertSchema(tickerRegistry).omit({ addedAt: true })
+export type InsertTickerRegistry = z.infer<typeof insertTickerRegistrySchema>
+export type TickerRegistryRow = typeof tickerRegistry.$inferSelect
+
+// ── ticker_fundamentals_history ───────────────────────────────────────────────
+// Annual historical fundamental data per ticker. Used by scorer V3 for self-relative scoring.
+
+export const tickerFundamentalsHistory = pgTable('ticker_fundamentals_history', {
+  ticker:           text('ticker').notNull(),
+  year:             integer('year').notNull(),
+  peRatio:          numeric('pe_ratio'),
+  priceToBook:      numeric('price_to_book'),
+  roic:             numeric('roic'),
+  grossMargin:      numeric('gross_margin'),
+  operatingMargin:  numeric('operating_margin'),
+  netMargin:        numeric('net_margin'),
+  revenue:          numeric('revenue'),
+  ebitda:           numeric('ebitda'),
+  eps:              numeric('eps'),
+  source:           text('source').notNull(), // which data source provided this row
+  importedAt:       timestamp('imported_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => ({
+  pk: primaryKey({ columns: [t.ticker, t.year] }),
+}))
+
+export const insertTickerFundamentalsHistorySchema = createInsertSchema(tickerFundamentalsHistory).omit({ importedAt: true })
+export type InsertTickerFundamentalsHistory = z.infer<typeof insertTickerFundamentalsHistorySchema>
+export type TickerFundamentalsHistory = typeof tickerFundamentalsHistory.$inferSelect
+
+// ── earnings_calendar ─────────────────────────────────────────────────────────
+// Scheduled and historical earnings events per ticker.
+
+export const earningsCalendar = pgTable('earnings_calendar', {
+  ticker:      text('ticker').notNull(),
+  reportDate:  date('report_date').notNull(),
+  isConfirmed: boolean('is_confirmed').notNull().default(false),
+  epsEstimate: numeric('eps_estimate'),
+  epsActual:   numeric('eps_actual'),
+  surprisePct: numeric('surprise_pct'),
+  fetchedAt:   timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => ({
+  pk: primaryKey({ columns: [t.ticker, t.reportDate] }),
+}))
+
+export const insertEarningsCalendarSchema = createInsertSchema(earningsCalendar).omit({ fetchedAt: true })
+export type InsertEarningsCalendar = z.infer<typeof insertEarningsCalendarSchema>
+export type EarningsCalendarRow = typeof earningsCalendar.$inferSelect

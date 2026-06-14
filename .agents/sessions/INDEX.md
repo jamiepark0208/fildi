@@ -3,7 +3,10 @@
 Full detail for each date at `.agents/sessions/YYYY-MM-DD.md`.
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-06-10](2026-06-10.md) — multi-agent context architecture complete — .agents/ canonical source, Kiro steering, typed state schema, API catalog, FILDI_ROADMAP | build | next: options-comparison-table, strike-explorer-slider, user-management-system
+- [2026-06-14](2026-06-14.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
+- [2026-06-12](2026-06-12.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
+- [2026-06-11](2026-06-11.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
+- [2026-06-10](2026-06-10.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
 - [2026-06-10](2026-06-10.md) — context consolidation + Kiro setup | build | next: user-management-system, options-comparison-table, strike-explorer-slider
 - [2026-06-10](2026-06-10.md) — AI score explanations + options scanner persistence | build | next: options-comparison-table, strike-explorer-slider, user-management-system
 - [2026-06-09](2026-06-09.md) — technical scorer V2 (all 5 phases) | build | next: options-comparison-table, strike-explorer-slider

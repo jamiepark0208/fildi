@@ -1,5 +1,92 @@
 [
   {
+    "date": "6/11/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 19.44,
+        "change": -2.7799988,
+        "changePct": -12.511246
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 737.76,
+        "change": 12.33,
+        "changePct": 1.69968
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 717.12,
+        "change": 23.429993,
+        "changePct": 3.3775885
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.4630003,
+        "change": -0.07899952,
+        "changePct": -1.7393113
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7411,
+        "change": 15,
+        "changePct": 0.20281233
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29525.25,
+        "change": 60.5,
+        "changePct": 0.2053301
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 386.32,
+        "change": 11.74,
+        "changePct": 3.13418
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 27.95,
+        "change": -0.0999985,
+        "changePct": -0.356501
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 85.98,
+        "change": 1.1000061,
+        "changePct": 1.2959545
+      }
+    ],
+    "content": "# Daily Briefing | 6/11/2026\n\n## 🌍 Macro Environment\n\n- **Yield curve steepening into risk-on**: TNX at 4.46% (−174 bps) signals a sharp retreat from higher rates. Long bonds rallying (+1.30%) confirms the move. This is a goldilocks setup—growth gets tailwinds while put sellers benefit from lower vol compression.\n- **VIX collapse favors premium capture**: VIX at 19.44 (−12.51%) is sub-20 territory. For a cash-secured put seller, this is thin-air premium. The risk/reward on new short puts deteriorates daily in this environment unless you're targeting ultra-wide strikes or rolling down aggressively.\n- **Dollar weakness + equity strength = growth fuel**: DXY at 27.95 (−0.36%) weakening while SPY/QQQ both rally (+1.70% / +3.38%) shows classic risk-on rotation. Tech beneficiaries (NVDA, AMZN, HOOD) get a structural tailwind, but means fewer vol spikes to sell into.\n\n## 📊 Market Pulse\n\n- **QQQ running hard (+3.38%) vs. SPY (+1.70%): Extreme tech outperformance**. Futures barely budging (+0.20–0.21%) suggests this is a cash market phenomenon—retail/institutional rotation into growth. Your portfolio is positioned long this move; short put sellers need to be cautious about mean reversion if bonds stabilize.\n- **Risk-on confirmed, but fragile**: SPY above 737 on falling VIX + bond rally is textbook \"buy the dip\" behavior. However, this is a low-vol, low-premium environment. If macro data disappoints this week (CPI, jobs), a 2–3% SPY correction would spike VIX 25+ very quickly. Today's calmness is **not** an invitation to sell naked or over-leverage.\n- **Futures lag spot = distribution risk**: NQ and ES futures both +0.2% while QQQ crushes it suggests institutional selling into strength at open. Premium environment remains poor for initiating fresh short puts today.\n\n## 🏭 Sector & Stock Catalysts\n\n- **NVDA in the spotlight again**: \"NVIDIA Partnerships Deepen AI Infrastructure\" + Ken Griffin portfolio visibility + $250 price target chatter. Stock remains a darling, but complacency is rising. If you're holding short puts, track analyst revisions this week—downside surprise could trigger fast liquidation.\n- **HOOD breaking out on IPO underwriting pivot**: The news that Robinhood plans to enter the IPO market is bullish on revenue diversification (lower payment for order flow dependency). Stock \"pops\"—watch for resistance at the 52-week high. Good candidate for selling OTM puts if premium justifies it, but verify IV rank first.\n- **AMZN data center narrative flexing**: \"2.5B gallons of water in 2025\" + \"new advertising formats\" signals both ESG pressure and earnings upside. Analysts remain bullish. Stock is structural long; if you hold short puts, this reduces downside risk near-term.\n- **ONDS defense platform launch (Eurosatory 2026)**: \"LADOS rollout\" + \"Unified Battlefield Operations\" is a spec-grade catalyst. Micro-cap risk—watch for overnight gaps if government awards follow the conference. **Avoid short puts on ONDS until post-event clarity.**\n- **JOBY arbitration ruling still open**: \"Keeps Lawsuit Alive\" = ongoing headline risk. Paired with Uber job cuts in adjacent markets, sentiment fragility here. **Do not sell puts on JOBY until ruling clarity emerges.**\n\n## ⚠️ Risks This Week\n\n- **CPI data or Fed speakers could trigger 25+ VIX spike**: With bonds rallying and yields dropping, any \"hawkish hold\" signal from Powell or hotter inflation data would instantly reverse the tone. Your short puts on tech would face sudden margin pressure if QQQ drops 2–3% intra-day. Size accordingly.\n- **Geopolitical wildcard (trade tensions mentioned re: US-Canada bridge)**: If escalation headlines hit, risk-off can move fast. Watch for China tariff chatter or Europe trade drama. Gold +3.13% today hints at some flight-to-safety already priced in, but volatility asymmetry favors upside surprises.\n\n## 💼 Portfolio Implications\n\n- **Do not initiate new short puts today**: VIX at 19.44 and QQQ +3.38% is a *sell premium into strength* setup, not a *new entry* environment. For IRA/FILDI (tax-advantaged), better to wait for a 1–2% SPY pullback to 725–730 range, which would restore VIX to 21–23 and thicken premium. MOM portfolio can be more tactical if it's actively managed.\n- **Priority: Roll existing winners down & out**: If you have short puts expiring mid-June on HOOD, NVDA, or AMZN with profit",
+    "generatedAt": "2026-06-11T22:34:25.559Z",
+    "tickers": [
+      "HOOD",
+      "NVDA",
+      "OPEN",
+      "HOOY",
+      "REBN",
+      "AMZN",
+      "NVDY",
+      "JOBY",
+      "ONDS",
+      "POET",
+      "RUM",
+      "ORCA-USD",
+      "PENGU-USD",
+      "BTC-USD"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "6/8/2026",
     "marketData": [
       {

@@ -4,6 +4,7 @@ import { WATCHLIST } from "../lib/constants.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { logger } from "../lib/logger.js";
+import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 
 const router = Router();
 const yahooFinance = new YahooFinanceClass();
@@ -84,6 +85,43 @@ router.post("/fundamentals/refresh", async (_req, res) => {
     logger.error({ err }, "fundamentals: background refresh crashed"),
   );
   return;
+});
+
+// POST /fundamentals/import-history — one-shot import of LSEG historical CSV rows.
+// Body: { rows: HistoryCSVRow[] }
+// Returns: { imported: number, skipped: number, errors: string[] }
+router.post("/fundamentals/import-history", async (req, res) => {
+  const { rows } = req.body as { rows?: unknown[] };
+  if (!Array.isArray(rows)) {
+    return res.status(400).json({ error: "body.rows must be an array" });
+  }
+
+  const sdm = new StockDataManager();
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) {
+      skipped++;
+      continue;
+    }
+    const r = row as Record<string, unknown>;
+    if (typeof r["ticker"] !== "string" || typeof r["year"] !== "number") {
+      errors.push(`Invalid row — missing ticker or year: ${JSON.stringify(row)}`);
+      skipped++;
+      continue;
+    }
+    try {
+      await sdm.importHistoryRow(r as unknown as HistoryCSVRow);
+      imported++;
+    } catch (err: any) {
+      errors.push(`${r["ticker"]}/${r["year"]}: ${String(err?.message ?? err)}`);
+      skipped++;
+    }
+  }
+
+  return res.json({ imported, skipped, errors });
 });
 
 // GET /fundamentals/status — last fetched timestamp, coverage per ticker, and API budget.

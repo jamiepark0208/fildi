@@ -1,0 +1,12 @@
+{
+  "name": "factset-proxy",
+  "version": "1.0.0",
+  "description": "Static-IP proxy for FactSet API — routes Replit calls through a whitelisted IP",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0"
+  }
+}
