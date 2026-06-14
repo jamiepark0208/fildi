@@ -13,6 +13,10 @@ rl.on('close', () => {
   const filePath = input?.tool_input?.file_path || '';
   if (!filePath) { process.exit(0); }
 
+  // Only fire for indexed source files — skip hooks, config, markdown, etc.
+  const inSource = filePath.includes('/artifacts/api-server/src/') || filePath.includes('/artifacts/stock-compare/src/');
+  if (!inSource) { process.exit(0); }
+
   try {
     const result = execSync(
       `codegraph context "${filePath.replace(/"/g, '\\"')}" 2>/dev/null`,
