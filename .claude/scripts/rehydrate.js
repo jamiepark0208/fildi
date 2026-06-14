@@ -33,7 +33,6 @@ console.log(`Agents  → verifier | data-agent | ui-agent`);
 console.log(`${D}`);
 // Sync codegraph index and show status
 try {
-  execSync('codegraph sync', { cwd:ROOT, stdio:'ignore' });
   const status = execSync('codegraph status 2>/dev/null', { cwd:ROOT }).toString();
   const filesLine  = status.match(/Files:\s+([\d,]+)/);
   const nodesLine  = status.match(/Nodes:\s+([\d,]+)/);
