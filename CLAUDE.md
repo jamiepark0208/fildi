@@ -53,6 +53,12 @@ Never read source files to understand structure — use codegraph context first.
 Full history: `.agents/sessions/INDEX.md` (auto-updated on Stop)
 Phase reports: `.claude/docs/phase-report*.md`
 
+## RESPONSE STYLE (enforced every session)
+- Never write code in prose — tool output is already visible in the UI
+- No multi-line code blocks in text responses unless user explicitly asks to see code
+- 1-2 plain English sentences per action; summaries one sentence only
+- No repeating file paths, command flags, or shell output verbatim in text
+
 ## HOOKS LOCATION
 Hooks are in .claude/settings.local.json under the "hooks" key.
 Never create .claude/hooks/hooks.json — that file is not read.
