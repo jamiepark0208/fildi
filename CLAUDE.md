@@ -17,6 +17,8 @@ First time only: read .claude/skills/replit-setup.md and follow the steps
 | Trader strategy/scoring | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | Feature planning | .claude/skills/feature-planner.md |
+| Implementation planning | .claude/skills/writing-plans.md |
+| Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session | .claude/skills/session-wrap.md |
 
 ## AGENTS
