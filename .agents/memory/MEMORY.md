@@ -1,5 +1,3 @@
 - [API server port conflict](api-server-port-conflict.md) — stale node process holds port 8080 after workflow restarts; kill-port.mjs in dev script handles this automatically now.
 - [Express route ordering](express-route-ordering.md) — specific routes (/options/position-quote) must be declared BEFORE wildcard routes (/options/:ticker) or the wildcard swallows them.
 - [yahoo-finance2 v3 options](yahoo-finance2-options.md) — requires validateResult:false; options chain fetched via yahooFinance.options(ticker, {date}, {validateResult:false}); null bid/ask is normal when market is closed.
-- [Feedback reading rules](feedback-reading-rules.md) — No Explore sweeps; state file+reason before reading; max 5 files/task; find/grep first.
-- [Response style](feedback_response_style.md) — Concise only: no echoing code/commands back, 1-2 sentence summaries, no verbatim output blocks in prose.
