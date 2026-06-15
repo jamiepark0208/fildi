@@ -1,5 +1,5 @@
 import YahooFinanceClass from "yahoo-finance2";
-import { getTier, TIER_CONFIG } from "./constants.js";
+import { getTier } from "./constants.js";
 
 const yahooFinance = new YahooFinanceClass();
 
@@ -12,8 +12,11 @@ export interface OptionRow {
   lastPrice: number;
   iv: number;
   volume: number | null;
+  openInterest: number | null;
   incomePct: number;
   meetsGate: boolean;
+  delta: number | null;
+  spreadPct: number | null;
 }
 
 export interface OptionsChainResult {
@@ -21,6 +24,7 @@ export interface OptionsChainResult {
   expiry: string;
   isWeekly: boolean;
   daysToExpiry: number;
+  exactDte: number;
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
@@ -35,6 +39,7 @@ interface RawContract {
   lastPrice?: number;
   impliedVolatility?: number;
   volume?: number;
+  openInterest?: number;
 }
 
 interface RawOptionsResponse {
@@ -46,6 +51,11 @@ interface RawOptionsResponse {
     calls?: RawContract[];
   }>;
 }
+
+// ── Options scanner constants ─────────────────────────────────────────────────
+const FLAT_MIN_OTM   = 0.03;  // 3% — minimum OTM distance (replaces tier bands)
+const FLAT_MAX_OTM   = 0.22;  // 22% — maximum OTM distance
+const RISK_FREE_RATE = 0.045; // ~current T-bill rate
 
 // ── Black-Scholes Greeks ──────────────────────────────────────────────────────
 
@@ -126,7 +136,7 @@ export async function getOptionPositionQuote(
 
   // Time to expiry in years
   const T = (date.getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
-  const r = 0.045;
+  const r = RISK_FREE_RATE;
 
   let delta: number | null = null;
   let gamma: number | null = null;
@@ -168,6 +178,11 @@ function daysUntil(d: unknown): number {
   return Math.ceil(ms / 86_400_000);
 }
 
+function exactDaysUntil(d: unknown): number {
+  const ms = (d instanceof Date ? d.getTime() : 0) - Date.now();
+  return ms / 86_400_000;
+}
+
 function isWeeklyExpiry(d: unknown): boolean {
   return d instanceof Date && d.getDay() === 5; // Friday
 }
@@ -175,27 +190,38 @@ function isWeeklyExpiry(d: unknown): boolean {
 function buildRows(
   puts: RawContract[],
   spot: number,
-  minOTM: number,
-  maxOTM: number,
-  minIncome: number,
+  exactDte: number,
 ): OptionRow[] {
-  const lo = spot * (1 - maxOTM);
-  const hi = spot * (1 - minOTM);
+  const lo = spot * (1 - FLAT_MAX_OTM);
+  const hi = spot * (1 - FLAT_MIN_OTM);
+  const T  = exactDte / 365;
 
   return puts
     .filter(p => typeof p.strike === "number" && p.strike >= lo && p.strike <= hi)
     .map(p => {
-      const strike    = p.strike!;
-      const bid       = p.bid       ?? 0;
-      const ask       = p.ask       ?? 0;
-      const lastPrice = p.lastPrice ?? 0;
-      const iv        = p.impliedVolatility ?? 0;
-      const volume    = typeof p.volume === "number" ? p.volume : null;
-      const incomePct = bid > 0 ? (bid / strike) * 100 : 0;
+      const strike       = p.strike!;
+      const bid          = p.bid              ?? 0;
+      const ask          = p.ask              ?? 0;
+      const lastPrice    = p.lastPrice        ?? 0;
+      const iv           = p.impliedVolatility ?? 0;
+      const volume       = typeof p.volume === "number" ? p.volume : null;
+      const openInterest = typeof p.openInterest === "number" ? p.openInterest : null;
+      const incomePct    = bid > 0 ? (bid / strike) * 100 : 0;
+      const mid          = bid > 0 && ask > 0 ? (bid + ask) / 2 : null;
+      const spreadPct    = mid !== null && mid > 0 ? parseFloat(((ask - bid) / mid).toFixed(4)) : null;
+
+      let delta: number | null = null;
+      if (iv > 0 && spot > 0 && T > 0) {
+        const g = bsGreeks(spot, strike, T, RISK_FREE_RATE, iv, false);
+        delta = parseFloat(g.delta.toFixed(4));
+      }
+
       return {
-        strike, bid, ask, lastPrice, iv, volume,
+        strike, bid, ask, lastPrice, iv, volume, openInterest,
         incomePct: Math.round(incomePct * 1000) / 1000,
-        meetsGate: incomePct >= minIncome * 100,
+        meetsGate: bid > 0,
+        delta,
+        spreadPct,
       };
     })
     .sort((a, b) => b.strike - a.strike);
@@ -214,9 +240,8 @@ async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsRespon
 // Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 2-21 DTE).
 
 export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
-  const key    = ticker.toUpperCase();
-  const tier   = getTier(key);
-  const config = TIER_CONFIG[tier];
+  const key  = ticker.toUpperCase();
+  const tier = getTier(key);
 
   // Initial fetch — gets spot price, all expiry dates, and first expiry's puts
   const raw0 = await fetchChain(key);
@@ -224,8 +249,8 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   if (!spot) throw new Error(`No spot price for ${key}`);
 
   const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
-  // Keep expiries with 2–21 DTE (skip today/tomorrow, cap at ~3 weeks), take first 2
-  const targets = allDates.filter(d => daysUntil(d) >= 2 && daysUntil(d) <= 21).slice(0, 2);
+  // Keep expiries with 1–28 DTE, take first 3 (allows same-day/next-day expiry selling)
+  const targets = allDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 3);
   if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
 
   // The first raw fetch already contains puts for its expiry — reuse if DTE matches target[0]
@@ -234,15 +259,16 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   function buildResult(raw: RawOptionsResponse, fallbackDate: Date): OptionsChainResult {
     const expiryDate = raw.options?.[0]?.expirationDate ?? fallbackDate;
     const dte        = daysUntil(expiryDate);
-    const weeksOut   = Math.max(1, Math.round(dte / 7));
+    const exactDte   = Math.max(0.5, exactDaysUntil(expiryDate));
     return {
       ticker: key,
       expiry:        toDateStr(expiryDate),
       isWeekly:      isWeeklyExpiry(expiryDate),
       daysToExpiry:  dte,
+      exactDte,
       spot: spot as number,
       tier,
-      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot as number, config.minOTM, config.maxOTM, config.minIncome / weeksOut),
+      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot as number, exactDte),
       fetchedAt: Date.now(),
     };
   }

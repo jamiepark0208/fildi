@@ -10,6 +10,7 @@ import fundamentalsRouter from "./fundamentals";
 import technicalsRouter from "./technicals";
 import explainRouter from "./explain";
 import sdmRouter from "./sdm";
+import macroRegimeRouter from "./macro-regime";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(fundamentalsRouter);
 router.use(technicalsRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
+router.use(macroRegimeRouter);
 
 export default router;

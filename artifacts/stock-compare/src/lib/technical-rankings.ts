@@ -139,6 +139,12 @@ export interface TechnicalRow {
   basicSkew: Num;
   ivTermStructure: Num;
   earningsDaysOut: number | null;
+  // Additional fields returned by /api/technicals/all (used by Option Scorer)
+  swingLow20d: Num; swingHigh20d: Num;
+  swingLow50d: Num; swingHigh50d: Num;
+  pivotS1: Num;
+  atr14: Num;
+  impliedMoveWeekly: Num;
 }
 
 // ── Named weight constants (total = 1.00) ────────────────────────────────────
