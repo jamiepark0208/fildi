@@ -3,17 +3,19 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-06-14
+**build** — last updated 2026-06-15
 
 ## Active work
-- Working: none
-- In progress: none
+- Working: options-scanner-phase4, options-scanner-phase5
+- In progress: Options scanner enhancement complete: new scorer live, StrikeCard overhauled, MacroBanner added, sort system updated
 - Blocked: none
 
 ## Next tasks (priority order)
-1. **options-comparison-table** — side-by-side put option comparison UI
-2. **strike-explorer-slider** — interactive strike selection slider
-3. **user-management-system** — independent watchlists per user, session auth, admin-only refresh (design pending — brainstorm interrupted)
+1. **options-scanner-phase4** — Side-by-side verification: flip USE_NEW_SCORER=true temporarily, add comparison column (old BEST vs new BEST per ticker), document diff in phase-report-options-scanner-enhancement.md, get approval
+2. **options-scanner-phase5** — UI switchover: StrikeCard new fields (delta/POP/buffer/IV rank/optionScore/dataQuality), MacroBanner, sort updates, regime-aware reason strings, remove return5d hard gate, final verifier
+3. **options-comparison-table** — side-by-side put option comparison UI
+4. **strike-explorer-slider** — interactive strike selection slider
+5. **user-management-system** — independent watchlists per user, session auth, admin-only refresh (design pending — brainstorm interrupted)
 4. **fmp-fundamentals-backfill** — `POST /api/fundamentals/refresh` for tickers not yet in DB (check: `GET /api/fundamentals/status`). FactSet is now priority-1; FMP fills remaining fields (PE, P/B, P/S, ROIC, Beta, WACC, shares).
 5. **macro-data-live-feed**
 6. **reserve-oracle-vm-ip** — OCI Console → Networking → IP Management → Reserved Public IPs → assign `146.235.223.94` before any VM reboot loses it

@@ -11,6 +11,9 @@ import {
   type TechnicalScore,
 } from "@/lib/technical-rankings";
 import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X } from "lucide-react";
+import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
+import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
+import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,8 +24,11 @@ interface OptionRow {
   lastPrice: number;
   iv: number;
   volume: number | null;
+  openInterest: number | null;
   incomePct: number;
   meetsGate: boolean;
+  delta: number | null;
+  spreadPct: number | null;
 }
 
 interface OptionsChainResult {
@@ -30,25 +36,43 @@ interface OptionsChainResult {
   expiry: string;
   isWeekly: boolean;
   daysToExpiry: number;
+  exactDte: number;
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
   fetchedAt: number;
 }
 
+interface MacroRegimeResult {
+  vix: number | null;
+  spxChange1d: number | null;
+  ndxChange1d: number | null;
+  rutChange1d: number | null;
+  regime: MacroRegime;
+  indexDirection: "RALLY" | "NEUTRAL" | "CRASH";
+  error?: string;
+}
+
 type ScorecardRow = IndicatorResult & { stale: boolean };
-type SortKey = "income" | "score" | "iv" | "otm" | "signal";
+type SortKey = "optionScore" | "score" | "income" | "iv" | "otm" | "signal" | "buffer";
+
+function pfNum(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : parseFloat(v as string);
+  return Number.isFinite(n) ? n : null;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const RED_TAG = "#ef4444";
 
 const SORT_LABELS: { key: SortKey; label: string }[] = [
-  { key: "iv",     label: "IV%" },
-  { key: "income", label: "Income%" },
-  { key: "score",  label: "Score" },
-  { key: "otm",    label: "OTM buffer" },
-  { key: "signal", label: "Signal" },
+  { key: "optionScore", label: "Option Score" },
+  { key: "score",       label: "Stock Score" },
+  { key: "iv",          label: "IV%" },
+  { key: "income",      label: "Income%" },
+  { key: "buffer",      label: "Buffer" },
+  { key: "signal",      label: "Signal" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,54 +100,44 @@ function viableStrikes(
     .filter(c => (show1wk && Math.ceil(c.daysToExpiry / 7) === 1) ||
                  (show2wk && Math.ceil(c.daysToExpiry / 7) >= 2))
     .flatMap(c => {
-      const w = Math.max(1, Math.ceil(c.daysToExpiry / 7));
+      const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
       return c.puts
-        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / w }))
+        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (exactDte / 7) }))
         .filter(x => x.weeklyIncome >= minWeeklyIncome);
     });
 }
 
 function strikeSummary(
-  indicator: ScorecardRow | null,
   chains: OptionsChainResult[] | null,
   show1wk: boolean,
   show2wk: boolean,
 ): string {
   if (!chains) return "—";
   const strikes = viableStrikes(chains, 0.5, show1wk, show2wk);
-  if (strikes.length === 0) {
-    // return5d is stored as a percentage (e.g. 22.2 = 22.2%), no * 100
-    if (indicator?.return5d != null && indicator.return5d > 3) {
-      return "excluded · RM filter";
-    }
-    return "no viable strikes";
-  }
+  if (strikes.length === 0) return "no viable strikes";
   const best = Math.max(...strikes.map(s => s.weeklyIncome));
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
 }
 
-function buildReasoning(d: ScorecardRow, firstIV: number | null): string {
+function buildReasoning(d: ScorecardRow, firstIV: number | null, macroRegime: MacroRegime = "BASELINE"): string {
   if (d.signal === "GO") {
-    // firstIV is from options chain (decimal), ivCurrent is already %
     const ivPct = d.ivCurrent && d.ivCurrent > 0
       ? d.ivCurrent.toFixed(0)
       : firstIV != null ? (firstIV * 100).toFixed(0) : null;
-    const ivPart  = ivPct != null ? ` — IV ${ivPct}%` : "";
-    const spyPart = d.vsSpy20d != null
+    const ivPart     = ivPct != null ? ` — IV ${ivPct}%` : "";
+    const spyPart    = d.vsSpy20d != null
       ? `, ${d.vsSpy20d > 0 ? "up" : "down"} ${Math.abs(d.vsSpy20d).toFixed(1)}% vs SPY`
       : "";
-    return `RSI ${d.rsi.toFixed(1)} / ${d.rsiThreshold}, MFI ${d.mfi.toFixed(1)} / 25${spyPart}${ivPart}`;
+    const regimePart = macroRegime !== "BASELINE" ? ` · ${macroRegime.replace("_", " ").toLowerCase()} regime` : "";
+    return `RSI ${d.rsi.toFixed(1)} / ${d.rsiThreshold}, MFI ${d.mfi.toFixed(1)} / 25${spyPart}${ivPart}${regimePart}`;
   }
   if (d.signal === "WATCH") {
     if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} slightly above 25 — monitor for weakening`;
     return `RSI ${d.rsi.toFixed(1)} near threshold ${d.rsiThreshold} — monitor`;
   }
-  // return5d is stored as a percentage (e.g. 22.2), no * 100
-  if (d.return5d != null && d.return5d > 3) {
-    return `Up +${d.return5d.toFixed(1)}% in 5 days — wait for mean reversion`;
-  }
   if (!d.rsiOk) return `RSI ${d.rsi.toFixed(1)} above threshold ${d.rsiThreshold}`;
   if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} above 25`;
+  if (d.return5d != null && d.return5d > 5) return `Up +${d.return5d.toFixed(1)}% in 5d — entry score reduced`;
   return "conditions not met";
 }
 
@@ -145,33 +159,68 @@ function StrikeCard({
   chain,
   put,
   isBest,
+  optionScore,
+  dataQuality,
 }: {
   chain: OptionsChainResult;
   put: OptionRow;
   isBest: boolean;
+  optionScore?: number | null;
+  dataQuality?: number | null;
 }) {
-  const weeksOut     = Math.ceil(chain.daysToExpiry / 7);
-  const weeklyIncome = put.incomePct / weeksOut;
+  const exactDte     = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
+  const weeklyIncome = put.incomePct / (exactDte / 7);
   const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
+  const absDelta     = put.delta != null ? Math.abs(put.delta) : null;
+  const pop          = absDelta != null ? (1 - absDelta) * 100 : null;
+  const bufferSds    = put.iv > 0 && exactDte > 0
+    ? (otmPct / 100) / (put.iv * Math.sqrt(exactDte / 365))
+    : null;
+  const gammaRisk    = exactDte <= 3 && absDelta != null && absDelta > 0.20;
   const incomeColor  =
     weeklyIncome >= 1.0 ? "text-green-400" :
     weeklyIncome >= 0.7 ? "text-yellow-400" : "text-muted-foreground";
+  const dqLabel = isBest && dataQuality != null
+    ? dataQuality < 0.50 ? "sparse" : dataQuality < 0.80 ? "partial" : null
+    : null;
 
   return (
     <div className={cn(
-      "rounded-md border px-3 py-2.5 min-w-[118px] space-y-0.5 shrink-0",
+      "rounded-md border px-3 py-2.5 min-w-[130px] space-y-0.5 shrink-0",
       isBest
         ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20"
         : "border-border bg-card",
     )}>
       {isBest && (
-        <div className="text-[9px] font-semibold text-green-400 uppercase tracking-wide mb-1">Best</div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[9px] font-semibold text-green-400 uppercase tracking-wide">Best</span>
+          {optionScore != null && (
+            <span className="text-[9px] font-mono text-green-300">score {optionScore.toFixed(1)}</span>
+          )}
+        </div>
+      )}
+      {gammaRisk && (
+        <div className="text-[9px] font-semibold text-orange-400 mb-0.5">⚡ gamma risk</div>
       )}
       <div className="text-[10px] text-muted-foreground">{formatExpiry(chain.expiry, chain.daysToExpiry)}</div>
       <div className="font-semibold text-sm">${put.strike.toFixed(0)}</div>
       <div className={cn("font-bold text-sm", incomeColor)}>{weeklyIncome.toFixed(2)}%/wk</div>
       <div className="text-[11px] text-muted-foreground">{otmPct.toFixed(1)}% OTM</div>
+      {absDelta != null && (
+        <div className="text-[11px] text-muted-foreground">
+          Δ {put.delta!.toFixed(2)} · POP {pop!.toFixed(0)}%
+        </div>
+      )}
+      {bufferSds != null && (
+        <div className="text-[11px] text-muted-foreground">{bufferSds.toFixed(2)} SDs buffer</div>
+      )}
       <div className="text-[11px] text-muted-foreground">IV {(put.iv * 100).toFixed(0)}%</div>
+      {dqLabel && (
+        <div className={cn(
+          "text-[9px] mt-0.5",
+          dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
+        )}>data {dqLabel}</div>
+      )}
     </div>
   );
 }
@@ -194,6 +243,11 @@ interface ScannerRowProps {
   onRefresh: () => void;
   onDelete: () => void;
   onOverride: () => void;
+  // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
+  techRow?: TechnicalRow | null;
+  fundTotalScore?: number | null;
+  macroRegime?: MacroRegime;
+  allWatchlistIVs?: number[];
 }
 
 function ScannerRow({
@@ -212,6 +266,10 @@ function ScannerRow({
   onRefresh,
   onDelete,
   onOverride,
+  techRow,
+  fundTotalScore,
+  macroRegime = "BASELINE",
+  allWatchlistIVs = [],
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? null;
@@ -222,13 +280,36 @@ function ScannerRow({
     ? viableStrikes(optionsData, minIncome, show1wk, show2wk)
     : [];
 
-  const bestStrike = strikes.length > 0
-    ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
-    : null;
+  const newScorerBest = useMemo(() => {
+    if (!optionsData || !techRow) return null;
+    const stockCtx: StockContext = {
+      ivRank:                pfNum(techRow.ivRank),
+      ivPercentile:          pfNum(techRow.ivPercentile),
+      ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
+      basicSkew:             pfNum(techRow.basicSkew),
+      swingLow20d:           pfNum(techRow.swingLow20d),
+      swingLow50d:           pfNum(techRow.swingLow50d),
+      pivotS1:               pfNum(techRow.pivotS1),
+      nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
+      techTotalScore:        score?.totalScore ?? null,
+      fundTotalScore:        fundTotalScore ?? null,
+    };
+    const picked = pickBestStrike(optionsData, stockCtx, macroRegime, allWatchlistIVs);
+    if (!picked) return null;
+    return {
+      chain: picked.chain as OptionsChainResult,
+      put: picked.put as OptionRow,
+      weeklyIncome: picked.result.weeklyIncome,
+      optionScore: picked.result.optionScore,
+      dataQuality: picked.result.dataQuality,
+    };
+  }, [optionsData, techRow, score, fundTotalScore, macroRegime, allWatchlistIVs]);
+
+  const bestStrike = newScorerBest
+    ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
 
   // Override: show best put even when no viable strikes at current minIncome threshold
-  const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading &&
-    !strikeSummary(indicator, optionsData, show1wk, show2wk).startsWith("excluded");
+  const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;
   const overrideStrikes = overrideEnabled && optionsData
     ? viableStrikes(optionsData, 0, show1wk, show2wk)
     : [];
@@ -242,9 +323,7 @@ function ScannerRow({
     : firstIV != null ? (firstIV * 100).toFixed(0) : null;
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
-  const summary   = optionsLoading
-    ? null
-    : strikeSummary(indicator, optionsData, show1wk, show2wk);
+  const summary = optionsLoading ? null : strikeSummary(optionsData, show1wk, show2wk);
 
   const borderColor = colorTag || "transparent";
 
@@ -322,7 +401,7 @@ function ScannerRow({
           {/* Reasoning line */}
           {indicator && (
             <p className="text-xs text-muted-foreground">
-              {buildReasoning(indicator, firstIV)}
+              {buildReasoning(indicator, firstIV, macroRegime)}
             </p>
           )}
 
@@ -336,25 +415,28 @@ function ScannerRow({
 
           {!optionsLoading && optionsData && strikes.length > 0 && (
             <div className="flex gap-2 flex-wrap">
-              {strikes.map(({ chain, put, weeklyIncome }) => (
-                <StrikeCard
-                  key={`${chain.expiry}-${put.strike}`}
-                  chain={chain}
-                  put={put}
-                  isBest={
-                    bestStrike != null &&
-                    put.strike === bestStrike.put.strike &&
-                    chain.expiry === bestStrike.chain.expiry
-                  }
-                />
-              ))}
+              {strikes.map(({ chain, put }) => {
+                const isBest = bestStrike != null &&
+                  put.strike === bestStrike.put.strike &&
+                  chain.expiry === bestStrike.chain.expiry;
+                return (
+                  <StrikeCard
+                    key={`${chain.expiry}-${put.strike}`}
+                    chain={chain}
+                    put={put}
+                    isBest={isBest}
+                    optionScore={isBest ? (newScorerBest?.optionScore ?? null) : null}
+                    dataQuality={isBest ? (newScorerBest?.dataQuality ?? null) : null}
+                  />
+                );
+              })}
             </div>
           )}
 
           {!optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground italic">
-                {strikeSummary(indicator, optionsData, show1wk, show2wk)}
+                {strikeSummary(optionsData, show1wk, show2wk)}
               </p>
               {canOverride && !overrideEnabled && (
                 <button
@@ -391,6 +473,30 @@ function ScannerRow({
   );
 }
 
+// ── MacroBanner ───────────────────────────────────────────────────────────────
+
+function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
+  if (!data || data.vix == null) return null;
+  const regimeStyle =
+    data.regime === "LOW_VOL"  ? "text-blue-400 border-blue-500/30 bg-blue-500/5" :
+    data.regime === "ELEVATED" ? "text-orange-400 border-orange-500/30 bg-orange-500/5" :
+    data.regime === "EXTREME"  ? "text-red-400 border-red-500/30 bg-red-500/5" :
+                                  "text-muted-foreground border-border bg-card/50";
+  const dirIcon =
+    data.indexDirection === "RALLY" ? "▲" :
+    data.indexDirection === "CRASH" ? "▼" : "–";
+  const target = REGIME_INCOME_TARGET[data.regime];
+  const floor  = REGIME_INCOME_FLOOR[data.regime];
+  return (
+    <div className={cn("flex items-center gap-3 px-3 py-1.5 rounded-md border text-xs", regimeStyle)}>
+      <span className="font-semibold tracking-wide">{data.regime.replace("_", " ")}</span>
+      <span>VIX {data.vix.toFixed(1)}</span>
+      <span>{dirIcon} {data.indexDirection}</span>
+      <span className="text-muted-foreground">income target {floor === target ? `${target}%` : `${floor}–${target}%`}/wk</span>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function OptionsScanner() {
@@ -399,7 +505,7 @@ export default function OptionsScanner() {
   const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
   const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
-  const [sort,          setSort]          = useState<SortKey>("iv");
+  const [sort,          setSort]          = useState<SortKey>("optionScore");
   const [show1wk,       setShow1wk]       = useState(true);
   const [show2wk,       setShow2wk]       = useState(true);
   const [goOnly,        setGoOnly]        = useState(false);
@@ -509,11 +615,109 @@ export default function OptionsScanner() {
     return m;
   }, [displayTickers, optionsQueries]);
 
+  // ── Macro regime — for Option Scorer overlay ─────────────────────────────────
+  const { data: macroRegimeData } = useQuery({
+    queryKey: ["macro", "regime"],
+    queryFn: async (): Promise<MacroRegimeResult> => {
+      const res = await fetch("/api/macro/regime");
+      if (!res.ok) return { vix: null, spxChange1d: null, ndxChange1d: null, rutChange1d: null, regime: "BASELINE", indexDirection: "NEUTRAL", error: "fetch failed" };
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // ── Fundamental rankings — for Option Scorer stock quality component ──────────
+  const { data: fundRankingsData } = useQuery({
+    queryKey: ["fundamentals", "rankings"],
+    queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
+      const res = await fetch("/api/fundamentals/rankings");
+      if (!res.ok) throw new Error("fundamentals/rankings failed");
+      return res.json();
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
   // V2: self-relative scores over all 31 watchlist rows — invariant to display filter
   const rankings = useMemo(() => {
     if (!allTechnicalsData?.length) return new Map<string, TechnicalScore>();
     return new Map(computeTechnicalRankingsV2(allTechnicalsData).map(s => [s.ticker, s]));
   }, [allTechnicalsData]);
+
+  // Tech row map (full fields for Option Scorer — includes swingLow, pivotS1, atr14, etc.)
+  const techRowMap = useMemo(
+    () => new Map((allTechnicalsData ?? []).map(r => [r.ticker, r])),
+    [allTechnicalsData],
+  );
+
+  // Fundamental score map
+  const fundScoreMap = useMemo(
+    () => new Map((fundRankingsData ?? []).map(r => [r.ticker, r.totalScore])),
+    [fundRankingsData],
+  );
+
+  // Cross-watchlist IVs for absolute IV component (from all loaded option chains)
+  const allWatchlistIVs = useMemo(() => {
+    const ivs: number[] = [];
+    for (const chains of optionsMap.values()) {
+      if (!chains) continue;
+      for (const c of chains) for (const p of c.puts) if (p.iv > 0) ivs.push(p.iv);
+    }
+    return ivs;
+  }, [optionsMap]);
+
+  // Best option score per ticker (drives optionScore sort + stockScoreMap)
+  const bestOptionScoreMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ticker of displayTickers) {
+      const chains = optionsMap.get(ticker);
+      const techRow = techRowMap.get(ticker);
+      if (!chains || !techRow) continue;
+      const stockCtx: StockContext = {
+        ivRank:                pfNum(techRow.ivRank),
+        ivPercentile:          pfNum(techRow.ivPercentile),
+        ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
+        basicSkew:             pfNum(techRow.basicSkew),
+        swingLow20d:           pfNum(techRow.swingLow20d),
+        swingLow50d:           pfNum(techRow.swingLow50d),
+        pivotS1:               pfNum(techRow.pivotS1),
+        nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
+        techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
+        fundTotalScore:        fundScoreMap.get(ticker) ?? null,
+      };
+      const picked = pickBestStrike(chains, stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs);
+      if (picked) m.set(ticker, picked.result.optionScore);
+    }
+    return m;
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs]);
+
+  // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
+  const stockScoreMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ticker of displayTickers) {
+      const techRow   = techRowMap.get(ticker);
+      const indicator = scorecardMap.get(ticker);
+      const chains    = optionsMap.get(ticker);
+      const relMove   = computeRelativeMove(
+        pfNum(techRow?.priceZScore),
+        pfNum(techRow?.priceVsMa50Atr),
+        indicator?.return5d ?? null,
+        pfNum(techRow?.swingHigh20d),
+        pfNum(techRow?.swingLow20d),
+        chains?.[0]?.spot ?? null,
+      );
+      const result = computeStockScore({
+        techTotalScore:    rankings.get(ticker)?.totalScore ?? null,
+        fundTotalScore:    fundScoreMap.get(ticker) ?? null,
+        relativeMoveScore: relMove,
+        bestOptionScore:   bestOptionScoreMap.get(ticker) ?? null,
+        colorTag:          colorMap.get(ticker) ?? null,
+      });
+      m.set(ticker, result.stockScore);
+    }
+    return m;
+  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
   const sortedTickers = useMemo(() => {
@@ -522,16 +726,37 @@ export default function OptionsScanner() {
 
     list.sort((a, b) => {
       switch (sort) {
+        case "optionScore":
+          return (bestOptionScoreMap.get(b) ?? -1) - (bestOptionScoreMap.get(a) ?? -1);
+        case "score":
+          return (stockScoreMap.get(b) ?? 0) - (stockScoreMap.get(a) ?? 0);
         case "signal": {
           const o = { GO: 2, WATCH: 1, NO: 0 } as const;
           return (o[rankings.get(b)?.signal ?? "NO"] ?? 0) - (o[rankings.get(a)?.signal ?? "NO"] ?? 0);
         }
-        case "score":
-          return (rankings.get(b)?.totalScore ?? 0) - (rankings.get(a)?.totalScore ?? 0);
         case "iv": {
-          // Sort by ivCurrent from scorecard data (always loaded, no expand needed)
           const iv = (t: string) => scorecardMap.get(t)?.ivCurrent ?? -1;
           return iv(b) - iv(a);
+        }
+        case "buffer": {
+          const buf = (t: string) => {
+            const chains = optionsMap.get(t);
+            if (!chains) return -1;
+            const spot = chains[0]?.spot ?? 0;
+            if (!spot) return -1;
+            let best = -1;
+            for (const c of chains) {
+              const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
+              for (const p of c.puts) {
+                if (p.iv <= 0 || exactDte <= 0) continue;
+                const otm = (spot - p.strike) / spot;
+                const sds = otm / (p.iv * Math.sqrt(exactDte / 365));
+                if (sds > best) best = sds;
+              }
+            }
+            return best;
+          };
+          return buf(b) - buf(a);
         }
         case "otm": {
           const otm = (t: string) => {
@@ -550,9 +775,9 @@ export default function OptionsScanner() {
             if (!chains) return -1;
             let best = -1;
             for (const c of chains) {
-              const w = Math.max(1, Math.ceil(c.daysToExpiry / 7));
+              const exactDte = Math.max(0.01, c.exactDte ?? c.daysToExpiry);
               for (const p of c.puts) {
-                const wi = p.incomePct / w;
+                const wi = p.incomePct / (exactDte / 7);
                 if (wi > best) best = wi;
               }
             }
@@ -563,7 +788,7 @@ export default function OptionsScanner() {
       }
     });
     return list;
-  }, [displayTickers, sort, goOnly, scorecardMap, rankings, optionsMap]);
+  }, [displayTickers, sort, goOnly, scorecardMap, rankings, optionsMap, bestOptionScoreMap, stockScoreMap]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
@@ -640,6 +865,8 @@ export default function OptionsScanner() {
             {minutesAgo(refreshedAt)}
           </button>
         </div>
+
+        <MacroBanner data={macroRegimeData} />
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -738,6 +965,10 @@ export default function OptionsScanner() {
                 onRefresh={() => handleRowRefresh(ticker)}
                 onDelete={() => handleDelete(ticker)}
                 onOverride={() => handleOverride(ticker)}
+                techRow={techRowMap.get(ticker) ?? null}
+                fundTotalScore={fundScoreMap.get(ticker) ?? null}
+                macroRegime={macroRegimeData?.regime ?? "BASELINE"}
+                allWatchlistIVs={allWatchlistIVs}
               />
             ))}
           </div>
