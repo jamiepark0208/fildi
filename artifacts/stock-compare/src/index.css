@@ -67,7 +67,7 @@
   --secondary-foreground: 210 40% 98%;
 
   --muted: 216 21% 18%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted-foreground: 215 18% 82%;
 
   --accent: 199 89% 48%;
   --accent-foreground: 210 40% 98%;
@@ -86,6 +86,7 @@
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'Space Mono', monospace;
   --radius: 0.5rem;
+  --sidebar-w: 220px;
 }
 
 .dark {
@@ -107,7 +108,7 @@
   --secondary-foreground: 210 40% 98%;
 
   --muted: 216 21% 18%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted-foreground: 215 18% 82%;
 
   --accent: 199 89% 48%;
   --accent-foreground: 210 40% 98%;

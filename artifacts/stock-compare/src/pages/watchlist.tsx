@@ -29,7 +29,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 }
 
 function WatchlistView() {
-  const { entries, isLoaded, addEntry, removeEntry } = useWatchlist();
+  const { entries, isLoaded, addEntry, removeEntry, updateColorTag } = useWatchlist();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [filterColor, setFilterColor] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
@@ -47,7 +47,7 @@ function WatchlistView() {
   const [inputText, setInputText] = useState("");
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
+  const [colorPickerTicker, setColorPickerTicker] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,19 +69,13 @@ function WatchlistView() {
 
   const selectTickerForAdd = useCallback((ticker: string) => {
     const upper = ticker.toUpperCase();
-    setShowColorPicker(upper);
+    addEntry(upper);
+    setColorPickerTicker(upper);
     setInputText("");
     setOpen(false);
     setFocusedIndex(-1);
     inputRef.current?.blur();
-  }, []);
-
-  const confirmAdd = (color: string) => {
-    if (showColorPicker) {
-      addEntry(showColorPicker, color);
-      setShowColorPicker(null);
-    }
-  };
+  }, [addEntry]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value.toUpperCase());
@@ -182,33 +176,7 @@ function WatchlistView() {
       <div className="w-[300px] border-r border-border flex flex-col shrink-0 bg-sidebar/30">
         {/* Search Header */}
         <div className="p-4 border-b border-border/40">
-          {showColorPicker ? (
-            <div className="bg-card border border-border rounded-md p-3 shadow-sm">
-              <div className="text-xs font-medium mb-2">Tag for {showColorPicker}</div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {PRESET_COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => confirmAdd(c)}
-                    className="w-5 h-5 rounded-full hover:scale-110 transition-transform"
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-                <button
-                  onClick={() => confirmAdd("")}
-                  className="w-5 h-5 rounded-full border border-dashed border-muted-foreground flex items-center justify-center hover:scale-110 transition-transform bg-transparent"
-                  title="No tag"
-                />
-              </div>
-              <button
-                onClick={() => setShowColorPicker(null)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
+          <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
               {isSearching && debouncedSearch.length >= 2 && (
                 <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin z-10" />
@@ -255,7 +223,6 @@ function WatchlistView() {
                 </div>
               )}
             </div>
-          )}
 
           {/* Filter Chips */}
           <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -283,7 +250,7 @@ function WatchlistView() {
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 py-2 border-b border-border/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-sidebar/30 backdrop-blur-md z-10">
+        <div className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 py-2.5 border-b border-border/40 text-xs font-bold text-white uppercase tracking-wider sticky top-0 bg-sidebar/30 backdrop-blur-md z-10">
           <div />
           {(["symbol", "last", "chg", "chgPct"] as SortField[]).map((field, i) => (
             <button
@@ -315,48 +282,71 @@ function WatchlistView() {
                 const chgColor = isPositive ? "text-green-500" : "text-red-500";
                 const chgSign = isPositive ? "+" : "";
 
+                const isTagging = colorPickerTicker === entry.ticker;
                 return (
-                  <div
-                    key={entry.ticker}
-                    onClick={() => setSelectedTicker(entry.ticker)}
-                    className={cn(
-                      "grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 h-[36px] text-xs cursor-pointer transition-colors group relative",
-                      isSelected ? "bg-primary/10" : "hover:bg-secondary/40"
-                    )}
-                  >
-                    <div>
-                      {entry.colorTag ? (
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.colorTag }} />
-                      ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
-                      )}
-                    </div>
+                  <div key={entry.ticker} className={cn("transition-colors", isSelected ? "bg-primary/10" : "hover:bg-secondary/40")}>
+                    {/* Main row */}
                     <div
-                      className="font-mono font-bold"
-                      style={{ color: entry.colorTag || 'inherit' }}
+                      onClick={() => setSelectedTicker(entry.ticker)}
+                      className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 h-[36px] text-xs cursor-pointer group relative"
                     >
-                      {entry.ticker}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setColorPickerTicker(isTagging ? null : entry.ticker);
+                        }}
+                        title="Set color tag"
+                        className="flex items-center justify-center w-4 h-4 rounded-full hover:ring-1 hover:ring-white/40 transition-all"
+                      >
+                        {entry.colorTag ? (
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.colorTag }} />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-white/20 hover:bg-white/40" />
+                        )}
+                      </button>
+                      <div className="font-mono font-bold" style={{ color: entry.colorTag || 'inherit' }}>
+                        {entry.ticker}
+                      </div>
+                      <div className="text-right font-mono tabular-nums text-white">
+                        {quote?.currentPrice ? quote.currentPrice.toFixed(2) : "—"}
+                      </div>
+                      <div className={cn("text-right font-mono tabular-nums", chgColor)}>
+                        {quote?.dayChange !== undefined ? `${chgSign}${dayChg.toFixed(2)}` : "—"}
+                      </div>
+                      <div className={cn("text-right font-mono tabular-nums", chgColor)}>
+                        {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(2)}%` : "—"}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeEntry(entry.ticker);
+                          if (selectedTicker === entry.ticker) setSelectedTicker(null);
+                          if (colorPickerTicker === entry.ticker) setColorPickerTicker(null);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-background/80 rounded-md transition-all text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
-                    <div className="text-right font-mono tabular-nums">
-                      {quote?.currentPrice ? quote.currentPrice.toFixed(2) : "—"}
-                    </div>
-                    <div className={cn("text-right font-mono tabular-nums", chgColor)}>
-                      {quote?.dayChange !== undefined ? `${chgSign}${dayChg.toFixed(2)}` : "—"}
-                    </div>
-                    <div className={cn("text-right font-mono tabular-nums", chgColor)}>
-                      {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(2)}%` : "—"}
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeEntry(entry.ticker);
-                        if (selectedTicker === entry.ticker) setSelectedTicker(null);
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-background/80 rounded-md transition-all text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {/* Inline color picker */}
+                    {isTagging && (
+                      <div className="px-4 pb-2 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                        <span className="text-[10px] text-white/50">Tag:</span>
+                        {PRESET_COLORS.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => { updateColorTag(entry.ticker, c); setColorPickerTicker(null); }}
+                            className={cn("w-4 h-4 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-background")}
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                        <button
+                          onClick={() => { updateColorTag(entry.ticker, ""); setColorPickerTicker(null); }}
+                          className="w-4 h-4 rounded-full border border-dashed border-white/30 hover:border-white/60 transition-colors shrink-0"
+                          title="Remove tag"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -388,7 +378,7 @@ export default function Watchlist() {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex">
       <Sidebar />
-      <main className="flex-1 ml-[220px] flex flex-col h-[100dvh] overflow-hidden">
+      <main className="flex-1 flex flex-col h-[100dvh] overflow-hidden" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
         <div className="shrink-0 border-b border-border bg-background px-6 py-4">
           <h1 className="text-lg font-bold tracking-tight leading-none">Watchlist</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Your personal watchlist</p>

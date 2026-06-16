@@ -441,7 +441,7 @@ export default function MacroDashboard() {
     return (
       <div className="flex h-screen">
         <Sidebar />
-        <div className="ml-[220px] flex flex-1 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
@@ -452,7 +452,7 @@ export default function MacroDashboard() {
     return (
       <div className="flex h-screen">
         <Sidebar />
-        <div className="ml-[220px] flex flex-1 flex-col items-center justify-center gap-4">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
           <AlertTriangle className="h-8 w-8 text-red-400" />
           <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
           <button
@@ -474,7 +474,7 @@ export default function MacroDashboard() {
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
 
-      <main className="ml-[220px] p-6 flex-1 space-y-6 max-w-[1400px]">
+      <main className="p-6 flex-1 space-y-6 max-w-[1400px]" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
 
         {/* ── Header ─────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">

@@ -276,7 +276,7 @@ function StrikeTableHeader() {
     <div className={cn(
       "grid items-center gap-x-4 px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase",
       "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
-      "border-b border-border/60 bg-slate-900/60 text-slate-400",
+      "border-b border-border/60 bg-slate-900/60 text-white",
     )}>
       <div>Strike</div>
       <div>Bid</div>
@@ -1027,7 +1027,7 @@ export default function OptionsScanner() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 ml-[220px] p-6 space-y-4">
+      <main className="flex-1 p-6 space-y-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1046,7 +1046,7 @@ export default function OptionsScanner() {
             </div>
           </div>
           <button
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors"
             onClick={handleGlobalRefresh}
             disabled={scorecardLoading}
           >
@@ -1071,7 +1071,7 @@ export default function OptionsScanner() {
                   "px-2.5 py-1 text-xs rounded transition-colors",
                   sort === key
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    : "text-white/75 hover:text-white",
                 )}
               >
                 {label}
@@ -1088,7 +1088,7 @@ export default function OptionsScanner() {
               "px-2.5 py-1 text-xs rounded-md border transition-colors",
               show1wk
                 ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:text-foreground",
+                : "border-border text-white/75 hover:text-white",
             )}
           >
             1wk
@@ -1096,7 +1096,7 @@ export default function OptionsScanner() {
 
           {/* Editable min income filter */}
           <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
-            <span className="text-xs text-muted-foreground">≥</span>
+            <span className="text-xs text-white/75">≥</span>
             <input
               type="number"
               min="0"
@@ -1109,7 +1109,7 @@ export default function OptionsScanner() {
               }}
               className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center"
             />
-            <span className="text-xs text-muted-foreground">%/wk</span>
+            <span className="text-xs text-white/75">%/wk</span>
           </div>
 
           <div className="w-px h-5 bg-border mx-1" />
@@ -1122,12 +1122,12 @@ export default function OptionsScanner() {
               onChange={e => setAddInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === "Enter" && handleAdd()}
               placeholder="Add ticker…"
-              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-white placeholder:text-white/45 focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button
               onClick={handleAdd}
               disabled={!addInput.trim()}
-              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 disabled:opacity-40 transition-colors"
+              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-white/75 hover:text-white hover:border-primary/50 disabled:opacity-40 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -1147,7 +1147,7 @@ export default function OptionsScanner() {
         ) : (
           <div className="rounded-md border border-border overflow-hidden">
             {/* Column headers */}
-            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-slate-900/80 text-[10px] font-semibold tracking-wider uppercase text-slate-500" style={{ borderLeft: "4px solid transparent" }}>
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-slate-900/80 text-xs font-bold tracking-wider uppercase text-white" style={{ borderLeft: "4px solid transparent" }}>
               <div className="w-[150px] shrink-0">Ticker / Price</div>
               <div className="w-[56px] shrink-0">Signal</div>
               <div className="w-[64px] shrink-0">Stock Score</div>

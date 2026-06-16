@@ -543,7 +543,7 @@ function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition
             ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
             : <ChevronDown  className="w-4 h-4 text-muted-foreground shrink-0" />}
           <span className="font-bold text-sm">{name}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-white/60">
             {entries.length} position{entries.length !== 1 ? "s" : ""}
           </span>
         </button>
@@ -553,19 +553,19 @@ function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition
           <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
             {stats.collateral > 0 && (
               <span className="text-yellow-400">
-                <span className="text-muted-foreground font-sans mr-1">collateral</span>
+                <span className="text-white/60 font-sans mr-1">collateral</span>
                 {formatCurrency(stats.collateral)}
               </span>
             )}
             {stats.premium > 0 && (
               <span className="text-green-400">
-                <span className="text-muted-foreground font-sans mr-1">premium</span>
+                <span className="text-white/60 font-sans mr-1">premium</span>
                 +{formatCurrency(stats.premium)}
               </span>
             )}
             {stats.stockValue > 0 && (
               <span className="text-blue-400">
-                <span className="text-muted-foreground font-sans mr-1">stock</span>
+                <span className="text-white/60 font-sans mr-1">stock</span>
                 {formatCurrency(stats.stockValue)}
               </span>
             )}
@@ -609,7 +609,7 @@ function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition
                         key={col}
                         onClick={() => toggleSort(col)}
                         className={cn(
-                          "py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider",
+                          "py-2.5 px-4 text-xs font-bold text-white uppercase tracking-wider",
                           "cursor-pointer select-none hover:text-foreground transition-colors",
                           align === "right" ? "text-right" : "text-left"
                         )}
@@ -657,11 +657,11 @@ function AggCard({ label, value, sub, icon, highlight }: {
       "rounded-xl border p-4 flex items-start gap-3",
       highlight ? "border-primary/40 bg-primary/5" : "border-border bg-card"
     )}>
-      <div className="mt-0.5 text-muted-foreground">{icon}</div>
+      <div className="mt-0.5 text-white/60">{icon}</div>
       <div>
-        <div className="text-xs text-muted-foreground font-medium mb-1">{label}</div>
-        <div className="text-xl font-bold font-mono tabular-nums">{value}</div>
-        {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
+        <div className="text-xs font-semibold text-white/75 uppercase tracking-wider mb-1">{label}</div>
+        <div className="text-2xl font-bold font-mono tabular-nums">{value}</div>
+        {sub && <div className="text-xs text-white/60 mt-0.5">{sub}</div>}
       </div>
     </div>
   );
@@ -749,7 +749,7 @@ export default function Portfolio() {
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
       <Sidebar />
 
-      <main className="flex-1 ml-[220px] min-w-0">
+      <main className="flex-1 min-w-0" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
         {/* Header */}
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>

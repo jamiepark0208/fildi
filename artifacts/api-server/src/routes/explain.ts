@@ -15,6 +15,9 @@ interface FundamentalData {
   reason:         string;
   suspectMetrics?: string[];
   dataQuality?:   string;
+  sector?:        string;
+  industry?:      string;
+  metricValues?:  Record<string, number | null>;
 }
 
 interface TechnicalData {
@@ -57,16 +60,32 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
     ? `Data quality: ${d.dataQuality}.`
     : "";
 
-  return `You are a financial analyst explaining a stock's fundamental score to a retail investor in 2-3 clear sentences. Be specific about what drives the score — name actual metrics and values. Do not give investment advice. Do not use jargon without explanation.
+  const sectorCtx = d.sector ? `Sector: ${d.sector}${d.industry ? ` / ${d.industry}` : ""}` : "";
+
+  const metricLines = d.metricValues
+    ? Object.entries(d.metricValues)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `  ${k}: ${(v as number).toFixed(2)}`)
+        .join("\n")
+    : "";
+
+  return `You are a senior equity analyst writing a concise but substantive explanation of a stock's fundamental score for an options trader. Be specific, cite actual numbers, and compare them to typical sector/industry benchmarks where relevant (e.g. "P/E of 12x vs. sector average ~18x").
 
 Ticker: ${ticker}
-Overall score: ${d.totalScore.toFixed(1)}/100 (rank #${d.rank} out of 31)
-Family scores: Value ${d.familyScores.value.toFixed(0)}%, Growth ${d.familyScores.growth.toFixed(0)}%, Quality ${d.familyScores.quality.toFixed(0)}%, Safety ${d.familyScores.safety.toFixed(0)}%
+${sectorCtx}
+Overall score: ${d.totalScore.toFixed(1)}/100 (rank #${d.rank} out of the comparison group)
+Family scores — Value: ${d.familyScores.value.toFixed(0)}/100 | Growth: ${d.familyScores.growth.toFixed(0)}/100 | Quality: ${d.familyScores.quality.toFixed(0)}/100 | Safety: ${d.familyScores.safety.toFixed(0)}/100
 Strengths: ${d.topMetrics.join(", ") || "none identified"}
 Weaknesses: ${d.weakMetrics.join(", ") || "none identified"}
+${metricLines ? `\nActual metric values:\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
 
-Write a 2-3 sentence explanation of what this score means for ${ticker}. Start with the most important driver. Be specific and concrete.`;
+Write 3–4 bullet points (starting with -) explaining WHY ${ticker} scores this way. Each bullet should:
+- Name a specific metric with its actual value
+- Compare it to what's typical for the sector/industry (e.g. "vs. tech sector median ~25x P/E")
+- State whether this is a strength or concern and why it matters for an options seller
+
+Be direct and informative. No intro or outro. No investment advice.`;
 }
 
 function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {

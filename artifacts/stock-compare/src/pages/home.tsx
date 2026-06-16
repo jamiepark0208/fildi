@@ -90,7 +90,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
       <Sidebar />
 
-      <main className="flex-1 ml-[220px] min-w-0">
+      <main className="flex-1 min-w-0" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Fundamental Analysis</h1>
@@ -121,7 +121,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
             onPeriodChange={setSelectedPeriod}
           />
 
-          {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} />}
+          {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} stocks={loadedStocks} />}
           {hasData && (
             <MetricsTable stocks={loadedStocks} loadingTickers={loadingTickers} />
           )}

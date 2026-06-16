@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { StockScore } from "@/lib/rankings";
+import { StockMetrics } from "@workspace/api-client-react";
 import { Trophy, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
+  stocks?: StockMetrics[];
 }
 
 function parseBullets(text: string): string[] {
@@ -26,7 +28,7 @@ const ROW_STYLE = (idx: number) =>
   idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
               "border-border/40 bg-background/30";
 
-export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
+export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps) {
   const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
   const [loading,      setLoading]      = useState<Set<string>>(new Set());
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
@@ -45,9 +47,13 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
     const metricEntries = Object.entries(score.metricScores)
       .filter(([, v]) => v.value != null)
       .sort((a, b) => b[1].weightedScore - a[1].weightedScore);
-    const topMetrics  = metricEntries.slice(0, 3).map(([k]) => k);
-    const weakMetrics = metricEntries.slice(-3).map(([k]) => k);
+    const topMetrics  = metricEntries.slice(0, 4).map(([k]) => k);
+    const weakMetrics = metricEntries.slice(-4).map(([k]) => k);
     const fs = score.familyScores;
+    const stockData = stocks?.find(s => s.ticker === ticker);
+    const metricValues = Object.fromEntries(
+      metricEntries.map(([k, v]) => [k, v.value])
+    );
 
     setLoading(prev => new Set(prev).add(ticker));
     try {
@@ -69,6 +75,9 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
             reason: score.reason,
             suspectMetrics: score.suspectMetrics,
             dataQuality: score.dataQuality,
+            sector:   stockData?.sector   ?? undefined,
+            industry: stockData?.industry ?? undefined,
+            metricValues,
           },
         }),
       });
@@ -114,13 +123,13 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
                 {/* Ticker + name */}
                 <div className="w-[88px] shrink-0">
                   <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
-                  <span className="block text-[10px] text-slate-400 truncate max-w-[84px]">{score.companyName}</span>
+                  <span className="block text-xs text-white/60 truncate max-w-[84px]">{score.companyName}</span>
                 </div>
 
                 {/* Score */}
                 <div className="w-[56px] shrink-0 text-right">
                   <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
-                  <span className="text-[10px] text-slate-500"> pts</span>
+                  <span className="text-xs text-white/50"> pts</span>
                 </div>
 
                 {/* Bar */}
@@ -138,7 +147,7 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
                 <button
                   onClick={() => fetchExplanation(score)}
                   disabled={isLoading}
-                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors shrink-0 disabled:opacity-50"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
                 >
                   {isLoading ? "…" : "Why"}
                   <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
@@ -146,10 +155,10 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
               </div>
 
               {isExpanded && bullets.length > 0 && (
-                <ul className="mt-2 mb-0.5 pl-9 space-y-0.5">
+                <ul className="mt-2.5 mb-1 pl-9 space-y-1.5">
                   {bullets.map((b, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-xs text-white leading-snug">
-                      <span className="text-slate-500 shrink-0 mt-0.5">•</span>
+                    <li key={i} className="flex items-start gap-2 text-sm text-white leading-relaxed">
+                      <span className="text-white/50 shrink-0 mt-0.5">•</span>
                       {b}
                     </li>
                   ))}

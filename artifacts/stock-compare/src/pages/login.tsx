@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -9,8 +9,14 @@ export default function Login() {
   const [tab, setTab] = useState<Tab>("signin");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { refetch } = useAuth();
+  const { user, refetch } = useAuth();
   const [, navigate] = useLocation();
+
+  // Navigate once auth state is confirmed — avoids race where ProtectedRoute
+  // sees stale null user between refetch() resolving and React re-rendering.
+  useEffect(() => {
+    if (user) navigate("/");
+  }, [user]);
 
   async function handleSignIn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,7 +33,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Login failed"); return; }
       await refetch();
-      navigate("/");
+      // navigation handled by useEffect watching user
     } catch {
       setError("Network error — please try again");
     } finally {
@@ -55,7 +61,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Registration failed"); return; }
       await refetch();
-      navigate("/");
+      // navigation handled by useEffect watching user
     } catch {
       setError("Network error — please try again");
     } finally {

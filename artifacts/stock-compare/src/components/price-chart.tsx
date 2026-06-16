@@ -120,7 +120,7 @@ export function PriceChart({ tickers, loadedStocks, selectedPeriod, onPeriodChan
               <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
               <XAxis 
                 dataKey="date" 
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.8)' }}
                 tickMargin={12}
                 axisLine={false}
                 tickLine={false}
@@ -134,7 +134,7 @@ export function PriceChart({ tickers, loadedStocks, selectedPeriod, onPeriodChan
               <YAxis 
                 yAxisId="left" 
                 orientation="left" 
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', fontFamily: 'monospace' }} 
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.8)', fontFamily: 'monospace' }} 
                 domain={['auto', 'auto']}
                 tickFormatter={(val) => `$${val}`}
                 width={60}
@@ -145,7 +145,7 @@ export function PriceChart({ tickers, loadedStocks, selectedPeriod, onPeriodChan
                 <YAxis 
                   yAxisId="right" 
                   orientation="right" 
-                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', fontFamily: 'monospace' }}
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.8)', fontFamily: 'monospace' }}
                   domain={['auto', 'auto']}
                   tickFormatter={(val) => `$${val}`}
                   width={60}

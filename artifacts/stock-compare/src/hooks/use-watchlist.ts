@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 
 export type WatchlistEntry = {
   ticker: string;
@@ -16,17 +17,20 @@ export const PRESET_COLORS = [
   "#a855f7", // purple
 ];
 
-const COLOR_KEY = "fildi_watchlist_colors";
+// Scoped per user so multiple users on same browser don't clobber each other's tags
+function colorKey(userId: number | undefined): string {
+  return userId ? `fildi_watchlist_colors_${userId}` : "fildi_watchlist_colors";
+}
 
-function loadColorMap(): Record<string, string> {
+function loadColorMap(userId: number | undefined): Record<string, string> {
   try {
-    const s = localStorage.getItem(COLOR_KEY);
+    const s = localStorage.getItem(colorKey(userId));
     return s ? JSON.parse(s) : {};
   } catch { return {}; }
 }
 
-function saveColorMap(map: Record<string, string>) {
-  try { localStorage.setItem(COLOR_KEY, JSON.stringify(map)); } catch {}
+function saveColorMap(map: Record<string, string>, userId: number | undefined) {
+  try { localStorage.setItem(colorKey(userId), JSON.stringify(map)); } catch {}
 }
 
 const QUERY_KEY = ["watchlist"] as const;
@@ -39,6 +43,8 @@ async function fetchWatchlist(): Promise<{ ticker: string; addedAt: string }[]> 
 
 export function useWatchlist() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const { data = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -47,7 +53,7 @@ export function useWatchlist() {
     refetchOnWindowFocus: false,
   });
 
-  const colorMap = loadColorMap();
+  const colorMap = loadColorMap(userId);
 
   const entries: WatchlistEntry[] = data.map(row => ({
     ticker: row.ticker,
@@ -63,31 +69,34 @@ export function useWatchlist() {
       body: JSON.stringify({ ticker }),
     });
     if (colorTag) {
-      const map = loadColorMap();
+      const map = loadColorMap(userId);
       map[ticker] = colorTag;
-      saveColorMap(map);
+      saveColorMap(map, userId);
     }
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+  }, [queryClient, userId]);
 
   const removeEntry = useCallback(async (ticker: string) => {
     await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
       method: "DELETE",
       credentials: "include",
     });
-    const map = loadColorMap();
+    const map = loadColorMap(userId);
     delete map[ticker];
-    saveColorMap(map);
+    saveColorMap(map, userId);
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+  }, [queryClient, userId]);
 
   const updateColorTag = useCallback((ticker: string, colorTag: string) => {
-    const map = loadColorMap();
-    map[ticker] = colorTag;
-    saveColorMap(map);
-    // Force re-render by invalidating (entries are derived from data + colorMap)
+    const map = loadColorMap(userId);
+    if (colorTag) {
+      map[ticker] = colorTag;
+    } else {
+      delete map[ticker];
+    }
+    saveColorMap(map, userId);
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+  }, [queryClient, userId]);
 
   return {
     entries,

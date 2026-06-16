@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import YahooFinanceClass from "yahoo-finance2";
+const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -186,6 +188,10 @@ router.get("/highlights", (_req: Request, res: Response) => {
       content: string;
       generatedAt: string;
     };
+    // Expire highlights after midnight (they explain today's market move)
+    const today = new Date().toISOString().slice(0, 10);
+    const generatedDay = parsed.generatedAt.slice(0, 10);
+    if (generatedDay < today) return res.json({ noData: true });
     return res.json(parsed);
   } catch {
     return res.json({ noData: true });
@@ -206,6 +212,37 @@ router.post("/highlights/generate", async (_req: Request, res: Response) => {
     const fmtK    = (v: number | null) => (v != null ? `${v.toLocaleString()}K` : "N/A");
 
     const today = new Date().toISOString().slice(0, 10);
+
+    // Fetch today's equity market performance
+    const equityTickers = ["SPY", "QQQ", "IWM", "^DJI", "^VIX"];
+    const equityQuotes = await Promise.allSettled(
+      equityTickers.map(t => yahooFinance.quote(t, {}, { validateResult: false }))
+    );
+    const equityLines = equityTickers.map((t, i) => {
+      const r = equityQuotes[i];
+      if (r.status !== "fulfilled") return null;
+      const q = r.value as Record<string, unknown>;
+      const chgPct = typeof q["regularMarketChangePercent"] === "number" ? q["regularMarketChangePercent"] : null;
+      const price  = typeof q["regularMarketPrice"] === "number" ? q["regularMarketPrice"] : null;
+      const label  = t === "^DJI" ? "DJI" : t === "^VIX" ? "VIX" : t;
+      if (chgPct == null || price == null) return null;
+      const sign = chgPct >= 0 ? "+" : "";
+      return `${label}: ${price.toFixed(2)} (${sign}${chgPct.toFixed(2)}%)`;
+    }).filter(Boolean);
+
+    const equityContext = equityLines.length
+      ? "TODAY'S EQUITY MARKET PERFORMANCE:\n" + equityLines.map(l => `- ${l}`).join("\n")
+      : "TODAY'S EQUITY MARKET PERFORMANCE: data unavailable";
+
+    // Direction summary for the prompt
+    const spyLine = equityLines.find(l => l?.startsWith("SPY"));
+    const spyMatch = spyLine?.match(/\(([-+][0-9.]+)%\)/);
+    const spyPct = spyMatch ? parseFloat(spyMatch[1]) : null;
+    const marketDirection = spyPct == null ? "mixed"
+      : spyPct > 0.5 ? `higher (+${spyPct.toFixed(2)}%)`
+      : spyPct < -0.5 ? `lower (${spyPct.toFixed(2)}%)`
+      : "roughly flat";
+
     // Include today's and this-week's scheduled events for context
     const todayOrThisWeek = ECONOMIC_EVENTS.filter((e) => {
       const d = e.date;
@@ -216,28 +253,27 @@ router.post("/highlights/generate", async (_req: Request, res: Response) => {
         todayOrThisWeek.map((e) => `- ${e.date}: ${e.event} (${e.importance})`).join("\n")
       : "No major events scheduled in the next 7 days.";
 
-    const prompt = `You are a sharp macro analyst writing a brief for an options trader who sells weekly OTM puts.
+    const prompt = `You are a sharp macro analyst writing a daily market brief for an options trader who sells weekly OTM puts.
 
 TODAY: ${today}
+The S&P 500 (SPY) is trading ${marketDirection} today. Your job is to explain WHY.
+
+${equityContext}
 
 ${eventContext}
 
-LIVE MARKET DATA:
+MACRO BACKDROP:
 - VIX: ${macroData.vix.value?.toFixed(2) ?? "N/A"} (${macroData.vix.level}) | SKEW: ${macroData.skew.value?.toFixed(1) ?? "N/A"} | VXN: ${macroData.vxn.value?.toFixed(1) ?? "N/A"}
 - 10Y Yield: ${fmtRate(macroData.yield10y.value)} | 2Y Yield: ${fmtRate(macroData.yield2y.value)} | Spread: ${macroData.yieldSpread?.toFixed(0) ?? "N/A"} bps
 - Fed Funds: ${fmtRate(s.fedFundsRate.value)} | US Debt: ${macroData.usDebt ? "$" + (macroData.usDebt / 1_000_000).toFixed(1) + "T" : "N/A"}
-
-RECENT RELEASES:
 - CPI YoY: ${fmtPct(s.cpi.yoy)} | Core CPI: ${fmtPct(s.coreCpi.yoy)} | Core PCE: ${fmtPct(s.corePce.yoy)} | PPI: ${fmtPct(s.ppi.yoy)}
-- Unemployment: ${fmtRate(s.unemployment.value)} (Δ ${s.unemployment.change?.toFixed(2) ?? "N/A"})
-- Nonfarm Payrolls: ${fmtK(s.nonfarmPayrolls.value)} (MoM ${fmtK(s.nonfarmPayrolls.change)})
-- JOLTS: ${fmtK(s.jolts.value)} | ADP context: payrolls trend matters here
+- Unemployment: ${fmtRate(s.unemployment.value)} | Nonfarm Payrolls: ${fmtK(s.nonfarmPayrolls.value)} (MoM ${fmtK(s.nonfarmPayrolls.change)})
 - Real GDP: ${fmtRate(s.gdp.value)} annualized | Consumer Sentiment: ${s.consumerSentiment.value?.toFixed(1) ?? "N/A"}
 - Retail Sales: $${s.retailSales.value ? (s.retailSales.value / 1000).toFixed(1) + "B" : "N/A"} (YoY ${fmtPct(s.retailSales.yoy)})
 
-Identify the 4–6 MOST MARKET-MOVING macro developments RIGHT NOW — today's events, the most surprising recent data releases, or the most important shifts in the macro backdrop. Do NOT follow a fixed template. Write whichever topics are genuinely most critical for markets today (could be labor, could be geopolitics, could be rates, could be something else entirely).
+Write 4–6 bullet points explaining WHY markets moved ${marketDirection} today. Cover the specific catalysts: geopolitical developments, economic releases, Fed commentary, sector rotation, earnings, or risk-sentiment shifts — whatever is actually driving price action today. Use today's VIX and yield levels to assess whether fear or complacency is driving the move. Be specific and cite numbers.
 
-Format: markdown bullet points starting with - (one per topic). Each bullet: bold topic label, then 1-2 specific, number-cited sentences. Focus on what's actually moving markets today. No intro or outro text.`;
+Format: markdown bullet points starting with - (one per catalyst). Each bullet: bold topic label, then 2-3 specific, number-cited sentences explaining the cause and market impact. No intro sentence, no outro. Write as if briefing a trader right now.`;
 
     const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
     const message = await anthropic.messages.create({

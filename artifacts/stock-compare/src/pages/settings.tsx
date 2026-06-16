@@ -129,7 +129,7 @@ export default function Settings() {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex">
       <Sidebar />
-      <main className="flex-1 ml-[220px] overflow-y-auto">
+      <main className="flex-1 overflow-y-auto" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
         <div className="shrink-0 border-b border-border bg-background px-6 py-4">
           <h1 className="text-lg font-bold tracking-tight leading-none">Settings</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Account and administration</p>

@@ -96,7 +96,7 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
         />
         <PolarAngleAxis
           dataKey="dimension"
-          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}
+          tick={{ fill: "rgba(255,255,255,0.85)", fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}
         />
         <Radar
           name="Score"
@@ -149,7 +149,7 @@ function SectionCard({
   return (
     <div className="bg-card border border-border/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className="text-xs font-bold uppercase tracking-widest text-white">
           {title}
         </span>
         {score !== undefined && <ScoreBadge score={score} />}
@@ -239,7 +239,7 @@ function RangeBar({
   const pct = high > low ? Math.max(2, Math.min(98, ((current - low) / (high - low)) * 100)) : 50;
   return (
     <div>
-      <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
+      <div className="flex justify-between text-[10px] text-white/75 mb-1.5">
         <span>52W Low: ${low.toFixed(2)}</span>
         <span>52W High: ${high.toFixed(2)}</span>
       </div>
@@ -530,7 +530,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             <div className="grid grid-cols-[240px_1fr] gap-4">
               {/* Snowflake */}
               <div className="bg-card border border-border/50 rounded-xl p-4 flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-center mb-1">
+                <span className="text-xs font-bold uppercase tracking-widest text-white text-center mb-1">
                   Investment Profile
                 </span>
                 <SnowflakeChart scores={data.snowflake} />
@@ -558,7 +558,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               {/* Overview + 52W range */}
               <div className="flex flex-col gap-3">
                 <div className="bg-card border border-border/50 rounded-xl p-4 flex-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  <span className="text-xs font-bold uppercase tracking-widest text-white">
                     Company Overview
                   </span>
                   <p className="text-xs text-muted-foreground leading-relaxed mt-2 line-clamp-5">
@@ -587,7 +587,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   m.fiftyTwoWeekLow != null &&
                   m.fiftyTwoWeekHigh != null && (
                     <div className="bg-card border border-border/50 rounded-xl p-4">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <span className="text-xs font-bold uppercase tracking-widest text-white">
                         52-Week Range
                       </span>
                       <div className="mt-3">
@@ -705,24 +705,24 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             {/* ── Analyst Ratings ── */}
             {data.recommendations && (
               <div className="bg-card border border-border/50 rounded-xl p-4">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-4">
+                <span className="text-xs font-bold uppercase tracking-widest text-white block mb-4">
                   Analyst Ratings
                 </span>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <AnalystDonut recs={data.recommendations} />
                   {m.analystTargetPrice != null && m.currentPrice != null && (
                     <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border/40 pt-4 sm:pt-0 sm:pl-6">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-3">
+                      <div className="text-[10px] text-white/80 uppercase tracking-widest mb-3">
                         Consensus Price Target
                       </div>
                       <div className="flex items-end gap-3">
                         <div>
-                          <div className="text-[10px] text-muted-foreground mb-1">Current</div>
+                          <div className="text-[10px] text-white/75 mb-1">Current</div>
                           <div className="text-xl font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
                         </div>
                         <div className="text-muted-foreground/40 text-lg mb-1">→</div>
                         <div>
-                          <div className="text-[10px] text-muted-foreground mb-1">12M Target</div>
+                          <div className="text-[10px] text-white/75 mb-1">12M Target</div>
                           <div className="text-xl font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
                         </div>
                         <div
@@ -744,7 +744,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             {/* ── Recent News ── */}
             {data.news && data.news.length > 0 && (
               <div className="bg-card border border-border/50 rounded-xl p-4">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-white block mb-2">
                   Recent News & Updates
                 </span>
                 <div className="space-y-0.5 -mx-1 mt-2">
