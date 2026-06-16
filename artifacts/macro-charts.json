@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-16T14:36:01.595Z",
+  "fetchedAt": "2026-06-16T20:01:23.096Z",
   "vixHistory": [
     {
       "date": "2024-06-17",
@@ -2002,8 +2002,12 @@
       "value": 17.68000030517578
     },
     {
+      "date": "2026-06-15",
+      "value": 16.200000762939453
+    },
+    {
       "date": "2026-06-16",
-      "value": 15.920000076293945
+      "value": 16.110000610351562
     }
   ],
   "fedFundsHistory": [
@@ -4005,7 +4009,7 @@
     },
     {
       "date": "2026-06-16",
-      "value": 3.6349997520446777
+      "value": 3.629999876022339
     }
   ],
   "tenYearHistory": [
@@ -6007,7 +6011,7 @@
     },
     {
       "date": "2026-06-16",
-      "value": 4.453000068664551
+      "value": 4.427999973297119
     }
   ],
   "vixCurve": [
@@ -6022,7 +6026,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 15.92,
+      "value": 16.11,
       "weekAgo": 19.8700008392334,
       "monthAgo": 18.43000030517578,
       "threeMonthAgo": 22.3700008392334
@@ -6030,7 +6034,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 19.31,
+      "value": 19.36,
       "weekAgo": 21.309999465942383,
       "monthAgo": 21.360000610351562,
       "threeMonthAgo": 24.329999923706055
@@ -6038,7 +6042,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.78,
+      "value": 21.79,
       "weekAgo": 22.969999313354492,
       "monthAgo": 23.25,
       "threeMonthAgo": 25.280000686645508
@@ -6046,7 +6050,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.3,
+      "value": 23.32,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6065,7 +6069,7 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.635,
+      "impliedRate": 3.63,
       "weekAgo": 3.63,
       "monthAgo": 3.625,
       "threeMonthAgo": 3.585,
@@ -6110,7 +6114,7 @@
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 3.885,
+      "impliedRate": 3.875,
       "weekAgo": 3.95,
       "monthAgo": 3.865,
       "threeMonthAgo": 3.355,

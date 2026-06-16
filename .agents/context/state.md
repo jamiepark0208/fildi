@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-16
 
 ## Active work
-- Working: options-scanner-ux, multi-user-foundation
-- In progress: Options Scanner: fixed duplicate strikes (toFixed(0) rounding + dedup), expandable strike rows with StrikeDetailPanel (bullets + Greeks table + P&L simulation chart), visual overhaul (cyan price, amber IV, color-coded delta/POP/buffer, white text, larger fonts). Multi-user: complete Phases 0-4, watchlist restored from ticker_config, admin credentials set.
+- Working: ui-polish, multi-user-foundation
+- In progress: Global CSS token fix (muted-foreground 65%→82%), sidebar/watchlist/portfolio/options-scanner/leaderboard text all white+readable, Macro AI Highlights rewritten to explain today's market move with live equity data, login double-submit race fixed, watchlist color tags user-scoped + add-then-tag inline UX
 - Blocked: none
 
 ## Next tasks (priority order)
