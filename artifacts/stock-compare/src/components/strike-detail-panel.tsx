@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer, Legend,
+  ReferenceLine, ResponsiveContainer, Brush,
 } from "recharts";
 import { cn } from "@/lib/utils";
 import type { OptionScoreResult } from "@/lib/option-scorer";
@@ -202,13 +202,13 @@ function GreeksTable({ put, chain }: { put: OptionRow; chain: OptionsChainResult
   ];
 
   return (
-    <div className="space-y-0">
+    <div className="grid grid-cols-2 gap-x-3 gap-y-0">
       {rows.map(({ label, value, color, sub }) => (
-        <div key={label} className="flex items-center justify-between py-2.5 border-b border-slate-800/50 last:border-0">
-          <span className="text-xs text-slate-400 font-medium w-[72px] shrink-0">{label}</span>
-          <div className="text-right">
+        <div key={label} className="flex items-center justify-between py-1.5 border-b border-slate-800/40 last:border-0">
+          <span className="text-xs text-slate-300 font-medium shrink-0 mr-1">{label}</span>
+          <div className="text-right min-w-0">
             <span className={cn("text-sm font-mono font-semibold", color ?? "text-white")}>{value}</span>
-            {sub && <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">{sub}</span>}
+            {sub && <span className="block text-[10px] text-slate-400 leading-tight">{sub}</span>}
           </div>
         </div>
       ))}
@@ -272,35 +272,35 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
     <div className="space-y-3">
       {/* Summary stats */}
       <div className="flex items-center gap-6 text-sm">
-        <span className="text-slate-300">Max profit: <span className="text-green-400 font-mono font-bold">${maxProfit.toFixed(2)}</span></span>
-        <span className="text-slate-300">Break-even: <span className="text-amber-400 font-mono font-bold">${breakEven.toFixed(2)}</span></span>
-        <span className="text-slate-300">Max loss: <span className="text-red-400 font-mono font-bold">-${maxLoss.toFixed(2)}</span></span>
-        <span className="text-slate-400 ml-auto font-mono text-xs">T−{daysRemaining}d</span>
+        <span className="text-white">Max profit: <span className="text-green-400 font-mono font-bold">${maxProfit.toFixed(2)}</span></span>
+        <span className="text-white">Break-even: <span className="text-amber-400 font-mono font-bold">${breakEven.toFixed(2)}</span></span>
+        <span className="text-white">Max loss: <span className="text-red-400 font-mono font-bold">-${maxLoss.toFixed(2)}</span></span>
+        <span className="text-slate-300 ml-auto font-mono text-xs">T−{daysRemaining}d</span>
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={190}>
+      <ResponsiveContainer width="100%" height={210}>
         <LineChart data={chartData} margin={{ top: 4, right: 12, bottom: 4, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis
             dataKey="price" type="number" domain={["dataMin", "dataMax"]}
             tickFormatter={v => `$${Number(v).toFixed(0)}`}
-            tick={{ fontSize: 10, fill: "#64748b" }} tickCount={8}
+            tick={{ fontSize: 10, fill: "#e2e8f0" }} tickCount={8}
           />
           <YAxis
             tickFormatter={v => `$${Number(v).toFixed(0)}`}
-            tick={{ fontSize: 10, fill: "#64748b" }} width={48}
+            tick={{ fontSize: 10, fill: "#e2e8f0" }} width={48}
+            domain={["auto", "auto"]}
           />
           <Tooltip
             formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name]}
             labelFormatter={v => `Stock @ $${Number(v).toFixed(2)}`}
             contentStyle={{ background: "#0c0f1a", border: "1px solid #1e293b", fontSize: 11, borderRadius: 6 }}
-            itemStyle={{ color: "#cbd5e1" }}
+            itemStyle={{ color: "#e2e8f0" }}
           />
-          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, color: "#64748b" }} />
           <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
           <ReferenceLine x={spot} stroke="#475569" strokeDasharray="4 2"
-            label={{ value: "Spot", position: "top", fontSize: 9, fill: "#64748b" }} />
+            label={{ value: "Spot", position: "top", fontSize: 9, fill: "#e2e8f0" }} />
           <ReferenceLine x={breakEven} stroke="#f59e0b" strokeDasharray="4 2"
             label={{ value: "BE", position: "top", fontSize: 9, fill: "#f59e0b" }} />
           {Math.abs(simPrice - spot) > 0.01 && (
@@ -310,6 +310,11 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
           <Line dataKey="At Entry"  stroke="#22c55e" dot={false} strokeWidth={1.5} strokeDasharray="6 3" />
           <Line dataKey="Selected"  stroke="#60a5fa" dot={false} strokeWidth={2.5} activeDot={{ r: 4 }} />
           <Line dataKey="At Expiry" stroke="#f87171" dot={false} strokeWidth={1.5} strokeDasharray="6 3" />
+          <Brush
+            dataKey="price" height={18} stroke="#334155"
+            fill="#0f172a" travellerWidth={8}
+            tickFormatter={v => `$${Number(v).toFixed(0)}`}
+          />
         </LineChart>
       </ResponsiveContainer>
 
@@ -379,22 +384,22 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDet
   return (
     <div className="bg-slate-950/80 border-t border-slate-800/60">
       {/* Top section: bullets + greeks table side by side */}
-      <div className="grid grid-cols-[1fr_260px] divide-x divide-slate-800/60">
+      <div className="grid grid-cols-[1fr_340px] divide-x divide-slate-800/60">
         {/* Left: bullet reasoning */}
         <div className="px-5 py-4 space-y-3">
           <div className="flex items-center gap-3">
             <p className={cn(
               "text-xs font-bold tracking-widest uppercase",
-              isBest ? "text-green-400" : "text-slate-300",
+              isBest ? "text-green-400" : "text-white",
             )}>
               {isBest ? "★ Why this strike is best" : "Strike Analysis"}
             </p>
             {scoreResult && (
               <span className={cn(
                 "font-mono text-sm font-bold",
-                isBest ? "text-green-300" : "text-slate-200",
+                isBest ? "text-green-300" : "text-white",
               )}>
-                {scoreResult.optionScore.toFixed(1)}<span className="text-slate-500 text-xs font-normal">/100</span>
+                {scoreResult.optionScore.toFixed(1)}<span className="text-slate-400 text-xs font-normal">/100</span>
                 {scoreResult.dataQuality < 0.8 && (
                   <span className="text-amber-400 text-xs font-normal ml-2">
                     {(scoreResult.dataQuality * 100).toFixed(0)}% data
@@ -421,23 +426,16 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDet
 
         {/* Right: Greeks table */}
         <div className="px-4 py-4">
-          <p className="text-xs font-bold tracking-widest uppercase text-slate-300 mb-3">Greeks & Liquidity</p>
+          <p className="text-[10px] font-bold tracking-widest uppercase text-white mb-2">Greeks & Liquidity</p>
           <GreeksTable put={put} chain={chain} />
         </div>
       </div>
 
       {/* Bottom: P&L chart */}
       <div className="border-t border-slate-800/60 px-5 py-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <p className="text-xs font-bold tracking-widest uppercase text-slate-300">
-            P&L Simulation — Short Put · 1 contract
-          </p>
-          <span className="text-xs text-slate-400">
-            <span className="text-blue-400 font-medium">blue</span> = selected time ·{" "}
-            <span className="text-green-400 font-medium">green</span> = at entry ·{" "}
-            <span className="text-red-400 font-medium">red</span> = at expiry
-          </span>
-        </div>
+        <p className="text-xs font-bold tracking-widest uppercase text-white">
+          P&L Simulation — Short Put · 1 contract
+        </p>
         <PayoffChart put={put} chain={chain} />
       </div>
     </div>

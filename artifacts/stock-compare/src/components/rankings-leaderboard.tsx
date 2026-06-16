@@ -1,11 +1,30 @@
 import { useState } from "react";
 import { StockScore } from "@/lib/rankings";
-import { Trophy } from "lucide-react";
+import { Trophy, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
 }
+
+function parseBullets(text: string): string[] {
+  return text
+    .split(/\n|(?<=[.!?])\s{1,2}(?=[A-Z•\-])/)
+    .map(s => s.replace(/^[-•*]\s*/, "").trim())
+    .filter(s => s.length > 8);
+}
+
+const RANK_STYLE = (idx: number) =>
+  idx === 0 ? "bg-yellow-500 text-yellow-950" :
+  idx === 1 ? "bg-slate-400 text-slate-950"   :
+  idx === 2 ? "bg-amber-700 text-amber-50"    :
+              "bg-secondary text-secondary-foreground";
+
+const ROW_STYLE = (idx: number) =>
+  idx === 0 ? "border-yellow-500/30 bg-yellow-500/5" :
+  idx === 1 ? "border-slate-400/30 bg-slate-400/5"   :
+  idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
+              "border-border/40 bg-background/30";
 
 export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
   const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
@@ -14,8 +33,6 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
 
   async function fetchExplanation(score: StockScore) {
     const { ticker } = score;
-
-    // Already fetched — just toggle visibility
     if (explanations.has(ticker)) {
       setExpanded(prev => {
         const next = new Set(prev);
@@ -41,19 +58,17 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
           ticker,
           scoreType: "fundamental",
           fundamentalData: {
-            totalScore:     score.totalScore,
-            rank:           score.rank,
+            totalScore: score.totalScore, rank: score.rank,
             familyScores: {
               value:   fs?.value.score   ?? 50,
               growth:  fs?.growth.score  ?? 50,
               quality: fs?.quality.score ?? 50,
               safety:  fs?.safety.score  ?? 50,
             },
-            topMetrics,
-            weakMetrics,
-            reason:         score.reason,
+            topMetrics, weakMetrics,
+            reason: score.reason,
             suspectMetrics: score.suspectMetrics,
-            dataQuality:    score.dataQuality,
+            dataQuality: score.dataQuality,
           },
         }),
       });
@@ -69,88 +84,77 @@ export function RankingsLeaderboard({ scores }: RankingsLeaderboardProps) {
   }
 
   if (scores.length < 2) return null;
+  const maxScore = scores[0].totalScore;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-6">
-        <Trophy className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-bold tracking-tight">Rankings Leaderboard</h2>
+    <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Trophy className="w-4 h-4 text-primary" />
+        <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
         {scores.map((score, idx) => {
-          const isGold   = idx === 0;
-          const isSilver = idx === 1;
-          const isBronze = idx === 2;
-          const isLoading    = loading.has(score.ticker);
-          const explanation  = explanations.get(score.ticker);
-          const isExpanded   = expanded.has(score.ticker);
+          const isLoading   = loading.has(score.ticker);
+          const explanation = explanations.get(score.ticker);
+          const isExpanded  = expanded.has(score.ticker);
+          const bullets     = explanation ? parseBullets(explanation) : [];
 
           return (
-            <div
-              key={score.ticker}
-              className={cn(
-                "relative p-4 rounded-lg border overflow-hidden",
-                isGold   ? "border-yellow-500/50 bg-yellow-500/10" :
-                isSilver ? "border-slate-400/50 bg-slate-400/10"   :
-                isBronze ? "border-amber-700/50 bg-amber-700/10"   :
-                "border-border bg-background/50"
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4 z-10">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 mt-0.5",
-                    isGold   ? "bg-yellow-500 text-yellow-950" :
-                    isSilver ? "bg-slate-400 text-slate-950"   :
-                    isBronze ? "bg-amber-700 text-amber-50"    :
-                    "bg-secondary text-secondary-foreground"
-                  )}>
-                    #{score.rank}
-                  </div>
-                  <div>
-                    <div className="font-mono font-bold text-lg leading-none">{score.ticker}</div>
-                    <div className="text-xs text-muted-foreground truncate max-w-[160px] sm:max-w-[240px]">
-                      {score.companyName}
-                    </div>
-                    {score.reason && (
-                      <div className="text-xs text-muted-foreground/70 mt-0.5 italic max-w-[280px]">
-                        {score.reason}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => fetchExplanation(score)}
-                      disabled={isLoading}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1 disabled:opacity-50"
-                    >
-                      {isLoading ? "Generating…" : explanation ? (isExpanded ? "Explain ▴" : "Explain ▾") : "Explain ▾"}
-                    </button>
-                    {isExpanded && explanation && (
-                      <div className="mt-1.5 pl-3 border-l-2 border-border/60 text-xs text-muted-foreground/80 italic leading-relaxed max-w-[340px]">
-                        {explanation}
-                      </div>
-                    )}
-                  </div>
+            <div key={score.ticker} className={cn("rounded-md border px-3 py-1.5", ROW_STYLE(idx))}>
+              <div className="flex items-center gap-3">
+                {/* Rank badge */}
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0",
+                  RANK_STYLE(idx)
+                )}>
+                  {score.rank}
                 </div>
 
-                <div className="text-right z-10 flex flex-col items-end shrink-0 ml-4">
-                  <div className="font-bold text-lg leading-none mb-1">
-                    {score.totalScore.toFixed(2)} pts
-                  </div>
-                  <div className="w-24 h-1.5 bg-background rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        isGold   ? "bg-yellow-500" :
-                        isSilver ? "bg-slate-400"   :
-                        isBronze ? "bg-amber-700"   :
-                        "bg-primary"
-                      )}
-                      style={{ width: `${(score.totalScore / scores[0].totalScore) * 100}%` }}
-                    />
-                  </div>
+                {/* Ticker + name */}
+                <div className="w-[88px] shrink-0">
+                  <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
+                  <span className="block text-[10px] text-slate-400 truncate max-w-[84px]">{score.companyName}</span>
                 </div>
+
+                {/* Score */}
+                <div className="w-[56px] shrink-0 text-right">
+                  <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
+                  <span className="text-[10px] text-slate-500"> pts</span>
+                </div>
+
+                {/* Bar */}
+                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-slate-400" : idx === 2 ? "bg-amber-700" : "bg-primary/60"
+                    )}
+                    style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
+                  />
+                </div>
+
+                {/* Explain toggle */}
+                <button
+                  onClick={() => fetchExplanation(score)}
+                  disabled={isLoading}
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors shrink-0 disabled:opacity-50"
+                >
+                  {isLoading ? "…" : "Why"}
+                  <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
+                </button>
               </div>
+
+              {isExpanded && bullets.length > 0 && (
+                <ul className="mt-2 mb-0.5 pl-9 space-y-0.5">
+                  {bullets.map((b, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs text-white leading-snug">
+                      <span className="text-slate-500 shrink-0 mt-0.5">•</span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}

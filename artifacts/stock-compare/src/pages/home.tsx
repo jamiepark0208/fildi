@@ -121,13 +121,11 @@ export default function Home({ tickers, setTickers }: HomeProps) {
             onPeriodChange={setSelectedPeriod}
           />
 
+          {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} />}
           {hasData && (
-            <div className="space-y-4">
-              {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} />}
-              <MetricsTable stocks={loadedStocks} loadingTickers={loadingTickers} />
-              {rankings.length >= 2 && <ScorecardBreakdown scores={rankings} />}
-            </div>
+            <MetricsTable stocks={loadedStocks} loadingTickers={loadingTickers} />
           )}
+          {rankings.length >= 2 && <ScorecardBreakdown scores={rankings} />}
         </div>
       </main>
     </div>

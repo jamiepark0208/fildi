@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +55,7 @@ interface MacroRegimeResult {
 }
 
 type ScorecardRow = IndicatorResult & { stale: boolean };
-type SortKey = "optionScore" | "score" | "income" | "iv" | "otm" | "signal" | "buffer";
+type SortKey = "optionScore" | "score" | "income" | "iv" | "otm" | "buffer";
 
 function pfNum(v: number | string | null | undefined): number | null {
   if (v == null) return null;
@@ -73,7 +73,6 @@ const SORT_LABELS: { key: SortKey; label: string }[] = [
   { key: "iv",          label: "IV%" },
   { key: "income",      label: "Income%" },
   { key: "buffer",      label: "Buffer" },
-  { key: "signal",      label: "Signal" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,11 +94,10 @@ function viableStrikes(
   chains: OptionsChainResult[],
   minWeeklyIncome: number,
   show1wk: boolean,
-  show2wk: boolean,
 ): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
   return chains
     .filter(c => (show1wk && Math.ceil(c.daysToExpiry / 7) === 1) ||
-                 (show2wk && Math.ceil(c.daysToExpiry / 7) >= 2))
+                 Math.ceil(c.daysToExpiry / 7) >= 2)
     .flatMap(c => {
       const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
       return c.puts
@@ -111,10 +109,10 @@ function viableStrikes(
 function strikeSummary(
   chains: OptionsChainResult[] | null,
   show1wk: boolean,
-  show2wk: boolean,
+  minWeeklyIncome: number,
 ): string {
   if (!chains) return "—";
-  const strikes = viableStrikes(chains, 0.5, show1wk, show2wk);
+  const strikes = viableStrikes(chains, minWeeklyIncome, show1wk);
   if (strikes.length === 0) return "no viable strikes";
   const best = Math.max(...strikes.map(s => s.weeklyIncome));
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
@@ -207,7 +205,7 @@ function StrikeRow({
       >
         {/* Strike */}
         <div className="flex items-center gap-1.5">
-          <span className={cn("font-bold font-mono", isBest ? "text-green-300" : "text-slate-100")}>
+          <span className={cn("font-bold font-mono", isBest ? "text-green-300" : "text-yellow-400")}>
             ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)}
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
@@ -240,10 +238,8 @@ function StrikeRow({
         <div className="flex items-center gap-1.5">
           {optionScore != null && (
             <span className={cn(
-              "text-[11px] font-mono rounded px-1.5 py-0.5 border",
-              isBest
-                ? "text-green-300 bg-green-500/10 border-green-500/30"
-                : "text-slate-300 bg-slate-500/10 border-slate-500/20",
+              "font-mono text-sm",
+              isBest ? "text-green-300" : "text-slate-300",
             )}>
               {optionScore.toFixed(1)}
             </span>
@@ -256,8 +252,8 @@ function StrikeRow({
               {dqLabel}
             </span>
           )}
-          <span className="ml-auto text-slate-600">
-            {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          <span className="ml-auto text-slate-400">
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
           </span>
         </div>
       </div>
@@ -305,6 +301,7 @@ function ExpirySection({
   stockCtx,
   macroRegime,
   allWatchlistIVs,
+  defaultCollapsed = false,
 }: {
   chain: OptionsChainResult;
   puts: Array<{ put: OptionRow; weeklyIncome: number }>;
@@ -313,8 +310,9 @@ function ExpirySection({
   stockCtx: StockContext | null;
   macroRegime: MacroRegime;
   allWatchlistIVs: number[];
+  defaultCollapsed?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const hasBestStrike = bestStrike != null && bestStrike.chain.expiry === chain.expiry;
   const bestInExpiry  = puts.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b, puts[0]);
@@ -396,8 +394,7 @@ interface ScannerRowProps {
   optionsLoading: boolean;
   expanded: boolean;
   show1wk: boolean;
-  show2wk: boolean;
-  minIncomeOn: boolean;
+  minIncome: number;
   overrideEnabled: boolean;
   onExpand: () => void;
   onRefresh: () => void;
@@ -419,8 +416,7 @@ function ScannerRow({
   optionsLoading,
   expanded,
   show1wk,
-  show2wk,
-  minIncomeOn,
+  minIncome,
   overrideEnabled,
   onExpand,
   onRefresh,
@@ -432,12 +428,11 @@ function ScannerRow({
   allWatchlistIVs = [],
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
-  const price     = optionsData?.[0]?.spot ?? techRow?.price ?? null;
+  const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
-  const minIncome = minIncomeOn ? 0.5 : 0;
 
   const strikes = optionsData
-    ? viableStrikes(optionsData, minIncome, show1wk, show2wk)
+    ? viableStrikes(optionsData, minIncome, show1wk)
     : [];
 
   const stockCtx = useMemo((): StockContext | null => {
@@ -475,7 +470,7 @@ function ScannerRow({
   // Override: show best put even when no viable strikes at current minIncome threshold
   const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;
   const overrideStrikes = overrideEnabled && optionsData
-    ? viableStrikes(optionsData, 0, show1wk, show2wk)
+    ? viableStrikes(optionsData, 0, show1wk)
     : [];
   const overrideBest = overrideStrikes.length > 0
     ? overrideStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
@@ -487,7 +482,7 @@ function ScannerRow({
     : firstIV != null ? (firstIV * 100).toFixed(0) : null;
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
-  const summary = optionsLoading ? null : strikeSummary(optionsData, show1wk, show2wk);
+  const summary = optionsLoading ? null : strikeSummary(optionsData, show1wk, minIncome);
 
   const borderColor = colorTag || "transparent";
 
@@ -512,7 +507,9 @@ function ScannerRow({
           )}
         </div>
 
-        <SignalBadge signal={signal} />
+        <div className="w-[56px] shrink-0">
+          <SignalBadge signal={signal} />
+        </div>
 
         {/* Score */}
         <span className="text-xs text-slate-300 w-[64px] shrink-0 font-mono">
@@ -592,7 +589,7 @@ function ScannerRow({
             }
             return (
               <div className="space-y-2">
-                {Array.from(byExpiry.values()).map(({ chain, puts }) => (
+                {Array.from(byExpiry.values()).map(({ chain, puts }, idx) => (
                   <ExpirySection
                     key={chain.expiry}
                     chain={chain}
@@ -602,6 +599,7 @@ function ScannerRow({
                     stockCtx={stockCtx}
                     macroRegime={macroRegime}
                     allWatchlistIVs={allWatchlistIVs}
+                    defaultCollapsed={idx > 0}
                   />
                 ))}
               </div>
@@ -611,7 +609,7 @@ function ScannerRow({
           {!optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground italic">
-                {strikeSummary(optionsData, show1wk, show2wk)}
+                {strikeSummary(optionsData, show1wk, minIncome)}
               </p>
               {canOverride && !overrideEnabled && (
                 <button
@@ -683,9 +681,8 @@ export default function OptionsScanner() {
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("score");
   const [show1wk,       setShow1wk]       = useState(true);
-  const [show2wk,       setShow2wk]       = useState(true);
-  const [goOnly,        setGoOnly]        = useState(false);
-  const [minIncomeOn,   setMinIncomeOn]   = useState(true);
+  const [minIncome,     setMinIncome]     = useState(0.5);
+  const [minIncomeInput, setMinIncomeInput] = useState("0.5");
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
   const [extraTickers,  setExtraTickers]  = useState<string[]>(() => {
     try { const s = localStorage.getItem("fildi_scanner_extra"); return s ? JSON.parse(s) : []; } catch { return []; }
@@ -896,27 +893,34 @@ export default function OptionsScanner() {
   }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
+  // Use refs for options-derived maps so loading new data doesn't trigger re-sort.
+  // Sort order only changes when the user picks a different sort key or tickers change.
+  const optionsMapRef        = useRef(optionsMap);        optionsMapRef.current        = optionsMap;
+  const bestOptionScoreMapRef = useRef(bestOptionScoreMap); bestOptionScoreMapRef.current = bestOptionScoreMap;
+  const stockScoreMapRef     = useRef(stockScoreMap);     stockScoreMapRef.current     = stockScoreMap;
+  const scorecardMapRef      = useRef(scorecardMap);      scorecardMapRef.current      = scorecardMap;
+
   const sortedTickers = useMemo(() => {
+    const optMap    = optionsMapRef.current;
+    const bestScores = bestOptionScoreMapRef.current;
+    const stockScores = stockScoreMapRef.current;
+    const scorecard = scorecardMapRef.current;
+
     let list = [...displayTickers];
-    if (goOnly) list = list.filter(t => rankings.get(t)?.signal === "GO");
 
     list.sort((a, b) => {
       switch (sort) {
         case "optionScore":
-          return (bestOptionScoreMap.get(b) ?? -1) - (bestOptionScoreMap.get(a) ?? -1);
+          return (bestScores.get(b) ?? -1) - (bestScores.get(a) ?? -1);
         case "score":
-          return (stockScoreMap.get(b) ?? 0) - (stockScoreMap.get(a) ?? 0);
-        case "signal": {
-          const o = { GO: 2, WATCH: 1, NO: 0 } as const;
-          return (o[rankings.get(b)?.signal ?? "NO"] ?? 0) - (o[rankings.get(a)?.signal ?? "NO"] ?? 0);
-        }
+          return (stockScores.get(b) ?? 0) - (stockScores.get(a) ?? 0);
         case "iv": {
-          const iv = (t: string) => scorecardMap.get(t)?.ivCurrent ?? -1;
+          const iv = (t: string) => scorecard.get(t)?.ivCurrent ?? -1;
           return iv(b) - iv(a);
         }
         case "buffer": {
           const buf = (t: string) => {
-            const chains = optionsMap.get(t);
+            const chains = optMap.get(t);
             if (!chains) return -1;
             const spot = chains[0]?.spot ?? 0;
             if (!spot) return -1;
@@ -936,10 +940,10 @@ export default function OptionsScanner() {
         }
         case "otm": {
           const otm = (t: string) => {
-            const chains = optionsMap.get(t);
+            const chains = optMap.get(t);
             if (!chains) return -1;
             const spot = chains[0]?.spot ?? 0;
-            const best = Math.max(...chains.flatMap(c => c.puts.filter(p => p.meetsGate).map(p => p.strike)), 0);
+            const best = Math.max(...chains.flatMap((c: OptionsChainResult) => c.puts.filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike)), 0);
             return spot > 0 && best > 0 ? ((spot - best) / spot) * 100 : -1;
           };
           return otm(b) - otm(a);
@@ -947,7 +951,7 @@ export default function OptionsScanner() {
         case "income":
         default: {
           const income = (t: string) => {
-            const chains = optionsMap.get(t);
+            const chains = optMap.get(t);
             if (!chains) return -1;
             let best = -1;
             for (const c of chains) {
@@ -964,7 +968,19 @@ export default function OptionsScanner() {
       }
     });
     return list;
-  }, [displayTickers, sort, goOnly, scorecardMap, rankings, optionsMap, bestOptionScoreMap, stockScoreMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayTickers, sort, isLoaded]);
+
+  // Auto-fetch options for all tickers once watchlist + scorecard are ready
+  useEffect(() => {
+    if (isLoaded && displayTickers.length > 0) {
+      setFetchedOnce(prev => {
+        const next = new Set(prev);
+        displayTickers.forEach(t => next.add(t));
+        return next;
+      });
+    }
+  }, [isLoaded, displayTickers]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
@@ -1042,7 +1058,6 @@ export default function OptionsScanner() {
           </button>
         </div>
 
-        <MacroBanner data={macroRegimeData} />
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -1067,27 +1082,35 @@ export default function OptionsScanner() {
           <div className="w-px h-5 bg-border mx-1" />
 
           {/* Filter chips */}
-          {(
-            [
-              { label: "1wk", on: show1wk, toggle: () => setShow1wk(v => !v) },
-              { label: "2wk", on: show2wk, toggle: () => setShow2wk(v => !v) },
-              { label: "GO only", on: goOnly, toggle: () => setGoOnly(v => !v) },
-              { label: "≥0.5%/wk", on: minIncomeOn, toggle: () => setMinIncomeOn(v => !v) },
-            ] as const
-          ).map(({ label, on, toggle }) => (
-            <button
-              key={label}
-              onClick={toggle}
-              className={cn(
-                "px-2.5 py-1 text-xs rounded-md border transition-colors",
-                on
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+          <button
+            onClick={() => setShow1wk(v => !v)}
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-md border transition-colors",
+              show1wk
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            1wk
+          </button>
+
+          {/* Editable min income filter */}
+          <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
+            <span className="text-xs text-muted-foreground">≥</span>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={minIncomeInput}
+              onChange={e => {
+                setMinIncomeInput(e.target.value);
+                const n = parseFloat(e.target.value);
+                if (Number.isFinite(n) && n >= 0) setMinIncome(n);
+              }}
+              className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center"
+            />
+            <span className="text-xs text-muted-foreground">%/wk</span>
+          </div>
 
           <div className="w-px h-5 bg-border mx-1" />
 
@@ -1123,6 +1146,14 @@ export default function OptionsScanner() {
           </div>
         ) : (
           <div className="rounded-md border border-border overflow-hidden">
+            {/* Column headers */}
+            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-slate-900/80 text-[10px] font-semibold tracking-wider uppercase text-slate-500" style={{ borderLeft: "4px solid transparent" }}>
+              <div className="w-[150px] shrink-0">Ticker / Price</div>
+              <div className="w-[56px] shrink-0">Signal</div>
+              <div className="w-[64px] shrink-0">Stock Score</div>
+              <div className="w-[52px] shrink-0">IV%</div>
+              <div className="flex-1">Best Strikes</div>
+            </div>
             {sortedTickers.map(ticker => (
               <ScannerRow
                 key={ticker}
@@ -1134,8 +1165,7 @@ export default function OptionsScanner() {
                 optionsLoading={optionsLoadingMap.get(ticker) ?? false}
                 expanded={expandedSet.has(ticker)}
                 show1wk={show1wk}
-                show2wk={show2wk}
-                minIncomeOn={minIncomeOn}
+                minIncome={minIncome}
                 overrideEnabled={overrides.has(ticker)}
                 onExpand={() => handleExpand(ticker)}
                 onRefresh={() => handleRowRefresh(ticker)}
