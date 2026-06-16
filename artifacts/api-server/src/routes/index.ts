@@ -11,10 +11,14 @@ import technicalsRouter from "./technicals";
 import explainRouter from "./explain";
 import sdmRouter from "./sdm";
 import macroRegimeRouter from "./macro-regime";
+import authRouter from "./auth";
+import watchlistRouter from "./watchlist";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(watchlistRouter);
 router.use(stocksRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);

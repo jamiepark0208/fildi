@@ -1,10 +1,12 @@
-import { BarChart2, LineChart, BarChart, Bookmark, Settings, BriefcaseBusiness, BookOpen, ScanLine, Globe } from "lucide-react";
+import { BarChart2, LineChart, BarChart, Bookmark, Settings as SettingsIcon, BriefcaseBusiness, BookOpen, ScanLine, Globe, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 
 export function Sidebar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { isAdmin, refetch } = useAuth();
 
   const navItem = (href: string, icon: React.ReactNode, label: string, disabled = false, soon = false) => {
     const isActive = href === "/" ? location === "/" || location === "" : location.startsWith(href);
@@ -31,6 +33,12 @@ export function Sidebar() {
     );
   };
 
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await refetch();
+    navigate("/login");
+  }
+
   return (
     <aside className="fixed inset-y-0 left-0 w-[220px] bg-sidebar border-r border-sidebar-border overflow-y-auto flex flex-col z-50">
       <div className="p-5">
@@ -51,7 +59,7 @@ export function Sidebar() {
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">Main</div>
           <nav className="space-y-0.5">
             {navItem("/watchlist", <Bookmark className="w-4 h-4" />, "Watchlist")}
-            {navItem("/portfolio", <BriefcaseBusiness className="w-4 h-4" />, "Portfolio")}
+            {isAdmin && navItem("/portfolio", <BriefcaseBusiness className="w-4 h-4" />, "Portfolio")}
           </nav>
         </div>
 
@@ -69,9 +77,19 @@ export function Sidebar() {
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-3">General</div>
           <nav className="space-y-0.5">
             {navItem("/scorecard-explanation", <BookOpen className="w-4 h-4" />, "Scorecard Guide")}
-            {navItem("/settings", <Settings className="w-4 h-4" />, "Settings", true)}
+            {navItem("/settings", <SettingsIcon className="w-4 h-4" />, "Settings")}
           </nav>
         </div>
+      </div>
+
+      <div className="px-3 pb-4">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Log out
+        </button>
       </div>
     </aside>
   );

@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-16
 
 ## Active work
-- Working: options-scanner-phase4, options-scanner-phase5
-- In progress: Options scanner enhancement complete: new scorer live, StrikeCard overhauled, MacroBanner added, sort system updated
+- Working: multi-user-foundation
+- In progress: Multi-user foundation complete: Phases 0-4 done — DB schema (users/invite_codes/watchlist migration), express-session auth, invite-only register, requireAuth/requireAdmin middleware, auth routes, per-user watchlist API, AuthContext, ProtectedRoute, Login page, Settings page with admin invite UI, sidebar logout + Portfolio hide for members, useWatchlist migrated from localStorage to API
 - Blocked: none
 
 ## Next tasks (priority order)

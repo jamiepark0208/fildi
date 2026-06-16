@@ -1,0 +1,108 @@
+import { Router } from "express";
+import { randomBytes } from "crypto";
+import bcrypt from "bcryptjs";
+import { eq, or, and, isNull } from "drizzle-orm";
+import { db, users, inviteCodes } from "@workspace/db";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
+import { logger } from "../lib/logger.js";
+
+const router = Router();
+
+// POST /auth/register
+router.post("/auth/register", async (req, res) => {
+  const { email, username, password, inviteCode } = req.body as {
+    email?: string; username?: string; password?: string; inviteCode?: string;
+  };
+
+  if (!email || !username || !password || !inviteCode) {
+    return res.status(400).json({ error: "email, username, password, and inviteCode are required" });
+  }
+
+  const invite = await db.select().from(inviteCodes)
+    .where(and(eq(inviteCodes.code, inviteCode), isNull(inviteCodes.usedBy)))
+    .limit(1);
+  if (invite.length === 0) {
+    return res.status(403).json({ error: "Invalid or already-used invite code" });
+  }
+
+  const existing = await db.select({ id: users.id }).from(users)
+    .where(or(eq(users.email, email), eq(users.username, username)))
+    .limit(1);
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "Email or username already taken" });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const [newUser] = await db.insert(users).values({ email, username, passwordHash, role: "member" }).returning();
+
+  await db.update(inviteCodes)
+    .set({ usedBy: newUser.id, usedAt: new Date() })
+    .where(eq(inviteCodes.code, inviteCode));
+
+  req.session.userId = newUser.id;
+  req.session.role = newUser.role as "admin" | "member";
+
+  logger.info({ userId: newUser.id }, "auth: user registered");
+  return res.status(201).json({ id: newUser.id, email: newUser.email, username: newUser.username, role: newUser.role });
+});
+
+// POST /auth/login
+router.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password are required" });
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const match = await bcrypt.compare(password, user.passwordHash);
+  if (!match) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  req.session.userId = user.id;
+  req.session.role = user.role as "admin" | "member";
+
+  logger.info({ userId: user.id }, "auth: user logged in");
+  return res.status(200).json({ id: user.id, email: user.email, username: user.username, role: user.role });
+});
+
+// POST /auth/logout
+router.post("/auth/logout", (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// GET /auth/me
+router.get("/auth/me", requireAuth, async (req, res) => {
+  const [user] = await db.select({
+    id: users.id,
+    email: users.email,
+    username: users.username,
+    role: users.role,
+    avatarUrl: users.avatarUrl,
+  }).from(users).where(eq(users.id, req.session.userId!)).limit(1);
+
+  if (!user) return res.status(404).json({ error: "User not found" });
+  return res.json(user);
+});
+
+// POST /admin/invite
+router.post("/admin/invite", requireAdmin, async (req, res) => {
+  const code = randomBytes(4).toString("hex").toUpperCase();
+  await db.insert(inviteCodes).values({ code, createdBy: req.session.userId! });
+  logger.info({ code, createdBy: req.session.userId }, "admin: invite code created");
+  return res.json({ code });
+});
+
+// GET /admin/invites
+router.get("/admin/invites", requireAdmin, async (_req, res) => {
+  const codes = await db.select().from(inviteCodes).orderBy(inviteCodes.createdAt);
+  return res.json(codes);
+});
+
+export default router;

@@ -391,7 +391,7 @@ export default function Watchlist() {
       <main className="flex-1 ml-[220px] flex flex-col h-[100dvh] overflow-hidden">
         <div className="shrink-0 border-b border-border bg-background px-6 py-4">
           <h1 className="text-lg font-bold tracking-tight leading-none">Watchlist</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">31 tracked tickers across 3 tiers</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Your personal watchlist</p>
         </div>
         <WatchlistView />
       </main>

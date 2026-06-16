@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | Options comparison table | ready | Side-by-side put option comparison UI |
 | 2 | Strike explorer slider | ready | Interactive strike selection with premium preview |
-| 3 | User management system | design-pending | Independent watchlists per user, session auth, admin-only refresh — brainstorm incomplete |
+| 3 | User management system | complete | express-session auth, invite-only register, per-user watchlist, admin UI, ProtectedRoute — Phases 0-4 done 2026-06-16 |
 | 4 | FMP fundamentals backfill | ready | POST /api/fundamentals/refresh — check budget first via GET /api/fundamentals/status |
 | 5 | Macro data live feed | ready | Replace file-cached FRED data with live polling |
 

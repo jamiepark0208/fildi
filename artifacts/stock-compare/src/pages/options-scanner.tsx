@@ -155,7 +155,9 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
   );
 }
 
-function StrikeCard({
+// ── Strike row (one put per expiry table row) ─────────────────────────────────
+
+function StrikeRow({
   chain,
   put,
   isBest,
@@ -178,48 +180,157 @@ function StrikeCard({
     : null;
   const gammaRisk    = exactDte <= 3 && absDelta != null && absDelta > 0.20;
   const incomeColor  =
-    weeklyIncome >= 1.0 ? "text-green-400" :
-    weeklyIncome >= 0.7 ? "text-yellow-400" : "text-muted-foreground";
+    weeklyIncome >= 1.0 ? "text-green-400 font-semibold" :
+    weeklyIncome >= 0.7 ? "text-yellow-400 font-semibold" : "text-muted-foreground";
   const dqLabel = isBest && dataQuality != null
     ? dataQuality < 0.50 ? "sparse" : dataQuality < 0.80 ? "partial" : null
     : null;
 
   return (
     <div className={cn(
-      "rounded-md border px-3 py-2.5 min-w-[130px] space-y-0.5 shrink-0",
+      "grid items-center gap-x-4 px-3 py-2 text-sm border-l-2 transition-colors",
+      "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
       isBest
-        ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20"
-        : "border-border bg-card",
+        ? "border-l-green-500 bg-green-500/5 hover:bg-green-500/8"
+        : gammaRisk
+          ? "border-l-orange-500/60 hover:bg-secondary/30"
+          : "border-l-transparent hover:bg-secondary/30",
     )}>
-      {isBest && (
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[9px] font-semibold text-green-400 uppercase tracking-wide">Best</span>
-          {optionScore != null && (
-            <span className="text-[9px] font-mono text-green-300">score {optionScore.toFixed(1)}</span>
-          )}
+      {/* Strike */}
+      <div className="flex items-center gap-1.5">
+        <span className={cn("font-semibold", isBest ? "text-green-300" : "text-foreground")}>
+          ${put.strike.toFixed(0)}
+        </span>
+        {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
+      </div>
+      {/* Bid */}
+      <div className="text-muted-foreground">${put.bid.toFixed(2)}</div>
+      {/* %/wk */}
+      <div className={incomeColor}>{weeklyIncome.toFixed(2)}%/wk</div>
+      {/* OTM% */}
+      <div className="text-muted-foreground">{otmPct.toFixed(1)}%</div>
+      {/* Delta */}
+      <div className="text-muted-foreground">
+        {absDelta != null ? put.delta!.toFixed(2) : "—"}
+      </div>
+      {/* POP */}
+      <div className="text-muted-foreground">
+        {pop != null ? `${pop.toFixed(0)}%` : "—"}
+      </div>
+      {/* Buffer (SDs) */}
+      <div className="text-muted-foreground">
+        {bufferSds != null ? `${bufferSds.toFixed(2)}σ` : "—"}
+      </div>
+      {/* IV */}
+      <div className="text-muted-foreground">{(put.iv * 100).toFixed(0)}%</div>
+      {/* Score + DQ badge (best only) */}
+      <div className="flex items-center gap-1.5">
+        {isBest && optionScore != null && (
+          <span className="text-[11px] font-mono text-green-400 bg-green-500/10 border border-green-500/20 rounded px-1.5 py-0.5">
+            {optionScore.toFixed(1)}
+          </span>
+        )}
+        {dqLabel && (
+          <span className={cn(
+            "text-[10px]",
+            dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
+          )}>
+            {dqLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Column header for the strike table ───────────────────────────────────────
+
+function StrikeTableHeader() {
+  return (
+    <div className={cn(
+      "grid items-center gap-x-4 px-3 py-1.5 text-[11px] font-medium text-muted-foreground/70",
+      "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
+      "border-b border-border/50 bg-secondary/20",
+    )}>
+      <div>Strike</div>
+      <div>Bid</div>
+      <div>%/wk</div>
+      <div>OTM%</div>
+      <div>Delta</div>
+      <div>POP</div>
+      <div>Buffer</div>
+      <div>IV</div>
+      <div>Score</div>
+    </div>
+  );
+}
+
+// ── Expiry section (collapsible group of strikes for one expiry date) ─────────
+
+function ExpirySection({
+  chain,
+  puts,
+  bestStrike,
+  newScorerBest,
+}: {
+  chain: OptionsChainResult;
+  puts: Array<{ put: OptionRow; weeklyIncome: number }>;
+  bestStrike: { put: OptionRow; chain: OptionsChainResult } | null;
+  newScorerBest: { chain: OptionsChainResult; put: OptionRow; optionScore: number; dataQuality: number } | null;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  const hasBestStrike = bestStrike != null && bestStrike.chain.expiry === chain.expiry;
+  const bestInExpiry  = puts.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b, puts[0]);
+
+  return (
+    <div className="rounded-md border border-border/60 overflow-hidden">
+      {/* Expiry group header */}
+      <button
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
+          "hover:bg-secondary/40 bg-secondary/20",
+        )}
+        onClick={() => setCollapsed(c => !c)}
+      >
+        {collapsed
+          ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        }
+        <span className="text-sm font-medium text-foreground">
+          {formatExpiry(chain.expiry, chain.daysToExpiry)}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {puts.length} strike{puts.length !== 1 ? "s" : ""}
+          {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}
+        </span>
+        {hasBestStrike && (
+          <span className="ml-auto text-[10px] font-semibold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-1.5 py-0.5 uppercase tracking-wide">
+            Best
+          </span>
+        )}
+      </button>
+
+      {/* Strike table */}
+      {!collapsed && (
+        <div>
+          <StrikeTableHeader />
+          {puts.map(({ put }) => {
+            const isBest = bestStrike != null &&
+              put.strike === bestStrike.put.strike &&
+              chain.expiry === bestStrike.chain.expiry;
+            return (
+              <StrikeRow
+                key={`${chain.expiry}-${put.strike}`}
+                chain={chain}
+                put={put}
+                isBest={isBest}
+                optionScore={isBest ? (newScorerBest?.optionScore ?? null) : null}
+                dataQuality={isBest ? (newScorerBest?.dataQuality ?? null) : null}
+              />
+            );
+          })}
         </div>
-      )}
-      {gammaRisk && (
-        <div className="text-[9px] font-semibold text-orange-400 mb-0.5">⚡ gamma risk</div>
-      )}
-      <div className="text-[10px] text-muted-foreground">{formatExpiry(chain.expiry, chain.daysToExpiry)}</div>
-      <div className="font-semibold text-sm">${put.strike.toFixed(0)}</div>
-      <div className={cn("font-bold text-sm", incomeColor)}>{weeklyIncome.toFixed(2)}%/wk</div>
-      <div className="text-[11px] text-muted-foreground">{otmPct.toFixed(1)}% OTM</div>
-      {absDelta != null && (
-        <div className="text-[11px] text-muted-foreground">
-          Δ {put.delta!.toFixed(2)} · POP {pop!.toFixed(0)}%
-        </div>
-      )}
-      {bufferSds != null && (
-        <div className="text-[11px] text-muted-foreground">{bufferSds.toFixed(2)} SDs buffer</div>
-      )}
-      <div className="text-[11px] text-muted-foreground">IV {(put.iv * 100).toFixed(0)}%</div>
-      {dqLabel && (
-        <div className={cn(
-          "text-[9px] mt-0.5",
-          dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
-        )}>data {dqLabel}</div>
       )}
     </div>
   );
@@ -413,25 +524,31 @@ function ScannerRow({
             </div>
           )}
 
-          {!optionsLoading && optionsData && strikes.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {strikes.map(({ chain, put }) => {
-                const isBest = bestStrike != null &&
-                  put.strike === bestStrike.put.strike &&
-                  chain.expiry === bestStrike.chain.expiry;
-                return (
-                  <StrikeCard
-                    key={`${chain.expiry}-${put.strike}`}
+          {!optionsLoading && optionsData && strikes.length > 0 && (() => {
+            // Group strikes by expiry, preserving chronological chain order
+            const byExpiry = new Map<string, { chain: OptionsChainResult; puts: Array<{ put: OptionRow; weeklyIncome: number }> }>();
+            for (const { chain, put, weeklyIncome } of strikes) {
+              if (!byExpiry.has(chain.expiry)) byExpiry.set(chain.expiry, { chain, puts: [] });
+              byExpiry.get(chain.expiry)!.puts.push({ put, weeklyIncome });
+            }
+            // Sort each expiry's puts by strike descending (highest first)
+            for (const group of byExpiry.values()) {
+              group.puts.sort((a, b) => b.put.strike - a.put.strike);
+            }
+            return (
+              <div className="space-y-2">
+                {Array.from(byExpiry.values()).map(({ chain, puts }) => (
+                  <ExpirySection
+                    key={chain.expiry}
                     chain={chain}
-                    put={put}
-                    isBest={isBest}
-                    optionScore={isBest ? (newScorerBest?.optionScore ?? null) : null}
-                    dataQuality={isBest ? (newScorerBest?.dataQuality ?? null) : null}
+                    puts={puts}
+                    bestStrike={bestStrike}
+                    newScorerBest={newScorerBest}
                   />
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
 
           {!optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
@@ -449,8 +566,9 @@ function ScannerRow({
               {overrideEnabled && overrideBest && (
                 <div className="space-y-1.5">
                   <p className="text-[11px] text-red-400/80 italic">Overridden — recommendation below does not meet normal criteria</p>
-                  <div className="flex gap-2 flex-wrap">
-                    <StrikeCard
+                  <div className="rounded-md border border-border/60 overflow-hidden">
+                    <StrikeTableHeader />
+                    <StrikeRow
                       chain={overrideBest.chain}
                       put={overrideBest.put}
                       isBest

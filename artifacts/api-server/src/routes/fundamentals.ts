@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import YahooFinanceClass from "yahoo-finance2";
 import { WATCHLIST } from "../lib/constants.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
@@ -67,7 +68,7 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
 
 // POST /fundamentals/refresh — refresh all 31 watchlist tickers from FMP.
 // Checks daily API budget before starting. Returns 202 if budget allows, 429 if not.
-router.post("/fundamentals/refresh", async (_req, res) => {
+router.post("/fundamentals/refresh", requireAdmin, async (_req, res) => {
   const callsNeeded = WATCHLIST.length * 7;
   const budget = await checkFMPBudget(callsNeeded);
   if (!budget.allowed) {
@@ -90,7 +91,7 @@ router.post("/fundamentals/refresh", async (_req, res) => {
 // POST /fundamentals/import-history — one-shot import of LSEG historical CSV rows.
 // Body: { rows: HistoryCSVRow[] }
 // Returns: { imported: number, skipped: number, errors: string[] }
-router.post("/fundamentals/import-history", async (req, res) => {
+router.post("/fundamentals/import-history", requireAdmin, async (req, res) => {
   const { rows } = req.body as { rows?: unknown[] };
   if (!Array.isArray(rows)) {
     return res.status(400).json({ error: "body.rows must be an array" });

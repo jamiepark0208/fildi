@@ -29,4 +29,5 @@ export function getTier(ticker: string): 1 | 2 | 3 {
   return TIER_MAP[ticker.toUpperCase()] ?? 2;
 }
 
+// TODO(multi-user): replace with SELECT DISTINCT ticker FROM watchlist across all users
 export const WATCHLIST = Object.keys(RSI_THRESHOLDS);

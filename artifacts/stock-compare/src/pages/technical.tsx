@@ -1,5 +1,6 @@
 import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
+import { useWatchlist } from "@/hooks/use-watchlist";
 import { Sidebar } from "@/components/sidebar";
 import { TickerShelf } from "@/components/ticker-shelf";
 import { Badge } from "@/components/ui/badge";
@@ -625,11 +626,6 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const WATCHLIST = [
-  "NVDA","INTC","MRVL","PLTR","HOOD","RDDT","AAPL","AMZN","GOOGL","TSLA","NOW",
-  "BABA","SMCI","SNOW","AAOI","NFLX","NET","OPEN","ONDS","POET","SHOP","FSLY","RUM",
-  "JOBY","ACHR","BB","IONQ","SOFI","TTD","RKLB","RDW",
-];
 
 interface TechnicalProps {
   tickers: string[];
@@ -637,6 +633,7 @@ interface TechnicalProps {
 }
 
 export default function Technical({ tickers, setTickers }: TechnicalProps) {
+  const { tickers: watchlistTickers } = useWatchlist();
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
 
   const handleAdd    = (t: string) => { if (!tickers.includes(t) && tickers.length < MAX_SLOTS) setTickers(p => [...p, t]); };
@@ -723,7 +720,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
             loadingTickers={loadingMap}
             onAdd={handleAdd}
             onRemove={handleRemove}
-            suggestions={WATCHLIST}
+            suggestions={watchlistTickers}
           />
         </div>
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { WATCHLIST } from "../lib/constants.js";
 import {
   getStaleTechnicalTickers,
@@ -14,7 +15,7 @@ export { refreshTechnicals };
 
 // POST /technicals/refresh — 202 fire-and-forget; refreshes stale tickers.
 // Pass ?force=true to refresh all tickers regardless of last-fetched time.
-router.post("/technicals/refresh", async (req, res) => {
+router.post("/technicals/refresh", requireAdmin, async (req, res) => {
   try {
     const force = req.query["force"] === "true";
     const tickers = force ? WATCHLIST : await getStaleTechnicalTickers(WATCHLIST);

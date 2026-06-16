@@ -2,15 +2,48 @@ import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boole
 import { createInsertSchema } from 'drizzle-zod'
 import { z } from 'zod/v4'
 
+// ── users ─────────────────────────────────────────────────────────────────────
+
+export const users = pgTable('users', {
+  id:           serial('id').primaryKey(),
+  email:        text('email').notNull().unique(),
+  username:     text('username').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  role:         text('role').notNull().default('member'), // 'admin' | 'member'
+  avatarUrl:    text('avatar_url'),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true })
+export type InsertUser = z.infer<typeof insertUserSchema>
+export type User = typeof users.$inferSelect
+
+// ── invite_codes ──────────────────────────────────────────────────────────────
+
+export const inviteCodes = pgTable('invite_codes', {
+  code:      text('code').primaryKey(),
+  createdBy: integer('created_by').notNull().references(() => users.id),
+  usedBy:    integer('used_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  usedAt:    timestamp('used_at', { withTimezone: true }),
+})
+
+export const insertInviteCodeSchema = createInsertSchema(inviteCodes).omit({ createdAt: true })
+export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>
+export type InviteCode = typeof inviteCodes.$inferSelect
+
 // ── watchlist ─────────────────────────────────────────────────────────────────
 
 export const watchlist = pgTable('watchlist', {
-  ticker:  text('ticker').primaryKey(),
+  userId:  integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:  text('ticker').notNull(),
   tier:    integer('tier').notNull(),
   status:  text('status').notNull(),  // want_to_own | assigned | monitoring | closed
   addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
   notes:   text('notes'),
-})
+}, t => ({
+  pk: primaryKey({ columns: [t.userId, t.ticker] }),
+}))
 
 export const insertWatchlistSchema = createInsertSchema(watchlist).omit({ addedAt: true })
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>
@@ -34,6 +67,7 @@ export type TickerConfig = typeof tickerConfig.$inferSelect
 
 export const positions = pgTable('positions', {
   id:           serial('id').primaryKey(),
+  userId:       integer('user_id').references(() => users.id, { onDelete: 'set null' }),
   accountId:    text('account_id').notNull(),
   ticker:       text('ticker').notNull(),
   positionType: text('position_type').notNull(), // short_put | short_call | long_stock | long_call | long_put

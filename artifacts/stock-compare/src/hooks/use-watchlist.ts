@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type WatchlistEntry = {
   ticker: string;
@@ -15,55 +16,85 @@ export const PRESET_COLORS = [
   "#a855f7", // purple
 ];
 
-const STORAGE_KEY = "fildi_watchlist";
+const COLOR_KEY = "fildi_watchlist_colors";
+
+function loadColorMap(): Record<string, string> {
+  try {
+    const s = localStorage.getItem(COLOR_KEY);
+    return s ? JSON.parse(s) : {};
+  } catch { return {}; }
+}
+
+function saveColorMap(map: Record<string, string>) {
+  try { localStorage.setItem(COLOR_KEY, JSON.stringify(map)); } catch {}
+}
+
+const QUERY_KEY = ["watchlist"] as const;
+
+async function fetchWatchlist(): Promise<{ ticker: string; addedAt: string }[]> {
+  const res = await fetch("/api/watchlist", { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
 
 export function useWatchlist() {
-  const [entries, setEntries] = useState<WatchlistEntry[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setEntries(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.error("Failed to load watchlist from localStorage", e);
-    } finally {
-      setIsLoaded(true);
+  const { data = [], isLoading } = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: fetchWatchlist,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  const colorMap = loadColorMap();
+
+  const entries: WatchlistEntry[] = data.map(row => ({
+    ticker: row.ticker,
+    colorTag: colorMap[row.ticker] ?? "",
+    addedAt: new Date(row.addedAt).getTime(),
+  }));
+
+  const addEntry = useCallback(async (ticker: string, colorTag: string = "") => {
+    await fetch("/api/watchlist", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker }),
+    });
+    if (colorTag) {
+      const map = loadColorMap();
+      map[ticker] = colorTag;
+      saveColorMap(map);
     }
-  }, []);
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient]);
 
-  const addEntry = useCallback((ticker: string, colorTag: string = "") => {
-    setEntries(prev => {
-      if (prev.some(e => e.ticker === ticker)) return prev;
-      const newEntries = [...prev, { ticker, colorTag, addedAt: Date.now() }];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-      return newEntries;
+  const removeEntry = useCallback(async (ticker: string) => {
+    await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
+      method: "DELETE",
+      credentials: "include",
     });
-  }, []);
-
-  const removeEntry = useCallback((ticker: string) => {
-    setEntries(prev => {
-      const newEntries = prev.filter(e => e.ticker !== ticker);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-      return newEntries;
-    });
-  }, []);
+    const map = loadColorMap();
+    delete map[ticker];
+    saveColorMap(map);
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient]);
 
   const updateColorTag = useCallback((ticker: string, colorTag: string) => {
-    setEntries(prev => {
-      const newEntries = prev.map(e => e.ticker === ticker ? { ...e, colorTag } : e);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-      return newEntries;
-    });
-  }, []);
+    const map = loadColorMap();
+    map[ticker] = colorTag;
+    saveColorMap(map);
+    // Force re-render by invalidating (entries are derived from data + colorMap)
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient]);
 
   return {
     entries,
-    isLoaded,
+    tickers: entries.map(e => e.ticker),
+    isLoaded: !isLoading,
     addEntry,
     removeEntry,
-    updateColorTag
+    updateColorTag,
   };
 }
