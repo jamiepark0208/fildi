@@ -11,9 +11,10 @@ import {
   type TechnicalScore,
 } from "@/lib/technical-rankings";
 import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X } from "lucide-react";
-import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
+import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
+import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -163,13 +164,16 @@ function StrikeRow({
   isBest,
   optionScore,
   dataQuality,
+  scoreResult,
 }: {
   chain: OptionsChainResult;
   put: OptionRow;
   isBest: boolean;
   optionScore?: number | null;
   dataQuality?: number | null;
+  scoreResult?: OptionScoreResult | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const exactDte     = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
   const weeklyIncome = put.incomePct / (exactDte / 7);
   const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
@@ -187,58 +191,84 @@ function StrikeRow({
     : null;
 
   return (
-    <div className={cn(
-      "grid items-center gap-x-4 px-3 py-2 text-sm border-l-2 transition-colors",
-      "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
-      isBest
-        ? "border-l-green-500 bg-green-500/5 hover:bg-green-500/8"
-        : gammaRisk
-          ? "border-l-orange-500/60 hover:bg-secondary/30"
-          : "border-l-transparent hover:bg-secondary/30",
-    )}>
-      {/* Strike */}
-      <div className="flex items-center gap-1.5">
-        <span className={cn("font-semibold", isBest ? "text-green-300" : "text-foreground")}>
-          ${put.strike.toFixed(0)}
-        </span>
-        {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
-      </div>
-      {/* Bid */}
-      <div className="text-muted-foreground">${put.bid.toFixed(2)}</div>
-      {/* %/wk */}
-      <div className={incomeColor}>{weeklyIncome.toFixed(2)}%/wk</div>
-      {/* OTM% */}
-      <div className="text-muted-foreground">{otmPct.toFixed(1)}%</div>
-      {/* Delta */}
-      <div className="text-muted-foreground">
-        {absDelta != null ? put.delta!.toFixed(2) : "—"}
-      </div>
-      {/* POP */}
-      <div className="text-muted-foreground">
-        {pop != null ? `${pop.toFixed(0)}%` : "—"}
-      </div>
-      {/* Buffer (SDs) */}
-      <div className="text-muted-foreground">
-        {bufferSds != null ? `${bufferSds.toFixed(2)}σ` : "—"}
-      </div>
-      {/* IV */}
-      <div className="text-muted-foreground">{(put.iv * 100).toFixed(0)}%</div>
-      {/* Score + DQ badge (best only) */}
-      <div className="flex items-center gap-1.5">
-        {isBest && optionScore != null && (
-          <span className="text-[11px] font-mono text-green-400 bg-green-500/10 border border-green-500/20 rounded px-1.5 py-0.5">
-            {optionScore.toFixed(1)}
-          </span>
+    <div>
+      <div
+        className={cn(
+          "grid items-center gap-x-4 px-3 py-2 text-sm border-l-2 transition-colors cursor-pointer select-none",
+          "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
+          isBest
+            ? "border-l-green-500 bg-green-500/5 hover:bg-green-500/8"
+            : gammaRisk
+              ? "border-l-orange-500/60 hover:bg-secondary/30"
+              : "border-l-transparent hover:bg-secondary/30",
         )}
-        {dqLabel && (
-          <span className={cn(
-            "text-[10px]",
-            dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
-          )}>
-            {dqLabel}
+        onClick={() => setExpanded(e => !e)}
+        title="Click to expand analysis"
+      >
+        {/* Strike */}
+        <div className="flex items-center gap-1.5">
+          <span className={cn("font-bold font-mono", isBest ? "text-green-300" : "text-slate-100")}>
+            ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)}
           </span>
-        )}
+          {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
+        </div>
+        {/* Bid */}
+        <div className="font-mono text-slate-200">${put.bid.toFixed(2)}</div>
+        {/* %/wk */}
+        <div className={cn("font-mono font-semibold", incomeColor)}>{weeklyIncome.toFixed(2)}%</div>
+        {/* OTM% */}
+        <div className="font-mono text-slate-300">{otmPct.toFixed(1)}%</div>
+        {/* Delta */}
+        <div className={cn("font-mono", absDelta == null ? "text-slate-500" :
+          absDelta < 0.15 ? "text-green-400" :
+          absDelta < 0.25 ? "text-slate-200" : "text-orange-400")}>
+          {absDelta != null ? put.delta!.toFixed(2) : "—"}
+        </div>
+        {/* POP */}
+        <div className={cn("font-mono", pop == null ? "text-slate-500" :
+          pop >= 85 ? "text-green-400" : pop >= 75 ? "text-slate-200" : "text-orange-400")}>
+          {pop != null ? `${pop.toFixed(0)}%` : "—"}
+        </div>
+        {/* Buffer (SDs) */}
+        <div className={cn("font-mono", bufferSds == null ? "text-slate-500" :
+          bufferSds >= 1.5 ? "text-green-400" : bufferSds >= 1.0 ? "text-slate-200" : "text-orange-400")}>
+          {bufferSds != null ? `${bufferSds.toFixed(2)}σ` : "—"}
+        </div>
+        {/* IV */}
+        <div className="font-mono text-amber-400">{(put.iv * 100).toFixed(0)}%</div>
+        {/* Score + expand chevron */}
+        <div className="flex items-center gap-1.5">
+          {optionScore != null && (
+            <span className={cn(
+              "text-[11px] font-mono rounded px-1.5 py-0.5 border",
+              isBest
+                ? "text-green-300 bg-green-500/10 border-green-500/30"
+                : "text-slate-300 bg-slate-500/10 border-slate-500/20",
+            )}>
+              {optionScore.toFixed(1)}
+            </span>
+          )}
+          {dqLabel && (
+            <span className={cn(
+              "text-[10px]",
+              dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
+            )}>
+              {dqLabel}
+            </span>
+          )}
+          <span className="ml-auto text-slate-600">
+            {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          </span>
+        </div>
       </div>
+      {expanded && (
+        <StrikeDetailPanel
+          put={put}
+          chain={chain}
+          scoreResult={scoreResult ?? null}
+          isBest={isBest}
+        />
+      )}
     </div>
   );
 }
@@ -248,9 +278,9 @@ function StrikeRow({
 function StrikeTableHeader() {
   return (
     <div className={cn(
-      "grid items-center gap-x-4 px-3 py-1.5 text-[11px] font-medium text-muted-foreground/70",
+      "grid items-center gap-x-4 px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase",
       "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
-      "border-b border-border/50 bg-secondary/20",
+      "border-b border-border/60 bg-slate-900/60 text-slate-400",
     )}>
       <div>Strike</div>
       <div>Bid</div>
@@ -272,16 +302,33 @@ function ExpirySection({
   puts,
   bestStrike,
   newScorerBest,
+  stockCtx,
+  macroRegime,
+  allWatchlistIVs,
 }: {
   chain: OptionsChainResult;
   puts: Array<{ put: OptionRow; weeklyIncome: number }>;
   bestStrike: { put: OptionRow; chain: OptionsChainResult } | null;
   newScorerBest: { chain: OptionsChainResult; put: OptionRow; optionScore: number; dataQuality: number } | null;
+  stockCtx: StockContext | null;
+  macroRegime: MacroRegime;
+  allWatchlistIVs: number[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const hasBestStrike = bestStrike != null && bestStrike.chain.expiry === chain.expiry;
   const bestInExpiry  = puts.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b, puts[0]);
+
+  // Compute full OptionScoreResult for every put in this expiry
+  const scoreResults = useMemo(() => {
+    if (!stockCtx) return new Map<number, OptionScoreResult>();
+    const map = new Map<number, OptionScoreResult>();
+    for (const { put } of puts) {
+      const candidate = buildCandidate(put, chain);
+      map.set(put.strike, computeOptionScore(candidate, stockCtx, macroRegime, allWatchlistIVs));
+    }
+    return map;
+  }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs]);
 
   return (
     <div className="rounded-md border border-border/60 overflow-hidden">
@@ -319,14 +366,16 @@ function ExpirySection({
             const isBest = bestStrike != null &&
               put.strike === bestStrike.put.strike &&
               chain.expiry === bestStrike.chain.expiry;
+            const sr = scoreResults.get(put.strike) ?? null;
             return (
               <StrikeRow
                 key={`${chain.expiry}-${put.strike}`}
                 chain={chain}
                 put={put}
                 isBest={isBest}
-                optionScore={isBest ? (newScorerBest?.optionScore ?? null) : null}
-                dataQuality={isBest ? (newScorerBest?.dataQuality ?? null) : null}
+                optionScore={isBest ? (newScorerBest?.optionScore ?? sr?.optionScore ?? null) : (sr?.optionScore ?? null)}
+                dataQuality={isBest ? (newScorerBest?.dataQuality ?? sr?.dataQuality ?? null) : (sr?.dataQuality ?? null)}
+                scoreResult={sr}
               />
             );
           })}
@@ -383,7 +432,7 @@ function ScannerRow({
   allWatchlistIVs = [],
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
-  const price     = optionsData?.[0]?.spot ?? null;
+  const price     = optionsData?.[0]?.spot ?? techRow?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
   const minIncome = minIncomeOn ? 0.5 : 0;
 
@@ -391,9 +440,9 @@ function ScannerRow({
     ? viableStrikes(optionsData, minIncome, show1wk, show2wk)
     : [];
 
-  const newScorerBest = useMemo(() => {
-    if (!optionsData || !techRow) return null;
-    const stockCtx: StockContext = {
+  const stockCtx = useMemo((): StockContext | null => {
+    if (!techRow) return null;
+    return {
       ivRank:                pfNum(techRow.ivRank),
       ivPercentile:          pfNum(techRow.ivPercentile),
       ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
@@ -405,6 +454,10 @@ function ScannerRow({
       techTotalScore:        score?.totalScore ?? null,
       fundTotalScore:        fundTotalScore ?? null,
     };
+  }, [techRow, score, fundTotalScore]);
+
+  const newScorerBest = useMemo(() => {
+    if (!optionsData || !stockCtx) return null;
     const picked = pickBestStrike(optionsData, stockCtx, macroRegime, allWatchlistIVs);
     if (!picked) return null;
     return {
@@ -414,7 +467,7 @@ function ScannerRow({
       optionScore: picked.result.optionScore,
       dataQuality: picked.result.dataQuality,
     };
-  }, [optionsData, techRow, score, fundTotalScore, macroRegime, allWatchlistIVs]);
+  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs]);
 
   const bestStrike = newScorerBest
     ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
@@ -447,33 +500,35 @@ function ScannerRow({
         onClick={onExpand}
       >
         {/* Left: ticker + price + signal */}
-        <div className="flex items-center gap-2 w-[130px] shrink-0">
+        <div className="flex items-center gap-2 w-[150px] shrink-0">
           <span
-            className="font-semibold text-sm"
+            className="font-bold text-sm tracking-wide"
             style={overrideEnabled ? { color: "#f87171" } : undefined}
           >
             {ticker}
           </span>
           {price != null && (
-            <span className="text-xs text-muted-foreground">${price.toFixed(2)}</span>
+            <span className="text-xs font-mono font-semibold text-cyan-400">${price.toFixed(2)}</span>
           )}
         </div>
 
         <SignalBadge signal={signal} />
 
         {/* Score */}
-        <span className="text-xs text-muted-foreground w-[60px] shrink-0">
-          {score ? `score ${score.totalScore.toFixed(1)}` : "—"}
+        <span className="text-xs text-slate-300 w-[64px] shrink-0 font-mono">
+          {score ? score.totalScore.toFixed(1) : "—"}
         </span>
 
-        {/* IV — always shown from scorecard data */}
-        <span className="text-xs text-muted-foreground w-[50px] shrink-0">{ivDisplay}</span>
+        {/* IV — distinctly amber */}
+        <span className="text-xs font-mono font-semibold text-amber-400 w-[52px] shrink-0">
+          {ivPct != null ? `${ivPct}%` : "—"}
+        </span>
 
         {/* Strike summary */}
         <span className={cn(
           "text-xs flex-1",
-          summary?.startsWith("excluded") ? "text-muted-foreground italic" :
-          summary?.startsWith("no viable") ? "text-muted-foreground" : "text-foreground",
+          summary?.startsWith("excluded") ? "text-slate-500 italic" :
+          summary?.startsWith("no viable") ? "text-slate-500" : "text-slate-200",
         )}>
           {optionsLoading ? (
             <Loader2 className="w-3 h-3 animate-spin inline" />
@@ -483,14 +538,14 @@ function ScannerRow({
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           <button
-            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-slate-200 transition-colors"
             onClick={onRefresh}
             title="Refresh options"
           >
             <RefreshCw className="w-3 h-3" />
           </button>
           <button
-            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors"
+            className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-red-400 transition-colors"
             onClick={onDelete}
             title="Remove from scanner"
           >
@@ -498,8 +553,8 @@ function ScannerRow({
           </button>
         </div>
         {expanded
-          ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+          ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
         }
       </div>
 
@@ -544,6 +599,9 @@ function ScannerRow({
                     puts={puts}
                     bestStrike={bestStrike}
                     newScorerBest={newScorerBest}
+                    stockCtx={stockCtx}
+                    macroRegime={macroRegime}
+                    allWatchlistIVs={allWatchlistIVs}
                   />
                 ))}
               </div>
@@ -706,7 +764,7 @@ export default function OptionsScanner() {
         return res.json() as Promise<OptionsChainResult[]>;
       },
       enabled:              fetchedOnce.has(ticker),
-      staleTime:            Infinity,
+      staleTime:            5 * 60_000,
       refetchOnWindowFocus: false,
     })),
   });

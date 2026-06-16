@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-15T17:39:25.417Z",
+  "fetchedAt": "2026-06-16T14:36:01.595Z",
   "vixHistory": [
     {
       "date": "2024-06-17",
@@ -2002,8 +2002,8 @@
       "value": 17.68000030517578
     },
     {
-      "date": "2026-06-15",
-      "value": 16.09000015258789
+      "date": "2026-06-16",
+      "value": 15.920000076293945
     }
   ],
   "fedFundsHistory": [
@@ -4004,8 +4004,8 @@
       "value": 3.618000030517578
     },
     {
-      "date": "2026-06-15",
-      "value": 3.620000123977661
+      "date": "2026-06-16",
+      "value": 3.6349997520446777
     }
   ],
   "tenYearHistory": [
@@ -6006,8 +6006,8 @@
       "value": 4.486999988555908
     },
     {
-      "date": "2026-06-15",
-      "value": 4.468999862670898
+      "date": "2026-06-16",
+      "value": 4.453000068664551
     }
   ],
   "vixCurve": [
@@ -6022,31 +6022,31 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 16.09,
-      "weekAgo": 18.920000076293945,
+      "value": 15.92,
+      "weekAgo": 19.8700008392334,
       "monthAgo": 18.43000030517578,
-      "threeMonthAgo": 23.510000228881836
+      "threeMonthAgo": 22.3700008392334
     },
     {
       "tenor": "93D",
       "days": 93,
-      "value": 19.43,
-      "weekAgo": 20.790000915527344,
+      "value": 19.31,
+      "weekAgo": 21.309999465942383,
       "monthAgo": 21.360000610351562,
-      "threeMonthAgo": 24.920000076293945
+      "threeMonthAgo": 24.329999923706055
     },
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.88,
-      "weekAgo": 22.670000076293945,
+      "value": 21.78,
+      "weekAgo": 22.969999313354492,
       "monthAgo": 23.25,
-      "threeMonthAgo": 25.6299991607666
+      "threeMonthAgo": 25.280000686645508
     },
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.37,
+      "value": 23.3,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6057,25 +6057,25 @@
       "label": "Jun '26",
       "meetingDate": "2026-06-18",
       "impliedRate": 3.623,
-      "weekAgo": 3.62,
+      "weekAgo": 3.622,
       "monthAgo": 3.62,
-      "threeMonthAgo": 3.61,
+      "threeMonthAgo": 3.62,
       "isTbillProxy": false
     },
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.63,
-      "weekAgo": 3.625,
+      "impliedRate": 3.635,
+      "weekAgo": 3.63,
       "monthAgo": 3.625,
-      "threeMonthAgo": 3.58,
+      "threeMonthAgo": 3.585,
       "isTbillProxy": false
     },
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.675,
-      "weekAgo": 3.7,
+      "impliedRate": 3.68,
+      "weekAgo": 3.695,
       "monthAgo": 3.655,
       "threeMonthAgo": 3.51,
       "isTbillProxy": false
@@ -6083,37 +6083,37 @@
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.705,
-      "weekAgo": 3.745,
+      "impliedRate": 3.71,
+      "weekAgo": 3.735,
       "monthAgo": 3.675,
-      "threeMonthAgo": 3.48,
+      "threeMonthAgo": 3.475,
       "isTbillProxy": false
     },
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.795,
-      "weekAgo": 3.87,
+      "impliedRate": 3.8,
+      "weekAgo": 3.85,
       "monthAgo": 3.77,
-      "threeMonthAgo": 3.405,
+      "threeMonthAgo": 3.395,
       "isTbillProxy": false
     },
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 3.82,
-      "weekAgo": 3.9,
+      "impliedRate": 3.83,
+      "weekAgo": 3.88,
       "monthAgo": 3.79,
-      "threeMonthAgo": 3.385,
+      "threeMonthAgo": 3.375,
       "isTbillProxy": false
     },
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 3.875,
-      "weekAgo": 3.975,
+      "impliedRate": 3.885,
+      "weekAgo": 3.95,
       "monthAgo": 3.865,
-      "threeMonthAgo": 3.365,
+      "threeMonthAgo": 3.355,
       "isTbillProxy": false
     }
   ]

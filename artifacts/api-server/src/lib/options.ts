@@ -196,7 +196,7 @@ function buildRows(
   const hi = spot * (1 - FLAT_MIN_OTM);
   const T  = exactDte / 365;
 
-  return puts
+  const rows = puts
     .filter(p => typeof p.strike === "number" && p.strike >= lo && p.strike <= hi)
     .map(p => {
       const strike       = p.strike!;
@@ -223,8 +223,16 @@ function buildRows(
         delta,
         spreadPct,
       };
-    })
-    .sort((a, b) => b.strike - a.strike);
+    });
+
+  // Yahoo Finance returns duplicate strikes for mini/adjusted contracts — keep highest bid per strike
+  const byStrike = new Map<number, typeof rows[0]>();
+  for (const row of rows) {
+    const existing = byStrike.get(row.strike);
+    if (!existing || row.bid > existing.bid) byStrike.set(row.strike, row);
+  }
+
+  return Array.from(byStrike.values()).sort((a, b) => b.strike - a.strike);
 }
 
 async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsResponse> {

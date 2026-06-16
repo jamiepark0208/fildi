@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-16
 
 ## Active work
-- Working: multi-user-foundation
-- In progress: Multi-user foundation complete: Phases 0-4 done — DB schema (users/invite_codes/watchlist migration), express-session auth, invite-only register, requireAuth/requireAdmin middleware, auth routes, per-user watchlist API, AuthContext, ProtectedRoute, Login page, Settings page with admin invite UI, sidebar logout + Portfolio hide for members, useWatchlist migrated from localStorage to API
+- Working: options-scanner-ux, multi-user-foundation
+- In progress: Options Scanner: fixed duplicate strikes (toFixed(0) rounding + dedup), expandable strike rows with StrikeDetailPanel (bullets + Greeks table + P&L simulation chart), visual overhaul (cyan price, amber IV, color-coded delta/POP/buffer, white text, larger fonts). Multi-user: complete Phases 0-4, watchlist restored from ticker_config, admin credentials set.
 - Blocked: none
 
 ## Next tasks (priority order)
