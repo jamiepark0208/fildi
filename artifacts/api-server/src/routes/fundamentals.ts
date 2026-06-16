@@ -2,7 +2,7 @@ import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 import { WATCHLIST } from "../lib/constants.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
-import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls, getAllFundamentalsRows } from "../lib/fundamentals-db.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 
@@ -142,6 +142,81 @@ router.get("/fundamentals/status", async (_req, res) => {
       tickers: summary,
       apiBudget: { callsToday: budget.callsToday, remaining: budget.remaining, maxDaily: 220 },
     });
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /fundamentals/rankings — fundamental quality score per watchlist ticker for Option Scorer.
+// Computes a PUT_SELLER-aligned score using stored DB fields (no live price fetch needed).
+// Cross-sectional percentile ranks each metric, then weights by quality/growth/safety families.
+router.get("/fundamentals/rankings", async (_req, res) => {
+  try {
+    const rows = await getAllFundamentalsRows();
+    if (rows.length === 0) return res.json([]);
+
+    type Metric = { key: string; weight: number; higherBetter: boolean; getValue: (r: typeof rows[0]) => number | null };
+
+    function n(v: string | null | undefined): number | null {
+      if (v == null) return null;
+      const x = parseFloat(v);
+      return isFinite(x) ? x : null;
+    }
+
+    const METRICS: Metric[] = [
+      // Quality (35% of PUT_SELLER preset)
+      { key: "grossMargin",      weight: 2.0, higherBetter: true,  getValue: r => n(r.grossMargin) },
+      { key: "operatingMargin",  weight: 2.0, higherBetter: true,  getValue: r => n(r.operatingMargin) },
+      { key: "netMargin",        weight: 3.0, higherBetter: true,  getValue: r => n(r.netMargin) },
+      { key: "roe",              weight: 2.0, higherBetter: true,  getValue: r => n(r.returnOnEquity) },
+      { key: "roicWacc",         weight: 1.5, higherBetter: true,  getValue: r => {
+        const roic = n(r.roic); const wacc = n(r.wacc);
+        return roic !== null && wacc !== null ? roic - wacc : null;
+      }},
+      // Growth (25%)
+      { key: "revGrowth",        weight: 3.0, higherBetter: true,  getValue: r => n(r.revenueGrowthYoY) },
+      { key: "epsGrowth",        weight: 3.0, higherBetter: true,  getValue: r => n(r.epsGrowth) },
+      // Safety (20%)
+      { key: "currentRatio",     weight: 1.5, higherBetter: true,  getValue: r => n(r.currentRatio) },
+      { key: "debtToEquity",     weight: 1.0, higherBetter: false, getValue: r => n(r.debtToEquity) },
+      { key: "intCoverage",      weight: 2.5, higherBetter: true,  getValue: r => {
+        const ebit = n(r.ebit); const ie = n(r.interestExpense);
+        return ebit !== null && ie !== null && ie > 0 ? ebit / ie : null;
+      }},
+      { key: "cashRunway",       weight: 3.0, higherBetter: true,  getValue: r => {
+        const cash = n(r.cashAndEquivalents); const ocf = n(r.quarterlyOperatingCashFlow);
+        return cash !== null && ocf !== null && ocf > 0 ? cash / (ocf * 4) : null;
+      }},
+    ];
+
+    // Cross-sectional percentile rank per metric
+    const values = METRICS.map(m => rows.map(r => m.getValue(r)));
+
+    const pctRanks: (number | null)[][] = METRICS.map((m, mi) => {
+      const vals = values[mi];
+      const nonNull = vals.filter(v => v !== null) as number[];
+      if (nonNull.length === 0) return vals.map(() => null);
+      const sorted = [...nonNull].sort((a, b) => a - b);
+      return vals.map(v => {
+        if (v === null) return null;
+        const idx = sorted.findIndex(s => s >= v);
+        const pct = sorted.length === 1 ? 0.5 : idx / (sorted.length - 1);
+        return m.higherBetter ? pct : 1 - pct;
+      });
+    });
+
+    const result = rows.map((row, ri) => {
+      let weightedSum = 0;
+      let totalWeight = 0;
+      METRICS.forEach((m, mi) => {
+        const pct = pctRanks[mi][ri];
+        if (pct !== null) { weightedSum += pct * m.weight; totalWeight += m.weight; }
+      });
+      const totalScore = totalWeight > 0 ? (weightedSum / totalWeight) * 100 : 50;
+      return { ticker: row.ticker, totalScore: parseFloat(totalScore.toFixed(2)) };
+    });
+
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

@@ -505,7 +505,7 @@ export default function OptionsScanner() {
   const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
   const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
-  const [sort,          setSort]          = useState<SortKey>("optionScore");
+  const [sort,          setSort]          = useState<SortKey>("score");
   const [show1wk,       setShow1wk]       = useState(true);
   const [show2wk,       setShow2wk]       = useState(true);
   const [goOnly,        setGoOnly]        = useState(false);

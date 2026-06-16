@@ -136,25 +136,25 @@ describe("scoreIvRelative", () => {
   it("returns null when all inputs null", () =>
     assert.equal(scoreIvRelative(null, null, null, null), null));
   it("high IV rank → high score", () =>
-    assert.ok((scoreIvRelative(90, 85, null, null) as number) > 0.8));
+    assert.ok((scoreIvRelative(0.90, 85, null, null) as number) > 0.8));
   it("low IV rank → low score", () =>
-    assert.ok((scoreIvRelative(10, 15, null, null) as number) < 0.2));
+    assert.ok((scoreIvRelative(0.10, 15, null, null) as number) < 0.2));
   it("works with only ivRank (ivPercentile null)", () =>
-    assert.ok(scoreIvRelative(80, null, null, null) !== null));
+    assert.ok(scoreIvRelative(0.80, null, null, null) !== null));
   it("works with only ivPercentile (ivRank null)", () =>
     assert.ok(scoreIvRelative(null, 80, null, null) !== null));
   it("ivVsRealizedVol > 1 nudges score up", () => {
-    const base  = scoreIvRelative(50, 50, null, null) as number;
-    const bonus = scoreIvRelative(50, 50, 1.5, null) as number;
+    const base  = scoreIvRelative(0.50, 50, null, null) as number;
+    const bonus = scoreIvRelative(0.50, 50, 1.5, null) as number;
     assert.ok(bonus > base, `bonus ${bonus} should > base ${base}`);
   });
   it("positive basicSkew nudges score up", () => {
-    const base  = scoreIvRelative(50, 50, null, null) as number;
-    const bonus = scoreIvRelative(50, 50, null, 0.05) as number;
+    const base  = scoreIvRelative(0.50, 50, null, null) as number;
+    const bonus = scoreIvRelative(0.50, 50, null, 0.05) as number;
     assert.ok(bonus > base);
   });
   it("result is capped at 1.0", () =>
-    assert.ok((scoreIvRelative(100, 100, 2.0, 0.10) as number) <= 1.0));
+    assert.ok((scoreIvRelative(1.0, 100, 2.0, 0.10) as number) <= 1.0));
 });
 
 // ── scoreIvAbsolute ───────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ describe("liquidityGate", () => {
 
 describe("renormalization invariance", () => {
   const baseStock: StockContext = {
-    ivRank: 70, ivPercentile: 65, ivVsRealizedVol: 1.2, basicSkew: 0.03,
+    ivRank: 0.70, ivPercentile: 65, ivVsRealizedVol: 1.2, basicSkew: 0.03,
     swingLow20d: 90, swingLow50d: 85, pivotS1: 88,
     nearestSupportDistPct: 0.05,
     techTotalScore: 75, fundTotalScore: 60,

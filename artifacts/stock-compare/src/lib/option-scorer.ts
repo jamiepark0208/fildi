@@ -144,8 +144,8 @@ export function scoreIvRelative(
   const pct  = pf(ivPercentile);
 
   const parts: number[] = [];
-  if (rank !== null) parts.push(c01(rank / 100));
-  if (pct  !== null) parts.push(c01(pct  / 100));
+  if (rank !== null) parts.push(c01(rank));        // ivRank is [0,1]
+  if (pct  !== null) parts.push(c01(pct  / 100));  // ivPercentile is [0,100]
   if (parts.length === 0) return null;
 
   let base = parts.reduce((s, v) => s + v, 0) / parts.length;

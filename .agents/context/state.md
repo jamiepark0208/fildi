@@ -3,7 +3,7 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-06-15
+**build** — last updated 2026-06-16
 
 ## Active work
 - Working: options-scanner-phase4, options-scanner-phase5
@@ -11,9 +11,7 @@
 - Blocked: none
 
 ## Next tasks (priority order)
-1. **options-scanner-phase4** — Side-by-side verification: flip USE_NEW_SCORER=true temporarily, add comparison column (old BEST vs new BEST per ticker), document diff in phase-report-options-scanner-enhancement.md, get approval
-2. **options-scanner-phase5** — UI switchover: StrikeCard new fields (delta/POP/buffer/IV rank/optionScore/dataQuality), MacroBanner, sort updates, regime-aware reason strings, remove return5d hard gate, final verifier
-3. **options-comparison-table** — side-by-side put option comparison UI
+1. **options-comparison-table** — side-by-side put option comparison UI
 4. **strike-explorer-slider** — interactive strike selection slider
 5. **user-management-system** — independent watchlists per user, session auth, admin-only refresh (design pending — brainstorm interrupted)
 4. **fmp-fundamentals-backfill** — `POST /api/fundamentals/refresh` for tickers not yet in DB (check: `GET /api/fundamentals/status`). FactSet is now priority-1; FMP fills remaining fields (PE, P/B, P/S, ROIC, Beta, WACC, shares).
@@ -24,7 +22,7 @@
 `FILDI_ROADMAP.md` (root) — read before starting any new feature to understand pending/known-broken/architectural decisions.
 
 ## Completed (recent)
-scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phases-1-5, technical-scorer-v2-phases-1-5, AI-score-explanations, options-scanner-persistence, context-consolidation, factset-proxy-infrastructure, **factset-proxy-activation** (2026-06-14)
+scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phases-1-5, technical-scorer-v2-phases-1-5, AI-score-explanations, options-scanner-persistence, context-consolidation, factset-proxy-infrastructure, factset-proxy-activation (2026-06-14), **options-scanner-enhancement** (2026-06-16) — new scorer live, ivRank scale fix, /api/fundamentals/rankings endpoint, StrikeCard overhauled, MacroBanner, sort system
 
 ## FactSet Proxy — LIVE ✅ (2026-06-14)
 - Oracle Cloud VM `146.235.223.94` — Ubuntu 22.04, VM.Standard.E2.1.Micro (Oracle Always Free)

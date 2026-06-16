@@ -160,6 +160,10 @@ export async function readFundamentalsRow(ticker: string): Promise<TickerFundame
   return rows[0] ?? null;
 }
 
+export async function getAllFundamentalsRows(): Promise<TickerFundamentalsRow[]> {
+  return db.select().from(tickerFundamentals);
+}
+
 // Return tickers whose fundamentals are missing or older than STALE_DAYS.
 export async function getStaleTickers(allTickers: string[]): Promise<string[]> {
   const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);

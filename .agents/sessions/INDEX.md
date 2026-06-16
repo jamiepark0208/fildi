@@ -3,6 +3,7 @@
 Full detail for each date at `.agents/sessions/YYYY-MM-DD.md`.
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
+- [2026-06-16](2026-06-16.md) — auto-saved | build | next: test/verify accuracy of options scanner enhancements — Q&A on scoring logic, StrikeCard fields, MacroBanner
 - [2026-06-15](2026-06-15.md) — auto-saved | build | next: test/verify accuracy of options scanner enhancements — Q&A on scoring logic, StrikeCard fields, MacroBanner
 - [2026-06-14](2026-06-14.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
 - [2026-06-12](2026-06-12.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system
