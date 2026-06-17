@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-17
 
 ## Active work
-- Working: scorecard-guide, chart-zones, git-pr-merge
-- In progress: Scorecard Guide + Watchlist chart S/R zones merged to main via PR #1 (61b6b53). Cursor session: branch/commit/push, PR conflict help (jsonb+unique), checkout main + pull.
-- Blocked: none — run lib/db/sql/app_config.sql if scoring weights API not yet applied; restart API for new routes
+- Working: watchlist-stock-analysis, fildi-social-feed
+- In progress: Watchlist stock analysis panel: chart S/R zone visibility (strength-based band width + opacity), zone labels inside shaded areas, EMA50/EMA200 yellow lines, MM/YY x-axis, expandable Analyst Ratings with FMP per-firm price targets + newsTitle + upside%, Market Sentiment section (Bullish/Neutral/Bearish bar + Bull/Bear bullet table), comprehensive text visibility overhaul (text-foreground/* everywhere), all section headers unified to text-base font-bold tracking-tight, Investment Profile radar chart fixed (outerRadius 60%, margins), Company Overview bullet-formatted description, MetricRow text-sm, 52W Range white readable text. FILDI Phases 1-4 complete (schema + API + UI).
+- Blocked: user password was overwritten during Phase 2 testing — current pw is test123, needs reset to original before Phase 5
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI

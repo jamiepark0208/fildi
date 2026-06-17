@@ -155,5 +155,19 @@ fs.writeFileSync(STATE, JSON.stringify(next, null, 2));
 syncStateFile(path.join(ROOT, '.agents/context/state.md'), next, now.slice(0, 10));
 writeSessionEntry(next, args.note||'', now);
 
+// Stage all state-tracking files automatically
+const { execSync } = require('child_process');
+// .claude/state.json is gitignored — only stage the tracked agent files
+const stateFiles = [
+  '.agents/context/state.md',
+  '.agents/sessions/',
+];
+try {
+  execSync(`git -C "${ROOT}" add ${stateFiles.join(' ')}`, { stdio: 'pipe' });
+  console.log(`✅ Staged: ${stateFiles.join(', ')}`);
+} catch (e) {
+  console.warn(`⚠️  git add failed: ${e.message}`);
+}
+
 console.log(`✅ State saved at ${now}`);
 console.log(JSON.stringify(next, null, 2));
