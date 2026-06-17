@@ -28,11 +28,21 @@ export type ChartZone = {
   label: string;
   kind: "support" | "resistance";
   bandPct: number;
+  strength: number; // 0–1; higher = wider band and darker shade
 };
 
-const DEFAULT_BAND = 0.004;
 const MERGE_PCT = 0.005;
 const MAX_EACH = 2;
+
+function strengthForLabel(label: string): number {
+  if (label.startsWith("Pivot")) return 1.0;
+  if (label === "MA200") return 0.95;
+  if (label === "MA50") return 0.85;
+  if (label.includes("50d")) return 0.80;
+  if (label.includes("20d")) return 0.70;
+  if (label.startsWith("BB")) return 0.65;
+  return 0.55; // Period high/low
+}
 
 type Candidate = { price: number; label: string; kind: "support" | "resistance" };
 
@@ -104,12 +114,16 @@ function pickZones(
     .sort((a, b) => Math.abs(currentPrice - a.price) - Math.abs(currentPrice - b.price))
     .slice(0, MAX_EACH);
 
-  return [...supports, ...resistances].map(c => ({
-    price: c.price,
-    label: c.label,
-    kind: c.kind,
-    bandPct: DEFAULT_BAND,
-  }));
+  return [...supports, ...resistances].map(c => {
+    const strength = strengthForLabel(c.label);
+    return {
+      price: c.price,
+      label: c.label,
+      kind: c.kind,
+      bandPct: 0.003 + strength * 0.007,
+      strength,
+    };
+  });
 }
 
 export function computeChartZones(
@@ -175,10 +189,9 @@ export function computeChartZones(
 
     case "3M": {
       const s = swingHighLow(closes, lb(20));
-      addCandidate(candidates, s.low, "Swing low 20d", "support");
-      addCandidate(candidates, s.high, "Swing high 20d", "resistance");
-      addCandidate(candidates, d.swingLow20d, "Swing low 20d (DB)", "support");
-      addCandidate(candidates, d.swingHigh20d, "Swing high 20d (DB)", "resistance");
+      // Prefer DB-computed values; fall back to live calculation if DB is absent
+      addCandidate(candidates, d.swingLow20d ?? s.low, "Swing low 20d", "support");
+      addCandidate(candidates, d.swingHigh20d ?? s.high, "Swing high 20d", "resistance");
       if (d.ma50 != null) addCandidate(candidates, d.ma50, "MA50", maKind(d.ma50, currentPrice));
       break;
     }
@@ -186,14 +199,11 @@ export function computeChartZones(
     case "1Y": {
       const s20 = swingHighLow(closes, lb(20));
       const s50 = swingHighLow(closes, lb(50));
-      addCandidate(candidates, s20.low, "Swing low 20d", "support");
-      addCandidate(candidates, s20.high, "Swing high 20d", "resistance");
-      addCandidate(candidates, s50.low, "Swing low 50d", "support");
-      addCandidate(candidates, s50.high, "Swing high 50d", "resistance");
-      addCandidate(candidates, d.swingLow20d, "Swing low 20d (DB)", "support");
-      addCandidate(candidates, d.swingHigh20d, "Swing high 20d (DB)", "resistance");
-      addCandidate(candidates, d.swingLow50d, "Swing low 50d (DB)", "support");
-      addCandidate(candidates, d.swingHigh50d, "Swing high 50d (DB)", "resistance");
+      // Prefer DB-computed values; fall back to live calculation if DB is absent
+      addCandidate(candidates, d.swingLow20d ?? s20.low, "Swing low 20d", "support");
+      addCandidate(candidates, d.swingHigh20d ?? s20.high, "Swing high 20d", "resistance");
+      addCandidate(candidates, d.swingLow50d ?? s50.low, "Swing low 50d", "support");
+      addCandidate(candidates, d.swingHigh50d ?? s50.high, "Swing high 50d", "resistance");
       addCandidate(candidates, d.pivotS1, "Pivot S1", "support");
       addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance");
       addCandidate(candidates, d.bbLower, "BB lower", "support");
