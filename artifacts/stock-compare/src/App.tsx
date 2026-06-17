@@ -16,6 +16,8 @@ import OptionsScanner from "@/pages/options-scanner";
 import Macro from "@/pages/macro";
 import Login from "@/pages/login";
 import Settings from "@/pages/settings";
+import Profile from "@/pages/profile";
+import Feed from "@/pages/feed";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +94,12 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute><Settings /></ProtectedRoute>
+      </Route>
+      <Route path="/profile/:username">
+        <ProtectedRoute><Profile /></ProtectedRoute>
+      </Route>
+      <Route path="/feed">
+        <ProtectedRoute><Feed /></ProtectedRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>

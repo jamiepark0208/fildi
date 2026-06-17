@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   BarChart2, LineChart, BarChart, Bookmark,
   Settings as SettingsIcon, BriefcaseBusiness, BookOpen,
-  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical,
+  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,8 @@ const ICONS = {
   BookOpen,
   ScanLine,
   Globe,
+  User,
+  LayoutList,
 } as const;
 
 const DEFAULT_GROUPS: NavGroup[] = [
@@ -44,7 +46,9 @@ const DEFAULT_GROUPS: NavGroup[] = [
     id: "main",
     label: "Main",
     items: [
+      { id: "feed", href: "/feed", label: "Feed", icon: "LayoutList" },
       { id: "watchlist", href: "/watchlist", label: "Watchlist", icon: "Bookmark" },
+      { id: "profile", href: "/profile/me", label: "My Profile", icon: "User" },
       { id: "portfolio", href: "/portfolio", label: "Portfolio", icon: "BriefcaseBusiness", adminOnly: true },
     ],
   },

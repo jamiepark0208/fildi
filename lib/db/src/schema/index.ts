@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boolean, primaryKey, index, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boolean, primaryKey, index, jsonb, unique } from 'drizzle-orm/pg-core'
 import { createInsertSchema } from 'drizzle-zod'
 import { z } from 'zod/v4'
 
@@ -410,3 +410,61 @@ export const appConfig = pgTable('app_config', {
 })
 
 export type AppConfigRow = typeof appConfig.$inferSelect
+// ── tradePosts ────────────────────────────────────────────────────────────────
+
+export const tradePosts = pgTable('trade_posts', {
+  id:                   serial('id').primaryKey(),
+  userId:               integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:               text('ticker').notNull(),
+  tradeType:            text('trade_type').notNull().default('SELL_PUT'),
+  strike:               numeric('strike').notNull(),
+  expiry:               date('expiry').notNull(),
+  contracts:            integer('contracts').notNull().default(1),
+  premiumPerContract:   numeric('premium_per_contract').notNull(),
+  confidence:           integer('confidence').notNull(),
+  notes:                text('notes'),
+  ivRankAtEntry:        numeric('iv_rank_at_entry'),
+  techScoreAtEntry:     numeric('tech_score_at_entry'),
+  regimeAtEntry:        text('regime_at_entry'),
+  vixAtEntry:           numeric('vix_at_entry'),
+  signalAtEntry:        text('signal_at_entry'),
+  status:               text('status').notNull().default('OPEN'),
+  closePremium:         numeric('close_premium'),
+  resolvedAt:           timestamp('resolved_at', { withTimezone: true }),
+  resolvedPnl:          numeric('resolved_pnl'),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const insertTradePostSchema = createInsertSchema(tradePosts).omit({ id: true, createdAt: true, updatedAt: true })
+export type InsertTradePost = z.infer<typeof insertTradePostSchema>
+export type TradePost = typeof tradePosts.$inferSelect
+
+// ── likes ─────────────────────────────────────────────────────────────────────
+
+export const likes = pgTable('likes', {
+  id:        serial('id').primaryKey(),
+  postId:    integer('post_id').notNull().references(() => tradePosts.id, { onDelete: 'cascade' }),
+  userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqueLike: unique().on(t.postId, t.userId),
+}))
+
+export const insertLikeSchema = createInsertSchema(likes).omit({ id: true, createdAt: true })
+export type InsertLike = z.infer<typeof insertLikeSchema>
+export type Like = typeof likes.$inferSelect
+
+// ── comments ──────────────────────────────────────────────────────────────────
+
+export const comments = pgTable('comments', {
+  id:        serial('id').primaryKey(),
+  postId:    integer('post_id').notNull().references(() => tradePosts.id, { onDelete: 'cascade' }),
+  userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  body:      text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const insertCommentSchema = createInsertSchema(comments).omit({ id: true, createdAt: true })
+export type InsertComment = z.infer<typeof insertCommentSchema>
+export type Comment = typeof comments.$inferSelect
