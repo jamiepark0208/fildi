@@ -13,12 +13,14 @@ import sdmRouter from "./sdm";
 import macroRegimeRouter from "./macro-regime";
 import authRouter from "./auth";
 import watchlistRouter from "./watchlist";
+import scoringConfigRouter from "./scoring-config";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(watchlistRouter);
+router.use(scoringConfigRouter);
 router.use(stocksRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boolean, primaryKey, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, numeric, bigint, date, timestamp, serial, boolean, primaryKey, index, jsonb } from 'drizzle-orm/pg-core'
 import { createInsertSchema } from 'drizzle-zod'
 import { z } from 'zod/v4'
 
@@ -399,3 +399,14 @@ export const earningsCalendar = pgTable('earnings_calendar', {
 export const insertEarningsCalendarSchema = createInsertSchema(earningsCalendar).omit({ fetchedAt: true })
 export type InsertEarningsCalendar = z.infer<typeof insertEarningsCalendarSchema>
 export type EarningsCalendarRow = typeof earningsCalendar.$inferSelect
+
+// ── app_config ────────────────────────────────────────────────────────────────
+// Key-value store for app-wide settings (e.g. scoring_weights JSON).
+
+export const appConfig = pgTable('app_config', {
+  key:       text('key').primaryKey(),
+  value:     jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type AppConfigRow = typeof appConfig.$inferSelect

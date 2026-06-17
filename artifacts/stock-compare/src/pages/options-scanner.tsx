@@ -13,6 +13,7 @@ import {
 import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X } from "lucide-react";
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
+import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 
@@ -301,6 +302,7 @@ function ExpirySection({
   stockCtx,
   macroRegime,
   allWatchlistIVs,
+  strikeWeights,
   defaultCollapsed = false,
 }: {
   chain: OptionsChainResult;
@@ -310,6 +312,7 @@ function ExpirySection({
   stockCtx: StockContext | null;
   macroRegime: MacroRegime;
   allWatchlistIVs: number[];
+  strikeWeights?: Record<string, number>;
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -323,10 +326,10 @@ function ExpirySection({
     const map = new Map<number, OptionScoreResult>();
     for (const { put } of puts) {
       const candidate = buildCandidate(put, chain);
-      map.set(put.strike, computeOptionScore(candidate, stockCtx, macroRegime, allWatchlistIVs));
+      map.set(put.strike, computeOptionScore(candidate, stockCtx, macroRegime, allWatchlistIVs, strikeWeights));
     }
     return map;
-  }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs]);
+  }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
 
   return (
     <div className="rounded-md border border-border/60 overflow-hidden">
@@ -405,6 +408,7 @@ interface ScannerRowProps {
   fundTotalScore?: number | null;
   macroRegime?: MacroRegime;
   allWatchlistIVs?: number[];
+  strikeWeights?: Record<string, number>;
 }
 
 function ScannerRow({
@@ -426,6 +430,7 @@ function ScannerRow({
   fundTotalScore,
   macroRegime = "BASELINE",
   allWatchlistIVs = [],
+  strikeWeights,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
@@ -453,7 +458,7 @@ function ScannerRow({
 
   const newScorerBest = useMemo(() => {
     if (!optionsData || !stockCtx) return null;
-    const picked = pickBestStrike(optionsData, stockCtx, macroRegime, allWatchlistIVs);
+    const picked = pickBestStrike(optionsData, stockCtx, macroRegime, allWatchlistIVs, undefined, strikeWeights);
     if (!picked) return null;
     return {
       chain: picked.chain as OptionsChainResult,
@@ -462,7 +467,7 @@ function ScannerRow({
       optionScore: picked.result.optionScore,
       dataQuality: picked.result.dataQuality,
     };
-  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs]);
+  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
 
   const bestStrike = newScorerBest
     ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
@@ -599,6 +604,7 @@ function ScannerRow({
                     stockCtx={stockCtx}
                     macroRegime={macroRegime}
                     allWatchlistIVs={allWatchlistIVs}
+                    strikeWeights={strikeWeights}
                     defaultCollapsed={idx > 0}
                   />
                 ))}
@@ -675,6 +681,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 
 export default function OptionsScanner() {
   const queryClient = useQueryClient();
+  const { weights } = useScoringPreferences();
 
   const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
   const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
@@ -815,8 +822,8 @@ export default function OptionsScanner() {
   // V2: self-relative scores over all 31 watchlist rows — invariant to display filter
   const rankings = useMemo(() => {
     if (!allTechnicalsData?.length) return new Map<string, TechnicalScore>();
-    return new Map(computeTechnicalRankingsV2(allTechnicalsData).map(s => [s.ticker, s]));
-  }, [allTechnicalsData]);
+    return new Map(computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical).map(s => [s.ticker, s]));
+  }, [allTechnicalsData, weights.technical]);
 
   // Tech row map (full fields for Option Scorer — includes swingLow, pivotS1, atr14, etc.)
   const techRowMap = useMemo(
@@ -859,11 +866,11 @@ export default function OptionsScanner() {
         techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
       };
-      const picked = pickBestStrike(chains, stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs);
+      const picked = pickBestStrike(chains, stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined, weights.optionStrike);
       if (picked) m.set(ticker, picked.result.optionScore);
     }
     return m;
-  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs]);
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
@@ -886,11 +893,11 @@ export default function OptionsScanner() {
         relativeMoveScore: relMove,
         bestOptionScore:   bestOptionScoreMap.get(ticker) ?? null,
         colorTag:          colorMap.get(ticker) ?? null,
-      });
+      }, weights.optionStock);
       m.set(ticker, result.stockScore);
     }
     return m;
-  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap]);
+  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
   // Use refs for options-derived maps so loading new data doesn't trigger re-sort.
@@ -1175,6 +1182,7 @@ export default function OptionsScanner() {
                 fundTotalScore={fundScoreMap.get(ticker) ?? null}
                 macroRegime={macroRegimeData?.regime ?? "BASELINE"}
                 allWatchlistIVs={allWatchlistIVs}
+                strikeWeights={weights.optionStrike}
               />
             ))}
           </div>

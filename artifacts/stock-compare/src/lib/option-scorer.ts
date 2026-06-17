@@ -246,6 +246,7 @@ export function computeOptionScore(
   stock: StockContext,
   regime: MacroRegime,
   allWatchlistIVs: number[],
+  strikeWeights?: Record<string, number>,
 ): OptionScoreResult {
   if (candidate.dte <= 0 || candidate.strike <= 0 || candidate.spot <= 0) {
     return {
@@ -260,14 +261,16 @@ export function computeOptionScore(
   const floor  = REGIME_INCOME_FLOOR[regime];
   const target = REGIME_INCOME_TARGET[regime];
 
+  const w = (key: string, def: number) => strikeWeights?.[key] ?? def;
+
   const components: Array<{ key: string; weight: number; score: number | null }> = [
-    { key: "income",      weight: W_INCOME,        score: scoreIncomeAdequacy(candidate.weeklyIncome, floor, target) },
-    { key: "buffer",      weight: W_BUFFER,        score: scoreBuffer(candidate.delta, candidate.strikeIV, candidate.dte, candidate.otmPct, regime) },
-    { key: "ivRelative",  weight: W_IV_RELATIVE,   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew) },
-    { key: "ivAbsolute",  weight: W_IV_ABSOLUTE,   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
-    { key: "stockQuality",weight: W_STOCK_QUALITY, score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
-    { key: "support",     weight: W_SUPPORT,       score: scoreStrikeSupport(candidate.strike, candidate.spot, stock.swingLow20d, stock.swingLow50d, stock.pivotS1) },
-    { key: "dte",         weight: W_DTE,           score: scoreDtePreference(candidate.dte) },
+    { key: "income",      weight: w("income", W_INCOME),        score: scoreIncomeAdequacy(candidate.weeklyIncome, floor, target) },
+    { key: "buffer",      weight: w("buffer", W_BUFFER),        score: scoreBuffer(candidate.delta, candidate.strikeIV, candidate.dte, candidate.otmPct, regime) },
+    { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew) },
+    { key: "ivAbsolute",  weight: w("ivAbsolute", W_IV_ABSOLUTE),   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
+    { key: "stockQuality",weight: w("stockQuality", W_STOCK_QUALITY), score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
+    { key: "support",     weight: w("support", W_SUPPORT),       score: scoreStrikeSupport(candidate.strike, candidate.spot, stock.swingLow20d, stock.swingLow50d, stock.pivotS1) },
+    { key: "dte",         weight: w("dte", W_DTE),           score: scoreDtePreference(candidate.dte) },
   ];
 
   const available = components.filter(c => c.score !== null);
@@ -329,6 +332,7 @@ export function pickBestStrike(
   regime: MacroRegime,
   allWatchlistIVs: number[],
   minScoredComponents: number = MIN_SCORED_COMPONENTS,
+  strikeWeights?: Record<string, number>,
 ): { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null {
   let best: { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null = null;
 
@@ -336,7 +340,7 @@ export function pickBestStrike(
     for (const put of chain.puts) {
       if (put.bid <= 0) continue;
       const candidate = buildCandidate(put, chain);
-      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs);
+      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights);
       if (result.availableComponents < minScoredComponents) continue;
       if (!best || result.optionScore > best.result.optionScore) {
         best = { chain, put, result };

@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import { WATCHLIST } from "../lib/constants.js";
 import {
   getStaleTechnicalTickers,
   getAllTechnicalsStatus,
   getAllTechnicalsRows,
   refreshTechnicals,
+  readTechnicalsRow,
+  refreshTechnicalsForTicker,
 } from "../lib/technicals-db.js";
 import { logger } from "../lib/logger.js";
 
@@ -54,6 +57,33 @@ router.get("/technicals/all", async (_req, res) => {
     const rows = await getAllTechnicalsRows();
     return res.json(rows);
   } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /technicals/:ticker — single row for chart overlays (auth required).
+router.get("/technicals/:ticker", requireAuth, async (req, res) => {
+  try {
+    const ticker = String(req.params.ticker ?? "").toUpperCase();
+    if (!ticker) return res.status(400).json({ error: "ticker required" });
+    const row = await readTechnicalsRow(ticker);
+    if (!row) return res.status(404).json({ error: "Technicals not found for ticker" });
+    return res.json(row);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// POST /technicals/refresh/:ticker — sync recompute one ticker (auth required).
+router.post("/technicals/refresh/:ticker", requireAuth, async (req, res) => {
+  try {
+    const ticker = String(req.params.ticker ?? "").toUpperCase();
+    if (!ticker) return res.status(400).json({ error: "ticker required" });
+    const row = await refreshTechnicalsForTicker(ticker);
+    if (!row) return res.status(404).json({ error: "Could not compute technicals (insufficient data)" });
+    return res.json(row);
+  } catch (err: any) {
+    logger.error({ err, ticker: req.params.ticker }, "POST /technicals/refresh/:ticker failed");
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
 });
