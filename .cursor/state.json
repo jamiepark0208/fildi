@@ -1,0 +1,79 @@
+{
+  "agent": "cursor",
+  "session_id": null,
+  "conversation_id": "c1ffd3b2-a389-473c-8e6b-56d73532afe6",
+  "started_at": "2026-06-12T19:01:30.052Z",
+  "in_progress": [],
+  "note": "",
+  "prompts": {
+    "g1": {
+      "goal": "test",
+      "done_when": "",
+      "tasks": [],
+      "task_count": 1,
+      "word_count": 2,
+      "raw_preview": "Goal: test",
+      "summary": "Goal: test"
+    },
+    "be8e7013-86f1-4832-8936-0fec0bfff051": {
+      "goal": "/plan some of my MCPs are enabled, but have errors, like token-optimizer. Can you help me figure out why and what i need to do to fix?",
+      "done_when": "",
+      "tasks": [],
+      "task_count": 1,
+      "word_count": 27,
+      "raw_preview": "/plan some of my MCPs are enabled, but have errors, like token-optimizer. Can you help me figure out why and what i need…",
+      "summary": "Goal: /plan some of my MCPs are enabled, but have errors, like token-optimizer. Can you help me figure out why and what i need to do to fix?"
+    },
+    "3ac77045-d383-4291-863d-55418a383925": {
+      "goal": "the background process is taking too long i believe?",
+      "done_when": "",
+      "tasks": [],
+      "task_count": 1,
+      "word_count": 9,
+      "raw_preview": "the background process is taking too long i believe?",
+      "summary": "Goal: the background process is taking too long i believe?"
+    },
+    "37ebefe8-4c10-4bad-9b36-e270d5d51524": {
+      "goal": "i restarted, and now i dont see token-optimizer in mcp servers",
+      "done_when": "",
+      "tasks": [],
+      "task_count": 1,
+      "word_count": 11,
+      "raw_preview": "i restarted, and now i dont see token-optimizer in mcp servers",
+      "summary": "Goal: i restarted, and now i dont see token-optimizer in mcp servers"
+    },
+    "01aa0598-8a42-4953-bed6-26b73819efbc": {
+      "goal": "I need to pull the latest code from git. I also deleted all plugins/extensions from cursor. I want to restart fresh. can you pull the latest code, and in our next session we can start over with setting up.",
+      "done_when": "",
+      "tasks": [
+        "(multi-part — execute one at a time)"
+      ],
+      "task_count": 1,
+      "word_count": 39,
+      "raw_preview": "I need to pull the latest code from git. I also deleted all plugins/extensions from cursor. I want to restart fresh. can…",
+      "summary": "Goal: I need to pull the latest code from git. I also deleted all plugins/extensions from cursor. I want to restart fresh. can you pull the latest code, and in our next session we can start over with setting up."
+    }
+  },
+  "injected_generations": [
+    "g1",
+    "be8e7013-86f1-4832-8936-0fec0bfff051",
+    "3ac77045-d383-4291-863d-55418a383925",
+    "37ebefe8-4c10-4bad-9b36-e270d5d51524",
+    "01aa0598-8a42-4953-bed6-26b73819efbc"
+  ],
+  "metrics": {
+    "tool_calls": 57,
+    "reads": 23,
+    "reads_blocked": 1,
+    "shells": 18,
+    "shells_blocked": 0,
+    "subagents_blocked": 0,
+    "est_input_tokens": 1725,
+    "est_output_tokens": 4125,
+    "files_read": [
+      "/x.ts"
+    ],
+    "large_outputs": 0,
+    "compactions": 0
+  }
+}
