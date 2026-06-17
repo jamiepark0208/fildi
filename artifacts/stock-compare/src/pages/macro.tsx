@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
-import { MacroHighlightsPanel, type MacroHighlightsData } from "@/components/macro-highlights-panel";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -333,9 +332,7 @@ export default function MacroDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: highlights } = useQuery<
-    MacroHighlightsData | { noData: true; legacy?: boolean }
-  >({
+  const { data: highlights } = useQuery<{ content: string; generatedAt: string } | { noData: true }>({
     queryKey: ["macro-highlights"],
     queryFn: () => fetch("/api/macro/highlights").then((r) => r.json()),
     staleTime: Infinity,
@@ -406,11 +403,8 @@ export default function MacroDashboard() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const highlightsContent: MacroHighlightsData | null =
+  const highlightsContent =
     highlights && !("noData" in highlights) ? highlights : null;
-
-  const highlightsLegacy =
-    highlights && "noData" in highlights && "legacy" in highlights && highlights.legacy;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -548,12 +542,19 @@ export default function MacroDashboard() {
                   <span className="text-xs text-muted-foreground">Generating…</span>
                 </div>
               )}
-              {!generateHighlightsMutation.isPending && (highlightsContent || highlightsLegacy) && (
-                <MacroHighlightsPanel data={highlightsContent} legacy={!!highlightsLegacy} />
+              {!generateHighlightsMutation.isPending && highlightsContent && (
+                <>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {highlightsContent.content}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Generated {fmtTs(highlightsContent.generatedAt)}
+                  </p>
+                </>
               )}
-              {!generateHighlightsMutation.isPending && !highlightsContent && !highlightsLegacy && (
-                <p className="text-sm text-muted-foreground py-2">
-                  No highlights yet. Click Generate for a news-driven market brief.
+              {!generateHighlightsMutation.isPending && !highlightsContent && (
+                <p className="text-xs text-muted-foreground italic py-2">
+                  No highlights yet. Click "Generate" for an AI macro summary.
                 </p>
               )}
             </div>

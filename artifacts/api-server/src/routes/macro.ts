@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import YahooFinanceClass from "yahoo-finance2";
+const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -14,21 +16,14 @@ import {
   saveChartsCache,
   isChartsCacheStale,
   FED_MEMBERS,
+  ECONOMIC_EVENTS,
   BANK_RESEARCH_DEFAULT,
   SEP_PROJECTIONS,
   SEP_DATE,
   INDICATOR_SERIES,
   MacroData,
   BankResearch,
-  getUnifiedMacroEvents,
 } from "../lib/macro-data.js";
-import {
-  buildMacroHighlightContext,
-  fetchGoogleNewsRss,
-  parseMacroHighlightsPayload,
-  fallbackHighlightsPayload,
-  type MacroHighlightsPayload,
-} from "../lib/macro-highlight-context.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -134,14 +129,42 @@ interface NewsArticle {
 }
 
 async function fetchBankNews(bankName: string): Promise<NewsArticle[]> {
-  const query = `${bankName} market outlook OR rate view OR trading strategy`;
-  const items = await fetchGoogleNewsRss(query, 5);
-  return items.map(({ title, url, source, publishedAt }) => ({
-    title,
-    url,
-    source,
-    publishedAt,
-  }));
+  const query = encodeURIComponent(`${bankName} market outlook OR rate view OR trading strategy`);
+  const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "TradeDash/1.0 (news fetcher)" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const xml = await res.text();
+
+    // Parse RSS items via regex
+    const items: NewsArticle[] = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let m: RegExpExecArray | null;
+    while ((m = itemRegex.exec(xml)) !== null && items.length < 5) {
+      const block = m[1];
+      const title     = (/<title>([\s\S]*?)<\/title>/.exec(block)?.[1] ?? "")
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1").trim();
+      const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(block) ??
+                        /<a href="([^"]+)"/.exec(block);
+      const link      = linkMatch?.[1]?.trim() ?? "";
+      const pubDate   = (/<pubDate>([\s\S]*?)<\/pubDate>/.exec(block)?.[1] ?? "").trim();
+      const source    = (/<source[^>]*>([\s\S]*?)<\/source>/.exec(block)?.[1] ?? "")
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1").trim();
+      if (title && link) {
+        items.push({ title, url: link, source: source || "Google News", publishedAt: pubDate });
+      }
+    }
+    return items;
+  } catch {
+    clearTimeout(timer);
+    return [];
+  }
 }
 
 router.get("/bank-news", async (req: Request, res: Response) => {
@@ -161,98 +184,106 @@ router.get("/bank-news", async (req: Request, res: Response) => {
 router.get("/highlights", (_req: Request, res: Response) => {
   try {
     if (!existsSync(HIGHLIGHTS_FILE)) return res.json({ noData: true });
-    const parsed = JSON.parse(readFileSync(HIGHLIGHTS_FILE, "utf-8")) as Record<string, unknown>;
+    const parsed = JSON.parse(readFileSync(HIGHLIGHTS_FILE, "utf-8")) as {
+      content: string;
+      generatedAt: string;
+    };
+    // Expire highlights after midnight (they explain today's market move)
     const today = new Date().toISOString().slice(0, 10);
-    const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : "";
-    const generatedDay = generatedAt.slice(0, 10);
+    const generatedDay = parsed.generatedAt.slice(0, 10);
     if (generatedDay < today) return res.json({ noData: true });
-
-    if ("headline" in parsed && parseMacroHighlightsPayload(parsed)) {
-      return res.json(parsed);
-    }
-    if ("content" in parsed) {
-      return res.json({ noData: true, legacy: true });
-    }
-    return res.json({ noData: true });
+    return res.json(parsed);
   } catch {
     return res.json({ noData: true });
   }
 });
 
-async function generateMacroHighlights(
-  macroData: MacroData,
-  userId?: number,
-): Promise<MacroHighlightsPayload> {
-  const ctx = await buildMacroHighlightContext(macroData, userId);
-  const factsJson = JSON.stringify(ctx, null, 2);
-
-  const prompt = `You are a sharp market desk writer producing TODAY's macro highlights for an options trader.
-
-TODAY: ${ctx.marketDate}
-Market direction hint: ${ctx.hints.marketDirection}
-
-You receive a facts packet (JSON). Write ONLY from evidence in the packet — headlines, calendar events, live quotes, and dated macro releases. Do NOT invent facts or cite fundamentals (revenue, P/E, margins) unless verbatim in a headline.
-
-RULES:
-1. Curate ruthlessly — from all headlines in the packet, pick the ~10 most market-moving stories (macro catalysts, large-cap news, sector rotation, geopolitical/oil). Skip minor, duplicate, or stale items.
-2. Lead with news — every bullet must trace to a headline, event, or quote in the packet.
-3. If eventsToday includes FOMC → MUST appear in headline or first bullet with today's date.
-4. FRED/macroReleases: only cite if releaseDate is in packet; always include the release date.
-5. Max 10 bullets; body max 20 words each — one concise sentence per bullet.
-6. headline: one line, max 90 chars — direction + primary catalyst.
-7. watchlistMovers: pair each mover's changePct with the best matching headline; if none, say "rotation-driven" or "no headline".
-8. No fundamentals unless copied from a headline title.
-
-Return ONLY valid JSON matching this schema (no markdown fences):
-{
-  "generatedAt": ISO8601 string,
-  "marketDate": "${ctx.marketDate}",
-  "headline": string,
-  "eventsToday": [{ "date", "event", "importance": "high"|"medium"|"low" }],
-  "bullets": [{ "id", "category": "tape"|"macro"|"sector"|"watchlist"|"event"|"geopolitical", "title", "body", "tags?", "tickers?", "metric?" }],
-  "watchlistMovers": [{ "ticker", "changePct", "blurb" }]
-}
-
-FACTS PACKET:
-${factsJson}`;
-
-  const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
-  const message = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1800,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = message.content[0].type === "text" ? message.content[0].text : "";
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const raw = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
-    const parsed = parseMacroHighlightsPayload(raw);
-    if (parsed) {
-      return {
-        ...parsed,
-        generatedAt: new Date().toISOString(),
-        marketDate: ctx.marketDate,
-        eventsToday: ctx.eventsToday.length > 0 ? ctx.eventsToday : parsed.eventsToday,
-      };
-    }
-  } catch {
-    // fall through to fallback
-  }
-
-  return fallbackHighlightsPayload(ctx.marketDate, "Could not parse AI response");
-}
-
-router.post("/highlights/generate", async (req: Request, res: Response) => {
+router.post("/highlights/generate", async (_req: Request, res: Response) => {
   try {
     let macroData: MacroData | null = loadMacroCache();
     if (!macroData) {
       macroData = await fetchMacroData();
       saveMacroCache(macroData);
     }
+    const s = macroData.series;
 
-    const userId = req.session?.userId as number | undefined;
-    const result = await generateMacroHighlights(macroData, userId);
+    const fmtPct  = (v: number | null) => (v != null ? `${v.toFixed(1)}%` : "N/A");
+    const fmtRate = (v: number | null) => (v != null ? `${v.toFixed(2)}%` : "N/A");
+    const fmtK    = (v: number | null) => (v != null ? `${v.toLocaleString()}K` : "N/A");
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Fetch today's equity market performance
+    const equityTickers = ["SPY", "QQQ", "IWM", "^DJI", "^VIX"];
+    const equityQuotes = await Promise.allSettled(
+      equityTickers.map(t => yahooFinance.quote(t, {}, { validateResult: false }))
+    );
+    const equityLines = equityTickers.map((t, i) => {
+      const r = equityQuotes[i];
+      if (r.status !== "fulfilled") return null;
+      const q = r.value as Record<string, unknown>;
+      const chgPct = typeof q["regularMarketChangePercent"] === "number" ? q["regularMarketChangePercent"] : null;
+      const price  = typeof q["regularMarketPrice"] === "number" ? q["regularMarketPrice"] : null;
+      const label  = t === "^DJI" ? "DJI" : t === "^VIX" ? "VIX" : t;
+      if (chgPct == null || price == null) return null;
+      const sign = chgPct >= 0 ? "+" : "";
+      return `${label}: ${price.toFixed(2)} (${sign}${chgPct.toFixed(2)}%)`;
+    }).filter(Boolean);
+
+    const equityContext = equityLines.length
+      ? "TODAY'S EQUITY MARKET PERFORMANCE:\n" + equityLines.map(l => `- ${l}`).join("\n")
+      : "TODAY'S EQUITY MARKET PERFORMANCE: data unavailable";
+
+    // Direction summary for the prompt
+    const spyLine = equityLines.find(l => l?.startsWith("SPY"));
+    const spyMatch = spyLine?.match(/\(([-+][0-9.]+)%\)/);
+    const spyPct = spyMatch ? parseFloat(spyMatch[1]) : null;
+    const marketDirection = spyPct == null ? "mixed"
+      : spyPct > 0.5 ? `higher (+${spyPct.toFixed(2)}%)`
+      : spyPct < -0.5 ? `lower (${spyPct.toFixed(2)}%)`
+      : "roughly flat";
+
+    // Include today's and this-week's scheduled events for context
+    const todayOrThisWeek = ECONOMIC_EVENTS.filter((e) => {
+      const d = e.date;
+      return d >= today && d <= new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
+    });
+    const eventContext = todayOrThisWeek.length
+      ? "SCHEDULED EVENTS (today / next 7 days):\n" +
+        todayOrThisWeek.map((e) => `- ${e.date}: ${e.event} (${e.importance})`).join("\n")
+      : "No major events scheduled in the next 7 days.";
+
+    const prompt = `You are a sharp macro analyst writing a daily market brief for an options trader who sells weekly OTM puts.
+
+TODAY: ${today}
+The S&P 500 (SPY) is trading ${marketDirection} today. Your job is to explain WHY.
+
+${equityContext}
+
+${eventContext}
+
+MACRO BACKDROP:
+- VIX: ${macroData.vix.value?.toFixed(2) ?? "N/A"} (${macroData.vix.level}) | SKEW: ${macroData.skew.value?.toFixed(1) ?? "N/A"} | VXN: ${macroData.vxn.value?.toFixed(1) ?? "N/A"}
+- 10Y Yield: ${fmtRate(macroData.yield10y.value)} | 2Y Yield: ${fmtRate(macroData.yield2y.value)} | Spread: ${macroData.yieldSpread?.toFixed(0) ?? "N/A"} bps
+- Fed Funds: ${fmtRate(s.fedFundsRate.value)} | US Debt: ${macroData.usDebt ? "$" + (macroData.usDebt / 1_000_000).toFixed(1) + "T" : "N/A"}
+- CPI YoY: ${fmtPct(s.cpi.yoy)} | Core CPI: ${fmtPct(s.coreCpi.yoy)} | Core PCE: ${fmtPct(s.corePce.yoy)} | PPI: ${fmtPct(s.ppi.yoy)}
+- Unemployment: ${fmtRate(s.unemployment.value)} | Nonfarm Payrolls: ${fmtK(s.nonfarmPayrolls.value)} (MoM ${fmtK(s.nonfarmPayrolls.change)})
+- Real GDP: ${fmtRate(s.gdp.value)} annualized | Consumer Sentiment: ${s.consumerSentiment.value?.toFixed(1) ?? "N/A"}
+- Retail Sales: $${s.retailSales.value ? (s.retailSales.value / 1000).toFixed(1) + "B" : "N/A"} (YoY ${fmtPct(s.retailSales.yoy)})
+
+Write 4–6 bullet points explaining WHY markets moved ${marketDirection} today. Cover the specific catalysts: geopolitical developments, economic releases, Fed commentary, sector rotation, earnings, or risk-sentiment shifts — whatever is actually driving price action today. Use today's VIX and yield levels to assess whether fear or complacency is driving the move. Be specific and cite numbers.
+
+Format: markdown bullet points starting with - (one per catalyst). Each bullet: bold topic label, then 2-3 specific, number-cited sentences explaining the cause and market impact. No intro sentence, no outro. Write as if briefing a trader right now.`;
+
+    const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 900,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = message.content[0].type === "text" ? message.content[0].text : "";
+    const result = { content, generatedAt: new Date().toISOString() };
     writeFileSync(HIGHLIGHTS_FILE, JSON.stringify(result, null, 2), "utf-8");
     return res.json(result);
   } catch (err) {
@@ -271,7 +302,7 @@ router.get("/fed-members", (_req: Request, res: Response) => {
 
 router.get("/events", (_req: Request, res: Response) => {
   const today = new Date().toISOString().slice(0, 10);
-  return res.json(getUnifiedMacroEvents().filter((e) => e.date >= today));
+  return res.json(ECONOMIC_EVENTS.filter((e) => e.date >= today));
 });
 
 // ── SEP projections ───────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cursor session rehydrate — banner from shared state.md + cursor-state.md
+ * Cursor session rehydrate — prints banner from git-tracked .agents/context/state.md
  * Usage: node .cursor/scripts/rehydrate-cursor.js
  *        node .cursor/scripts/rehydrate-cursor.js --json  (for sessionStart hook)
  */
@@ -10,7 +10,6 @@ const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 const STATE_MD = path.join(ROOT, '.agents/context/state.md');
-const CURSOR_STATE = path.join(ROOT, '.agents/context/cursor-state.md');
 const CURSOR_SESSION = path.join(ROOT, '.cursor/context/session.md');
 
 function readCursorSession() {
@@ -26,28 +25,16 @@ function readCursorSession() {
   }
 }
 
-function readCursorState() {
-  try {
-    const text = fs.readFileSync(CURSOR_STATE, 'utf8');
-    const active = text.match(/## Active work\n([\s\S]*?)(?=\n## |$)/)?.[1]
-      ?.split('\n').filter(l => l.startsWith('- Working:') || l.startsWith('- In progress:'))
-      .map(l => l.replace(/^-\s*/, '').trim()) || [];
-    const tasks = [...text.matchAll(/^\d+\.\s+\*\*([^*]+)\*\*/gm)].map(m => m[1]).slice(0, 3);
-    const last = text.match(/## Last session\n([\s\S]*?)(?=\n## |$)/)?.[1]?.trim().split('\n')[0];
-    return { active, tasks, last };
-  } catch {
-    return { active: [], tasks: [], last: null };
-  }
-}
-
 function readStateMd() {
   try {
     const text = fs.readFileSync(STATE_MD, 'utf8');
     const phase = text.match(/## Phase\s*\n\*\*([^*]+)\*\*/)?.[1]?.trim() || 'unknown';
-    const blocked = text.match(/- Blocked: (.+)/)?.[1]?.trim();
-    return { phase, blocked };
+    const active = text.match(/## Active work\s*\n([\s\S]*?)(?=\n## |$)/)?.[1]
+      ?.split('\n').filter(l => l.startsWith('-')).map(l => l.replace(/^-\s*/, '').trim()) || [];
+    const tasks = [...text.matchAll(/^\d+\.\s+\*\*([^*]+)\*\*/gm)].map(m => m[1]).slice(0, 3);
+    return { phase, active, tasks };
   } catch {
-    return { phase: 'unknown', blocked: null };
+    return { phase: 'unknown', active: [], tasks: [] };
   }
 }
 
@@ -75,18 +62,16 @@ function codegraph() {
 
 function buildBanner() {
   const s = readStateMd();
-  const c = readCursorState();
-  const cs = readCursorSession();
+  const c = readCursorSession();
   const g = git();
   const lines = [
     `TRADEDASH (Cursor) | Phase: ${s.phase}`,
-    c.tasks.length ? `Next: ${c.tasks.join(', ')}` : null,
-    (c.last || cs.last) ? `Last Cursor session: ${c.last || cs.last}` : null,
-    c.active.length ? c.active.join(' | ') : null,
-    s.blocked && !s.blocked.startsWith('none') ? `Blocked (shared): ${s.blocked}` : null,
+    s.tasks.length ? `Next: ${s.tasks.join(', ')}` : null,
+    c.last ? `Last Cursor session: ${c.last}` : null,
+    s.active.length ? s.active.join(' | ') : null,
     `Git: ${g.log}${g.dirty ? ` | ${g.dirty} changed` : ' | clean'}`,
     `Codegraph: ${codegraph()}`,
-    `Entry: CURSOR.md · Tasks: .agents/context/cursor-state.md · Shared: .agents/context/state.md`,
+    `Entry: CURSOR.md · Cursor: .cursor/context/session.md · Shared: .agents/context/state.md`,
   ].filter(Boolean);
   return lines.join('\n');
 }
@@ -94,7 +79,7 @@ function buildBanner() {
 const banner = buildBanner();
 if (process.argv.includes('--json')) {
   process.stdout.write(JSON.stringify({
-    additional_context: `[Session context]\n${banner}\n\nFollow CURSOR.md. Cursor tasks: .agents/context/cursor-state.md · Cursor notes: .cursor/context/session.md`,
+    additional_context: `[Session context]\n${banner}\n\nFollow CURSOR.md. Cursor-only notes: .cursor/context/session.md`,
   }));
 } else {
   console.log(`\n${banner}\n`);

@@ -41,7 +41,6 @@ interface TradeCardProps {
   post: TradePost
   showUser?: boolean
   isOwner?: boolean
-  variant?: "default" | "compact"
   onLike: () => void
   onUnlike: () => void
   onComment: (body: string) => void
@@ -113,8 +112,7 @@ function AvatarInitial({ username, avatarUrl }: { username: string; avatarUrl: s
   )
 }
 
-export function TradeCard({ post, showUser = true, isOwner = false, variant = "default", onLike, onUnlike, onComment, onClose, onDelete }: TradeCardProps) {
-  const compact = variant === "compact"
+export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUnlike, onComment, onClose, onDelete }: TradeCardProps) {
   const [showClose, setShowClose]       = useState(false)
   const [closePremium, setClosePremium] = useState("")
   const [showComments, setShowComments] = useState(false)
@@ -154,23 +152,15 @@ export function TradeCard({ post, showUser = true, isOwner = false, variant = "d
   }
 
   return (
-    <div className={cn(
-      "bg-card border border-border shadow-sm",
-      compact ? "rounded-lg p-3 space-y-2" : "rounded-xl p-4 space-y-3",
-    )}>
+    <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-sm font-bold text-white bg-white/10 px-2 py-0.5 rounded shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-bold text-white bg-white/10 px-2 py-0.5 rounded">
             {post.ticker}
           </span>
-          {!compact && <SignalBadge signal={post.signalAtEntry} />}
+          <SignalBadge signal={post.signalAtEntry} />
           <StatusBadge status={post.status} />
-          {compact && post.status !== "OPEN" && post.resolvedPnl != null && (
-            <span className={cn("text-sm font-semibold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
-              {post.resolvedPnl >= 0 ? "+" : ""}${post.resolvedPnl.toFixed(0)} P&L
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ConfidenceDots value={post.confidence} />
@@ -184,30 +174,24 @@ export function TradeCard({ post, showUser = true, isOwner = false, variant = "d
       </div>
 
       {/* Body */}
-      <div className={compact ? "space-y-1" : "space-y-1.5"}>
-        <div className={cn(
-          "text-sm text-foreground",
-          compact ? "flex flex-wrap gap-x-3 gap-y-0.5" : "flex flex-wrap gap-x-4 gap-y-1",
-        )}>
-          <span>Strike <strong className="text-white">${post.strike}</strong></span>
-          <span>Exp <strong className="text-white">{post.expiry}</strong></span>
-          <span><strong className="text-white">{post.contracts}</strong> contract{post.contracts !== 1 ? "s" : ""}</span>
-          <span><strong className="text-white">${post.premiumPerContract}</strong>/contract</span>
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground">
+          <span>Strike <strong>${post.strike}</strong></span>
+          <span>Exp <strong>{post.expiry}</strong></span>
+          <span><strong>{post.contracts}</strong> contract{post.contracts !== 1 ? "s" : ""}</span>
+          <span><strong>${post.premiumPerContract}</strong>/contract</span>
           <span className="text-muted-foreground">{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
         </div>
 
         {post.notes && (
-          <div className={cn(
-            "pl-3 border-l-2 border-border text-sm text-foreground/80 italic leading-snug",
-            compact && "line-clamp-1",
-          )}>
+          <div className="pl-3 border-l-2 border-border text-xs text-muted-foreground/80 italic leading-relaxed">
             {post.notes}
           </div>
         )}
       </div>
 
       {/* Snapshot row */}
-      {!compact && (post.ivRankAtEntry != null || post.regimeAtEntry || post.vixAtEntry != null) && (
+      {(post.ivRankAtEntry != null || post.regimeAtEntry || post.vixAtEntry != null) && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground/70">
           {post.ivRankAtEntry != null && <span>IV Rank: {post.ivRankAtEntry}%</span>}
           {post.regimeAtEntry  && <span>Regime: {post.regimeAtEntry}</span>}
@@ -216,8 +200,8 @@ export function TradeCard({ post, showUser = true, isOwner = false, variant = "d
         </div>
       )}
 
-      {/* P&L (closed) — default layout only */}
-      {!compact && post.status !== "OPEN" && post.resolvedPnl != null && (
+      {/* P&L (closed) */}
+      {post.status !== "OPEN" && post.resolvedPnl != null && (
         <div className={cn("text-sm font-semibold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
           {post.resolvedPnl >= 0 ? "+" : ""}${post.resolvedPnl.toFixed(0)} P&L
         </div>
