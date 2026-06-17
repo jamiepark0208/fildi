@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-17
 
 ## Active work
-- Working: fildi-social-feed
-- In progress: FILDI Phases 1-4 complete: DB schema (trade_posts/likes/comments), API routes (/api/feed/*), TradeCard component, Profile page, Feed page with search/filter/top-performers panel. API server rebuilt and running. Login broken (password overwritten during testing — current pw: test123).
-- Blocked: user password overwritten during Phase 2 testing — needs reset
+- Working: scorecard-guide, chart-zones, git-pr-merge
+- In progress: Scorecard Guide + Watchlist chart S/R zones merged to main via PR #1 (61b6b53). Cursor session: branch/commit/push, PR conflict help (jsonb+unique), checkout main + pull.
+- Blocked: none — run lib/db/sql/app_config.sql if scoring weights API not yet applied; restart API for new routes
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
