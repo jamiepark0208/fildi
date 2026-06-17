@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
-import { db, tradePosts, likes, comments, users } from '@workspace/db'
+import { db, tradePosts, likes, comments, users, EMPTY_STOCK_PICKS } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
+import { coerceStockPicks, parseStockPicksPatch } from '../lib/stock-picks.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -356,7 +357,14 @@ router.get('/feed/profile/:username', async (req, res) => {
   const { username } = req.params
 
   const [user] = await db
-    .select({ id: users.id, username: users.username, avatarUrl: users.avatarUrl, role: users.role, createdAt: users.createdAt })
+    .select({
+      id: users.id,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      role: users.role,
+      createdAt: users.createdAt,
+      stockPicks: users.stockPicks,
+    })
     .from(users)
     .where(eq(users.username, username!))
 
@@ -387,7 +395,14 @@ router.get('/feed/profile/:username', async (req, res) => {
   })
 
   return res.json({
-    user,
+    user: {
+      id: user.id,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      createdAt: user.createdAt,
+    },
+    stockPicks: coerceStockPicks(user.stockPicks ?? EMPTY_STOCK_PICKS),
     stats: {
       totalPosts: s.totalPosts,
       openPosts:  s.openPosts  ?? 0,
@@ -399,6 +414,31 @@ router.get('/feed/profile/:username', async (req, res) => {
     },
     posts: userPosts,
   })
+})
+
+// ── PATCH /api/feed/profile/picks ─────────────────────────────────────────────
+
+router.patch('/feed/profile/picks', async (req, res) => {
+  const userId = req.session.userId!
+
+  const [row] = await db
+    .select({ stockPicks: users.stockPicks })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!row) return res.status(404).json({ error: 'User not found' })
+
+  const current = coerceStockPicks(row.stockPicks ?? EMPTY_STOCK_PICKS)
+  const parsed = parseStockPicksPatch(req.body, current)
+  if ('error' in parsed) return res.status(400).json({ error: parsed.error })
+
+  await db
+    .update(users)
+    .set({ stockPicks: parsed.picks })
+    .where(eq(users.id, userId))
+
+  return res.json({ stockPicks: parsed.picks })
 })
 
 export default router

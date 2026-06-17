@@ -360,8 +360,6 @@ export const ECONOMIC_EVENTS: MacroEvent[] = [
   { date: "2026-06-05", event: "ADP Employment Report", importance: "high" },
   { date: "2026-06-06", event: "Nonfarm Payrolls / Unemployment Rate", importance: "high" },
   { date: "2026-06-10", event: "CPI Inflation (May)", importance: "high" },
-  { date: "2026-06-11", event: "FOMC Meeting Day 1", importance: "high" },
-  { date: "2026-06-12", event: "FOMC Rate Decision + Powell Press Conference", importance: "high" },
   { date: "2026-06-13", event: "PPI (May)", importance: "medium" },
   { date: "2026-06-17", event: "Retail Sales (May)", importance: "high" },
   { date: "2026-06-20", event: "U of Mich Consumer Sentiment (prelim)", importance: "medium" },
@@ -369,9 +367,64 @@ export const ECONOMIC_EVENTS: MacroEvent[] = [
   { date: "2026-07-08", event: "JOLTS (May)", importance: "high" },
   { date: "2026-07-10", event: "CPI (June)", importance: "high" },
   { date: "2026-07-11", event: "U of Mich Consumer Sentiment (prelim)", importance: "medium" },
-  { date: "2026-07-29", event: "FOMC Rate Decision", importance: "high" },
   { date: "2026-07-30", event: "PCE (June)", importance: "high" },
 ];
+
+function addDaysIso(isoDate: string, days: number): string {
+  const d = new Date(isoDate + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** FOMC decision dates — keep in sync with Fed published schedule */
+export const FOMC_MEETING_SCHEDULE = [
+  { date: "2026-06-18", label: "Jun '26", month: 5,  year: 2026 },
+  { date: "2026-07-29", label: "Jul '26", month: 6,  year: 2026 },
+  { date: "2026-09-17", label: "Sep '26", month: 8,  year: 2026 },
+  { date: "2026-10-29", label: "Oct '26", month: 9,  year: 2026 },
+  { date: "2026-12-10", label: "Dec '26", month: 11, year: 2026 },
+  { date: "2027-01-28", label: "Jan '27", month: 0,  year: 2027 },
+  { date: "2027-03-19", label: "Mar '27", month: 2,  year: 2027 },
+  { date: "2027-05-06", label: "May '27", month: 4,  year: 2027 },
+  { date: "2027-07-29", label: "Jul '27", month: 6,  year: 2027 },
+] as const;
+
+function buildFomcMacroEvents(): MacroEvent[] {
+  const events: MacroEvent[] = [];
+  for (const m of FOMC_MEETING_SCHEDULE) {
+    const dayBefore = addDaysIso(m.date, -1);
+    events.push({ date: dayBefore, event: "FOMC Meeting Day 1", importance: "high" });
+    events.push({
+      date: m.date,
+      event: "FOMC Rate Decision + Powell Press Conference",
+      importance: "high",
+    });
+  }
+  return events;
+}
+
+/** Merged economic calendar + FOMC schedule (deduped, sorted) */
+export function getUnifiedMacroEvents(): MacroEvent[] {
+  const seen = new Set<string>();
+  const merged = [...ECONOMIC_EVENTS, ...buildFomcMacroEvents()];
+  return merged
+    .filter((e) => {
+      const key = `${e.date}|${e.event.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function getEventsForDate(date: string): MacroEvent[] {
+  return getUnifiedMacroEvents().filter((e) => e.date === date);
+}
+
+export function getEventsThisWeek(today: string): MacroEvent[] {
+  const end = addDaysIso(today, 7);
+  return getUnifiedMacroEvents().filter((e) => e.date >= today && e.date <= end);
+}
 
 // Map each indicator label to its FRED series ID
 export const INDICATOR_SERIES: Record<string, { id: string; label: string; unit: string; isYoY?: boolean }> = {
@@ -660,18 +713,8 @@ export async function fetchVixCurve(): Promise<VixCurvePoint[]> {
 
 const MONTH_CODES = ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"];
 
-// Upcoming FOMC meeting dates — update periodically
-const FOMC_MEETINGS = [
-  { date: "2026-06-18", label: "Jun '26", month: 5,  year: 2026 },
-  { date: "2026-07-29", label: "Jul '26", month: 6,  year: 2026 },
-  { date: "2026-09-17", label: "Sep '26", month: 8,  year: 2026 },
-  { date: "2026-10-29", label: "Oct '26", month: 9,  year: 2026 },
-  { date: "2026-12-10", label: "Dec '26", month: 11, year: 2026 },
-  { date: "2027-01-28", label: "Jan '27", month: 0,  year: 2027 },
-  { date: "2027-03-19", label: "Mar '27", month: 2,  year: 2027 },
-  { date: "2027-05-06", label: "May '27", month: 4,  year: 2027 },
-  { date: "2027-07-29", label: "Jul '27", month: 6,  year: 2027 },
-];
+// Upcoming FOMC meeting dates — update periodically (see FOMC_MEETING_SCHEDULE)
+const FOMC_MEETINGS = FOMC_MEETING_SCHEDULE;
 
 function getZQTicker(month: number, year: number): string {
   const code = MONTH_CODES[month];
