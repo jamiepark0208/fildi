@@ -25,16 +25,18 @@ Reload MCP in Cursor Settings if codegraph is missing after clone.
 | Scope | Where | What |
 |---|---|---|
 | **Cursor-only** | `.cursor/context/session.md` | Hooks/rules/MCP changes, Cursor workflow notes |
-| **All agents** | `.agents/context/state.md` | Phase, tasks, project state |
+| **Cursor tasks** | `.agents/context/cursor-state.md` | Working / in-progress / next tasks (Cursor wrap syncs this) |
+| **All agents** | `.agents/context/state.md` | Phase, infra, project-wide tasks (Claude `session-wrap.js` — do not edit from Cursor) |
 | Architecture | `.agents/context/project.md` | |
 | Build/routing | `.agents/context/workflow.md` | |
-| Session history | `.agents/sessions/INDEX.md` | Claude/Kiro session logs |
+| Session history | `.agents/sessions/INDEX.md` | Cursor: `cursor-YYYY-MM-DD.md` · Claude: `YYYY-MM-DD.md` |
 
-New chat reads **both** `session.md` (Cursor setup) and `state.md` (project work) via `sessionStart` hook.
+New chat reads `session.md`, `cursor-state.md`, and shared `state.md` via `sessionStart` hook.
 
 ## END OF SESSION
-1. `node .cursor/scripts/session-wrap-cursor.js "what we did"` — Cursor-only log
-2. Update `.agents/context/state.md` — shared project state (phase, tasks)
+1. `node .cursor/scripts/session-wrap-cursor.js "what we did"` — updates `session.md`, syncs `cursor-state.md`, appends `.agents/sessions/cursor-YYYY-MM-DD.md`
+2. Optional flags: `--working "a,b"`, `--progress "c"`, `--next "task one,task two"`
+3. Do **not** edit `.agents/context/state.md` from Cursor — that file is owned by Claude Code session-wrap
 
 ## SKILLS (load one at a time — never all at once)
 Same files as Claude Code — read `.claude/skills/<name>.md` when relevant:
@@ -64,6 +66,3 @@ Before touching source files:
 | Hooks | `.cursor/hooks.json` | `.claude/settings.local.json` |
 | Ephemeral state | `.cursor/state.json` (local) | `.claude/state.json` (local) |
 | Cross-agent state | `.agents/` (git) | `.agents/` (git) |
-
-## END OF SESSION
-Update `.agents/context/state.md` with phase, in-progress, and next tasks so the next Cursor chat picks up automatically.

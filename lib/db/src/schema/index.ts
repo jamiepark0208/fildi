@@ -4,6 +4,18 @@ import { z } from 'zod/v4'
 
 // ── users ─────────────────────────────────────────────────────────────────────
 
+export type StockPicks = {
+  bullish: string[]
+  neutral: string[]
+  bearish: string[]
+}
+
+export const EMPTY_STOCK_PICKS: StockPicks = {
+  bullish: [],
+  neutral: [],
+  bearish: [],
+}
+
 export const users = pgTable('users', {
   id:           serial('id').primaryKey(),
   email:        text('email').notNull().unique(),
@@ -11,6 +23,7 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role:         text('role').notNull().default('member'), // 'admin' | 'member'
   avatarUrl:    text('avatar_url'),
+  stockPicks:   jsonb('stock_picks').$type<StockPicks>().notNull().default(EMPTY_STOCK_PICKS),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
