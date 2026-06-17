@@ -3,7 +3,7 @@
 Full detail for each date at `.agents/sessions/YYYY-MM-DD.md`.
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-06-17](2026-06-17.md) — Merged scorecard guide and chart zones PR; main up to date. | build | next: Smoke-test Watchlist chart zones + Scorecard Guide admin weights on main; FILDI feed Phase 5 or restore login pw per state.md
+- [2026-06-17](2026-06-17.md) — Major Watchlist analysis panel design overhaul — readability, chart enhancements, real analyst price targets via FMP | build | next: Reset user password; get Phase 5 FILDI approval; commit all work; verify chart EMA lines and zone labels render correctly in browser
 - [2026-06-16](2026-06-16.md) — auto-saved | build | next: Scorecard Guide: update model logic description + readability. Consider committing all UI polish changes.
 - [2026-06-15](2026-06-15.md) — auto-saved | build | next: test/verify accuracy of options scanner enhancements — Q&A on scoring logic, StrikeCard fields, MacroBanner
 - [2026-06-14](2026-06-14.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system

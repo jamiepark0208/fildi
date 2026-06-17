@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown
+  Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown, ChevronDown, ChevronUp
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
@@ -38,10 +38,39 @@ interface Recommendations {
   strongSell: number;
 }
 
+interface AnalystAction {
+  firm: string;
+  toGrade: string;
+  fromGrade: string;
+  action: string;
+  date: string | null;
+}
+
+interface AnalystPriceTarget {
+  firm: string;
+  analyst: string | null;
+  priceTarget: number | null;
+  date: string | null;
+  priceWhenPosted: number | null;
+  newsTitle: string | null;
+}
+
+interface PriceTargetRange {
+  high: number | null;
+  low: number | null;
+  mean: number | null;
+  median: number | null;
+}
+
 interface BreakdownData {
   metrics: any;
   snowflake: SnowflakeScores;
   recommendations: Recommendations | null;
+  analystActions: AnalystAction[];
+  analystPriceTargets: AnalystPriceTarget[];
+  priceTargetRange: PriceTargetRange | null;
+  bullBullets: string[];
+  bearBullets: string[];
   news: NewsItem[];
 }
 
@@ -87,8 +116,8 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
   ];
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <RadarChart data={data} outerRadius="75%">
+    <ResponsiveContainer width="100%" height={200}>
+      <RadarChart data={data} outerRadius="60%" margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
         <PolarGrid
           gridType="polygon"
           stroke="rgba(255,255,255,0.08)"
@@ -96,7 +125,7 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
         />
         <PolarAngleAxis
           dataKey="dimension"
-          tick={{ fill: "rgba(255,255,255,0.85)", fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}
+          tick={{ fill: "rgba(255,255,255,0.9)", fontSize: 11, fontWeight: 700 }}
         />
         <Radar
           name="Score"
@@ -123,12 +152,11 @@ function MetricRow({
 }) {
   return (
     <div className="flex justify-between items-center py-1.5 border-b border-border/20 last:border-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground/80">{label}</span>
       <span
         className={cn(
-          "text-xs font-mono font-semibold",
-          good === true && "text-green-400",
-          good === false && "text-red-400",
+          "text-sm font-mono font-semibold",
+          good === true ? "text-green-400" : good === false ? "text-red-400" : "text-foreground",
         )}
       >
         {value}
@@ -149,12 +177,284 @@ function SectionCard({
   return (
     <div className="bg-card border border-border/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-widest text-white">
+        <span className="text-base font-bold tracking-tight text-foreground">
           {title}
         </span>
         {score !== undefined && <ScoreBadge score={score} />}
       </div>
       {children}
+    </div>
+  );
+}
+
+function gradeColor(grade: string): string {
+  const g = grade.toLowerCase();
+  if (g.includes("strong buy") || g.includes("outperform") || g.includes("overweight") || g === "buy" || g === "positive") return "text-green-400";
+  if (g.includes("strong sell") || g.includes("underperform") || g.includes("underweight") || g === "sell" || g === "negative") return "text-red-400";
+  if (g === "neutral" || g === "hold" || g === "equal-weight" || g === "market perform" || g === "peer perform") return "text-yellow-400";
+  return "text-muted-foreground";
+}
+
+function actionLabel(action: string): string {
+  if (action === "up") return "↑ Upgrade";
+  if (action === "down") return "↓ Downgrade";
+  if (action === "init") return "● Initiated";
+  if (action === "reit") return "→ Reiterated";
+  return "→ Maintain";
+}
+
+function actionBullets(action: AnalystAction): string[] {
+  const grade = action.toGrade.toLowerCase();
+  const isBullish = ["buy", "strong buy", "outperform", "overweight", "positive"].some(g => grade.includes(g));
+  const isBearish = ["sell", "strong sell", "underperform", "underweight", "negative"].some(g => grade.includes(g));
+  if (isBullish) {
+    if (action.action === "up") return ["Raised from prior rating — improved fundamental or near-term outlook", "May reflect accelerating earnings, margin expansion, or valuation re-rating catalyst"];
+    if (action.action === "init") return ["Initiated coverage with constructive thesis on growth and/or valuation", "Entry point suggests risk/reward favors upside at current price"];
+    return ["Reaffirming confidence in current trajectory — no material thesis change", "Sees continued upside relative to peers"];
+  }
+  if (isBearish) {
+    if (action.action === "down") return ["Downgraded — deteriorating fundamentals, guidance cut, or valuation concern", "Risk/reward seen as unfavorable relative to sector peers"];
+    if (action.action === "init") return ["Initiated with cautious stance — elevated valuation or competitive headwinds", "Sees limited upside versus downside risk at current price"];
+    return ["Maintains cautious view — not yet seeing catalysts to turn constructive", "Monitoring for signs of stabilization before upgrading"];
+  }
+  return ["Neutral stance — balancing growth potential against valuation or execution risk", "Watching for clearer directional signal before committing to Buy or Sell"];
+}
+
+function AnalystRatingsSection({
+  recs, metrics, analystPriceTargets, priceTargetRange,
+}: {
+  recs: Recommendations;
+  metrics: any;
+  analystPriceTargets: AnalystPriceTarget[];
+  priceTargetRange: PriceTargetRange | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const m = metrics;
+
+  const pt = priceTargetRange;
+  const hasRange = pt && pt.low != null && pt.high != null && m.currentPrice != null;
+  const pricePct = hasRange
+    ? Math.max(2, Math.min(98, ((m.currentPrice - pt.low!) / (pt.high! - pt.low!)) * 100))
+    : null;
+  const meanPct = hasRange && pt.mean != null
+    ? Math.max(2, Math.min(98, ((pt.mean - pt.low!) / (pt.high! - pt.low!)) * 100))
+    : null;
+
+  return (
+    <div className="bg-card border border-border/50 rounded-xl p-4">
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between mb-4 group"
+      >
+        <span className="text-base font-bold tracking-tight text-foreground">Analyst Ratings</span>
+        <span className="text-foreground/50 group-hover:text-foreground transition-colors">
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </span>
+      </button>
+
+      {/* Always-visible: donut + consensus target */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+        <AnalystDonut recs={recs} />
+        {m.analystTargetPrice != null && m.currentPrice != null && (
+          <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border/40 pt-4 sm:pt-0 sm:pl-6">
+            <div className="text-[10px] text-foreground/70 uppercase tracking-widest mb-3">Consensus Price Target</div>
+            <div className="flex items-end gap-3">
+              <div>
+                <div className="text-[10px] text-foreground/65 mb-1">Current</div>
+                <div className="text-xl font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
+              </div>
+              <div className="text-foreground/30 text-lg mb-1">→</div>
+              <div>
+                <div className="text-[10px] text-foreground/65 mb-1">12M Target</div>
+                <div className="text-xl font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
+              </div>
+              <div className={cn("text-base font-bold font-mono mb-0.5",
+                m.analystTargetPrice > m.currentPrice ? "text-green-400" : "text-red-400")}>
+                {((m.analystTargetPrice / m.currentPrice - 1) * 100) >= 0 ? "+" : ""}
+                {((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Expanded: price target range + per-firm price targets */}
+      {expanded && (
+        <div className="mt-5 space-y-5 border-t border-border/30 pt-5">
+          {/* Price target range bar */}
+          {hasRange && (
+            <div>
+              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">Analyst Price Target Range</div>
+              <div className="relative h-2.5 bg-secondary/50 rounded-full overflow-visible mb-3">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/20 via-yellow-500/15 to-green-500/20" />
+                {meanPct != null && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-4 bg-yellow-400/80 rounded-sm"
+                    style={{ left: `${meanPct}%` }}
+                    title={`Mean $${pt!.mean!.toFixed(2)}`}
+                  />
+                )}
+                {pricePct != null && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-primary rounded-full border-2 border-background shadow-sm z-10"
+                    style={{ left: `${pricePct}%` }}
+                    title={`Current $${m.currentPrice.toFixed(2)}`}
+                  />
+                )}
+              </div>
+              <div className="flex justify-between text-[10px] font-mono text-foreground/65">
+                <span>Low ${pt!.low!.toFixed(2)}</span>
+                {pt!.mean != null && <span className="text-yellow-400/90">Mean ${pt!.mean!.toFixed(2)}</span>}
+                {pt!.median != null && <span>Median ${pt!.median!.toFixed(2)}</span>}
+                <span>High ${pt!.high!.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Per-firm price targets from FMP */}
+          {analystPriceTargets.length > 0 ? (
+            <div>
+              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">
+                Price Targets by Firm
+              </div>
+              <div className="space-y-2">
+                {analystPriceTargets.map((t, i) => {
+                  const upside = t.priceTarget != null && m.currentPrice != null
+                    ? ((t.priceTarget / m.currentPrice) - 1) * 100
+                    : null;
+                  const fromPosted = t.priceTarget != null && t.priceWhenPosted != null && t.priceWhenPosted > 0
+                    ? ((t.priceTarget / t.priceWhenPosted) - 1) * 100
+                    : null;
+                  return (
+                    <div key={i} className="border border-border/40 rounded-lg p-3 bg-secondary/10">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-foreground">{t.firm}</span>
+                        {t.analyst && <span className="text-[11px] text-foreground/60">({t.analyst})</span>}
+                        {t.priceTarget != null && (
+                          <span className="ml-auto font-mono font-bold text-sm text-foreground">
+                            ${t.priceTarget.toFixed(2)}
+                          </span>
+                        )}
+                        {upside != null && (
+                          <span className={cn("text-xs font-mono font-semibold", upside >= 0 ? "text-green-400" : "text-red-400")}>
+                            {upside >= 0 ? "+" : ""}{upside.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                      {t.date && (
+                        <div className="text-[10px] text-foreground/55 mt-1">
+                          Published {t.date}
+                          {t.priceWhenPosted != null && ` · Stock was $${t.priceWhenPosted.toFixed(2)} at time of rating`}
+                          {fromPosted != null && (
+                            <span className={cn("ml-1", fromPosted >= 0 ? "text-green-400/80" : "text-red-400/80")}>
+                              (implied {fromPosted >= 0 ? "+" : ""}{fromPosted.toFixed(0)}% from then)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {t.newsTitle && (
+                        <p className="text-[11px] text-foreground/70 mt-1.5 italic leading-snug line-clamp-2">
+                          "{t.newsTitle}"
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-foreground/55 italic">No individual analyst price targets available.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarketSentimentSection({
+  recs, bullBullets, bearBullets,
+}: {
+  recs: Recommendations | null;
+  bullBullets: string[];
+  bearBullets: string[];
+}) {
+  const total = recs ? recs.strongBuy + recs.buy + recs.hold + recs.sell + recs.strongSell : 0;
+  const bullPct = total > 0 ? Math.round(((recs!.strongBuy + recs!.buy) / total) * 100) : 0;
+  const neutralPct = total > 0 ? Math.round((recs!.hold / total) * 100) : 0;
+  const bearPct = total > 0 ? 100 - bullPct - neutralPct : 0;
+
+  const hasSentiment = total > 0;
+  const hasBullets = bullBullets.length > 0 || bearBullets.length > 0;
+  if (!hasSentiment && !hasBullets) return null;
+
+  return (
+    <div className="bg-card border border-border/50 rounded-xl p-4 space-y-5">
+      <span className="text-base font-bold tracking-tight text-foreground block">Market Sentiment</span>
+
+      {/* Bullish / Neutral / Bearish bar */}
+      {hasSentiment && (
+        <div>
+          <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">Wall St. Consensus</div>
+          <div className="flex h-3 rounded-full overflow-hidden gap-px">
+            {bullPct > 0 && (
+              <div className="bg-green-500/80 transition-all" style={{ width: `${bullPct}%` }} />
+            )}
+            {neutralPct > 0 && (
+              <div className="bg-yellow-500/60 transition-all" style={{ width: `${neutralPct}%` }} />
+            )}
+            {bearPct > 0 && (
+              <div className="bg-red-500/70 transition-all" style={{ width: `${bearPct}%` }} />
+            )}
+          </div>
+          <div className="flex justify-between mt-2 text-[11px]">
+            <span className="text-green-400 font-semibold">{bullPct}% Bullish</span>
+            <span className="text-yellow-400/80">{neutralPct}% Neutral</span>
+            <span className="text-red-400 font-semibold">{bearPct}% Bearish</span>
+          </div>
+          <div className="text-[10px] text-foreground/55 mt-1">Based on {total} Wall St. analyst recommendations</div>
+        </div>
+      )}
+
+      {/* Bull / Bear table */}
+      {hasBullets && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="border border-green-500/20 rounded-lg p-3 bg-green-500/5">
+            <div className="flex items-center gap-1.5 mb-2">
+              <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Bull Case</span>
+            </div>
+            <ul className="space-y-1.5">
+              {bullBullets.map((b, i) => (
+                <li key={i} className="text-[11px] text-foreground/80 flex gap-1.5">
+                  <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
+                  {b}
+                </li>
+              ))}
+              {bullBullets.length === 0 && (
+                <li className="text-[11px] text-foreground/50 italic">No strong bull signals from current metrics</li>
+              )}
+            </ul>
+          </div>
+          <div className="border border-red-500/20 rounded-lg p-3 bg-red-500/5">
+            <div className="flex items-center gap-1.5 mb-2">
+              <TrendingDown className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Bear Case</span>
+            </div>
+            <ul className="space-y-1.5">
+              {bearBullets.map((b, i) => (
+                <li key={i} className="text-[11px] text-foreground/80 flex gap-1.5">
+                  <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
+                  {b}
+                </li>
+              ))}
+              {bearBullets.length === 0 && (
+                <li className="text-[11px] text-foreground/50 italic">No significant bear signals from current metrics</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -215,11 +515,11 @@ function AnalystDonut({ recs }: { recs: Recommendations }) {
         {data.map((d) => (
           <div key={d.name} className="flex items-center gap-2 text-[11px]">
             <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-            <span className="text-muted-foreground">{d.name}</span>
-            <span className="font-mono ml-auto pl-3 font-medium">{d.value}</span>
+            <span className="text-foreground/80">{d.name}</span>
+            <span className="font-mono ml-auto pl-3 font-semibold text-foreground">{d.value}</span>
           </div>
         ))}
-        <div className="pt-0.5 text-[11px] text-muted-foreground border-t border-border/30">
+        <div className="pt-0.5 text-[11px] text-foreground/60 border-t border-border/30">
           {total} analyst{total !== 1 ? "s" : ""}
         </div>
       </div>
@@ -239,9 +539,9 @@ function RangeBar({
   const pct = high > low ? Math.max(2, Math.min(98, ((current - low) / (high - low)) * 100)) : 50;
   return (
     <div>
-      <div className="flex justify-between text-[10px] text-white/75 mb-1.5">
-        <span>52W Low: ${low.toFixed(2)}</span>
-        <span>52W High: ${high.toFixed(2)}</span>
+      <div className="flex justify-between text-sm text-foreground font-mono font-medium mb-2">
+        <span>Low <span className="font-bold">${low.toFixed(2)}</span></span>
+        <span>High <span className="font-bold">${high.toFixed(2)}</span></span>
       </div>
       <div className="relative h-2 bg-secondary/50 rounded-full overflow-visible">
         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/25 via-yellow-500/20 to-green-500/25" />
@@ -279,7 +579,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors line-clamp-2">
           {item.title}
         </p>
-        <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-foreground/65">
           {item.publisher && <span className="font-medium">{item.publisher}</span>}
           {item.publishedAt && (
             <>
@@ -479,23 +779,23 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   <h1 className="text-2xl font-bold font-mono tracking-tight shrink-0">
                     {m.ticker}
                   </h1>
-                  <span className="text-base text-muted-foreground font-medium truncate">
+                  <span className="text-base text-foreground/75 font-medium truncate">
                     {m.companyName}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {m.exchange && (
-                    <span className="text-[10px] bg-secondary/60 border border-border/40 px-2 py-0.5 rounded-md font-mono">
+                    <span className="text-[10px] bg-secondary/60 border border-border/40 px-2 py-0.5 rounded-md font-mono text-foreground/80">
                       {m.exchange}
                     </span>
                   )}
                   {m.sector && (
-                    <span className="text-[10px] text-muted-foreground">{m.sector}</span>
+                    <span className="text-[10px] text-foreground/70">{m.sector}</span>
                   )}
                   {m.industry && (
                     <>
-                      <span className="text-[10px] text-muted-foreground/40">·</span>
-                      <span className="text-[10px] text-muted-foreground">{m.industry}</span>
+                      <span className="text-[10px] text-foreground/40">·</span>
+                      <span className="text-[10px] text-foreground/70">{m.industry}</span>
                     </>
                   )}
                 </div>
@@ -520,7 +820,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   {m.dayChange?.toFixed(2)} ({dayUp ? "+" : ""}
                   {((m.dayChangePercent ?? 0) * 100).toFixed(2)}%)
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">
+                <div className="text-[11px] text-foreground/70 mt-0.5">
                   Mkt Cap: {formatLargeNumber(m.marketCap)}
                 </div>
               </div>
@@ -530,15 +830,15 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             <div className="grid grid-cols-[240px_1fr] gap-4">
               {/* Snowflake */}
               <div className="bg-card border border-border/50 rounded-xl p-4 flex flex-col">
-                <span className="text-xs font-bold uppercase tracking-widest text-white text-center mb-1">
+                <span className="text-base font-bold tracking-tight text-foreground mb-3 block">
                   Investment Profile
                 </span>
                 <SnowflakeChart scores={data.snowflake} />
-                <div className="grid grid-cols-2 gap-1.5 mt-1">
+                <div className="grid grid-cols-2 gap-1.5 mt-2">
                   {(
                     [
                       { label: "Value", key: "value" },
-                      { label: "Future Growth", key: "growth" },
+                      { label: "Growth", key: "growth" },
                       { label: "Past Perf.", key: "past" },
                       { label: "Health", key: "health" },
                       { label: "Dividend", key: "dividend" },
@@ -546,9 +846,9 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   ).map(({ label, key }) => (
                     <div
                       key={key}
-                      className="flex items-center justify-between bg-secondary/30 rounded-md px-2 py-1"
+                      className="flex items-center justify-between bg-secondary/30 rounded-md px-2.5 py-1.5"
                     >
-                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                      <span className="text-xs font-medium text-foreground/85">{label}</span>
                       <ScoreBadge score={data.snowflake[key]} />
                     </div>
                   ))}
@@ -558,26 +858,30 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               {/* Overview + 52W range */}
               <div className="flex flex-col gap-3">
                 <div className="bg-card border border-border/50 rounded-xl p-4 flex-1">
-                  <span className="text-xs font-bold uppercase tracking-widest text-white">
+                  <span className="text-base font-bold tracking-tight text-foreground">
                     Company Overview
                   </span>
-                  <p className="text-xs text-muted-foreground leading-relaxed mt-2 line-clamp-5">
-                    {m.description || "No description available."}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border/30">
+                  {m.description ? (
+                    <ul className="mt-2 space-y-1.5">
+                      {m.description.split(/(?<=[.!?])\s+/).slice(0, 3).map((s: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-sm text-foreground/85 leading-snug">
+                          <span className="shrink-0 text-foreground/40 mt-0.5">•</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-foreground/75 mt-2">No description available.</p>
+                  )}
+                  <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-border/30">
                     {[
-                      { label: "Stock Type", value: m.stockType },
-                      { label: "Beta", value: formatNumber(m.beta) },
-                      {
-                        label: "Fair Value Est.",
-                        value: m.fairValueEstimate ? formatCurrency(m.fairValueEstimate) : "—",
-                      },
+                      { label: "Stock Type", value: m.stockType ?? "—" },
+                      { label: "Beta", value: formatNumber(m.beta) ?? "—" },
+                      { label: "Fair Value Est.", value: m.fairValueEstimate ? formatCurrency(m.fairValueEstimate) : "—" },
                     ].map(({ label, value }) => (
                       <div key={label}>
-                        <div className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">
-                          {label}
-                        </div>
-                        <div className="text-xs font-semibold mt-0.5">{value}</div>
+                        <div className="text-xs text-foreground/65 font-medium mb-0.5">{label}</div>
+                        <div className="text-base font-bold text-foreground font-mono">{value}</div>
                       </div>
                     ))}
                   </div>
@@ -587,7 +891,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   m.fiftyTwoWeekLow != null &&
                   m.fiftyTwoWeekHigh != null && (
                     <div className="bg-card border border-border/50 rounded-xl p-4">
-                      <span className="text-xs font-bold uppercase tracking-widest text-white">
+                      <span className="text-base font-bold tracking-tight text-foreground">
                         52-Week Range
                       </span>
                       <div className="mt-3">
@@ -706,47 +1010,27 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
 
             {/* ── Analyst Ratings ── */}
             {data.recommendations && (
-              <div className="bg-card border border-border/50 rounded-xl p-4">
-                <span className="text-xs font-bold uppercase tracking-widest text-white block mb-4">
-                  Analyst Ratings
-                </span>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                  <AnalystDonut recs={data.recommendations} />
-                  {m.analystTargetPrice != null && m.currentPrice != null && (
-                    <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border/40 pt-4 sm:pt-0 sm:pl-6">
-                      <div className="text-[10px] text-white/80 uppercase tracking-widest mb-3">
-                        Consensus Price Target
-                      </div>
-                      <div className="flex items-end gap-3">
-                        <div>
-                          <div className="text-[10px] text-white/75 mb-1">Current</div>
-                          <div className="text-xl font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
-                        </div>
-                        <div className="text-muted-foreground/40 text-lg mb-1">→</div>
-                        <div>
-                          <div className="text-[10px] text-white/75 mb-1">12M Target</div>
-                          <div className="text-xl font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
-                        </div>
-                        <div
-                          className={cn(
-                            "text-base font-bold font-mono mb-0.5",
-                            m.analystTargetPrice > m.currentPrice ? "text-green-400" : "text-red-400",
-                          )}
-                        >
-                          {((m.analystTargetPrice / m.currentPrice - 1) * 100) >= 0 ? "+" : ""}
-                          {((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <AnalystRatingsSection
+                recs={data.recommendations}
+                metrics={m}
+                analystPriceTargets={data.analystPriceTargets ?? []}
+                priceTargetRange={data.priceTargetRange ?? null}
+              />
+            )}
+
+            {/* ── Market Sentiment ── */}
+            {(data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || data.recommendations) && (
+              <MarketSentimentSection
+                recs={data.recommendations}
+                bullBullets={data.bullBullets ?? []}
+                bearBullets={data.bearBullets ?? []}
+              />
             )}
 
             {/* ── Recent News ── */}
             {data.news && data.news.length > 0 && (
               <div className="bg-card border border-border/50 rounded-xl p-4">
-                <span className="text-xs font-bold uppercase tracking-widest text-white block mb-2">
+                <span className="text-base font-bold tracking-tight text-foreground block mb-2">
                   Recent News & Updates
                 </span>
                 <div className="space-y-0.5 -mx-1 mt-2">

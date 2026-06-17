@@ -53,6 +53,19 @@ function mergeHistoryData(
 
 const PERIODS: Period[] = ["1D", "1W", "1M", "3M", "1Y"];
 
+function computeEMA(values: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = new Array(values.length).fill(null);
+  if (values.length < period) return result;
+  const k = 2 / (period + 1);
+  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result[period - 1] = ema;
+  for (let i = period; i < values.length; i++) {
+    ema = values[i] * k + ema * (1 - k);
+    result[i] = ema;
+  }
+  return result;
+}
+
 async function fetchTechnicals(ticker: string): Promise<DbTechnicalLevels | null> {
   const res = await fetch(`/api/technicals/${encodeURIComponent(ticker)}`);
   if (res.status === 404) return null;
@@ -120,6 +133,24 @@ export function PriceChart({
   }, [showTechnicalZones, techTicker, historyByTicker, tickers, selectedPeriod, technicalsQuery.data]);
 
   const zoneAxisId = techTicker ? (yAxes[techTicker] ?? yAxes[tickers[0]] ?? "left") : "left";
+
+  const chartData = useMemo(() => {
+    if (!showTechnicalZones || tickers.length !== 1) return data;
+    const bars = historyByTicker[tickers[0]] ?? [];
+    const closes = bars.map(b => b.close);
+    const dates = bars.map(b => b.date);
+    const ema50 = computeEMA(closes, 50);
+    const ema200 = computeEMA(closes, 200);
+    const dateIndex = new Map(dates.map((d, i) => [d, i]));
+    return data.map(row => {
+      const idx = dateIndex.get(row.date as string);
+      if (idx == null) return row;
+      const out: typeof row = { ...row };
+      if (ema50[idx] != null) out.__EMA50 = ema50[idx]!;
+      if (ema200[idx] != null) out.__EMA200 = ema200[idx]!;
+      return out;
+    });
+  }, [data, showTechnicalZones, tickers, historyByTicker]);
 
   const handleRefresh = useCallback(async () => {
     if (!techTicker) return;
@@ -204,34 +235,47 @@ export function PriceChart({
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: hasRightAxis ? 5 : 20, left: 0, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: hasRightAxis ? 5 : 20, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
               {showTechnicalZones && zones.map(z => {
                 const { y1, y2 } = zoneYBounds(z);
+                const fillAlpha = (0.15 + z.strength * 0.22).toFixed(2);
+                const strokeAlpha = (0.45 + z.strength * 0.35).toFixed(2);
+                const color = z.kind === "support" ? "34, 197, 94" : "239, 68, 68";
+                const labelFill = z.kind === "support" ? "rgba(74,222,128,0.95)" : "rgba(248,113,113,0.95)";
                 return (
                   <ReferenceArea
                     key={`${z.kind}-${z.label}-${z.price}`}
                     yAxisId={zoneAxisId}
                     y1={y1}
                     y2={y2}
-                    fill={z.kind === "support" ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)"}
-                    stroke={z.kind === "support" ? "rgba(34, 197, 94, 0.35)" : "rgba(239, 68, 68, 0.35)"}
-                    strokeOpacity={0.6}
+                    fill={`rgba(${color}, ${fillAlpha})`}
+                    stroke={`rgba(${color}, ${strokeAlpha})`}
+                    strokeOpacity={1}
                     ifOverflow="hidden"
+                    label={{
+                      value: `${z.label} $${z.price.toFixed(0)}`,
+                      position: "insideTopLeft",
+                      fontSize: 9,
+                      fill: labelFill,
+                      fontFamily: "monospace",
+                    }}
                   />
                 );
               })}
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: "rgba(255,255,255,0.8)" }}
+                tick={{ fontSize: 11, fill: "rgba(255,255,255,0.8)" }}
                 tickMargin={12}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(val) => {
                   const d = new Date(val);
                   if (selectedPeriod === "1D") return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-                  if (selectedPeriod === "1W" || selectedPeriod === "1M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
-                  return d.toLocaleDateString([], { month: "short", year: "numeric" });
+                  if (selectedPeriod === "1W") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+                  const mm = String(d.getMonth() + 1).padStart(2, "0");
+                  const yy = String(d.getFullYear()).slice(2);
+                  return `${mm}/${yy}`;
                 }}
               />
               <YAxis
@@ -259,8 +303,12 @@ export function PriceChart({
               <Tooltip
                 contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)" }}
                 itemStyle={{ fontWeight: "bold", fontFamily: "monospace" }}
-                labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: 6, fontSize: "13px" }}
-                formatter={(val: number, name: string) => [`$${val.toFixed(2)}`, name]}
+                labelStyle={{ color: "hsl(var(--foreground))", marginBottom: 6, fontSize: "13px" }}
+                formatter={(val: number, name: string) => {
+                  if (name === "__EMA50") return [`$${val.toFixed(2)}`, "EMA 50"];
+                  if (name === "__EMA200") return [`$${val.toFixed(2)}`, "EMA 200"];
+                  return [`$${val.toFixed(2)}`, name];
+                }}
                 labelFormatter={(label) => {
                   const d = new Date(label as string);
                   if (selectedPeriod === "1D") return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -271,6 +319,11 @@ export function PriceChart({
                 wrapperStyle={{ fontSize: 12, paddingTop: 20, fontWeight: 500 }}
                 iconType="circle"
                 iconSize={8}
+                formatter={(value) => {
+                  if (value === "__EMA50") return "EMA 50";
+                  if (value === "__EMA200") return "EMA 200";
+                  return value;
+                }}
               />
               {tickers.map((ticker, i) => (
                 <Line
@@ -284,28 +337,35 @@ export function PriceChart({
                   activeDot={{ r: 5, strokeWidth: 0, fill: STOCK_COLORS[i % STOCK_COLORS.length] }}
                 />
               ))}
+              {showTechnicalZones && (
+                <>
+                  <Line
+                    yAxisId={zoneAxisId}
+                    type="monotone"
+                    dataKey="__EMA50"
+                    stroke="#eab308"
+                    strokeWidth={1.2}
+                    dot={false}
+                    activeDot={false}
+                    connectNulls={false}
+                    strokeDasharray="5 2"
+                  />
+                  <Line
+                    yAxisId={zoneAxisId}
+                    type="monotone"
+                    dataKey="__EMA200"
+                    stroke="#f59e0b"
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={false}
+                    connectNulls={false}
+                  />
+                </>
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
       </div>
-
-      {showTechnicalZones && zones.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-border/40">
-          {zones.map(z => (
-            <span
-              key={`chip-${z.kind}-${z.label}-${z.price}`}
-              className={cn(
-                "text-[10px] font-mono px-2 py-0.5 rounded border",
-                z.kind === "support"
-                  ? "text-green-400/90 bg-green-500/10 border-green-500/20"
-                  : "text-red-400/90 bg-red-500/10 border-red-500/20",
-              )}
-            >
-              {z.label} ${z.price.toFixed(2)}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

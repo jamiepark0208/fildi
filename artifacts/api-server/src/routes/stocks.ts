@@ -585,6 +585,44 @@ function scoreDividend(yield_: number | null): number {
   return yield_ > 0.06 ? 5 : yield_ > 0.04 ? 4 : yield_ > 0.025 ? 3 : yield_ > 0.01 ? 2 : 1;
 }
 
+function buildBullBullets(m: any): string[] {
+  const out: string[] = [];
+  if (m.revenueGrowthYoY != null && m.revenueGrowthYoY > 0.10)
+    out.push(`Revenue growing ${(m.revenueGrowthYoY * 100).toFixed(0)}% YoY — above-average expansion`);
+  if (m.epsGrowth != null && m.epsGrowth > 0.10)
+    out.push(`EPS up ${(m.epsGrowth * 100).toFixed(0)}% — earnings momentum supports premium valuation`);
+  if (m.netMargin != null && m.netMargin > 0.15)
+    out.push(`${(m.netMargin * 100).toFixed(0)}% net margin signals durable pricing power`);
+  if (m.returnOnEquity != null && m.returnOnEquity > 0.15)
+    out.push(`ROE of ${(m.returnOnEquity * 100).toFixed(0)}% reflects efficient capital allocation`);
+  if (m.freeCashFlow != null && m.freeCashFlow > 0)
+    out.push("Positive free cash flow funds buybacks, dividends, or reinvestment without dilution");
+  if (m.currentRatio != null && m.currentRatio > 1.5)
+    out.push(`Current ratio ${m.currentRatio.toFixed(1)}x — near-term obligations comfortably covered`);
+  if (m.analystTargetPrice != null && m.currentPrice != null && m.analystTargetPrice > m.currentPrice * 1.10)
+    out.push(`Consensus target implies ${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(0)}%+ upside from current price`);
+  return out.slice(0, 4);
+}
+
+function buildBearBullets(m: any): string[] {
+  const out: string[] = [];
+  if (m.debtToEquity != null && m.debtToEquity > 1.5)
+    out.push(`D/E of ${m.debtToEquity.toFixed(1)}x — elevated leverage amplifies downside in a downturn`);
+  if (m.peRatio != null && m.peRatio > 30)
+    out.push(`P/E of ${m.peRatio.toFixed(0)}x prices in high growth; any miss could reprice sharply`);
+  if (m.pegRatio != null && m.pegRatio > 2)
+    out.push(`PEG of ${m.pegRatio.toFixed(1)}x suggests stock is running ahead of its growth rate`);
+  if (m.revenueGrowthYoY != null && m.revenueGrowthYoY < 0.05)
+    out.push(`Revenue growth of ${(m.revenueGrowthYoY * 100).toFixed(0)}% points to slowing demand`);
+  if (m.netMargin != null && m.netMargin < 0.05 && m.netMargin >= 0)
+    out.push(`${(m.netMargin * 100).toFixed(1)}% net margin leaves little buffer against cost pressure`);
+  if (m.freeCashFlow != null && m.freeCashFlow < 0)
+    out.push("Negative free cash flow requires external financing to sustain operations");
+  if (m.currentRatio != null && m.currentRatio < 1.0)
+    out.push(`Current ratio below 1x raises near-term liquidity concerns`);
+  return out.slice(0, 4);
+}
+
 const breakdownCache = new TTLCache<object>(10 * 60 * 1000);
 
 router.get("/stocks/breakdown", async (req, res) => {
@@ -597,12 +635,18 @@ router.get("/stocks/breakdown", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [summary, newsRes, fmpRow] = await Promise.all([
+    const fmpApiKey = process.env.FMP_API_KEY ?? "";
+    const [summary, newsRes, fmpRow, fmpTargetsRaw] = await Promise.all([
       yahooFinance.quoteSummary(key, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend"] as any,
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory"] as any,
       }),
       yahooFinance.search(key, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(key),
+      fmpApiKey
+        ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${key}&apikey=${fmpApiKey}&limit=20`)
+            .then(r => r.ok ? r.json() : [])
+            .catch(() => [])
+        : Promise.resolve([]),
     ]);
 
     const merged = {
@@ -623,6 +667,61 @@ router.get("/stocks/breakdown", async (req, res) => {
       strongSell: recTrend.strongSell ?? 0,
     } : null;
 
+    // Per-firm analyst actions — most recent action per firm, sorted newest first
+    const rawHistory: any[] = (summary as any).upgradeDowngradeHistory?.history ?? [];
+    const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const firmMap = new Map<string, any>();
+    for (const item of rawHistory) {
+      const ts = item.epochGradeDate ? item.epochGradeDate * 1000 : 0;
+      if (ts < cutoff) continue;
+      const firm = (item.firm ?? "Unknown") as string;
+      if (!firmMap.has(firm)) firmMap.set(firm, item);
+    }
+    const analystActions = Array.from(firmMap.values())
+      .sort((a, b) => (b.epochGradeDate ?? 0) - (a.epochGradeDate ?? 0))
+      .slice(0, 10)
+      .map(item => ({
+        firm: item.firm ?? "Unknown",
+        toGrade: item.toGrade ?? "",
+        fromGrade: item.fromGrade ?? "",
+        action: item.action ?? "maintain",
+        date: item.epochGradeDate
+          ? new Date(item.epochGradeDate * 1000).toISOString().split("T")[0]
+          : null,
+      }));
+
+    // Aggregate price target range from financialData
+    const fd = (summary as any).financialData ?? {};
+    const priceTargetRange = {
+      high:   safeNum(fd.targetHighPrice)   ?? null,
+      low:    safeNum(fd.targetLowPrice)    ?? null,
+      mean:   safeNum(fd.targetMeanPrice)   ?? null,
+      median: safeNum(fd.targetMedianPrice) ?? null,
+    };
+
+    // Per-analyst price targets from FMP — deduplicate by firm, most recent first
+    const rawTargets: any[] = Array.isArray(fmpTargetsRaw) ? fmpTargetsRaw : [];
+    const targetFirmMap = new Map<string, any>();
+    for (const t of rawTargets) {
+      const firm = (t.analystCompany ?? t.newsPublisher ?? "Unknown") as string;
+      if (!targetFirmMap.has(firm)) targetFirmMap.set(firm, t);
+    }
+    const analystPriceTargets = Array.from(targetFirmMap.values())
+      .sort((a, b) => new Date(b.publishedDate ?? 0).getTime() - new Date(a.publishedDate ?? 0).getTime())
+      .slice(0, 10)
+      .map(t => ({
+        firm: t.analystCompany ?? t.newsPublisher ?? "Unknown",
+        analyst: t.analystName ?? null,
+        priceTarget: typeof t.priceTarget === "number" ? t.priceTarget : null,
+        date: t.publishedDate ?? null,
+        priceWhenPosted: typeof t.priceWhenPosted === "number" ? t.priceWhenPosted : null,
+        newsTitle: t.newsTitle ?? null,
+      }));
+
+    // Metric-driven bull/bear bullets
+    const bullBullets = buildBullBullets(metrics);
+    const bearBullets = buildBearBullets(metrics);
+
     const news = ((newsRes as any).news ?? []).slice(0, 6).map((n: any) => ({
       title: n.title ?? "",
       link: n.link ?? "",
@@ -638,7 +737,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       dividend: scoreDividend(metrics.dividendYield),
     };
 
-    const payload = { metrics, recommendations, news, snowflake };
+    const payload = { metrics, recommendations, analystActions, analystPriceTargets, priceTargetRange, bullBullets, bearBullets, news, snowflake };
     breakdownCache.set(key, payload);
     return res.json(payload);
   } catch (err: any) {
