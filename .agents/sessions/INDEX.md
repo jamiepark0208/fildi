@@ -3,6 +3,7 @@
 Full detail for each date at `.agents/sessions/YYYY-MM-DD.md`.
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
+- [2026-06-17](2026-06-17.md) — FILDI social feed Phases 1-4 shipped: schema, 10 API routes, TradeCard, Profile, Feed page with debounced search and top performers panel | build | next: restore user password, Phase 5 approval, commit FILDI work
 - [2026-06-16](2026-06-16.md) — auto-saved | build | next: Scorecard Guide: update model logic description + readability. Consider committing all UI polish changes.
 - [2026-06-15](2026-06-15.md) — auto-saved | build | next: test/verify accuracy of options scanner enhancements — Q&A on scoring logic, StrikeCard fields, MacroBanner
 - [2026-06-14](2026-06-14.md) — auto-saved | build | next: options-comparison-table, strike-explorer-slider, user-management-system

@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-06-16
+**build** — last updated 2026-06-17
 
 ## Active work
-- Working: ui-polish, multi-user-foundation
-- In progress: Global CSS token fix (muted-foreground 65%→82%), sidebar/watchlist/portfolio/options-scanner/leaderboard text all white+readable, Macro AI Highlights rewritten to explain today's market move with live equity data, login double-submit race fixed, watchlist color tags user-scoped + add-then-tag inline UX
-- Blocked: none
+- Working: fildi-social-feed
+- In progress: FILDI Phases 1-4 complete: DB schema (trade_posts/likes/comments), API routes (/api/feed/*), TradeCard component, Profile page, Feed page with search/filter/top-performers panel. API server rebuilt and running. Login broken (password overwritten during testing — current pw: test123).
+- Blocked: user password overwritten during Phase 2 testing — needs reset
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
