@@ -98,33 +98,37 @@ export interface StockScoreResult {
   dataQuality: "good" | "partial" | "insufficient";
 }
 
-export function computeStockScore(inputs: StockScoreInputs): StockScoreResult {
+export function computeStockScore(
+  inputs: StockScoreInputs,
+  stockWeights?: Record<string, number>,
+): StockScoreResult {
   const { techTotalScore, fundTotalScore, relativeMoveScore, bestOptionScore, colorTag } = inputs;
+  const w = (key: string, def: number) => stockWeights?.[key] ?? def;
 
   const components: Array<{ key: string; weight: number; score: number | null }> = [
     {
       key: "technical",
-      weight: WS_TECHNICAL,
+      weight: w("technical", WS_TECHNICAL),
       score: pf(techTotalScore) !== null ? c01((pf(techTotalScore) as number) / 100) : null,
     },
     {
       key: "fundamental",
-      weight: WS_FUNDAMENTAL,
+      weight: w("fundamental", WS_FUNDAMENTAL),
       score: pf(fundTotalScore) !== null ? c01((pf(fundTotalScore) as number) / 100) : null,
     },
     {
       key: "relativeMove",
-      weight: WS_RELATIVE_MOVE,
+      weight: w("relativeMove", WS_RELATIVE_MOVE),
       score: relativeMoveScore,
     },
     {
       key: "bestOption",
-      weight: WS_BEST_OPTION,
+      weight: w("bestOption", WS_BEST_OPTION),
       score: bestOptionScore !== null ? c01(bestOptionScore / 100) : null,
     },
     {
       key: "tag",
-      weight: WS_TAG,
+      weight: w("tag", WS_TAG),
       score: tagBonus(colorTag),
     },
   ];

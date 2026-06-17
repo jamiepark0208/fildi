@@ -1,197 +1,148 @@
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
-import { SCORECARD_METRICS_V2 } from "@/lib/rankings";
-import { TECHNICAL_SCORECARD_METRICS } from "@/lib/technical-rankings";
-import { BookOpen, TrendingDown, TrendingUp, Info } from "lucide-react";
-
-type MetricRow = { key: string; label: string; higherIsBetter: boolean; weight?: number; intraWeight?: number };
-function metricWeight(m: MetricRow) { return m.intraWeight ?? m.weight ?? 0; }
-
-function MetricTable({ metrics }: { metrics: MetricRow[] }) {
-  const maxWeight = Math.max(...metrics.map(metricWeight));
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border">
-            <th className="p-3 text-left font-semibold text-muted-foreground">Metric</th>
-            <th className="p-3 text-center font-semibold text-muted-foreground w-24">Weight</th>
-            <th className="p-3 text-left font-semibold text-muted-foreground">Better when</th>
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map(m => (
-            <tr key={m.key} className="border-b border-border/40 hover:bg-secondary/10">
-              <td className="p-3 font-medium">{m.label}</td>
-              <td className="p-3 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="font-mono font-bold text-primary">{metricWeight(m).toFixed(1)}</span>
-                  <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary/60 rounded-full"
-                      style={{ width: `${(metricWeight(m) / maxWeight) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </td>
-              <td className="p-3">
-                {m.higherIsBetter ? (
-                  <span className="flex items-center gap-1 text-green-400 text-xs font-medium">
-                    <TrendingUp className="w-3 h-3" /> Higher
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-blue-400 text-xs font-medium">
-                    <TrendingDown className="w-3 h-3" /> Lower
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="bg-secondary/30">
-            <td className="p-3 font-bold">Max Possible Score</td>
-            <td className="p-3 text-center font-mono font-bold text-primary">
-              {metrics.reduce((s, m) => s + metricWeight(m), 0).toFixed(1)}
-            </td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { GuideMetricGrid } from "@/components/scorecard-guide/guide-metric-grid";
+import { DataTransparencyBar } from "@/components/scorecard-guide/data-transparency-bar";
+import { TabStatusHeader } from "@/components/scorecard-guide/tab-status-header";
+import {
+  FUNDAMENTAL_GUIDE_ROWS, FUNDAMENTAL_FAMILY_GUIDE_ROWS,
+  TECHNICAL_GUIDE_ROWS, OPTIONS_STOCK_ROWS, OPTIONS_STRIKE_ROWS,
+} from "@/lib/scorecard-guide-metadata";
+import { useGuideStatus } from "@/hooks/use-guide-status";
+import { useAuth } from "@/context/AuthContext";
+import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
+import { validateScoringWeights, type ScoringWeightsConfig } from "@/lib/scoring-weights";
+import { BookOpen } from "lucide-react";
 
 export default function ScorecardExplanation() {
-  return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
-      <Sidebar />
+  const status = useGuideStatus();
+  const { isAdmin } = useAuth();
+  const { weights, saveConfig, resetDefaults, isSaving } = useScoringPreferences();
+  const [tab, setTab] = useState("fundamental");
+  const [draft, setDraft] = useState<ScoringWeightsConfig>(weights);
+  const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
 
-      <main className="flex-1 min-w-0" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
-        <div className="p-5 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary" />
-            <div>
-              <h1 className="text-lg font-bold tracking-tight leading-none">Scorecard Guide</h1>
-              <p className="text-xs text-muted-foreground mt-0.5">How fundamental and technical scores are calculated</p>
-            </div>
+  useEffect(() => {
+    if (!dirty) setDraft(weights);
+  }, [weights, dirty]);
+
+  const fundCov = status.coverageFor("fundamentals").label;
+  const techCov = status.coverageFor("technicals").label;
+  const fundNoteSuffix = status.noteSuffix("fundamentals");
+  const techNoteSuffix = status.noteSuffix("technicals");
+
+  const onDraftChange = (next: ScoringWeightsConfig) => {
+    setDraft(next);
+    setDirty(true);
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    const err = validateScoringWeights(draft);
+    if (err) { setError(err); return; }
+    const saveErr = await saveConfig(draft);
+    if (saveErr) { setError(saveErr); return; }
+    setDirty(false);
+    setError(null);
+  };
+
+  const handleReset = async () => {
+    const saveErr = await resetDefaults();
+    if (saveErr) { setError(saveErr); return; }
+    setDirty(false);
+    setError(null);
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-background text-foreground flex">
+      <Sidebar />
+      <main className="flex-1 min-w-0" style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}>
+        <div className="px-4 py-3 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40 flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold leading-none">Scorecard Guide</h1>
+            <DataTransparencyBar
+              factset={status.sources.factset}
+              fmp={status.sources.fmp}
+              fmpRemaining={status.fmpRemaining}
+            />
           </div>
         </div>
 
-        <div className="p-5 space-y-6 max-w-4xl">
+        <div className="p-4 max-w-5xl pb-20">
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Scores are peer-relative within your watchlist. Each metric is normalized, weighted, and combined into a 0–100 score.
+          </p>
 
-          {/* Scoring methodology overview */}
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-primary" />
-              <h2 className="font-bold text-base">How Scoring Works</h2>
-            </div>
-            <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-              <p>
-                Scores are <strong className="text-foreground">relative</strong>, not absolute. Every metric is ranked
-                across the tickers you have loaded. The best-performing stock on each metric gets a score of&nbsp;
-                <span className="font-mono text-primary">1.0</span>, the worst gets&nbsp;
-                <span className="font-mono text-primary">0.0</span>, and the rest are interpolated linearly in between.
-              </p>
-              <p>
-                Each metric's rank-score is multiplied by its <strong className="text-foreground">weight</strong>.
-                The total score is the sum of all weighted metric scores. A stock that tops every single metric would
-                reach the <strong className="text-foreground">max possible score</strong> shown at the bottom of each
-                table — but in practice no stock wins every metric.
-              </p>
-              <p>
-                Adding or removing tickers changes all scores — because each stock is only judged relative to its
-                current peers. A score near 80 % of the max is strong in your comparison set.
-              </p>
-            </div>
-          </div>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="h-8 mb-2">
+              <TabsTrigger value="fundamental" className="text-xs px-3">Fundamental</TabsTrigger>
+              <TabsTrigger value="technical" className="text-xs px-3">Technical</TabsTrigger>
+              <TabsTrigger value="options" className="text-xs px-3">Options</TabsTrigger>
+            </TabsList>
 
-          {/* Fundamental */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-border">
-              <h2 className="font-bold text-base">Fundamental Score</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Used in the <strong>Fundamental Analysis</strong> tab · 13 metrics · max {SCORECARD_METRICS_V2.reduce((s, m) => s + metricWeight(m), 0).toFixed(1)} pts
-              </p>
-            </div>
-            <MetricTable metrics={SCORECARD_METRICS_V2} />
-            <div className="p-4 bg-secondary/10 border-t border-border space-y-1.5 text-xs text-muted-foreground">
-              <p>
-                <strong className="text-foreground">P/E Ratio:</strong> Negative P/E (company is losing money) is
-                excluded from scoring — it neither helps nor penalises the stock on this metric. Other metrics still
-                count normally.
-              </p>
-              <p>
-                <strong className="text-foreground">Price / FCF:</strong> Only calculated when both Market Cap and
-                positive Free Cash Flow are available. Negative FCF companies are excluded.
-              </p>
-              <p>
-                <strong className="text-foreground">Analyst Upside:</strong> Derived from{" "}
-                (Analyst Target Price ÷ Current Price) − 1. This is a proxy for fair value; it reflects consensus
-                expectations, not intrinsic value calculations.
-              </p>
-              <p>
-                <strong className="text-foreground">Missing data:</strong> If a stock has no value for a metric (e.g.
-                no dividend yield), it scores 0 on that metric. Comparing stocks with different data availability can
-                disadvantage the stock with the missing data.
-              </p>
-            </div>
-          </div>
+            <TabsContent value="fundamental" className="mt-0">
+              <TabStatusHeader text={status.stripFor("fundamentals")} warn={status.fundStale} />
+              <p className="text-[10px] text-muted-foreground mb-1">Family blend weights</p>
+              <GuideMetricGrid
+                rows={FUNDAMENTAL_FAMILY_GUIDE_ROWS}
+                coverageLabel={fundCov}
+                config={draft}
+                noteSuffix={fundNoteSuffix}
+                editable={isAdmin}
+                onConfigChange={onDraftChange}
+              />
+              <p className="text-[10px] text-muted-foreground mt-2 mb-1">Metric intra-family weights</p>
+              <GuideMetricGrid
+                rows={FUNDAMENTAL_GUIDE_ROWS}
+                coverageLabel={fundCov}
+                showFamily
+                config={draft}
+                noteSuffix={fundNoteSuffix}
+                editable={isAdmin}
+                onConfigChange={onDraftChange}
+              />
+            </TabsContent>
 
-          {/* Technical */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-border">
-              <h2 className="font-bold text-base">Technical Score</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Used in the <strong>Technical Scorecard</strong> tab · 8 metrics · max {TECHNICAL_SCORECARD_METRICS.reduce((s, m) => s + m.weight, 0).toFixed(1)} pts
-              </p>
-            </div>
-            <MetricTable metrics={TECHNICAL_SCORECARD_METRICS} />
-            <div className="p-4 bg-secondary/10 border-t border-border space-y-1.5 text-xs text-muted-foreground">
-              <p>
-                <strong className="text-foreground">Purpose:</strong> The technical score ranks stocks by how
-                attractive they are for the FILDI strategy — selling weekly OTM cash-secured puts on oversold stocks.
-                Lower RSI, MFI, 52w position, and recent return all score better because they indicate the stock
-                has pulled back and may be near a support level.
-              </p>
-              <p>
-                <strong className="text-foreground">Signal:</strong> GO (both RSI &lt; threshold AND MFI &lt; 25) scores 2 points;
-                WATCH (one condition met) scores 1; NO scores 0. Signal carries the highest weight (3.0) because
-                it directly encodes the entry criteria.
-              </p>
-              <p>
-                <strong className="text-foreground">MACD:</strong> Bullish Crossover → 3, Bullish → 2, Bearish → 1,
-                Bearish Crossover → 0. When MACD is unavailable (not enough history), the metric is skipped.
-              </p>
-              <p>
-                <strong className="text-foreground">RSI threshold:</strong> Each ticker has a per-tier threshold
-                (e.g., T1 stocks use RSI &lt; 45, others may use different values). The RSI score is based on the
-                raw RSI value, so a T1 stock at RSI 42 and a T3 stock at RSI 42 are treated equally by the scorer
-                even though only the T1 stock has cleared its threshold.
-              </p>
-            </div>
-          </div>
+            <TabsContent value="technical" className="mt-0">
+              <TabStatusHeader text={status.stripFor("technicals")} warn={status.techStale} />
+              <GuideMetricGrid
+                rows={TECHNICAL_GUIDE_ROWS}
+                coverageLabel={techCov}
+                config={draft}
+                noteSuffix={techNoteSuffix}
+                editable={isAdmin}
+                onConfigChange={onDraftChange}
+              />
+            </TabsContent>
 
-          {/* Rankings leaderboard */}
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
-            <h2 className="font-bold text-base">Rankings Leaderboard</h2>
-            <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-              <p>
-                Both tabs show a <strong className="text-foreground">Rankings Leaderboard</strong> when 2 or more
-                tickers are loaded. Each entry shows the stock's total score, a progress bar relative to the
-                #1 stock, and a brief reason derived directly from the data — no AI or opinion involved.
-              </p>
-              <p>
-                The <strong className="text-foreground">fundamental reason</strong> lists the top 2 metrics the stock
-                leads in and the bottom 2 metrics it lags in (both based on normalized rank scores).
-              </p>
-              <p>
-                The <strong className="text-foreground">technical reason</strong> states the signal condition
-                (GO / WATCH / NO with RSI and MFI values), MACD crossover status if present, and 52-week position
-                context if the stock is near an extreme.
-              </p>
-            </div>
-          </div>
+            <TabsContent value="options" className="mt-0 space-y-2">
+              <TabStatusHeader text={status.stripFor("options")} />
+              <p className="text-[10px] text-muted-foreground">Rank stocks → score strikes → liquidity gate + macro regime</p>
+              <p className="text-[10px] text-muted-foreground">Stock rank layer</p>
+              <GuideMetricGrid rows={OPTIONS_STOCK_ROWS} coverageLabel="DB daily/weekly" config={draft} editable={isAdmin} onConfigChange={onDraftChange} />
+              <p className="text-[10px] text-muted-foreground pt-1">Strike pick layer (BEST)</p>
+              <GuideMetricGrid rows={OPTIONS_STRIKE_ROWS} coverageLabel="On scan" config={draft} editable={isAdmin} onConfigChange={onDraftChange} />
+            </TabsContent>
+          </Tabs>
 
+          {isAdmin && dirty && (
+            <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-w,220px)] z-50 flex items-center gap-2 px-4 py-2 border-t border-border bg-background/95 backdrop-blur">
+              <Button size="sm" className="h-7 text-xs" disabled={isSaving} onClick={handleSave}>
+                {isSaving ? "Saving…" : "Save weights"}
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={isSaving} onClick={handleReset}>
+                Reset defaults
+              </Button>
+              {error && <span className="text-[10px] text-red-400">{error}</span>}
+            </div>
+          )}
+
+          <p className="text-[10px] text-muted-foreground/50 mt-3">
+            Relative to watchlist. Missing data → 0.
+          </p>
         </div>
       </main>
     </div>

@@ -609,6 +609,8 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                 loadedStocks={[m]}
                 selectedPeriod={chartPeriod}
                 onPeriodChange={setChartPeriod}
+                showTechnicalZones={!!propTicker}
+                tickerForTechnicals={propTicker}
               />
             </div>
 

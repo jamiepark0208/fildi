@@ -1,0 +1,70 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+out-tsc/
+*.tsbuildinfo
+.expo/
+.expo-shared/
+.next/
+
+# Cache and local tooling
+.cache/
+.local/
+tmp/
+
+# Agent local state (not source)
+.claude/settings.local.json
+.claude/state.json
+.cursor/state.json
+.cursor/hooks/.shell-history.json
+
+# Replit
+.replit
+.replitignore
+replit.md
+
+# Database and codegraph index
+*.db
+*.db-shm
+*.db-wal
+.codegraph/
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+*.lock
+
+# Binary and media assets
+attached_assets/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+*.tar.gz
+*.woff
+*.woff2
+*.ttf
+
+# Large runtime artifacts (not source)
+artifacts/macro-data.json
+artifacts/macro-charts.json
+artifacts/macro-highlights.json
+artifacts/brief-history.json
+
+# Logs
+*.log
+/tmp/
+
+# Git internals
+.git/
+
+# System files
+.DS_Store
+Thumbs.db
+
+.codegraph/daemon.pid

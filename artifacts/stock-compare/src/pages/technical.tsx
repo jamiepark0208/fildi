@@ -6,6 +6,7 @@ import { TickerShelf } from "@/components/ticker-shelf";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, Loader2, Plus, RefreshCw, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import {
   type IndicatorResult,
   type TechnicalScore,
@@ -637,6 +638,7 @@ interface TechnicalProps {
 
 export default function Technical({ tickers, setTickers }: TechnicalProps) {
   const { tickers: watchlistTickers } = useWatchlist();
+  const { weights } = useScoringPreferences();
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
 
   const handleAdd    = (t: string) => { if (!tickers.includes(t) && tickers.length < MAX_SLOTS) setTickers(p => [...p, t]); };
@@ -694,8 +696,8 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
   // V2: self-relative scores computed over all 31 watchlist rows (invariant to shelf selection)
   const technicalScores = useMemo(() => {
     if (!allTechnicalsData?.length) return [];
-    return computeTechnicalRankingsV2(allTechnicalsData);
-  }, [allTechnicalsData]);
+    return computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical);
+  }, [allTechnicalsData, weights.technical]);
 
   const handleRefresh = async (ticker: string) => {
     setRefreshing(s => new Set(s).add(ticker));

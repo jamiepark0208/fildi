@@ -220,8 +220,11 @@ const SUSPECT = { marginAbs: 1.0, growthAbs: 10.0 } as const;
 export function computeRankingsV2(
   stocks: StockMetrics[],
   preset: FamilyPreset = FAMILY_PRESETS.PUT_SELLER,
+  intraWeightOverrides?: Record<string, number>,
 ): StockScore[] {
   if (stocks.length === 0) return [];
+
+  const intraW = (m: MetricDefV2) => intraWeightOverrides?.[m.key] ?? m.intraWeight;
 
   const familyMetrics = Object.fromEntries(
     FAMILIES.map(fam => [fam, SCORECARD_METRICS_V2.filter(m => m.family === fam)]),
@@ -332,9 +335,9 @@ export function computeRankingsV2(
         familyScoreGrid[si][fam] = { score: 0.5, coverage: 0, lowCoverage: true };
       } else {
         // Renormalize intraWeights over available metrics only (structural nulls excluded)
-        const totalIntra = available.reduce((s, m) => s + m.intraWeight, 0);
+        const totalIntra = available.reduce((s, m) => s + intraW(m), 0);
         const score = available.reduce((acc, m) =>
-          acc + (normScores[m.key][si] as number) * (m.intraWeight / totalIntra), 0);
+          acc + (normScores[m.key][si] as number) * (intraW(m) / totalIntra), 0);
         familyScoreGrid[si][fam] = { score, coverage, lowCoverage: coverage < 0.6 };
       }
     });
@@ -357,9 +360,9 @@ export function computeRankingsV2(
     SCORECARD_METRICS_V2.forEach(m => {
       const norm = normScores[m.key][si];
       const availableInFamily = familyMetrics[m.family].filter(fm => normScores[fm.key][si] !== null);
-      const totalIntra = availableInFamily.reduce((acc, fm) => acc + fm.intraWeight, 0);
+      const totalIntra = availableInFamily.reduce((acc, fm) => acc + intraW(fm), 0);
       const weightedScore = (norm !== null && totalIntra > 0)
-        ? (norm * m.intraWeight / totalIntra) * preset[m.family]
+        ? (norm * intraW(m) / totalIntra) * preset[m.family]
         : 0;
       ms[m.key] = {
         value: rawValues[m.key][si],

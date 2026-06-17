@@ -1,0 +1,31 @@
+---
+description: Use codegraph before broad code reads or refactors
+alwaysApply: true
+---
+
+# Codegraph first
+
+Before reading multiple source files or refactoring, use the **codegraph** MCP (or CLI).
+
+## When to use
+- Exploring unfamiliar code or tracing a feature across files
+- Before editing any symbol — check callers/impact first
+- Any task that would otherwise read 3+ source files
+
+## Prefer MCP tools
+- `context` — task-relevant entry points + snippets (start here)
+- `query` — find a symbol
+- `callers` / `callees` — dependency direction
+- `impact` — blast radius before changing a function
+- `sync` — after bulk edits
+
+## CLI fallback
+```bash
+codegraph context "<task>"
+codegraph impact <symbol>
+codegraph sync
+```
+
+## Do not
+- Read files to learn project structure — codegraph first, then read 1–2 targeted files
+- Use Explore/subagent sweeps for broad discovery

@@ -6,6 +6,7 @@ import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { MetricsTable } from "@/components/metrics-table";
 import { ScorecardBreakdown } from "@/components/scorecard-breakdown";
 import { computeRankingsV2 } from "@/lib/rankings";
+import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
@@ -26,6 +27,7 @@ interface HomeProps {
 export default function Home({ tickers, setTickers }: HomeProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { weights } = useScoringPreferences();
 
   const focusInput = () => {
     const el = document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]');
@@ -81,8 +83,8 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     const watchlistLoaded = watchlistQueries.map(q => q.data).filter((d): d is StockMetrics => d != null);
     const ref = watchlistLoaded.length >= 8 ? watchlistLoaded : loadedStocks;
     const validStocks = ref.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
-    return computeRankingsV2(validStocks);
-  }, [watchlistQueries, loadedStocks]);
+    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics);
+  }, [watchlistQueries, loadedStocks, weights]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 
