@@ -314,10 +314,11 @@ function generateReasonV2(r: TechnicalRow, signal: "GO" | "WATCH" | "NO"): strin
 export function computeTechnicalRankingsV2(
   rows: TechnicalRow[],
   tierMap: Record<string, 1 | 2 | 3> = {},
+  technicalWeights?: Record<string, number>,
 ): TechnicalScore[] {
   if (rows.length === 0) return [];
 
-  const COMPONENTS = [
+  const defaultComponents = [
     { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
     { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
     { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
@@ -325,6 +326,11 @@ export function computeTechnicalRankingsV2(
     { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
     { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
   ] as const;
+
+  const COMPONENTS = defaultComponents.map(c => ({
+    ...c,
+    weight: technicalWeights?.[c.key] ?? c.weight,
+  }));
 
   // ── SELF-RELATIVE SCORE COMPUTATION ────────────────────────────────────────
   // Each ticker's score depends ONLY on its own row. No cross-ticker data used here.

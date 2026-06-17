@@ -580,6 +580,12 @@ async function computeTechnicals(ticker: string): Promise<void> {
   logger.debug({ ticker: key, coverage }, "technicals: ticker computed");
 }
 
+export async function refreshTechnicalsForTicker(ticker: string): Promise<TickerTechnicalsRow | null> {
+  const key = ticker.toUpperCase();
+  await computeTechnicals(key);
+  return readTechnicalsRow(key);
+}
+
 // ── Batch refresh (exported for route + startup) ──────────────────────────────
 
 export async function refreshTechnicals(tickers: string[]): Promise<void> {
