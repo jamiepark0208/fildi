@@ -3,8 +3,6 @@ import { useParams } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Sidebar } from "@/components/sidebar"
 import { TradeCard, type TradePost } from "@/components/TradeCard"
-import { ProfileStockPicks, type StockPicksData } from "@/components/profile-stock-picks"
-import { useWatchlist } from "@/hooks/use-watchlist"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
 
@@ -137,7 +135,6 @@ function StatBox({ label, value, colorClass }: { label: string; value: string; c
 
 interface ProfileData {
   user: { id: number; username: string; avatarUrl: string | null; role: string; createdAt: string }
-  stockPicks: StockPicksData
   stats: { totalPosts: number; openPosts: number; wins: number; losses: number; closed: number; winRate: number | null; totalPnl: number | null }
   posts: TradePost[]
 }
@@ -145,7 +142,6 @@ interface ProfileData {
 export default function Profile() {
   const { username: routeUsername } = useParams<{ username: string }>()
   const { user: me } = useAuth()
-  const { tickers: watchlistTickers } = useWatchlist()
   const qc = useQueryClient()
 
   const username = routeUsername === "me" ? (me?.username ?? "") : routeUsername
@@ -196,15 +192,6 @@ export default function Profile() {
 
   async function handleDelete(postId: number) {
     await apiFeed(`/posts/${postId}`, { method: "DELETE" })
-    invalidate()
-  }
-
-  async function handleSavePicks(stockPicks: StockPicksData) {
-    await apiFeed("/profile/picks", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(stockPicks),
-    })
     invalidate()
   }
 
@@ -269,14 +256,6 @@ export default function Profile() {
               <StatBox label="Open" value={String(data.stats.openPosts)} />
             </div>
 
-            {/* Stock picks */}
-            <ProfileStockPicks
-              picks={data.stockPicks ?? { bullish: [], neutral: [], bearish: [] }}
-              isOwner={isOwnerProfile}
-              suggestions={watchlistTickers}
-              onSave={handleSavePicks}
-            />
-
             {/* Post button (own profile only) */}
             {isOwnerProfile && (
               <button
@@ -296,12 +275,11 @@ export default function Profile() {
             {data.posts.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">No trade ideas posted yet.</div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {data.posts.map(post => (
                   <TradeCard
                     key={post.id}
                     post={post}
-                    variant="compact"
                     showUser={false}
                     isOwner={!!me && post.username === me.username}
                     onLike={() => handleLike(post.id)}
