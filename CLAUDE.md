@@ -22,6 +22,7 @@ First time only: read .claude/skills/replit-setup.md and follow the steps
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session | .claude/skills/session-wrap.md |
+| Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
 
 
 ---
