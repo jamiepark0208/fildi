@@ -28,8 +28,8 @@ export default function ScorecardExplanation() {
     if (!dirty) setDraft(weights);
   }, [weights, dirty]);
 
-  const fundCov = status.coverageFor("fundamentals").label;
-  const techCov = status.coverageFor("technicals").label;
+  const fundCov = status.coverageFor("fundamentals");
+  const techCov = status.coverageFor("technicals");
   const fundNoteSuffix = status.noteSuffix("fundamentals");
   const techNoteSuffix = status.noteSuffix("technicals");
 
@@ -59,45 +59,45 @@ export default function ScorecardExplanation() {
     <div className="min-h-[100dvh] bg-background text-foreground flex">
       <Sidebar />
       <main className="flex-1 min-w-0" style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}>
-        <div className="px-4 py-3 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-primary shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold leading-none">Scorecard Guide</h1>
-            <DataTransparencyBar
-              factset={status.sources.factset}
-              fmp={status.sources.fmp}
-              fmpRemaining={status.fmpRemaining}
-            />
+        <div className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
+          <div className="flex items-start gap-3">
+            <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-bold leading-tight tracking-tight">Scorecard Guide</h1>
+              <DataTransparencyBar chips={status.headerChips()} />
+            </div>
           </div>
         </div>
 
-        <div className="p-4 max-w-5xl pb-20">
-          <p className="text-[11px] text-muted-foreground mb-3">
+        <div className="p-6 max-w-6xl pb-24">
+          <p className="text-sm text-foreground/90 mb-5 leading-relaxed">
             Scores are peer-relative within your watchlist. Each metric is normalized, weighted, and combined into a 0–100 score.
           </p>
 
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="h-8 mb-2">
-              <TabsTrigger value="fundamental" className="text-xs px-3">Fundamental</TabsTrigger>
-              <TabsTrigger value="technical" className="text-xs px-3">Technical</TabsTrigger>
-              <TabsTrigger value="options" className="text-xs px-3">Options</TabsTrigger>
+            <TabsList className="h-10 mb-4">
+              <TabsTrigger value="fundamental" className="text-sm px-4">Fundamental</TabsTrigger>
+              <TabsTrigger value="technical" className="text-sm px-4">Technical</TabsTrigger>
+              <TabsTrigger value="options" className="text-sm px-4">Options</TabsTrigger>
             </TabsList>
 
             <TabsContent value="fundamental" className="mt-0">
-              <TabStatusHeader text={status.stripFor("fundamentals")} warn={status.fundStale} />
-              <p className="text-[10px] text-muted-foreground mb-1">Family blend weights</p>
+              <TabStatusHeader chips={status.chipsFor("fundamentals")} />
+              <p className="text-sm font-semibold text-foreground mb-2">Family blend weights</p>
               <GuideMetricGrid
                 rows={FUNDAMENTAL_FAMILY_GUIDE_ROWS}
-                coverageLabel={fundCov}
+                coverageLabel={fundCov.label}
+                coverageTone={fundCov.tone}
                 config={draft}
                 noteSuffix={fundNoteSuffix}
                 editable={isAdmin}
                 onConfigChange={onDraftChange}
               />
-              <p className="text-[10px] text-muted-foreground mt-2 mb-1">Metric intra-family weights</p>
+              <p className="text-sm font-semibold text-foreground mb-2">Metric intra-family weights</p>
               <GuideMetricGrid
                 rows={FUNDAMENTAL_GUIDE_ROWS}
-                coverageLabel={fundCov}
+                coverageLabel={fundCov.label}
+                coverageTone={fundCov.tone}
                 showFamily
                 config={draft}
                 noteSuffix={fundNoteSuffix}
@@ -107,10 +107,11 @@ export default function ScorecardExplanation() {
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0">
-              <TabStatusHeader text={status.stripFor("technicals")} warn={status.techStale} />
+              <TabStatusHeader chips={status.chipsFor("technicals")} />
               <GuideMetricGrid
                 rows={TECHNICAL_GUIDE_ROWS}
-                coverageLabel={techCov}
+                coverageLabel={techCov.label}
+                coverageTone={techCov.tone}
                 config={draft}
                 noteSuffix={techNoteSuffix}
                 editable={isAdmin}
@@ -118,29 +119,41 @@ export default function ScorecardExplanation() {
               />
             </TabsContent>
 
-            <TabsContent value="options" className="mt-0 space-y-2">
-              <TabStatusHeader text={status.stripFor("options")} />
-              <p className="text-[10px] text-muted-foreground">Rank stocks → score strikes → liquidity gate + macro regime</p>
-              <p className="text-[10px] text-muted-foreground">Stock rank layer</p>
-              <GuideMetricGrid rows={OPTIONS_STOCK_ROWS} coverageLabel="DB daily/weekly" config={draft} editable={isAdmin} onConfigChange={onDraftChange} />
-              <p className="text-[10px] text-muted-foreground pt-1">Strike pick layer (BEST)</p>
-              <GuideMetricGrid rows={OPTIONS_STRIKE_ROWS} coverageLabel="On scan" config={draft} editable={isAdmin} onConfigChange={onDraftChange} />
+            <TabsContent value="options" className="mt-0 space-y-3">
+              <TabStatusHeader chips={status.chipsFor("options")} />
+              <p className="text-sm text-foreground/90">Rank stocks → score strikes → liquidity gate + macro regime</p>
+              <p className="text-sm font-semibold text-foreground">Stock rank layer</p>
+              <GuideMetricGrid
+                rows={OPTIONS_STOCK_ROWS}
+                coverageLabel="DB daily/weekly"
+                config={draft}
+                editable={isAdmin}
+                onConfigChange={onDraftChange}
+              />
+              <p className="text-sm font-semibold text-foreground pt-1">Strike pick layer (BEST)</p>
+              <GuideMetricGrid
+                rows={OPTIONS_STRIKE_ROWS}
+                coverageLabel="On scan"
+                config={draft}
+                editable={isAdmin}
+                onConfigChange={onDraftChange}
+              />
             </TabsContent>
           </Tabs>
 
           {isAdmin && dirty && (
-            <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-w,220px)] z-50 flex items-center gap-2 px-4 py-2 border-t border-border bg-background/95 backdrop-blur">
-              <Button size="sm" className="h-7 text-xs" disabled={isSaving} onClick={handleSave}>
+            <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-w,220px)] z-50 flex items-center gap-3 px-6 py-3 border-t border-border bg-background/95 backdrop-blur">
+              <Button size="sm" className="text-sm" disabled={isSaving} onClick={handleSave}>
                 {isSaving ? "Saving…" : "Save weights"}
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={isSaving} onClick={handleReset}>
+              <Button size="sm" variant="outline" className="text-sm" disabled={isSaving} onClick={handleReset}>
                 Reset defaults
               </Button>
-              {error && <span className="text-[10px] text-red-400">{error}</span>}
+              {error && <span className="text-sm text-red-400">{error}</span>}
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground/50 mt-3">
+          <p className="text-xs text-muted-foreground mt-4">
             Relative to watchlist. Missing data → 0.
           </p>
         </div>
