@@ -93,7 +93,8 @@ function writeSessionEntry(state, note, now) {
   fs.mkdirSync(dir, { recursive: true });
 
   const dateStr   = now.slice(0, 10);
-  const dayFile   = path.join(dir, `${dateStr}.md`);
+  const fileName  = `claude-${dateStr}.md`;
+  const dayFile   = path.join(dir, fileName);
   const indexFile = path.join(dir, 'INDEX.md');
 
   const entry = [
@@ -112,7 +113,7 @@ function writeSessionEntry(state, note, now) {
     fs.writeFileSync(dayFile, `# Session Log: ${dateStr}\n\n${entry}`);
   }
 
-  const indexLine = `- [${dateStr}](${dateStr}.md) — ${note||'auto-saved'} | ${state.phase} | next: ${state.next.slice(0,3).join(', ')||'tbd'}`;
+  const indexLine = `- [${dateStr}](${fileName}) — ${note||'auto-saved'} | ${state.phase} | next: ${state.next.slice(0,3).join(', ')||'tbd'}`;
 
   if (!fs.existsSync(indexFile)) {
     fs.writeFileSync(indexFile, `# Session Index\n\nFull history for each date at \`.agents/sessions/YYYY-MM-DD.md\`.\nPre-2026-06-08: \`.claude/docs/session-history.md\`\n\n${indexLine}\n`);

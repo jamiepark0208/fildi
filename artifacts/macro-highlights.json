@@ -1,4 +1,182 @@
 {
-  "content": "- **Retail Sales Miss & Consumer Deceleration Risk**: Tomorrow's May retail sales print comes after the recent $656.1B YoY 5.2% read, but the trend is decelerating—consumer sentiment at 49.8 is deeply depressed and suggests forward momentum is stalling. A miss would validate recession fears and likely trigger a sharp equity selloff, compressing put spreads rapidly.\n\n- **Core Inflation Sticky Above Target**: Core PCE at 3.3% and Core CPI at 3.0% remain well above the Fed's 2% objective, while PPI at 13.1% signals persistent input cost pressures. This is the single biggest constraint on Fed easing, making rate-cut expectations fragile and keeping volatility bid if data surprises hot.\n\n- **Labor Market Softening But Not Collapsing**: Nonfarm payrolls of 172K MoM is weak, unemployment holding at 4.30%, and JOLTS at 7,618K all point to a job market losing steam without triggering panic. This \"Goldilocks for bears\" scenario—slow enough to justify rate cuts, not slow enough to trigger crisis—keeps equity vol range-bound and supports OTM put selling.\n\n- **Inverted Yield Curve Persisting (96 bps spread)**: The 10Y-2Y remains flat despite recent stability, signaling ongoing recession expectations embedded in bonds while equities remain elevated. Any further flattening or inversion deepens the carry-trade unwind risk and could spike vol faster than headline moves suggest.\n\n- **VIX-SKEW Disconnect: Elevated Tail Risk Priced In**: VIX at 16.11 appears calm, but SKEW at 144.3 indicates elevated downside volatility premium—the market is quietly pricing left-tail risk while spot vol sleeps. Selling OTM puts into this setup concentrates exposure to a tail event if Retail Sales or sentiment rolls over hard.",
-  "generatedAt": "2026-06-16T20:38:41.940Z"
+  "generatedAt": "2026-06-18T00:04:37.993Z",
+  "marketDate": "2026-06-18",
+  "headline": "Broad selloff as Fed signals rate hike; yields spike, VIX jumps 12%",
+  "eventsToday": [],
+  "bullets": [
+    {
+      "id": "b1",
+      "category": "macro",
+      "title": "Fed holds rates, signals hike later in 2026",
+      "body": "Fed keeps rates steady but projects rate increase before year-end amid 4.3% YoY inflation.",
+      "tickers": [],
+      "metric": {
+        "label": "Fed Funds Rate",
+        "value": "3.62%",
+        "direction": "flat"
+      }
+    },
+    {
+      "id": "b2",
+      "category": "macro",
+      "title": "10Y yields spike on Fed hawkishness",
+      "body": "10-year yield jumps 79bps to 4.46% on rate hike expectations, pressuring equities sharply.",
+      "tickers": [],
+      "metric": {
+        "label": "10Y Yield",
+        "value": "4.46%",
+        "direction": "up"
+      }
+    },
+    {
+      "id": "b3",
+      "category": "tape",
+      "title": "Broad equity selloff amid rate shock",
+      "body": "SPY -1.25%, QQQ -1.01%, IWM -0.75% as investors reprice duration risk on higher yields.",
+      "tickers": [
+        "SPY",
+        "QQQ",
+        "IWM"
+      ],
+      "metric": {
+        "label": "SPY drawdown",
+        "value": "-1.25%",
+        "direction": "down"
+      }
+    },
+    {
+      "id": "b4",
+      "category": "macro",
+      "title": "VIX surges on rate shock",
+      "body": "VIX +12.37% to 18.44, reflecting sharp repricing of equity volatility after Fed signals.",
+      "tickers": [],
+      "metric": {
+        "label": "VIX change",
+        "value": "+12.37%",
+        "direction": "up"
+      }
+    },
+    {
+      "id": "b5",
+      "category": "sector",
+      "title": "Mega-cap tech hit hardest",
+      "body": "MSFT -3.79%, META -5.44%, AMZN -3.46%, GOOGL -2.53% as high-duration assets suffer.",
+      "tickers": [
+        "MSFT",
+        "META",
+        "AMZN",
+        "GOOGL"
+      ],
+      "metric": {
+        "label": "META decline",
+        "value": "-5.44%",
+        "direction": "down"
+      }
+    },
+    {
+      "id": "b6",
+      "category": "sector",
+      "title": "Growth/SaaS stocks collapse",
+      "body": "NOW -5.77%, SHOP -4.54%, SMCI -4.93% as higher rates depress growth valuations.",
+      "tickers": [
+        "NOW",
+        "SHOP",
+        "SMCI"
+      ],
+      "metric": {
+        "label": "NOW decline",
+        "value": "-5.77%",
+        "direction": "down"
+      }
+    },
+    {
+      "id": "b7",
+      "category": "watchlist",
+      "title": "HOOD soars on restructuring",
+      "body": "Robinhood +8.78% after announcing workforce cuts and new $105 price target from analyst.",
+      "tickers": [
+        "HOOD"
+      ],
+      "metric": {
+        "label": "HOOD change",
+        "value": "+8.78%",
+        "direction": "up"
+      }
+    },
+    {
+      "id": "b8",
+      "category": "event",
+      "title": "Consumer Sentiment data due Saturday",
+      "body": "U of Mich preliminary consumer sentiment release scheduled for June 20; medium impact expected.",
+      "tickers": [],
+      "metric": {
+        "label": "Date",
+        "value": "2026-06-20",
+        "direction": "flat"
+      }
+    },
+    {
+      "id": "b9",
+      "category": "sector",
+      "title": "Yield-sensitive sectors under pressure",
+      "body": "Sector rotation out of high-duration equities favoring value amid yield spike.",
+      "tickers": [],
+      "metric": {
+        "label": "2Y Yield",
+        "value": "3.47%",
+        "direction": "up"
+      }
+    },
+    {
+      "id": "b10",
+      "category": "watchlist",
+      "title": "TSLA weakness continues",
+      "body": "Tesla -2.05% alongside broad sell-off; no specific catalyst; macro-driven decline.",
+      "tickers": [
+        "TSLA"
+      ],
+      "metric": {
+        "label": "TSLA change",
+        "value": "-2.05%",
+        "direction": "down"
+      }
+    }
+  ],
+  "watchlistMovers": [
+    {
+      "ticker": "HOOD",
+      "changePct": 8.78,
+      "blurb": "Robinhood surges on corporate restructuring; new analyst price target."
+    },
+    {
+      "ticker": "RDW",
+      "changePct": 6.37,
+      "blurb": "Rotation-driven; SpaceX/Tesla FSD commentary in headlines."
+    },
+    {
+      "ticker": "OPEN",
+      "changePct": -6.32,
+      "blurb": "Rotation-driven decline amid growth selloff; no specific catalyst."
+    },
+    {
+      "ticker": "NOW",
+      "changePct": -5.77,
+      "blurb": "SaaS selloff as Fed signals rate hikes; duration pressure."
+    },
+    {
+      "ticker": "META",
+      "changePct": -5.44,
+      "blurb": "Mega-cap tech hit hardest on yield shock; -5.44% decline."
+    },
+    {
+      "ticker": "RDDT",
+      "changePct": -5.38,
+      "blurb": "Rotation-driven; no specific catalyst in headlines today."
+    },
+    {
+      "ticker": "SMCI",
+      "changePct": -4.93,
+      "blurb": "AI/semiconductor sector pressure on rate repricing."
+    }
+  ]
 }

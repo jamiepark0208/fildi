@@ -35,6 +35,7 @@ import {
   Newspaper,
   ExternalLink,
 } from "lucide-react";
+import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -308,7 +309,6 @@ function CurvePeriodButtons({
 
 export default function MacroDashboard() {
   const qc = useQueryClient();
-  const [highlightsOpen, setHighlightsOpen] = useState(true);
   const [fedSection, setFedSection] = useState<"voting" | "all">("voting");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
   const [treasuryPeriod, setTreasuryPeriod] = useState<CurvePeriod>("current");
@@ -329,13 +329,6 @@ export default function MacroDashboard() {
     queryKey: ["macro-charts"],
     queryFn: () => fetch("/api/macro/charts").then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: highlights } = useQuery<{ content: string; generatedAt: string } | { noData: true }>({
-    queryKey: ["macro-highlights"],
-    queryFn: () => fetch("/api/macro/highlights").then((r) => r.json()),
-    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
@@ -389,12 +382,6 @@ export default function MacroDashboard() {
     onSuccess: (data: MacroData) => { qc.setQueryData(["macro-data"], data); },
   });
 
-  const generateHighlightsMutation = useMutation({
-    mutationFn: () =>
-      fetch("/api/macro/highlights/generate", { method: "POST" }).then((r) => r.json()),
-    onSuccess: (data) => { qc.setQueryData(["macro-highlights"], data); },
-  });
-
   const generateBankMutation = useMutation({
     mutationFn: () =>
       fetch("/api/macro/bank-research/generate", { method: "POST" }).then((r) => r.json()),
@@ -402,9 +389,6 @@ export default function MacroDashboard() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────────────────
-
-  const highlightsContent =
-    highlights && !("noData" in highlights) ? highlights : null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -507,59 +491,7 @@ export default function MacroDashboard() {
         <QuickStats macroData={macroData!} />
 
         {/* ── AI Highlights ───────────────────────────────────────────────────── */}
-        <div className="bg-secondary/30 rounded-lg p-4 border border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              AI Highlights
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => generateHighlightsMutation.mutate()}
-                disabled={generateHighlightsMutation.isPending}
-                className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
-              >
-                {generateHighlightsMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3 w-3" />
-                )}
-                Generate
-              </button>
-              <button
-                onClick={() => setHighlightsOpen((o) => !o)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {highlightsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          {highlightsOpen && (
-            <div className="space-y-2">
-              {generateHighlightsMutation.isPending && (
-                <div className="flex items-center gap-2 py-4 justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Generating…</span>
-                </div>
-              )}
-              {!generateHighlightsMutation.isPending && highlightsContent && (
-                <>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {highlightsContent.content}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    Generated {fmtTs(highlightsContent.generatedAt)}
-                  </p>
-                </>
-              )}
-              {!generateHighlightsMutation.isPending && !highlightsContent && (
-                <p className="text-xs text-muted-foreground italic py-2">
-                  No highlights yet. Click "Generate" for an AI macro summary.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        <MacroHighlightsPanel />
 
         {/* ── Charts row: VIX Curve + Treasury Yield Curve ─────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
