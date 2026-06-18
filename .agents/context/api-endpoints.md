@@ -77,6 +77,24 @@
 |---|---|---|---|
 | POST | /api/explain/score | Explain a ticker's fundamental or technical score | Haiku, 200 tokens, no storage |
 
+## Feed / Social
+| Method | Path | Purpose |
+|---|---|---|
+| POST | /api/feed/posts | Create trade idea post |
+| GET | /api/feed/posts | List posts (filter: ticker, username, status, sort) |
+| GET | /api/feed/posts/:id | Single post with comments |
+| PATCH | /api/feed/posts/:id/close | Close a post with closePremium |
+| DELETE | /api/feed/posts/:id | Delete open post (owner or admin) |
+| POST | /api/feed/posts/:id/like | Like a post |
+| DELETE | /api/feed/posts/:id/like | Unlike a post |
+| POST | /api/feed/posts/:id/comments | Add comment |
+| DELETE | /api/feed/comments/:id | Delete comment |
+| GET | /api/feed/profile/:username | Profile data + stats + posts |
+| GET | /api/feed/buckets | All users' Bullish/Neutral/Bearish picks |
+| GET | /api/feed/buckets/mine | Current user's picks |
+| PUT | /api/feed/buckets | Upsert ticker into a bucket { ticker, bucket } |
+| DELETE | /api/feed/buckets/:ticker | Remove ticker from user's buckets |
+
 ## Route file map
 ```
 routes/daily-brief.ts   → /api/daily-brief/*
