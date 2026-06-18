@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 import {
   Activity,
   AlertTriangle,
@@ -181,6 +182,7 @@ function MoversStrip({ movers }: { movers: WatchlistMover[] }) {
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export function MacroHighlightsPanel() {
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(true);
 
@@ -219,16 +221,18 @@ export function MacroHighlightsPanel() {
           )}
         </h2>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending}
-            className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
-          >
-            {generateMutation.isPending
-              ? <Loader2 className="h-3 w-3 animate-spin" />
-              : <RefreshCw className="h-3 w-3" />}
-            Generate
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
+            >
+              {generateMutation.isPending
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <RefreshCw className="h-3 w-3" />}
+              Generate
+            </button>
+          )}
           <button
             onClick={() => setOpen((o) => !o)}
             className="text-muted-foreground hover:text-foreground transition-colors"

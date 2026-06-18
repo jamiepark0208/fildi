@@ -151,7 +151,7 @@ interface CacheRow {
 }
 interface CacheStatus { caches: CacheRow[]; generatedAt: number }
 
-function CacheMonitor() {
+function CacheMonitor({ isAdmin }: { isAdmin: boolean }) {
   const queryClient = useQueryClient();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -269,7 +269,7 @@ function CacheMonitor() {
                         {row.entryCount === 0 ? "—" : `${row.entryCount} ${row.entryCount === 1 ? "ticker" : "tickers"}`}
                       </td>
                       <td className="text-right">
-                        {row.name !== 'macro-regime' && (
+                        {isAdmin && row.name !== 'macro-regime' && (
                           <button
                             onClick={(e) => handleClear(e, row.name)}
                             disabled={clearMutation.isPending}
@@ -372,12 +372,8 @@ export default function Settings() {
           </div>
 
           {/* Admin section */}
-          {isAdmin && (
-            <>
-              <AdminSection />
-              <CacheMonitor />
-            </>
-          )}
+          {isAdmin && <AdminSection />}
+          <CacheMonitor isAdmin={isAdmin} />
         </div>
       </main>
     </div>

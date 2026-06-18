@@ -16,6 +16,7 @@ import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -400,7 +401,7 @@ interface ScannerRowProps {
   minIncome: number;
   overrideEnabled: boolean;
   onExpand: () => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
   onDelete: () => void;
   onOverride: () => void;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
@@ -539,13 +540,15 @@ function ScannerRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-          <button
-            className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-slate-200 transition-colors"
-            onClick={onRefresh}
-            title="Refresh options"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </button>
+          {onRefresh && (
+            <button
+              className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-slate-200 transition-colors"
+              onClick={onRefresh}
+              title="Refresh options"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          )}
           <button
             className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-red-400 transition-colors"
             onClick={onDelete}
@@ -680,6 +683,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function OptionsScanner() {
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { weights } = useScoringPreferences();
 
@@ -1052,17 +1056,19 @@ export default function OptionsScanner() {
               </span>
             </div>
           </div>
-          <button
-            className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors"
-            onClick={handleGlobalRefresh}
-            disabled={scorecardLoading}
-          >
-            {scorecardLoading
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <RefreshCw className="w-3.5 h-3.5" />
-            }
-            {minutesAgo(refreshedAt)}
-          </button>
+          {isAdmin && (
+            <button
+              className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors"
+              onClick={handleGlobalRefresh}
+              disabled={scorecardLoading}
+            >
+              {scorecardLoading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <RefreshCw className="w-3.5 h-3.5" />
+              }
+              {minutesAgo(refreshedAt)}
+            </button>
+          )}
         </div>
 
 
@@ -1175,7 +1181,7 @@ export default function OptionsScanner() {
                 minIncome={minIncome}
                 overrideEnabled={overrides.has(ticker)}
                 onExpand={() => handleExpand(ticker)}
-                onRefresh={() => handleRowRefresh(ticker)}
+                onRefresh={isAdmin ? () => handleRowRefresh(ticker) : undefined}
                 onDelete={() => handleDelete(ticker)}
                 onOverride={() => handleOverride(ticker)}
                 techRow={techRowMap.get(ticker) ?? null}

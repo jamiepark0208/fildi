@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import { getAllCaches, namedCachesMap } from "../lib/cache-registry.js";
 
 const router = Router();
 
-router.get("/admin/cache/status", requireAdmin, (_req, res) => {
+router.get("/admin/cache/status", requireAuth, (_req, res) => {
   res.json({ caches: getAllCaches(), generatedAt: Date.now() });
 });
 

@@ -7,7 +7,7 @@
 
 ## Active work
 - Working: watchlist-stock-analysis, fildi-social-feed
-- In progress: options-comparison-table
+- In progress: profile-redesign-complete
 - Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
 
 ## Next tasks (priority order)

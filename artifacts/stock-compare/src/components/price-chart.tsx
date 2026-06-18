@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { computeChartZones, zoneYBounds, type DbTechnicalLevels } from "@/lib/chart-levels";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 export type Period = "1D" | "1W" | "1M" | "3M" | "1Y";
 
@@ -81,6 +82,7 @@ export function PriceChart({
   showTechnicalZones = false,
   tickerForTechnicals,
 }: PriceChartProps) {
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const techTicker = showTechnicalZones ? tickerForTechnicals?.toUpperCase() : undefined;
@@ -193,7 +195,7 @@ export function PriceChart({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {showTechnicalZones && techTicker && (
+          {isAdmin && showTechnicalZones && techTicker && (
             <button
               type="button"
               onClick={handleRefresh}

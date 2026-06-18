@@ -36,6 +36,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -308,6 +309,7 @@ function CurvePeriodButtons({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function MacroDashboard() {
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [fedSection, setFedSection] = useState<"voting" | "all">("voting");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
@@ -469,18 +471,20 @@ export default function MacroDashboard() {
                 Updated {fmtTs(macroData.fetchedAt)}
               </span>
             )}
-            <button
-              onClick={() => refreshMutation.mutate()}
-              disabled={refreshMutation.isPending}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary transition-colors disabled:opacity-50"
-            >
-              {refreshMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              Refresh
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => refreshMutation.mutate()}
+                disabled={refreshMutation.isPending}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary transition-colors disabled:opacity-50"
+              >
+                {refreshMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                Refresh
+              </button>
+            )}
           </div>
         </div>
 
@@ -684,18 +688,20 @@ export default function MacroDashboard() {
               <Building2 className="h-4 w-4 text-blue-400" />
               Bank Research
             </h2>
-            <button
-              onClick={() => generateBankMutation.mutate()}
-              disabled={generateBankMutation.isPending}
-              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
-            >
-              {generateBankMutation.isPending ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Sparkles className="h-3 w-3" />
-              )}
-              Refresh Stances
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => generateBankMutation.mutate()}
+                disabled={generateBankMutation.isPending}
+                className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
+              >
+                {generateBankMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                Refresh Stances
+              </button>
+            )}
           </div>
           {generateBankMutation.isPending && (
             <div className="flex items-center gap-2 py-3 justify-center text-xs text-muted-foreground">

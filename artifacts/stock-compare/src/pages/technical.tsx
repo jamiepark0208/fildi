@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, Loader2, Plus, RefreshCw, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   type IndicatorResult,
   type TechnicalScore,
@@ -82,7 +83,7 @@ interface TechnicalCardsProps {
   scores: TechnicalScore[];
   onAddClick: () => void;
   onRemove: (t: string) => void;
-  onRefresh: (t: string) => void;
+  onRefresh?: (t: string) => void;
   refreshing: Set<string>;
 }
 
@@ -140,12 +141,14 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               {failed ? (
                 <div className="flex flex-col items-center gap-2">
                   <p className="text-xs text-red-400">Fetch failed</p>
-                  <button
-                    onClick={() => onRefresh(ticker)}
-                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                  >
-                    Retry
-                  </button>
+                  {onRefresh && (
+                    <button
+                      onClick={() => onRefresh(ticker)}
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">No data</p>
@@ -277,14 +280,16 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             {/* Footer: MACD badge + refresh */}
             <div className="flex items-center justify-between mt-auto">
               <MacdBadge cross={d.macdCross} />
-              <button
-                onClick={() => onRefresh(ticker)}
-                disabled={refreshing.has(ticker)}
-                className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 ml-auto"
-                title="Recompute from live data"
-              >
-                <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
-              </button>
+              {onRefresh && (
+                <button
+                  onClick={() => onRefresh(ticker)}
+                  disabled={refreshing.has(ticker)}
+                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 ml-auto"
+                  title="Recompute from live data"
+                >
+                  <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
+                </button>
+              )}
             </div>
           </div>
         );
@@ -637,6 +642,7 @@ interface TechnicalProps {
 }
 
 export default function Technical({ tickers, setTickers }: TechnicalProps) {
+  const { isAdmin } = useAuth();
   const { tickers: watchlistTickers } = useWatchlist();
   const { weights } = useScoringPreferences();
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
@@ -738,7 +744,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
             scores={technicalScores}
             onAddClick={focusInput}
             onRemove={handleRemove}
-            onRefresh={handleRefresh}
+            onRefresh={isAdmin ? handleRefresh : undefined}
             refreshing={refreshing}
           />
 
