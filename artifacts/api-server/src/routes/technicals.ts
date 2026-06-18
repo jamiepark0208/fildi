@@ -74,8 +74,8 @@ router.get("/technicals/:ticker", requireAuth, async (req, res) => {
   }
 });
 
-// POST /technicals/refresh/:ticker — sync recompute one ticker (auth required).
-router.post("/technicals/refresh/:ticker", requireAuth, async (req, res) => {
+// POST /technicals/refresh/:ticker — sync recompute one ticker (admin only).
+router.post("/technicals/refresh/:ticker", requireAdmin, async (req, res) => {
   try {
     const ticker = String(req.params.ticker ?? "").toUpperCase();
     if (!ticker) return res.status(400).json({ error: "ticker required" });

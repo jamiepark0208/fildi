@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/context/AuthContext";
 import {
   RefreshCw, Sparkles, TrendingUp, TrendingDown, Minus, AlertCircle,
   Clock, Settings, X, Check, ChevronDown, ChevronUp, History,
@@ -326,6 +327,7 @@ function HistoryView({ history, loading }: { history: DailyBriefData[]; loading:
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function DailyBrief({ tickers }: { tickers: string[] }) {
+  const { isAdmin } = useAuth();
   const [tab,          setTab]          = useState<"today" | "history">("today");
   const [brief,        setBrief]        = useState<DailyBriefData | null>(null);
   const [noData,       setNoData]       = useState(false);
@@ -438,15 +440,17 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
                 <Clock className="w-3 h-3" />cached {genTime}
               </span>
             )}
-            <button
-              onClick={() => setShowContext(v => !v)}
-              title="Edit AI context / learning preferences"
-              className={cn("p-1.5 rounded transition-colors",
-                showContext ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40")}
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-            {brief && (
+            {isAdmin && (
+              <button
+                onClick={() => setShowContext(v => !v)}
+                title="Edit AI context / learning preferences"
+                className={cn("p-1.5 rounded transition-colors",
+                  showContext ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40")}
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isAdmin && brief && (
               <button
                 onClick={generate}
                 disabled={generating}
@@ -497,18 +501,22 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
             </div>
           )}
 
-          {/* No data — generate CTA */}
+          {/* No data — generate CTA (admin only) */}
           {!checking && noData && !generating && (
             <div className="px-4 py-6 flex flex-col items-center gap-3 text-center border-t border-border/20">
               <p className="text-sm text-muted-foreground">No brief generated for today yet.</p>
-              <button
-                onClick={generate}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                Generate Today's Brief
-              </button>
-              <p className="text-[11px] text-muted-foreground/60">~15 seconds · live market data · saved for future sessions</p>
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={generate}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Generate Today's Brief
+                  </button>
+                  <p className="text-[11px] text-muted-foreground/60">~15 seconds · live market data · saved for future sessions</p>
+                </>
+              )}
             </div>
           )}
 

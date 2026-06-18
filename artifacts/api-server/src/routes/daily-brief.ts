@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import YahooFinanceClass from "yahoo-finance2";
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -235,12 +236,17 @@ router.get("/daily-brief/history", (_req, res) => {
   return res.json(history);
 });
 
-// GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates
+// GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates (admin only)
 router.get("/daily-brief", async (req, res) => {
   const raw     = typeof req.query["tickers"] === "string" ? req.query["tickers"] : "";
   const refresh = req.query["refresh"] === "true";
   const tickers = raw ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean) : [];
   const today   = todayLabel();
+
+  if (refresh && req.session['role'] !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
 
   if (!refresh) {
     const todayBrief = loadHistory().find(b => b.date === today);
@@ -274,8 +280,8 @@ router.get("/daily-brief/context", (_req, res) => {
   return res.json(loadContext());
 });
 
-// PATCH /api/daily-brief/context
-router.patch("/daily-brief/context", (req, res) => {
+// PATCH /api/daily-brief/context — admin only
+router.patch("/daily-brief/context", requireAdmin, (req, res) => {
   try {
     const ctx  = loadContext();
     const body = req.body as Partial<BriefContext>;

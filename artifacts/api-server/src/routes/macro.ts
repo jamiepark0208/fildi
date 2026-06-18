@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import Anthropic from "@anthropic-ai/sdk";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
@@ -57,7 +58,7 @@ router.get("/data", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/refresh", async (_req: Request, res: Response) => {
+router.post("/refresh", requireAdmin, async (_req: Request, res: Response) => {
   try {
     const fresh = await fetchMacroData();
     saveMacroCache(fresh);
@@ -207,7 +208,7 @@ router.get("/highlights", (_req: Request, res: Response) => {
   }
 });
 
-router.post("/highlights/generate", async (_req: Request, res: Response) => {
+router.post("/highlights/generate", requireAdmin, async (_req: Request, res: Response) => {
   const today = new Date().toISOString().slice(0, 10);
   try {
     const packet = await buildFactsPacket();
@@ -265,7 +266,7 @@ router.get("/bank-research", (_req: Request, res: Response) => {
   return res.json(loadBankResearch());
 });
 
-router.post("/bank-research/generate", async (_req: Request, res: Response) => {
+router.post("/bank-research/generate", requireAdmin, async (_req: Request, res: Response) => {
   try {
     let macroData: MacroData | null = loadMacroCache();
     if (!macroData) {
