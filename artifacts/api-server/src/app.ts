@@ -3,6 +3,8 @@ import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { generalLimiter } from "./middleware/rateLimiter";
@@ -35,9 +37,11 @@ app.use(cors({
   credentials: true,
 }));
 app.use(generalLimiter);
+const PgSession = connectPgSimple(session as any);
 // express-session uses CJS `export =`; bundler moduleResolution can't synthesize callable default
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((session as any)({
+  store: new PgSession({ pool, tableName: 'session' }),
   secret: process.env['SESSION_SECRET']!,
   resave: false,
   saveUninitialized: false,
