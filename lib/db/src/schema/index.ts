@@ -78,6 +78,7 @@ export const positions = pgTable('positions', {
   openedAt:     timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
   closedAt:     timestamp('closed_at', { withTimezone: true }),
   pnl:          numeric('pnl'),
+  notes:        text('notes'),
 }, t => ({
   tickerIdx: index('idx_positions_ticker').on(t.ticker),
 }))

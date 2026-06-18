@@ -7,30 +7,12 @@ import {
 } from "@workspace/api-zod";
 import { type TickerFundamentalsRow } from "@workspace/db";
 import { readFundamentalsRow } from "../lib/fundamentals-db.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
 
-interface CacheEntry<T> {
-  value: T;
-  expiresAt: number;
-}
-
-class TTLCache<T> {
-  private store = new Map<string, CacheEntry<T>>();
-  constructor(private ttlMs: number) {}
-  get(key: string): T | undefined {
-    const entry = this.store.get(key);
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) { this.store.delete(key); return undefined; }
-    return entry.value;
-  }
-  set(key: string, value: T) {
-    this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
-  }
-}
-
-const searchCache = new TTLCache<object[]>(5 * 60 * 1000);
-const compareCache = new TTLCache<object>(10 * 60 * 1000);
+export const searchCache = new TTLCache<object[]>(24 * 60 * 60 * 1000, 'search');
+export const compareCache = new TTLCache<object>(60 * 60 * 1000, 'compare');
 
 function safeNum(val: unknown): number | null {
   if (val === null || val === undefined || typeof val === "object") return null;
@@ -451,8 +433,8 @@ router.get("/stocks/search", async (req, res) => {
   }
 });
 
-const historyCache = new TTLCache<object[]>(30 * 60 * 1000);
-const historyCache1D = new TTLCache<object[]>(5 * 60 * 1000);
+export const historyCache = new TTLCache<object[]>(60 * 60 * 1000, 'history');
+export const historyCache1D = new TTLCache<object[]>(15 * 60 * 1000, 'history-1d');
 
 function getPeriod1(period: string): Date {
   const now = new Date();
@@ -510,7 +492,7 @@ router.get("/stocks/history", async (req, res) => {
   }
 });
 
-const quoteCache = new TTLCache<object>(10 * 60 * 1000);
+export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote');
 
 async function fetchQuoteSummary(ticker: string) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
@@ -623,7 +605,7 @@ function buildBearBullets(m: any): string[] {
   return out.slice(0, 4);
 }
 
-const breakdownCache = new TTLCache<object>(10 * 60 * 1000);
+export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown');
 
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
