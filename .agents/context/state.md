@@ -24,6 +24,17 @@
 ## Completed (recent)
 scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phases-1-5, technical-scorer-v2-phases-1-5, AI-score-explanations, options-scanner-persistence, context-consolidation, factset-proxy-infrastructure, factset-proxy-activation (2026-06-14), **options-scanner-enhancement** (2026-06-16) — new scorer live, ivRank scale fix, /api/fundamentals/rankings endpoint, StrikeCard overhauled, MacroBanner, sort system
 
+**github-enhancements** (2026-06-18):
+- Security middleware: rate limiting, CORS whitelist, global error handler, Zod validate() factory, helmet
+- TTLCache extracted to lib/ttl-cache.ts with hit/miss stats and getStats()/clear()
+- All 8 cache instances named and exported; cache TTLs updated (search 24h, quote/compare/history 1h, breakdown 2h, history-1d 15m, options 30m, options-expiry 24h, macro-regime 30m)
+- Shared expiry date cache in lib/options.ts (24h, key='shared') — skips undated Yahoo call on cache hit
+- Admin cache dashboard: GET/DELETE /api/admin/cache/* — Settings page CacheMonitor component (⚠️ UI rendering bug TBD next session)
+- Zod auth validators: lib/validators/auth.ts, applied to /auth/register and /auth/login
+- DB schema: positions.notes column added (ALTER TABLE), lib/db dist rebuilt
+- Invite codes: GET /admin/invites now returns usedByEmail; DELETE /admin/invite/:code added
+- retry utility: lib/retry.ts with withRetry<T>(); startup tasks wrapped in 3-attempt retry
+
 ## FactSet Proxy — LIVE ✅ (2026-06-14)
 - Oracle Cloud VM `146.235.223.94` — Ubuntu 22.04, VM.Standard.E2.1.Micro (Oracle Always Free)
 - SSH: `ssh -i ~/Desktop/ssh-key-2026-06-14.key ubuntu@146.235.223.94` (key on Mac Desktop only — not in Replit)
