@@ -7,7 +7,7 @@
 
 ## Active work
 - Working: watchlist-stock-analysis, fildi-social-feed
-- In progress: profile-redesign-complete
+- In progress: options-comparison-table
 - Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
 
 ## Next tasks (priority order)
@@ -22,6 +22,10 @@
 `FILDI_ROADMAP.md` (root) — read before starting any new feature to understand pending/known-broken/architectural decisions.
 
 ## Completed (recent)
+**profile-bucket-search + scorecard-guide-ui** (2026-06-18):
+- My Profile sentiment buckets: ticker autocomplete via useSearchStocks (same cache as Fundamental tab)
+- Scorecard Guide: larger typography, colored status badge chips, shadcn Table grids with higher contrast
+
 scorecard, portfolio, daily-brief, technical-tab, data-architecture, build-skill, iv-rank-metric, ma200-buffer-metric, rsi-velocity-bonus, options-scanner-ux, macro-tab, scorecard-startup-fix, fundamental-scorer-v2, fmp-phases-1-5, technical-scorer-v2-phases-1-5, AI-score-explanations, options-scanner-persistence, context-consolidation, factset-proxy-infrastructure, factset-proxy-activation (2026-06-14), **options-scanner-enhancement** (2026-06-16) — new scorer live, ivRank scale fix, /api/fundamentals/rankings endpoint, StrikeCard overhauled, MacroBanner, sort system
 
 **github-enhancements** (2026-06-18):

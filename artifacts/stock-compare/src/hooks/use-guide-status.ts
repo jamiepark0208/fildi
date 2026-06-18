@@ -6,6 +6,21 @@ type FundStatus = { tickers: TickerStatus[]; apiBudget?: { remaining: number } }
 type TechStatus = { tickers: TickerStatus[] };
 type SdmStatus = { sources: { name: string; isActive: boolean; callsRemaining?: number }[] };
 
+export type CoverageTone = "good" | "partial" | "unknown";
+
+export type GuideStatusChips = {
+  lastRefresh: string;
+  coverage: { label: string; tone: CoverageTone };
+  sources: Array<{ name: string; active: boolean; detail?: string }>;
+  stale?: boolean;
+  peerRanked?: boolean;
+};
+
+function coverageTone(pct: number | null): CoverageTone {
+  if (pct == null) return "unknown";
+  return pct >= 80 ? "good" : "partial";
+}
+
 function avgCoverage(tickers: TickerStatus[]): number | null {
   const vals = tickers.map(t => t.coveragePct).filter((v): v is number => v != null);
   if (!vals.length) return null;
@@ -52,16 +67,24 @@ export function useGuideStatus() {
   const fundStale = isStale(fundAt, 7);
   const techStale = isStale(techAt, 1);
 
-  const coverageFor = (domain: CoverageDomain): { pct: number | null; label: string } => {
+  const coverageFor = (domain: CoverageDomain): { pct: number | null; label: string; tone: CoverageTone } => {
     if (domain === "fundamentals") {
       const pct = fundCov;
-      return { pct, label: pct == null ? "—" : pct >= 80 ? `${pct}% complete` : `Partial (${pct}%)` };
+      return {
+        pct,
+        tone: coverageTone(pct),
+        label: pct == null ? "—" : pct >= 80 ? `${pct}% complete` : `Partial (${pct}%)`,
+      };
     }
     if (domain === "technicals") {
       const pct = techCov;
-      return { pct, label: pct == null ? "—" : pct >= 80 ? `${pct}% complete` : `Partial (${pct}%)` };
+      return {
+        pct,
+        tone: coverageTone(pct),
+        label: pct == null ? "—" : pct >= 80 ? `${pct}% complete` : `Partial (${pct}%)`,
+      };
     }
-    return { pct: null, label: "On scan" };
+    return { pct: null, tone: "unknown", label: "On scan" };
   };
 
   const stripFor = (domain: CoverageDomain): string => {
@@ -73,6 +96,57 @@ export function useGuideStatus() {
     }
     return `Chain: live at scan · Stock inputs: daily/weekly DB · Yahoo: Active`;
   };
+
+  const chipsFor = (domain: CoverageDomain): GuideStatusChips => {
+    if (domain === "fundamentals") {
+      const cov = coverageFor("fundamentals");
+      return {
+        lastRefresh: fmtDate(fundAt),
+        coverage: { label: cov.label, tone: coverageTone(cov.pct) },
+        sources: [
+          { name: "FactSet", active: sourceActive("factset") },
+          {
+            name: "FMP",
+            active: sourceActive("fmp"),
+            detail: fmpRemaining != null ? `${fmpRemaining} calls left` : undefined,
+          },
+        ],
+        stale: fundStale,
+      };
+    }
+    if (domain === "technicals") {
+      const cov = coverageFor("technicals");
+      return {
+        lastRefresh: fmtDate(techAt),
+        coverage: { label: cov.label, tone: coverageTone(cov.pct) },
+        sources: [{ name: "Yahoo/DB", active: true }],
+        stale: techStale,
+      };
+    }
+    return {
+      lastRefresh: "Live at scan",
+      coverage: { label: "On scan", tone: "unknown" },
+      sources: [
+        { name: "Chain", active: true, detail: "live at scan" },
+        { name: "Stock inputs", active: true, detail: "daily/weekly DB" },
+        { name: "Yahoo", active: true },
+      ],
+    };
+  };
+
+  const headerChips = (): GuideStatusChips => ({
+    peerRanked: true,
+    lastRefresh: "",
+    coverage: { label: "", tone: "unknown" },
+    sources: [
+      { name: "FactSet", active: sourceActive("factset") },
+      {
+        name: "FMP",
+        active: sourceActive("fmp"),
+        detail: fmpRemaining != null ? `${fmpRemaining} calls left` : undefined,
+      },
+    ],
+  });
 
   /** Dynamic suffix appended to static Notes when live data shows deficiency */
   const noteSuffix = (domain: CoverageDomain): string => {
@@ -93,6 +167,8 @@ export function useGuideStatus() {
     loading: results.some(q => q.isLoading),
     coverageFor,
     stripFor,
+    chipsFor,
+    headerChips,
     noteSuffix,
     fundStale,
     techStale,

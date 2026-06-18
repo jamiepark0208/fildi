@@ -1,11 +1,13 @@
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { useParams } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
 import { Sidebar } from "@/components/sidebar"
 import { TradeCard, type TradePost } from "@/components/TradeCard"
 import { useAuth } from "@/context/AuthContext"
+import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown, Minus, X, Plus, Search } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, X, Search, Loader2 } from "lucide-react"
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -127,6 +129,123 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ── Stock Buckets panel ────────────────────────────────────────────────────────
 
+function BucketTickerInput({
+  onSelect,
+  disabled,
+  excludeTickers = [],
+}: {
+  onSelect: (ticker: string) => void
+  disabled?: boolean
+  excludeTickers?: string[]
+}) {
+  const [inputText, setInputText] = useState("")
+  const [open, setOpen] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const debouncedSearch = useDebounce(inputText, 180)
+  const exclude = new Set(excludeTickers.map(t => t.toUpperCase()))
+
+  const { data: apiResults, isFetching } = useSearchStocks(
+    { q: debouncedSearch },
+    {
+      query: {
+        enabled: debouncedSearch.length >= 2,
+        queryKey: getSearchStocksQueryKey({ q: debouncedSearch }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+      },
+    },
+  )
+
+  const results = (apiResults ?? []).filter(r => !exclude.has(r.ticker.toUpperCase()))
+  const showDropdown = open && debouncedSearch.length >= 2
+
+  const selectTicker = useCallback((ticker: string) => {
+    const upper = ticker.toUpperCase().trim()
+    if (upper) onSelect(upper)
+    setInputText("")
+    setOpen(false)
+    setFocusedIndex(-1)
+  }, [onSelect])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || results.length === 0) {
+      if (e.key === "Enter" && inputText.trim()) {
+        e.preventDefault()
+        selectTicker(inputText.trim())
+      }
+      return
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setFocusedIndex(i => Math.min(i + 1, results.length - 1))
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setFocusedIndex(i => Math.max(i - 1, 0))
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      if (focusedIndex >= 0 && results[focusedIndex]) selectTicker(results[focusedIndex].ticker)
+      else if (inputText.trim()) selectTicker(inputText.trim())
+    } else if (e.key === "Escape") {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50 z-10" />
+      {isFetching && debouncedSearch.length >= 2 && (
+        <Loader2 className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground animate-spin z-10" />
+      )}
+      <input
+        ref={inputRef}
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        disabled={disabled}
+        value={inputText}
+        onChange={e => { setInputText(e.target.value.toUpperCase()); setOpen(true); setFocusedIndex(-1) }}
+        onFocus={() => { if (closeTimeout.current) clearTimeout(closeTimeout.current); if (inputText.length >= 2) setOpen(true) }}
+        onBlur={() => { closeTimeout.current = setTimeout(() => setOpen(false), 150) }}
+        onKeyDown={handleKeyDown}
+        placeholder="Search…"
+        maxLength={10}
+        className="w-full min-w-0 bg-background/60 border border-border/60 rounded pl-7 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+      />
+      {showDropdown && (
+        <div className="absolute top-full left-0 right-0 min-w-[200px] mt-1 z-50 rounded-md border border-border bg-card shadow-xl overflow-hidden">
+          {isFetching && results.length === 0 ? (
+            <div className="px-3 py-2 text-[10px] text-muted-foreground flex items-center gap-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+            </div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-2 text-[10px] text-muted-foreground">No results</div>
+          ) : (
+            <ul className="max-h-40 overflow-y-auto py-0.5">
+              {results.map((r, i) => (
+                <li
+                  key={r.ticker}
+                  onMouseDown={e => { e.preventDefault(); selectTicker(r.ticker) }}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-1.5 cursor-pointer text-[10px]",
+                    "hover:bg-primary/10",
+                    i === focusedIndex && "bg-primary/15",
+                  )}
+                >
+                  <span className="font-mono font-bold">{r.ticker}</span>
+                  <span className="text-muted-foreground truncate ml-2 max-w-[100px]">{r.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const BUCKETS = [
   { key: "BULLISH",  label: "Bullish",  icon: TrendingUp,   color: "text-green-400",  border: "border-green-500/30",  bg: "bg-green-500/5",  pill: "bg-green-500/15 text-green-400 border-green-500/30" },
   { key: "NEUTRAL",  label: "Neutral",  icon: Minus,        color: "text-yellow-400", border: "border-yellow-500/30", bg: "bg-yellow-500/5", pill: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
@@ -135,9 +254,8 @@ const BUCKETS = [
 
 type BucketKey = "BULLISH" | "NEUTRAL" | "BEARISH"
 
-function BucketsPanel({ isOwner, viewUsername }: { isOwner: boolean; viewUsername: string }) {
+function BucketsPanel({ isOwner }: { isOwner: boolean }) {
   const qc = useQueryClient()
-  const [inputs, setInputs] = useState<Record<BucketKey, string>>({ BULLISH: "", NEUTRAL: "", BEARISH: "" })
   const [adding, setAdding] = useState<Record<BucketKey, boolean>>({ BULLISH: false, NEUTRAL: false, BEARISH: false })
 
   // All users' buckets
@@ -158,18 +276,22 @@ function BucketsPanel({ isOwner, viewUsername }: { isOwner: boolean; viewUsernam
 
   const myTickers = new Set(mineBuckets.map(b => b.ticker))
 
-  async function addTicker(bucket: BucketKey) {
-    const ticker = inputs[bucket].trim().toUpperCase()
-    if (!ticker) return
+  function invalidateBuckets() {
+    qc.invalidateQueries({ queryKey: ["feed", "buckets"] })
+    qc.invalidateQueries({ queryKey: ["feed", "buckets", "mine"] })
+  }
+
+  async function addTicker(bucket: BucketKey, ticker: string) {
+    const t = ticker.trim().toUpperCase()
+    if (!t) return
     setAdding(prev => ({ ...prev, [bucket]: true }))
     try {
       await apiFeed("/buckets", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, bucket }),
+        body: JSON.stringify({ ticker: t, bucket }),
       })
-      setInputs(prev => ({ ...prev, [bucket]: "" }))
-      qc.invalidateQueries({ queryKey: ["feed", "buckets"] })
+      invalidateBuckets()
     } finally {
       setAdding(prev => ({ ...prev, [bucket]: false }))
     }
@@ -177,7 +299,7 @@ function BucketsPanel({ isOwner, viewUsername }: { isOwner: boolean; viewUsernam
 
   async function removeTicker(ticker: string) {
     await apiFeed(`/buckets/${ticker}`, { method: "DELETE" })
-    qc.invalidateQueries({ queryKey: ["feed", "buckets"] })
+    invalidateBuckets()
   }
 
   // Group all buckets by bucket type, then group tickers by who picked them
@@ -240,25 +362,12 @@ function BucketsPanel({ isOwner, viewUsername }: { isOwner: boolean; viewUsernam
                 )}
               </div>
 
-              {/* Add input (own profile only) */}
               {isOwner && (
-                <div className="flex gap-1">
-                  <input
-                    value={inputs[key]}
-                    onChange={e => setInputs(prev => ({ ...prev, [key]: e.target.value.toUpperCase() }))}
-                    onKeyDown={e => e.key === "Enter" && addTicker(key)}
-                    placeholder="Ticker"
-                    maxLength={10}
-                    className="flex-1 min-w-0 bg-background/60 border border-border/60 rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <button
-                    onClick={() => addTicker(key)}
-                    disabled={!inputs[key].trim() || adding[key]}
-                    className={cn("px-1.5 py-1 rounded text-xs transition-colors disabled:opacity-30", color, "hover:bg-white/10")}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
+                <BucketTickerInput
+                  disabled={adding[key]}
+                  excludeTickers={[...myTickers]}
+                  onSelect={t => addTicker(key, t)}
+                />
               )}
             </div>
           )
@@ -390,7 +499,7 @@ export default function Profile() {
             <StatsBar stats={data.stats} />
 
             {/* ── Stock Sentiment Buckets ── */}
-            <BucketsPanel isOwner={isOwnerProfile} viewUsername={username} />
+            <BucketsPanel isOwner={isOwnerProfile} />
 
             {/* ── Submit form ── */}
             {isOwnerProfile && showForm && (

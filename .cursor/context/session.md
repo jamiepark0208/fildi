@@ -1,14 +1,14 @@
 # Cursor Session Context
 > Cursor-only — not shared with Claude Code / Kiro. Update at end of each Cursor session.
 
-**Last updated:** 2026-06-17
+**Last updated:** 2026-06-18
 
 ## Last session summary
+- Profile bucket ticker autocomplete + Scorecard Guide UI refresh (badges, shadcn tables, larger text)
 - Merged PR #1 (scorecard guide + admin weights + Watchlist chart S/R zones) to main; git branch/push/conflict resolution; main pulled at 61b6b53
 - Cursor bootstrap complete: token-efficiency + codegraph rules/MCP, CURSOR.md entry, sessionStart hook, rehydrate-cursor.js, .cursorignore, removed git user rules, .cursor/context/session.md for Cursor-only continuity
 - Audited token usage: removed heavy git/PR user rules; added `token-efficiency.mdc`
 - Created `.cursorignore`, enabled codegraph MCP (`.cursor/mcp.json`), `codegraph.mdc` rule
-- Created `CURSOR.md` + `cursor.mdc` + `sessionStart` hook + `rehydrate-cursor.js`
 
 ## Active Cursor setup
 | Item | Location |
@@ -29,6 +29,7 @@
 - Say "wrap session" before closing
 
 ## History
+- 2026-06-18 — Profile bucket ticker autocomplete + Scorecard Guide UI refresh (badges, shadcn tables, larger text)
 - 2026-06-17 — Merged PR #1 (scorecard guide + admin weights + Watchlist chart S/R zones) to main; git branch/push/conflict resolution;
 - 2026-06-15 — Cursor bootstrap complete: token-efficiency, codegraph, CURSOR.md, session tracking
 - 2026-06-15 — Cursor workflow bootstrap (rules, hooks, CURSOR.md, token efficiency)
