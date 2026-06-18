@@ -170,5 +170,26 @@ try {
   console.warn(`⚠️  git add failed: ${e.message}`);
 }
 
+// Auto-commit and push staged changes
+const commitMsg = `chore: session checkpoint — ${args.note || 'auto-saved'}`;
+try {
+  // Only commit if there are staged changes
+  const staged = execSync(`git -C "${ROOT}" diff --cached --name-only`, { stdio: 'pipe' }).toString().trim();
+  if (staged) {
+    execSync(`git -C "${ROOT}" commit -m "${commitMsg}"`, { stdio: 'pipe' });
+    console.log(`✅ Committed: ${commitMsg}`);
+    try {
+      execSync(`git -C "${ROOT}" push origin main`, { stdio: 'pipe' });
+      console.log(`✅ Pushed to origin/main`);
+    } catch (pushErr) {
+      console.warn(`⚠️  push failed (will retry next session): ${pushErr.message}`);
+    }
+  } else {
+    console.log(`ℹ️  Nothing staged to commit`);
+  }
+} catch (e) {
+  console.warn(`⚠️  commit failed: ${e.message}`);
+}
+
 console.log(`✅ State saved at ${now}`);
 console.log(JSON.stringify(next, null, 2));

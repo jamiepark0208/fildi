@@ -7,8 +7,8 @@
 
 ## Active work
 - Working: watchlist-stock-analysis, fildi-social-feed
-- In progress: Watchlist stock analysis panel: chart S/R zone visibility (strength-based band width + opacity), zone labels inside shaded areas, EMA50/EMA200 yellow lines, MM/YY x-axis, expandable Analyst Ratings with FMP per-firm price targets + newsTitle + upside%, Market Sentiment section (Bullish/Neutral/Bearish bar + Bull/Bear bullet table), comprehensive text visibility overhaul (text-foreground/* everywhere), all section headers unified to text-base font-bold tracking-tight, Investment Profile radar chart fixed (outerRadius 60%, margins), Company Overview bullet-formatted description, MetricRow text-sm, 52W Range white readable text. FILDI Phases 1-4 complete (schema + API + UI).
-- Blocked: user password was overwritten during Phase 2 testing — current pw is test123, needs reset to original before Phase 5
+- In progress: profile-redesign-complete
+- Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
