@@ -15,6 +15,7 @@ import authRouter from "./auth";
 import watchlistRouter from "./watchlist";
 import scoringConfigRouter from "./scoring-config";
 import feedRouter from "./feed";
+import adminCacheRouter from "./admin-cache";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(technicalsRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
 router.use(macroRegimeRouter);
+router.use(adminCacheRouter);
 
 export default router;

@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { Copy, Check, Plus } from "lucide-react";
+import { Copy, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 interface InviteCode {
   code: string;
   createdBy: number;
   usedBy: number | null;
+  usedByEmail: string | null;
   createdAt: string;
   usedAt: string | null;
 }
@@ -28,6 +29,12 @@ function AdminSection() {
     },
     staleTime: 0,
   });
+
+  async function deleteCode(code: string) {
+    if (!confirm(`Delete invite code ${code}? This cannot be undone.`)) return;
+    await fetch(`/api/admin/invite/${code}`, { method: "DELETE", credentials: "include" });
+    queryClient.invalidateQueries({ queryKey: ["admin", "invites"] });
+  }
 
   async function generateCode() {
     setGenerating(true);
@@ -95,6 +102,8 @@ function AdminSection() {
               <th className="text-left py-2 font-semibold">Code</th>
               <th className="text-left py-2 font-semibold">Created</th>
               <th className="text-left py-2 font-semibold">Status</th>
+              <th className="text-left py-2 font-semibold">Used By</th>
+              <th className="text-right py-2 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
@@ -114,10 +123,146 @@ function AdminSection() {
                     )}>Pending</span>
                   )}
                 </td>
+                <td className="text-muted-foreground font-mono text-[10px]">
+                  {inv.usedByEmail ?? "—"}
+                </td>
+                <td className="text-right">
+                  <button
+                    onClick={() => deleteCode(inv.code)}
+                    className="text-[10px] text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+    </div>
+  );
+}
+
+interface CacheEntry { key: string; expiresAt: number; expiresInSec: number }
+interface CacheRow {
+  name: string; ttlMs: number; entryCount: number;
+  hits: number | null; misses: number | null; hitRate: string;
+  entries: CacheEntry[];
+}
+interface CacheStatus { caches: CacheRow[]; generatedAt: number }
+
+function CacheMonitor() {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, refetch, isFetching } = useQuery<CacheStatus>({
+    queryKey: ["admin", "cache-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/cache/status", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load cache status");
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch(`/api/admin/cache/clear/${name}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to clear cache");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "cache-status"] }),
+  });
+
+  function handleClear(name: string) {
+    if (!confirm(`Clear ${name} cache? Next requests will re-fetch from Yahoo.`)) return;
+    clearMutation.mutate(name);
+  }
+
+  function hitRateColor(rate: string) {
+    if (rate === "—") return "text-muted-foreground";
+    const n = parseInt(rate);
+    if (n >= 70) return "text-green-400";
+    if (n >= 40) return "text-yellow-400";
+    return "text-red-400";
+  }
+
+  function minExpiresIn(entries: CacheEntry[]) {
+    if (entries.length === 0) return "—";
+    const min = Math.min(...entries.map(e => e.expiresInSec));
+    if (min >= 3600) return `${Math.round(min / 3600)}h`;
+    if (min >= 60) return `${Math.round(min / 60)}m`;
+    return `${min}s`;
+  }
+
+  function fmtTtl(ms: number) {
+    const h = ms / 3600000;
+    const m = ms / 60000;
+    if (h >= 1) return `${h}h`;
+    return `${m}m`;
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm mt-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold">Cache Monitor</h2>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
+                <th className="text-left py-2 font-semibold">Cache</th>
+                <th className="text-left py-2 font-semibold">TTL</th>
+                <th className="text-right py-2 font-semibold">Entries</th>
+                <th className="text-right py-2 font-semibold">Hits</th>
+                <th className="text-right py-2 font-semibold">Misses</th>
+                <th className="text-right py-2 font-semibold">Hit Rate</th>
+                <th className="text-right py-2 font-semibold">Next Expiry</th>
+                <th className="text-right py-2 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {data?.caches.map(row => (
+                <tr key={row.name} className="h-9">
+                  <td className="font-mono text-foreground">{row.name}</td>
+                  <td className="text-muted-foreground">{fmtTtl(row.ttlMs)}</td>
+                  <td className="text-right tabular-nums">{row.entryCount}</td>
+                  <td className="text-right tabular-nums text-muted-foreground">{row.hits ?? "—"}</td>
+                  <td className="text-right tabular-nums text-muted-foreground">{row.misses ?? "—"}</td>
+                  <td className={cn("text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
+                  <td className="text-right tabular-nums text-muted-foreground">{minExpiresIn(row.entries)}</td>
+                  <td className="text-right">
+                    {row.name !== 'macro-regime' && (
+                      <button
+                        onClick={() => handleClear(row.name)}
+                        disabled={clearMutation.isPending}
+                        className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Clear
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data && (
+            <p className="text-[10px] text-muted-foreground mt-3">
+              Generated at {new Date(data.generatedAt).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -165,7 +310,12 @@ export default function Settings() {
           </div>
 
           {/* Admin section */}
-          {isAdmin && <AdminSection />}
+          {isAdmin && (
+            <>
+              <AdminSection />
+              <CacheMonitor />
+            </>
+          )}
         </div>
       </main>
     </div>

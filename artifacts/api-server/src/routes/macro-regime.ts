@@ -43,10 +43,10 @@ function classifyDirection(spxChange: number | null, ndxChange: number | null): 
   return "NEUTRAL";
 }
 
-// ── In-memory cache (5 min TTL) ───────────────────────────────────────────────
+// ── In-memory cache (30 min TTL) ──────────────────────────────────────────────
 
-let _cache: MacroRegimeResult | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+export let _cache: MacroRegimeResult | null = null;
+export const CACHE_TTL_MS = 30 * 60 * 1000;
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 

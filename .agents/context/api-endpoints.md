@@ -40,7 +40,7 @@
 | Method | Path | Purpose | Cache |
 |---|---|---|---|
 | GET | /api/options/position-quote | Quote for an existing short put position | none |
-| GET | /api/options/:ticker | Full options chain for ticker | 10 min TTL |
+| GET | /api/options/:ticker | Full options chain for ticker | 30 min TTL (optionsCache) |
 
 **Note:** `/options/position-quote` MUST be declared before `/options/:ticker` in routes/options.ts — wildcard swallows it otherwise.
 
@@ -95,8 +95,36 @@
 | PUT | /api/feed/buckets | Upsert ticker into a bucket { ticker, bucket } |
 | DELETE | /api/feed/buckets/:ticker | Remove ticker from user's buckets |
 
+## Auth / Session
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | /api/auth/register | public + authLimiter | Register with invite code (Zod validated) |
+| POST | /api/auth/login | public + authLimiter | Login (Zod validated) |
+| POST | /api/auth/logout | public | Destroy session |
+| GET | /api/auth/me | requireAuth | Current user info |
+
+## Admin
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | /api/admin/invite | requireAdmin | Generate new invite code |
+| GET | /api/admin/invites | requireAdmin | List all invite codes with usedByEmail |
+| DELETE | /api/admin/invite/:code | requireAdmin | Delete an invite code |
+| GET | /api/admin/cache/status | requireAdmin | All cache stats (hits, misses, TTL, entries) |
+| DELETE | /api/admin/cache/clear/:name | requireAdmin | Clear a named cache by name |
+
+**Cache names:** search, compare, history, history-1d, quote, breakdown, options, options-expiry
+
+## Security middleware (applied globally in app.ts)
+- `helmet()` — HTTP security headers (first middleware)
+- `cors({ origin: FRONTEND_URL })` — origin whitelist
+- `generalLimiter` — 200 req/15min
+- `authLimiter` — 20 req/15min on /auth/register and /auth/login
+- `errorHandler` — global error handler (last middleware, after router)
+
 ## Route file map
 ```
+routes/admin-cache.ts   → /api/admin/cache/*
+routes/auth.ts          → /api/auth/*, /api/admin/invite*, /api/admin/invites*
 routes/daily-brief.ts   → /api/daily-brief/*
 routes/explain.ts        → /api/explain/*
 routes/fundamentals.ts   → /api/fundamentals/*

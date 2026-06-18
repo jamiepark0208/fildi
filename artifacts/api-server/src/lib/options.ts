@@ -1,5 +1,6 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { getTier } from "./constants.js";
+import { TTLCache } from "./ttl-cache.js";
 
 const yahooFinance = new YahooFinanceClass();
 
@@ -54,8 +55,11 @@ interface RawOptionsResponse {
 
 // ── Options scanner constants ─────────────────────────────────────────────────
 const FLAT_MIN_OTM   = 0.03;  // 3% — minimum OTM distance (replaces tier bands)
-const FLAT_MAX_OTM   = 0.22;  // 22% — maximum OTM distance
+const FLAT_MAX_OTM   = 0.15;  // 15% — maximum OTM distance
 const RISK_FREE_RATE = 0.045; // ~current T-bill rate
+
+// ── Shared expiry date cache (24h TTL — expiry calendars change rarely) ───────
+export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry');
 
 // ── Black-Scholes Greeks ──────────────────────────────────────────────────────
 
@@ -244,22 +248,34 @@ async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsRespon
   ) as Promise<RawOptionsResponse>;
 }
 
-// ── Public API — no server-side caching, fresh on every click ─────────────────
-// Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 2-21 DTE).
+// ── Public API ────────────────────────────────────────────────────────────────
+// Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 1-28 DTE).
 
 export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const key  = ticker.toUpperCase();
   const tier = getTier(key);
 
-  // Initial fetch — gets spot price, all expiry dates, and first expiry's puts
-  const raw0 = await fetchChain(key);
-  const spot  = raw0.quote?.regularMarketPrice;
-  if (!spot) throw new Error(`No spot price for ${key}`);
+  // Use cached expiry dates if available; skip the undated initial call entirely
+  const cachedDates = expiryCache.get('shared');
+  let raw0: RawOptionsResponse | null = null;
+  let targets: Date[];
 
-  const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
-  // Keep expiries with 1–28 DTE, take first 3 (allows same-day/next-day expiry selling)
-  const targets = allDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 3);
-  if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
+  if (cachedDates) {
+    targets = cachedDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 2);
+    if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
+  } else {
+    // Cache miss — initial undated fetch to discover expiry calendar
+    raw0 = await fetchChain(key);
+    const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
+    expiryCache.set('shared', allDates);
+    targets = allDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 2);
+    if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
+  }
+
+  // Fetch spot price — reuse raw0 if available, otherwise fetch first target
+  if (!raw0) raw0 = await fetchChain(key, targets[0]);
+  const spot = raw0.quote?.regularMarketPrice;
+  if (!spot) throw new Error(`No spot price for ${key}`);
 
   // The first raw fetch already contains puts for its expiry — reuse if DTE matches target[0]
   const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
@@ -283,9 +299,9 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
 
   const results: OptionsChainResult[] = [];
   for (let i = 0; i < targets.length; i++) {
-    const date       = targets[i];
-    const canReuse   = i === 0 && Math.abs(daysUntil(date) - firstRawDte) <= 1;
-    const raw        = canReuse ? raw0 : await fetchChain(key, date);
+    const date     = targets[i];
+    const canReuse = i === 0 && Math.abs(daysUntil(date) - firstRawDte) <= 1;
+    const raw      = canReuse ? raw0 : await fetchChain(key, date);
     results.push(buildResult(raw, date));
   }
   return results;

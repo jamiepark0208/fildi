@@ -1,7 +1,10 @@
 import { Router } from "express";
-import { getOptionsChain, getOptionPositionQuote } from "../lib/options.js";
+import { getOptionsChain, getOptionPositionQuote, type OptionsChainResult } from "../lib/options.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
+
+export const optionsCache = new TTLCache<OptionsChainResult[]>(30 * 60 * 1000, 'options');
 
 // GET /api/options/position-quote?ticker=NVDA&expiry=2026-06-20&strike=850&type=call
 // MUST be declared before /options/:ticker so it isn't captured by the wildcard
@@ -34,8 +37,11 @@ router.get("/options/:ticker", async (req, res) => {
   if (!/^[A-Z]{1,10}$/.test(ticker)) {
     return res.status(400).json({ error: "Invalid ticker" });
   }
+  const cached = optionsCache.get(ticker);
+  if (cached) return res.json(cached);
   try {
     const result = await getOptionsChain(ticker);
+    optionsCache.set(ticker, result);
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

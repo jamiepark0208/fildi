@@ -6,18 +6,17 @@ import { db, users, inviteCodes } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { logger } from "../lib/logger.js";
+import { authLimiter } from "../middleware/rateLimiter.js";
+import { validate } from "../middleware/validate.js";
+import { registerSchema, loginSchema } from "../lib/validators/auth.js";
 
 const router = Router();
 
 // POST /auth/register
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", authLimiter, validate(registerSchema), async (req, res) => {
   const { email, username, password, inviteCode } = req.body as {
-    email?: string; username?: string; password?: string; inviteCode?: string;
+    email: string; username: string; password: string; inviteCode: string;
   };
-
-  if (!email || !username || !password || !inviteCode) {
-    return res.status(400).json({ error: "email, username, password, and inviteCode are required" });
-  }
 
   const invite = await db.select().from(inviteCodes)
     .where(and(eq(inviteCodes.code, inviteCode), isNull(inviteCodes.usedBy)))
@@ -48,12 +47,8 @@ router.post("/auth/register", async (req, res) => {
 });
 
 // POST /auth/login
-router.post("/auth/login", async (req, res) => {
-  const { email, password } = req.body as { email?: string; password?: string };
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password are required" });
-  }
+router.post("/auth/login", authLimiter, validate(loginSchema), async (req, res) => {
+  const { email, password } = req.body as { email: string; password: string };
 
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user) {
@@ -101,8 +96,28 @@ router.post("/admin/invite", requireAdmin, async (req, res) => {
 
 // GET /admin/invites
 router.get("/admin/invites", requireAdmin, async (_req, res) => {
-  const codes = await db.select().from(inviteCodes).orderBy(inviteCodes.createdAt);
+  const codes = await db
+    .select({
+      code:         inviteCodes.code,
+      createdBy:    inviteCodes.createdBy,
+      usedBy:       inviteCodes.usedBy,
+      createdAt:    inviteCodes.createdAt,
+      usedAt:       inviteCodes.usedAt,
+      usedByEmail:  users.email,
+    })
+    .from(inviteCodes)
+    .leftJoin(users, eq(users.id, inviteCodes.usedBy))
+    .orderBy(inviteCodes.createdAt);
   return res.json(codes);
+});
+
+// DELETE /admin/invite/:code
+router.delete("/admin/invite/:code", requireAdmin, async (req, res) => {
+  const code = req.params['code'] as string;
+  const result = await db.delete(inviteCodes).where(eq(inviteCodes.code, code)).returning({ code: inviteCodes.code });
+  if (result.length === 0) return res.status(404).json({ error: "Code not found" });
+  logger.info({ code }, "admin: invite code deleted");
+  return res.json({ deleted: code, ok: true });
 });
 
 export default router;

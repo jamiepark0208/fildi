@@ -1,12 +1,16 @@
 import express, { type Express } from "express";
+import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { generalLimiter } from "./middleware/rateLimiter";
+import { errorHandler } from "./middleware/errorHandler";
 
 const app: Express = express();
 
+app.use(helmet());
 app.use(
   pinoHttp({
     logger,
@@ -26,7 +30,11 @@ app.use(
     },
   }),
 );
-app.use(cors());
+app.use(cors({
+  origin: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
+  credentials: true,
+}));
+app.use(generalLimiter);
 // express-session uses CJS `export =`; bundler moduleResolution can't synthesize callable default
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((session as any)({
@@ -44,5 +52,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+app.use(errorHandler);
 
 export default app;

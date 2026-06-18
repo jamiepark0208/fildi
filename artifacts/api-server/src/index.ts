@@ -5,6 +5,7 @@ import { WATCHLIST } from "./lib/constants";
 import { getStaleTickers } from "./lib/fundamentals-db";
 import { refreshFundamentals } from "./routes/fundamentals";
 import { getStaleTechnicalTickers, refreshTechnicals } from "./lib/technicals-db";
+import { withRetry } from "./lib/retry";
 
 const rawPort = process.env["PORT"];
 
@@ -28,24 +29,25 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  // Fire-and-forget: pre-populate indicator_cache for all tickers missing today's data.
-  runSeed().catch(e => logger.error({ err: e }, "seed crashed"));
+  withRetry(() => runSeed(), {
+    onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: seed retry"),
+  }).catch(e => logger.error({ err: e }, "startup: seed failed after retries"));
 
-  // Fire-and-forget: refresh FMP fundamentals for any ticker whose data is >7 days old.
-  getStaleTickers(WATCHLIST)
-    .then(stale => {
+  withRetry(() =>
+    getStaleTickers(WATCHLIST).then(stale => {
       if (stale.length === 0) return;
       logger.info({ count: stale.length }, "startup: refreshing stale FMP fundamentals");
       return refreshFundamentals(stale);
-    })
-    .catch(e => logger.error({ err: e }, "startup: fundamentals stale check crashed"));
+    }), {
+    onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: fundamentals retry"),
+  }).catch(e => logger.error({ err: e }, "startup: fundamentals failed after retries"));
 
-  // Fire-and-forget: refresh technical indicators for any ticker whose data is >23h old.
-  getStaleTechnicalTickers(WATCHLIST)
-    .then(stale => {
+  withRetry(() =>
+    getStaleTechnicalTickers(WATCHLIST).then(stale => {
       if (stale.length === 0) return;
       logger.info({ count: stale.length }, "startup: refreshing stale technicals");
       return refreshTechnicals(stale);
-    })
-    .catch(e => logger.error({ err: e }, "startup: technicals stale check crashed"));
+    }), {
+    onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: technicals retry"),
+  }).catch(e => logger.error({ err: e }, "startup: technicals failed after retries"));
 });

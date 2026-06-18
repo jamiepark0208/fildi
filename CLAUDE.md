@@ -9,7 +9,7 @@ First time only: read .claude/skills/replit-setup.md and follow the steps
 | Need | Skill |
 |---|---|
 | Build + restart server | .claude/skills/build-and-run.md |
-| Data fetch and cache | .claude/skills/data-architecture.md |
+| Data fetch and cache / TTLCache | .claude/skills/data-architecture.md |
 | Options chain fetch | .claude/skills/options-pricer.md |
 | RSI/MFI/filter logic | .claude/skills/signal-filters.md |
 | UI components | .claude/skills/ui-components.md |
@@ -35,6 +35,13 @@ Use before touching any source file. codegraph auto-runs on Edit/Write via hook.
 2. If codegraph unavailable/returns nothing → grep/find for the specific symbol or pattern
 3. If grep is insufficient → ASK THE USER before reading any file >100 lines
 Never read large files (options-scanner.tsx, technical-rankings.ts, technicals-db.ts, etc.) without explicit user approval.
+
+## KEY FILES (updated 2026-06-18)
+- Security middleware: `middleware/rateLimiter.ts`, `middleware/errorHandler.ts`, `middleware/validate.ts`
+- Shared cache utility: `lib/ttl-cache.ts` — all caches use this; see `.claude/skills/data-architecture.md` for TTL table
+- Auth validators: `lib/validators/auth.ts` (Zod schemas for register/login)
+- Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD)
+- Full API catalog: `.agents/context/api-endpoints.md`
 
 ## HOOKS
 Defined in .claude/settings.local.json — never in .claude/hooks/hooks.json (not read).

@@ -14,9 +14,10 @@ description: What to fetch, how often, what to cache. Read before writing any fe
   Current price    → in-memory TTLCache, no DB persistence, no Redis
   5-day return     → derived from current price + prices_historical
 
-### Tier C — On-demand (fetch fresh on every user click, no server cache)
-  Options chain slice → fetch fresh via yf2.options() on each request
-                        no caching — stale bid/ask is worse than a small delay
+### Tier C — Short-lived in-memory cache (options)
+  Options chain       → TTLCache 30 min per ticker (routes/options.ts `optionsCache`)
+                        Expiry calendar → TTLCache 24h shared key (lib/options.ts `expiryCache`)
+                        First request per day skips undated fetch; subsequent tickers reuse dates
 
 ## Indicator refresh logic (getIndicators)
   1. Check scorecard_cache for (ticker, today) → return immediately if found
@@ -33,6 +34,25 @@ description: What to fetch, how often, what to cache. Read before writing any fe
     Only affects that one ticker — this is the "manual refresh button" trigger.
   GET /api/indicators/batch?tickers=NVDA,AAPL&refresh=true
     Refreshes only the listed tickers, max 3 concurrent.
+
+## TTLCache shared utility
+  Location: `artifacts/api-server/src/lib/ttl-cache.ts`
+  Usage: `new TTLCache<T>(ttlMs, 'name')`
+  Methods: get(), set(), clear(), getStats() → { name, ttlMs, entryCount, hits, misses, hitRate, entries }
+  Admin dashboard: GET /api/admin/cache/status (requireAdmin) — shows all named caches + hit rates
+
+## Cache TTL reference (current values)
+  | Cache | TTL | File |
+  |---|---|---|
+  | search | 24h | routes/stocks.ts |
+  | quote | 1h | routes/stocks.ts |
+  | compare | 1h | routes/stocks.ts |
+  | breakdown | 2h | routes/stocks.ts |
+  | history | 1h | routes/stocks.ts |
+  | history-1d | 15m | routes/stocks.ts |
+  | options | 30m | routes/options.ts |
+  | options-expiry | 24h | lib/options.ts |
+  | macro-regime | 30m | routes/macro-regime.ts (raw var) |
 
 ## Never do these
   - Never fetch options chain on watchlist page load

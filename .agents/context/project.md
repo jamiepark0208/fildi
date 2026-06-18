@@ -8,7 +8,8 @@ Institutional-grade put-selling research tool. Surfaces put candidates by scorin
 - **Frontend:** React 18 + TypeScript + Tailwind SPA — `artifacts/stock-compare/` — port 8081 (Vite, hot-reloads)
 - **Backend:** Node/Express ESM API — `artifacts/api-server/` — port 8080 — **NO hot-reload; must rebuild after every src change**
 - **DB:** PostgreSQL via Drizzle ORM — `lib/db/`
-- **No Redis** — in-memory TTLCache only
+- **No Redis** — in-memory TTLCache only (`lib/ttl-cache.ts` — shared utility with stats tracking)
+- **Admin cache dashboard** — GET /api/admin/cache/status, DELETE /api/admin/cache/clear/:name (settings page)
 
 ## Two scoring layers (self-relative, peer-set invariant)
 
