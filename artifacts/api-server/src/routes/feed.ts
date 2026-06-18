@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
-import { db, tradePosts, likes, comments, users } from '@workspace/db'
+import { db, tradePosts, likes, comments, users, stockBuckets } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
 
 const router = Router()
@@ -399,6 +399,73 @@ router.get('/feed/profile/:username', async (req, res) => {
     },
     posts: userPosts,
   })
+})
+
+// ── GET /api/feed/buckets — all users' picks (public within the app) ──────────
+
+router.get('/feed/buckets', async (req, res) => {
+  const rows = await db
+    .select({
+      userId:   stockBuckets.userId,
+      username: users.username,
+      ticker:   stockBuckets.ticker,
+      bucket:   stockBuckets.bucket,
+      addedAt:  stockBuckets.addedAt,
+    })
+    .from(stockBuckets)
+    .innerJoin(users, eq(users.id, stockBuckets.userId))
+    .orderBy(asc(stockBuckets.bucket), asc(stockBuckets.ticker))
+
+  return res.json(rows)
+})
+
+// ── GET /api/feed/buckets/mine — current user's picks ─────────────────────────
+
+router.get('/feed/buckets/mine', async (req, res) => {
+  const userId = req.session.userId!
+  const rows = await db
+    .select({ ticker: stockBuckets.ticker, bucket: stockBuckets.bucket, addedAt: stockBuckets.addedAt })
+    .from(stockBuckets)
+    .where(eq(stockBuckets.userId, userId))
+    .orderBy(asc(stockBuckets.bucket), asc(stockBuckets.ticker))
+
+  return res.json(rows)
+})
+
+// ── PUT /api/feed/buckets — upsert (add or move ticker between buckets) ───────
+
+router.put('/feed/buckets', async (req, res) => {
+  const userId = req.session.userId!
+  const { ticker, bucket } = req.body
+
+  const t = typeof ticker === 'string' ? ticker.trim().toUpperCase() : ''
+  if (!t || t.length > 10)
+    return res.status(400).json({ error: 'ticker: non-empty string, max 10 chars' })
+  if (!['BULLISH', 'NEUTRAL', 'BEARISH'].includes(bucket))
+    return res.status(400).json({ error: 'bucket: must be BULLISH | NEUTRAL | BEARISH' })
+
+  const [row] = await db
+    .insert(stockBuckets)
+    .values({ userId, ticker: t, bucket })
+    .onConflictDoUpdate({
+      target: [stockBuckets.userId, stockBuckets.ticker],
+      set: { bucket, addedAt: new Date() },
+    })
+    .returning()
+
+  return res.status(201).json(row)
+})
+
+// ── DELETE /api/feed/buckets/:ticker ──────────────────────────────────────────
+
+router.delete('/feed/buckets/:ticker', async (req, res) => {
+  const userId = req.session.userId!
+  const ticker = req.params['ticker']!.toUpperCase()
+
+  await db.delete(stockBuckets).where(
+    and(eq(stockBuckets.userId, userId), eq(stockBuckets.ticker, ticker))
+  )
+  return res.json({ ok: true })
 })
 
 export default router

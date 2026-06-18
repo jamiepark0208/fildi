@@ -468,3 +468,20 @@ export const comments = pgTable('comments', {
 export const insertCommentSchema = createInsertSchema(comments).omit({ id: true, createdAt: true })
 export type InsertComment = z.infer<typeof insertCommentSchema>
 export type Comment = typeof comments.$inferSelect
+
+// ── stock_buckets ─────────────────────────────────────────────────────────────
+// Per-user Bullish / Neutral / Bearish categorization of tickers.
+// One user can only have each ticker in one bucket at a time (PK enforces this).
+
+export const stockBuckets = pgTable('stock_buckets', {
+  userId:  integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:  text('ticker').notNull(),
+  bucket:  text('bucket').notNull(), // 'BULLISH' | 'NEUTRAL' | 'BEARISH'
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  pk: primaryKey({ columns: [t.userId, t.ticker] }),
+}))
+
+export const insertStockBucketSchema = createInsertSchema(stockBuckets).omit({ addedAt: true })
+export type InsertStockBucket = z.infer<typeof insertStockBucketSchema>
+export type StockBucket = typeof stockBuckets.$inferSelect

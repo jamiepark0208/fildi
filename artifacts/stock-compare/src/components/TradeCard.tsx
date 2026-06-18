@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Heart, MessageCircle } from "lucide-react"
+import { Heart, MessageCircle, TrendingUp } from "lucide-react"
 
 export interface TradePost {
   id: number
@@ -48,6 +48,16 @@ interface TradeCardProps {
   onDelete: () => void
 }
 
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function fmtExpiry(iso: string): string {
+  const d = new Date(iso + "T00:00:00")
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -55,14 +65,28 @@ function timeAgo(iso: string): string {
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+  const days = Math.floor(h / 24)
+  if (days < 30) return `${days}d ago`
+  return fmtDate(iso)
 }
 
 function weeklyIncome(premiumPerContract: number, expiry: string): string {
   const days = (new Date(expiry).getTime() - Date.now()) / 86400000
   if (days <= 0) return "$0/wk"
-  const weekly = premiumPerContract / (days / 7)
-  return `$${weekly.toFixed(2)}/wk`
+  return `$${(premiumPerContract / (days / 7)).toFixed(2)}/wk`
+}
+
+const CONFIDENCE_LABEL: Record<number, { label: string; cls: string }> = {
+  1: { label: "Speculative", cls: "text-muted-foreground" },
+  2: { label: "Low",         cls: "text-orange-400" },
+  3: { label: "Moderate",    cls: "text-yellow-400" },
+  4: { label: "High",        cls: "text-green-400" },
+  5: { label: "Strong",      cls: "text-emerald-400" },
+}
+
+function ConfidenceLabel({ value }: { value: number }) {
+  const { label, cls } = CONFIDENCE_LABEL[value] ?? { label: "—", cls: "text-muted-foreground" }
+  return <span className={cn("text-xs font-semibold", cls)}>{label}</span>
 }
 
 function SignalBadge({ signal }: { signal: string | null }) {
@@ -73,7 +97,7 @@ function SignalBadge({ signal }: { signal: string | null }) {
     ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
     : "bg-secondary text-muted-foreground border-border"
   return (
-    <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", cls)}>
+    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide", cls)}>
       {signal}
     </span>
   )
@@ -81,32 +105,21 @@ function SignalBadge({ signal }: { signal: string | null }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    OPEN:          { label: "OPEN",    cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-    CLOSED:        { label: "CLOSED",  cls: "bg-secondary text-muted-foreground border-border" },
-    EXPIRED_WIN:   { label: "WIN",     cls: "bg-green-500/15 text-green-400 border-green-500/30" },
-    EXPIRED_LOSS:  { label: "LOSS",    cls: "bg-red-500/15 text-red-400 border-red-500/30" },
-    ASSIGNED:      { label: "ASSIGNED",cls: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
+    OPEN:          { label: "OPEN",     cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    CLOSED:        { label: "CLOSED",   cls: "bg-secondary text-muted-foreground border-border" },
+    EXPIRED_WIN:   { label: "WIN",      cls: "bg-green-500/15 text-green-400 border-green-500/30" },
+    EXPIRED_LOSS:  { label: "LOSS",     cls: "bg-red-500/15 text-red-400 border-red-500/30" },
+    ASSIGNED:      { label: "ASSIGNED", cls: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
   }
   const { label, cls } = map[status] ?? { label: status, cls: "bg-secondary text-muted-foreground border-border" }
-  return (
-    <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", cls)}>{label}</span>
-  )
+  return <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide", cls)}>{label}</span>
 }
 
-function ConfidenceDots({ value }: { value: number }) {
+function AvatarInitial({ username, avatarUrl, size = "sm" }: { username: string; avatarUrl: string | null; size?: "sm" | "xs" }) {
+  const dim = size === "xs" ? "w-5 h-5 text-[10px]" : "w-6 h-6 text-xs"
+  if (avatarUrl) return <img src={avatarUrl} alt={username} className={cn(dim, "rounded-full object-cover")} />
   return (
-    <span className="text-sm tracking-wide text-yellow-400">
-      {[1,2,3,4,5].map(i => i <= value ? "●" : "○").join("")}
-    </span>
-  )
-}
-
-function AvatarInitial({ username, avatarUrl }: { username: string; avatarUrl: string | null }) {
-  if (avatarUrl) {
-    return <img src={avatarUrl} alt={username} className="w-6 h-6 rounded-full object-cover" />
-  }
-  return (
-    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+    <div className={cn(dim, "rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary")}>
       {username[0]?.toUpperCase()}
     </div>
   )
@@ -144,71 +157,86 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
     if (!body) return
     onComment(body)
     setCommentBody("")
-    // optimistically append
     setComments(prev => prev ? [...prev, {
       id: Date.now(), postId: post.id, userId: 0,
       username: "you", avatarUrl: null, body, createdAt: new Date().toISOString()
     }] : null)
   }
 
+  const totalPremium = post.premiumPerContract * post.contracts * 100
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold text-white bg-white/10 px-2 py-0.5 rounded">
+    <div className="bg-card border border-border rounded-lg p-3 shadow-sm space-y-2.5">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-sm font-bold text-white bg-white/10 px-2 py-0.5 rounded shrink-0">
             {post.ticker}
           </span>
-          <SignalBadge signal={post.signalAtEntry} />
           <StatusBadge status={post.status} />
+          <SignalBadge signal={post.signalAtEntry} />
+          {post.regimeAtEntry && (
+            <span className="hidden sm:inline text-[10px] text-muted-foreground/60 font-medium">
+              {post.regimeAtEntry}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ConfidenceDots value={post.confidence} />
+          <ConfidenceLabel value={post.confidence} />
           {showUser && (
-            <div className="flex items-center gap-1.5">
-              <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} />
-              <span className="text-xs text-muted-foreground">{post.username}</span>
+            <div className="flex items-center gap-1">
+              <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} size="xs" />
+              <span className="text-[10px] text-muted-foreground">{post.username}</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Body */}
-      <div className="space-y-1.5">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground">
-          <span>Strike <strong>${post.strike}</strong></span>
-          <span>Exp <strong>{post.expiry}</strong></span>
-          <span><strong>{post.contracts}</strong> contract{post.contracts !== 1 ? "s" : ""}</span>
-          <span><strong>${post.premiumPerContract}</strong>/contract</span>
-          <span className="text-muted-foreground">{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
+      {/* Trade details — compact grid */}
+      <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
+        <div className="space-y-0">
+          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Strike</div>
+          <div className="text-sm font-semibold text-foreground">${post.strike}</div>
         </div>
-
-        {post.notes && (
-          <div className="pl-3 border-l-2 border-border text-xs text-muted-foreground/80 italic leading-relaxed">
-            {post.notes}
-          </div>
-        )}
+        <div className="space-y-0">
+          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Expiry</div>
+          <div className="text-sm font-semibold text-foreground">{fmtExpiry(post.expiry)}</div>
+        </div>
+        <div className="space-y-0">
+          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Premium</div>
+          <div className="text-sm font-semibold text-foreground">${post.premiumPerContract}<span className="text-[10px] text-muted-foreground/60">×{post.contracts}</span></div>
+        </div>
+        <div className="space-y-0">
+          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Total</div>
+          <div className="text-sm font-semibold text-green-400">${totalPremium.toFixed(0)}</div>
+        </div>
       </div>
 
-      {/* Snapshot row */}
-      {(post.ivRankAtEntry != null || post.regimeAtEntry || post.vixAtEntry != null) && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground/70">
-          {post.ivRankAtEntry != null && <span>IV Rank: {post.ivRankAtEntry}%</span>}
-          {post.regimeAtEntry  && <span>Regime: {post.regimeAtEntry}</span>}
-          {post.vixAtEntry != null && <span>VIX: {post.vixAtEntry}</span>}
-          <span>{timeAgo(post.createdAt)}</span>
+      {/* Notes */}
+      {post.notes && (
+        <div className="pl-2.5 border-l-2 border-border text-xs text-muted-foreground/80 italic leading-relaxed">
+          {post.notes}
         </div>
       )}
 
+      {/* Context chips */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/60">
+        {post.ivRankAtEntry != null && <span>IV Rank {post.ivRankAtEntry}%</span>}
+        {post.vixAtEntry != null && <span>VIX {post.vixAtEntry}</span>}
+        <span className="text-muted-foreground/40">·</span>
+        <span>{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
+        <span className="ml-auto text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
+      </div>
+
       {/* P&L (closed) */}
       {post.status !== "OPEN" && post.resolvedPnl != null && (
-        <div className={cn("text-sm font-semibold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
+        <div className={cn("text-sm font-bold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
           {post.resolvedPnl >= 0 ? "+" : ""}${post.resolvedPnl.toFixed(0)} P&L
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
         <div className="flex items-center gap-3">
           <button
             onClick={post.likedByMe ? onUnlike : onLike}
@@ -217,14 +245,14 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
               post.likedByMe ? "text-red-400 hover:text-red-300" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Heart className={cn("w-3.5 h-3.5", post.likedByMe && "fill-current")} />
+            <Heart className={cn("w-3 h-3", post.likedByMe && "fill-current")} />
             {post.likeCount}
           </button>
           <button
             onClick={toggleComments}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <MessageCircle className="w-3.5 h-3.5" />
+            <MessageCircle className="w-3 h-3" />
             {post.commentCount}
           </button>
         </div>
@@ -239,7 +267,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
             </button>
             <button
               onClick={onDelete}
-              className="text-xs text-red-400/70 hover:text-red-400 transition-colors"
+              className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
             >
               Delete
             </button>
@@ -252,9 +280,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
         <div className="border border-border rounded-lg p-3 space-y-2 bg-background/50">
           <div className="text-xs text-muted-foreground font-medium">Cost to close per contract</div>
           <input
-            type="number"
-            min="0"
-            step="0.01"
+            type="number" min="0" step="0.01"
             value={closePremium}
             onChange={e => setClosePremium(e.target.value)}
             placeholder="0.00"
@@ -283,19 +309,17 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
         </div>
       )}
 
-      {/* Comments section */}
+      {/* Comments */}
       {showComments && (
-        <div className="border-t border-border pt-3 space-y-2">
-          {loadingComments && (
-            <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>
-          )}
+        <div className="border-t border-border pt-2.5 space-y-2">
+          {loadingComments && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
           {comments?.map(c => (
             <div key={c.id} className="flex gap-2">
-              <AvatarInitial username={c.username} avatarUrl={c.avatarUrl} />
+              <AvatarInitial username={c.username} avatarUrl={c.avatarUrl} size="xs" />
               <div>
                 <span className="text-xs font-medium text-foreground mr-1.5">{c.username}</span>
                 <span className="text-xs text-muted-foreground">{c.body}</span>
-                <div className="text-[10px] text-muted-foreground/50 mt-0.5">{timeAgo(c.createdAt)}</div>
+                <div className="text-[10px] text-muted-foreground/40 mt-0.5">{timeAgo(c.createdAt)}</div>
               </div>
             </div>
           ))}
