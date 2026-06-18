@@ -3,7 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-06-18](claude-2026-06-18.md) — profile redesign — sentiment buckets, compact header, modern TradeCard | build | next: Reset user password;verify profile page in browser;Phase 5 FILDI approval;verify chart EMA lines and zone labels
+- [2026-06-18](claude-2026-06-18.md) — auto-saved | build | next: Reset user password;verify profile page in browser;Phase 5 FILDI approval;verify chart EMA lines and zone labels
 - [2026-06-17](claude-2026-06-17.md) — auto-saved | build | next: Reset user password; get Phase 5 FILDI approval; commit all work; verify chart EMA lines and zone labels render correctly in browser
 - [2026-06-16](claude-2026-06-16.md) — auto-saved | build | next: Scorecard Guide: update model logic description + readability. Consider committing all UI polish changes.
 - [2026-06-15](claude-2026-06-15.md) — auto-saved | build | next: test/verify accuracy of options scanner enhancements — Q&A on scoring logic, StrikeCard fields, MacroBanner
