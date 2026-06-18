@@ -1,5 +1,5 @@
 # API Endpoint Catalog
-> last_updated: 2026-06-10 | all routes mounted at /api in index.ts
+> last_updated: 2026-06-18 | all routes mounted at /api in index.ts
 > Before adding a new endpoint, check this file to avoid duplication.
 
 ## Health
@@ -53,7 +53,9 @@
 | GET | /api/stocks/search | Ticker search |
 | GET | /api/stocks/history | OHLCV history for a ticker |
 | GET | /api/stocks/quote | Current quote |
-| GET | /api/stocks/breakdown | Fundamental breakdown for a ticker |
+| GET | /api/stocks/breakdown | Fundamental breakdown + catalysts for a ticker (2h cache) |
+| GET | /api/stocks/competitors/:ticker | Top 5 peers ranked 50/50 tech+fund (DB-first, peersCache 24h) |
+| POST | /api/stocks/competitors/backfill | Auth — refresh stale/missing peer scores; adds to watchlist |
 
 ## Macro (FRED + Treasury, 4h file cache)
 | Method | Path | Purpose |
@@ -112,7 +114,7 @@
 | GET | /api/admin/cache/status | requireAdmin | All cache stats (hits, misses, TTL, entries) |
 | DELETE | /api/admin/cache/clear/:name | requireAdmin | Clear a named cache by name |
 
-**Cache names:** search, compare, history, history-1d, quote, breakdown, options, options-expiry
+**Cache names:** search, compare, history, history-1d, quote, breakdown, options, options-expiry, peer-map, peer-profile
 
 ## Security middleware (applied globally in app.ts)
 - `helmet()` — HTTP security headers (first middleware)

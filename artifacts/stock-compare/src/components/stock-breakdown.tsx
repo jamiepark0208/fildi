@@ -8,6 +8,8 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { PriceChart, Period } from "./price-chart";
+import { CompetitorsSection } from "./competitors-section";
+import { CatalystsSection } from "./catalysts-section";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
@@ -72,6 +74,7 @@ interface BreakdownData {
   bullBullets: string[];
   bearBullets: string[];
   news: NewsItem[];
+  catalysts?: string[];
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────────
@@ -95,6 +98,20 @@ function useBreakdown(ticker: string | null) {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+function overviewBullets(description: string, companyName: string | null | undefined): string[] {
+  const sentences = description.split(/(?<=[.!?])\s+/);
+  const filtered = sentences.filter((s, i) => {
+    if (i !== 0) return true;
+    if (!companyName?.trim()) return true;
+    const trimmed = s.trim();
+    const name = companyName.trim();
+    if (trimmed.toLowerCase().startsWith(name.toLowerCase())) return false;
+    if (trimmed.replace(/[.!?]+$/, "").toLowerCase() === name.toLowerCase()) return false;
+    return true;
+  });
+  return filtered.slice(0, 3);
+}
 
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
@@ -863,7 +880,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   </span>
                   {m.description ? (
                     <ul className="mt-2 space-y-1.5">
-                      {m.description.split(/(?<=[.!?])\s+/).slice(0, 3).map((s: string, i: number) => (
+                      {overviewBullets(m.description, m.companyName).map((s: string, i: number) => (
                         <li key={i} className="flex gap-2 text-sm text-foreground/85 leading-snug">
                           <span className="shrink-0 text-foreground/40 mt-0.5">•</span>
                           {s}
@@ -905,6 +922,10 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   )}
               </div>
             </div>
+
+            {propTicker && activeTicker && (
+              <CompetitorsSection ticker={activeTicker} />
+            )}
 
             {/* ── Price Chart ── */}
             <div className="overflow-hidden">
@@ -1026,6 +1047,8 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                 bearBullets={data.bearBullets ?? []}
               />
             )}
+
+            <CatalystsSection catalysts={data.catalysts ?? []} />
 
             {/* ── Recent News ── */}
             {data.news && data.news.length > 0 && (

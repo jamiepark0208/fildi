@@ -154,3 +154,24 @@ export function computeStockScore(
     dataQuality,
   };
 }
+
+// ── Competitor score (tech + fund only, 50/50) ────────────────────────────────
+
+const COMPETITOR_W_TECH = 0.5;
+const COMPETITOR_W_FUND = 0.5;
+
+/** Combined [0,100] score for peer ranking — no options, relative move, or tag. */
+export function computeTechFundScore(
+  techTotalScore: number | null,
+  fundTotalScore: number | null,
+): number | null {
+  const tech = pf(techTotalScore);
+  const fund = pf(fundTotalScore);
+  const parts: Array<{ weight: number; score: number }> = [];
+  if (tech !== null) parts.push({ weight: COMPETITOR_W_TECH, score: c01(tech / 100) });
+  if (fund !== null) parts.push({ weight: COMPETITOR_W_FUND, score: c01(fund / 100) });
+  if (parts.length === 0) return null;
+  const totalWeight = parts.reduce((s, p) => s + p.weight, 0);
+  const combined = parts.reduce((s, p) => s + p.weight * p.score, 0) / totalWeight;
+  return Math.round(combined * 1000) / 10;
+}

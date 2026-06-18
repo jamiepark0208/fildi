@@ -1,4 +1,5 @@
 import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache } from '../routes/stocks.js';
+import { peersCache } from '../lib/peer-resolver.js';
 import { optionsCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_TTL } from '../routes/macro-regime.js';
@@ -14,6 +15,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   options: 'Options Chain',
   'options-expiry': 'Options Calendar',
   'macro-regime': 'Market Regime (VIX)',
+  'peer-map': 'Peer Map',
+  'peer-profile': 'Peer Profile',
 };
 
 export const namedCachesMap: Record<string, { clear(): void }> = {
@@ -25,11 +28,12 @@ export const namedCachesMap: Record<string, { clear(): void }> = {
   breakdown: breakdownCache,
   options: optionsCache,
   'options-expiry': expiryCache,
+  'peer-map': peersCache,
 };
 
 export function getAllCaches(): CacheStats[] {
   const now = Date.now();
-  const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache];
+  const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache];
 
   const macroEntry = macroCache as { fetchedAt?: number } | null;
   const macroExpiresAt = macroEntry?.fetchedAt ? macroEntry.fetchedAt + MACRO_TTL : null;
