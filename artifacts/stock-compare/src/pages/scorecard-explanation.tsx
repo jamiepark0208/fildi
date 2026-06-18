@@ -64,7 +64,12 @@ export default function ScorecardExplanation() {
             <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold leading-tight tracking-tight">Scorecard Guide</h1>
-              <DataTransparencyBar chips={status.headerChips()} />
+              <DataTransparencyBar
+                chips={status.headerChips?.()}
+                factset={status.sources.factset}
+                fmp={status.sources.fmp}
+                fmpRemaining={status.fmpRemaining}
+              />
             </div>
           </div>
         </div>
@@ -82,7 +87,11 @@ export default function ScorecardExplanation() {
             </TabsList>
 
             <TabsContent value="fundamental" className="mt-0">
-              <TabStatusHeader chips={status.chipsFor("fundamentals")} />
+              <TabStatusHeader
+                chips={status.chipsFor?.("fundamentals")}
+                text={status.stripFor("fundamentals")}
+                warn={status.fundStale}
+              />
               <p className="text-sm font-semibold text-foreground mb-2">Family blend weights</p>
               <GuideMetricGrid
                 rows={FUNDAMENTAL_FAMILY_GUIDE_ROWS}
@@ -107,7 +116,11 @@ export default function ScorecardExplanation() {
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0">
-              <TabStatusHeader chips={status.chipsFor("technicals")} />
+              <TabStatusHeader
+                chips={status.chipsFor?.("technicals")}
+                text={status.stripFor("technicals")}
+                warn={status.techStale}
+              />
               <GuideMetricGrid
                 rows={TECHNICAL_GUIDE_ROWS}
                 coverageLabel={techCov.label}
@@ -120,7 +133,10 @@ export default function ScorecardExplanation() {
             </TabsContent>
 
             <TabsContent value="options" className="mt-0 space-y-3">
-              <TabStatusHeader chips={status.chipsFor("options")} />
+              <TabStatusHeader
+                chips={status.chipsFor?.("options")}
+                text={status.stripFor("options")}
+              />
               <p className="text-sm text-foreground/90">Rank stocks → score strikes → liquidity gate + macro regime</p>
               <p className="text-sm font-semibold text-foreground">Stock rank layer</p>
               <GuideMetricGrid

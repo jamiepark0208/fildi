@@ -15,7 +15,9 @@ function sourceBadgeClass(name: string, active: boolean): string {
   return "bg-primary/10 text-foreground border-primary/30";
 }
 
-export function StatusChipRow({ chips, compact }: { chips: GuideStatusChips; compact?: boolean }) {
+export function StatusChipRow({ chips, compact }: { chips?: GuideStatusChips; compact?: boolean }) {
+  if (!chips) return null;
+
   const size = compact ? "text-sm px-2.5 py-1" : "text-base px-3 py-1.5";
 
   return (
@@ -64,16 +66,33 @@ export function StatusChipRow({ chips, compact }: { chips: GuideStatusChips; com
 }
 
 type Props = {
-  chips: GuideStatusChips;
+  /** Preferred — structured status badges */
+  chips?: GuideStatusChips;
+  /** @deprecated use chips — kept for partial deploy / HMR safety */
+  text?: string;
+  warn?: boolean;
 };
 
 /** Per-tab timeliness / coverage strip */
-export function TabStatusHeader({ chips }: Props) {
-  return (
-    <div className="mb-4">
-      <StatusChipRow chips={chips} />
-    </div>
-  );
+export function TabStatusHeader({ chips, text, warn }: Props) {
+  if (chips) {
+    return (
+      <div className="mb-4">
+        <StatusChipRow chips={chips} />
+      </div>
+    );
+  }
+  if (text) {
+    return (
+      <p className={cn(
+        "text-sm font-mono tabular-nums mb-4",
+        warn ? "text-amber-400" : "text-foreground",
+      )}>
+        {text}
+      </p>
+    );
+  }
+  return null;
 }
 
 export type TabStatusHeaderProps = Props;
