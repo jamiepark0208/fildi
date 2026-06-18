@@ -162,13 +162,17 @@ try {
   // Stage all tracked modified files
   execSync(`git -C "${ROOT}" add -u`, { stdio: 'pipe' });
   // Stage new untracked files that belong in the repo (skills, docs, source)
-  const untracked = execSync(`git -C "${ROOT}" ls-files --others --exclude-standard`, { stdio: 'pipe' })
-    .toString().trim().split('\n').filter(f =>
+  // Use -z to get null-delimited output — avoids quoting issues with special chars in filenames
+  const untracked = execSync(`git -C "${ROOT}" ls-files --others --exclude-standard -z`, { stdio: 'pipe' })
+    .toString().split('\0').filter(f =>
       f && !f.startsWith('attached_assets/') && !f.includes('.codegraph/') &&
-      !f.endsWith('.png') && !f.endsWith('.jpg') && !f.endsWith('.jpeg')
+      !/\.(png|jpg|jpeg|gif|webp)$/.test(f)
     );
   if (untracked.length) {
-    execSync(`git -C "${ROOT}" add ${untracked.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe' });
+    // Add in batches to avoid arg length limits
+    for (const f of untracked) {
+      try { execSync(`git -C "${ROOT}" add "${f.replace(/"/g, '\\"')}"`, { stdio: 'pipe' }); } catch {}
+    }
   }
   const staged = execSync(`git -C "${ROOT}" diff --cached --name-only`, { stdio: 'pipe' }).toString().trim();
   console.log(`✅ Staged: ${staged.split('\n').join(', ')}`);
