@@ -156,16 +156,22 @@ fs.writeFileSync(STATE, JSON.stringify(next, null, 2));
 syncStateFile(path.join(ROOT, '.agents/context/state.md'), next, now.slice(0, 10));
 writeSessionEntry(next, args.note||'', now);
 
-// Stage all state-tracking files automatically
+// Stage all useful changes — source files, skills, docs, config, agent context
 const { execSync } = require('child_process');
-// .claude/state.json is gitignored — only stage the tracked agent files
-const stateFiles = [
-  '.agents/context/state.md',
-  '.agents/sessions/',
-];
 try {
-  execSync(`git -C "${ROOT}" add ${stateFiles.join(' ')}`, { stdio: 'pipe' });
-  console.log(`✅ Staged: ${stateFiles.join(', ')}`);
+  // Stage all tracked modified files
+  execSync(`git -C "${ROOT}" add -u`, { stdio: 'pipe' });
+  // Stage new untracked files that belong in the repo (skills, docs, source)
+  const untracked = execSync(`git -C "${ROOT}" ls-files --others --exclude-standard`, { stdio: 'pipe' })
+    .toString().trim().split('\n').filter(f =>
+      f && !f.startsWith('attached_assets/') && !f.includes('.codegraph/') &&
+      !f.endsWith('.png') && !f.endsWith('.jpg') && !f.endsWith('.jpeg')
+    );
+  if (untracked.length) {
+    execSync(`git -C "${ROOT}" add ${untracked.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe' });
+  }
+  const staged = execSync(`git -C "${ROOT}" diff --cached --name-only`, { stdio: 'pipe' }).toString().trim();
+  console.log(`✅ Staged: ${staged.split('\n').join(', ')}`);
 } catch (e) {
   console.warn(`⚠️  git add failed: ${e.message}`);
 }

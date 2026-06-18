@@ -55,19 +55,9 @@ The server does NOT hot-reload. Vite frontend hot-reloads automatically.
 - All async data via `useQuery`, never `useEffect` fetch
 - Max 150 lines per component file
 
-## Skill-to-area mapping (see `.claude/skills/` for full detail)
-| Area | Skill file |
-|---|---|
-| Options chain, strike selection, income% | `options-pricer.md` |
-| RSI, MFI, filter logic, tier thresholds | `signal-filters.md` |
-| Any UI component or new page | `ui-components.md` |
-| New feature planning | `feature-planner.md` |
-| Data fetching, caching, refresh logic | `data-architecture.md` |
-| DB schema or migration | `db-patterns.md` |
-| Trader strategy, scoring, ranking | `trader-context.md` |
-| Technical scorecard UI or signals | `technical-scorecard.md` |
-| Server build or 502 errors | `build-and-run.md` |
-| End of session | `session-wrap.md` |
+## Skill-to-area mapping
+Authoritative table is in `CLAUDE.md` (repo root) under the SKILLS section.
+**All agents (Kiro, Claude Code, etc.):** read `CLAUDE.md` directly — it is plain markdown and contains skills, codegraph rules, key files, and project conventions.
 
 ## Agents
 | Agent | Use for |
@@ -101,11 +91,16 @@ Never read source files to understand structure — use codegraph context first.
 - `technical-scorecard.md` — V2 scorer architecture and DB schema
 
 ## Claude Code automation (hooks — automatic in Claude Code, manual for other agents)
-These run automatically in Claude Code but must be applied manually in Kiro or other agents:
+Active hooks (in `.claude/settings.local.json`):
 
-| Hook | Trigger | What it checks | Manual equivalent |
-|---|---|---|---|
-| prompt-preprocessor | Before Task/TodoWrite | Model routing hints; prompt > 120 words → use skill file; options chain → cache check | Check model table in this file before starting; keep prompts under 120 words |
-| context-monitor | After every tool | Context > 40% → consider /compact; tool output > 15KB → summarize | Break large tasks into smaller steps; summarize large file reads before using |
-| session-wrap | On session Stop | Saves state, syncs `.kiro/steering/03-state.md`, writes session log | Run `node .claude/scripts/session-wrap.js` manually or update `.agents/context/state.md` |
-| rehydrate | On session Start | Shows session banner, syncs codegraph, auto-starts API server | Check API: `curl -s http://localhost:8080/api/daily-brief \| head -c 60`; start if needed with build command above |
+| Hook | Trigger | Effect |
+|---|---|---|
+| codegraph-precheck | PreToolUse Edit\|Write | Injects entry points + related symbols for the target file (no code blocks) |
+| session-wrap | Stop | Saves state to `.claude/state.json`, writes session log |
+| rehydrate | UserPromptSubmit | Session banner, codegraph status, API health check |
+
+**Manual equivalent for other agents:**
+- Session start: Check API health: `curl -s http://localhost:8080/api/daily-brief | head -c 60`
+- Session end: `node .claude/scripts/session-wrap.js`
+- Context management (no hook — apply manually): if a prompt > 120 words, load the relevant skill file first; if context > 40%, compact before starting a large task
+- Auto-compact fires at 45% in Claude Code (CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=45)

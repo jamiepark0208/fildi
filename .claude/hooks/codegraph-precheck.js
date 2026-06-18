@@ -25,10 +25,15 @@ rl.on('close', () => {
 
     if (!result) { process.exit(0); }
 
+    // Strip code blocks — keep only entry points + related symbols (structural graph info).
+    // The code section is ~67% of output and duplicates explicit codegraph_context MCP calls.
+    const codeIdx = result.indexOf('\n### Code');
+    const structural = (codeIdx > -1 ? result.slice(0, codeIdx) : result).trim();
+
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        additionalContext: `[CODEGRAPH:${filePath}]\n${result.slice(0, 2500)}\n[/CODEGRAPH]`
+        additionalContext: `[CODEGRAPH:${filePath}]\n${structural.slice(0, 1200)}\n[/CODEGRAPH]`
       }
     }));
   } catch { /* codegraph unavailable — silent pass-through */ }

@@ -313,6 +313,97 @@ None of the new/modified files produce type errors.
 
 ## Next Steps (not completed this session)
 
-- Apply `validate()` middleware to auth routes (login/register) with Zod schemas — `validate.ts` is ready, schemas not yet wired
-- Consider adding `helmet` for HTTP security headers (not installed)
-- Fix the 3 pre-existing tsc schema errors
+~~- Apply `validate()` middleware to auth routes (login/register) with Zod schemas — `validate.ts` is ready, schemas not yet wired~~  
+~~- Consider adding `helmet` for HTTP security headers (not installed)~~  
+~~- Fix the 3 pre-existing tsc schema errors~~
+
+All completed in subsequent sessions — see entries below.
+
+---
+
+---
+
+## Cache Monitor Fix + Per-Ticker UI Redesign
+
+**Status:** Complete ✅  
+**Session date:** 2026-06-18
+
+### Part 1 — Backend: Cache Registry + Empty Rows Fix
+
+**Root cause:** `admin-cache.ts` imported all cache instances at module top-level. In ESM, circular or out-of-order evaluation could yield `undefined` references before route files finish initializing.
+
+**Fix:** Introduced a single collection point — `lib/cache-registry.ts` — that owns all imports and lazy evaluation at request time.
+
+| File | Change |
+|---|---|
+| `lib/ttl-cache.ts` | `hits`/`misses` widened to `number \| null`; `displayName?: string` added to `CacheStats` |
+| `lib/cache-registry.ts` (new) | Imports all 8 TTLCache instances + macro `_cache`/`CACHE_TTL_MS`; `DISPLAY_NAMES` map; exports `getAllCaches()` and `namedCachesMap` |
+| `routes/admin-cache.ts` | All direct cache imports removed; uses `getAllCaches()` and `namedCachesMap` from registry only |
+
+**Display name mapping:**
+
+| Internal name | Display name |
+|---|---|
+| search | Ticker Search |
+| quote | Stock Price & Profile |
+| compare | Stock Comparison |
+| breakdown | Stock Analysis |
+| history | Price History |
+| history-1d | Price History (Intraday) |
+| options | Options Chain |
+| options-expiry | Options Calendar |
+| macro-regime | Market Regime (VIX) |
+
+### Part 2 — Frontend: Two-Level Grouped UI
+
+Replaced the flat table in `CacheMonitor` (`pages/settings.tsx`) with an expandable two-level layout.
+
+**Group row columns:** ▶/▼ | Data Type | TTL (human) | Hits | Misses | Hit Rate | Cached Tickers | Clear
+
+- Hit rate color: green ≥70%, yellow 40–69%, red <40%, gray "—"
+- TTL shown as "1 hour", "24 hours", "30 min" etc.
+- Click anywhere on row to expand/collapse (chevron indicates state)
+
+**Sub-row columns (on expand):** Ticker (key, mono uppercase) | Cached X ago | Expires in X
+
+- "Cached" derived from `row.ttlMs - entry.expiresInSec * 1000` — no backend change needed
+- "Expires in" shown in red when < 5 min (300s)
+- Empty group shows "No data cached yet" in muted italic
+
+**New helpers added to component:**
+- `formatDuration(ms)` — "3m 42s", "1 hr 22 min"
+- `fmtTtlHuman(ms)` — "1 hour", "24 hours", "30 min"
+
+### tsc result
+0 errors on both `api-server` and `stock-compare`. Route returns 401 (auth-gated, reachable).
+
+---
+
+---
+
+## TSC Fixes + Zod Auth Validation
+
+**Status:** Complete ✅  
+**Session date:** 2026-06-18
+
+### Task 1 — lib/db rebuild
+- No `pnpm build` script exists; used `npx tsc --build` in `lib/db`
+- All 3 pre-existing tsc errors already resolved from a prior session; `api-server` returned 0 errors immediately after rebuild
+
+### Task 2 — positions.ts notes column
+- Already present (`notes: text('notes')` at schema line 426 and in `routes/positions.ts`); no action required
+
+### Task 3 — Zod validation on auth routes
+- Already implemented; `validate`, `registerSchema`, `loginSchema` wired on both `/auth/register` and `/auth/login`
+
+### Manual verification
+
+| Test | Expected | Result |
+|---|---|---|
+| `POST /auth/register {}` | 400 Zod field errors | ✅ `VALIDATION_ERROR` with per-field messages |
+| `POST /auth/register` bad email + short pw | 400 | ✅ "Invalid email format", "Password must be at least 8 characters" |
+| `POST /auth/login {}` | 400 | ✅ `VALIDATION_ERROR` email + password required |
+| `POST /auth/login` valid credentials | 401 (unknown user) | ✅ `Invalid credentials` — Zod passed, handler ran |
+
+### tsc result
+`0 errors` on api-server after lib/db rebuild.
