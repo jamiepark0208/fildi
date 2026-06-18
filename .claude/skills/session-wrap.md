@@ -19,9 +19,8 @@ node .claude/scripts/session-wrap.js \
   --next "what to do next session" \
   --note "one sentence summary of today"
 ```
-## Then git commit
-```bash
-git add -A && git commit -m "chore: session checkpoint — [brief note]"
-```
+## Git commit + push
+The script handles this automatically — no manual git step needed.
+Fallback (if script fails): `git add -A && git commit -m "chore: session checkpoint — [brief note]"`
 ## Keep instincts short (add to state.json instincts array)
   Each entry under 20 words. Only patterns worth remembering across sessions.

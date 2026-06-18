@@ -5,10 +5,11 @@ interface CacheEntry<T> {
 
 export interface CacheStats {
   name: string;
+  displayName?: string;
   ttlMs: number;
   entryCount: number;
-  hits: number;
-  misses: number;
+  hits: number | null;
+  misses: number | null;
   hitRate: string;
   entries: Array<{ key: string; expiresAt: number; expiresInSec: number }>;
 }

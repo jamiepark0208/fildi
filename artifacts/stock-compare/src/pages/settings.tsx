@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { Copy, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 
 interface InviteCode {
   code: string;
@@ -145,7 +145,7 @@ function AdminSection() {
 
 interface CacheEntry { key: string; expiresAt: number; expiresInSec: number }
 interface CacheRow {
-  name: string; ttlMs: number; entryCount: number;
+  name: string; displayName?: string; ttlMs: number; entryCount: number;
   hits: number | null; misses: number | null; hitRate: string;
   entries: CacheEntry[];
 }
@@ -153,6 +153,7 @@ interface CacheStatus { caches: CacheRow[]; generatedAt: number }
 
 function CacheMonitor() {
   const queryClient = useQueryClient();
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const { data, isLoading, refetch, isFetching } = useQuery<CacheStatus>({
     queryKey: ["admin", "cache-status"],
@@ -172,8 +173,17 @@ function CacheMonitor() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "cache-status"] }),
   });
 
-  function handleClear(name: string) {
-    if (!confirm(`Clear ${name} cache? Next requests will re-fetch from Yahoo.`)) return;
+  function toggleRow(name: string) {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+
+  function handleClear(e: React.MouseEvent, name: string) {
+    e.stopPropagation();
+    if (!confirm(`Clear "${name}" cache? Next requests will re-fetch from the source.`)) return;
     clearMutation.mutate(name);
   }
 
@@ -185,19 +195,23 @@ function CacheMonitor() {
     return "text-red-400";
   }
 
-  function minExpiresIn(entries: CacheEntry[]) {
-    if (entries.length === 0) return "—";
-    const min = Math.min(...entries.map(e => e.expiresInSec));
-    if (min >= 3600) return `${Math.round(min / 3600)}h`;
-    if (min >= 60) return `${Math.round(min / 60)}m`;
-    return `${min}s`;
+  function fmtTtlHuman(ms: number) {
+    const hours = ms / 3600000;
+    const mins = ms / 60000;
+    if (Number.isInteger(hours)) return hours === 1 ? "1 hour" : `${hours} hours`;
+    if (Number.isInteger(mins)) return `${mins} min`;
+    return `${Math.round(hours * 10) / 10} hr`;
   }
 
-  function fmtTtl(ms: number) {
-    const h = ms / 3600000;
-    const m = ms / 60000;
-    if (h >= 1) return `${h}h`;
-    return `${m}m`;
+  function formatDuration(ms: number): string {
+    const totalSec = Math.floor(Math.abs(ms) / 1000);
+    if (totalSec < 60) return `${totalSec}s`;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return remMins > 0 ? `${hrs} hr ${remMins} min` : `${hrs} hr`;
   }
 
   return (
@@ -221,40 +235,88 @@ function CacheMonitor() {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
-                <th className="text-left py-2 font-semibold">Cache</th>
+                <th className="w-5 py-2" />
+                <th className="text-left py-2 font-semibold">Data Type</th>
                 <th className="text-left py-2 font-semibold">TTL</th>
-                <th className="text-right py-2 font-semibold">Entries</th>
                 <th className="text-right py-2 font-semibold">Hits</th>
                 <th className="text-right py-2 font-semibold">Misses</th>
                 <th className="text-right py-2 font-semibold">Hit Rate</th>
-                <th className="text-right py-2 font-semibold">Next Expiry</th>
+                <th className="text-right py-2 font-semibold">Cached Tickers</th>
                 <th className="text-right py-2 font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/40">
-              {data?.caches.map(row => (
-                <tr key={row.name} className="h-9">
-                  <td className="font-mono text-foreground">{row.name}</td>
-                  <td className="text-muted-foreground">{fmtTtl(row.ttlMs)}</td>
-                  <td className="text-right tabular-nums">{row.entryCount}</td>
-                  <td className="text-right tabular-nums text-muted-foreground">{row.hits ?? "—"}</td>
-                  <td className="text-right tabular-nums text-muted-foreground">{row.misses ?? "—"}</td>
-                  <td className={cn("text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
-                  <td className="text-right tabular-nums text-muted-foreground">{minExpiresIn(row.entries)}</td>
-                  <td className="text-right">
-                    {row.name !== 'macro-regime' && (
-                      <button
-                        onClick={() => handleClear(row.name)}
-                        disabled={clearMutation.isPending}
-                        className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Clear
-                      </button>
+            <tbody>
+              {data?.caches.map(row => {
+                const isExpanded = expandedRows.has(row.name);
+                const displayName = row.displayName ?? row.name;
+                return (
+                  <Fragment key={row.name}>
+                    <tr
+                      onClick={() => toggleRow(row.name)}
+                      className="h-9 border-b border-border/40 cursor-pointer hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="pl-1 pr-2">
+                        {isExpanded
+                          ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                          : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                      </td>
+                      <td className="font-medium text-foreground">{displayName}</td>
+                      <td className="text-muted-foreground">{fmtTtlHuman(row.ttlMs)}</td>
+                      <td className="text-right tabular-nums text-muted-foreground">{row.hits ?? "—"}</td>
+                      <td className="text-right tabular-nums text-muted-foreground">{row.misses ?? "—"}</td>
+                      <td className={cn("text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
+                      <td className="text-right tabular-nums text-muted-foreground">
+                        {row.entryCount === 0 ? "—" : `${row.entryCount} ${row.entryCount === 1 ? "ticker" : "tickers"}`}
+                      </td>
+                      <td className="text-right">
+                        {row.name !== 'macro-regime' && (
+                          <button
+                            onClick={(e) => handleClear(e, row.name)}
+                            disabled={clearMutation.isPending}
+                            className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Clear
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      row.entries.length === 0 ? (
+                        <tr key={`${row.name}-empty`} className="bg-muted/10 border-b border-border/20">
+                          <td />
+                          <td colSpan={7} className="py-2 pl-3 text-[10px] text-muted-foreground italic">
+                            No data cached yet
+                          </td>
+                        </tr>
+                      ) : (
+                        row.entries.map(entry => {
+                          const ageMs = Math.max(0, row.ttlMs - entry.expiresInSec * 1000);
+                          const expiresMs = entry.expiresInSec * 1000;
+                          const isExpiringSoon = entry.expiresInSec < 300;
+                          return (
+                            <tr key={`${row.name}-${entry.key}`} className="bg-muted/10 border-b border-border/20">
+                              <td />
+                              <td colSpan={2} className="py-1.5 pl-3 font-mono text-[10px] text-foreground/70 uppercase tracking-wide">
+                                {entry.key}
+                              </td>
+                              <td colSpan={2} className="py-1.5 text-[10px] text-muted-foreground">
+                                {formatDuration(ageMs)} ago
+                              </td>
+                              <td colSpan={3} className={cn(
+                                "py-1.5 pr-1 text-right text-[10px] tabular-nums",
+                                isExpiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"
+                              )}>
+                                expires in {formatDuration(expiresMs)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
           {data && (
