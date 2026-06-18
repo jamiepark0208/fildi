@@ -1,13 +1,32 @@
 import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
+import { eq, inArray } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
 } from "@workspace/api-zod";
-import { type TickerFundamentalsRow } from "@workspace/db";
-import { readFundamentalsRow } from "../lib/fundamentals-db.js";
+import {
+  type TickerFundamentalsRow,
+  db,
+  indicatorCache,
+  tickerFundamentals,
+  tickerTechnicals,
+  watchlist,
+} from "@workspace/db";
+import { readFundamentalsRow, checkFMPBudget } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { buildCatalysts } from "../lib/catalysts.js";
+import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
+import {
+  rankCompetitors,
+  isFundamentalsStale,
+  isTechnicalsStale,
+} from "../lib/peer-rankings.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { refreshFundamentals } from "./fundamentals.js";
+import { refreshTechnicalsForTicker } from "../lib/technicals-db.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -607,6 +626,17 @@ function buildBearBullets(m: any): string[] {
 
 export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown');
 
+const backfillQueued = new Set<string>();
+
+function parseEarningsDate(summary: unknown, dbDate: string | null): string | null {
+  if (dbDate) return dbDate;
+  const dates = (summary as any)?.calendarEvents?.earnings?.earningsDate;
+  const d = Array.isArray(dates) ? dates[0] : dates;
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  if (typeof d === "number") return new Date(d * 1000).toISOString().slice(0, 10);
+  return null;
+}
+
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
   if (!ticker || typeof ticker !== "string") {
@@ -618,9 +648,9 @@ router.get("/stocks/breakdown", async (req, res) => {
 
   try {
     const fmpApiKey = process.env.FMP_API_KEY ?? "";
-    const [summary, newsRes, fmpRow, fmpTargetsRaw] = await Promise.all([
+    const [summary, newsRes, fmpRow, fmpTargetsRaw, earningsDbRows] = await Promise.all([
       yahooFinance.quoteSummary(key, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory"] as any,
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
       }),
       yahooFinance.search(key, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(key),
@@ -629,6 +659,10 @@ router.get("/stocks/breakdown", async (req, res) => {
             .then(r => r.ok ? r.json() : [])
             .catch(() => [])
         : Promise.resolve([]),
+      db.select({ earningsDate: indicatorCache.earningsDate })
+        .from(indicatorCache)
+        .where(eq(indicatorCache.ticker, key))
+        .limit(1),
     ]);
 
     const merged = {
@@ -719,7 +753,14 @@ router.get("/stocks/breakdown", async (req, res) => {
       dividend: scoreDividend(metrics.dividendYield),
     };
 
-    const payload = { metrics, recommendations, analystActions, analystPriceTargets, priceTargetRange, bullBullets, bearBullets, news, snowflake };
+    const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
+    const catalysts = buildCatalysts({
+      earningsDate,
+      analystActions,
+      news,
+    });
+
+    const payload = { metrics, recommendations, analystActions, analystPriceTargets, priceTargetRange, bullBullets, bearBullets, news, snowflake, catalysts };
     breakdownCache.set(key, payload);
     return res.json(payload);
   } catch (err: any) {
@@ -729,6 +770,104 @@ router.get("/stocks/breakdown", async (req, res) => {
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
   }
+});
+
+// GET /stocks/competitors/:ticker — DB-first peer list ranked by 50/50 tech+fund score
+router.get("/stocks/competitors/:ticker", async (req, res) => {
+  const key = String(req.params["ticker"] ?? "").toUpperCase();
+  if (!key) return res.status(400).json({ error: "ticker required" });
+
+  try {
+    const hadCache = peersCache.get(key) != null;
+    const { sector, industry, peers } = await resolvePeers(key);
+    const pool = peers.slice(0, 15);
+    if (pool.length === 0) {
+      return res.json({ ticker: key, sector, industry, competitors: [], source: hadCache ? "cache" : "db" });
+    }
+
+    const [techRows, fundRows] = await Promise.all([
+      db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, pool)),
+      db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, pool)),
+    ]);
+
+    const competitors = rankCompetitors(key, pool, techRows, fundRows);
+    return res.json({ ticker: key, sector, industry, competitors, source: hadCache ? "cache" : "db" });
+  } catch (err: any) {
+    logger.error({ ticker: key, err }, "GET /stocks/competitors failed");
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// POST /stocks/competitors/backfill — queue score refresh for stale/missing peers only
+router.post("/stocks/competitors/backfill", requireAuth, async (req, res) => {
+  const body = req.body as { tickers?: string[] };
+  const raw = Array.isArray(body.tickers) ? body.tickers : [];
+  const tickers = [...new Set(raw.map(t => String(t).trim().toUpperCase()).filter(Boolean))].slice(0, 5);
+  if (tickers.length === 0) return res.status(400).json({ error: "tickers required" });
+
+  const userId = req.session.userId!;
+
+  const [techRows, fundRows] = await Promise.all([
+    db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, tickers)),
+    db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, tickers)),
+  ]);
+  const techMap = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
+  const fundMap = new Map(fundRows.map(r => [r.ticker.toUpperCase(), r]));
+
+  const needFund: string[] = [];
+  const needTech: string[] = [];
+  const skippedFresh: string[] = [];
+
+  for (const t of tickers) {
+    const techRow = techMap.get(t) ?? null;
+    const fundRow = fundMap.get(t) ?? null;
+    const fundStale = isFundamentalsStale(fundRow);
+    const techStale = isTechnicalsStale(techRow);
+    if (fundStale) needFund.push(t);
+    if (techStale) needTech.push(t);
+    if (!fundStale && !techStale) skippedFresh.push(t);
+  }
+
+  const toQueue = [...new Set([...needFund, ...needTech])].filter(t => !backfillQueued.has(t));
+  for (const t of toQueue) backfillQueued.add(t);
+
+  if (needFund.length > 0) {
+    const budget = await checkFMPBudget(needFund.length * 7);
+    if (!budget.allowed) {
+      return res.status(429).json({
+        error: "FMP daily budget would be exceeded",
+        queued: [],
+        skippedFresh,
+        skippedBudget: needFund,
+      });
+    }
+  }
+
+  for (const t of tickers) {
+    await db.insert(watchlist)
+      .values({ userId, ticker: t, tier: 1, status: "monitoring" })
+      .onConflictDoNothing();
+  }
+
+  if (toQueue.length > 0) {
+    res.status(202).json({ queued: toQueue, skippedFresh, skippedBudget: [] });
+    (async () => {
+      try {
+        if (needFund.length > 0) await refreshFundamentals(needFund);
+        for (let i = 0; i < needTech.length; i += 3) {
+          const batch = needTech.slice(i, i + 3);
+          await Promise.all(batch.map(t => refreshTechnicalsForTicker(t).catch(err => {
+            logger.warn({ ticker: t, err: String(err) }, "competitors backfill: technicals failed");
+          })));
+        }
+      } finally {
+        for (const t of toQueue) backfillQueued.delete(t);
+      }
+    })().catch(err => logger.error({ err }, "competitors backfill crashed"));
+    return;
+  }
+
+  return res.status(200).json({ queued: [], skippedFresh, skippedBudget: [] });
 });
 
 export default router;

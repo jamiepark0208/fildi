@@ -6,14 +6,14 @@
 **build** — last updated 2026-06-18
 
 ## Active work
-- Working: watchlist-stock-analysis, fildi-social-feed
-- In progress: profile-redesign-complete
+- Working: fildi-social-feed
+- In progress: options-comparison-table
 - Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
-4. **strike-explorer-slider** — interactive strike selection slider
-5. **user-management-system** — independent watchlists per user, session auth, admin-only refresh (design pending — brainstorm interrupted)
+2. **strike-explorer-slider** — interactive strike selection slider
+3. **user-management-system** — independent watchlists per user, session auth, admin-only refresh (design pending — brainstorm interrupted)
 4. **fmp-fundamentals-backfill** — `POST /api/fundamentals/refresh` for tickers not yet in DB (check: `GET /api/fundamentals/status`). FactSet is now priority-1; FMP fills remaining fields (PE, P/B, P/S, ROIC, Beta, WACC, shares).
 5. **macro-data-live-feed**
 6. **reserve-oracle-vm-ip** — OCI Console → Networking → IP Management → Reserved Public IPs → assign `146.235.223.94` before any VM reboot loses it
@@ -22,6 +22,10 @@
 `FILDI_ROADMAP.md` (root) — read before starting any new feature to understand pending/known-broken/architectural decisions.
 
 ## Completed (recent)
+**watchlist-stock-analysis** (2026-06-18, Cursor):
+- Watchlist `StockBreakdown`: overview name dedup; Competitors (top 5, 50/50 tech+fund, DB-first peers + backfill); Event Risk/Catalysts from breakdown cache
+- API: `GET/POST /api/stocks/competitors/*`, `peer-resolver`, `buildCatalysts`, `peersCache`
+
 **profile-bucket-search + scorecard-guide-ui** (2026-06-18):
 - My Profile sentiment buckets: ticker autocomplete via useSearchStocks (same cache as Fundamental tab)
 - Scorecard Guide: larger typography, colored status badge chips, shadcn Table grids with higher contrast

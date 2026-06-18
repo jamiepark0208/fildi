@@ -17,6 +17,9 @@ export const PRESET_COLORS = [
   "#a855f7", // purple
 ];
 
+/** Distinct slate tag for auto-added competitor tickers */
+export const COMPETITOR_TAG_COLOR = "#64748b";
+
 // Scoped per user so multiple users on same browser don't clobber each other's tags
 function colorKey(userId: number | undefined): string {
   return userId ? `fildi_watchlist_colors_${userId}` : "fildi_watchlist_colors";
@@ -76,6 +79,26 @@ export function useWatchlist() {
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
   }, [queryClient, userId]);
 
+  const addEntryIfMissing = useCallback(async (ticker: string) => {
+    const upper = ticker.trim().toUpperCase();
+    if (!upper) return;
+    const map = loadColorMap(userId);
+    const exists = data.some(e => e.ticker === upper);
+    if (!exists) {
+      await fetch("/api/watchlist", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: upper }),
+      });
+    }
+    if (!map[upper]) {
+      map[upper] = COMPETITOR_TAG_COLOR;
+      saveColorMap(map, userId);
+    }
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient, userId, data]);
+
   const removeEntry = useCallback(async (ticker: string) => {
     await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
       method: "DELETE",
@@ -103,6 +126,7 @@ export function useWatchlist() {
     tickers: entries.map(e => e.ticker),
     isLoaded: !isLoading,
     addEntry,
+    addEntryIfMissing,
     removeEntry,
     updateColorTag,
   };

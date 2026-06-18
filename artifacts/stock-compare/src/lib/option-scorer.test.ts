@@ -21,6 +21,7 @@ import {
 import {
   computeRelativeMove,
   computeStockScore,
+  computeTechFundScore,
   tagBonus,
 } from "./stock-scorer.ts";
 
@@ -398,5 +399,22 @@ describe("computeStockScore", () => {
       bestOptionScore: 10, colorTag: "yellow",
     });
     assert.ok(high.stockScore > low.stockScore);
+  });
+});
+
+// ── computeTechFundScore ──────────────────────────────────────────────────────
+
+describe("computeTechFundScore", () => {
+  it("both legs → 50/50 average", () => {
+    assert.equal(computeTechFundScore(80, 60), 70);
+  });
+  it("tech only → re-normalized to tech", () => {
+    assert.equal(computeTechFundScore(80, null), 80);
+  });
+  it("fund only → re-normalized to fund", () => {
+    assert.equal(computeTechFundScore(null, 60), 60);
+  });
+  it("both null → null", () => {
+    assert.equal(computeTechFundScore(null, null), null);
   });
 });
