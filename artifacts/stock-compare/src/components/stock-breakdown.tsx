@@ -923,10 +923,6 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               </div>
             </div>
 
-            {propTicker && activeTicker && (
-              <CompetitorsSection ticker={activeTicker} />
-            )}
-
             {/* ── Price Chart ── */}
             <div className="overflow-hidden">
               <PriceChart
@@ -1049,6 +1045,10 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             )}
 
             <CatalystsSection catalysts={data.catalysts ?? []} />
+
+            {propTicker && activeTicker && (
+              <CompetitorsSection ticker={activeTicker} />
+            )}
 
             {/* ── Recent News ── */}
             {data.news && data.news.length > 0 && (
