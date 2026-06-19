@@ -1,5 +1,92 @@
 import { useMemo } from "react";
-import { buildCatalysts, type CatalystAnalystAction, type CatalystNewsItem } from "@/lib/catalysts";
+
+interface CatalystAnalystAction {
+  firm: string;
+  toGrade: string;
+  fromGrade: string;
+  action: string;
+  date: string | null;
+}
+
+interface CatalystNewsItem {
+  title: string;
+  publishedAt: string | null;
+}
+
+const EVENT_KEYWORDS = /\b(earnings|fda|merger|acquisition|lawsuit|guidance|dividend|split|ipo|bankruptcy|recall|approval|trial|settlement)\b/i;
+
+const ACTION_LABEL: Record<string, string> = {
+  main: "maintains",
+  reit: "reiterated",
+  up: "upgraded",
+  down: "downgraded",
+  init: "initiated",
+};
+
+function daysUntil(iso: string): number {
+  const d = new Date(iso.includes("T") ? iso : iso + "T12:00:00").getTime();
+  return Math.round((d - Date.now()) / 86400000);
+}
+
+function analystLine(a: CatalystAnalystAction): string | null {
+  const act = (a.action ?? "").toLowerCase();
+  const firm = a.firm || "Analyst";
+  const to = a.toGrade || "";
+  const from = a.fromGrade || "";
+  const date = a.date ?? "";
+  const label = ACTION_LABEL[act] ?? act;
+
+  if (act === "up" || act === "upgrade" || act === "init") {
+    return from && from !== to
+      ? `${firm} upgraded from ${from} to ${to}${date ? ` (${date})` : ""}`
+      : `${firm} rated ${to}${date ? ` (${date})` : ""}`;
+  }
+  if (act === "down" || act === "downgrade") {
+    return from && from !== to
+      ? `${firm} cut from ${from} to ${to}${date ? ` (${date})` : ""}`
+      : `${firm} cut to ${to}${date ? ` (${date})` : ""}`;
+  }
+  if (to) return `${firm} ${label || "maintains"} ${to}${date ? ` (${date})` : ""}`;
+  return null;
+}
+
+function buildCatalysts(input: {
+  earningsDate: string | null;
+  analystActions: CatalystAnalystAction[];
+  news: CatalystNewsItem[];
+}): string[] {
+  const out: string[] = [];
+  const cutoff90 = Date.now() - 90 * 86400000;
+
+  if (input.earningsDate) {
+    const days = daysUntil(input.earningsDate);
+    if (days >= 0 && days <= 30) {
+      out.push(days <= 14
+        ? `Earnings in ${days} days (${input.earningsDate})`
+        : `Earnings on ${input.earningsDate}`);
+    } else if (days > 30) {
+      out.push(`Next earnings ${input.earningsDate}`);
+    }
+  }
+
+  const analystLines = input.analystActions
+    .filter(a => {
+      if (!a.date) return true;
+      return new Date(a.date + "T12:00:00").getTime() >= cutoff90;
+    })
+    .map(analystLine)
+    .filter((l): l is string => !!l)
+    .slice(0, 3);
+  out.push(...analystLines);
+
+  const newsLines = input.news
+    .filter(n => n.title && EVENT_KEYWORDS.test(n.title))
+    .slice(0, 2)
+    .map(n => n.title.trim());
+  out.push(...newsLines);
+
+  return out.slice(0, 6);
+}
 
 interface CatalystsSectionProps {
   catalysts?: string[];
