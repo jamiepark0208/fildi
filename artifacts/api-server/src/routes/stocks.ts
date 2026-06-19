@@ -642,7 +642,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 3;
+const BREAKDOWN_CACHE_VER = 4;
 
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
