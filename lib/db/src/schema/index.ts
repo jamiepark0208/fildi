@@ -486,3 +486,94 @@ export const stockBuckets = pgTable('stock_buckets', {
 export const insertStockBucketSchema = createInsertSchema(stockBuckets).omit({ addedAt: true })
 export type InsertStockBucket = z.infer<typeof insertStockBucketSchema>
 export type StockBucket = typeof stockBuckets.$inferSelect
+
+// ── portfolio_snapshots ───────────────────────────────────────────────────────
+
+export const portfolioSnapshots = pgTable('portfolio_snapshots', {
+  id:           serial('id').primaryKey(),
+  importedAt:   timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+  accountIds:   text('account_ids').array().notNull().default([]),
+  totalValue:   numeric('total_value'),
+  rawFilename:  text('raw_filename'),
+})
+
+export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect
+export type InsertPortfolioSnapshot = typeof portfolioSnapshots.$inferInsert
+
+// ── portfolio_positions ───────────────────────────────────────────────────────
+
+export const portfolioPositions = pgTable('portfolio_positions', {
+  id:               serial('id').primaryKey(),
+  snapshotId:       integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  account:          text('account').notNull(),
+  accountNickname:  text('account_nickname'),
+  symbol:           text('symbol').notNull(),
+  quantity:         numeric('quantity'),
+  avgCost:          numeric('avg_cost'),
+  lastPrice:        numeric('last_price'),
+  marketValue:      numeric('market_value'),
+  costBasis:        numeric('cost_basis'),
+  unrealizedPnL:    numeric('unrealized_pnl'),
+  pnlPct:           numeric('pnl_pct'),
+  dayChangePct:     numeric('day_change_pct'),
+  bid:              numeric('bid'),
+  ask:              numeric('ask'),
+}, t => ({
+  snapshotIdx: index('portfolio_positions_snapshot_idx').on(t.snapshotId),
+}))
+
+export type PortfolioPosition = typeof portfolioPositions.$inferSelect
+export type InsertPortfolioPosition = typeof portfolioPositions.$inferInsert
+
+// ── portfolio_options ─────────────────────────────────────────────────────────
+
+export const portfolioOptions = pgTable('portfolio_options', {
+  id:             serial('id').primaryKey(),
+  snapshotId:     integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  account:        text('account').notNull(),
+  symbol:         text('symbol').notNull(),
+  optionType:     text('option_type'),       // 'call' | 'put'
+  strike:         numeric('strike'),
+  expiration:     date('expiration'),
+  direction:      text('direction'),          // 'long' | 'short'
+  qty:            numeric('qty'),
+  avgPremium:     numeric('avg_premium'),
+  totalPremium:   numeric('total_premium'),
+  markPrice:      numeric('mark_price'),
+  unrealizedPnL:  numeric('unrealized_pnl'),
+  pnlPct:         numeric('pnl_pct'),
+  iv:             numeric('iv'),
+  delta:          numeric('delta'),
+  gamma:          numeric('gamma'),
+  theta:          numeric('theta'),
+  vega:           numeric('vega'),
+}, t => ({
+  snapshotIdx: index('portfolio_options_snapshot_idx').on(t.snapshotId),
+}))
+
+export type PortfolioOption = typeof portfolioOptions.$inferSelect
+export type InsertPortfolioOption = typeof portfolioOptions.$inferInsert
+
+// ── portfolio_orders ──────────────────────────────────────────────────────────
+
+export const portfolioOrders = pgTable('portfolio_orders', {
+  id:               serial('id').primaryKey(),
+  snapshotId:       integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  account:          text('account').notNull(),
+  symbol:           text('symbol').notNull(),
+  side:             text('side'),             // 'buy' | 'sell'
+  orderType:        text('order_type'),       // 'market' | 'limit' | 'stop' etc.
+  state:            text('state'),            // 'filled' | 'cancelled' | 'pending' etc.
+  quantity:         numeric('quantity'),
+  avgFillPrice:     numeric('avg_fill_price'),
+  createdAt:        timestamp('created_at', { withTimezone: true }),
+  isOption:         boolean('is_option').notNull().default(false),
+  optionStrike:     numeric('option_strike'),
+  optionExpiration: date('option_expiration'),
+  optionSide:       text('option_side'),      // 'call' | 'put'
+}, t => ({
+  snapshotIdx: index('portfolio_orders_snapshot_idx').on(t.snapshotId),
+}))
+
+export type PortfolioOrder = typeof portfolioOrders.$inferSelect
+export type InsertPortfolioOrder = typeof portfolioOrders.$inferInsert
