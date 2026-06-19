@@ -69,8 +69,10 @@ function buildCatalysts(input: {
     }
   }
 
+  const EVENT_ACTIONS = new Set(["up", "upgrade", "down", "downgrade", "init"]);
   const analystLines = input.analystActions
     .filter(a => {
+      if (!EVENT_ACTIONS.has((a.action ?? "").toLowerCase())) return false;
       if (!a.date) return true;
       return new Date(a.date + "T12:00:00").getTime() >= cutoff90;
     })
