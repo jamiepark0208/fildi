@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
+import { RobinhoodPortfolio } from "@/components/RobinhoodPortfolio";
 
 // ── Position types ────────────────────────────────────────────────────────────
 
@@ -802,6 +803,9 @@ export default function Portfolio() {
                     icon={<Clock className={cn("w-4 h-4", agg.expiringThisWeek > 0 ? "text-yellow-400" : "")} />} />
                 </div>
               )}
+
+              {/* Robinhood CSV Portfolio */}
+              <RobinhoodPortfolio />
 
               {/* Daily AI Highlights */}
               <DailyBrief tickers={uniqueTickers} />
