@@ -670,9 +670,50 @@ function AggCard({ label, value, sub, icon, highlight }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// Convert Robinhood DB rows → PortfolioEntry for PortfolioAnalysis
+function dbToEntries(
+  positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string }>,
+  options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string }>,
+  accountMap: Map<string, string>,
+): PortfolioEntry[] {
+  const posEntries: PortfolioEntry[] = positions.map(p => ({
+    id: `rh-pos-${p.id}`,
+    ticker: p.symbol,
+    positionType: 'stock' as const,
+    qty: parseFloat(p.quantity ?? '0'),
+    avgPrice: parseFloat(p.avgCost ?? '0'),
+    openedAt: new Date().toISOString().slice(0, 10),
+    portfolioName: p.accountNickname ?? p.account,
+  }))
+
+  const optEntries: PortfolioEntry[] = options.flatMap(o => {
+    const dir = o.direction ?? 'long'
+    const kind = o.optionType ?? 'put'
+    const typeMap: Record<string, PositionType> = {
+      'short-put': 'short_put', 'short-call': 'short_call',
+      'long-put':  'long_put',  'long-call':  'long_call',
+    }
+    const positionType: PositionType = typeMap[`${dir}-${kind}`] ?? 'short_put'
+    const acct = accountMap.get(o.account) ?? o.account
+    return [{
+      id: `rh-opt-${o.id}`,
+      ticker: o.symbol,
+      positionType,
+      qty: Math.abs(parseFloat(o.qty ?? '0')),
+      avgPrice: parseFloat(o.avgPremium ?? '0'),
+      strike: o.strike ? parseFloat(o.strike) : undefined,
+      expiry: o.expiration ?? undefined,
+      openedAt: new Date().toISOString().slice(0, 10),
+      portfolioName: acct,
+    }]
+  })
+
+  return [...posEntries, ...optEntries]
+}
+
 export default function Portfolio() {
   const {
-    entries, portfolioNames, isLoaded,
+    entries: _legacyEntries, portfolioNames: _legacyPortfolioNames, isLoaded,
     addEntry, removeEntry, updateEntry, addPortfolioName,
   } = usePortfolio();
 
@@ -681,7 +722,31 @@ export default function Portfolio() {
   const [presetPortfolio,  setPresetPortfolio]  = useState<string | undefined>(undefined);
   const [editingEntry,     setEditingEntry]      = useState<PortfolioEntry | null>(null);
 
-  const uniqueTickers = useMemo(() => [...new Set(entries.map(e => e.ticker))], [entries]);
+  // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request)
+  const { data: rhData } = useQuery<{
+    snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null } | null;
+    positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string }>;
+    options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string }>;
+  }>({
+    queryKey: ['portfolio-snapshot-latest'],
+    queryFn: async () => {
+      const res = await fetch('/api/portfolio/snapshot/latest', { credentials: 'include' })
+      if (!res.ok) throw new Error('Failed to load portfolio')
+      return res.json()
+    },
+  })
+
+  const rhPositions = rhData?.positions ?? []
+  const rhOptions   = rhData?.options   ?? []
+  const accountMap  = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of rhPositions) { if (p.accountNickname) m.set(p.account, p.accountNickname) }
+    return m
+  }, [rhPositions])
+
+  const entries = useMemo(() => dbToEntries(rhPositions, rhOptions, accountMap), [rhPositions, rhOptions, accountMap])
+  const portfolioNames = useMemo(() => [...new Set(entries.map(e => e.portfolioName).filter(Boolean) as string[])], [entries])
+  const uniqueTickers  = useMemo(() => [...new Set(entries.map(e => e.ticker))], [entries]);
 
   const priceQueries = useQueries({
     queries: uniqueTickers.map(ticker => ({
@@ -810,34 +875,7 @@ export default function Portfolio() {
               {/* Daily AI Highlights */}
               <DailyBrief tickers={uniqueTickers} />
 
-              {/* Named portfolio boxes */}
-              <div className="space-y-4">
-                {portfolioNames.map(name => (
-                  <PortfolioBox
-                    key={name}
-                    name={name}
-                    entries={grouped[name] ?? []}
-                    priceMap={priceMap}
-                    onEdit={setEditingEntry}
-                    onRemove={removeEntry}
-                    onAddPosition={openAddPosition}
-                  />
-                ))}
-
-                {/* Unassigned entries */}
-                {unassignedEntries.length > 0 && (
-                  <PortfolioBox
-                    name="Unassigned"
-                    entries={unassignedEntries}
-                    priceMap={priceMap}
-                    onEdit={setEditingEntry}
-                    onRemove={removeEntry}
-                    onAddPosition={openAddPosition}
-                  />
-                )}
-              </div>
-
-              {/* Portfolio Analysis */}
+              {/* Portfolio Analysis — driven by Robinhood snapshot */}
               {entries.length > 0 && (
                 <PortfolioAnalysis
                   entries={entries}
