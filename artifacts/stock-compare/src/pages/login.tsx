@@ -31,8 +31,13 @@ export default function Login() {
         body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Login failed"); return; }
-      await refetch();
+      const errMsg = data.error ?? data.message;
+      if (!res.ok) { setError(errMsg ?? "Login failed"); return; }
+      const me = await refetch();
+      if (!me.data) {
+        setError("Signed in but session did not persist — check SESSION_SECRET and server logs");
+        return;
+      }
       // navigation handled by useEffect watching user
     } catch {
       setError("Network error — please try again");
@@ -59,8 +64,13 @@ export default function Login() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Registration failed"); return; }
-      await refetch();
+      const errMsg = data.error ?? data.message;
+      if (!res.ok) { setError(errMsg ?? "Registration failed"); return; }
+      const me = await refetch();
+      if (!me.data) {
+        setError("Account created but session did not persist — check SESSION_SECRET and server logs");
+        return;
+      }
       // navigation handled by useEffect watching user
     } catch {
       setError("Network error — please try again");
