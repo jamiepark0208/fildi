@@ -1,7 +1,7 @@
 import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
@@ -10,22 +10,11 @@ import {
   type TickerFundamentalsRow,
   db,
   indicatorCache,
-  tickerFundamentals,
-  tickerTechnicals,
-  watchlist,
 } from "@workspace/db";
-import { readFundamentalsRow, checkFMPBudget } from "../lib/fundamentals-db.js";
+import { readFundamentalsRow } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { buildCatalysts } from "../lib/catalysts.js";
+import { buildCatalysts, parseEarningsDate, yahooEpochToMs, yahooEpochToDateStr } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
-import {
-  rankCompetitors,
-  isFundamentalsStale,
-  isTechnicalsStale,
-} from "../lib/peer-rankings.js";
-import { requireAuth } from "../middleware/requireAuth.js";
-import { refreshFundamentals } from "./fundamentals.js";
-import { refreshTechnicalsForTicker } from "../lib/technicals-db.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -626,25 +615,42 @@ function buildBearBullets(m: any): string[] {
 
 export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown');
 
-const backfillQueued = new Set<string>();
+type BreakdownPayload = {
+  metrics: unknown;
+  recommendations: unknown;
+  analystActions: Array<{ firm: string; toGrade: string; fromGrade: string; action: string; date: string | null }>;
+  analystPriceTargets: unknown;
+  priceTargetRange: unknown;
+  bullBullets: string[];
+  bearBullets: string[];
+  news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null }>;
+  snowflake: unknown;
+  earningsDate?: string | null;
+  catalysts?: string[];
+};
 
-function parseEarningsDate(summary: unknown, dbDate: string | null): string | null {
-  if (dbDate) return dbDate;
-  const dates = (summary as any)?.calendarEvents?.earnings?.earningsDate;
-  const d = Array.isArray(dates) ? dates[0] : dates;
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  if (typeof d === "number") return new Date(d * 1000).toISOString().slice(0, 10);
-  return null;
+function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
+  payload.catalysts = buildCatalysts({
+    earningsDate: payload.earningsDate ?? null,
+    analystActions: payload.analystActions ?? [],
+    news: payload.news ?? [],
+  });
+  return payload;
 }
+
+// Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
+const BREAKDOWN_CACHE_VER = 2;
 
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
   if (!ticker || typeof ticker !== "string") {
     return res.status(400).json({ error: "ticker is required" });
   }
-  const key = ticker.toUpperCase();
-  const cached = breakdownCache.get(key);
-  if (cached) return res.json(cached);
+  const key = `${ticker.toUpperCase()}:v${BREAKDOWN_CACHE_VER}`;
+  const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
+  if (cached) {
+    return res.json(attachCatalysts(cached));
+  }
 
   try {
     const fmpApiKey = process.env.FMP_API_KEY ?? "";
@@ -688,22 +694,20 @@ router.get("/stocks/breakdown", async (req, res) => {
     const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
     const firmMap = new Map<string, any>();
     for (const item of rawHistory) {
-      const ts = item.epochGradeDate ? item.epochGradeDate * 1000 : 0;
-      if (ts < cutoff) continue;
+      const ts = yahooEpochToMs(item.epochGradeDate);
+      if (!ts || ts < cutoff) continue;
       const firm = (item.firm ?? "Unknown") as string;
       if (!firmMap.has(firm)) firmMap.set(firm, item);
     }
     const analystActions = Array.from(firmMap.values())
-      .sort((a, b) => (b.epochGradeDate ?? 0) - (a.epochGradeDate ?? 0))
+      .sort((a, b) => yahooEpochToMs(b.epochGradeDate) - yahooEpochToMs(a.epochGradeDate))
       .slice(0, 10)
       .map(item => ({
         firm: item.firm ?? "Unknown",
         toGrade: item.toGrade ?? "",
         fromGrade: item.fromGrade ?? "",
         action: item.action ?? "maintain",
-        date: item.epochGradeDate
-          ? new Date(item.epochGradeDate * 1000).toISOString().split("T")[0]
-          : null,
+        date: yahooEpochToDateStr(item.epochGradeDate),
       }));
 
     // Aggregate price target range from financialData
@@ -754,13 +758,19 @@ router.get("/stocks/breakdown", async (req, res) => {
     };
 
     const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
-    const catalysts = buildCatalysts({
-      earningsDate,
-      analystActions,
-      news,
-    });
 
-    const payload = { metrics, recommendations, analystActions, analystPriceTargets, priceTargetRange, bullBullets, bearBullets, news, snowflake, catalysts };
+    const payload = attachCatalysts({
+      metrics,
+      recommendations,
+      analystActions,
+      analystPriceTargets,
+      priceTargetRange,
+      bullBullets,
+      bearBullets,
+      news,
+      snowflake,
+      earningsDate,
+    });
     breakdownCache.set(key, payload);
     return res.json(payload);
   } catch (err: any) {
@@ -772,7 +782,7 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
 });
 
-// GET /stocks/competitors/:ticker — DB-first peer list ranked by 50/50 tech+fund score
+// GET /stocks/competitors/:ticker — DB-first peer tickers (no scoring)
 router.get("/stocks/competitors/:ticker", async (req, res) => {
   const key = String(req.params["ticker"] ?? "").toUpperCase();
   if (!key) return res.status(400).json({ error: "ticker required" });
@@ -780,94 +790,17 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
   try {
     const hadCache = peersCache.get(key) != null;
     const { sector, industry, peers } = await resolvePeers(key);
-    const pool = peers.slice(0, 15);
-    if (pool.length === 0) {
-      return res.json({ ticker: key, sector, industry, competitors: [], source: hadCache ? "cache" : "db" });
-    }
-
-    const [techRows, fundRows] = await Promise.all([
-      db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, pool)),
-      db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, pool)),
-    ]);
-
-    const competitors = rankCompetitors(key, pool, techRows, fundRows);
-    return res.json({ ticker: key, sector, industry, competitors, source: hadCache ? "cache" : "db" });
+    return res.json({
+      ticker: key,
+      sector,
+      industry,
+      peers: peers.slice(0, 8),
+      source: hadCache ? "cache" : "db",
+    });
   } catch (err: any) {
     logger.error({ ticker: key, err }, "GET /stocks/competitors failed");
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
-});
-
-// POST /stocks/competitors/backfill — queue score refresh for stale/missing peers only
-router.post("/stocks/competitors/backfill", requireAuth, async (req, res) => {
-  const body = req.body as { tickers?: string[] };
-  const raw = Array.isArray(body.tickers) ? body.tickers : [];
-  const tickers = [...new Set(raw.map(t => String(t).trim().toUpperCase()).filter(Boolean))].slice(0, 5);
-  if (tickers.length === 0) return res.status(400).json({ error: "tickers required" });
-
-  const userId = req.session.userId!;
-
-  const [techRows, fundRows] = await Promise.all([
-    db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, tickers)),
-    db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, tickers)),
-  ]);
-  const techMap = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
-  const fundMap = new Map(fundRows.map(r => [r.ticker.toUpperCase(), r]));
-
-  const needFund: string[] = [];
-  const needTech: string[] = [];
-  const skippedFresh: string[] = [];
-
-  for (const t of tickers) {
-    const techRow = techMap.get(t) ?? null;
-    const fundRow = fundMap.get(t) ?? null;
-    const fundStale = isFundamentalsStale(fundRow);
-    const techStale = isTechnicalsStale(techRow);
-    if (fundStale) needFund.push(t);
-    if (techStale) needTech.push(t);
-    if (!fundStale && !techStale) skippedFresh.push(t);
-  }
-
-  const toQueue = [...new Set([...needFund, ...needTech])].filter(t => !backfillQueued.has(t));
-  for (const t of toQueue) backfillQueued.add(t);
-
-  if (needFund.length > 0) {
-    const budget = await checkFMPBudget(needFund.length * 7);
-    if (!budget.allowed) {
-      return res.status(429).json({
-        error: "FMP daily budget would be exceeded",
-        queued: [],
-        skippedFresh,
-        skippedBudget: needFund,
-      });
-    }
-  }
-
-  for (const t of tickers) {
-    await db.insert(watchlist)
-      .values({ userId, ticker: t, tier: 1, status: "monitoring" })
-      .onConflictDoNothing();
-  }
-
-  if (toQueue.length > 0) {
-    res.status(202).json({ queued: toQueue, skippedFresh, skippedBudget: [] });
-    (async () => {
-      try {
-        if (needFund.length > 0) await refreshFundamentals(needFund);
-        for (let i = 0; i < needTech.length; i += 3) {
-          const batch = needTech.slice(i, i + 3);
-          await Promise.all(batch.map(t => refreshTechnicalsForTicker(t).catch(err => {
-            logger.warn({ ticker: t, err: String(err) }, "competitors backfill: technicals failed");
-          })));
-        }
-      } finally {
-        for (const t of toQueue) backfillQueued.delete(t);
-      }
-    })().catch(err => logger.error({ err }, "competitors backfill crashed"));
-    return;
-  }
-
-  return res.status(200).json({ queued: [], skippedFresh, skippedBudget: [] });
 });
 
 export default router;

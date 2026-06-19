@@ -13,8 +13,44 @@ export interface CatalystNewsItem {
 
 const EVENT_KEYWORDS = /\b(earnings|fda|merger|acquisition|lawsuit|guidance|dividend|split|ipo|bankruptcy|recall|approval|trial|settlement)\b/i;
 
+const ACTION_LABEL: Record<string, string> = {
+  main: "maintains",
+  reit: "reiterated",
+  up: "upgraded",
+  down: "downgraded",
+  init: "initiated",
+};
+
+/** Yahoo returns epoch as seconds, ms, ISO string, or Date depending on module/version. */
+export function yahooEpochToMs(epoch: unknown): number {
+  if (epoch == null) return 0;
+  if (epoch instanceof Date) return epoch.getTime();
+  if (typeof epoch === "number") return epoch > 1e12 ? epoch : epoch * 1000;
+  const parsed = Date.parse(String(epoch));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function yahooEpochToDateStr(epoch: unknown): string | null {
+  const ms = yahooEpochToMs(epoch);
+  if (!ms) return null;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** Parse earnings from Yahoo calendarEvents (+ optional DB fallback). */
+export function parseEarningsDate(summary: unknown, dbDate: string | null): string | null {
+  if (dbDate) return dbDate.slice(0, 10);
+  const dates = (summary as { calendarEvents?: { earnings?: { earningsDate?: unknown } } })
+    ?.calendarEvents?.earnings?.earningsDate;
+  const d = Array.isArray(dates) ? dates[0] : dates;
+  if (d == null) return null;
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  if (typeof d === "number") return new Date(d > 1e12 ? d : d * 1000).toISOString().slice(0, 10);
+  if (typeof d === "string" && d.length >= 10) return d.slice(0, 10);
+  return null;
+}
+
 function daysUntil(iso: string): number {
-  const d = new Date(iso + "T12:00:00").getTime();
+  const d = new Date(iso.includes("T") ? iso : iso + "T12:00:00").getTime();
   return Math.round((d - Date.now()) / 86400000);
 }
 
@@ -24,17 +60,19 @@ function analystLine(a: CatalystAnalystAction): string | null {
   const to = a.toGrade || "";
   const from = a.fromGrade || "";
   const date = a.date ?? "";
-  if (act.includes("upgrade") || act.includes("up") || act.includes("init")) {
-    return from
+  const label = ACTION_LABEL[act] ?? act;
+
+  if (act === "up" || act === "upgrade" || act === "init") {
+    return from && from !== to
       ? `${firm} upgraded from ${from} to ${to}${date ? ` (${date})` : ""}`
       : `${firm} rated ${to}${date ? ` (${date})` : ""}`;
   }
-  if (act.includes("downgrade") || act.includes("down")) {
-    return from
+  if (act === "down" || act === "downgrade") {
+    return from && from !== to
       ? `${firm} cut from ${from} to ${to}${date ? ` (${date})` : ""}`
       : `${firm} cut to ${to}${date ? ` (${date})` : ""}`;
   }
-  if (to) return `${firm} ${act || "maintains"} ${to}${date ? ` (${date})` : ""}`;
+  if (to) return `${firm} ${label || "maintains"} ${to}${date ? ` (${date})` : ""}`;
   return null;
 }
 
