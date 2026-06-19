@@ -63,9 +63,9 @@ function MarketChip({ point }: { point: MarketDataPoint }) {
     : "—";
 
   return (
-    <div className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-secondary/30 border border-border/40 min-w-[72px]">
-      <span className="text-[10px] text-muted-foreground font-medium tracking-wide">{point.label}</span>
-      <span className={cn("text-sm font-bold font-mono tabular-nums leading-none", chipColor)}>{priceStr}</span>
+    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-secondary/30 border border-border/40">
+      <span className="text-[10px] text-white/40 font-medium tracking-wide whitespace-nowrap">{point.label}</span>
+      <span className={cn("text-xs font-bold font-mono tabular-nums", chipColor)}>{priceStr}</span>
       {pctStr && (
         <span className={cn("text-[10px] font-mono flex items-center gap-0.5", chipColor)}>
           <Icon className="w-2.5 h-2.5" />{pctStr}
@@ -477,7 +477,7 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
         <div>
           {/* Market chips — always visible */}
           {marketData.length > 0 && (
-            <div className="px-4 pt-3 pb-2 flex flex-wrap gap-2">
+            <div className="px-4 py-2 flex flex-wrap gap-1.5">
               {marketData.map(pt => <MarketChip key={pt.symbol} point={pt} />)}
             </div>
           )}
