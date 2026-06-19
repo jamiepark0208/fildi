@@ -627,6 +627,9 @@ type BreakdownPayload = {
   snowflake: unknown;
   earningsDate?: string | null;
   catalysts?: string[];
+  peers?: string[];
+  peerIndustry?: string | null;
+  peerSector?: string | null;
 };
 
 function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
@@ -638,8 +641,23 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
   return payload;
 }
 
+async function attachPeers(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
+  try {
+    const { sector, industry, peers } = await resolvePeers(ticker);
+    payload.peers = peers.slice(0, 8);
+    payload.peerIndustry = industry;
+    payload.peerSector = sector;
+  } catch (err) {
+    logger.warn({ ticker, err }, "attachPeers failed");
+    payload.peers = payload.peers ?? [];
+    payload.peerIndustry = payload.peerIndustry ?? null;
+    payload.peerSector = payload.peerSector ?? null;
+  }
+  return payload;
+}
+
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 2;
+const BREAKDOWN_CACHE_VER = 3;
 
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
@@ -649,12 +667,14 @@ router.get("/stocks/breakdown", async (req, res) => {
   const key = `${ticker.toUpperCase()}:v${BREAKDOWN_CACHE_VER}`;
   const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
   if (cached) {
-    return res.json(attachCatalysts(cached));
+    attachCatalysts(cached);
+    await attachPeers(key, cached);
+    return res.json(cached);
   }
 
   try {
     const fmpApiKey = process.env.FMP_API_KEY ?? "";
-    const [summary, newsRes, fmpRow, fmpTargetsRaw, earningsDbRows] = await Promise.all([
+    const [summary, newsRes, fmpRow, fmpTargetsRaw, earningsDbRows, peersPayload] = await Promise.all([
       yahooFinance.quoteSummary(key, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
       }),
@@ -669,6 +689,10 @@ router.get("/stocks/breakdown", async (req, res) => {
         .from(indicatorCache)
         .where(eq(indicatorCache.ticker, key))
         .limit(1),
+      resolvePeers(key).catch(err => {
+        logger.warn({ ticker: key, err }, "resolvePeers in breakdown failed");
+        return { ticker: key, sector: null, industry: null, peers: [] as string[] };
+      }),
     ]);
 
     const merged = {
@@ -770,6 +794,9 @@ router.get("/stocks/breakdown", async (req, res) => {
       news,
       snowflake,
       earningsDate,
+      peers: peersPayload.peers.slice(0, 8),
+      peerIndustry: peersPayload.industry,
+      peerSector: peersPayload.sector,
     });
     breakdownCache.set(key, payload);
     return res.json(payload);
