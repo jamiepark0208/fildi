@@ -125,6 +125,22 @@ export async function mergePeerLinks(subject: string, peers: string[]): Promise<
   }
 }
 
+async function fetchFinnhubPeers(ticker: string): Promise<string[]> {
+  const apiKey = process.env.FINNHUB_API_KEY ?? "";
+  if (!apiKey) return [];
+  try {
+    const url = `https://finnhub.io/api/v1/stock/peers?symbol=${encodeURIComponent(ticker)}&token=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (!Array.isArray(json)) return [];
+    return uniqUpper((json as string[]).filter(p => p && p !== ticker));
+  } catch (err) {
+    logger.warn({ ticker, err: String(err) }, "peer-resolver: Finnhub peers failed");
+    return [];
+  }
+}
+
 async function fetchFMPStockPeers(ticker: string): Promise<string[]> {
   const apiKey = process.env.FMP_API_KEY ?? "";
   if (!apiKey) return [];
@@ -179,6 +195,15 @@ export async function resolvePeers(ticker: string): Promise<PeersPayload> {
         name: profile.name,
         peerTickers: reg?.peerTickers ?? [],
       });
+      reg = await readRegistryRow(key);
+      peers = await collectPeersFromRegistry(reg, key);
+    }
+  }
+
+  if (peers.length < 5) {
+    const finnhubPeers = await fetchFinnhubPeers(key);
+    if (finnhubPeers.length > 0) {
+      await mergePeerLinks(key, finnhubPeers);
       reg = await readRegistryRow(key);
       peers = await collectPeersFromRegistry(reg, key);
     }

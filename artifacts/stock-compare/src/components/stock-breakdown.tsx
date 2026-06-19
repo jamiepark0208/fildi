@@ -385,7 +385,7 @@ function AnalystRatingsSection({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground/55 italic">No individual analyst price targets available.</p>
+            <p className="text-sm text-foreground/55 italic">Per-analyst price targets not yet loaded — check back shortly.</p>
           )}
         </div>
       )}
