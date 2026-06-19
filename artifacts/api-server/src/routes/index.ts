@@ -16,6 +16,7 @@ import watchlistRouter from "./watchlist";
 import scoringConfigRouter from "./scoring-config";
 import feedRouter from "./feed";
 import adminCacheRouter from "./admin-cache";
+import portfolioIngestRouter from "./portfolio-ingest";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(explainRouter);
 router.use(sdmRouter);
 router.use(macroRegimeRouter);
 router.use(adminCacheRouter);
+router.use(portfolioIngestRouter);
 
 export default router;
