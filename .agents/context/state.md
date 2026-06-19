@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-19
 
 ## Active work
-- Working: watchlist-stock-analysis, fildi-social-feed
-- In progress: profile-redesign-complete
-- Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
+- Working: portfolio-csv-parser, portfolio-db-schema
+- In progress: portfolio-ingest-route — parser and DB tables done, import route not yet built
+- Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5; FMP daily rate limit exhausted — per-analyst price targets will not show until reset
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
