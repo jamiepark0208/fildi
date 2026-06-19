@@ -851,29 +851,49 @@ export default function Portfolio() {
             </div>
           ) : (
             <>
-              {/* Aggregate summary */}
-              {entries.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <AggCard label="Total Portfolio Value" value={formatCurrency(agg.totalValue)}
-                    sub="collateral + premium + stock"
-                    icon={<Wallet className="w-4 h-4 text-primary" />} highlight />
-                  <AggCard label="Cash Collateral Tied Up" value={formatCurrency(agg.totalCollateral)}
-                    sub="locked for short puts (strike × 100 × qty)"
-                    icon={<Wallet className="w-4 h-4 text-yellow-400" />} />
-                  <AggCard label="Premium Collected" value={formatCurrency(agg.totalPremium)}
-                    sub={`from ${agg.openOptions} option leg${agg.openOptions !== 1 ? "s" : ""}`}
-                    icon={<TrendingUp className="w-4 h-4 text-green-400" />} />
-                  <AggCard label="Expiring This Week" value={String(agg.expiringThisWeek)}
-                    sub={`of ${agg.openOptions} open legs`}
-                    icon={<Clock className={cn("w-4 h-4", agg.expiringThisWeek > 0 ? "text-yellow-400" : "")} />} />
+              {/* Compact summary strip — live from Robinhood snapshot */}
+              {rhData?.snapshot && (
+                <div className="flex items-center gap-px bg-card border border-border rounded-xl overflow-hidden">
+                  {[
+                    {
+                      label: 'Portfolio Value',
+                      value: rhData.snapshot.totalValue ? formatCurrency(parseFloat(rhData.snapshot.totalValue)) : '—',
+                      color: 'text-white',
+                      accent: true,
+                    },
+                    {
+                      label: 'Collateral Tied Up',
+                      value: formatCurrency(agg.totalCollateral),
+                      color: 'text-yellow-400',
+                    },
+                    {
+                      label: 'Premium Collected',
+                      value: formatCurrency(agg.totalPremium),
+                      color: 'text-green-400',
+                    },
+                    {
+                      label: 'Expiring This Week',
+                      value: String(agg.expiringThisWeek),
+                      color: agg.expiringThisWeek > 0 ? 'text-orange-400' : 'text-white',
+                    },
+                  ].map(({ label, value, color, accent }) => (
+                    <div key={label} className={cn(
+                      'flex-1 px-4 py-3 flex flex-col gap-0.5',
+                      accent ? 'bg-primary/8' : 'bg-transparent',
+                      'border-r border-border last:border-r-0'
+                    )}>
+                      <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest">{label}</span>
+                      <span className={cn('text-base font-bold font-mono tabular-nums leading-tight', color)}>{value}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Robinhood CSV Portfolio */}
-              <RobinhoodPortfolio />
-
               {/* Daily AI Highlights */}
               <DailyBrief tickers={uniqueTickers} />
+
+              {/* Robinhood CSV Portfolio */}
+              <RobinhoodPortfolio />
 
               {/* Portfolio Analysis — driven by Robinhood snapshot */}
               {entries.length > 0 && (

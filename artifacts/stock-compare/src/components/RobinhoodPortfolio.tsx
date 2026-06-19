@@ -93,6 +93,10 @@ function groupByAccount<T extends { accountNickname?: string | null; account: st
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+const TH = 'py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-white/35'
+const TD = 'py-2 px-3 text-xs text-white tabular-nums'
+const TDr = `${TD} text-right`
+
 function AccountGroup({
   name,
   children,
@@ -107,15 +111,15 @@ function AccountGroup({
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 w-full py-1.5 px-2 rounded hover:bg-secondary/50 transition-colors text-left"
+        className="flex items-center gap-2 w-full py-2 px-3 hover:bg-white/5 transition-colors text-left"
       >
         {open
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          ? <ChevronDown className="h-3 w-3 text-white/30" />
+          : <ChevronRight className="h-3 w-3 text-white/30" />
         }
-        <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">{name}</span>
+        <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest">{name}</span>
       </button>
-      {open && <div className="mt-0.5">{children}</div>}
+      {open && children}
     </div>
   )
 }
@@ -126,42 +130,40 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
   const orderedGroups = order.filter(k => groups.has(k))
 
   if (positions.length === 0) {
-    return <p className="text-xs text-muted-foreground px-2 py-3">No equity positions in this snapshot.</p>
+    return <p className="text-xs text-white/30 px-3 py-3">No equity positions in this snapshot.</p>
   }
 
   return (
-    <div className="space-y-1">
+    <div>
       {orderedGroups.map(acct => (
         <AccountGroup key={acct} name={acct}>
-          <table className="w-full text-xs">
+          <table className="w-full">
             <thead>
-              <tr className="text-muted-foreground/60 border-b border-border">
-                <th className="text-left py-1 px-2 font-medium">Symbol</th>
-                <th className="text-right py-1 px-2 font-medium">Qty</th>
-                <th className="text-right py-1 px-2 font-medium">Avg Cost</th>
-                <th className="text-right py-1 px-2 font-medium">Last</th>
-                <th className="text-right py-1 px-2 font-medium">Mkt Value</th>
-                <th className="text-right py-1 px-2 font-medium">Unreal P&L</th>
-                <th className="text-right py-1 px-2 font-medium">P&L%</th>
+              <tr className="border-y border-white/8 bg-white/3">
+                <th className={`${TH} text-left`}>Symbol</th>
+                <th className={`${TH} text-right`}>Qty</th>
+                <th className={`${TH} text-right`}>Avg Cost</th>
+                <th className={`${TH} text-right`}>Last</th>
+                <th className={`${TH} text-right`}>Mkt Value</th>
+                <th className={`${TH} text-right`}>Unrealized P&L</th>
+                <th className={`${TH} text-right`}>P&L %</th>
               </tr>
             </thead>
             <tbody>
-              {groups.get(acct)!.map(p => (
-                <tr key={p.id} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
-                  <td className="py-1.5 px-2 font-semibold text-foreground">{p.symbol}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtNum(p.quantity)}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtUsd(p.avgCost)}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtUsd(p.lastPrice)}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtUsd(p.marketValue)}</td>
-                  <td className={cn('py-1.5 px-2 text-right', pnlColor(p.unrealizedPnL))}>
-                    <span className="flex items-center justify-end gap-1">
+              {groups.get(acct)!.map((p, i) => (
+                <tr key={p.id} className={cn('border-b border-white/5 hover:bg-white/5 transition-colors', i % 2 === 0 ? '' : 'bg-white/[0.02]')}>
+                  <td className={`${TD} text-left font-semibold text-white`}>{p.symbol}</td>
+                  <td className={TDr}>{fmtNum(p.quantity)}</td>
+                  <td className={TDr}>{fmtUsd(p.avgCost)}</td>
+                  <td className={TDr}>{fmtUsd(p.lastPrice)}</td>
+                  <td className={TDr}>{fmtUsd(p.marketValue)}</td>
+                  <td className={cn(TDr, pnlColor(p.unrealizedPnL))}>
+                    <span className="inline-flex items-center justify-end gap-1">
                       <PnlIcon v={p.unrealizedPnL} />
                       {fmtUsd(p.unrealizedPnL)}
                     </span>
                   </td>
-                  <td className={cn('py-1.5 px-2 text-right', pnlColor(p.pnlPct))}>
-                    {fmtPct(p.pnlPct)}
-                  </td>
+                  <td className={cn(TDr, pnlColor(p.pnlPct))}>{fmtPct(p.pnlPct)}</td>
                 </tr>
               ))}
             </tbody>
@@ -173,59 +175,57 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
 }
 
 function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap: Map<string, string> }) {
-  // Resolve raw account IDs to nicknames using the map built from positions
   const withNickname = options.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account }))
   const groups = groupByAccount(withNickname)
   const order = [...KNOWN_PORTFOLIOS, ...Array.from(groups.keys()).filter(k => !KNOWN_PORTFOLIOS.includes(k))]
   const orderedGroups = order.filter(k => groups.has(k))
 
   if (options.length === 0) {
-    return <p className="text-xs text-muted-foreground px-2 py-3">No option positions in this snapshot.</p>
+    return <p className="text-xs text-white/30 px-3 py-3">No option positions in this snapshot.</p>
   }
 
   return (
-    <div className="space-y-1">
+    <div>
       {orderedGroups.map(acct => (
         <AccountGroup key={acct} name={acct}>
-          <table className="w-full text-xs">
+          <table className="w-full">
             <thead>
-              <tr className="text-muted-foreground/60 border-b border-border">
-                <th className="text-left py-1 px-2 font-medium">Symbol</th>
-                <th className="text-left py-1 px-2 font-medium">Type</th>
-                <th className="text-right py-1 px-2 font-medium">Strike</th>
-                <th className="text-right py-1 px-2 font-medium">Expiry</th>
-                <th className="text-right py-1 px-2 font-medium">Qty</th>
-                <th className="text-right py-1 px-2 font-medium">Mark</th>
-                <th className="text-right py-1 px-2 font-medium">Unreal P&L</th>
-                <th className="text-right py-1 px-2 font-medium">P&L%</th>
+              <tr className="border-y border-white/8 bg-white/3">
+                <th className={`${TH} text-left`}>Symbol</th>
+                <th className={`${TH} text-left`}>Type</th>
+                <th className={`${TH} text-right`}>Strike</th>
+                <th className={`${TH} text-right`}>Expiry</th>
+                <th className={`${TH} text-right`}>Qty</th>
+                <th className={`${TH} text-right`}>Mark</th>
+                <th className={`${TH} text-right`}>Unrealized P&L</th>
+                <th className={`${TH} text-right`}>P&L %</th>
               </tr>
             </thead>
             <tbody>
-              {groups.get(acct)!.map(o => (
-                <tr key={o.id} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
-                  <td className="py-1.5 px-2 font-semibold text-foreground">{o.symbol}</td>
-                  <td className="py-1.5 px-2">
+              {groups.get(acct)!.map((o, i) => (
+                <tr key={o.id} className={cn('border-b border-white/5 hover:bg-white/5 transition-colors', i % 2 === 0 ? '' : 'bg-white/[0.02]')}>
+                  <td className={`${TD} text-left font-semibold text-white`}>{o.symbol}</td>
+                  <td className={`${TD} text-left`}>
                     <span className={cn(
-                      'inline-flex items-center gap-1 text-xs font-medium',
-                      o.direction === 'short' ? 'text-green-400' : 'text-blue-400'
+                      'inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded',
+                      o.direction === 'short'
+                        ? 'bg-green-500/15 text-green-400'
+                        : 'bg-blue-500/15 text-blue-400'
                     )}>
-                      {o.direction === 'short' ? 'Short' : 'Long'}{' '}
-                      {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1)}
+                      {o.direction === 'short' ? 'Short' : 'Long'} {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1)}
                     </span>
                   </td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">
-                    {o.strike ? `$${parseFloat(o.strike).toFixed(0)}` : '—'}
-                  </td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{o.expiration ?? '—'}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtNum(o.qty)}</td>
-                  <td className="py-1.5 px-2 text-right text-muted-foreground">{fmtUsd(o.markPrice)}</td>
-                  <td className={cn('py-1.5 px-2 text-right', pnlColor(o.unrealizedPnL))}>
-                    <span className="flex items-center justify-end gap-1">
+                  <td className={TDr}>{o.strike ? `$${parseFloat(o.strike).toFixed(0)}` : '—'}</td>
+                  <td className={TDr}>{o.expiration ?? '—'}</td>
+                  <td className={TDr}>{fmtNum(o.qty)}</td>
+                  <td className={TDr}>{fmtUsd(o.markPrice)}</td>
+                  <td className={cn(TDr, pnlColor(o.unrealizedPnL))}>
+                    <span className="inline-flex items-center justify-end gap-1">
                       <PnlIcon v={o.unrealizedPnL} />
                       {fmtUsd(o.unrealizedPnL)}
                     </span>
                   </td>
-                  <td className={cn('py-1.5 px-2 text-right', pnlColor(o.pnlPct))}>
+                  <td className={cn(TDr, pnlColor(o.pnlPct))}>
                     {fmtPct(o.pnlPct)}
                   </td>
                 </tr>
@@ -270,9 +270,9 @@ export function RobinhoodPortfolio() {
       {/* Header + upload */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Robinhood Portfolio</h2>
+          <h2 className="text-sm font-semibold text-white">Robinhood Portfolio</h2>
           {importedAt && (
-            <p className="text-xs text-muted-foreground/70">Last import: {importedAt}</p>
+            <p className="text-[11px] text-white/35 mt-0.5">Last import: {importedAt}</p>
           )}
         </div>
         <div className="w-72">
@@ -280,26 +280,8 @@ export function RobinhoodPortfolio() {
         </div>
       </div>
 
-      {/* Account summary */}
-      {snapshot && (
-        <div className="flex gap-4">
-          <div className="bg-card border border-border rounded-lg px-4 py-2.5">
-            <p className="text-xs text-muted-foreground/70">Total Value</p>
-            <p className="text-sm font-semibold text-foreground">
-              {totalValue != null ? fmt.format(totalValue) : '—'}
-            </p>
-          </div>
-          <div className="bg-card border border-border rounded-lg px-4 py-2.5">
-            <p className="text-xs text-muted-foreground/70">Accounts</p>
-            <p className="text-sm font-semibold text-foreground">
-              {[...new Set(positions.map(p => p.accountNickname ?? p.account))].join(', ') || '—'}
-            </p>
-          </div>
-        </div>
-      )}
-
       {isLoading && (
-        <p className="text-xs text-muted-foreground animate-pulse px-2">Loading portfolio…</p>
+        <p className="text-xs text-white/30 animate-pulse px-2">Loading portfolio…</p>
       )}
 
       {error && (
@@ -307,42 +289,30 @@ export function RobinhoodPortfolio() {
       )}
 
       {!isLoading && !error && !snapshot && (
-        <p className="text-xs text-muted-foreground px-2">
-          No snapshot yet. Upload a Robinhood CSV above to get started.
+        <p className="text-xs text-white/40 px-2">
+          No snapshot yet — upload a Robinhood CSV above.
         </p>
       )}
 
       {/* Equity positions */}
       {positions.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border">
-            <h3 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
-              Equity Positions
-              <span className="ml-2 text-muted-foreground/60 font-normal normal-case">
-                {positions.length} holdings
-              </span>
-            </h3>
+          <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Equity Positions</h3>
+            <span className="text-[10px] text-white/30">{positions.length} holdings</span>
           </div>
-          <div className="px-2 py-1.5">
-            <EquityTable positions={positions} />
-          </div>
+          <EquityTable positions={positions} />
         </div>
       )}
 
       {/* Option positions */}
       {options.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border">
-            <h3 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
-              Option Positions
-              <span className="ml-2 text-muted-foreground/60 font-normal normal-case">
-                {options.length} contracts
-              </span>
-            </h3>
+          <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Option Positions</h3>
+            <span className="text-[10px] text-white/30">{options.length} contracts</span>
           </div>
-          <div className="px-2 py-1.5">
-            <OptionsTable options={options} accountMap={accountMap} />
-          </div>
+          <OptionsTable options={options} accountMap={accountMap} />
         </div>
       )}
     </div>
