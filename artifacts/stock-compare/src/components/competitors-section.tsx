@@ -1,8 +1,6 @@
-import { useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWatchlist } from "@/hooks/use-watchlist";
 
 export interface CompetitorRow {
   rank: number;
@@ -42,45 +40,16 @@ async function fetchCompetitors(ticker: string): Promise<CompetitorsResponse> {
   return res.json();
 }
 
+/** Read-only peer rankings from DB — one GET per stock view, no auto-backfill or watchlist writes. */
 export function CompetitorsSection({ ticker }: { ticker: string }) {
-  const queryClient = useQueryClient();
-  const { addEntryIfMissing } = useWatchlist();
-  const backfillSent = useRef(false);
-
-  useEffect(() => {
-    backfillSent.current = false;
-  }, [ticker]);
-
   const { data, isLoading, error } = useQuery({
     queryKey: ["competitors", ticker],
     queryFn: () => fetchCompetitors(ticker),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
     enabled: !!ticker,
   });
-
-  useEffect(() => {
-    if (!data || backfillSent.current) return;
-    const needBackfill = data.competitors.filter(c => c.pendingBackfill);
-    if (needBackfill.length === 0) return;
-    backfillSent.current = true;
-
-    for (const c of needBackfill) {
-      addEntryIfMissing(c.ticker);
-    }
-
-    fetch("/api/stocks/competitors/backfill", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tickers: needBackfill.map(c => c.ticker) }),
-    })
-      .then(() => {
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ["competitors", ticker] });
-        }, 30_000);
-      })
-      .catch(() => {});
-  }, [data, ticker, addEntryIfMissing, queryClient]);
 
   if (isLoading) {
     return (
@@ -94,6 +63,7 @@ export function CompetitorsSection({ ticker }: { ticker: string }) {
   if (error || !data) return null;
 
   const subtitle = [data.industry, data.sector].filter(Boolean).join(" · ");
+  const hasMissingScores = data.competitors.some(c => c.combinedScore == null);
 
   return (
     <div className="bg-card border border-border/50 rounded-xl p-4">
@@ -104,7 +74,7 @@ export function CompetitorsSection({ ticker }: { ticker: string }) {
       {!subtitle && <div className="mb-3" />}
 
       {data.competitors.length === 0 ? (
-        <p className="text-sm text-foreground/55">No peer data available yet.</p>
+        <p className="text-sm text-foreground/55">No peer data in registry yet.</p>
       ) : (
         <div className="space-y-2">
           {data.competitors.map(row => (
@@ -115,14 +85,16 @@ export function CompetitorsSection({ ticker }: { ticker: string }) {
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-xs text-foreground/45 font-mono w-6 shrink-0">#{row.rank}</span>
                 <span className="text-sm font-semibold text-foreground font-mono">{row.ticker}</span>
-                {row.pendingBackfill && row.combinedScore == null && (
-                  <span className="text-[10px] text-foreground/45">Scoring…</span>
-                )}
               </div>
               <CombinedScore score={row.combinedScore} />
             </div>
           ))}
         </div>
+      )}
+      {hasMissingScores && (
+        <p className="text-[10px] text-foreground/45 mt-2">
+          Scores shown only for tickers already in the fundamentals/technicals DB.
+        </p>
       )}
     </div>
   );
