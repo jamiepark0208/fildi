@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-06-18
+**build** — last updated 2026-06-19
 
 ## Active work
-- Working: fildi-social-feed
-- In progress: options-comparison-table
+- Working: watchlist-stock-analysis, fildi-social-feed
+- In progress: profile-redesign-complete
 - Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5
 
 ## Next tasks (priority order)
