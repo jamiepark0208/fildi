@@ -529,7 +529,7 @@ router.get("/stocks/quote", async (req, res) => {
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
-      return res.status(404).json({ error: `Ticker not found: ${key}` });
+      return res.status(404).json({ error: `Ticker not found: ${upperTicker}` });
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
   }
@@ -641,21 +641,6 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
   return payload;
 }
 
-async function attachPeers(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
-  try {
-    const { sector, industry, peers } = await resolvePeers(ticker);
-    payload.peers = peers.slice(0, 8);
-    payload.peerIndustry = industry;
-    payload.peerSector = sector;
-  } catch (err) {
-    logger.warn({ ticker, err }, "attachPeers failed");
-    payload.peers = payload.peers ?? [];
-    payload.peerIndustry = payload.peerIndustry ?? null;
-    payload.peerSector = payload.peerSector ?? null;
-  }
-  return payload;
-}
-
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
 const BREAKDOWN_CACHE_VER = 3;
 
@@ -664,34 +649,33 @@ router.get("/stocks/breakdown", async (req, res) => {
   if (!ticker || typeof ticker !== "string") {
     return res.status(400).json({ error: "ticker is required" });
   }
-  const key = `${ticker.toUpperCase()}:v${BREAKDOWN_CACHE_VER}`;
+  const upperTicker = ticker.toUpperCase();
+  const key = `${upperTicker}:v${BREAKDOWN_CACHE_VER}`;
   const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
   if (cached) {
-    attachCatalysts(cached);
-    await attachPeers(key, cached);
-    return res.json(cached);
+    return res.json(attachCatalysts(cached));
   }
 
   try {
     const fmpApiKey = process.env.FMP_API_KEY ?? "";
     const [summary, newsRes, fmpRow, fmpTargetsRaw, earningsDbRows, peersPayload] = await Promise.all([
-      yahooFinance.quoteSummary(key, {
+      yahooFinance.quoteSummary(upperTicker, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
       }),
-      yahooFinance.search(key, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
-      readFundamentalsRow(key),
+      yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+      readFundamentalsRow(upperTicker),
       fmpApiKey
-        ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${key}&apikey=${fmpApiKey}&limit=20`)
+        ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${upperTicker}&apikey=${fmpApiKey}&limit=20`)
             .then(r => r.ok ? r.json() : [])
             .catch(() => [])
         : Promise.resolve([]),
       db.select({ earningsDate: indicatorCache.earningsDate })
         .from(indicatorCache)
-        .where(eq(indicatorCache.ticker, key))
+        .where(eq(indicatorCache.ticker, upperTicker))
         .limit(1),
-      resolvePeers(key).catch(err => {
-        logger.warn({ ticker: key, err }, "resolvePeers in breakdown failed");
-        return { ticker: key, sector: null, industry: null, peers: [] as string[] };
+      resolvePeers(upperTicker).catch(err => {
+        logger.warn({ ticker: upperTicker, err }, "resolvePeers in breakdown failed");
+        return { ticker: upperTicker, sector: null, industry: null, peers: [] as string[] };
       }),
     ]);
 
@@ -702,7 +686,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       ...summary.defaultKeyStatistics,
       ...summary.assetProfile,
     };
-    const metrics = buildMetrics(merged, fmpRow, key);
+    const metrics = buildMetrics(merged, fmpRow, upperTicker);
 
     const recTrend = (summary as any).recommendationTrend?.trend?.[0];
     const recommendations = recTrend ? {
@@ -803,7 +787,7 @@ router.get("/stocks/breakdown", async (req, res) => {
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
-      return res.status(404).json({ error: `Ticker not found: ${key}` });
+      return res.status(404).json({ error: `Ticker not found: ${upperTicker}` });
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
   }
