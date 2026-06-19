@@ -74,7 +74,11 @@ interface BreakdownData {
   bullBullets: string[];
   bearBullets: string[];
   news: NewsItem[];
+  earningsDate?: string | null;
   catalysts?: string[];
+  peers?: string[];
+  peerIndustry?: string | null;
+  peerSector?: string | null;
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────────
@@ -1044,10 +1048,19 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               />
             )}
 
-            <CatalystsSection catalysts={data.catalysts ?? []} />
+            <CatalystsSection
+              catalysts={data.catalysts}
+              earningsDate={data.earningsDate}
+              analystActions={data.analystActions}
+              news={data.news}
+            />
 
             {propTicker && activeTicker && (
-              <CompetitorsSection ticker={activeTicker} />
+              <CompetitorsSection
+                peers={data.peers ?? []}
+                industry={data.peerIndustry}
+                sector={data.peerSector}
+              />
             )}
 
             {/* ── Recent News ── */}
