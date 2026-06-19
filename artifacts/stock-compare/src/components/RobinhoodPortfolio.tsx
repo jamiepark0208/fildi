@@ -292,7 +292,7 @@ export function RobinhoodPortfolio() {
           <div className="bg-card border border-border rounded-lg px-4 py-2.5">
             <p className="text-xs text-muted-foreground/70">Accounts</p>
             <p className="text-sm font-semibold text-foreground">
-              {snapshot.accountIds.join(', ') || '—'}
+              {[...new Set(positions.map(p => p.accountNickname ?? p.account))].join(', ') || '—'}
             </p>
           </div>
         </div>
