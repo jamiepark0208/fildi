@@ -3,6 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
+- [2026-06-21](claude-2026-06-21.md) — auto-saved | build | next: build POST /api/portfolio/import route; reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
 - [2026-06-19](claude-2026-06-19.md) — auto-saved | build | next: build POST /api/portfolio/import route; reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
 - [2026-06-18](cursor-2026-06-18.md) — Cursor | watchlist-stock-analysis: Competitors 50/50 tech+fund, catalysts, DB-first peers | next: options-comparison-table; smoke-test competitors on Replit
 - [2026-06-18](claude-2026-06-18.md) — auto-saved | build | next: Reset user password;verify profile page in browser;Phase 5 FILDI approval;verify chart EMA lines and zone labels
