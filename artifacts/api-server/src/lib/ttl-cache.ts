@@ -33,6 +33,10 @@ export class TTLCache<T> {
     this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
   }
 
+  setTtl(ms: number) {
+    this.ttlMs = ms;
+  }
+
   clear() {
     this.store.clear();
   }
