@@ -13,6 +13,7 @@ import {
   Tooltip,
   Legend,
   AreaChart,
+  ReferenceLine,
   Area,
   ScatterChart,
   Scatter,
@@ -115,6 +116,9 @@ interface MacroData {
 }
 
 interface MacroCharts {
+  fearGreedHistory: ChartPoint[];
+  hySpreadHistory: ChartPoint[];
+  putCallHistory: ChartPoint[];
   fetchedAt: string;
   vixHistory: ChartPoint[];
   fedFundsHistory: ChartPoint[];
@@ -525,6 +529,37 @@ export default function MacroDashboard() {
             data={macroCharts?.tenYearHistory ?? []}
             color="#a78bfa"
             loading={!macroCharts}
+          />
+        </div>
+
+        {/* ── Fear & Greed · HY Spread · Put/Call ────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <RateHistoryChart
+            title="Fear & Greed Index"
+            data={macroCharts?.fearGreedHistory ?? []}
+            color="#f472b6"
+            loading={!macroCharts}
+            yFormatter={(v: number) => v.toFixed(0)}
+            tooltipFormatter={(v: number) => [v.toFixed(1)]}
+            referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]}
+          />
+          <RateHistoryChart
+            title="HY Credit Spread (OAS %)"
+            data={macroCharts?.hySpreadHistory ?? []}
+            color="#fb923c"
+            loading={!macroCharts}
+            yFormatter={(v: number) => `${v.toFixed(1)}%`}
+            tooltipFormatter={(v: number) => [`${v.toFixed(2)}%`]}
+            referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
+          />
+          <RateHistoryChart
+            title="CBOE Put/Call Ratio"
+            data={macroCharts?.putCallHistory ?? []}
+            color="#38bdf8"
+            loading={!macroCharts}
+            yFormatter={(v: number) => v.toFixed(2)}
+            tooltipFormatter={(v: number) => [v.toFixed(2)]}
+            referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.2, label: "Bearish", color: "#ef4444" }]}
           />
         </div>
 
@@ -1188,15 +1223,18 @@ function FedFundsCurveChart({
 // ── Rate History Chart ──────────────────────────────────────────────────────────
 
 function RateHistoryChart({
-  title,
-  data,
-  color,
-  loading,
+  title, data, color, loading,
+  yFormatter = (v: number) => `${v.toFixed(2)}%`,
+  tooltipFormatter = (v: number) => [`${v.toFixed(2)}%`],
+  referenceLines,
 }: {
   title: string;
   data: ChartPoint[];
   color: string;
   loading: boolean;
+  yFormatter?: (v: number) => string;
+  tooltipFormatter?: (v: number) => [string];
+  referenceLines?: { y: number; label: string; color: string }[];
 }) {
   return (
     <div className="border border-border rounded-lg p-4 space-y-2">
@@ -1223,18 +1261,18 @@ function RateHistoryChart({
               }
               interval={Math.floor(data.length / 6)}
             />
-            <YAxis
-              tick={{ fontSize: 9, fill: "#666" }}
-              domain={["auto", "auto"]}
-              tickFormatter={(v: number) => `${v.toFixed(2)}%`}
-            />
+            <YAxis tick={{ fontSize: 9, fill: "#666" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
             <Tooltip
               contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
-              formatter={(v: number) => [`${v.toFixed(2)}%`]}
+              formatter={(v: unknown) => tooltipFormatter(v as number)}
               labelFormatter={(d: string) =>
                 new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
               }
             />
+            {referenceLines?.map(rl => (
+              <ReferenceLine key={rl.label} y={rl.y} stroke={rl.color} strokeDasharray="4 3" strokeOpacity={0.5}
+                label={{ value: rl.label, fill: rl.color, fontSize: 9, position: "insideTopRight" }} />
+            ))}
             <Area
               type="monotone" dataKey="value" stroke={color}
               fill={`url(#grad-${color.replace("#", "")})`}

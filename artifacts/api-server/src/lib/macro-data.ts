@@ -66,6 +66,9 @@ export interface MacroCharts {
   tenYearHistory: ChartPoint[];
   vixCurve: VixCurvePoint[];
   fedFundsCurve: FedFundsCurvePoint[];
+  fearGreedHistory: ChartPoint[];
+  hySpreadHistory: ChartPoint[];
+  putCallHistory: ChartPoint[];
 }
 
 export interface FedMember {
@@ -908,21 +911,51 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
       }));
   };
 
-  const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult] = await Promise.allSettled([
+  const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
+    const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}&vintage_date=${new Date().toISOString().slice(0,10)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    return text.split("\n").slice(1).flatMap(line => {
+      const [date, val] = line.trim().split(",");
+      const v = parseFloat(val);
+      return date && !isNaN(v) ? [{ date, value: v }] : [];
+    });
+  };
+
+  const fetchFearGreed = async (): Promise<ChartPoint[]> => {
+    const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    const json = await res.json() as { fear_and_greed_historical?: { data?: { x: number; y: number }[] } };
+    const raw = json.fear_and_greed_historical?.data ?? [];
+    return raw.map(p => ({
+      date:  new Date(p.x).toISOString().slice(0, 10),
+      value: parseFloat(p.y.toFixed(1)),
+    }));
+  };
+
+  const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
+         hyResult, putCallResult, fearGreedResult] = await Promise.allSettled([
     yahooFinance.chart("^VIX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^IRX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^TNX",  { period1, interval: "1d" }, { validateResult: false }),
     fetchVixCurve(),
     fetchFedFundsCurve(),
+    fetchFredCSV("BAMLH0A0HYM2"),   // ICE BofA HY OAS spread
+    yahooFinance.chart("^CPC",  { period1, interval: "1d" }, { validateResult: false }),
+    fetchFearGreed(),
   ]);
 
   return {
-    fetchedAt:       new Date().toISOString(),
-    vixHistory:      chartToPoints(vixResult),
-    fedFundsHistory: chartToPoints(irxResult),
-    tenYearHistory:  chartToPoints(tnxResult),
-    vixCurve:        vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
-    fedFundsCurve:   ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
+    fetchedAt:        new Date().toISOString(),
+    vixHistory:       chartToPoints(vixResult),
+    fedFundsHistory:  chartToPoints(irxResult),
+    tenYearHistory:   chartToPoints(tnxResult),
+    vixCurve:         vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
+    fedFundsCurve:    ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
+    hySpreadHistory:  hyResult.status       === "fulfilled" ? hyResult.value       : [],
+    putCallHistory:   chartToPoints(putCallResult),
+    fearGreedHistory: fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
   };
 }
 
