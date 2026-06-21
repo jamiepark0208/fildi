@@ -386,53 +386,25 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Risk Metrics</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2 mt-2">
-            <RiskStat label="Portfolio Beta (adj.)"
-              value={risk.weightedBeta.toFixed(2)}
-              sub={`weighted · ${risk.coveredCallCount > 0 ? `${risk.coveredCallCount} covered (δ×0.70)` : "no covered calls"}`}
-              icon={<Activity className="w-4 h-4" />}
-              color={risk.weightedBeta > 1.5 ? "text-red-400" : risk.weightedBeta > 1.1 ? "text-yellow-400" : "text-green-400"}
-            />
-            <RiskStat label="Net Portfolio Delta"
-              value={risk.netDelta > 0 ? `+${risk.netDelta.toFixed(0)}` : risk.netDelta.toFixed(0)}
-              sub="approx. (stock=1.0 · put=−0.25 · call=+0.30)"
-              icon={<BarChart2 className="w-4 h-4" />}
-              color={Math.abs(risk.netDelta) > 5000 ? "text-orange-400" : "text-foreground"}
-            />
-            <RiskStat label="Est. Daily Theta"
-              value={`+${formatCurrency(risk.dailyTheta)}`}
-              sub={`avg DTE ${risk.avgDTE.toFixed(0)}d · time decay in your favor`}
-              icon={<Zap className="w-4 h-4" />}
-              color="text-green-400"
-            />
-            <RiskStat label="Annualized Income Yield"
-              value={`${risk.incomeYield.toFixed(1)}%`}
-              sub="premium / collateral × (365 / avgDTE)"
-              icon={<Percent className="w-4 h-4" />}
-              color={risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground"}
-            />
-            <RiskStat label="Max Assignment Risk"
-              value={formatCurrency(risk.maxAssign)}
-              sub="total collateral for all short puts"
-              icon={<Shield className="w-4 h-4" />}
-              color="text-yellow-400"
-            />
-            {risk.atRiskPositions > 0 && (
-              <RiskStat label="At-Risk Positions"
-                value={String(risk.atRiskPositions)}
-                sub="short puts within 8% of strike — monitor closely"
-                icon={<AlertTriangle className="w-4 h-4" />}
-                color="text-red-400"
-              />
-            )}
-            {risk.expiringSoon > 0 && (
-              <RiskStat label="Expiring ≤ 7 Days"
-                value={String(risk.expiringSoon)}
-                sub="legs to roll or let expire"
-                icon={<TrendingDown className="w-4 h-4" />}
-                color="text-orange-400"
-              />
-            )}
+          <CardContent className="px-4 pb-4 mt-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {[
+                { label: "Beta (adj.)", value: risk.weightedBeta.toFixed(2), color: risk.weightedBeta > 1.5 ? "text-red-400" : risk.weightedBeta > 1.1 ? "text-yellow-400" : "text-green-400" },
+                { label: "Net Delta", value: risk.netDelta > 0 ? `+${risk.netDelta.toFixed(0)}` : risk.netDelta.toFixed(0), color: Math.abs(risk.netDelta) > 5000 ? "text-orange-400" : "text-foreground" },
+                { label: "Daily Theta", value: `+${formatCurrency(risk.dailyTheta)}`, color: "text-green-400" },
+                { label: "Income Yield", value: `${risk.incomeYield.toFixed(1)}%`, color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground" },
+                { label: "Max Assign Risk", value: formatCurrency(risk.maxAssign), color: "text-yellow-400" },
+                { label: "Avg DTE", value: `${risk.avgDTE.toFixed(0)}d`, color: "text-foreground" },
+                ...(risk.atRiskPositions > 0 ? [{ label: "At-Risk Puts", value: String(risk.atRiskPositions), color: "text-red-400" }] : []),
+                ...(risk.expiringSoon > 0 ? [{ label: "Expiring ≤7d", value: String(risk.expiringSoon), color: "text-orange-400" }] : []),
+                ...(risk.coveredCallCount > 0 ? [{ label: "Covered Calls", value: String(risk.coveredCallCount), color: "text-blue-400" }] : []),
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wide leading-none">{label}</span>
+                  <span className={cn("text-sm font-bold font-mono tabular-nums leading-tight", color)}>{value}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
