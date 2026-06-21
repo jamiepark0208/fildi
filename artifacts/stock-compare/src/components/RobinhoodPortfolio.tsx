@@ -237,8 +237,16 @@ function optionGroupMetrics(rows: DBOption[]): MetricPill[] {
   ]
 }
 
+const today = new Date(); today.setHours(0, 0, 0, 0);
+function isExpired(expiration: string | null): boolean {
+  if (!expiration) return false;
+  return new Date(expiration + 'T16:00:00') < today;
+}
+
 function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap: Map<string, string> }) {
-  const withNickname = options.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account }))
+  const withNickname = options
+    .filter(o => !isExpired(o.expiration))
+    .map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account }))
   const groups = groupByAccount(withNickname)
   const order = [...KNOWN_PORTFOLIOS, ...Array.from(groups.keys()).filter(k => !KNOWN_PORTFOLIOS.includes(k))]
   const orderedGroups = order.filter(k => groups.has(k))
@@ -271,11 +279,11 @@ function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap
                   <td className={`${TD} text-left`}>
                     <span className={cn(
                       'inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded',
-                      o.direction === 'short'
+                      o.direction?.toLowerCase() === 'short'
                         ? 'bg-green-500/15 text-green-400'
                         : 'bg-blue-500/15 text-blue-400'
                     )}>
-                      {o.direction === 'short' ? 'Short' : 'Long'} {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1)}
+                      {o.direction?.toLowerCase() === 'short' ? 'Short' : 'Long'} {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1).toLowerCase()}
                     </span>
                   </td>
                   <td className={TDr}>{o.strike ? `$${parseFloat(o.strike).toFixed(0)}` : '—'}</td>
@@ -374,14 +382,21 @@ export function RobinhoodPortfolio() {
       {/* Option positions */}
       {options.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/8">
-            <div className="flex items-center justify-between mb-1.5">
-              <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Option Positions</h3>
-              <span className="text-[10px] text-white/30">{options.length} contracts</span>
-            </div>
-            <MetricBanner metrics={optionGroupMetrics(options.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account })))} />
-          </div>
-          <OptionsTable options={options} accountMap={accountMap} />
+          {(() => {
+            const activeOptions = options.filter(o => !isExpired(o.expiration))
+            return (
+              <>
+                <div className="px-4 py-3 border-b border-white/8">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Option Positions</h3>
+                    <span className="text-[10px] text-white/30">{activeOptions.length} active · {options.length - activeOptions.length} expired</span>
+                  </div>
+                  <MetricBanner metrics={optionGroupMetrics(activeOptions.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account })))} />
+                </div>
+                <OptionsTable options={options} accountMap={accountMap} />
+              </>
+            )
+          })()}
         </div>
       )}
     </div>
