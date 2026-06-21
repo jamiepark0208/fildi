@@ -19,7 +19,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'peer-profile': 'Peer Profile',
 };
 
-export const namedCachesMap: Record<string, { clear(): void }> = {
+export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number): void }> = {
   search: searchCache,
   compare: compareCache,
   history: historyCache,

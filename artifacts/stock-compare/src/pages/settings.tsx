@@ -151,6 +151,21 @@ interface CacheRow {
 }
 interface CacheStatus { caches: CacheRow[]; generatedAt: number }
 
+const TTL_OPTIONS = [
+  { ms: 5 * 60_000,    label: "5 min" },
+  { ms: 15 * 60_000,   label: "15 min" },
+  { ms: 30 * 60_000,   label: "30 min" },
+  { ms: 60 * 60_000,   label: "1 hour" },
+  { ms: 240 * 60_000,  label: "4 hours" },
+  { ms: 720 * 60_000,  label: "12 hours" },
+  { ms: 1440 * 60_000, label: "24 hours" },
+];
+
+const TTL_EDITABLE_CACHES = new Set([
+  "search", "compare", "history", "history-1d", "quote",
+  "breakdown", "options", "options-expiry", "peer-map",
+]);
+
 function CacheMonitor({ isAdmin }: { isAdmin: boolean }) {
   const queryClient = useQueryClient();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -163,6 +178,19 @@ function CacheMonitor({ isAdmin }: { isAdmin: boolean }) {
       return res.json();
     },
     staleTime: 0,
+  });
+
+  const ttlMutation = useMutation({
+    mutationFn: async ({ name, ttlMs }: { name: string; ttlMs: number }) => {
+      const res = await fetch(`/api/admin/cache/ttl/${name}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ttlMs }),
+      });
+      if (!res.ok) throw new Error("Failed to update TTL");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "cache-status"] }),
   });
 
   const clearMutation = useMutation({
@@ -261,7 +289,25 @@ function CacheMonitor({ isAdmin }: { isAdmin: boolean }) {
                           : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
                       </td>
                       <td className="font-medium text-foreground">{displayName}</td>
-                      <td className="text-muted-foreground">{fmtTtlHuman(row.ttlMs)}</td>
+                      <td className="text-muted-foreground" onClick={e => e.stopPropagation()}>
+                        {isAdmin && TTL_EDITABLE_CACHES.has(row.name) ? (
+                          <select
+                            value={TTL_OPTIONS.some(o => o.ms === row.ttlMs) ? row.ttlMs : ""}
+                            onChange={e => ttlMutation.mutate({ name: row.name, ttlMs: Number(e.target.value) })}
+                            disabled={ttlMutation.isPending}
+                            className="bg-transparent border border-border rounded px-1 py-0.5 text-xs text-foreground cursor-pointer hover:border-muted-foreground focus:outline-none disabled:opacity-50"
+                          >
+                            {!TTL_OPTIONS.some(o => o.ms === row.ttlMs) && (
+                              <option value="" className="bg-background">{fmtTtlHuman(row.ttlMs)}</option>
+                            )}
+                            {TTL_OPTIONS.map(opt => (
+                              <option key={opt.ms} value={opt.ms} className="bg-background">{opt.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          fmtTtlHuman(row.ttlMs)
+                        )}
+                      </td>
                       <td className="text-right tabular-nums text-muted-foreground">{row.hits ?? "—"}</td>
                       <td className="text-right tabular-nums text-muted-foreground">{row.misses ?? "—"}</td>
                       <td className={cn("text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
