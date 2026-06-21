@@ -672,8 +672,8 @@ function AggCard({ label, value, sub, icon, highlight }: {
 
 // Convert Robinhood DB rows → PortfolioEntry for PortfolioAnalysis
 function dbToEntries(
-  positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string }>,
-  options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string }>,
+  positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue?: string | null; unrealizedPnL?: string | null }>,
+  options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice?: string | null; unrealizedPnL?: string | null; delta?: string | null; theta?: string | null }>,
   accountMap: Map<string, string>,
 ): PortfolioEntry[] {
   const posEntries: PortfolioEntry[] = positions.map(p => ({
@@ -684,6 +684,8 @@ function dbToEntries(
     avgPrice: parseFloat(p.avgCost ?? '0'),
     openedAt: new Date().toISOString().slice(0, 10),
     portfolioName: p.accountNickname ?? p.account,
+    currentValue: p.marketValue != null ? parseFloat(p.marketValue) : undefined,
+    unrealizedPnL: p.unrealizedPnL != null ? parseFloat(p.unrealizedPnL) : undefined,
   }))
 
   const optEntries: PortfolioEntry[] = options.flatMap(o => {
@@ -695,16 +697,22 @@ function dbToEntries(
     }
     const positionType: PositionType = typeMap[`${dir}-${kind}`] ?? 'short_put'
     const acct = accountMap.get(o.account) ?? o.account
+    const qty = Math.abs(parseFloat(o.qty ?? '0'))
+    const markPrice = o.markPrice != null ? parseFloat(o.markPrice) : null
     return [{
       id: `rh-opt-${o.id}`,
       ticker: o.symbol,
       positionType,
-      qty: Math.abs(parseFloat(o.qty ?? '0')),
+      qty,
       avgPrice: parseFloat(o.avgPremium ?? '0'),
       strike: o.strike ? parseFloat(o.strike) : undefined,
       expiry: o.expiration ?? undefined,
       openedAt: new Date().toISOString().slice(0, 10),
       portfolioName: acct,
+      currentValue: markPrice != null ? markPrice * 100 * qty : undefined,
+      unrealizedPnL: o.unrealizedPnL != null ? parseFloat(o.unrealizedPnL) : undefined,
+      delta: o.delta != null ? parseFloat(o.delta) : undefined,
+      theta: o.theta != null ? parseFloat(o.theta) : undefined,
     }]
   })
 
@@ -725,8 +733,8 @@ export default function Portfolio() {
   // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request)
   const { data: rhData } = useQuery<{
     snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null } | null;
-    positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string }>;
-    options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string }>;
+    positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue: string | null; unrealizedPnL: string | null }>;
+    options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null }>;
   }>({
     queryKey: ['portfolio-snapshot-latest'],
     queryFn: async () => {

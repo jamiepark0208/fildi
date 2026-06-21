@@ -178,23 +178,26 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
   // ── Allocation ──────────────────────────────────────────────────────────────
   const { allocationData, totalValue } = useMemo(() => {
-    let collateral = 0, premium = 0, stockVal = 0;
+    let collateral = 0, optionMktVal = 0, stockVal = 0;
     filtered.forEach(e => {
       if (e.positionType === "short_put") {
-        collateral += cashCollateral(e); premium += premiumReceived(e);
-      } else if (e.positionType === "short_call") {
-        premium += premiumReceived(e);
+        // prefer CSV market value; fall back to notional collateral
+        if (e.currentValue != null) optionMktVal += e.currentValue;
+        else { collateral += cashCollateral(e); }
+      } else if (e.positionType === "short_call" || e.positionType === "long_put" || e.positionType === "long_call") {
+        if (e.currentValue != null) optionMktVal += e.currentValue;
+        else optionMktVal += premiumReceived(e);
       } else if (e.positionType === "stock") {
-        stockVal += (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
+        stockVal += e.currentValue ?? (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
       }
     });
-    const total = collateral + premium + stockVal;
+    const total = collateral + optionMktVal + stockVal;
     return {
       totalValue: total,
       allocationData: [
-        { name: "Cash Collateral", value: collateral, color: "#fbbf24", pct: total > 0 ? (collateral/total)*100 : 0 },
-        { name: "Premium Earned",  value: premium,    color: "#34d399", pct: total > 0 ? (premium/total)*100 : 0 },
-        { name: "Stock Equity",    value: stockVal,   color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0 },
+        { name: "Stock Equity",    value: stockVal,     color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0 },
+        { name: "Options (Mark)",  value: optionMktVal, color: "#34d399", pct: total > 0 ? (optionMktVal/total)*100 : 0 },
+        { name: "Cash Collateral", value: collateral,   color: "#fbbf24", pct: total > 0 ? (collateral/total)*100 : 0 },
       ].filter(d => d.value > 0),
     };
   }, [filtered, priceMap]);
@@ -204,9 +207,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     const bySector: Record<string, number> = {};
     filtered.forEach(e => {
       const sector = stockDataMap[e.ticker]?.sector || "Unknown";
-      const value  = e.positionType === "stock"
-        ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
-        : cashCollateral(e) || e.avgPrice * 100 * e.qty;
+      const value = e.currentValue != null
+        ? e.currentValue
+        : e.positionType === "stock"
+          ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
+          : cashCollateral(e) || e.avgPrice * 100 * e.qty;
       bySector[sector] = (bySector[sector] ?? 0) + value;
     });
     const total = Object.values(bySector).reduce((s, v) => s + v, 0);
@@ -220,9 +225,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     const byTicker: Record<string, { value: number; beta: number }> = {};
     filtered.forEach(e => {
       const beta  = stockDataMap[e.ticker]?.beta ?? 1;
-      const value = e.positionType === "stock"
-        ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
-        : cashCollateral(e) || e.avgPrice * 100 * e.qty;
+      const value = e.currentValue != null
+        ? e.currentValue
+        : e.positionType === "stock"
+          ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
+          : cashCollateral(e) || e.avgPrice * 100 * e.qty;
       if (!byTicker[e.ticker]) byTicker[e.ticker] = { value: 0, beta };
       byTicker[e.ticker].value += value;
     });

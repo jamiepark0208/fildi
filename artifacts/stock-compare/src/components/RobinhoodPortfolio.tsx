@@ -97,12 +97,33 @@ const TH = 'py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-whi
 const TD = 'py-2 px-3 text-xs text-white tabular-nums'
 const TDr = `${TD} text-right`
 
+interface MetricPill {
+  label: string
+  value: string
+  color?: string
+}
+
+function MetricBanner({ metrics }: { metrics: MetricPill[] }) {
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      {metrics.map(m => (
+        <span key={m.label} className="flex items-center gap-1 text-[10px]">
+          <span className="text-white/30 uppercase tracking-widest">{m.label}</span>
+          <span className={cn('font-mono font-semibold tabular-nums', m.color ?? 'text-white/70')}>{m.value}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function AccountGroup({
   name,
+  metrics,
   children,
   defaultOpen = true,
 }: {
   name: string
+  metrics?: MetricPill[]
   children: React.ReactNode
   defaultOpen?: boolean
 }) {
@@ -117,11 +138,29 @@ function AccountGroup({
           ? <ChevronDown className="h-3 w-3 text-white/30" />
           : <ChevronRight className="h-3 w-3 text-white/30" />
         }
-        <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest">{name}</span>
+        <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest mr-2">{name}</span>
+        {metrics && <MetricBanner metrics={metrics} />}
       </button>
       {open && children}
     </div>
   )
+}
+
+function equityGroupMetrics(rows: DBPosition[]): MetricPill[] {
+  let mktVal = 0, pnl = 0, costBasis = 0
+  for (const r of rows) {
+    if (r.marketValue != null) mktVal += parseFloat(r.marketValue)
+    if (r.unrealizedPnL != null) pnl += parseFloat(r.unrealizedPnL)
+    if (r.costBasis != null) costBasis += parseFloat(r.costBasis)
+  }
+  const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : null
+  const pnlColor = pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : undefined
+  return [
+    { label: 'Mkt Value', value: fmt.format(mktVal) },
+    { label: 'Unrealized P&L', value: `${pnl >= 0 ? '+' : ''}${fmt.format(pnl)}`, color: pnlColor },
+    ...(pnlPct != null ? [{ label: 'P&L %', value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, color: pnlColor }] : []),
+    { label: 'Holdings', value: String(rows.length) },
+  ]
 }
 
 function EquityTable({ positions }: { positions: DBPosition[] }) {
@@ -136,7 +175,7 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
   return (
     <div>
       {orderedGroups.map(acct => (
-        <AccountGroup key={acct} name={acct}>
+        <AccountGroup key={acct} name={acct} metrics={equityGroupMetrics(groups.get(acct)!)}>
           <table className="w-full">
             <thead>
               <tr className="border-y border-white/8 bg-white/3">
@@ -174,6 +213,30 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
   )
 }
 
+function optionGroupMetrics(rows: DBOption[]): MetricPill[] {
+  let markVal = 0, pnl = 0, netDelta = 0, dailyTheta = 0, maxAssign = 0
+  for (const o of rows) {
+    const qty = Math.abs(parseFloat(o.qty ?? '0'))
+    const isShort = o.direction === 'short'
+    const sign = isShort ? -1 : 1
+    if (o.markPrice != null) markVal += parseFloat(o.markPrice) * 100 * qty
+    if (o.unrealizedPnL != null) pnl += parseFloat(o.unrealizedPnL)
+    if (o.delta != null) netDelta += parseFloat(o.delta) * 100 * qty * sign
+    if (o.theta != null) dailyTheta += parseFloat(o.theta) * 100 * qty * sign
+    if (isShort && o.optionType === 'put' && o.strike != null) maxAssign += parseFloat(o.strike) * 100 * qty
+  }
+  const pnlColor = pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : undefined
+  const deltaColor = Math.abs(netDelta) > 500 ? 'text-orange-400' : undefined
+  return [
+    { label: 'Mark Value', value: fmt.format(markVal) },
+    { label: 'Unrealized P&L', value: `${pnl >= 0 ? '+' : ''}${fmt.format(pnl)}`, color: pnlColor },
+    { label: 'Net Δ', value: `${netDelta >= 0 ? '+' : ''}${netDelta.toFixed(0)}`, color: deltaColor },
+    { label: 'Daily θ', value: `${dailyTheta >= 0 ? '+' : ''}${fmt.format(dailyTheta)}`, color: 'text-green-400' },
+    ...(maxAssign > 0 ? [{ label: 'Max Assign Risk', value: fmt.format(maxAssign), color: 'text-yellow-400' }] : []),
+    { label: 'Contracts', value: String(rows.length) },
+  ]
+}
+
 function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap: Map<string, string> }) {
   const withNickname = options.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account }))
   const groups = groupByAccount(withNickname)
@@ -187,7 +250,7 @@ function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap
   return (
     <div>
       {orderedGroups.map(acct => (
-        <AccountGroup key={acct} name={acct}>
+        <AccountGroup key={acct} name={acct} metrics={optionGroupMetrics(groups.get(acct)!)}>
           <table className="w-full">
             <thead>
               <tr className="border-y border-white/8 bg-white/3">
@@ -297,9 +360,12 @@ export function RobinhoodPortfolio() {
       {/* Equity positions */}
       {positions.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Equity Positions</h3>
-            <span className="text-[10px] text-white/30">{positions.length} holdings</span>
+          <div className="px-4 py-3 border-b border-white/8">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Equity Positions</h3>
+              <span className="text-[10px] text-white/30">{positions.length} holdings</span>
+            </div>
+            <MetricBanner metrics={equityGroupMetrics(positions)} />
           </div>
           <EquityTable positions={positions} />
         </div>
@@ -308,9 +374,12 @@ export function RobinhoodPortfolio() {
       {/* Option positions */}
       {options.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Option Positions</h3>
-            <span className="text-[10px] text-white/30">{options.length} contracts</span>
+          <div className="px-4 py-3 border-b border-white/8">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-xs font-semibold text-white uppercase tracking-widest">Option Positions</h3>
+              <span className="text-[10px] text-white/30">{options.length} contracts</span>
+            </div>
+            <MetricBanner metrics={optionGroupMetrics(options.map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account })))} />
           </div>
           <OptionsTable options={options} accountMap={accountMap} />
         </div>

@@ -13,6 +13,10 @@ export interface PortfolioEntry {
   openedAt: string;    // "YYYY-MM-DD"
   notes?: string;      // legacy — used as portfolio name for old entries
   portfolioName?: string;
+  currentValue?: number;  // actual market value from CSV snapshot (positions: marketValue, options: markPrice×100×qty)
+  unrealizedPnL?: number;
+  delta?: number;
+  theta?: number;
 }
 
 const STORAGE_KEY        = "fildi_portfolio_v1";
