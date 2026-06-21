@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-21
 
 ## Active work
-- Working: portfolio-csv-parser, portfolio-db-schema
-- In progress: portfolio-ingest-route — parser and DB tables done, import route not yet built
+- Working: portfolio-csv-parser, portfolio-db-schema, portfolio-ingest-route
+- In progress: portfolio-ingest-route complete; portfolio tab fully wired to DB snapshot
 - Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5; FMP daily rate limit exhausted — per-analyst price targets will not show until reset
 
 ## Next tasks (priority order)
