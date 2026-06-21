@@ -924,7 +924,11 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
 
   const fetchFearGreed = async (): Promise<ChartPoint[]> => {
     const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.cnn.com/",
+        "Accept": "application/json",
+      },
     });
     const json = await res.json() as { fear_and_greed_historical?: { data?: { x: number; y: number }[] } };
     const raw = json.fear_and_greed_historical?.data ?? [];
@@ -935,14 +939,14 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   };
 
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
-         hyResult, putCallResult, fearGreedResult] = await Promise.allSettled([
+         hyResult, vvixResult, fearGreedResult] = await Promise.allSettled([
     yahooFinance.chart("^VIX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^IRX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^TNX",  { period1, interval: "1d" }, { validateResult: false }),
     fetchVixCurve(),
     fetchFedFundsCurve(),
     fetchFredCSV("BAMLH0A0HYM2"),   // ICE BofA HY OAS spread
-    yahooFinance.chart("^CPC",  { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^VVIX", { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX (options fear proxy)
     fetchFearGreed(),
   ]);
 
@@ -954,7 +958,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     vixCurve:         vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
     fedFundsCurve:    ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
     hySpreadHistory:  hyResult.status       === "fulfilled" ? hyResult.value       : [],
-    putCallHistory:   chartToPoints(putCallResult),
+    putCallHistory:   chartToPoints(vvixResult),
     fearGreedHistory: fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
   };
 }

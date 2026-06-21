@@ -553,7 +553,7 @@ export default function MacroDashboard() {
             referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
           />
           <RateHistoryChart
-            title="CBOE Put/Call Ratio"
+            title="CBOE VVIX (Vol of VIX)"
             data={macroCharts?.putCallHistory ?? []}
             color="#38bdf8"
             loading={!macroCharts}
