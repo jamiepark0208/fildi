@@ -1,9 +1,9 @@
 {
-  "fetchedAt": "2026-06-19T14:36:21.170Z",
+  "fetchedAt": "2026-06-21T16:16:37.929Z",
   "vix": {
-    "value": 16.84,
-    "change": 0.44000053,
-    "changePct": 2.6829302,
+    "value": 16.78,
+    "change": 0.38000107,
+    "changePct": 2.3170798,
     "level": "low-mid"
   },
   "yield10y": {
