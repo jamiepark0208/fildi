@@ -1,5 +1,88 @@
 [
   {
+    "date": "6/21/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 16.78,
+        "change": 0.38000107,
+        "changePct": 2.3170798
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 746.74,
+        "change": 7.68396,
+        "changePct": 1.0397
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 740.62,
+        "change": 18.109985,
+        "changePct": 2.5065374
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.4509997,
+        "change": 0,
+        "changePct": 0
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7556.25,
+        "change": -14.5,
+        "changePct": -0.1915266
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 30647,
+        "change": -72.75,
+        "changePct": -0.23681833
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 387.12,
+        "change": -1.48001,
+        "changePct": -0.380857
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.3,
+        "change": 0.119999,
+        "changePct": 0.42583
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 86.75,
+        "change": 0.41999817,
+        "changePct": 0.48650312
+      }
+    ],
+    "content": "# Daily Briefing | 6/21/2026\n\n## 🌍 Macro Environment\n- **Rate backdrop holding steady.** TNX at 4.45% (flat) signals no new Fed pressure today; the 10Y has found a floor. For put sellers, this is neutral—no margin calls or forced liquidation flows, but also no tailwind from falling rates lifting growth multiples.\n- **VIX at 16.78 (+2.32%) signals modest unease.** Still in the \"selling premium is attractive\" zone (below 18), but the +2.32% jump suggests digestion of yesterday's QQQ spike. Watch for VIX staying above 16 through week-end—that's your signal that put premium will remain juicy on tech names.\n- **Dollar strength (+0.43%) is a mild headwind for tech exporters.** Long Bond rallying (+0.49%) while equities rise is textbook \"risk-on without euphoria\"—institutional buyers are hedging upside with duration. Good environment for selling near-the-money puts; less good for selling deep OTM.\n\n## 📊 Market Pulse\n- **QQQ outperforming SPY significantly (+2.51% vs +1.04%).** This is the classic risk-on play—growth/tech rotating hard despite flat futures (NQ -0.24%). Your portfolio skews 100% to this cohort, so breadth is in your favor today.\n- **S&P futures negative (-0.19%) while spot SPY is green.** Smell test: equity index futures are pricing in overnight/overnight weakness, but cash equities (especially Nasdaq) are holding. This divergence often closes intraday—watch 11 AM for either a SPY pullback or ES reversal higher.\n- **For put-selling strategy:** Today's VIX + QQQ strength = compressed IV on tech puts but still above the 14-15 \"complacency floor.\" *This is a green light to open fresh strikes, particularly 5-10 delta puts 30-45 DTE on your core holdings.*\n\n## 🏭 Sector & Stock Catalysts\n- **PLTR & NVDA both catching \"is it too late?\" headlines.** Wall Street is re-engaging after the spike. PLTR specifically flagged as \"falling stock to invest in\"—this is code for \"shorts covering + premium sellers can capture decay.\" No earnings catalyst imminent; focus on technical support levels.\n- **RUM (Rumble rebranding as RUM Group) surging post-Quake AI launch + Northern Data deal.** This is a momentum micro-cap play with high implied vol. *Avoid selling puts here*—premium will compress hard on any 10%+ pullback, and pinning risk on small-float names is elevated.\n- **HOOD & SPCE both riding narrative waves** (iOS 27 AI features, SpaceX IPO tailwinds). Both are volatile but lack fresh earnings catalysts this week. **HOOD** is a candidate for a short-dated put (14 DTE, 5 delta) to capture elevated IV before it normalizes.\n- **ONDS (drone/battery play) + OPEN (brokerage/fintech)** are quieter. OPEN especially has *low volatility and weak catalysts*—avoid initiating new positions until a catalyst emerges or IV rises.\n- **REBN (CEO transition) + POET (unrelated news)** are noise. REBN leadership shift is *mildly bearish* (execution risk); POET has zero portfolio-relevant news.\n\n## ⚠️ Risks This Week\n- **FOMC minutes (if released) or any Fed speaker chatter could spike rates 5-10 bps.** This would pressure high-multiple tech and compress put premium sharply. Monitor the Fed calendar closely—if unscheduled remarks surface, raise cash and tighten strikes.\n- **Quarterly rebalancing flows accelerate next week (end of Q2).** Expect micro-cap names (RUM, REBN, ONDS) to see short-covering rallies followed by profit-taking into month-end. This creates 2-3 day vol spikes—*good for opening puts, bad for holding them through Friday close.*\n\n## 💼 Portfolio Implications\n- **Open fresh puts today on PLTR (32-33 strike, 35 DTE) and HOOD (25-26 strike, 30 DTE).** QQQ strength + VIX hold above 16 creates a 3-4 week window of premium before vol compression. Both are core holdings with legitimate cash-secure put demand; avoid RUM and ONDS entirely this week.\n- **Do NOT open new puts on SPCE, REBN, or ONDS.** SPCE has structural short pressure (IPO narrative saturation), REBN has execution risk, ONDS is a lottery ticket. Your IRA, FILDI, and MOM accounts need *repeatable, lower-volatility income*—focus on mega-cap tech (NVDA, PLTR) where Vega decay is predictable.\n- **Reduce or roll any existing puts expiring after 6/28 if",
+    "generatedAt": "2026-06-21T16:04:47.816Z",
+    "tickers": [
+      "HOOY",
+      "OPEN",
+      "REBN",
+      "HOOD",
+      "PLTR",
+      "NVDA",
+      "ONDS",
+      "POET",
+      "RUM",
+      "SPCE"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "6/11/2026",
     "marketData": [
       {

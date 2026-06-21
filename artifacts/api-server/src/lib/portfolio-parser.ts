@@ -179,10 +179,10 @@ function parseOptionPositions(rows: string[][]): ParsedOption[] {
     out.push({
       account,
       symbol,
-      optionType:    clean(cols[2]),
+      optionType:    clean(cols[2])?.toLowerCase() ?? null,
       strike:        clean(cols[3]),
       expiration:    clean(cols[4]),
-      direction:     clean(cols[5]),
+      direction:     clean(cols[5])?.toLowerCase() ?? null,
       qty:           clean(cols[6]),
       avgPremium:    clean(cols[7]),
       totalPremium:  clean(cols[8]),

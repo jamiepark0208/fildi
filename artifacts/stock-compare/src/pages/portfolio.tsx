@@ -689,8 +689,8 @@ function dbToEntries(
   }))
 
   const optEntries: PortfolioEntry[] = options.flatMap(o => {
-    const dir = o.direction ?? 'long'
-    const kind = o.optionType ?? 'put'
+    const dir = (o.direction ?? 'long').toLowerCase()
+    const kind = (o.optionType ?? 'put').toLowerCase()
     const typeMap: Record<string, PositionType> = {
       'short-put': 'short_put', 'short-call': 'short_call',
       'long-put':  'long_put',  'long-call':  'long_call',
