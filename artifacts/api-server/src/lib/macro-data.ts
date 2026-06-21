@@ -990,8 +990,9 @@ export function loadChartsCache(): MacroCharts | null {
   try {
     if (!existsSync(CHARTS_CACHE_FILE)) return null;
     const data = JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
-    // Invalidate if missing new curve fields
+    // Invalidate if missing new curve or chart fields
     if (!data.vixCurve || !data.fedFundsCurve) return null;
+    if (!data.hySpreadHistory || !data.putCallHistory || !data.fearGreedHistory) return null;
     return data;
   } catch {
     return null;
