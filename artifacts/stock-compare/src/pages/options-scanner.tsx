@@ -197,7 +197,7 @@ function StrikeRow({
           "grid items-center gap-x-4 px-3 py-2 text-sm border-l-2 transition-colors cursor-pointer select-none",
           "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
           isBest
-            ? "border-l-green-500 bg-green-500/5 hover:bg-green-500/8"
+            ? "border-l-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/15 ring-1 ring-inset ring-yellow-400/20"
             : gammaRisk
               ? "border-l-orange-500/60 hover:bg-secondary/30"
               : "border-l-transparent hover:bg-secondary/30",
@@ -207,7 +207,7 @@ function StrikeRow({
       >
         {/* Strike */}
         <div className="flex items-center gap-1.5">
-          <span className={cn("font-bold font-mono", isBest ? "text-green-300" : "text-yellow-400")}>
+          <span className={cn("font-bold font-mono", isBest ? "text-yellow-300" : "text-yellow-400")}>
             ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)}
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
@@ -241,7 +241,7 @@ function StrikeRow({
           {optionScore != null && (
             <span className={cn(
               "font-mono text-sm",
-              isBest ? "text-green-300" : "text-slate-300",
+              isBest ? "text-yellow-300" : "text-slate-300",
             )}>
               {optionScore.toFixed(1)}
             </span>
@@ -354,7 +354,7 @@ function ExpirySection({
           {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}
         </span>
         {hasBestStrike && (
-          <span className="ml-auto text-[10px] font-semibold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-1.5 py-0.5 uppercase tracking-wide">
+          <span className="ml-auto text-[10px] font-semibold text-yellow-300 bg-yellow-400/15 border border-yellow-400/30 rounded px-1.5 py-0.5 uppercase tracking-wide">
             Best
           </span>
         )}
