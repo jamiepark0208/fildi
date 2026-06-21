@@ -307,29 +307,54 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       else if (e.positionType === "short_call") netDelta += e.qty * 100 * 0.30;
     });
 
-    // At-risk short puts: current price within 8% above strike (in danger zone)
+    // At-risk short puts: current price within 8% above strike
     const atRiskPositions = filtered.filter(e => {
       if (e.positionType !== "short_put" || !e.strike) return false;
       const price = priceMap[e.ticker];
       return price !== undefined && price < e.strike * 1.08;
     });
 
-    // Break-even per short put: strike - (total premium per share)
-    const putBreakEvens = filtered
-      .filter(e => e.positionType === "short_put" && e.strike)
-      .map(e => ({
-        ticker: e.ticker,
-        strike: e.strike!,
-        premium: e.avgPrice, // per contract premium
-        breakEven: e.strike! - e.avgPrice,
-        currentPrice: priceMap[e.ticker] ?? null,
-        moneyness: priceMap[e.ticker] ? ((priceMap[e.ticker]! / e.strike!) - 1) * 100 : null,
-      }));
+    type OptionRow = {
+      ticker: string; positionType: string; strike: number;
+      premium: number; breakEven: number; qty: number;
+      currentPrice: number | null; moneyness: number | null;
+    };
+
+    const putPositions: OptionRow[] = filtered
+      .filter(e => (e.positionType === "short_put" || e.positionType === "long_put") && e.strike)
+      .map(e => {
+        const price = priceMap[e.ticker] ?? null;
+        const breakEven = e.positionType === "short_put"
+          ? e.strike! - e.avgPrice
+          : e.strike! + e.avgPrice;
+        return {
+          ticker: e.ticker, positionType: e.positionType,
+          strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
+          currentPrice: price,
+          moneyness: price ? ((price / e.strike!) - 1) * 100 : null,
+        };
+      });
+
+    const callPositions: OptionRow[] = filtered
+      .filter(e => (e.positionType === "short_call" || e.positionType === "long_call") && e.strike)
+      .map(e => {
+        const price = priceMap[e.ticker] ?? null;
+        const breakEven = e.positionType === "short_call"
+          ? e.strike! + e.avgPrice
+          : e.strike! - e.avgPrice;
+        return {
+          ticker: e.ticker, positionType: e.positionType,
+          strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
+          currentPrice: price,
+          // for calls: positive = ITM (bad for short, good for long)
+          moneyness: price ? ((price / e.strike!) - 1) * 100 : null,
+        };
+      });
 
     return {
       weightedBeta, dailyTheta, maxAssign, expiringSoon, avgDTE,
       incomeYield, netDelta, atRiskPositions: atRiskPositions.length,
-      putBreakEvens, coveredCallCount: coveredCalls.size,
+      putPositions, callPositions, coveredCallCount: coveredCalls.size,
     };
   }, [betaData, filtered, priceMap, coveredCalls]);
 
@@ -514,62 +539,100 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </Card>
       </div>
 
-      {/* Row 3: Put position health table */}
-      {risk.putBreakEvens.length > 0 && (
+      {/* Row 3: Option position health */}
+      {(risk.putPositions.length > 0 || risk.callPositions.length > 0) && (
         <Card>
           <CardHeader className="px-4 pt-4 pb-2">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5" /> Short Put Position Health
+              <Layers className="w-3.5 h-3.5" /> Option Position Health
             </CardTitle>
-            <p className="text-[10px] text-muted-foreground">break-even, moneyness, and assignment risk per position</p>
+            <p className="text-[10px] text-muted-foreground">break-even, moneyness, and assignment/exercise risk per leg</p>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border/40">
-                    {["Ticker", "Strike", "Premium", "Break-Even", "Current", "OTM %", "Status"].map(h => (
-                      <th key={h} className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {risk.putBreakEvens.map((p, i) => {
-                    const otm = p.moneyness;
-                    const safe = otm !== null && otm >= 8;
-                    const warn = otm !== null && otm >= 0 && otm < 8;
-                    const atRisk = otm !== null && otm < 0;
-                    return (
-                      <tr key={i} className="border-b border-border/20 hover:bg-secondary/10">
-                        <td className="py-2 px-3 font-mono font-bold">{p.ticker}</td>
-                        <td className="py-2 px-3 font-mono">${p.strike.toFixed(2)}</td>
-                        <td className="py-2 px-3 font-mono text-green-400">+${p.premium.toFixed(2)}</td>
-                        <td className="py-2 px-3 font-mono">${p.breakEven.toFixed(2)}</td>
-                        <td className="py-2 px-3 font-mono">
-                          {p.currentPrice !== null ? `$${p.currentPrice.toFixed(2)}` : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className={cn("py-2 px-3 font-mono font-semibold",
-                          safe ? "text-green-400" : warn ? "text-yellow-400" : atRisk ? "text-red-400" : "text-muted-foreground")}>
-                          {otm !== null ? `${otm > 0 ? "+" : ""}${otm.toFixed(1)}%` : "—"}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                            safe    ? "bg-green-500/15 text-green-400" :
-                            warn    ? "bg-yellow-500/15 text-yellow-400" :
-                            atRisk  ? "bg-red-500/15 text-red-400" :
-                            "bg-secondary text-muted-foreground"
-                          )}>
-                            {safe ? "Safe" : warn ? "Watch" : atRisk ? "At Risk" : "—"}
-                          </span>
-                        </td>
+          <CardContent className="px-4 pb-4 space-y-4">
+            {[
+              { label: "Puts", rows: risk.putPositions, isPut: true },
+              { label: "Calls", rows: risk.callPositions, isPut: false },
+            ].filter(g => g.rows.length > 0).map(({ label, rows, isPut }) => (
+              <div key={label}>
+                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                  <span className={cn("w-1.5 h-1.5 rounded-full", isPut ? "bg-yellow-400" : "bg-blue-400")} />
+                  {label}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/40">
+                        {["Ticker", "Type", "Qty", "Strike", "Premium", "Break-Even", "Current", isPut ? "OTM %" : "ITM %", "Status"].map(h => (
+                          <th key={h} className="text-left py-1.5 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
+                        ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[10px] text-muted-foreground/50 mt-2">
-              OTM% = (current / strike − 1) × 100 · At Risk: within 8% of strike · Break-Even = strike − premium
+                    </thead>
+                    <tbody>
+                      {rows.map((p, i) => {
+                        const isShort = p.positionType === "short_put" || p.positionType === "short_call";
+                        // For short puts: positive moneyness = OTM = safe; negative = ITM = at risk
+                        // For short calls: negative moneyness = OTM = safe; positive = ITM = at risk
+                        const mness = p.moneyness;
+                        let safe = false, warn = false, atRisk = false;
+                        if (isShort && isPut) {
+                          safe   = mness !== null && mness >= 8;
+                          warn   = mness !== null && mness >= 0 && mness < 8;
+                          atRisk = mness !== null && mness < 0;
+                        } else if (isShort && !isPut) {
+                          safe   = mness !== null && mness <= -8;
+                          warn   = mness !== null && mness > -8 && mness <= 0;
+                          atRisk = mness !== null && mness > 0;
+                        } else {
+                          // long options: just show ITM/OTM
+                          safe   = isPut ? (mness !== null && mness < 0) : (mness !== null && mness > 0);
+                        }
+                        const displayMness = isPut ? mness : (mness !== null ? -mness : null);
+                        return (
+                          <tr key={i} className="border-b border-border/20 hover:bg-secondary/10">
+                            <td className="py-1.5 px-3 font-mono font-bold">{p.ticker}</td>
+                            <td className="py-1.5 px-3">
+                              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                                isShort ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400")}>
+                                {isShort ? "Short" : "Long"}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-3 font-mono text-muted-foreground">{p.qty}</td>
+                            <td className="py-1.5 px-3 font-mono">${p.strike.toFixed(0)}</td>
+                            <td className="py-1.5 px-3 font-mono text-green-400">{isShort ? "+" : "−"}${p.premium.toFixed(2)}</td>
+                            <td className="py-1.5 px-3 font-mono">${p.breakEven.toFixed(2)}</td>
+                            <td className="py-1.5 px-3 font-mono">
+                              {p.currentPrice !== null ? `$${p.currentPrice.toFixed(2)}` : <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className={cn("py-1.5 px-3 font-mono font-semibold",
+                              safe ? "text-green-400" : warn ? "text-yellow-400" : atRisk ? "text-red-400" : "text-muted-foreground")}>
+                              {displayMness !== null ? `${displayMness > 0 ? "+" : ""}${displayMness.toFixed(1)}%` : "—"}
+                            </td>
+                            <td className="py-1.5 px-3 text-right">
+                              {isShort ? (
+                                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                                  safe   ? "bg-green-500/15 text-green-400" :
+                                  warn   ? "bg-yellow-500/15 text-yellow-400" :
+                                  atRisk ? "bg-red-500/15 text-red-400" :
+                                  "bg-secondary text-muted-foreground")}>
+                                  {safe ? "Safe" : warn ? "Watch" : atRisk ? "At Risk" : "—"}
+                                </span>
+                              ) : (
+                                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                                  safe ? "bg-blue-500/15 text-blue-400" : "bg-secondary text-muted-foreground")}>
+                                  {safe ? "ITM" : "OTM"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+            <p className="text-[10px] text-muted-foreground/50">
+              Puts OTM% = (price/strike−1)×100 · Calls ITM% = (price/strike−1)×100 · At Risk: short within 8% of strike
             </p>
           </CardContent>
         </Card>
