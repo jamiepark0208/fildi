@@ -688,7 +688,11 @@ function dbToEntries(
     unrealizedPnL: p.unrealizedPnL != null ? parseFloat(p.unrealizedPnL) : undefined,
   }))
 
-  const optEntries: PortfolioEntry[] = options.flatMap(o => {
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const optEntries: PortfolioEntry[] = options.filter(o => {
+    if (!o.expiration) return true;
+    return new Date(o.expiration + 'T16:00:00').getTime() >= todayMs;
+  }).flatMap(o => {
     const dir = (o.direction ?? 'long').toLowerCase()
     const kind = (o.optionType ?? 'put').toLowerCase()
     const typeMap: Record<string, PositionType> = {
