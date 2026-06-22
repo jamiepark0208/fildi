@@ -3,7 +3,7 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-06-21
+**build** — last updated 2026-06-22
 
 ## Active work
 - Working: portfolio-csv-parser, portfolio-db-schema, portfolio-ingest-route
