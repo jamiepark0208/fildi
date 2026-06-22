@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-21T16:16:37.929Z",
+  "fetchedAt": "2026-06-21T22:49:19.069Z",
   "vix": {
     "value": 16.78,
     "change": 0.38000107,
@@ -8,8 +8,8 @@
   },
   "yield10y": {
     "value": 4.4509997,
-    "change": 0,
-    "changePct": 0
+    "change": -4.7683716e-7,
+    "changePct": -0.000010713034
   },
   "yield2y": {
     "value": 3.47,
