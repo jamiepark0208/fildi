@@ -388,14 +388,25 @@ export default function Profile() {
   const qc = useQueryClient()
   const [, navigate] = useLocation()
   const [userSearch, setUserSearch] = useState("")
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
 
   const username = routeUsername === "me" ? (me?.username ?? "") : routeUsername
   const [showForm, setShowForm] = useState(false)
 
-  function handleUserSearch(e: React.FormEvent) {
-    e.preventDefault()
-    const q = userSearch.trim().replace(/^@/, "")
-    if (q) { navigate(`/profile/${q}`); setUserSearch("") }
+  const { data: allUsers = [] } = useQuery<{ username: string; avatarUrl: string | null }[]>({
+    queryKey: ["feed", "users"],
+    queryFn: () => apiFeed("/users"),
+    staleTime: 60000,
+  })
+
+  const filteredUsers = userSearch.trim()
+    ? allUsers.filter(u => u.username.toLowerCase().includes(userSearch.toLowerCase()))
+    : allUsers
+
+  function goToUser(uname: string) {
+    setUserSearch("")
+    setUserDropdownOpen(false)
+    navigate(`/profile/${uname}`)
   }
 
   const { data, isLoading, error } = useQuery<ProfileData>({
@@ -435,24 +446,42 @@ export default function Profile() {
         {/* ── Nav bar: back to my profile + find user ── */}
         <div className="flex items-center gap-3">
           {!isOwnerProfile && me && (
-            <Link
-              href="/profile/me"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            >
+            <Link href="/profile/me" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
               ← My Profile
             </Link>
           )}
-          <form onSubmit={handleUserSearch} className="flex items-center gap-1.5 ml-auto">
+          <div className="relative ml-auto">
             <input
               value={userSearch}
               onChange={e => setUserSearch(e.target.value)}
+              onFocus={() => setUserDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setUserDropdownOpen(false), 150)}
               placeholder="Find user…"
-              className="bg-secondary border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary w-32"
+              className="bg-secondary border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary w-36"
             />
-            <button type="submit" className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-1 transition-colors">
-              Go
-            </button>
-          </form>
+            {userDropdownOpen && filteredUsers.length > 0 && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+                {filteredUsers.map(u => (
+                  <button
+                    key={u.username}
+                    onMouseDown={() => goToUser(u.username)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left",
+                      u.username === username && "bg-primary/10 text-primary"
+                    )}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                      {u.avatarUrl
+                        ? <img src={u.avatarUrl} alt={u.username} className="w-5 h-5 rounded-full object-cover" />
+                        : u.username[0]?.toUpperCase()}
+                    </div>
+                    <span className="font-medium text-foreground">{u.username}</span>
+                    {u.username === me?.username && <span className="ml-auto text-[10px] text-muted-foreground">you</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
