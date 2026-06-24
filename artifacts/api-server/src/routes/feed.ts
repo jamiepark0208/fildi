@@ -97,42 +97,66 @@ async function fetchPosts(opts: {
 
 // ── POST /api/feed/posts ───────────────────────────────────────────────────────
 
+const OPTION_TYPES = new Set(['SELL_PUT', 'BUY_PUT', 'SELL_CALL', 'BUY_CALL'])
+const EQUITY_TYPES = new Set(['LONG', 'SHORT'])
+
 router.post('/feed/posts', async (req, res) => {
   const userId = req.session.userId!
-  const { ticker, strike, expiry, contracts, premiumPerContract, confidence, notes,
+  const { ticker, tradeType, confidence, notes,
+          // options fields
+          strike, expiry, contracts, premiumPerContract,
+          // equity fields
+          direction, entryPrice, shares, stopLoss, targetPrice,
+          // context
           ivRankAtEntry, techScoreAtEntry, regimeAtEntry, vixAtEntry, signalAtEntry } = req.body
 
-  // Validation
   if (!ticker || typeof ticker !== 'string' || ticker.trim().length === 0 || ticker.trim().length > 10)
     return res.status(400).json({ error: 'ticker: non-empty string, max 10 chars' })
-  if (!strike || Number(strike) <= 0)
-    return res.status(400).json({ error: 'strike: positive number required' })
-  if (!expiry || !isValidFutureDate(expiry))
-    return res.status(400).json({ error: 'expiry: valid future date required' })
-  if (!contracts || !Number.isInteger(Number(contracts)) || Number(contracts) < 1)
-    return res.status(400).json({ error: 'contracts: integer >= 1 required' })
-  if (!premiumPerContract || Number(premiumPerContract) <= 0)
-    return res.status(400).json({ error: 'premiumPerContract: positive number required' })
+  if (!tradeType || (!OPTION_TYPES.has(tradeType) && !EQUITY_TYPES.has(tradeType)))
+    return res.status(400).json({ error: 'tradeType: must be SELL_PUT, BUY_PUT, SELL_CALL, BUY_CALL, LONG, or SHORT' })
   if (!confidence || !Number.isInteger(Number(confidence)) || Number(confidence) < 1 || Number(confidence) > 5)
     return res.status(400).json({ error: 'confidence: integer 1–5 required' })
 
-  // Rate limit: max 3 open posts
+  const isOption = OPTION_TYPES.has(tradeType)
+
+  if (isOption) {
+    if (!strike || Number(strike) <= 0)
+      return res.status(400).json({ error: 'strike: positive number required' })
+    if (!expiry || !isValidFutureDate(expiry))
+      return res.status(400).json({ error: 'expiry: valid future date required' })
+    if (!contracts || !Number.isInteger(Number(contracts)) || Number(contracts) < 1)
+      return res.status(400).json({ error: 'contracts: integer >= 1 required' })
+    if (!premiumPerContract || Number(premiumPerContract) <= 0)
+      return res.status(400).json({ error: 'premiumPerContract: positive number required' })
+  } else {
+    if (!entryPrice || Number(entryPrice) <= 0)
+      return res.status(400).json({ error: 'entryPrice: positive number required' })
+    if (!shares || !Number.isInteger(Number(shares)) || Number(shares) < 1)
+      return res.status(400).json({ error: 'shares: integer >= 1 required' })
+  }
+
   const [{ openCount }] = await db
     .select({ openCount: count() })
     .from(tradePosts)
     .where(and(eq(tradePosts.userId, userId), eq(tradePosts.status, 'OPEN')))
-
   if (openCount >= 3)
     return res.status(429).json({ error: 'Max 3 open trade ideas at a time' })
 
   const [created] = await db.insert(tradePosts).values({
     userId,
     ticker:             ticker.trim().toUpperCase(),
-    tradeType:          'SELL_PUT',
-    strike:             String(strike),
-    expiry,
-    contracts:          Number(contracts),
-    premiumPerContract: String(premiumPerContract),
+    tradeType,
+    // options (nullable for equity)
+    strike:             isOption ? String(strike) : '0',
+    expiry:             isOption ? expiry : new Date().toISOString().split('T')[0],
+    contracts:          isOption ? Number(contracts) : 0,
+    premiumPerContract: isOption ? String(premiumPerContract) : '0',
+    // equity
+    direction:          !isOption ? tradeType.toLowerCase() : null,
+    entryPrice:         !isOption && entryPrice != null ? String(entryPrice) : null,
+    shares:             !isOption && shares != null ? Number(shares) : null,
+    stopLoss:           stopLoss != null ? String(stopLoss) : null,
+    targetPrice:        targetPrice != null ? String(targetPrice) : null,
     confidence:         Number(confidence),
     notes:              notes ?? null,
     ivRankAtEntry:      ivRankAtEntry != null ? String(ivRankAtEntry) : null,
