@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-24
 
 ## Active work
-- Working: settings-subtabs, user-mgmt, trade-idea-form, profile-nav
-- In progress: Settings has Profile/User Mgmt/Cache Monitor subtabs (admin-gated); Trade Idea form rebuilt with trade-type tabs, options chain inline mini-scanner, equity fields; TradeCard renders equity vs options correctly; user profile search dropdown; per-user Stock Views; last_login_at tracking
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup
+- In progress: Macro tab restructured into 5 sub-tabs (Macro & Regime Health, Volatility & Sentiment, Policy & Forward Guidance, Heatmap, Catalyst Calendar); COT Positioning merged into Macro tabs (equity/rates in Tab1, commodities/crypto/FX in Tab2) with full history chart, position breakdown, quick stats, extremes table; TradingView heatmap (720px) and economic calendar widgets added; all chart axis colors fixed to slate-300; RateHistoryChart has 1M/3M/6M/1Y toggle; AI Highlights moved to top of Tab1; COT Positioning removed from sidebar
 - Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset
 
 ## Next tasks (priority order)
