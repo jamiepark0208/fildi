@@ -583,3 +583,25 @@ export const portfolioOrders = pgTable('portfolio_orders', {
 
 export type PortfolioOrder = typeof portfolioOrders.$inferSelect
 export type InsertPortfolioOrder = typeof portfolioOrders.$inferInsert
+
+// ── market_regime ─────────────────────────────────────────────────────────────
+// Classifier output: one row per run. Keep latest 90 rows; prune manually via
+//   DELETE FROM market_regime WHERE id NOT IN (SELECT id FROM market_regime ORDER BY computed_at DESC LIMIT 90)
+
+export const marketRegime = pgTable('market_regime', {
+  id:                 serial('id').primaryKey(),
+  regime:             text('regime').notNull(),            // 'expansion' | 'late_cycle' | 'contraction' | 'recession' | 'recovery' | 'stagflation'
+  confidence:         integer('confidence').notNull(),      // 0–100
+  signalScores:       jsonb('signal_scores').notNull(),     // { expansion: 14, late_cycle: 9, ... }
+  confirmingSignals:  text('confirming_signals').array().notNull(),  // top 3 driving indicators
+  conflictingSignals: text('conflicting_signals').array().notNull(), // contradicting indicators
+  indicatorSnapshot:  jsonb('indicator_snapshot').notNull(),         // full input values at classification time
+  computedAt:         timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  computedBy:         text('computed_by').notNull().default('system'), // 'system' | userId
+}, t => ({
+  computedAtIdx: index('idx_market_regime_computed_at').on(t.computedAt),
+}))
+
+export const insertMarketRegimeSchema = createInsertSchema(marketRegime).omit({ id: true, computedAt: true })
+export type InsertMarketRegime = z.infer<typeof insertMarketRegimeSchema>
+export type MarketRegime = typeof marketRegime.$inferSelect
