@@ -185,9 +185,9 @@ export async function buildFactsPacket(): Promise<FactsPacket> {
   const movers = watchlistSnaps
     .filter((q) => q.changePct !== null)
     .sort((a, b) => Math.abs(b.changePct!) - Math.abs(a.changePct!))
-    .slice(0, 8);
+    .slice(0, 5);
 
-  const topMoverTickers = movers.slice(0, 5).map((m) => m.ticker);
+  const topMoverTickers = movers.slice(0, 4).map((m) => m.ticker);
 
   // SPY direction hint
   const spySnap = coreSnaps.find((q) => q.ticker === "SPY");
@@ -267,7 +267,7 @@ export async function buildFactsPacket(): Promise<FactsPacket> {
 
   return {
     marketDate: today,
-    news: allNews.slice(0, 45),
+    news: allNews.slice(0, 15),
     eventsToday,
     eventsThisWeek,
     macroSnapshot,
@@ -308,55 +308,26 @@ export function buildHighlightsPrompt(packet: FactsPacket): string {
 
   return `You are a macro analyst writing today's market brief for an options trader who sells OTM puts.
 TODAY: ${packet.marketDate}
-Market is trading ${packet.marketDirection}.
-
-=== SCHEDULED CALENDAR EVENTS ===
-${eventsBlock}
-
-=== LIVE MARKET SNAPSHOT ===
-${snapshotBlock}
-
-=== WATCHLIST MOVERS (top by magnitude) ===
-${moversBlock}
-
-=== MACRO BACKDROP (FRED cache) ===
-${macroBlock}
-
-=== NEWS HEADLINES (deduplicated, numbered) ===
+Market: ${packet.marketDirection}
+${macroBlock ? `MACRO: ${macroBlock}` : ""}
+SNAPSHOT: ${snapshotBlock}
+MOVERS: ${moversBlock}
+EVENTS: ${eventsBlock}
+NEWS:
 ${newsBlock}
 
-=== YOUR TASK ===
-Write a structured JSON brief. Rules:
-1. EVERY bullet must trace back to a headline number above, a calendar event, or a market snapshot number. Reference the source implicitly in the body.
-2. If an FOMC or Fed event appears in today's calendar, it MUST appear in the headline or first bullet with today's date.
-3. If a high-importance event is scheduled today, lead with it.
-4. Pick 8–15 of the most market-moving items. Skip noise, duplicates, and stale fundamentals.
-5. For watchlistMovers: pair each ticker's changePct with the best matching headline. If no headline, write "rotation-driven" or "no headline catalyst".
-6. Category rules: tape=market/index moves, macro=Fed/yields/data, sector=industry rotation, watchlist=specific tickers, event=scheduled releases, geopolitical=geopolitics/oil/trade.
-7. Do NOT invent prices, events, or narratives not in the facts above.
-
-Respond ONLY with valid JSON matching this exact shape (no markdown, no explanation):
+Return ONLY valid JSON (no markdown, no commentary):
 {
   "generatedAt": "${new Date().toISOString()}",
   "marketDate": "${packet.marketDate}",
-  "headline": "<max 90 chars — most important thing happening today>",
-  "eventsToday": [
-    { "date": "<YYYY-MM-DD>", "event": "<name>", "importance": "high|medium|low" }
-  ],
+  "headline": "<90 chars max — single most important thing today>",
+  "eventsToday": [{ "date": "YYYY-MM-DD", "event": "name", "importance": "high|medium|low" }],
   "bullets": [
-    {
-      "id": "b1",
-      "category": "tape|macro|sector|watchlist|event|geopolitical",
-      "title": "<max 60 chars>",
-      "body": "<max 25 words — specific, cite numbers>",
-      "tickers": ["TICK"],
-      "metric": { "label": "<short label>", "value": "<value>", "direction": "up|down|flat" }
-    }
+    { "id": "b1", "category": "tape|macro|sector|watchlist|event|geopolitical", "title": "<50 chars max>", "body": "<20 words max, cite numbers>" }
   ],
-  "watchlistMovers": [
-    { "ticker": "TICK", "changePct": 0.0, "blurb": "<max 15 words>" }
-  ]
-}`;
+  "watchlistMovers": [{ "ticker": "TICK", "changePct": 0.0, "blurb": "<12 words max>" }]
+}
+Rules: 6–8 bullets only. Each bullet grounded in a news item, event, or snapshot above. No invented facts. FOMC/Fed events lead if present today.`;
 }
 
 // ── Parse + validate ───────────────────────────────────────────────────────────
