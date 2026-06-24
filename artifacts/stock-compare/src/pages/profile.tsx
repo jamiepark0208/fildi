@@ -254,31 +254,19 @@ const BUCKETS = [
 
 type BucketKey = "BULLISH" | "NEUTRAL" | "BEARISH"
 
-function BucketsPanel({ isOwner }: { isOwner: boolean }) {
+function BucketsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileUsername: string }) {
   const qc = useQueryClient()
   const [adding, setAdding] = useState<Record<BucketKey, boolean>>({ BULLISH: false, NEUTRAL: false, BEARISH: false })
 
-  // All users' buckets
-  const { data: allBuckets = [], isLoading } = useQuery<BucketEntry[]>({
-    queryKey: ["feed", "buckets"],
-    queryFn: () => apiFeed("/buckets"),
+  const { data: allBuckets = [], isLoading } = useQuery<{ ticker: string; bucket: BucketKey; addedAt: string }[]>({
+    queryKey: ["feed", "buckets", profileUsername],
+    queryFn: () => apiFeed(`/buckets/${profileUsername}`),
     staleTime: 30000,
     refetchOnWindowFocus: false,
   })
 
-  // My own buckets (for owner: to show which are mine so I can delete)
-  const { data: mineBuckets = [] } = useQuery<{ ticker: string; bucket: BucketKey }[]>({
-    queryKey: ["feed", "buckets", "mine"],
-    queryFn: () => apiFeed("/buckets/mine"),
-    staleTime: 30000,
-    enabled: isOwner,
-  })
-
-  const myTickers = new Set(mineBuckets.map(b => b.ticker))
-
   function invalidateBuckets() {
-    qc.invalidateQueries({ queryKey: ["feed", "buckets"] })
-    qc.invalidateQueries({ queryKey: ["feed", "buckets", "mine"] })
+    qc.invalidateQueries({ queryKey: ["feed", "buckets", profileUsername] })
   }
 
   async function addTicker(bucket: BucketKey, ticker: string) {
@@ -303,56 +291,41 @@ function BucketsPanel({ isOwner }: { isOwner: boolean }) {
   }
 
   // Group all buckets by bucket type, then group tickers by who picked them
-  function bucketsFor(bucketKey: BucketKey) {
-    return allBuckets.filter(b => b.bucket === bucketKey)
+  function tickersFor(bucketKey: BucketKey) {
+    return allBuckets.filter(b => b.bucket === bucketKey).sort((a, b) => a.ticker.localeCompare(b.ticker))
   }
 
-  // Tickers in this bucket: deduplicate, show usernames per ticker
-  function tickerGroups(bucketKey: BucketKey) {
-    const entries = bucketsFor(bucketKey)
-    const map = new Map<string, string[]>()
-    for (const e of entries) {
-      const list = map.get(e.ticker) ?? []
-      list.push(e.username)
-      map.set(e.ticker, list)
-    }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-  }
+  const myTickers = new Set(allBuckets.map(b => b.ticker))
 
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Sentiment</div>
+      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Views</div>
       <div className="grid grid-cols-3 gap-3">
         {BUCKETS.map(({ key, label, icon: Icon, color, border, bg, pill }) => {
-          const groups = tickerGroups(key)
+          const tickers = tickersFor(key)
           return (
             <div key={key} className={cn("rounded-xl border p-3 space-y-2.5", border, bg)}>
-              {/* Bucket header */}
               <div className={cn("flex items-center gap-1.5 text-xs font-bold", color)}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
-                <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{groups.length}</span>
+                <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{tickers.length}</span>
               </div>
 
-              {/* Ticker list */}
               <div className="space-y-1 min-h-[40px]">
                 {isLoading ? (
                   <span className="text-[10px] text-muted-foreground/40 animate-pulse">Loading…</span>
-                ) : groups.length === 0 ? (
+                ) : tickers.length === 0 ? (
                   <span className="text-[10px] text-muted-foreground/40">No picks yet</span>
                 ) : (
-                  groups.map(([ticker, usernames]) => (
+                  tickers.map(({ ticker }) => (
                     <div key={ticker} className="flex items-center gap-1.5 group">
                       <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded border", pill)}>
                         {ticker}
                       </span>
-                      <span className="text-[10px] text-muted-foreground/50 truncate flex-1">
-                        {usernames.join(", ")}
-                      </span>
-                      {isOwner && myTickers.has(ticker) && (
+                      {isOwner && (
                         <button
                           onClick={() => removeTicker(ticker)}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-red-400 transition-all"
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-red-400 transition-all ml-auto"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -498,8 +471,8 @@ export default function Profile() {
             {/* ── Stats bar ── */}
             <StatsBar stats={data.stats} />
 
-            {/* ── Stock Sentiment Buckets ── */}
-            <BucketsPanel isOwner={isOwnerProfile} />
+            {/* ── Stock Views Buckets ── */}
+            <BucketsPanel isOwner={isOwnerProfile} profileUsername={username} />
 
             {/* ── Submit form ── */}
             {isOwnerProfile && showForm && (
