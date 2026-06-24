@@ -429,7 +429,7 @@ export default function MacroDashboard() {
                         { key: "retailSales",       label: "Retail Sales",      series: s.retailSales,       inflSign: false, mom: null, momRaw: s.retailSales.change != null ? `${s.retailSales.change > 0 ? "+" : ""}${fmtB(s.retailSales.change)}` : null, yoy: s.retailSales.yoy, value: fmtB(s.retailSales.value) },
                         { key: "consumerSentiment", label: "Consumer Sentiment", series: s.consumerSentiment, inflSign: false, mom: s.consumerSentiment.change, yoy: s.consumerSentiment.yoy, value: fmt(s.consumerSentiment.value, 1) },
                         { key: "fedFundsRate",      label: "Fed Funds Rate",    series: s.fedFundsRate,      inflSign: false, mom: s.fedFundsRate.change,     yoy: null, value: fmtPct(s.fedFundsRate.value) },
-                        { key: "ismManufacturing",  label: "ISM Manufacturing PMI", series: s.ismManufacturing, inflSign: false, mom: s.ismManufacturing.change, yoy: null, value: fmt(s.ismManufacturing.value, 1) },
+                        ...(s.ismManufacturing ? [{ key: "ismManufacturing", label: "ISM Manufacturing PMI", series: s.ismManufacturing, inflSign: false, mom: s.ismManufacturing.change, yoy: null, value: fmt(s.ismManufacturing.value, 1) }] : []),
                       ].map((row) => (
                         <MacroRow
                           key={row.key} indicatorKey={row.key} label={row.label} value={row.value}
