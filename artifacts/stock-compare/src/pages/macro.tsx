@@ -57,6 +57,7 @@ import {
   FedFundsCurveChart, RateHistoryChart, MacroRow, IndicatorHistoryChart,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
+  TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/MacroComponents";
 
 const MACRO_TABS: { id: MacroTab; label: string }[] = [
@@ -592,12 +593,28 @@ export default function MacroDashboard() {
 
           {/* ── Tab 4: Heatmap ────────────────────────────────────────────────── */}
           {activeTab === "heatmap" && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">S&P 500 Sector Heatmap</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Market-cap weighted · colored by daily % change · powered by TradingView</p>
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold">S&P 500 Sector Heatmap</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Market-cap weighted · colored by daily % change · powered by TradingView</p>
+                </div>
+                <TradingViewHeatmap />
               </div>
-              <TradingViewHeatmap />
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold">Market Overview</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Indices, bonds, commodities & forex · powered by TradingView</p>
+                </div>
+                <TradingViewMarketOverview />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold">Forex Cross Rates</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Major currency pairs · USD strength context · powered by TradingView</p>
+                </div>
+                <TradingViewForexCrossRates />
+              </div>
             </div>
           )}
 

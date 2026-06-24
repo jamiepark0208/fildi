@@ -7,8 +7,8 @@
 
 ## Active work
 - Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks
-- In progress: Macro tab has CBOE put/call ratio, GSCPI, money market AUM charts added; macro.tsx split into macro.tsx(643L)+MacroComponents.tsx(1402L)+macro-page-types.ts(172L); macro-data.ts split into macro-data.ts(845L)+macro-static.ts(262L)
-- Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset
+- In progress: Macro tab fixes: GSCPI→FRED, CBOE put/call→Yahoo ^PCCE, FRED URL fixed (no vintage_date); AI highlights prompt trimmed to fit 1500 tokens (was truncating at 2000); added TradingView Market Overview + Forex Cross Rates widgets to Heatmap tab; 14 TS errors fixed (stale lib/db/dist + upperTicker typo)
+- Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset; api-server needs rebuild to pick up macro-highlights prompt changes
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI

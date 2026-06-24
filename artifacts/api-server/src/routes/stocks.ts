@@ -529,7 +529,7 @@ router.get("/stocks/quote", async (req, res) => {
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
-      return res.status(404).json({ error: `Ticker not found: ${upperTicker}` });
+      return res.status(404).json({ error: `Ticker not found: ${key}` });
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
   }
