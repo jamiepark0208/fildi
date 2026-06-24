@@ -20,6 +20,11 @@ export interface TradePost {
   status: string
   closePremium: number | null
   resolvedPnl: number | null
+  direction: string | null
+  entryPrice: number | null
+  shares: number | null
+  stopLoss: number | null
+  targetPrice: number | null
   createdAt: string
   username: string
   avatarUrl: string | null
@@ -164,6 +169,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
     }] : null)
   }
 
+  const isEquity = post.tradeType === "LONG" || post.tradeType === "SHORT"
   const totalPremium = post.premiumPerContract * post.contracts * 100
 
   return (
@@ -193,25 +199,41 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
         </div>
       </div>
 
-      {/* Trade details — compact grid */}
-      <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
-        <div className="space-y-0">
-          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Strike</div>
-          <div className="text-sm font-semibold text-foreground">${post.strike}</div>
+      {/* Trade details — layout branches on trade category */}
+      {isEquity ? (
+        <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
+          {[
+            { label: "Direction", val: post.direction?.toUpperCase() ?? "—", color: post.direction === "long" ? "text-green-400" : "text-red-400" },
+            { label: "Entry",     val: post.entryPrice != null ? `$${post.entryPrice}` : "—" },
+            { label: "Shares",    val: post.shares != null ? String(post.shares) : "—" },
+            { label: "Stop",      val: post.stopLoss != null ? `$${post.stopLoss}` : "—", dim: true },
+          ].map(({ label, val, color, dim }) => (
+            <div key={label} className="space-y-0">
+              <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">{label}</div>
+              <div className={cn("text-sm font-semibold", color ?? (dim ? "text-muted-foreground" : "text-foreground"))}>{val}</div>
+            </div>
+          ))}
         </div>
-        <div className="space-y-0">
-          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Expiry</div>
-          <div className="text-sm font-semibold text-foreground">{fmtExpiry(post.expiry)}</div>
+      ) : (
+        <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
+          <div className="space-y-0">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Strike</div>
+            <div className="text-sm font-semibold text-foreground">${post.strike}</div>
+          </div>
+          <div className="space-y-0">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Expiry</div>
+            <div className="text-sm font-semibold text-foreground">{fmtExpiry(post.expiry)}</div>
+          </div>
+          <div className="space-y-0">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Premium</div>
+            <div className="text-sm font-semibold text-foreground">${post.premiumPerContract}<span className="text-[10px] text-muted-foreground/60">×{post.contracts}</span></div>
+          </div>
+          <div className="space-y-0">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Total</div>
+            <div className="text-sm font-semibold text-green-400">${totalPremium.toFixed(0)}</div>
+          </div>
         </div>
-        <div className="space-y-0">
-          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Premium</div>
-          <div className="text-sm font-semibold text-foreground">${post.premiumPerContract}<span className="text-[10px] text-muted-foreground/60">×{post.contracts}</span></div>
-        </div>
-        <div className="space-y-0">
-          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Total</div>
-          <div className="text-sm font-semibold text-green-400">${totalPremium.toFixed(0)}</div>
-        </div>
-      </div>
+      )}
 
       {/* Notes */}
       {post.notes && (
@@ -222,10 +244,10 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
 
       {/* Context chips */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/60">
-        {post.ivRankAtEntry != null && <span>IV Rank {post.ivRankAtEntry}%</span>}
-        {post.vixAtEntry != null && <span>VIX {post.vixAtEntry}</span>}
-        <span className="text-muted-foreground/40">·</span>
-        <span>{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
+        {!isEquity && post.ivRankAtEntry != null && <span>IV Rank {post.ivRankAtEntry}%</span>}
+        {!isEquity && post.vixAtEntry != null && <span>VIX {post.vixAtEntry}</span>}
+        {isEquity && post.targetPrice != null && <span>Target ${post.targetPrice}</span>}
+        {!isEquity && <><span className="text-muted-foreground/40">·</span><span>{weeklyIncome(post.premiumPerContract, post.expiry)}</span></>}
         <span className="ml-auto text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
       </div>
 
