@@ -61,7 +61,6 @@ const DEFAULT_GROUPS: NavGroup[] = [
       { id: "technical", href: "/technical", label: "Technical", icon: "LineChart" },
       { id: "options-scanner", href: "/options-scanner", label: "Options Scanner", icon: "ScanLine" },
       { id: "macro", href: "/macro", label: "Macro", icon: "Globe" },
-      { id: "sentiment", href: "/sentiment", label: "COT Positioning", icon: "Activity" },
     ],
   },
   {
