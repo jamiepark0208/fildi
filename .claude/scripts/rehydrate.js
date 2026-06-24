@@ -34,11 +34,24 @@ console.log(`Git: ${g.log.split('\n')[0]} ${g.diff !== 'clean' ? `| Changes: ${g
 if (g.log.includes('\n')) console.log(`     ${g.log.split('\n')[1]}`);
 if (s.instincts?.length) console.log(`Instincts: ${s.instincts.join(' · ')}`);
 
+// Playwright availability — check once per session, cache result
+const PW_CACHE = '/tmp/tradedash-session-caps.json';
+let pwAvailable = false;
+try {
+  const caps = JSON.parse(fs.readFileSync(PW_CACHE, 'utf8'));
+  pwAvailable = caps.playwright === true;
+} catch {
+  // Not cached yet — probe known install paths
+  // MCP Playwright plugin requires Chrome specifically at this path — not any Chromium build
+  pwAvailable = (() => { try { fs.accessSync('/opt/google/chrome/chrome'); return true; } catch { return false; } })();
+  try { fs.writeFileSync(PW_CACHE, JSON.stringify({ playwright: pwAvailable })); } catch {}
+}
+
 try {
   const status = execSync('codegraph status 2>/dev/null', { cwd:ROOT }).toString();
   const f = status.match(/Files:\s+([\d,]+)/)?.[1] ?? '?';
   const n = status.match(/Nodes:\s+([\d,]+)/)?.[1] ?? '?';
-  console.log(`Codegraph: ${f} files · ${n} nodes · ${status.includes('up to date') ? 'up to date ✓' : 'synced'}`);
+  console.log(`Codegraph: ${f} files · ${n} nodes · ${status.includes('up to date') ? 'up to date ✓' : 'synced'} | Playwright: ${pwAvailable ? '✓ available' : '✗ unavailable — skip /verify'}`);
 } catch { console.log(`Codegraph: unavailable`); }
 
 try {
