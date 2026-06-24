@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-24
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks
-- In progress: Macro tab fixes: GSCPI→FRED, CBOE put/call→Yahoo ^PCCE, FRED URL fixed (no vintage_date); AI highlights prompt trimmed to fit 1500 tokens (was truncating at 2000); added TradingView Market Overview + Forex Cross Rates widgets to Heatmap tab; 14 TS errors fixed (stale lib/db/dist + upperTicker typo)
-- Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset; api-server needs rebuild to pick up macro-highlights prompt changes
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema
+- In progress: Macro tab: added IG/HY dual-line chart, Copper/Gold ratio, NFCI, DXY, ISM Manufacturing PMI row; concurrency limiter (allSettledLimited) added to fetchMacroCharts+fetchMacroData; market_regime DB table added to schema + migration 0001 generated; CLAUDE.md hot-file index added
+- Blocked: DB migration 0001 not yet applied (drizzle-kit migrate hangs — needs DATABASE_URL in Replit shell); macro tab preview still unverified post-concurrency fix
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
