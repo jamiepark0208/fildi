@@ -257,6 +257,7 @@ export const INDICATOR_SERIES: Record<string, { id: string; label: string; unit:
   jolts:             { id: "JTSJOL",          label: "JOLTS Openings",   unit: "Thousands" },
   gdp:               { id: "A191RL1Q225SBEA", label: "Real GDP (annl.)", unit: "%" },
   retailSales:       { id: "RSXFS",           label: "Retail Sales",     unit: "$B" },
-  consumerSentiment: { id: "UMCSENT",         label: "Cons. Sentiment",  unit: "Index" },
-  fedFundsRate:      { id: "DFF",             label: "Fed Funds Rate",   unit: "%" },
+  consumerSentiment:  { id: "UMCSENT",         label: "Cons. Sentiment",       unit: "Index" },
+  fedFundsRate:       { id: "DFF",             label: "Fed Funds Rate",         unit: "%" },
+  ismManufacturing:   { id: "NAPM",            label: "ISM Manufacturing PMI",  unit: "Index" },
 };

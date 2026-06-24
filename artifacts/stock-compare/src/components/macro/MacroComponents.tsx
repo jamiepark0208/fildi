@@ -631,6 +631,86 @@ export function RateHistoryChart({
   );
 }
 
+export function DualLineHistoryChart({
+  title, data1, data2, color1, color2, label1, label2, loading,
+  yFormatter = (v: number) => `${v.toFixed(2)}%`,
+  tooltipFormatter = (v: number, name: string) => [`${v.toFixed(2)}%`, name],
+  referenceLines,
+}: {
+  title: string;
+  data1: ChartPoint[];
+  data2: ChartPoint[];
+  color1: string;
+  color2: string;
+  label1: string;
+  label2: string;
+  loading: boolean;
+  yFormatter?: (v: number) => string;
+  tooltipFormatter?: (v: number, name: string) => [string, string];
+  referenceLines?: { y: number; label: string; color: string }[];
+}) {
+  const [period, setPeriod] = useState<HistoryPeriod>("3m");
+
+  // Merge both series by date for Recharts
+  const merged = (() => {
+    const map = new Map<string, { date: string; v1?: number; v2?: number }>();
+    for (const p of filterByPeriod(data1, period)) {
+      map.set(p.date, { date: p.date, v1: p.value });
+    }
+    for (const p of filterByPeriod(data2, period)) {
+      const entry = map.get(p.date) ?? { date: p.date };
+      entry.v2 = p.value;
+      map.set(p.date, entry);
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  })();
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+          {(["1m", "3m", "6m", "1y"] as HistoryPeriod[]).map((p) => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={cn("px-2 py-0.5 transition-colors", period === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
+              {p === "1y" ? "1Y" : p === "6m" ? "6M" : p === "3m" ? "3M" : "1M"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading ? (
+        <div className="h-[160px] flex items-center justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : merged.length > 0 ? (
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={merged} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+            <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#cbd5e1" }}
+              tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}
+              interval={Math.floor(merged.length / 6)} />
+            <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
+            <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
+              formatter={(v: unknown, name: unknown) => tooltipFormatter(v as number, name as string)}
+              labelFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} />
+            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+            {referenceLines?.map(rl => (
+              <ReferenceLine key={rl.label} y={rl.y} stroke={rl.color} strokeDasharray="4 3" strokeOpacity={0.5}
+                label={{ value: rl.label, fill: rl.color, fontSize: 9, position: "insideTopRight" }} />
+            ))}
+            <Line type="monotone" dataKey="v1" name={label1} stroke={color1} dot={false} strokeWidth={1.5} connectNulls />
+            <Line type="monotone" dataKey="v2" name={label2} stroke={color2} dot={false} strokeWidth={1.5} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
+          No data
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Macro data table row ─────────────────────────────────────────────────────────
 
 export function MacroRow({

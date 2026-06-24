@@ -68,10 +68,14 @@ export interface MacroCharts {
   fedFundsCurve: FedFundsCurvePoint[];
   fearGreedHistory: ChartPoint[];
   hySpreadHistory: ChartPoint[];
-  putCallHistory: ChartPoint[];     // VVIX (vol of VIX)
-  putCallRatioHistory: ChartPoint[]; // CBOE equity put/call ratio
-  gscpiHistory: ChartPoint[];        // NY Fed Global Supply Chain Pressure Index
-  moneyMarketHistory: ChartPoint[];  // Money market fund total assets (FRED MMMFNS)
+  igSpreadHistory: ChartPoint[];      // ICE BofA IG OAS (BAMLC0A0CM)
+  putCallHistory: ChartPoint[];       // VVIX (vol of VIX)
+  putCallRatioHistory: ChartPoint[];  // CBOE equity put/call ratio
+  gscpiHistory: ChartPoint[];         // NY Fed Global Supply Chain Pressure Index
+  moneyMarketHistory: ChartPoint[];   // Money market fund total assets (FRED MMMFNS)
+  nfciHistory: ChartPoint[];          // Chicago Fed National Financial Conditions Index
+  copperGoldHistory: ChartPoint[];    // Copper/Gold ratio (HG=F / GC=F)
+  dxyHistory: ChartPoint[];           // US Dollar Index (DX-Y.NYB)
 }
 
 export interface FedMember {
@@ -119,17 +123,18 @@ export interface MacroData {
   skew: MarketQuote;
   vxn: MarketQuote;
   series: {
-    cpi:               FredSeries;
-    coreCpi:           FredSeries;
-    corePce:           FredSeries;
-    unemployment:      FredSeries;
-    nonfarmPayrolls:   FredSeries;
-    jolts:             FredSeries;
-    gdp:               FredSeries;
-    ppi:               FredSeries;
-    retailSales:       FredSeries;
-    consumerSentiment: FredSeries;
-    fedFundsRate:      FredSeries;
+    cpi:                FredSeries;
+    coreCpi:            FredSeries;
+    corePce:            FredSeries;
+    unemployment:       FredSeries;
+    nonfarmPayrolls:    FredSeries;
+    jolts:              FredSeries;
+    gdp:                FredSeries;
+    ppi:                FredSeries;
+    retailSales:        FredSeries;
+    consumerSentiment:  FredSeries;
+    fedFundsRate:       FredSeries;
+    ismManufacturing:   FredSeries;
   };
 }
 
@@ -575,6 +580,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     fedFundsResult,
     usDebtResult,
     yieldCurveResult,
+    ismResult,
   ] = await Promise.allSettled([
     yahooFinance.quote("^VIX",  {}, { validateResult: false }),
     yahooFinance.quote("^TNX",  {}, { validateResult: false }),
@@ -593,6 +599,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     fetchFredLatest("DFF",             "%",        0),
     fetchFredLatest("GFDEBTN",         "$ millions",0),
     fetchYieldCurve(),
+    fetchFredLatest("NAPM",            "index",    0),
   ]);
 
   const vixQuote  = vixResult.status  === "fulfilled" ? safeQuote(vixResult.value)  : { value: null, change: null, changePct: null };
@@ -642,8 +649,9 @@ export async function fetchMacroData(): Promise<MacroData> {
       gdp:               getSeries(gdpResult,          nullSeries("%")),
       ppi:               getSeries(ppiResult,          nullSeries("%")),
       retailSales:       getSeries(retailResult,       nullSeries("$ billions")),
-      consumerSentiment: getSeries(sentimentResult,    nullSeries("index")),
-      fedFundsRate:      getSeries(fedFundsResult,     nullSeries("%")),
+      consumerSentiment:  getSeries(sentimentResult,    nullSeries("index")),
+      fedFundsRate:       getSeries(fedFundsResult,     nullSeries("%")),
+      ismManufacturing:   getSeries(ismResult,          nullSeries("index")),
     },
   };
 }
@@ -706,20 +714,38 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     return fetchFredCSV("GSCPI");
   };
 
+  const fetchCopperGold = async (): Promise<ChartPoint[]> => {
+    const [cuResult, gcResult] = await Promise.allSettled([
+      yahooFinance.chart("HG=F", { period1, interval: "1d" }, { validateResult: false }),
+      yahooFinance.chart("GC=F", { period1, interval: "1d" }, { validateResult: false }),
+    ]);
+    if (cuResult.status !== "fulfilled" || gcResult.status !== "fulfilled") return [];
+    const cuPoints = chartToPoints(cuResult);
+    const gcMap = new Map(chartToPoints(gcResult).map(p => [p.date, p.value]));
+    return cuPoints
+      .filter(p => gcMap.has(p.date) && gcMap.get(p.date)! > 0)
+      .map(p => ({ date: p.date, value: parseFloat((p.value / gcMap.get(p.date)!).toFixed(6)) }));
+  };
+
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
-         hyResult, vvixResult, fearGreedResult,
-         putCallResult, gscpiResult, moneyMarketResult] = await Promise.allSettled([
-    yahooFinance.chart("^VIX",  { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^IRX",  { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^TNX",  { period1, interval: "1d" }, { validateResult: false }),
+         hyResult, igResult, vvixResult, fearGreedResult,
+         putCallResult, gscpiResult, moneyMarketResult,
+         nfciResult, copperGoldResult, dxyResult] = await Promise.allSettled([
+    yahooFinance.chart("^VIX",    { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^IRX",    { period1, interval: "1d" }, { validateResult: false }),
+    yahooFinance.chart("^TNX",    { period1, interval: "1d" }, { validateResult: false }),
     fetchVixCurve(),
     fetchFedFundsCurve(),
-    fetchFredCSV("BAMLH0A0HYM2"),   // ICE BofA HY OAS spread
-    yahooFinance.chart("^VVIX", { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX
+    fetchFredCSV("BAMLH0A0HYM2"), // ICE BofA HY OAS spread
+    fetchFredCSV("BAMLC0A0CM"),   // ICE BofA IG OAS spread
+    yahooFinance.chart("^VVIX",   { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX
     fetchFearGreed(),
     fetchCboePutCall(),
     fetchGSCPI(),
-    fetchFredCSV("MMMFNS"),         // Money market mutual fund total assets ($ billions)
+    fetchFredCSV("MMMFNS"),       // Money market mutual fund total assets ($ billions)
+    fetchFredCSV("NFCI"),         // Chicago Fed National Financial Conditions Index
+    fetchCopperGold(),
+    yahooFinance.chart("DX-Y.NYB", { period1, interval: "1d" }, { validateResult: false }), // DXY
   ]);
 
   return {
@@ -730,11 +756,15 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     vixCurve:              vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
     fedFundsCurve:         ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
     hySpreadHistory:       hyResult.status        === "fulfilled" ? hyResult.value       : [],
+    igSpreadHistory:       igResult.status        === "fulfilled" ? igResult.value       : [],
     putCallHistory:        chartToPoints(vvixResult),
     fearGreedHistory:      fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
     putCallRatioHistory:   putCallResult.status   === "fulfilled" ? putCallResult.value  : [],
     gscpiHistory:          gscpiResult.status     === "fulfilled" ? gscpiResult.value    : [],
     moneyMarketHistory:    moneyMarketResult.status === "fulfilled" ? moneyMarketResult.value : [],
+    nfciHistory:           nfciResult.status       === "fulfilled" ? nfciResult.value    : [],
+    copperGoldHistory:     copperGoldResult.status === "fulfilled" ? copperGoldResult.value : [],
+    dxyHistory:            chartToPoints(dxyResult),
   };
 }
 
@@ -775,6 +805,7 @@ export function loadChartsCache(): MacroCharts | null {
     if (!data.vixCurve || !data.fedFundsCurve) return null;
     if (!data.hySpreadHistory || !data.putCallHistory || !data.fearGreedHistory) return null;
     if (!("putCallRatioHistory" in data) || !("gscpiHistory" in data) || !("moneyMarketHistory" in data)) return null;
+    if (!("igSpreadHistory" in data) || !("nfciHistory" in data) || !("copperGoldHistory" in data) || !("dxyHistory" in data)) return null;
     return data;
   } catch {
     return null;
