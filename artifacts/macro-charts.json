@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-24T01:39:00.827Z",
+  "fetchedAt": "2026-06-24T17:08:18.122Z",
   "vixHistory": [
     {
       "date": "2024-06-24",
@@ -2008,6 +2008,10 @@
     {
       "date": "2026-06-23",
       "value": 19.489999771118164
+    },
+    {
+      "date": "2026-06-24",
+      "value": 18.790000915527344
     }
   ],
   "fedFundsHistory": [
@@ -4008,8 +4012,8 @@
       "value": 3.6579999923706055
     },
     {
-      "date": "2026-06-23",
-      "value": 3.690000057220459
+      "date": "2026-06-24",
+      "value": 3.693000078201294
     }
   ],
   "tenYearHistory": [
@@ -6010,8 +6014,8 @@
       "value": 4.451000213623047
     },
     {
-      "date": "2026-06-23",
-      "value": 4.493000030517578
+      "date": "2026-06-24",
+      "value": 4.409999847412109
     }
   ],
   "vixCurve": [
@@ -6026,7 +6030,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 19.49,
+      "value": 18.78,
       "weekAgo": 18.440000534057617,
       "monthAgo": 16.59000015258789,
       "threeMonthAgo": 25.329999923706055
@@ -6034,7 +6038,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 21.06,
+      "value": 20.59,
       "weekAgo": 20.6200008392334,
       "monthAgo": 20.030000686645508,
       "threeMonthAgo": 25.6299991607666
@@ -6042,7 +6046,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 22.97,
+      "value": 22.67,
       "weekAgo": 22.6200008392334,
       "monthAgo": 22.350000381469727,
       "threeMonthAgo": 26.690000534057617
@@ -6050,7 +6054,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 24.28,
+      "value": 23.75,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6069,7 +6073,7 @@
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.785,
+      "impliedRate": 3.78,
       "weekAgo": 3.75,
       "monthAgo": 3.71,
       "threeMonthAgo": 3.69,
@@ -6078,7 +6082,7 @@
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.86,
+      "impliedRate": 3.855,
       "weekAgo": 3.8,
       "monthAgo": 3.745,
       "threeMonthAgo": 3.705,
@@ -6087,7 +6091,7 @@
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.985,
+      "impliedRate": 3.97,
       "weekAgo": 3.93,
       "monthAgo": 3.85,
       "threeMonthAgo": 3.695,
@@ -6096,7 +6100,7 @@
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 4.01,
+      "impliedRate": 3.99,
       "weekAgo": 3.965,
       "monthAgo": 3.88,
       "threeMonthAgo": 3.685,
@@ -6105,7 +6109,7 @@
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.065,
+      "impliedRate": 4.035,
       "weekAgo": 4.025,
       "monthAgo": 3.95,
       "threeMonthAgo": 3.675,
@@ -6114,7 +6118,7 @@
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 4.095,
+      "impliedRate": 4.05,
       "weekAgo": 4.06,
       "monthAgo": 4.015,
       "threeMonthAgo": 3.655,
@@ -9261,6 +9265,10 @@
     {
       "date": "2026-06-22",
       "value": 2.65
+    },
+    {
+      "date": "2026-06-23",
+      "value": 2.71
     }
   ],
   "putCallHistory": [
@@ -11267,6 +11275,10 @@
     {
       "date": "2026-06-23",
       "value": 99.5
+    },
+    {
+      "date": "2026-06-24",
+      "value": 95.41999816894531
     }
   ],
   "fearGreedHistory": [
@@ -12275,8 +12287,12 @@
       "value": 27.5
     },
     {
-      "date": "2026-06-23",
-      "value": 27.5
+      "date": "2026-06-24",
+      "value": 27.3
+    },
+    {
+      "date": "2026-06-24",
+      "value": 27.3
     }
   ]
 }
