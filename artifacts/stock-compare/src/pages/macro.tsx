@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +182,27 @@ interface SepActuals {
 
 type CurvePeriod = "current" | "1wk" | "1mo" | "3mo";
 type SepMetric = "fedRate" | "gdp" | "unemployment" | "corePce";
+type MacroTab = "regime" | "volatility" | "policy" | "heatmap" | "catalyst";
+
+const MACRO_TABS: { id: MacroTab; label: string }[] = [
+  { id: "regime",     label: "Macro & Regime Health" },
+  { id: "volatility", label: "Volatility & Sentiment" },
+  { id: "policy",     label: "Policy & Forward Guidance" },
+  { id: "heatmap",    label: "Heatmap" },
+  { id: "catalyst",   label: "Catalyst Calendar" },
+];
+
+const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
+
+interface COTRecord {
+  date: string; instrument: string; displayName: string; dataset: "tff" | "legacy";
+  openInterest: number; levMoneyNet: number; levMoneyLongChg: number; levMoneyShortChg: number;
+  assetMgrNet: number; dealerNet: number;
+}
+interface COTSummary {
+  instrument: string; displayName: string; dataset: "tff" | "legacy";
+  latest: COTRecord; history: COTRecord[]; zScore: number; stale?: boolean;
+}
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
 
@@ -315,12 +336,15 @@ function CurvePeriodButtons({
 export default function MacroDashboard() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<MacroTab>("regime");
   const [fedSection, setFedSection] = useState<"voting" | "all">("voting");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
   const [treasuryPeriod, setTreasuryPeriod] = useState<CurvePeriod>("current");
   const [ffPeriod, setFfPeriod] = useState<CurvePeriod>("current");
   const [selectedIndicatorKey, setSelectedIndicatorKey] = useState<string>("corePce");
   const [selectedSepMetric, setSelectedSepMetric] = useState<SepMetric>("fedRate");
+  const [selectedMacroCotId, setSelectedMacroCotId] = useState("sp500");
+  const [selectedSentCotId, setSelectedSentCotId] = useState("gold");
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -379,6 +403,29 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/sep-actuals").then((r) => r.json()),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
+  });
+
+  const { data: cotSummaries } = useQuery<COTSummary[]>({
+    queryKey: ["cot-summary"],
+    queryFn: () => fetch("/api/cot/summary").then((r) => r.json()),
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: macroCotHistory } = useQuery<COTRecord[]>({
+    queryKey: ["cot-history", selectedMacroCotId],
+    queryFn: () => fetch(`/api/cot/history?instrument=${selectedMacroCotId}&weeks=52`).then((r) => r.json()),
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!selectedMacroCotId,
+  });
+
+  const { data: sentCotHistory } = useQuery<COTRecord[]>({
+    queryKey: ["cot-history", selectedSentCotId],
+    queryFn: () => fetch(`/api/cot/history?instrument=${selectedSentCotId}&weeks=52`).then((r) => r.json()),
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!selectedSentCotId,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
@@ -457,6 +504,8 @@ export default function MacroDashboard() {
   }
 
   const s = macroData!.series;
+  const macroCoTs = cotSummaries?.filter((c) => COT_MACRO_IDS.includes(c.instrument)) ?? [];
+  const sentCoTs  = cotSummaries?.filter((c) => !COT_MACRO_IDS.includes(c.instrument)) ?? [];
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -464,16 +513,19 @@ export default function MacroDashboard() {
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
 
-      <main className="p-6 flex-1 space-y-6 max-w-[1400px]" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
-
+      <main
+        className="flex-1 flex flex-col overflow-hidden"
+        style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}
+      >
         {/* ── Header ─────────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Macro Dashboard</h1>
+        <div className="shrink-0 border-b border-border bg-background px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight leading-none">Macro Dashboard</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Holistic financial markets monitor</p>
+          </div>
           <div className="flex items-center gap-3">
             {macroData && (
-              <span className="text-xs text-muted-foreground">
-                Updated {fmtTs(macroData.fetchedAt)}
-              </span>
+              <span className="text-xs text-muted-foreground">Updated {fmtTs(macroData.fetchedAt)}</span>
             )}
             {isAdmin && (
               <button
@@ -481,350 +533,346 @@ export default function MacroDashboard() {
                 disabled={refreshMutation.isPending}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary transition-colors disabled:opacity-50"
               >
-                {refreshMutation.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
+                {refreshMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Refresh
               </button>
             )}
           </div>
         </div>
 
-        {/* ── Regime chips ────────────────────────────────────────────────────── */}
-        <RegimeChips macroData={macroData!} />
-
-        {/* ── Quick stats row ─────────────────────────────────────────────────── */}
-        <QuickStats macroData={macroData!} />
-
-        {/* ── AI Highlights ───────────────────────────────────────────────────── */}
-        <MacroHighlightsPanel />
-
-        {/* ── Charts row: VIX Curve + Treasury Yield Curve ─────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <VixCurveChart
-            vixCurve={macroCharts?.vixCurve ?? []}
-            loading={!macroCharts}
-            period={vixPeriod}
-            onPeriodChange={setVixPeriod}
-          />
-          <YieldCurveChart
-            yieldCurve={macroData!.yieldCurve}
-            period={treasuryPeriod}
-            onPeriodChange={setTreasuryPeriod}
-          />
+        {/* ── Sub-tabs ────────────────────────────────────────────────────────── */}
+        <div className="shrink-0 flex border-b border-border px-6 bg-background overflow-x-auto">
+          {MACRO_TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={cn(
+                "text-xs font-medium px-4 py-2.5 border-b-2 transition-colors -mb-px whitespace-nowrap",
+                activeTab === t.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {/* ── Fed Funds Curve + 10Y Treasury history ───────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <FedFundsCurveChart
-            data={macroCharts?.fedFundsCurve ?? []}
-            loading={!macroCharts}
-            period={ffPeriod}
-            onPeriodChange={setFfPeriod}
-          />
-          <RateHistoryChart
-            title="10Y Treasury"
-            data={macroCharts?.tenYearHistory ?? []}
-            color="#a78bfa"
-            loading={!macroCharts}
-          />
-        </div>
+        {/* ── Tab content ─────────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-        {/* ── Fear & Greed · HY Spread · Put/Call ────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <RateHistoryChart
-            title="Fear & Greed Index"
-            data={macroCharts?.fearGreedHistory ?? []}
-            color="#f472b6"
-            loading={!macroCharts}
-            yFormatter={(v: number) => v.toFixed(0)}
-            tooltipFormatter={(v: number) => [v.toFixed(1)]}
-            referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]}
-          />
-          <RateHistoryChart
-            title="HY Credit Spread (OAS %)"
-            data={macroCharts?.hySpreadHistory ?? []}
-            color="#fb923c"
-            loading={!macroCharts}
-            yFormatter={(v: number) => `${v.toFixed(1)}%`}
-            tooltipFormatter={(v: number) => [`${v.toFixed(2)}%`]}
-            referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
-          />
-          <RateHistoryChart
-            title="CBOE VVIX (Vol of VIX)"
-            data={macroCharts?.putCallHistory ?? []}
-            color="#38bdf8"
-            loading={!macroCharts}
-            yFormatter={(v: number) => v.toFixed(2)}
-            tooltipFormatter={(v: number) => [v.toFixed(2)]}
-            referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.2, label: "Bearish", color: "#ef4444" }]}
-          />
-        </div>
+          {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
+          {activeTab === "regime" && (
+            <>
+              <RegimeChips macroData={macroData!} />
 
-        {/* ── Economic Indicators + history chart ─────────────────────────────── */}
-        <div className="border border-border rounded-lg overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
-            <Activity className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Economic Indicators</h2>
-            <span className="text-[10px] text-muted-foreground italic ml-auto">
-              Click a row to view its history
-            </span>
-            <div className="flex items-center gap-3 text-[10px]">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500/70 inline-block" />
-                Recently released
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-yellow-500/70 inline-block" />
-                Upcoming this week
-              </span>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
-                  <th className="text-left px-4 py-2 font-medium">Indicator</th>
-                  <th className="text-right px-3 py-2 font-medium">Value</th>
-                  <th className="text-right px-3 py-2 font-medium">MoM / QoQ</th>
-                  <th className="text-right px-3 py-2 font-medium">YoY</th>
-                  <th className="text-right px-4 py-2 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {[
-                  { key: "cpi",               label: "CPI",              series: s.cpi,               inflSign: true,  mom: s.cpi.change,              yoy: s.cpi.yoy,              value: `${fmt(s.cpi.value, 1)} idx` },
-                  { key: "coreCpi",            label: "Core CPI",         series: s.coreCpi,           inflSign: true,  mom: s.coreCpi.change,          yoy: s.coreCpi.yoy,          value: `${fmt(s.coreCpi.value, 1)} idx` },
-                  { key: "corePce",            label: "Core PCE (Fed ★)", series: s.corePce,           inflSign: true,  mom: s.corePce.change,          yoy: s.corePce.yoy,          value: `${fmt(s.corePce.value, 1)} idx` },
-                  { key: "ppi",                label: "PPI",              series: s.ppi,               inflSign: true,  mom: s.ppi.change,              yoy: s.ppi.yoy,              value: `${fmt(s.ppi.value, 1)} idx` },
-                  { key: "unemployment",       label: "Unemployment",     series: s.unemployment,      inflSign: true,  mom: s.unemployment.change,     yoy: null,                   value: fmtPct(s.unemployment.value) },
-                  { key: "nonfarmPayrolls",    label: "Nonfarm Payrolls", series: s.nonfarmPayrolls,   inflSign: false, mom: null, momRaw: fmtK(s.nonfarmPayrolls.change), yoy: null, value: fmtK(s.nonfarmPayrolls.value) },
-                  { key: "jolts",              label: "JOLTS Openings",   series: s.jolts,             inflSign: false, mom: null, momRaw: fmtK(s.jolts.change),           yoy: null, value: fmtK(s.jolts.value) },
-                  { key: "gdp",                label: "GDP (annualized)", series: s.gdp,               inflSign: false, mom: s.gdp.change,              yoy: null,                   value: fmtPct(s.gdp.value) },
-                  { key: "retailSales",        label: "Retail Sales",     series: s.retailSales,       inflSign: false, mom: null, momRaw: s.retailSales.change != null ? `${s.retailSales.change > 0 ? "+" : ""}${fmtB(s.retailSales.change)}` : null, yoy: s.retailSales.yoy, value: fmtB(s.retailSales.value) },
-                  { key: "consumerSentiment",  label: "Consumer Sentiment", series: s.consumerSentiment, inflSign: false, mom: s.consumerSentiment.change, yoy: s.consumerSentiment.yoy, value: fmt(s.consumerSentiment.value, 1) },
-                  { key: "fedFundsRate",       label: "Fed Funds Rate",   series: s.fedFundsRate,      inflSign: false, mom: s.fedFundsRate.change,     yoy: null,                   value: fmtPct(s.fedFundsRate.value) },
-                ].map((row) => (
-                  <MacroRow
-                    key={row.key}
-                    indicatorKey={row.key}
-                    label={row.label}
-                    value={row.value}
-                    mom={"mom" in row ? row.mom ?? null : null}
-                    momRaw={"momRaw" in row ? row.momRaw ?? null : null}
-                    yoy={row.yoy ?? null}
-                    date={row.series.date}
-                    inflSign={row.inflSign}
-                    isSelected={selectedIndicatorKey === row.key}
-                    highlight={getIndicatorHighlight(row.label, row.series.date, events ?? [], todayStr)}
-                    onSelect={() => setSelectedIndicatorKey(row.key)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+              {/* Yield & credit stats */}
+              <div className="flex flex-wrap gap-2">
+                <StatCell label="10Y Yield" value={`${fmt(macroData!.yield10y.value, 3)}%`}
+                  sub={macroData!.yield10y.change != null ? `${macroData!.yield10y.change > 0 ? "+" : ""}${fmt(macroData!.yield10y.change, 3)}` : undefined}
+                  subColor={changeColor(macroData!.yield10y.change)} />
+                <StatCell label="2Y Yield" value={`${fmt(macroData!.yield2y.value, 3)}%`}
+                  sub={macroData!.yield2y.change != null ? `${macroData!.yield2y.change > 0 ? "+" : ""}${fmt(macroData!.yield2y.change, 3)}` : undefined}
+                  subColor={changeColor(macroData!.yield2y.change)} />
+                <StatCell label="2s10s Spread"
+                  value={macroData!.yieldSpread != null ? `${macroData!.yieldSpread.toFixed(0)} bps` : "—"}
+                  sub={macroData!.yieldSpread != null ? (macroData!.yieldSpread < 0 ? "⚠ Inverted" : "Normal") : undefined}
+                  subColor={macroData!.yieldSpread != null && macroData!.yieldSpread < 0 ? "text-red-400" : "text-green-400"} />
+                <StatCell label="Fed Funds" value={fmtPct(s.fedFundsRate.value)} />
+                <StatCell label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
+              </div>
 
-          {/* Indicator History Chart */}
-          <div className="border-t border-border p-4">
-            <IndicatorHistoryChart
-              data={indicatorHistory}
-              loading={indicatorLoading}
-            />
-          </div>
-        </div>
+              {/* Yield Curve + 10Y History */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <YieldCurveChart yieldCurve={macroData!.yieldCurve} period={treasuryPeriod} onPeriodChange={setTreasuryPeriod} />
+                <RateHistoryChart title="10Y Treasury" data={macroCharts?.tenYearHistory ?? []} color="#a78bfa" loading={!macroCharts} />
+              </div>
 
-        {/* ── SEP Projections + Dots Chart ─────────────────────────────────────── */}
-        {sepData && (
-          <div className="border border-border rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/20">
-              <h2 className="text-sm font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-purple-400" />
-                Fed SEP Projections
-              </h2>
-              <span className="text-[10px] text-muted-foreground italic">
-                FOMC SEP {sepData.asOf} — static, updated after each SEP release
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
-                    <th className="text-left px-4 py-2 font-medium">Metric</th>
-                    {sepData.projections.map((p) => (
-                      <th key={p.year} className="text-right px-4 py-2 font-medium">{p.year}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  <tr>
-                    <td className="px-4 py-2 text-muted-foreground">Fed Rate (median dot)</td>
-                    {sepData.projections.map((p) => (
-                      <td key={p.year} className="px-4 py-2 text-right font-medium">{fmtPct(p.fedRate, 3)}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-2 text-muted-foreground">GDP Growth</td>
-                    {sepData.projections.map((p) => (
-                      <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.gdp, 1)}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-2 text-muted-foreground">Unemployment</td>
-                    {sepData.projections.map((p) => (
-                      <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.unemployment, 1)}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-2 text-muted-foreground">Core PCE</td>
-                    {sepData.projections.map((p) => (
-                      <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.corePce, 1)}</td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+              {/* HY Credit Spread */}
+              <RateHistoryChart
+                title="HY Credit Spread (OAS %)"
+                data={macroCharts?.hySpreadHistory ?? []}
+                color="#fb923c" loading={!macroCharts}
+                yFormatter={(v: number) => `${v.toFixed(1)}%`}
+                tooltipFormatter={(v: number) => [`${v.toFixed(2)}%`]}
+                referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
+              />
 
-            {/* SEP Dots Chart */}
-            <div className="border-t border-border p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">Actuals vs SEP Projections</p>
-                <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
-                  {(["fedRate", "gdp", "unemployment", "corePce"] as SepMetric[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setSelectedSepMetric(m)}
-                      className={cn(
-                        "px-2 py-0.5 transition-colors",
-                        selectedSepMetric === m
-                          ? "bg-purple-600 text-white"
-                          : "hover:bg-secondary"
-                      )}
-                    >
-                      {m === "fedRate" ? "Fed Rate" : m === "gdp" ? "GDP" : m === "unemployment" ? "Unemp." : "Core PCE"}
-                    </button>
-                  ))}
+              {/* Economic Indicators */}
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">Economic Indicators</h2>
+                  <span className="text-[10px] text-muted-foreground italic ml-auto">Click a row to view history</span>
+                  <div className="flex items-center gap-3 text-[10px]">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500/70 inline-block" />Recently released</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500/70 inline-block" />Upcoming this week</span>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
+                        <th className="text-left px-4 py-2 font-medium">Indicator</th>
+                        <th className="text-right px-3 py-2 font-medium">Value</th>
+                        <th className="text-right px-3 py-2 font-medium">MoM / QoQ</th>
+                        <th className="text-right px-3 py-2 font-medium">YoY</th>
+                        <th className="text-right px-4 py-2 font-medium">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {[
+                        { key: "cpi",              label: "CPI",               series: s.cpi,               inflSign: true,  mom: s.cpi.change,              yoy: s.cpi.yoy,              value: `${fmt(s.cpi.value, 1)} idx` },
+                        { key: "coreCpi",           label: "Core CPI",          series: s.coreCpi,           inflSign: true,  mom: s.coreCpi.change,          yoy: s.coreCpi.yoy,          value: `${fmt(s.coreCpi.value, 1)} idx` },
+                        { key: "corePce",           label: "Core PCE (Fed ★)",  series: s.corePce,           inflSign: true,  mom: s.corePce.change,          yoy: s.corePce.yoy,          value: `${fmt(s.corePce.value, 1)} idx` },
+                        { key: "ppi",               label: "PPI",               series: s.ppi,               inflSign: true,  mom: s.ppi.change,              yoy: s.ppi.yoy,              value: `${fmt(s.ppi.value, 1)} idx` },
+                        { key: "unemployment",      label: "Unemployment",      series: s.unemployment,      inflSign: true,  mom: s.unemployment.change,     yoy: null,                   value: fmtPct(s.unemployment.value) },
+                        { key: "nonfarmPayrolls",   label: "Nonfarm Payrolls",  series: s.nonfarmPayrolls,   inflSign: false, mom: null, momRaw: fmtK(s.nonfarmPayrolls.change), yoy: null, value: fmtK(s.nonfarmPayrolls.value) },
+                        { key: "jolts",             label: "JOLTS Openings",    series: s.jolts,             inflSign: false, mom: null, momRaw: fmtK(s.jolts.change),           yoy: null, value: fmtK(s.jolts.value) },
+                        { key: "gdp",               label: "GDP (annualized)",  series: s.gdp,               inflSign: false, mom: s.gdp.change,              yoy: null,                   value: fmtPct(s.gdp.value) },
+                        { key: "retailSales",       label: "Retail Sales",      series: s.retailSales,       inflSign: false, mom: null, momRaw: s.retailSales.change != null ? `${s.retailSales.change > 0 ? "+" : ""}${fmtB(s.retailSales.change)}` : null, yoy: s.retailSales.yoy, value: fmtB(s.retailSales.value) },
+                        { key: "consumerSentiment", label: "Consumer Sentiment", series: s.consumerSentiment, inflSign: false, mom: s.consumerSentiment.change, yoy: s.consumerSentiment.yoy, value: fmt(s.consumerSentiment.value, 1) },
+                        { key: "fedFundsRate",      label: "Fed Funds Rate",    series: s.fedFundsRate,      inflSign: false, mom: s.fedFundsRate.change,     yoy: null,                   value: fmtPct(s.fedFundsRate.value) },
+                      ].map((row) => (
+                        <MacroRow
+                          key={row.key} indicatorKey={row.key} label={row.label} value={row.value}
+                          mom={"mom" in row ? row.mom ?? null : null}
+                          momRaw={"momRaw" in row ? row.momRaw ?? null : null}
+                          yoy={row.yoy ?? null} date={row.series.date} inflSign={row.inflSign}
+                          isSelected={selectedIndicatorKey === row.key}
+                          highlight={getIndicatorHighlight(row.label, row.series.date, events ?? [], todayStr)}
+                          onSelect={() => setSelectedIndicatorKey(row.key)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-border p-4">
+                  <IndicatorHistoryChart data={indicatorHistory} loading={indicatorLoading} />
                 </div>
               </div>
-              <SepDotsChart
-                sepData={sepData}
-                actuals={sepActuals}
-                metric={selectedSepMetric}
-              />
-            </div>
-          </div>
-        )}
 
-        {/* ── Bank Research ────────────────────────────────────────────────────── */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-blue-400" />
-              Bank Research
-            </h2>
-            {isAdmin && (
-              <button
-                onClick={() => generateBankMutation.mutate()}
-                disabled={generateBankMutation.isPending}
-                className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50"
-              >
-                {generateBankMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3 w-3" />
-                )}
-                Refresh Stances
-              </button>
-            )}
-          </div>
-          {generateBankMutation.isPending && (
-            <div className="flex items-center gap-2 py-3 justify-center text-xs text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating bank stances…
-            </div>
+              {/* COT — Equity & Rates (S&P, NASDAQ, T-Bonds) */}
+              {macroCoTs.length > 0 && (
+                <CotSection
+                  title="COT Positioning — Equity & Rates"
+                  summaries={macroCoTs}
+                  history={macroCotHistory}
+                  selectedInstrument={selectedMacroCotId}
+                  onSelectInstrument={setSelectedMacroCotId}
+                />
+              )}
+            </>
           )}
-          {bankResearch && !generateBankMutation.isPending && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {bankResearch.map((bank) => (
-                <BankCard key={bank.name} bank={bank} />
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* ── Fed Members ──────────────────────────────────────────────────────── */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold">Fed Members</h2>
-            <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
-              {(["voting", "all"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setFedSection(tab)}
-                  className={cn(
-                    "px-2.5 py-1 transition-colors",
-                    fedSection === tab
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-secondary"
+          {/* ── Tab 2: Volatility & Sentiment ────────────────────────────────── */}
+          {activeTab === "volatility" && (
+            <>
+              {/* Vol stats */}
+              <div className="flex flex-wrap gap-2">
+                <StatCell label="VIX" value={fmt(macroData!.vix.value, 1)}
+                  sub={macroData!.vix.change != null ? `${macroData!.vix.change > 0 ? "+" : ""}${fmt(macroData!.vix.change, 2)}` : undefined}
+                  subColor={changeColor(macroData!.vix.change ?? null)} />
+                <StatCell label="SKEW" value={fmt(macroData!.skew.value, 1)}
+                  sub={macroData!.skew.change != null ? `${macroData!.skew.change > 0 ? "+" : ""}${fmt(macroData!.skew.change, 2)}` : undefined}
+                  subColor={changeColor(macroData!.skew.change ?? null)} />
+                <StatCell label="VXN (NDX)" value={fmt(macroData!.vxn.value, 1)}
+                  sub={macroData!.vxn.change != null ? `${macroData!.vxn.change > 0 ? "+" : ""}${fmt(macroData!.vxn.change, 2)}` : undefined}
+                  subColor={changeColor(macroData!.vxn.change ?? null)} />
+              </div>
+
+              {/* VIX Curve + VIX History */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <VixCurveChart vixCurve={macroCharts?.vixCurve ?? []} loading={!macroCharts} period={vixPeriod} onPeriodChange={setVixPeriod} />
+                <RateHistoryChart title="VIX History" data={macroCharts?.vixHistory ?? []} color="#facc15" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(1)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                  referenceLines={[{ y: 20, label: "Elevated", color: "#f59e0b" }, { y: 30, label: "Fear", color: "#ef4444" }]} />
+              </div>
+
+              {/* Fear & Greed + VVIX */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart title="Fear & Greed Index" data={macroCharts?.fearGreedHistory ?? []} color="#f472b6" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
+                  referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]} />
+                <RateHistoryChart title="CBOE VVIX (Vol of VIX)" data={macroCharts?.putCallHistory ?? []} color="#38bdf8" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                  referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.2, label: "Bearish", color: "#ef4444" }]} />
+              </div>
+
+              {/* COT — Commodities, Crypto & FX */}
+              {sentCoTs.length > 0 && (
+                <CotSection
+                  title="COT Positioning — Commodities, Crypto & FX"
+                  summaries={sentCoTs}
+                  history={sentCotHistory}
+                  selectedInstrument={selectedSentCotId}
+                  onSelectInstrument={setSelectedSentCotId}
+                />
+              )}
+            </>
+          )}
+
+          {/* ── Tab 3: Policy & Forward Guidance ─────────────────────────────── */}
+          {activeTab === "policy" && (
+            <>
+              <MacroHighlightsPanel />
+
+              {/* Fed Funds Curve + history */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <FedFundsCurveChart data={macroCharts?.fedFundsCurve ?? []} loading={!macroCharts} period={ffPeriod} onPeriodChange={setFfPeriod} />
+                <RateHistoryChart title="Fed Funds Rate (History)" data={macroCharts?.fedFundsHistory ?? []} color="#4ade80" loading={!macroCharts}
+                  yFormatter={(v: number) => `${v.toFixed(2)}%`} tooltipFormatter={(v: number) => [`${v.toFixed(3)}%`]} />
+              </div>
+
+              {/* SEP Projections + Dots */}
+              {sepData && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/20">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-purple-400" />
+                      Fed SEP Projections
+                    </h2>
+                    <span className="text-[10px] text-muted-foreground italic">FOMC SEP {sepData.asOf} — updated after each SEP release</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
+                          <th className="text-left px-4 py-2 font-medium">Metric</th>
+                          {sepData.projections.map((p) => <th key={p.year} className="text-right px-4 py-2 font-medium">{p.year}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/50">
+                        <tr>
+                          <td className="px-4 py-2 text-muted-foreground">Fed Rate (median dot)</td>
+                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right font-medium">{fmtPct(p.fedRate, 3)}</td>)}
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-2 text-muted-foreground">GDP Growth</td>
+                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.gdp, 1)}</td>)}
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-2 text-muted-foreground">Unemployment</td>
+                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.unemployment, 1)}</td>)}
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-2 text-muted-foreground">Core PCE</td>
+                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.corePce, 1)}</td>)}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="border-t border-border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">Actuals vs SEP Projections</p>
+                      <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+                        {(["fedRate", "gdp", "unemployment", "corePce"] as SepMetric[]).map((m) => (
+                          <button key={m} onClick={() => setSelectedSepMetric(m)}
+                            className={cn("px-2 py-0.5 transition-colors", selectedSepMetric === m ? "bg-purple-600 text-white" : "hover:bg-secondary")}>
+                            {m === "fedRate" ? "Fed Rate" : m === "gdp" ? "GDP" : m === "unemployment" ? "Unemp." : "Core PCE"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <SepDotsChart sepData={sepData} actuals={sepActuals} metric={selectedSepMetric} />
+                  </div>
+                </div>
+              )}
+
+              {/* Bank Research */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-blue-400" />
+                    Bank Research
+                  </h2>
+                  {isAdmin && (
+                    <button onClick={() => generateBankMutation.mutate()} disabled={generateBankMutation.isPending}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50">
+                      {generateBankMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      Refresh Stances
+                    </button>
                   )}
-                >
-                  {tab === "voting" ? "Voting" : "All"}
-                </button>
-              ))}
-            </div>
-          </div>
+                </div>
+                {generateBankMutation.isPending && (
+                  <div className="flex items-center gap-2 py-3 justify-center text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />Generating bank stances…
+                  </div>
+                )}
+                {bankResearch && !generateBankMutation.isPending && (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {bankResearch.map((bank) => <BankCard key={bank.name} bank={bank} />)}
+                  </div>
+                )}
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FedStanceGroup
-              title="Voting"
-              hawkish={votingByStance.hawkish}
-              neutral={votingByStance.neutral}
-              dovish={votingByStance.dovish}
-            />
-            {fedSection === "all" && (
-              <FedStanceGroup
-                title="Non-Voting (Influential)"
-                hawkish={nonVotingByStance.hawkish}
-                neutral={nonVotingByStance.neutral}
-                dovish={nonVotingByStance.dovish}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* ── Upcoming Events ──────────────────────────────────────────────────── */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Upcoming Events</h2>
-          </div>
-
-          {thisWeekEvents.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-                This Week
-              </p>
-              {thisWeekEvents.map((ev) => (
-                <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />
-              ))}
-            </div>
+              {/* Fed Members */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-sm font-semibold">Fed Members</h2>
+                  <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
+                    {(["voting", "all"] as const).map((t) => (
+                      <button key={t} onClick={() => setFedSection(t)}
+                        className={cn("px-2.5 py-1 transition-colors", fedSection === t ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
+                        {t === "voting" ? "Voting" : "All"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FedStanceGroup title="Voting" hawkish={votingByStance.hawkish} neutral={votingByStance.neutral} dovish={votingByStance.dovish} />
+                  {fedSection === "all" && (
+                    <FedStanceGroup title="Non-Voting (Influential)" hawkish={nonVotingByStance.hawkish} neutral={nonVotingByStance.neutral} dovish={nonVotingByStance.dovish} />
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
-          {comingUpEvents.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-2">
-                Coming Up
-              </p>
-              {comingUpEvents.map((ev) => (
-                <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />
-              ))}
+          {/* ── Tab 4: Heatmap ────────────────────────────────────────────────── */}
+          {activeTab === "heatmap" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold">S&P 500 Sector Heatmap</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Market-cap weighted · colored by daily % change · powered by TradingView</p>
+              </div>
+              <TradingViewHeatmap />
             </div>
           )}
 
-          {(!events || events.length === 0) && (
-            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+          {/* ── Tab 5: Catalyst Calendar ──────────────────────────────────────── */}
+          {activeTab === "catalyst" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  Economic Calendar
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">US high-importance macro releases · powered by TradingView</p>
+              </div>
+              <TradingViewEconomicCalendar />
+
+              {/* Static tracked events */}
+              {events && events.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tracked Events</h3>
+                  {thisWeekEvents.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">This Week</p>
+                      {thisWeekEvents.map((ev) => <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />)}
+                    </div>
+                  )}
+                  {comingUpEvents.length > 0 && (
+                    <div className="space-y-1.5 mt-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Coming Up</p>
+                      {comingUpEvents.map((ev) => <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
+
         </div>
       </main>
     </div>
@@ -1766,5 +1814,177 @@ function EventRow({ event, todayStr }: { event: MacroEvent; todayStr: string }) 
         {event.importance}
       </span>
     </div>
+  );
+}
+
+// ── COT Section (compact, embedded in Macro tabs) ──────────────────────────────
+
+function fmtCot(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function CotSection({
+  title, summaries, history, selectedInstrument, onSelectInstrument,
+}: {
+  title: string;
+  summaries: COTSummary[];
+  history: COTRecord[] | undefined;
+  selectedInstrument: string;
+  onSelectInstrument: (id: string) => void;
+}) {
+  const selected = summaries.find((s) => s.instrument === selectedInstrument) ?? summaries[0];
+  const historyForSelected = history?.[0]?.instrument === selectedInstrument ? history : undefined;
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
+        <Activity className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <span className="text-[10px] text-muted-foreground/60 ml-auto">CFTC · weekly</span>
+      </div>
+      <div className="p-4 space-y-4">
+        {/* Instrument selector cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {summaries.map((s) => {
+            const net = s.latest.levMoneyNet;
+            const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
+            const isSelected = s.instrument === selectedInstrument;
+            const absZ = Math.abs(s.zScore);
+            return (
+              <button
+                key={s.instrument}
+                onClick={() => onSelectInstrument(s.instrument)}
+                className={cn(
+                  "text-left rounded-lg border p-2.5 transition-all",
+                  isSelected ? "border-primary/60 bg-primary/10" : "border-border hover:border-border/80 hover:bg-card/80"
+                )}
+              >
+                <div className="text-xs font-semibold truncate mb-1">{s.displayName}</div>
+                <div className={cn("text-sm font-bold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+                  {net >= 0 ? "+" : ""}{fmtCot(net)}
+                </div>
+                <div className={cn("text-[10px]", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
+                  {chg >= 0 ? "+" : ""}{fmtCot(chg)} WoW
+                </div>
+                {absZ >= 1 && (
+                  <span className={cn(
+                    "text-[9px] px-1 py-0.5 rounded border font-semibold mt-1 inline-block",
+                    absZ > 1.5
+                      ? s.zScore > 0 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"
+                      : "bg-yellow-500/15 text-yellow-300 border-yellow-500/20"
+                  )}>
+                    {s.zScore > 0 ? "Extreme Long" : "Extreme Short"}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* History chart */}
+        {selected && historyForSelected && (
+          <div className="border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-xs font-semibold">{selected.displayName} — Net Positioning (26W)</p>
+              <span className="text-[10px] text-muted-foreground ml-auto">as of {selected.latest.date}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart
+                data={historyForSelected.slice(-26).map((r) => ({
+                  date: r.date.slice(5),
+                  "Lev. Money": r.levMoneyNet,
+                  "Asset Mgr":  r.assetMgrNet,
+                  "Dealer":     r.dealerNet,
+                }))}
+                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 9, fill: "#888" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
+                <Tooltip
+                  contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
+                  formatter={(v: number, name: string) => [fmtCot(v), name]}
+                />
+                <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
+                <Line type="monotone" dataKey="Lev. Money" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="Asset Mgr"  stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="Dealer"     stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-[9px] text-muted-foreground">
+              <div><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds (contrarian at extremes)</div>
+              <div><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions (trend-following)</div>
+              <div><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers (opposite of client flow)</div>
+            </div>
+          </div>
+        )}
+        {selected && !historyForSelected && (
+          <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin mr-2" />Loading history…
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── TradingView Widgets ────────────────────────────────────────────────────────
+
+function TradingViewHeatmap() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.innerHTML = '<div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>';
+    const s = document.createElement("script");
+    s.type = "text/javascript";
+    s.src = "https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js";
+    s.async = true;
+    s.innerHTML = JSON.stringify({
+      exchanges: [], dataSource: "SPX500", grouping: "sector",
+      blockSize: "market_cap_basic", blockColor: "change",
+      locale: "en", colorTheme: "dark",
+      hasTopBar: true, isDataSetEnabled: true, isZoomEnabled: true,
+      hasSymbolTooltip: true, isMonoSize: false,
+      width: "100%", height: "100%",
+    });
+    el.appendChild(s);
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      style={{ height: 580 }}
+    />
+  );
+}
+
+function TradingViewEconomicCalendar() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+    const s = document.createElement("script");
+    s.type = "text/javascript";
+    s.src = "https://s3.tradingview.com/external-embedding/embed-widget-events.js";
+    s.async = true;
+    s.innerHTML = JSON.stringify({
+      colorTheme: "dark", isTransparent: false,
+      width: "100%", height: "560", locale: "en",
+      importanceFilter: "0,1", countryFilter: "us",
+    });
+    el.appendChild(s);
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      style={{ height: 560 }}
+    />
   );
 }
