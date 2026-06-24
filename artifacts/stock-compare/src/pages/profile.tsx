@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { useParams } from "wouter"
+import { useParams, useLocation, Link } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
 import { Sidebar } from "@/components/sidebar"
@@ -386,9 +386,17 @@ export default function Profile() {
   const { username: routeUsername } = useParams<{ username: string }>()
   const { user: me } = useAuth()
   const qc = useQueryClient()
+  const [, navigate] = useLocation()
+  const [userSearch, setUserSearch] = useState("")
 
   const username = routeUsername === "me" ? (me?.username ?? "") : routeUsername
   const [showForm, setShowForm] = useState(false)
+
+  function handleUserSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const q = userSearch.trim().replace(/^@/, "")
+    if (q) { navigate(`/profile/${q}`); setUserSearch("") }
+  }
 
   const { data, isLoading, error } = useQuery<ProfileData>({
     queryKey: ["feed", "profile", username],
@@ -423,6 +431,29 @@ export default function Profile() {
     <div className="flex min-h-[100dvh] bg-background">
       <Sidebar />
       <main className="flex-1 ml-[var(--sidebar-w)] p-5 max-w-2xl space-y-5">
+
+        {/* ── Nav bar: back to my profile + find user ── */}
+        <div className="flex items-center gap-3">
+          {!isOwnerProfile && me && (
+            <Link
+              href="/profile/me"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              ← My Profile
+            </Link>
+          )}
+          <form onSubmit={handleUserSearch} className="flex items-center gap-1.5 ml-auto">
+            <input
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              placeholder="Find user…"
+              className="bg-secondary border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary w-32"
+            />
+            <button type="submit" className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-1 transition-colors">
+              Go
+            </button>
+          </form>
+        </div>
 
         {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
         {error    && <div className="text-sm text-red-400">Failed to load profile.</div>}

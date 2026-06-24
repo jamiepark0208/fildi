@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "wouter"
 import { cn } from "@/lib/utils"
 import { Heart, MessageCircle, TrendingUp } from "lucide-react"
 
@@ -184,10 +185,10 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
         <div className="flex items-center gap-2 shrink-0">
           <ConfidenceLabel value={post.confidence} />
           {showUser && (
-            <div className="flex items-center gap-1">
+            <Link href={`/profile/${post.username}`} className="flex items-center gap-1 hover:opacity-80 transition-opacity">
               <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} size="xs" />
               <span className="text-[10px] text-muted-foreground">{post.username}</span>
-            </div>
+            </Link>
           )}
         </div>
       </div>
