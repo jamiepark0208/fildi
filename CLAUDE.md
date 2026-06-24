@@ -2,7 +2,7 @@
 > Claude Code only. Full project context in .agents/. State restored on every prompt via rehydrate hook.
 
 ## STARTUP (every session)
-Run: node .claude/scripts/rehydrate.js
+Run: node .claude/scripts/rehydrate.js && node .claude/scripts/validate-workflow.js
 First time only: read .claude/skills/replit-setup.md and follow the steps
 
 ## SKILLS (load one at a time — never all at once)
