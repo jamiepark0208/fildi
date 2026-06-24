@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-24
 
 ## Active work
-- Working: portfolio-csv-parser, portfolio-db-schema, portfolio-ingest-route
-- In progress: portfolio-ingest-route complete; portfolio tab fully wired to DB snapshot
-- Blocked: user password overwritten during Phase 2 — current pw test123 needs reset before Phase 5; FMP daily rate limit exhausted — per-analyst price targets will not show until reset
+- Working: settings-subtabs, user-mgmt, trade-idea-form, profile-nav
+- In progress: Settings has Profile/User Mgmt/Cache Monitor subtabs (admin-gated); Trade Idea form rebuilt with trade-type tabs, options chain inline mini-scanner, equity fields; TradeCard renders equity vs options correctly; user profile search dropdown; per-user Stock Views; last_login_at tracking
+- Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
