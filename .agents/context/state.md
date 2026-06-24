@@ -6,8 +6,8 @@
 **build** — last updated 2026-06-24
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup
-- In progress: Macro tab restructured into 5 sub-tabs (Macro & Regime Health, Volatility & Sentiment, Policy & Forward Guidance, Heatmap, Catalyst Calendar); COT Positioning merged into Macro tabs (equity/rates in Tab1, commodities/crypto/FX in Tab2) with full history chart, position breakdown, quick stats, extremes table; TradingView heatmap (720px) and economic calendar widgets added; all chart axis colors fixed to slate-300; RateHistoryChart has 1M/3M/6M/1Y toggle; AI Highlights moved to top of Tab1; COT Positioning removed from sidebar
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks
+- In progress: Macro tab has CBOE put/call ratio, GSCPI, money market AUM charts added; macro.tsx split into macro.tsx(643L)+MacroComponents.tsx(1402L)+macro-page-types.ts(172L); macro-data.ts split into macro-data.ts(845L)+macro-static.ts(262L)
 - Blocked: FMP daily rate limit exhausted — per-analyst price targets will not show until reset
 
 ## Next tasks (priority order)
