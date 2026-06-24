@@ -35,77 +35,237 @@ interface BucketEntry {
 
 // ── Submit form ────────────────────────────────────────────────────────────────
 
+// ── Types for options chain ────────────────────────────────────────────────────
+interface OptionRow { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null }
+interface OptionsChain { expiry: string; dte: number; calls: OptionRow[]; puts: OptionRow[] }
+
+const TRADE_TYPES = [
+  { id: "SELL_PUT",  label: "Sell Put",  cat: "option" },
+  { id: "BUY_PUT",   label: "Buy Put",   cat: "option" },
+  { id: "SELL_CALL", label: "Sell Call", cat: "option" },
+  { id: "BUY_CALL",  label: "Buy Call",  cat: "option" },
+  { id: "LONG",      label: "Long",      cat: "equity" },
+  { id: "SHORT",     label: "Short",     cat: "equity" },
+] as const
+
+type TradeTypeId = typeof TRADE_TYPES[number]["id"]
+
+const CONFIDENCE_OPTS = ["Speculative", "Low", "Moderate", "High", "Strong"]
+const CONF_COLORS = ["text-muted-foreground border-border bg-secondary", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
+
 function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
-  const [ticker,     setTicker]     = useState("")
-  const [strike,     setStrike]     = useState("")
-  const [expiry,     setExpiry]     = useState("")
-  const [contracts,  setContracts]  = useState("1")
-  const [premium,    setPremium]    = useState("")
-  const [confidence, setConfidence] = useState(0)
-  const [notes,      setNotes]      = useState("")
+  const [tradeType, setTradeType] = useState<TradeTypeId>("SELL_PUT")
+  const [ticker,     setTicker]    = useState("")
+  const [confidence, setConf]      = useState(0)
+  const [notes,      setNotes]     = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
-  const [success,    setSuccess]    = useState(false)
+  const [error,      setError]     = useState<string | null>(null)
+  const [success,    setSuccess]   = useState(false)
 
-  const today = new Date().toISOString().split("T")[0]
+  // Options fields
+  const [selectedExpiry, setSelectedExpiry] = useState("")
+  const [selectedStrike, setSelectedStrike] = useState<number | null>(null)
+  const [selectedPremium, setSelectedPremium] = useState<number | null>(null)
+  const [contracts, setContracts] = useState("1")
 
-  const CONFIDENCE_OPTS = ["Speculative", "Low", "Moderate", "High", "Strong"]
+  // Equity fields
+  const [entryPrice,   setEntryPrice]   = useState("")
+  const [shares,       setShares]       = useState("1")
+  const [stopLoss,     setStopLoss]     = useState("")
+  const [targetPrice,  setTargetPrice]  = useState("")
+
+  const isOption = ["SELL_PUT","BUY_PUT","SELL_CALL","BUY_CALL"].includes(tradeType)
+  const chainSide = tradeType.includes("PUT") ? "puts" : "calls"
+
+  // Fetch options chain when ticker set and trade is option type
+  const { data: chains, isFetching: chainLoading } = useQuery<OptionsChain[]>({
+    queryKey: ["options-chain", ticker],
+    queryFn: () => fetch(`/api/options/${ticker}`, { credentials: "include" }).then(r => r.json()),
+    enabled: isOption && ticker.length >= 1,
+    staleTime: 15 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  // Auto-select first expiry when chain loads
+  const expiryChains = chains ?? []
+  const activeChain = expiryChains.find(c => c.expiry === selectedExpiry) ?? expiryChains[0]
+
+  function selectExpiry(exp: string) {
+    setSelectedExpiry(exp)
+    setSelectedStrike(null)
+    setSelectedPremium(null)
+  }
+
+  function selectRow(strike: number, bid: number, ask: number) {
+    setSelectedStrike(strike)
+    setSelectedPremium(parseFloat(((bid + ask) / 2).toFixed(2)))
+  }
+
+  function reset() {
+    setTicker(""); setConf(0); setNotes("")
+    setSelectedExpiry(""); setSelectedStrike(null); setSelectedPremium(null); setContracts("1")
+    setEntryPrice(""); setShares("1"); setStopLoss(""); setTargetPrice("")
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!confidence) { setError("Select a confidence level"); return }
+    if (isOption && !selectedStrike) { setError("Select a strike from the chain"); return }
     setSubmitting(true); setError(null)
     try {
+      const body: Record<string, unknown> = { ticker, tradeType, confidence, notes: notes || undefined }
+      if (isOption) {
+        body.strike = selectedStrike
+        body.expiry = selectedExpiry || activeChain?.expiry
+        body.contracts = parseInt(contracts)
+        body.premiumPerContract = selectedPremium
+      } else {
+        body.entryPrice = parseFloat(entryPrice)
+        body.shares = parseInt(shares)
+        if (stopLoss)    body.stopLoss    = parseFloat(stopLoss)
+        if (targetPrice) body.targetPrice = parseFloat(targetPrice)
+      }
       const r = await fetch("/api/feed/posts", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, strike: parseFloat(strike), expiry, contracts: parseInt(contracts), premiumPerContract: parseFloat(premium), confidence, notes: notes || undefined }),
+        body: JSON.stringify(body),
       })
-      if (r.status === 429) { setError("You already have 3 open trade ideas"); return }
+      if (r.status === 429) { setError("Max 3 open trade ideas at a time"); return }
       if (!r.ok) { const d = await r.json(); setError(d.error ?? "Submit failed"); return }
       setSuccess(true)
-      setTimeout(() => { setSuccess(false); onSuccess() }, 1200)
-      setTicker(""); setStrike(""); setExpiry(""); setContracts("1"); setPremium(""); setConfidence(0); setNotes("")
+      setTimeout(() => { setSuccess(false); reset(); onSuccess() }, 1200)
     } finally { setSubmitting(false) }
   }
 
+  const inp = "w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+
   return (
-    <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-4 space-y-3 mb-4">
+    <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-4 space-y-4 mb-4">
       <div className="text-sm font-semibold text-foreground">New Trade Idea</div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {[
-          { label: "Ticker", el: <input required value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} maxLength={10} placeholder="NVDA" className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /> },
-          { label: "Strike", el: <input required type="number" min="0" step="0.5" value={strike} onChange={e => setStrike(e.target.value)} placeholder="100" className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /> },
-          { label: "Expiry", el: <input required type="date" min={today} value={expiry} onChange={e => setExpiry(e.target.value)} className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /> },
-          { label: "Contracts", el: <input required type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)} className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /> },
-          { label: "Option bid", el: <input required type="number" min="0" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="1.50" className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /> },
-        ].map(({ label, el }) => (
-          <div key={label} className="space-y-1">
-            <label className="text-xs text-muted-foreground">{label}</label>
-            {el}
-          </div>
+      {/* Trade type tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {TRADE_TYPES.map(t => (
+          <button key={t.id} type="button" onClick={() => { setTradeType(t.id); setSelectedStrike(null); setSelectedPremium(null); setSelectedExpiry("") }}
+            className={cn("text-xs px-2.5 py-1 rounded-full border font-medium transition-all",
+              tradeType === t.id
+                ? t.cat === "option" ? "bg-blue-500/20 text-blue-400 border-blue-500/40" : "bg-purple-500/20 text-purple-400 border-purple-500/40"
+                : "bg-transparent text-muted-foreground border-border opacity-50 hover:opacity-80"
+            )}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* Confidence pill selector */}
+      {/* Ticker search (reuses BucketTickerInput pattern inline) */}
+      <TickerSearch value={ticker} onChange={t => { setTicker(t); setSelectedExpiry(""); setSelectedStrike(null); setSelectedPremium(null) }} />
+
+      {/* ── OPTIONS: expiry tabs + strike chain ── */}
+      {isOption && ticker && (
+        <div className="space-y-2">
+          {chainLoading && <p className="text-xs text-muted-foreground animate-pulse">Loading chain…</p>}
+          {!chainLoading && expiryChains.length > 0 && (
+            <>
+              {/* Expiry selector */}
+              <div className="flex gap-1.5 flex-wrap">
+                {expiryChains.slice(0, 6).map(c => (
+                  <button key={c.expiry} type="button" onClick={() => selectExpiry(c.expiry)}
+                    className={cn("text-[10px] px-2 py-0.5 rounded border transition-all",
+                      (selectedExpiry || expiryChains[0]?.expiry) === c.expiry
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "text-muted-foreground border-border hover:border-muted-foreground"
+                    )}>
+                    {c.expiry} <span className="opacity-60">{c.dte}d</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Strike table */}
+              {activeChain && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20">
+                        <th className="text-left px-2 py-1.5 font-semibold">Strike</th>
+                        <th className="text-right px-2 py-1.5 font-semibold">Bid</th>
+                        <th className="text-right px-2 py-1.5 font-semibold">Ask</th>
+                        <th className="text-right px-2 py-1.5 font-semibold">Mid</th>
+                        <th className="text-right px-2 py-1.5 font-semibold">IV</th>
+                        <th className="text-right px-2 py-1.5 font-semibold">OI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(activeChain[chainSide] ?? []).map(row => {
+                        const mid = ((row.bid + row.ask) / 2).toFixed(2)
+                        const isSelected = selectedStrike === row.strike
+                        return (
+                          <tr key={row.strike}
+                            onClick={() => selectRow(row.strike, row.bid, row.ask)}
+                            className={cn("cursor-pointer border-b border-border/40 h-8 transition-colors",
+                              isSelected ? "bg-primary/15 text-primary" : "hover:bg-muted/20"
+                            )}>
+                            <td className="px-2 font-bold tabular-nums">{row.strike}</td>
+                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.bid.toFixed(2)}</td>
+                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.ask.toFixed(2)}</td>
+                            <td className="px-2 text-right tabular-nums font-semibold">{mid}</td>
+                            <td className="px-2 text-right tabular-nums text-muted-foreground">{(row.iv * 100).toFixed(0)}%</td>
+                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.openInterest ?? "—"}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Selected summary + contracts */}
+              {selectedStrike != null && (
+                <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
+                  <span className="text-xs font-bold text-primary">{tradeType.replace("_"," ")} {selectedStrike} @ ${selectedPremium}</span>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <label className="text-xs text-muted-foreground">Contracts</label>
+                    <input type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)}
+                      className="w-14 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── EQUITY fields ── */}
+      {!isOption && (
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: "Entry Price", val: entryPrice, set: setEntryPrice, placeholder: "150.00", required: true },
+            { label: "Shares",      val: shares,     set: setShares,     placeholder: "10",     required: true, step: "1", min: "1" },
+            { label: "Stop Loss",   val: stopLoss,   set: setStopLoss,   placeholder: "optional" },
+            { label: "Target",      val: targetPrice, set: setTargetPrice, placeholder: "optional" },
+          ].map(({ label, val, set, placeholder, required, step, min }) => (
+            <div key={label} className="space-y-1">
+              <label className="text-xs text-muted-foreground">{label}</label>
+              <input required={required} type="number" min={min ?? "0"} step={step ?? "0.01"}
+                value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
+                className={inp} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Confidence */}
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Confidence</label>
         <div className="flex gap-1.5 flex-wrap">
-          {CONFIDENCE_OPTS.map((label, i) => {
-            const val = i + 1
-            const colors = ["text-muted-foreground border-border", "text-orange-400 border-orange-500/40", "text-yellow-400 border-yellow-500/40", "text-green-400 border-green-500/40", "text-emerald-400 border-emerald-500/40"]
-            const active = ["bg-secondary", "bg-orange-500/15", "bg-yellow-500/15", "bg-green-500/15", "bg-emerald-500/15"]
-            return (
-              <button key={val} type="button" onClick={() => setConfidence(val)}
-                className={cn("text-xs px-2.5 py-1 rounded-full border font-medium transition-all",
-                  colors[i],
-                  confidence === val ? active[i] : "bg-transparent opacity-50 hover:opacity-80"
-                )}>
-                {label}
-              </button>
-            )
-          })}
+          {CONFIDENCE_OPTS.map((label, i) => (
+            <button key={i} type="button" onClick={() => setConf(i + 1)}
+              className={cn("text-xs px-2.5 py-1 rounded-full border font-medium transition-all",
+                CONF_COLORS[i],
+                confidence !== i + 1 && "opacity-40 hover:opacity-70"
+              )}>
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -119,11 +279,48 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       {error && <div className="text-xs text-red-400">{error}</div>}
       {success && <div className="text-xs text-green-400">Trade idea posted!</div>}
 
-      <button type="submit" disabled={submitting}
-        className="bg-primary text-primary-foreground text-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-50">
+      <button type="submit" disabled={submitting || (isOption && !selectedStrike) || !ticker}
+        className="bg-primary text-primary-foreground text-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-40">
         {submitting ? "Posting…" : "Post Idea"}
       </button>
     </form>
+  )
+}
+
+// ── Inline ticker search for SubmitForm ────────────────────────────────────────
+function TickerSearch({ value, onChange }: { value: string; onChange: (t: string) => void }) {
+  const [input, setInput]   = useState(value)
+  const [open, setOpen]     = useState(false)
+  const debouncedQ          = useDebounce(input, 180)
+  const { data: results = [], isFetching } = useSearchStocks(
+    { q: debouncedQ },
+    { query: { enabled: debouncedQ.length >= 1, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000,
+        queryKey: getSearchStocksQueryKey({ q: debouncedQ }) } }
+  )
+  function pick(ticker: string) { onChange(ticker); setInput(ticker); setOpen(false) }
+  return (
+    <div className="relative space-y-1">
+      <label className="text-xs text-muted-foreground">Ticker</label>
+      <input value={input}
+        onChange={e => { setInput(e.target.value.toUpperCase()); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Search ticker…"
+        className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+      {open && debouncedQ.length >= 1 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+          {isFetching && <div className="px-3 py-2 text-xs text-muted-foreground animate-pulse">Searching…</div>}
+          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No results</div>}
+          {results.map((r: { ticker: string; name?: string }) => (
+            <button key={r.ticker} type="button" onMouseDown={() => pick(r.ticker)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left">
+              <span className="font-bold text-foreground w-14 shrink-0">{r.ticker}</span>
+              <span className="text-muted-foreground truncate">{r.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
