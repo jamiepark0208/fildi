@@ -430,6 +430,11 @@ export const tradePosts = pgTable('trade_posts', {
   regimeAtEntry:        text('regime_at_entry'),
   vixAtEntry:           numeric('vix_at_entry'),
   signalAtEntry:        text('signal_at_entry'),
+  direction:            text('direction'),            // 'long' | 'short' (equity trades)
+  entryPrice:           numeric('entry_price'),       // equity entry price
+  shares:               integer('shares'),            // equity share count
+  stopLoss:             numeric('stop_loss'),
+  targetPrice:          numeric('target_price'),
   status:               text('status').notNull().default('OPEN'),
   closePremium:         numeric('close_premium'),
   resolvedAt:           timestamp('resolved_at', { withTimezone: true }),
