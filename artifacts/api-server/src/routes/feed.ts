@@ -351,6 +351,14 @@ router.delete('/feed/comments/:id', async (req, res) => {
 
 // ── GET /api/feed/profile/:username ───────────────────────────────────────────
 
+router.get('/feed/users', async (_req, res) => {
+  const rows = await db
+    .select({ username: users.username, avatarUrl: users.avatarUrl })
+    .from(users)
+    .orderBy(asc(users.username))
+  return res.json(rows)
+})
+
 router.get('/feed/profile/:username', async (req, res) => {
   const viewerId = req.session.userId!
   const { username } = req.params
