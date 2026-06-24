@@ -8,6 +8,13 @@
       "when": 1781885108409,
       "tag": "0000_cold_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782342895943,
+      "tag": "0001_tidy_sumo",
+      "breakpoints": true
     }
   ]
 }
