@@ -54,7 +54,7 @@ import {
   changeColor, inflColor, VIX_LEVEL_LABELS, vixBadgeClass,
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
   RegimeChips, StatCell, QuickStats, VixCurveChart, YieldCurveChart,
-  FedFundsCurveChart, RateHistoryChart, MacroRow, IndicatorHistoryChart,
+  FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
   TradingViewMarketOverview, TradingViewForexCrossRates,
@@ -328,15 +328,29 @@ export default function MacroDashboard() {
                 <RateHistoryChart title="10Y Treasury" data={macroCharts?.tenYearHistory ?? []} color="#a78bfa" loading={!macroCharts} />
               </div>
 
-              {/* HY Credit Spread */}
-              <RateHistoryChart
-                title="HY Credit Spread (OAS %)"
-                data={macroCharts?.hySpreadHistory ?? []}
-                color="#fb923c" loading={!macroCharts}
-                yFormatter={(v: number) => `${v.toFixed(1)}%`}
-                tooltipFormatter={(v: number) => [`${v.toFixed(2)}%`]}
-                referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
-              />
+              {/* IG/HY Credit Spread + Copper/Gold Ratio */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <DualLineHistoryChart
+                  title="Credit Spreads — IG & HY OAS %"
+                  data1={macroCharts?.igSpreadHistory ?? []}
+                  data2={macroCharts?.hySpreadHistory ?? []}
+                  color1="#60a5fa"
+                  color2="#fb923c"
+                  label1="IG OAS"
+                  label2="HY OAS"
+                  loading={!macroCharts}
+                  yFormatter={(v: number) => `${v.toFixed(1)}%`}
+                  tooltipFormatter={(v: number, name: string) => [`${v.toFixed(2)}%`, name]}
+                  referenceLines={[{ y: 4, label: "HY Risk-On", color: "#22c55e" }, { y: 7, label: "HY Stress", color: "#ef4444" }]}
+                />
+                <RateHistoryChart
+                  title="Copper / Gold Ratio"
+                  data={macroCharts?.copperGoldHistory ?? []}
+                  color="#f59e0b" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(4)}
+                  tooltipFormatter={(v: number) => [v.toFixed(5)]}
+                />
+              </div>
 
               {/* Supply Chain + Liquidity */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -354,6 +368,29 @@ export default function MacroDashboard() {
                   color="#60a5fa" loading={!macroCharts}
                   yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
                   tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
+                />
+              </div>
+
+              {/* Financial Conditions + Dollar Strength */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart
+                  title="Chicago Fed NFCI — Financial Conditions"
+                  data={macroCharts?.nfciHistory ?? []}
+                  color="#c084fc" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(2)}
+                  tooltipFormatter={(v: number) => [v.toFixed(3)]}
+                  referenceLines={[
+                    { y: 0,    label: "Avg (0)",  color: "#94a3b8" },
+                    { y: 0.5,  label: "Tight",    color: "#ef4444" },
+                    { y: -0.5, label: "Easy",     color: "#22c55e" },
+                  ]}
+                />
+                <RateHistoryChart
+                  title="DXY — US Dollar Index"
+                  data={macroCharts?.dxyHistory ?? []}
+                  color="#38bdf8" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(1)}
+                  tooltipFormatter={(v: number) => [v.toFixed(2)]}
                 />
               </div>
 
@@ -391,7 +428,8 @@ export default function MacroDashboard() {
                         { key: "gdp",               label: "GDP (annualized)",  series: s.gdp,               inflSign: false, mom: s.gdp.change,              yoy: null,                   value: fmtPct(s.gdp.value) },
                         { key: "retailSales",       label: "Retail Sales",      series: s.retailSales,       inflSign: false, mom: null, momRaw: s.retailSales.change != null ? `${s.retailSales.change > 0 ? "+" : ""}${fmtB(s.retailSales.change)}` : null, yoy: s.retailSales.yoy, value: fmtB(s.retailSales.value) },
                         { key: "consumerSentiment", label: "Consumer Sentiment", series: s.consumerSentiment, inflSign: false, mom: s.consumerSentiment.change, yoy: s.consumerSentiment.yoy, value: fmt(s.consumerSentiment.value, 1) },
-                        { key: "fedFundsRate",      label: "Fed Funds Rate",    series: s.fedFundsRate,      inflSign: false, mom: s.fedFundsRate.change,     yoy: null,                   value: fmtPct(s.fedFundsRate.value) },
+                        { key: "fedFundsRate",      label: "Fed Funds Rate",    series: s.fedFundsRate,      inflSign: false, mom: s.fedFundsRate.change,     yoy: null, value: fmtPct(s.fedFundsRate.value) },
+                        { key: "ismManufacturing",  label: "ISM Manufacturing PMI", series: s.ismManufacturing, inflSign: false, mom: s.ismManufacturing.change, yoy: null, value: fmt(s.ismManufacturing.value, 1) },
                       ].map((row) => (
                         <MacroRow
                           key={row.key} indicatorKey={row.key} label={row.label} value={row.value}

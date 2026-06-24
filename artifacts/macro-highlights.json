@@ -1,15 +1,73 @@
 {
-  "generatedAt": "2026-06-24T22:23:10.388Z",
+  "generatedAt": "2026-06-24T22:39:30.149Z",
   "marketDate": "2026-06-24",
-  "headline": "Macro highlights temporarily unavailable",
-  "eventsToday": [],
-  "bullets": [
+  "headline": "Tech weakness, rate hike fears weigh as VIX drops and yields fall sharply",
+  "eventsToday": [
     {
-      "id": "fallback-1",
-      "category": "tape",
-      "title": "Generation failed",
-      "body": "Could not parse highlights. Try regenerating."
+      "date": "2026-06-27",
+      "event": "PCE Price Index (May) + Personal Income/Spending",
+      "importance": "high"
     }
   ],
-  "watchlistMovers": []
+  "bullets": [
+    {
+      "id": "b1",
+      "category": "macro",
+      "title": "Fed Rate Hikes Expected in 2026",
+      "body": "BofA and Deutsche Bank signal September hikes; Kevin Warsh's hawkish stance fueling rate expectations."
+    },
+    {
+      "id": "b2",
+      "category": "tape",
+      "title": "Tech Under Pressure Despite Market Flatness",
+      "body": "QQQ -0.42%, MSFT -2.27%, NVDA -0.50%; growth concerns outweigh broad stability."
+    },
+    {
+      "id": "b3",
+      "category": "tape",
+      "title": "VIX Compression Amid Rate Uncertainty",
+      "body": "VIX dropped 4.41% to 18.63; 10Y yield fell 2.03bps to 4.40%. Conflicting signals."
+    },
+    {
+      "id": "b4",
+      "category": "sector",
+      "title": "Small Cap Outperform as Rates Fall",
+      "body": "IWM +0.46% while SPY flat; lower yields benefit rate-sensitive smaller equities."
+    },
+    {
+      "id": "b5",
+      "category": "watchlist",
+      "title": "Quantum & Space Stocks Crushed",
+      "body": "IONQ -7.35%, RKLB -10.21%, ONDS -9.96%; sector-wide weakness signals broader growth repricing."
+    },
+    {
+      "id": "b6",
+      "category": "event",
+      "title": "PCE Data Due This Weekend",
+      "body": "May inflation data (May 1 Core PCE: 3.3%) critical for Fed rate-path confirmation."
+    },
+    {
+      "id": "b7",
+      "category": "macro",
+      "title": "Growth Concerns Resurface",
+      "body": "Real GDP 1.6% (Q1); unemployment 4.3%. Market pricing slower growth + higher rates."
+    }
+  ],
+  "watchlistMovers": [
+    {
+      "ticker": "RKLB",
+      "changePct": -10.21,
+      "blurb": "Space sector selloff continues; growth repricing pressure."
+    },
+    {
+      "ticker": "MSFT",
+      "changePct": -2.27,
+      "blurb": "Mega-cap tech struggles amid rate expectations."
+    },
+    {
+      "ticker": "IWM",
+      "changePct": 0.46,
+      "blurb": "Small caps resilient as yield compression supports valuations."
+    }
+  ]
 }

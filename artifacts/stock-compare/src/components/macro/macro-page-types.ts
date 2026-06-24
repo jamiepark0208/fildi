@@ -73,22 +73,27 @@ export interface MacroData {
     retailSales: FredSeries;
     consumerSentiment: FredSeries;
     fedFundsRate: FredSeries;
+    ismManufacturing: FredSeries;
   };
 }
 
 export interface MacroCharts {
-  fearGreedHistory: ChartPoint[];
-  hySpreadHistory: ChartPoint[];
-  putCallHistory: ChartPoint[];       // VVIX (vol of VIX)
-  putCallRatioHistory: ChartPoint[];  // CBOE equity put/call ratio
-  gscpiHistory: ChartPoint[];         // NY Fed Global Supply Chain Pressure Index
-  moneyMarketHistory: ChartPoint[];   // Money market fund total assets ($ billions)
   fetchedAt: string;
   vixHistory: ChartPoint[];
   fedFundsHistory: ChartPoint[];
   tenYearHistory: ChartPoint[];
   vixCurve: VixCurvePoint[];
   fedFundsCurve: FedFundsCurvePoint[];
+  fearGreedHistory: ChartPoint[];
+  hySpreadHistory: ChartPoint[];
+  igSpreadHistory: ChartPoint[];
+  putCallHistory: ChartPoint[];       // VVIX (vol of VIX)
+  putCallRatioHistory: ChartPoint[];  // CBOE equity put/call ratio
+  gscpiHistory: ChartPoint[];
+  moneyMarketHistory: ChartPoint[];
+  nfciHistory: ChartPoint[];
+  copperGoldHistory: ChartPoint[];
+  dxyHistory: ChartPoint[];
 }
 
 export interface FedMember {
