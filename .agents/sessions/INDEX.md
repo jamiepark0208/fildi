@@ -3,7 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-06-24](claude-2026-06-24.md) — Cleaned stale next-steps; session wrapped | build | next: verify profile page and trade idea form in browser
+- [2026-06-24](claude-2026-06-24.md) — auto-saved | build | next: verify profile page and trade idea form in browser
 - [2026-06-22](claude-2026-06-22.md) — auto-saved | build | next: reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
 - [2026-06-21](claude-2026-06-21.md) — auto-saved | build | next: reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
 - [2026-06-19](claude-2026-06-19.md) — auto-saved | build | next: build POST /api/portfolio/import route; reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
