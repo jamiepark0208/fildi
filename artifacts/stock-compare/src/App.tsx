@@ -18,6 +18,7 @@ import Login from "@/pages/login";
 import Settings from "@/pages/settings";
 import Profile from "@/pages/profile";
 import Feed from "@/pages/feed";
+import Sentiment from "@/pages/sentiment";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,6 +101,9 @@ function Router() {
       </Route>
       <Route path="/feed">
         <ProtectedRoute><Feed /></ProtectedRoute>
+      </Route>
+      <Route path="/sentiment">
+        <ProtectedRoute><Sentiment /></ProtectedRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>
