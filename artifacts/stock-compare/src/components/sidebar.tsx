@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   BarChart2, LineChart, BarChart, Bookmark,
   Settings as SettingsIcon, BriefcaseBusiness, BookOpen,
-  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList,
+  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList, Activity,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ const ICONS = {
   Globe,
   User,
   LayoutList,
+  Activity,
 } as const;
 
 const DEFAULT_GROUPS: NavGroup[] = [
@@ -60,6 +61,7 @@ const DEFAULT_GROUPS: NavGroup[] = [
       { id: "technical", href: "/technical", label: "Technical", icon: "LineChart" },
       { id: "options-scanner", href: "/options-scanner", label: "Options Scanner", icon: "ScanLine" },
       { id: "macro", href: "/macro", label: "Macro", icon: "Globe" },
+      { id: "sentiment", href: "/sentiment", label: "COT Positioning", icon: "Activity" },
     ],
   },
   {
