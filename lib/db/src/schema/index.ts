@@ -12,6 +12,7 @@ export const users = pgTable('users', {
   role:         text('role').notNull().default('member'), // 'admin' | 'member'
   avatarUrl:    text('avatar_url'),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt:  timestamp('last_login_at', { withTimezone: true }),
 })
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true })

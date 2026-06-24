@@ -63,6 +63,8 @@ router.post("/auth/login", authLimiter, validate(loginSchema), async (req, res) 
   req.session.userId = user.id;
   req.session.role = user.role as "admin" | "member";
 
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+
   logger.info({ userId: user.id }, "auth: user logged in");
   return res.status(200).json({ id: user.id, email: user.email, username: user.username, role: user.role });
 });
@@ -115,11 +117,12 @@ router.get("/admin/invites", requireAdmin, async (_req, res) => {
 router.get("/admin/users", requireAdmin, async (_req, res) => {
   const rows = await db
     .select({
-      id:        users.id,
-      email:     users.email,
-      username:  users.username,
-      role:      users.role,
-      createdAt: users.createdAt,
+      id:          users.id,
+      email:       users.email,
+      username:    users.username,
+      role:        users.role,
+      createdAt:   users.createdAt,
+      lastLoginAt: users.lastLoginAt,
     })
     .from(users)
     .orderBy(users.createdAt);

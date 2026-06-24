@@ -22,6 +22,7 @@ interface AdminUser {
   username: string;
   role: string;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 interface CacheEntry { key: string; expiresAt: number; expiresInSec: number }
@@ -141,12 +142,13 @@ function UserMgmtTab() {
                 <th className="text-left py-2 font-semibold">Email</th>
                 <th className="text-left py-2 font-semibold">Role</th>
                 <th className="text-right py-2 font-semibold">Joined</th>
+                <th className="text-right py-2 font-semibold">Last Login</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {users.map(u => (
-                <tr key={u.id} className="h-8">
-                  <td className="font-mono font-medium text-foreground">{u.username}</td>
+                <tr key={u.id} className="h-9">
+                  <td className="font-medium text-foreground">{u.username}</td>
                   <td className="text-muted-foreground font-mono text-[10px]">{u.email}</td>
                   <td>
                     <span className={cn(
@@ -160,6 +162,11 @@ function UserMgmtTab() {
                   </td>
                   <td className="text-right text-muted-foreground tabular-nums">
                     {new Date(u.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {u.lastLoginAt
+                      ? <span className="text-foreground/70">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                      : <span className="text-muted-foreground/50 italic">never</span>}
                   </td>
                 </tr>
               ))}
