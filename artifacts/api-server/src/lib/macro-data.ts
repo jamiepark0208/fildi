@@ -656,6 +656,29 @@ export async function fetchMacroData(): Promise<MacroData> {
   };
 }
 
+// ── Concurrency limiter ───────────────────────────────────────────────────────
+// Replaces Promise.allSettled for external HTTP calls — runs at most `limit`
+// tasks at once so we don't exhaust sockets on Replit's free tier.
+async function allSettledLimited<T>(
+  thunks: (() => Promise<T>)[],
+  concurrency = 5
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = new Array(thunks.length);
+  let next = 0;
+  async function worker() {
+    while (next < thunks.length) {
+      const i = next++;
+      try {
+        results[i] = { status: "fulfilled", value: await thunks[i]() };
+      } catch (reason) {
+        results[i] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return results;
+}
+
 // ── Charts data ───────────────────────────────────────────────────────────────
 
 export async function fetchMacroCharts(): Promise<MacroCharts> {
@@ -730,23 +753,23 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
          hyResult, igResult, vvixResult, fearGreedResult,
          putCallResult, gscpiResult, moneyMarketResult,
-         nfciResult, copperGoldResult, dxyResult] = await Promise.allSettled([
-    yahooFinance.chart("^VIX",    { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^IRX",    { period1, interval: "1d" }, { validateResult: false }),
-    yahooFinance.chart("^TNX",    { period1, interval: "1d" }, { validateResult: false }),
-    fetchVixCurve(),
-    fetchFedFundsCurve(),
-    fetchFredCSV("BAMLH0A0HYM2"), // ICE BofA HY OAS spread
-    fetchFredCSV("BAMLC0A0CM"),   // ICE BofA IG OAS spread
-    yahooFinance.chart("^VVIX",   { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX
-    fetchFearGreed(),
-    fetchCboePutCall(),
-    fetchGSCPI(),
-    fetchFredCSV("MMMFNS"),       // Money market mutual fund total assets ($ billions)
-    fetchFredCSV("NFCI"),         // Chicago Fed National Financial Conditions Index
-    fetchCopperGold(),
-    yahooFinance.chart("DX-Y.NYB", { period1, interval: "1d" }, { validateResult: false }), // DXY
-  ]);
+         nfciResult, copperGoldResult, dxyResult] = await allSettledLimited([
+    () => yahooFinance.chart("^VIX",    { period1, interval: "1d" }, { validateResult: false }),
+    () => yahooFinance.chart("^IRX",    { period1, interval: "1d" }, { validateResult: false }),
+    () => yahooFinance.chart("^TNX",    { period1, interval: "1d" }, { validateResult: false }),
+    () => fetchVixCurve(),
+    () => fetchFedFundsCurve(),
+    () => fetchFredCSV("BAMLH0A0HYM2"), // ICE BofA HY OAS spread
+    () => fetchFredCSV("BAMLC0A0CM"),   // ICE BofA IG OAS spread
+    () => yahooFinance.chart("^VVIX",   { period1, interval: "1d" }, { validateResult: false }),
+    () => fetchFearGreed(),
+    () => fetchCboePutCall(),
+    () => fetchGSCPI(),
+    () => fetchFredCSV("MMMFNS"),
+    () => fetchFredCSV("NFCI"),
+    () => fetchCopperGold(),
+    () => yahooFinance.chart("DX-Y.NYB", { period1, interval: "1d" }, { validateResult: false }),
+  ], 5);
 
   return {
     fetchedAt:             new Date().toISOString(),

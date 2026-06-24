@@ -58,5 +58,22 @@ Use before touching any source file. codegraph auto-runs on Edit/Write via hook.
 - Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD)
 - Full API catalog: `.agents/context/api-endpoints.md`
 
+## HOT FILE INDEX — grep before Read, never load whole file
+These files are edited frequently. Always `grep -n "<pattern>" <file>` to get line numbers, then `Read offset+limit`.
+
+| File (path relative to artifacts/) | Find what | Grep pattern |
+|---|---|---|
+| `api-server/src/lib/macro-data.ts` | MacroCharts interface | `grep -n "MacroCharts\|interface Macro"` |
+| `api-server/src/lib/macro-data.ts` | fetchMacroCharts body | `grep -n "fetchMacroCharts\|Promise.allSettled"` |
+| `api-server/src/lib/macro-data.ts` | loadChartsCache guard | `grep -n "loadChartsCache\|in data"` |
+| `api-server/src/lib/macro-data.ts` | fetchMacroData body | `grep -n "fetchMacroData\|ismManufacturing"` |
+| `api-server/src/lib/macro-static.ts` | INDICATOR_SERIES entries | `grep -n "INDICATOR_SERIES\|ismManufacturing"` |
+| `stock-compare/src/pages/macro.tsx` | regime tab charts section | `grep -n "HY Credit\|IG/HY\|NFCI\|DXY\|Economic Indicators"` |
+| `stock-compare/src/pages/macro.tsx` | imports from MacroComponents | `grep -n "DualLine\|RateHistory\|import {"` |
+| `stock-compare/src/components/macro/MacroComponents.tsx` | DualLineHistoryChart | `grep -n "DualLine\|export function"` |
+| `stock-compare/src/components/macro/MacroComponents.tsx` | RateHistoryChart props | `grep -n "RateHistoryChart\|referenceLines"` |
+| `stock-compare/src/components/macro/macro-page-types.ts` | MacroCharts / MacroData types | `grep -n "MacroCharts\|MacroData\|igSpread\|nfci"` |
+| `lib/db/src/schema/index.ts` | any table definition | `grep -n "pgTable\|market_regime"` |
+
 ## HOOKS
 Defined in .claude/settings.local.json — never in .claude/hooks/hooks.json (not read).
