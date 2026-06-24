@@ -19,6 +19,8 @@ import {
   Scatter,
   ComposedChart,
   ReferenceDot,
+  BarChart,
+  Bar,
 } from "recharts";
 import {
   RefreshCw,
@@ -196,8 +198,12 @@ const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 
 interface COTRecord {
   date: string; instrument: string; displayName: string; dataset: "tff" | "legacy";
-  openInterest: number; levMoneyNet: number; levMoneyLongChg: number; levMoneyShortChg: number;
-  assetMgrNet: number; dealerNet: number;
+  openInterest: number;
+  levMoneyLong: number; levMoneyShort: number; levMoneyNet: number;
+  levMoneyLongChg: number; levMoneyShortChg: number;
+  assetMgrLong: number; assetMgrShort: number; assetMgrNet: number;
+  assetMgrLongChg: number; assetMgrShortChg: number;
+  dealerLong: number; dealerShort: number; dealerNet: number;
 }
 interface COTSummary {
   instrument: string; displayName: string; dataset: "tff" | "legacy";
@@ -564,6 +570,7 @@ export default function MacroDashboard() {
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
           {activeTab === "regime" && (
             <>
+              <MacroHighlightsPanel />
               <RegimeChips macroData={macroData!} />
 
               {/* Yield & credit stats */}
@@ -715,8 +722,6 @@ export default function MacroDashboard() {
           {/* ── Tab 3: Policy & Forward Guidance ─────────────────────────────── */}
           {activeTab === "policy" && (
             <>
-              <MacroHighlightsPanel />
-
               {/* Fed Funds Curve + history */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <FedFundsCurveChart data={macroCharts?.fedFundsCurve ?? []} loading={!macroCharts} period={ffPeriod} onPeriodChange={setFfPeriod} />
@@ -1037,8 +1042,8 @@ function VixCurveChart({
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={vixCurve} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="tenor" tick={{ fontSize: 10, fill: "#666" }} />
-              <YAxis tick={{ fontSize: 9, fill: "#666" }} domain={["auto", "auto"]} tickFormatter={(v: number) => v.toFixed(1)} />
+              <XAxis dataKey="tenor" tick={{ fontSize: 10, fill: "#cbd5e1" }} />
+              <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={(v: number) => v.toFixed(1)} />
               <Tooltip
                 contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
                 formatter={(v: number, name: string) => {
@@ -1130,8 +1135,8 @@ function YieldCurveChart({
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={yieldCurve} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="maturity" tick={{ fontSize: 10, fill: "#666" }} />
-              <YAxis tick={{ fontSize: 9, fill: "#666" }} domain={["auto", "auto"]} tickFormatter={(v: number) => `${v.toFixed(1)}%`} />
+              <XAxis dataKey="maturity" tick={{ fontSize: 10, fill: "#cbd5e1" }} />
+              <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={(v: number) => `${v.toFixed(1)}%`} />
               <Tooltip
                 contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
                 formatter={(v: number) => [`${v.toFixed(3)}%`]}
@@ -1220,9 +1225,9 @@ function FedFundsCurveChart({
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#666" }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#cbd5e1" }} />
               <YAxis
-                tick={{ fontSize: 9, fill: "#666" }}
+                tick={{ fontSize: 9, fill: "#cbd5e1" }}
                 domain={["auto", "auto"]}
                 tickFormatter={(v: number) => `${v.toFixed(2)}%`}
               />
@@ -1270,6 +1275,15 @@ function FedFundsCurveChart({
 
 // ── Rate History Chart ──────────────────────────────────────────────────────────
 
+type HistoryPeriod = "1m" | "3m" | "6m" | "1y";
+
+function filterByPeriod(data: ChartPoint[], period: HistoryPeriod): ChartPoint[] {
+  const days = period === "1m" ? 30 : period === "3m" ? 90 : period === "6m" ? 180 : 365;
+  const cutoff = new Date(Date.now() - days * 86400_000);
+  const filtered = data.filter((d) => new Date(d.date) >= cutoff);
+  return filtered.length > 2 ? filtered : data;
+}
+
 function RateHistoryChart({
   title, data, color, loading,
   yFormatter = (v: number) => `${v.toFixed(2)}%`,
@@ -1284,16 +1298,29 @@ function RateHistoryChart({
   tooltipFormatter?: (v: number) => [string];
   referenceLines?: { y: number; label: string; color: string }[];
 }) {
+  const [period, setPeriod] = useState<HistoryPeriod>("3m");
+  const filtered = filterByPeriod(data, period);
+
   return (
     <div className="border border-border rounded-lg p-4 space-y-2">
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+          {(["1m", "3m", "6m", "1y"] as HistoryPeriod[]).map((p) => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={cn("px-2 py-0.5 transition-colors", period === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
+              {p === "1y" ? "1Y" : p === "6m" ? "6M" : p === "3m" ? "3M" : "1M"}
+            </button>
+          ))}
+        </div>
+      </div>
       {loading ? (
         <div className="h-[160px] flex items-center justify-center">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-      ) : data.length > 0 ? (
+      ) : filtered.length > 0 ? (
         <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <AreaChart data={filtered} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id={`grad-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
@@ -1303,13 +1330,13 @@ function RateHistoryChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#222" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 9, fill: "#666" }}
+              tick={{ fontSize: 9, fill: "#cbd5e1" }}
               tickFormatter={(d: string) =>
                 new Date(d).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
               }
               interval={Math.floor(data.length / 6)}
             />
-            <YAxis tick={{ fontSize: 9, fill: "#666" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
+            <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
             <Tooltip
               contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
               formatter={(v: unknown) => tooltipFormatter(v as number)}
@@ -1456,14 +1483,14 @@ function IndicatorHistoryChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#222" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 9, fill: "#666" }}
+              tick={{ fontSize: 9, fill: "#cbd5e1" }}
               tickFormatter={(d: string) =>
                 new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short" })
               }
               interval={Math.floor(data.data.length / 8)}
             />
             <YAxis
-              tick={{ fontSize: 9, fill: "#666" }}
+              tick={{ fontSize: 9, fill: "#cbd5e1" }}
               domain={["auto", "auto"]}
               tickFormatter={(v: number) =>
                 data.isYoY ? `${v.toFixed(1)}%` : v.toFixed(data.unit === "%" ? 2 : 0)
@@ -1553,14 +1580,14 @@ function SepDotsChart({
           <CartesianGrid strokeDasharray="3 3" stroke="#222" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 9, fill: "#666" }}
+            tick={{ fontSize: 9, fill: "#cbd5e1" }}
             tickFormatter={(d: string) =>
               new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short" })
             }
             interval={Math.floor(combined.length / 8)}
           />
           <YAxis
-            tick={{ fontSize: 9, fill: "#666" }}
+            tick={{ fontSize: 9, fill: "#cbd5e1" }}
             domain={["auto", "auto"]}
             tickFormatter={(v: number) => `${v.toFixed(1)}${metricUnit.includes("%") ? "%" : ""}`}
           />
@@ -1835,8 +1862,11 @@ function CotSection({
   selectedInstrument: string;
   onSelectInstrument: (id: string) => void;
 }) {
+  const [cotWeeks, setCotWeeks] = useState<12 | 26 | 52>(26);
   const selected = summaries.find((s) => s.instrument === selectedInstrument) ?? summaries[0];
   const historyForSelected = history?.[0]?.instrument === selectedInstrument ? history : undefined;
+
+  const extremes = [...summaries].sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore));
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -1846,6 +1876,7 @@ function CotSection({
         <span className="text-[10px] text-muted-foreground/60 ml-auto">CFTC · weekly</span>
       </div>
       <div className="p-4 space-y-4">
+
         {/* Instrument selector cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
           {summaries.map((s) => {
@@ -1884,49 +1915,163 @@ function CotSection({
           })}
         </div>
 
-        {/* History chart */}
-        {selected && historyForSelected && (
-          <div className="border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-xs font-semibold">{selected.displayName} — Net Positioning (26W)</p>
-              <span className="text-[10px] text-muted-foreground ml-auto">as of {selected.latest.date}</span>
+        {/* Selected instrument detail */}
+        {selected && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* History chart */}
+            <div className="lg:col-span-2 border border-border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold">{selected.displayName} — Net Positioning</p>
+                  <p className="text-[10px] text-muted-foreground">as of {selected.latest.date}</p>
+                </div>
+                <div className="flex gap-1">
+                  {([12, 26, 52] as const).map((w) => (
+                    <button key={w} onClick={() => setCotWeeks(w)}
+                      className={cn("text-[10px] px-2 py-1 rounded font-medium transition-colors",
+                        cotWeeks === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                      {w}W
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {historyForSelected ? (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart
+                      data={historyForSelected.slice(-cotWeeks).map((r) => ({
+                        date: r.date.slice(5),
+                        "Lev. Money": r.levMoneyNet,
+                        "Asset Mgr":  r.assetMgrNet,
+                        "Dealer":     r.dealerNet,
+                      }))}
+                      margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
+                      <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
+                        formatter={(v: number, name: string) => [fmtCot(v), name]} />
+                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+                      <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
+                      <Line type="monotone" dataKey="Lev. Money" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="Asset Mgr"  stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="Dealer"     stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-[9px] text-muted-foreground">
+                    <div><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds</div>
+                    <div><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions</div>
+                    <div><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers</div>
+                  </div>
+                </>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin mr-2" />Loading history…
+                </div>
+              )}
             </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart
-                data={historyForSelected.slice(-26).map((r) => ({
-                  date: r.date.slice(5),
-                  "Lev. Money": r.levMoneyNet,
-                  "Asset Mgr":  r.assetMgrNet,
-                  "Dealer":     r.dealerNet,
-                }))}
-                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} tickLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 9, fill: "#888" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
-                <Tooltip
-                  contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
-                  formatter={(v: number, name: string) => [fmtCot(v), name]}
-                />
-                <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="Lev. Money" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey="Asset Mgr"  stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey="Dealer"     stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-[9px] text-muted-foreground">
-              <div><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds (contrarian at extremes)</div>
-              <div><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions (trend-following)</div>
-              <div><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers (opposite of client flow)</div>
+
+            {/* Category breakdown + quick stats */}
+            <div className="space-y-3">
+              {/* Quick stats */}
+              <div className="border border-border rounded-lg p-3 grid grid-cols-2 gap-3">
+                {[
+                  { label: "Open Interest", val: fmtCot(selected.latest.openInterest) },
+                  { label: "HF Net",        val: `${selected.latest.levMoneyNet >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyNet)}` },
+                  { label: "HF WoW",        val: `${(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg) >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg)}` },
+                  { label: "Z-Score",       val: `${selected.zScore >= 0 ? "+" : ""}${selected.zScore.toFixed(2)}σ` },
+                ].map(({ label, val }) => (
+                  <div key={label}>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                    <div className="text-xs font-semibold">{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Position breakdown bar chart */}
+              <div className="border border-border rounded-lg p-3">
+                <p className="text-xs font-semibold mb-0.5">Position Breakdown</p>
+                <p className="text-[10px] text-muted-foreground mb-2">Long vs short by category</p>
+                <ResponsiveContainer width="100%" height={130}>
+                  <BarChart
+                    data={[
+                      { name: "Lev. Money", Long: selected.latest.levMoneyLong, Short: -selected.latest.levMoneyShort },
+                      { name: "Asset Mgr",  Long: selected.latest.assetMgrLong,  Short: -selected.latest.assetMgrShort },
+                      { name: "Dealer",     Long: selected.latest.dealerLong,     Short: -selected.latest.dealerShort },
+                    ]}
+                    layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+                  >
+                    <XAxis type="number" tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} tickFormatter={(v: number) => fmtCot(Math.abs(v))} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} axisLine={false} width={68} />
+                    <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
+                      formatter={(v: number) => fmtCot(Math.abs(v))} />
+                    <ReferenceLine x={0} stroke="rgba(255,255,255,0.15)" />
+                    <Bar dataKey="Long"  fill="#34d399" isAnimationActive={false} radius={[0, 3, 3, 0]} />
+                    <Bar dataKey="Short" fill="#f87171" isAnimationActive={false} radius={[0, 3, 3, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
-        {selected && !historyForSelected && (
-          <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin mr-2" />Loading history…
+
+        {/* Positioning extremes table */}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border bg-secondary/10">
+            <p className="text-xs font-semibold">Positioning Extremes</p>
+            <p className="text-[10px] text-muted-foreground">Ranked by Z-score vs 52-week range (hedge fund positioning)</p>
           </div>
-        )}
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider">
+                <th className="text-left px-4 py-2">Instrument</th>
+                <th className="text-right px-3 py-2">Net</th>
+                <th className="text-right px-3 py-2">WoW Chg</th>
+                <th className="text-right px-4 py-2">Z-Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {extremes.map((s) => {
+                const net = s.latest.levMoneyNet;
+                const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
+                return (
+                  <tr key={s.instrument} onClick={() => onSelectInstrument(s.instrument)}
+                    className="border-b border-border/50 hover:bg-white/5 cursor-pointer transition-colors">
+                    <td className="px-4 py-2 font-medium">
+                      <div className="flex items-center gap-2">
+                        {s.displayName}
+                        {Math.abs(s.zScore) >= 1 && (
+                          <span className={cn("text-[9px] px-1 py-0.5 rounded border font-semibold",
+                            Math.abs(s.zScore) > 1.5
+                              ? s.zScore > 0 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"
+                              : "bg-yellow-500/15 text-yellow-300 border-yellow-500/20")}>
+                            {s.zScore > 0 ? "Extreme Long" : "Extreme Short"}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className={cn("px-3 py-2 text-right font-mono", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {net >= 0 ? "+" : ""}{fmtCot(net)}
+                    </td>
+                    <td className={cn("px-3 py-2 text-right font-mono", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
+                      {chg >= 0 ? "+" : ""}{fmtCot(chg)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <span className={cn("font-mono font-semibold",
+                        Math.abs(s.zScore) > 1.5 ? s.zScore > 0 ? "text-emerald-400" : "text-red-400"
+                        : Math.abs(s.zScore) > 1 ? "text-yellow-400" : "text-muted-foreground")}>
+                        {s.zScore >= 0 ? "+" : ""}{s.zScore.toFixed(2)}σ
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </div>
   );
@@ -1950,7 +2095,7 @@ function TradingViewHeatmap() {
       locale: "en", colorTheme: "dark",
       hasTopBar: true, isDataSetEnabled: true, isZoomEnabled: true,
       hasSymbolTooltip: true, isMonoSize: false,
-      width: "100%", height: "100%",
+      width: "100%", height: 720,
     });
     el.appendChild(s);
   }, []);
@@ -1958,7 +2103,7 @@ function TradingViewHeatmap() {
     <div
       ref={ref}
       className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
-      style={{ height: 580 }}
+      style={{ height: 720, width: "100%" }}
     />
   );
 }
