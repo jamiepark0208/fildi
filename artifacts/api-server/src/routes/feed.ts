@@ -419,6 +419,19 @@ router.get('/feed/buckets', async (req, res) => {
   return res.json(rows)
 })
 
+// ── GET /api/feed/buckets/:username — a specific user's picks ─────────────────
+
+router.get('/feed/buckets/:username', async (req, res) => {
+  const [profile] = await db.select({ id: users.id }).from(users).where(eq(users.username, req.params['username']!)).limit(1)
+  if (!profile) return res.status(404).json({ error: 'User not found' })
+  const rows = await db
+    .select({ ticker: stockBuckets.ticker, bucket: stockBuckets.bucket, addedAt: stockBuckets.addedAt })
+    .from(stockBuckets)
+    .where(eq(stockBuckets.userId, profile.id))
+    .orderBy(asc(stockBuckets.bucket), asc(stockBuckets.ticker))
+  return res.json(rows)
+})
+
 // ── GET /api/feed/buckets/mine — current user's picks ─────────────────────────
 
 router.get('/feed/buckets/mine', async (req, res) => {
