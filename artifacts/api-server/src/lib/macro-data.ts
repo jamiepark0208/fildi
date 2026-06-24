@@ -68,7 +68,10 @@ export interface MacroCharts {
   fedFundsCurve: FedFundsCurvePoint[];
   fearGreedHistory: ChartPoint[];
   hySpreadHistory: ChartPoint[];
-  putCallHistory: ChartPoint[];
+  putCallHistory: ChartPoint[];     // VVIX (vol of VIX)
+  putCallRatioHistory: ChartPoint[]; // CBOE equity put/call ratio
+  gscpiHistory: ChartPoint[];        // NY Fed Global Supply Chain Pressure Index
+  moneyMarketHistory: ChartPoint[];  // Money market fund total assets (FRED MMMFNS)
 }
 
 export interface FedMember {
@@ -938,28 +941,105 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     }));
   };
 
+  // CBOE equity put/call ratio — daily CSV (column index 3 = EQUITY PC RATIO)
+  const fetchCboePutCall = async (): Promise<ChartPoint[]> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+      const res = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/PC_Data.csv", {
+        signal: controller.signal,
+        headers: { "User-Agent": "TradeDash/1.0" },
+      });
+      clearTimeout(timer);
+      if (!res.ok) return [];
+      const text = await res.text();
+      const lines = text.trim().split("\n");
+      // header: Date,TOTAL PC RATIO,INDEX PC RATIO,EQUITY PC RATIO
+      const cutoff = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
+      const points: ChartPoint[] = [];
+      for (const line of lines.slice(1)) {
+        const cols = line.split(",");
+        if (cols.length < 4) continue;
+        const dateStr = cols[0].trim().replace(/"/g, "");
+        const val = parseFloat((cols[3] ?? "").trim().replace(/"/g, ""));
+        if (!dateStr || isNaN(val)) continue;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime()) || d < cutoff) continue;
+        points.push({ date: d.toISOString().slice(0, 10), value: parseFloat(val.toFixed(2)) });
+      }
+      return points.sort((a, b) => a.date.localeCompare(b.date));
+    } catch {
+      return [];
+    }
+  };
+
+  // NY Fed Global Supply Chain Pressure Index — monthly CSV
+  const fetchGSCPI = async (): Promise<ChartPoint[]> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+      const res = await fetch(
+        "https://www.newyorkfed.org/medialibrary/Research/Interactives/2022/supply-chain/data/gscpi_data.csv",
+        { signal: controller.signal, headers: { "User-Agent": "TradeDash/1.0" } }
+      );
+      clearTimeout(timer);
+      if (!res.ok) return [];
+      const text = await res.text();
+      const lines = text.trim().split("\n");
+      // header: Month,GSCPI  (date format: Jan-1997 or 1997-01 depending on version)
+      const points: ChartPoint[] = [];
+      for (const line of lines.slice(1)) {
+        const cols = line.split(",");
+        if (cols.length < 2) continue;
+        const rawDate = cols[0].trim().replace(/"/g, "");
+        const val = parseFloat((cols[1] ?? "").trim().replace(/"/g, ""));
+        if (!rawDate || isNaN(val)) continue;
+        // Handle both "Jan-1997" and "1997-01" formats
+        let iso: string;
+        if (/^\d{4}-\d{2}/.test(rawDate)) {
+          iso = rawDate.slice(0, 7) + "-01";
+        } else {
+          const d = new Date(rawDate);
+          if (isNaN(d.getTime())) continue;
+          iso = d.toISOString().slice(0, 10);
+        }
+        points.push({ date: iso, value: parseFloat(val.toFixed(2)) });
+      }
+      return points.sort((a, b) => a.date.localeCompare(b.date));
+    } catch {
+      return [];
+    }
+  };
+
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
-         hyResult, vvixResult, fearGreedResult] = await Promise.allSettled([
+         hyResult, vvixResult, fearGreedResult,
+         putCallResult, gscpiResult, moneyMarketResult] = await Promise.allSettled([
     yahooFinance.chart("^VIX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^IRX",  { period1, interval: "1d" }, { validateResult: false }),
     yahooFinance.chart("^TNX",  { period1, interval: "1d" }, { validateResult: false }),
     fetchVixCurve(),
     fetchFedFundsCurve(),
     fetchFredCSV("BAMLH0A0HYM2"),   // ICE BofA HY OAS spread
-    yahooFinance.chart("^VVIX", { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX (options fear proxy)
+    yahooFinance.chart("^VVIX", { period1, interval: "1d" }, { validateResult: false }),  // Vol of VIX
     fetchFearGreed(),
+    fetchCboePutCall(),
+    fetchGSCPI(),
+    fetchFredCSV("MMMFNS"),         // Money market mutual fund total assets ($ billions)
   ]);
 
   return {
-    fetchedAt:        new Date().toISOString(),
-    vixHistory:       chartToPoints(vixResult),
-    fedFundsHistory:  chartToPoints(irxResult),
-    tenYearHistory:   chartToPoints(tnxResult),
-    vixCurve:         vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
-    fedFundsCurve:    ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
-    hySpreadHistory:  hyResult.status       === "fulfilled" ? hyResult.value       : [],
-    putCallHistory:   chartToPoints(vvixResult),
-    fearGreedHistory: fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
+    fetchedAt:             new Date().toISOString(),
+    vixHistory:            chartToPoints(vixResult),
+    fedFundsHistory:       chartToPoints(irxResult),
+    tenYearHistory:        chartToPoints(tnxResult),
+    vixCurve:              vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
+    fedFundsCurve:         ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
+    hySpreadHistory:       hyResult.status        === "fulfilled" ? hyResult.value       : [],
+    putCallHistory:        chartToPoints(vvixResult),
+    fearGreedHistory:      fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
+    putCallRatioHistory:   putCallResult.status   === "fulfilled" ? putCallResult.value  : [],
+    gscpiHistory:          gscpiResult.status     === "fulfilled" ? gscpiResult.value    : [],
+    moneyMarketHistory:    moneyMarketResult.status === "fulfilled" ? moneyMarketResult.value : [],
   };
 }
 
@@ -990,13 +1070,16 @@ export function isCacheStale(data: MacroData, ttlHours = 4): boolean {
   return Date.now() - new Date(data.fetchedAt).getTime() > ttlHours * 3_600_000;
 }
 
+export const MACRO_DATA_TTL_MS    = 4  * 3_600_000; // 4h
+export const MACRO_CHARTS_TTL_MS  = 4  * 3_600_000; // 4h — daily/weekly series; refreshes intraday
+
 export function loadChartsCache(): MacroCharts | null {
   try {
     if (!existsSync(CHARTS_CACHE_FILE)) return null;
     const data = JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
-    // Invalidate if missing new curve or chart fields
     if (!data.vixCurve || !data.fedFundsCurve) return null;
     if (!data.hySpreadHistory || !data.putCallHistory || !data.fearGreedHistory) return null;
+    if (!("putCallRatioHistory" in data) || !("gscpiHistory" in data) || !("moneyMarketHistory" in data)) return null;
     return data;
   } catch {
     return null;

@@ -120,7 +120,10 @@ interface MacroData {
 interface MacroCharts {
   fearGreedHistory: ChartPoint[];
   hySpreadHistory: ChartPoint[];
-  putCallHistory: ChartPoint[];
+  putCallHistory: ChartPoint[];       // VVIX (vol of VIX)
+  putCallRatioHistory: ChartPoint[];  // CBOE equity put/call ratio
+  gscpiHistory: ChartPoint[];         // NY Fed Global Supply Chain Pressure Index
+  moneyMarketHistory: ChartPoint[];   // Money market fund total assets ($ billions)
   fetchedAt: string;
   vixHistory: ChartPoint[];
   fedFundsHistory: ChartPoint[];
@@ -605,6 +608,25 @@ export default function MacroDashboard() {
                 referenceLines={[{ y: 4, label: "Risk-On", color: "#22c55e" }, { y: 7, label: "Stress", color: "#ef4444" }]}
               />
 
+              {/* Supply Chain + Liquidity */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart
+                  title="GSCPI — Global Supply Chain Pressure"
+                  data={macroCharts?.gscpiHistory ?? []}
+                  color="#34d399" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(2)}
+                  tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                  referenceLines={[{ y: 0, label: "Neutral", color: "#94a3b8" }, { y: 1.5, label: "Elevated", color: "#f59e0b" }, { y: -1, label: "Easing", color: "#22c55e" }]}
+                />
+                <RateHistoryChart
+                  title="Money Market Fund AUM ($B)"
+                  data={macroCharts?.moneyMarketHistory ?? []}
+                  color="#60a5fa" loading={!macroCharts}
+                  yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
+                  tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
+                />
+              </div>
+
               {/* Economic Indicators */}
               <div className="border border-border rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
@@ -702,9 +724,14 @@ export default function MacroDashboard() {
                   yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
                   referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]} />
                 <RateHistoryChart title="CBOE VVIX (Vol of VIX)" data={macroCharts?.putCallHistory ?? []} color="#38bdf8" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
-                  referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.2, label: "Bearish", color: "#ef4444" }]} />
+                  yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
+                  referenceLines={[{ y: 100, label: "Elevated", color: "#f59e0b" }, { y: 120, label: "Panic", color: "#ef4444" }]} />
               </div>
+
+              {/* CBOE Equity Put/Call Ratio */}
+              <RateHistoryChart title="CBOE Equity Put/Call Ratio" data={macroCharts?.putCallRatioHistory ?? []} color="#a78bfa" loading={!macroCharts}
+                yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.0, label: "Bearish", color: "#ef4444" }]} />
 
               {/* COT — Commodities, Crypto & FX */}
               {sentCoTs.length > 0 && (
