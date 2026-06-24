@@ -665,13 +665,15 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   };
 
   const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
-    const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}&vintage_date=${new Date().toISOString().slice(0,10)}`;
-    const res = await fetch(url);
+    const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
+    const res = await fetch(url, { headers: { "User-Agent": "TradeDash/1.0", "Accept": "text/csv,text/plain,*/*" } });
+    if (!res.ok) return [];
     const text = await res.text();
+    if (!text.startsWith("DATE")) return []; // guard against HTML error pages
     return text.split("\n").slice(1).flatMap(line => {
       const [date, val] = line.trim().split(",");
       const v = parseFloat(val);
-      return date && !isNaN(v) ? [{ date, value: v }] : [];
+      return date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(v) ? [{ date, value: v }] : [];
     });
   };
 
@@ -691,74 +693,17 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     }));
   };
 
-  // CBOE equity put/call ratio — daily CSV (column index 3 = EQUITY PC RATIO)
+  // CBOE equity put/call ratio via Yahoo Finance ^PCCE (more reliable than CBOE CDN)
   const fetchCboePutCall = async (): Promise<ChartPoint[]> => {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const res = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/PC_Data.csv", {
-        signal: controller.signal,
-        headers: { "User-Agent": "TradeDash/1.0" },
-      });
-      clearTimeout(timer);
-      if (!res.ok) return [];
-      const text = await res.text();
-      const lines = text.trim().split("\n");
-      // header: Date,TOTAL PC RATIO,INDEX PC RATIO,EQUITY PC RATIO
-      const cutoff = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
-      const points: ChartPoint[] = [];
-      for (const line of lines.slice(1)) {
-        const cols = line.split(",");
-        if (cols.length < 4) continue;
-        const dateStr = cols[0].trim().replace(/"/g, "");
-        const val = parseFloat((cols[3] ?? "").trim().replace(/"/g, ""));
-        if (!dateStr || isNaN(val)) continue;
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime()) || d < cutoff) continue;
-        points.push({ date: d.toISOString().slice(0, 10), value: parseFloat(val.toFixed(2)) });
-      }
-      return points.sort((a, b) => a.date.localeCompare(b.date));
-    } catch {
-      return [];
-    }
+    const r = await Promise.allSettled([
+      yahooFinance.chart("^PCCE", { period1, interval: "1d" }, { validateResult: false }),
+    ]);
+    return chartToPoints(r[0]);
   };
 
-  // NY Fed Global Supply Chain Pressure Index — monthly CSV
+  // NY Fed GSCPI via FRED series (more reliable than NY Fed direct CDN)
   const fetchGSCPI = async (): Promise<ChartPoint[]> => {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const res = await fetch(
-        "https://www.newyorkfed.org/medialibrary/Research/Interactives/2022/supply-chain/data/gscpi_data.csv",
-        { signal: controller.signal, headers: { "User-Agent": "TradeDash/1.0" } }
-      );
-      clearTimeout(timer);
-      if (!res.ok) return [];
-      const text = await res.text();
-      const lines = text.trim().split("\n");
-      // header: Month,GSCPI  (date format: Jan-1997 or 1997-01 depending on version)
-      const points: ChartPoint[] = [];
-      for (const line of lines.slice(1)) {
-        const cols = line.split(",");
-        if (cols.length < 2) continue;
-        const rawDate = cols[0].trim().replace(/"/g, "");
-        const val = parseFloat((cols[1] ?? "").trim().replace(/"/g, ""));
-        if (!rawDate || isNaN(val)) continue;
-        // Handle both "Jan-1997" and "1997-01" formats
-        let iso: string;
-        if (/^\d{4}-\d{2}/.test(rawDate)) {
-          iso = rawDate.slice(0, 7) + "-01";
-        } else {
-          const d = new Date(rawDate);
-          if (isNaN(d.getTime())) continue;
-          iso = d.toISOString().slice(0, 10);
-        }
-        points.push({ date: iso, value: parseFloat(val.toFixed(2)) });
-      }
-      return points.sort((a, b) => a.date.localeCompare(b.date));
-    } catch {
-      return [];
-    }
+    return fetchFredCSV("GSCPI");
   };
 
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,

@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-24T17:08:18.122Z",
+  "fetchedAt": "2026-06-24T21:45:06.393Z",
   "vixHistory": [
     {
       "date": "2024-06-24",
@@ -2011,7 +2011,7 @@
     },
     {
       "date": "2026-06-24",
-      "value": 18.790000915527344
+      "value": 18.6299991607666
     }
   ],
   "fedFundsHistory": [
@@ -4013,7 +4013,7 @@
     },
     {
       "date": "2026-06-24",
-      "value": 3.693000078201294
+      "value": 3.690000057220459
     }
   ],
   "tenYearHistory": [
@@ -6015,7 +6015,7 @@
     },
     {
       "date": "2026-06-24",
-      "value": 4.409999847412109
+      "value": 4.4019999504089355
     }
   ],
   "vixCurve": [
@@ -6030,7 +6030,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 18.78,
+      "value": 18.63,
       "weekAgo": 18.440000534057617,
       "monthAgo": 16.59000015258789,
       "threeMonthAgo": 25.329999923706055
@@ -6038,7 +6038,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 20.59,
+      "value": 20.37,
       "weekAgo": 20.6200008392334,
       "monthAgo": 20.030000686645508,
       "threeMonthAgo": 25.6299991607666
@@ -6046,7 +6046,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 22.67,
+      "value": 22.4,
       "weekAgo": 22.6200008392334,
       "monthAgo": 22.350000381469727,
       "threeMonthAgo": 26.690000534057617
@@ -6054,7 +6054,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.75,
+      "value": 23.58,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6082,7 +6082,7 @@
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.855,
+      "impliedRate": 3.85,
       "weekAgo": 3.8,
       "monthAgo": 3.745,
       "threeMonthAgo": 3.705,
@@ -6091,7 +6091,7 @@
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.97,
+      "impliedRate": 3.965,
       "weekAgo": 3.93,
       "monthAgo": 3.85,
       "threeMonthAgo": 3.695,
@@ -6109,7 +6109,7 @@
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.035,
+      "impliedRate": 4.025,
       "weekAgo": 4.025,
       "monthAgo": 3.95,
       "threeMonthAgo": 3.675,
@@ -11278,7 +11278,7 @@
     },
     {
       "date": "2026-06-24",
-      "value": 95.41999816894531
+      "value": 95.58000183105469
     }
   ],
   "fearGreedHistory": [
@@ -12288,11 +12288,28 @@
     },
     {
       "date": "2026-06-24",
-      "value": 27.3
+      "value": 25.9
     },
     {
       "date": "2026-06-24",
-      "value": 27.3
+      "value": 25.9
+    }
+  ],
+  "putCallRatioHistory": [],
+  "gscpiHistory": [
+    {
+      "date": "2001-04-01",
+      "value": 0
+    }
+  ],
+  "moneyMarketHistory": [
+    {
+      "date": "background-color: rgb(225",
+      "value": 233
+    },
+    {
+      "date": "document.cookie = document.cookie + '_ga=;domain=.fred.stlouisfed.org;expires=Sat",
+      "value": 1
     }
   ]
 }
