@@ -25,16 +25,19 @@ Reload MCP in Cursor Settings if codegraph is missing after clone.
 | Scope | Where | What |
 |---|---|---|
 | **Cursor-only** | `.cursor/context/session.md` | Hooks/rules/MCP changes, Cursor workflow notes |
-| **All agents** | `.agents/context/state.md` | Phase, tasks, project state |
+| **Cursor-only** | `.cursor/context/cursor-state.md` | Phase, active work, next tasks — **Cursor writes here** |
+| **Cursor-only** | `.cursor/context/plans/*.md` | Detailed implementation plans (read on topic) |
+| **All agents (read-only in Cursor)** | `.agents/context/state.md` | Claude Code project state — do not edit from Cursor |
 | Architecture | `.agents/context/project.md` | |
 | Build/routing | `.agents/context/workflow.md` | |
 | Session history | `.agents/sessions/INDEX.md` | Claude/Kiro session logs |
 
-New chat reads **both** `session.md` (Cursor setup) and `state.md` (project work) via `sessionStart` hook.
+New chat reads `session.md` + `cursor-state.md` via `sessionStart` hook.
 
 ## END OF SESSION
-1. `node .cursor/scripts/session-wrap-cursor.js "what we did"` — Cursor-only log
-2. Update `.agents/context/state.md` — shared project state (phase, tasks)
+1. `node .cursor/scripts/session-wrap-cursor.js "what we did"` — session log
+2. Update `.cursor/context/cursor-state.md` — phase, active work, next tasks
+3. **Do not** edit `.agents/context/state.md` from Cursor (merge conflicts with Claude Code)
 
 ## SKILLS (load one at a time — never all at once)
 Same files as Claude Code — read `.claude/skills/<name>.md` when relevant:
@@ -63,7 +66,4 @@ Before touching source files:
 | Entry | `CURSOR.md` + `.cursor/rules/` | `CLAUDE.md` + `.claude/settings.local.json` |
 | Hooks | `.cursor/hooks.json` | `.claude/settings.local.json` |
 | Ephemeral state | `.cursor/state.json` (local) | `.claude/state.json` (local) |
-| Cross-agent state | `.agents/` (git) | `.agents/` (git) |
-
-## END OF SESSION
-Update `.agents/context/state.md` with phase, in-progress, and next tasks so the next Cursor chat picks up automatically.
+| Cross-agent state | `.agents/` (git) — **read only in Cursor** | `.agents/` (git) |

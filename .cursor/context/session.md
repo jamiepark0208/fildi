@@ -1,14 +1,12 @@
 # Cursor Session Context
 > Cursor-only — not shared with Claude Code / Kiro. Update at end of each Cursor session.
 
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-24
 
 ## Last session summary
-- Session wrap: resolved state.md rebase conflict; watchlist-stock-analysis shipped (Competitors 50/50 tech+fund, catalysts, DB-first peers)
-- Watchlist stock analysis: Competitors (50/50 tech+fund, DB-first peers), Event Risk/Catalysts, overview fix
-- Profile bucket ticker autocomplete + Scorecard Guide UI refresh (badges, shadcn tables, larger text)
-- Merged PR #1 (scorecard guide + admin weights + Watchlist chart S/R zones) to main; git branch/push/conflict resolution; main pulled at 61b6b53
-- Cursor bootstrap complete: token-efficiency + codegraph rules/MCP, CURSOR.md entry, sessionStart hook, rehydrate-cursor.js, .cursorignore, removed git user rules, .cursor/context/session.md for Cursor-only continuity
+- Fundamental sector-relative scoring: canonical plan in `.cursor/context/plans/fundamental-sector-scoring.md` (APPENDIX I = current prod scoring)
+- Decisions: ~558 Robinhood tickers pre-seeded; watchlist irrelevant; pre-compute fund_score; unify duplicate scorers
+- Cursor handoff split: `cursor-state.md` (write) vs `state.md` (read-only) to avoid merge conflicts
 
 ## Active Cursor setup
 | Item | Location |
@@ -19,16 +17,19 @@
 | Hooks | `.cursor/hooks.json` → `sessionStart` → `rehydrate-cursor.js` |
 | Ignore | `.cursorignore` |
 | Session log | `.cursor/context/session.md` (this file) |
+| Cursor state | `.cursor/context/cursor-state.md` (phase, tasks — Cursor writes here only) |
 | Wrap script | `node .cursor/scripts/session-wrap-cursor.js "summary"` |
 
 ## Notes for next Cursor session
 - Reload MCP if codegraph missing (Settings → MCP)
 - User handles git manually unless explicitly asked
-- `sessionStart` injects this file + `.agents/context/state.md` on new chat
+- `sessionStart` injects `session.md` + `cursor-state.md`; read `.agents/context/state.md` but **never edit it**
 - No orchestrator hook — token-efficiency rule handles prompt/response compression in-agent
 - Say "wrap session" before closing
 
 ## History
+- 2026-06-24 — Sector scoring plan committed; APPENDIX I current-state baseline; cursor-state handoff (no state.md writes)
+- 2026-06-24 — Fundamental sector-relative scoring planned: Robinhood JSON→DB peer groups, not watchlist; handoff .agents/tasks/2026-06
 - 2026-06-19 — Session wrap: resolved state.md rebase conflict; watchlist-stock-analysis shipped (Competitors 50/50 tech+fund, catalyst
 - 2026-06-18 — Watchlist stock analysis: Competitors (50/50 tech+fund, DB-first peers), Event Risk/Catalysts, overview fix
 - 2026-06-18 — Profile bucket ticker autocomplete + Scorecard Guide UI refresh (badges, shadcn tables, larger text)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cursor session rehydrate — prints banner from git-tracked .agents/context/state.md
+ * Cursor session rehydrate — prints banner from .cursor/context/cursor-state.md
  * Usage: node .cursor/scripts/rehydrate-cursor.js
  *        node .cursor/scripts/rehydrate-cursor.js --json  (for sessionStart hook)
  */
@@ -9,7 +9,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
-const STATE_MD = path.join(ROOT, '.agents/context/state.md');
+const CURSOR_STATE = path.join(ROOT, '.cursor/context/cursor-state.md');
 const CURSOR_SESSION = path.join(ROOT, '.cursor/context/session.md');
 
 function readCursorSession() {
@@ -25,13 +25,13 @@ function readCursorSession() {
   }
 }
 
-function readStateMd() {
+function readCursorState() {
   try {
-    const text = fs.readFileSync(STATE_MD, 'utf8');
+    const text = fs.readFileSync(CURSOR_STATE, 'utf8');
     const phase = text.match(/## Phase\s*\n\*\*([^*]+)\*\*/)?.[1]?.trim() || 'unknown';
     const active = text.match(/## Active work\s*\n([\s\S]*?)(?=\n## |$)/)?.[1]
       ?.split('\n').filter(l => l.startsWith('-')).map(l => l.replace(/^-\s*/, '').trim()) || [];
-    const tasks = [...text.matchAll(/^\d+\.\s+\*\*([^*]+)\*\*/gm)].map(m => m[1]).slice(0, 3);
+    const tasks = [...text.matchAll(/^\d+\.\s+(.+)$/gm)].map(m => m[1].trim()).slice(0, 3);
     return { phase, active, tasks };
   } catch {
     return { phase: 'unknown', active: [], tasks: [] };
@@ -61,9 +61,10 @@ function codegraph() {
 }
 
 function buildBanner() {
-  const s = readStateMd();
+  const s = readCursorState();
   const c = readCursorSession();
   const g = git();
+  const planPath = '.cursor/context/plans/fundamental-sector-scoring-v1.md';
   const lines = [
     `TRADEDASH (Cursor) | Phase: ${s.phase}`,
     s.tasks.length ? `Next: ${s.tasks.join(', ')}` : null,
@@ -71,7 +72,7 @@ function buildBanner() {
     s.active.length ? s.active.join(' | ') : null,
     `Git: ${g.log}${g.dirty ? ` | ${g.dirty} changed` : ' | clean'}`,
     `Codegraph: ${codegraph()}`,
-    `Entry: CURSOR.md · Cursor: .cursor/context/session.md · Shared: .agents/context/state.md`,
+    `Plan: ${planPath} · State: .cursor/context/cursor-state.md`,
   ].filter(Boolean);
   return lines.join('\n');
 }
@@ -79,7 +80,7 @@ function buildBanner() {
 const banner = buildBanner();
 if (process.argv.includes('--json')) {
   process.stdout.write(JSON.stringify({
-    additional_context: `[Session context]\n${banner}\n\nFollow CURSOR.md. Cursor-only notes: .cursor/context/session.md`,
+    additional_context: `[Session context]\n${banner}\n\nFollow CURSOR.md. Fundamental scoring: READ .cursor/context/plans/fundamental-sector-scoring-v1.md — score vs peer_group_members in DB, NEVER vs user watchlist or FUNDAMENTAL_WATCHLIST (31-name legacy hack).`,
   }));
 } else {
   console.log(`\n${banner}\n`);
