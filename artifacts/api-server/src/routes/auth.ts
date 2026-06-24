@@ -111,6 +111,21 @@ router.get("/admin/invites", requireAdmin, async (_req, res) => {
   return res.json(codes);
 });
 
+// GET /admin/users
+router.get("/admin/users", requireAdmin, async (_req, res) => {
+  const rows = await db
+    .select({
+      id:        users.id,
+      email:     users.email,
+      username:  users.username,
+      role:      users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(users.createdAt);
+  return res.json(rows);
+});
+
 // DELETE /admin/invite/:code
 router.delete("/admin/invite/:code", requireAdmin, async (req, res) => {
   const code = req.params['code'] as string;
