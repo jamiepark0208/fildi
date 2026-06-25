@@ -3,7 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-06-25](claude-2026-06-25.md) — Built full sector-aware fundamental scoring: peer groups seeded, auto-classifier, WACC from FMP, structural nulls, peerGroupMap wired into both server rankings route and frontend computeRankingsV2. | build | next: Apply DB migrations 0001→0003 from Replit shell. Run seed:peers. Verify macro tab loads cleanly. Then file-split: options-scanner.tsx(1199L), stock-breakdown.tsx(1084L), portfolio.tsx(955L).
+- [2026-06-25](claude-2026-06-25.md) — auto-saved | build | next: Apply DB migrations 0001→0003 from Replit shell. Run seed:peers. Verify macro tab loads cleanly. Then file-split: options-scanner.tsx(1199L), stock-breakdown.tsx(1084L), portfolio.tsx(955L).
 - [2026-06-24](claude-2026-06-24.md) — auto-saved | build | next: Apply DB migration 0001 (run drizzle-kit migrate from Replit shell with env vars). Verify macro tab loads cleanly. Then file-split: options-scanner.tsx(1199L), stock-breakdown.tsx(1084L), portfolio.tsx(955L)
 - [2026-06-22](claude-2026-06-22.md) — auto-saved | build | next: reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
 - [2026-06-21](claude-2026-06-21.md) — auto-saved | build | next: reset user password; verify profile page in browser; Phase 5 FILDI approval; verify chart EMA lines and zone labels
