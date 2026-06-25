@@ -167,7 +167,6 @@ async function fetchFredSeriesData(
     const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?${params.toString()}`;
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { "User-Agent": "TradeDash/1.0 (macro-data fetcher)" },
     });
     clearTimeout(timer);
     if (!res.ok) return [];
@@ -697,7 +696,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
 
   const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
     const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
-    const res = await fetch(url, { headers: { "User-Agent": "TradeDash/1.0", "Accept": "text/csv,text/plain,*/*" } });
+    const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
     if (!text.startsWith("DATE")) return []; // guard against HTML error pages

@@ -19,6 +19,7 @@ import adminCacheRouter from "./admin-cache";
 import portfolioIngestRouter from "./portfolio-ingest";
 import portfolioSnapshotRouter from "./portfolio-snapshot";
 import cotRouter from "./macro-cot";
+import regimeRouter from "./regime";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(adminCacheRouter);
 router.use(portfolioIngestRouter);
 router.use(portfolioSnapshotRouter);
 router.use(cotRouter);
+router.use(regimeRouter);
 
 export default router;
