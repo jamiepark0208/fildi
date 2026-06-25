@@ -104,6 +104,59 @@ computeRankingsV2(stocks, preset?, intraWeightOverrides?, peerGroupMap = {})
 
 ---
 
+---
+
+## Audit: SCORECARD_METRICS_V2 Field Tracing (2026-06-25)
+
+### Full metric → source trace
+
+| metric key | StockMetrics field(s) | in DB schema? | fetched from FMP? | written by fundamentals-db? | written by stock-data-manager? | Notes |
+|---|---|---|---|---|---|---|
+| `earningsYield` | `netIncome / marketCap` | `netIncome` ✓ / `marketCap` ✗ | `netIncome` ✓ | `netIncome` ✓ | `netIncome` ✓ | `marketCap` Yahoo-only, never persisted |
+| `fcfYield` | `freeCashFlow / marketCap` | `freeCashFlow` ✓ / `marketCap` ✗ | ✗ (Yahoo primary) | ✗ (not written via FMP) | ✗ (not written via FMP) | FMP annual cash-flow not fetched; buildMetrics pulls from Yahoo at serve-time only — never persisted |
+| `peg` | `pegRatio` | ✓ | ✓ (`ratios.priceToEarningsGrowthRatio`) | ✓ | ✓ | |
+| `fwdpe` | `forwardPe` | ✓ (`forward_pe`) | ✓ (`km.forwardPE`) | **✗ MISSING** | ✓ | `writeFundamentalsRow` (refresh path) doesn't write this column |
+| `evEbitda` | `evEbitda` | ✓ (`ev_ebitda`) | ✓ (`km.enterpriseValueOverEBITDA`) | **✗ MISSING** | ✓ | same gap as fwdpe |
+| `evRev` | `evRevenue` | ✓ (`ev_revenue`) | ✓ (`km.evToRevenue`) | **✗ MISSING** | ✓ | same gap |
+| `pb` | `priceToBook` | ✓ (`price_to_book`) | ✓ (`ratios.priceToBookRatio`) | ✓ | ✓ | |
+| `divy` | `dividendYield` | ✓ | ✓ (`ratios.dividendYield`) | ✓ | ✓ | |
+| `revgrow` | `revenueGrowthYoY` | ✓ | ✓ (`growth.revenueGrowth`) | ✓ | ✓ | |
+| `revaccel` | `revenueGrowthYoY - revenueGrowthYoyPrior` | `revenueGrowthYoyPrior` ✓ | ✓ (`growth1.revenueGrowth`, limit=2) | **✗ MISSING** | ✓ | prior-period growth missing from refresh write path |
+| `epsgrow` | `epsGrowth` | ✓ | ✓ (`growth.epsgrowth`) | ✓ | ✓ | |
+| `upside` | `analystTargetPrice / currentPrice - 1` | `analystTargetPrice` ✓ / `currentPrice` ✗ | `analystTargetPrice` ✓ | `analystTargetPrice` ✓ | ✓ | `currentPrice` Yahoo-only |
+| `grossmgn` | `grossMargin` | ✓ | ✓ (`ratios.grossProfitMargin`) | ✓ | ✓ | |
+| `operatingmgn` | `operatingMargin` | ✓ | ✓ (`ratios.operatingProfitMargin`) | ✓ | ✓ | |
+| `netmgn` | `netIncome / totalRevenue` (fallback `netMargin`) | ✓ | ✓ | ✓ | ✓ | computed from raw inputs to fix Yahoo 0% floor |
+| `roe` | `returnOnEquity` | ✓ | ✓ (`ratios.returnOnEquity ?? km.returnOnEquity`) | ✓ | ✓ | |
+| `fcfmgn` | `freeCashFlow / totalRevenue` | `freeCashFlow` ✓ (column exists) | ✗ (Yahoo primary) | ✗ | ✗ | same FCF gap as `fcfYield` — value only present if Yahoo-derived at serve-time |
+| `roicwacc` | `roic - wacc` (CAPM fallback) | ✓ both | ✓ both | ✓ | ✓ | financial tickers excluded via FINANCIAL_TICKERS set |
+| `cashrun` | `cashAndEquivalents / (quarterlyOperatingCashFlow × 4)` | ✓ both | ✓ both | ✓ | ✓ | |
+| `intcov` | `ebit / interestExpense` | ✓ both | ✓ both | ✓ | ✓ | |
+| `dilution` | `sharesOutstanding / sharesOutstandingPrior - 1` | ✓ both | ✓ both | ✓ | ✓ | |
+| `cr` | `currentRatio` | ✓ | ✓ | ✓ | ✓ | |
+| `de` | `debtToEquity` | ✓ | ✓ | ✓ | ✓ | |
+
+### StockMetrics type coverage (api-client-react/src/generated/api.schemas.ts)
+
+| Field | Present? |
+|---|---|
+| `forwardPe` | ✓ added |
+| `evEbitda` | ✓ added |
+| `evRevenue` | ✓ added |
+| `priceToBook` | ✓ (pre-existing) |
+| `dividendYield` | ✓ (pre-existing) |
+| `revenueGrowthYoyPrior` | ✓ added |
+
+### Issues requiring fixes
+
+1. **`writeFundamentalsRow` gap** (`fundamentals-db.ts`) — `forwardPe`, `evEbitda`, `evRevenue`, `revenueGrowthYoyPrior` are written by `stock-data-manager.ts` (the multi-source upsert path) but **not** by `writeFundamentalsRow`, which is called by `/fundamentals/refresh`. The new Phase 4 columns will always be null after a manual refresh cycle until this is fixed.
+
+2. **`freeCashFlow` never persisted from FMP** — `fcfYield` and `fcfmgn` depend on `s.freeCashFlow`, which is pulled from Yahoo at serve-time in `buildMetrics` but never written to `ticker_fundamentals`. The DB column exists but is always null from the FMP path. These metrics work for the home page ranking (live Yahoo pull) but not for `/fundamentals/rankings` (DB-only).
+
+3. **`marketCap` and `currentPrice` are Yahoo-only** — `earningsYield`, `fcfYield`, and `upside` require these. They are never in the DB. These metrics are unavailable in the server-side `/fundamentals/rankings` inline scorer, which only reads DB rows — by design, but worth noting.
+
+---
+
 ## Files Changed
 
 | File | Change type |
