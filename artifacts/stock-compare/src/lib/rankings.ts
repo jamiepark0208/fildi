@@ -295,16 +295,16 @@ export function computeRankingsV2(
     excl.forEach(key => { if (key in rawValues) rawValues[key][i] = null; });
 
     // pe_ratio: negative P/E means unprofitable — inverts the "lower is cheaper" direction
-    if (s.netIncome != null && s.netIncome < 0) rawValues["pe_ratio"][i] = null;
+    if (s.netIncome != null && s.netIncome < 0 && "pe_ratio" in rawValues) rawValues["pe_ratio"][i] = null;
     // earningsYield: negative scores low naturally — correct signal, keep in pool
 
     // peg: mathematically undefined when earnings or growth are negative
-    if ((s.netIncome != null && s.netIncome < 0) ||
-        (s.epsGrowth != null && s.epsGrowth <= 0))
+    if (((s.netIncome != null && s.netIncome < 0) ||
+        (s.epsGrowth != null && s.epsGrowth <= 0)) && "peg" in rawValues)
       rawValues["peg"][i] = null;
 
     // fwdpe: same direction-inversion rule as trailing pe
-    if (s.netIncome != null && s.netIncome < 0) rawValues["fwdpe"][i] = null;
+    if (s.netIncome != null && s.netIncome < 0 && "fwdpe" in rawValues) rawValues["fwdpe"][i] = null;
 
     // fcfYieldSpread: subtract risk-free rate from raw FCF yield; null when rate unavailable
     if (riskFreeRate == null) {
