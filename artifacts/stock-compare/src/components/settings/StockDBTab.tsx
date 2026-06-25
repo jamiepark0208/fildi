@@ -150,7 +150,7 @@ export function StockDBTab() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
     queryFn: async () => {
-      const r = await fetch("/api/fundamentals/stock-db");
+      const r = await fetch("/api/fundamentals/stock-db", { credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
