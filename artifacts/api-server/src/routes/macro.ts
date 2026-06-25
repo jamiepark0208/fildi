@@ -328,7 +328,7 @@ Base stances on publicly known views and the current macro context. Return ONLY 
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();
   if (!data) return res.json({ riskFreeRate: null });
-  const rate = data.series.sofr.value ?? data.series.fedFundsRate.value ?? null;
+  const rate = data.series.sofr?.value ?? data.series.fedFundsRate?.value ?? null;
   // FRED returns rates as percentage points (e.g. 5.33 for 5.33%) — convert to decimal for scoring
   return res.json({ riskFreeRate: rate !== null ? rate / 100 : null });
 });
