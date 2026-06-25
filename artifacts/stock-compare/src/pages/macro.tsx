@@ -39,6 +39,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
+import { RegimeBanner } from "@/components/macro/RegimeBanner";
 import { useAuth } from "@/context/AuthContext";
 
 
@@ -303,6 +304,7 @@ export default function MacroDashboard() {
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
           {activeTab === "regime" && (
             <>
+              <RegimeBanner />
               <MacroHighlightsPanel />
               <RegimeChips macroData={macroData!} />
 
