@@ -699,8 +699,10 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     const res = await fetch(url);
     if (!res.ok) return [];
     const text = await res.text();
-    if (!text.startsWith("DATE")) return []; // guard against HTML error pages
-    return text.split("\n").slice(1).flatMap(line => {
+    if (text.trimStart().startsWith("<")) return []; // guard against HTML error pages
+    const lines = text.trim().split("\n");
+    // skip header row (could be "DATE,..." or "observation_date,...")
+    return lines.slice(1).flatMap(line => {
       const [date, val] = line.trim().split(",");
       const v = parseFloat(val);
       return date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(v) ? [{ date, value: v }] : [];
