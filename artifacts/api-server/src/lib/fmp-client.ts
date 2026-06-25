@@ -103,10 +103,10 @@ export async function fetchFMPFundamentals(
   const t = ticker.toUpperCase();
   const q = `symbol=${t}&apikey=${apiKey}`;
 
-  // 7 endpoints × 31 tickers = 217 requests per full refresh.
+  // 8 endpoints × 31 tickers = 248 requests per full refresh.
   // beta is NOT fetched from FMP — stable/profile is heavily rate-limited. Yahoo beta
   // (quote.beta in buildMetrics) is the reliable source and is used for approxWACC.
-  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw] =
+  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw] =
     await Promise.all([
       fetchWithRetry(`${FMP_BASE}/key-metrics?${q}&limit=1`),
       fetchWithRetry(`${FMP_BASE}/ratios?${q}&limit=1`),
@@ -115,10 +115,12 @@ export async function fetchFMPFundamentals(
       fetchWithRetry(`${FMP_BASE}/price-target-consensus?${q}`).catch(() => null),
       fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
       fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=1`),
+      fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
     ]);
 
   const km     = firstOf(kmRaw);
   const r      = firstOf(ratiosRaw);
+  const waccRow = firstOf(waccRaw);
   const is0    = firstOf(incomeRaw);
   const is1    = secondOf(incomeRaw);
   const bs     = firstOf(balanceRaw);
@@ -181,7 +183,7 @@ export async function fetchFMPFundamentals(
 
   // ── SAFETY ───────────────────────────────────────────────────────────────────
   result.currentRatio            = fmpN(r.currentRatio)  ?? fmpN(km.currentRatio);
-  // wacc: not available in stable tier — approxWACC() computes it in the scorer
+  result.wacc                    = fmpN(waccRow.wacc);
   result.roic                    = fmpN(km.returnOnInvestedCapital);
   result.totalDebt               = fmpN(bs.totalDebt);
   result.totalStockholdersEquity = fmpN(bs.totalStockholdersEquity);

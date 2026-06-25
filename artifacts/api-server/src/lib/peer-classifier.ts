@@ -1,5 +1,5 @@
 import { eq, inArray, count, desc } from "drizzle-orm";
-import { db, tickerRegistry, peerGroupMembers, unmappedTickers } from "@workspace/db";
+import { db, tickerRegistry, peerGroupMembers, peerGroups, unmappedTickers } from "@workspace/db";
 import { resolvePeers } from "./peer-resolver.js";
 import { logger } from "./logger.js";
 import { readFile, writeFile, mkdir } from "fs/promises";
@@ -14,6 +14,7 @@ const OVERRIDES_FILE = join(ROOT, "config", "ticker-mapping-overrides.json");
 export type PeerGroupClassification = {
   groupId: string;
   confidence: "mapped" | "auto" | "unmapped";
+  metricExclusions?: string[];
 };
 
 // ── Keyword map: Yahoo assetProfile sector+industry → peer group id ───────────
@@ -119,6 +120,15 @@ async function recordUnmapped(ticker: string): Promise<void> {
     .onConflictDoNothing();
 }
 
+async function fetchMetricExclusions(groupId: string): Promise<string[]> {
+  const rows = await db
+    .select({ metricExclusions: peerGroups.metricExclusions })
+    .from(peerGroups)
+    .where(eq(peerGroups.id, groupId))
+    .limit(1);
+  return rows[0]?.metricExclusions ?? [];
+}
+
 /** Classify a ticker to its best-fit peer group.
  *  Priority: DB primary → peer overlap (≥2) → keyword map → unmapped */
 export async function classifyTicker(ticker: string): Promise<PeerGroupClassification> {
@@ -132,7 +142,8 @@ export async function classifyTicker(ticker: string): Promise<PeerGroupClassific
     .limit(1);
   const reg = regRows[0];
   if (reg?.primaryPeerGroupId) {
-    return { groupId: reg.primaryPeerGroupId, confidence: "mapped" };
+    const metricExclusions = await fetchMetricExclusions(reg.primaryPeerGroupId);
+    return { groupId: reg.primaryPeerGroupId, confidence: "mapped", metricExclusions };
   }
 
   // 2. Peer overlap — fetch peers then count group membership overlaps
@@ -154,7 +165,8 @@ export async function classifyTicker(ticker: string): Promise<PeerGroupClassific
         await upsertPrimaryGroup(key, best.groupId);
         await appendOverride(key, best.groupId);
         logger.info({ ticker: key, groupId: best.groupId, overlap: best.cnt }, "peer-classifier: auto-classified via peer overlap");
-        return { groupId: best.groupId, confidence: "auto" };
+        const metricExclusions = await fetchMetricExclusions(best.groupId);
+        return { groupId: best.groupId, confidence: "auto", metricExclusions };
       }
     }
 
@@ -166,7 +178,8 @@ export async function classifyTicker(ticker: string): Promise<PeerGroupClassific
       await upsertPrimaryGroup(key, matched);
       await appendOverride(key, matched);
       logger.info({ ticker: key, groupId: matched, sector, industry }, "peer-classifier: auto-classified via keyword map");
-      return { groupId: matched, confidence: "auto" };
+      const metricExclusions = await fetchMetricExclusions(matched);
+      return { groupId: matched, confidence: "auto", metricExclusions };
     }
   } catch (err) {
     logger.warn({ ticker: key, err: String(err) }, "peer-classifier: classification error");

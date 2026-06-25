@@ -1,4 +1,5 @@
 export const MIN_Z_N = 8;
+export const MIN_TIGHT_N = 20;   // groups ≥ this use 2nd/98th winsorization
 export const MAX_CASH_RUNWAY_QUARTERS = 20;
 export const MAX_INTEREST_COVERAGE = 50;
 export const MIN_SECTOR_N = 6;
@@ -48,8 +49,10 @@ export function normalize(
   if (nonNull.length === 0) return out;
 
   if (nonNull.length >= MIN_Z_N) {
-    // Winsorized z-score path
-    const winsorized = winsorize(values);
+    // Winsorized z-score path — tighter bounds for large groups
+    const winsorized = nonNull.length >= MIN_TIGHT_N
+      ? winsorize(values, 0.02, 0.98)
+      : winsorize(values);
     const wNonNull = nonNull.map(({ i }) => winsorized[i] as number);
     const mean = wNonNull.reduce((s, v) => s + v, 0) / wNonNull.length;
     const variance = wNonNull.reduce((s, v) => s + (v - mean) ** 2, 0) / wNonNull.length;
