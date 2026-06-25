@@ -164,6 +164,8 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
     getValue: s => safeDiv(s.netIncome, s.marketCap) },
   { key: "fcfYield",      label: "FCF Yield",         family: "value",   intraWeight: 3, higherIsBetter: true,
     getValue: s => safeDiv(s.freeCashFlow, s.marketCap) },
+  { key: "ps",            label: "Price / Sales",     family: "value",   intraWeight: 1.5, higherIsBetter: false,
+    getValue: s => (s.totalRevenue != null && s.totalRevenue <= 0) ? null : safeDiv(s.marketCap, s.totalRevenue) },
   { key: "peg",           label: "PEG Ratio",         family: "value",   intraWeight: 2, higherIsBetter: false,
     // Clamp to null for negative earnings or non-positive growth — negative PEG is misleading
     getValue: s => (s.epsGrowth != null && s.epsGrowth <= 0) || (s.netIncome != null && s.netIncome < 0)
@@ -178,6 +180,10 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
     getValue: s => (s.totalStockholdersEquity != null && s.totalStockholdersEquity < 0) ? null : (s.priceToBook ?? null) },
   { key: "divy",     label: "Dividend Yield", family: "value",   intraWeight: 1, higherIsBetter: true,
     getValue: s => s.dividendYield ?? null },
+  // FCF yield minus risk-free rate (SOFR). getValue returns raw FCF yield; computeRankingsV2
+  // subtracts riskFreeRate after extraction and nulls the column when riskFreeRate is absent.
+  { key: "fcfYieldSpread", label: "FCF Yield−SOFR", family: "value", intraWeight: 2, higherIsBetter: true,
+    getValue: s => safeDiv(s.freeCashFlow, s.marketCap) },
 
   // GROWTH
   { key: "revgrow",  label: "Revenue Growth",     family: "growth", intraWeight: 3, higherIsBetter: true,  getValue: s => s.revenueGrowthYoY },
@@ -236,6 +242,11 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
     getValue: s => dilutionRate(s.sharesOutstanding, s.sharesOutstandingPrior) },
   { key: "cr",      label: "Current Ratio",     family: "safety", intraWeight: 1.5, higherIsBetter: true,  getValue: s => s.currentRatio },
   { key: "de",      label: "Debt / Equity",     family: "safety", intraWeight: 1,   higherIsBetter: false, getValue: s => s.debtToEquity },
+  // Null when EBITDA <= 0 — negative EBITDA inverts direction (distressed looks low-leverage).
+  // Negative net debt (cash > debt) scores best naturally — correct signal, keep in pool.
+  { key: "netDebtEbitda", label: "Net Debt/EBITDA", family: "safety", intraWeight: 2, higherIsBetter: false,
+    getValue: s => (s.ebitda != null && s.ebitda <= 0) ? null
+      : safeDiv((s.totalDebt ?? 0) - (s.cashAndEquivalents ?? 0), s.ebitda) },
 ];
 
 // ─── computeRankingsV2 ───────────────────────────────────────────────────────
@@ -251,6 +262,7 @@ export function computeRankingsV2(
   intraWeightOverrides?: Record<string, number>,
   peerGroupMap: Record<string, { groupId: string; confidence: 'mapped' | 'auto' | 'unmapped'; metricExclusions?: string[] }> = {},
   regime?: string,
+  riskFreeRate?: number | null,
 ): StockScore[] {
   if (stocks.length === 0) return [];
 
@@ -293,6 +305,16 @@ export function computeRankingsV2(
 
     // fwdpe: same direction-inversion rule as trailing pe
     if (s.netIncome != null && s.netIncome < 0) rawValues["fwdpe"][i] = null;
+
+    // fcfYieldSpread: subtract risk-free rate from raw FCF yield; null when rate unavailable
+    if (riskFreeRate == null) {
+      rawValues["fcfYieldSpread"][i] = null;
+    } else if (rawValues["fcfYieldSpread"][i] !== null) {
+      rawValues["fcfYieldSpread"][i] = (rawValues["fcfYieldSpread"][i] as number) - riskFreeRate;
+    }
+
+    // netDebtEbitda: null when EBITDA <= 0 (direction inverts with negative EBITDA)
+    if (s.ebitda != null && s.ebitda <= 0) rawValues["netDebtEbitda"][i] = null;
 
     // evEbitda: negative EBITDA makes the ratio meaningless (distressed companies look cheap)
     if (s.ebitda != null && s.ebitda < 0) rawValues["evEbitda"][i] = null;
