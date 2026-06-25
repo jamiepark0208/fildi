@@ -183,7 +183,8 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
     getValue: s => {
       if (FINANCIAL_TICKERS.has(s.ticker)) return null;
       if (s.roic == null) return null;
-      const wacc = approxWACC({
+      // Prefer DB-stored FMP WACC; fall back to approximation if not yet populated
+      const wacc = s.wacc ?? approxWACC({
         beta: s.beta,
         totalDebt: s.totalDebt,
         totalStockholdersEquity: s.totalStockholdersEquity,
@@ -224,7 +225,7 @@ export function computeRankingsV2(
   stocks: StockMetrics[],
   preset: FamilyPreset = FAMILY_PRESETS.PUT_SELLER,
   intraWeightOverrides?: Record<string, number>,
-  peerGroupMap: Record<string, { groupId: string; confidence: 'mapped' | 'auto' | 'unmapped' }> = {},
+  peerGroupMap: Record<string, { groupId: string; confidence: 'mapped' | 'auto' | 'unmapped'; metricExclusions?: string[] }> = {},
 ): StockScore[] {
   if (stocks.length === 0) return [];
 
@@ -247,7 +248,28 @@ export function computeRankingsV2(
     });
   });
 
-  // ── Suspect detection (2f data-sanity) ──────────────────────────────────────
+  // ── Structural nulls (direction-inversion cases + group metric exclusions) ────
+  stocks.forEach((s, i) => {
+    // Apply group-level metric exclusions from scoring_mode
+    const excl = peerGroupMap[s.ticker.toUpperCase()]?.metricExclusions ?? [];
+    excl.forEach(key => { if (key in rawValues) rawValues[key][i] = null; });
+
+    // pe_ratio: negative P/E means unprofitable — inverts the "lower is cheaper" direction
+    if (s.netIncome != null && s.netIncome < 0) rawValues["pe_ratio"][i] = null;
+    // earningsYield: negative scores low naturally — correct signal, keep in pool
+
+    // peg: mathematically undefined when earnings or growth are negative
+    if ((s.netIncome != null && s.netIncome < 0) ||
+        (s.epsGrowth != null && s.epsGrowth <= 0))
+      rawValues["peg"][i] = null;
+
+    // roe: directionally broken when equity is negative but company is profitable
+    if (s.totalStockholdersEquity != null && s.totalStockholdersEquity < 0 &&
+        s.netIncome != null && s.netIncome > 0)
+      rawValues["roe"][i] = null;
+  });
+
+  // ── Suspect detection (data-sanity) ─────────────────────────────────────────
   const suspectSets: Set<string>[] = stocks.map(() => new Set<string>());
   stocks.forEach((s, i) => {
     const nm = rawValues["netmgn"][i];
