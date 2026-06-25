@@ -637,3 +637,13 @@ export const marketRegime = pgTable('market_regime', {
 export const insertMarketRegimeSchema = createInsertSchema(marketRegime).omit({ id: true, computedAt: true })
 export type InsertMarketRegime = z.infer<typeof insertMarketRegimeSchema>
 export type MarketRegime = typeof marketRegime.$inferSelect
+
+// ── unmapped_tickers ──────────────────────────────────────────────────────────
+// Tickers that classifyTicker could not map to any peer group. Reviewed manually.
+
+export const unmappedTickers = pgTable('unmapped_tickers', {
+  ticker: text('ticker').primaryKey(),
+  seenAt: timestamp('seen_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type UnmappedTicker = typeof unmappedTickers.$inferSelect
