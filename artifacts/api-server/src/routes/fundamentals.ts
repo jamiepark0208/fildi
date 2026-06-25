@@ -4,6 +4,7 @@ import YahooFinanceClass from "yahoo-finance2";
 import { WATCHLIST } from "../lib/constants.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls, getAllFundamentalsRows } from "../lib/fundamentals-db.js";
+import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
@@ -57,7 +58,8 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
       logger.warn({ ticker, err: String(err) }, "fundamentals: Yahoo triangulation fetch failed, skipping");
     }
 
-    await writeFundamentalsRow(ticker, fmpData, discrepancyFlags);
+    const regime = await getLatestRegime();
+    await writeFundamentalsRow(ticker, fmpData, discrepancyFlags, regime);
     // beta is not available from FMP stable/profile (rate-limited at scale). buildMetrics
     // falls back to Yahoo quote.beta. Log here so we know which tickers rely on Yahoo beta.
     if (fmpData.beta == null) {
@@ -156,10 +158,14 @@ router.get("/fundamentals/status", async (_req, res) => {
 // Cross-sectional percentile ranks each metric, then weights by quality/growth/safety families.
 router.get("/fundamentals/rankings", async (_req, res) => {
   try {
-    const rows = await getAllFundamentalsRows();
+    const [rows, regime] = await Promise.all([
+      getAllFundamentalsRows(),
+      getLatestRegime(),
+    ]);
     if (rows.length === 0) return res.json([]);
 
-    type Metric = { key: string; weight: number; higherBetter: boolean; getValue: (r: typeof rows[0]) => number | null };
+    type Family = 'quality' | 'growth' | 'safety';
+    type Metric = { key: string; family: Family; weight: number; higherBetter: boolean; getValue: (r: typeof rows[0]) => number | null };
 
     function n(v: string | null | undefined): number | null {
       if (v == null) return null;
@@ -167,27 +173,40 @@ router.get("/fundamentals/rankings", async (_req, res) => {
       return isFinite(x) ? x : null;
     }
 
+    // Family weights — resolved from regime, falling back to PUT_SELLER defaults
+    const REGIME_WEIGHTS: Record<string, Record<Family, number>> = {
+      expansion:   { quality: 30, growth: 35, safety: 20 },
+      late_cycle:  { quality: 35, growth: 20, safety: 25 },
+      contraction: { quality: 35, growth: 15, safety: 30 },
+      recession:   { quality: 30, growth: 10, safety: 45 },
+      recovery:    { quality: 30, growth: 35, safety: 20 },
+      stagflation: { quality: 35, growth: 10, safety: 30 },
+    };
+    const familyWeights: Record<Family, number> = (regime && REGIME_WEIGHTS[regime])
+      ? REGIME_WEIGHTS[regime]
+      : { quality: 35, growth: 25, safety: 20 }; // PUT_SELLER defaults
+
     const METRICS: Metric[] = [
-      // Quality (35% of PUT_SELLER preset)
-      { key: "grossMargin",      weight: 2.0, higherBetter: true,  getValue: r => n(r.grossMargin) },
-      { key: "operatingMargin",  weight: 2.0, higherBetter: true,  getValue: r => n(r.operatingMargin) },
-      { key: "netMargin",        weight: 3.0, higherBetter: true,  getValue: r => n(r.netMargin) },
-      { key: "roe",              weight: 2.0, higherBetter: true,  getValue: r => n(r.returnOnEquity) },
-      { key: "roicWacc",         weight: 1.5, higherBetter: true,  getValue: r => {
+      // Quality
+      { key: "grossMargin",     family: "quality", weight: 2.0, higherBetter: true,  getValue: r => n(r.grossMargin) },
+      { key: "operatingMargin", family: "quality", weight: 2.0, higherBetter: true,  getValue: r => n(r.operatingMargin) },
+      { key: "netMargin",       family: "quality", weight: 3.0, higherBetter: true,  getValue: r => n(r.netMargin) },
+      { key: "roe",             family: "quality", weight: 2.0, higherBetter: true,  getValue: r => n(r.returnOnEquity) },
+      { key: "roicWacc",        family: "quality", weight: 1.5, higherBetter: true,  getValue: r => {
         const roic = n(r.roic); const wacc = n(r.wacc);
         return roic !== null && wacc !== null ? roic - wacc : null;
       }},
-      // Growth (25%)
-      { key: "revGrowth",        weight: 3.0, higherBetter: true,  getValue: r => n(r.revenueGrowthYoY) },
-      { key: "epsGrowth",        weight: 3.0, higherBetter: true,  getValue: r => n(r.epsGrowth) },
-      // Safety (20%)
-      { key: "currentRatio",     weight: 1.5, higherBetter: true,  getValue: r => n(r.currentRatio) },
-      { key: "debtToEquity",     weight: 1.0, higherBetter: false, getValue: r => n(r.debtToEquity) },
-      { key: "intCoverage",      weight: 2.5, higherBetter: true,  getValue: r => {
+      // Growth
+      { key: "revGrowth",  family: "growth", weight: 3.0, higherBetter: true, getValue: r => n(r.revenueGrowthYoY) },
+      { key: "epsGrowth",  family: "growth", weight: 3.0, higherBetter: true, getValue: r => n(r.epsGrowth) },
+      // Safety
+      { key: "currentRatio", family: "safety", weight: 1.5, higherBetter: true,  getValue: r => n(r.currentRatio) },
+      { key: "debtToEquity", family: "safety", weight: 1.0, higherBetter: false, getValue: r => n(r.debtToEquity) },
+      { key: "intCoverage",  family: "safety", weight: 2.5, higherBetter: true,  getValue: r => {
         const ebit = n(r.ebit); const ie = n(r.interestExpense);
         return ebit !== null && ie !== null && ie > 0 ? ebit / ie : null;
       }},
-      { key: "cashRunway",       weight: 3.0, higherBetter: true,  getValue: r => {
+      { key: "cashRunway",   family: "safety", weight: 3.0, higherBetter: true,  getValue: r => {
         const cash = n(r.cashAndEquivalents); const ocf = n(r.quarterlyOperatingCashFlow);
         return cash !== null && ocf !== null && ocf > 0 ? cash / (ocf * 4) : null;
       }},
@@ -218,7 +237,6 @@ router.get("/fundamentals/rankings", async (_req, res) => {
       const excl = groupId ? (exclusionsByGroup.get(groupId) ?? new Set<string>()) : new Set<string>();
       METRICS.forEach((m, mi) => {
         if (excl.has(m.key)) { values[mi][ri] = null; return; }
-        // roe: directionally broken when equity is negative but company is profitable
         if (m.key === "roe" && row.totalStockholdersEquity !== null && row.netIncome !== null) {
           const eq_ = parseFloat(row.totalStockholdersEquity ?? "");
           const ni  = parseFloat(row.netIncome ?? "");
@@ -240,15 +258,26 @@ router.get("/fundamentals/rankings", async (_req, res) => {
       });
     });
 
+    // Two-level scoring: family score = weighted avg of metric pct-ranks within family,
+    // then totalScore = sum(familyScore * familyWeight) / sum(familyWeights).
+    const FAMILIES: Family[] = ['quality', 'growth', 'safety'];
     const result = rows.map((row, ri) => {
-      let weightedSum = 0;
-      let totalWeight = 0;
-      METRICS.forEach((m, mi) => {
-        const pct = pctRanks[mi][ri];
-        if (pct !== null) { weightedSum += pct * m.weight; totalWeight += m.weight; }
+      let totalNum = 0;
+      let totalDen = 0;
+      FAMILIES.forEach(fam => {
+        const famMetrics = METRICS.map((m, mi) => ({ m, mi })).filter(({ m }) => m.family === fam);
+        let famNum = 0; let famDen = 0;
+        famMetrics.forEach(({ m, mi }) => {
+          const pct = pctRanks[mi][ri];
+          if (pct !== null) { famNum += pct * m.weight; famDen += m.weight; }
+        });
+        if (famDen > 0) {
+          totalNum += (famNum / famDen) * familyWeights[fam];
+          totalDen += familyWeights[fam];
+        }
       });
-      const totalScore = totalWeight > 0 ? (weightedSum / totalWeight) * 100 : 50;
-      return { ticker: row.ticker, totalScore: parseFloat(totalScore.toFixed(2)) };
+      const totalScore = totalDen > 0 ? (totalNum / totalDen) * 100 : 50;
+      return { ticker: row.ticker, totalScore: parseFloat(totalScore.toFixed(2)), regime: regime ?? "unknown" };
     });
 
     return res.json(result);
