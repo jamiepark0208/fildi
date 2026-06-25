@@ -270,8 +270,8 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
   const totalRevenue = fmpNum(fmp?.totalRevenue) ?? safeNum(quote.totalRevenue);
   const netIncome    = fmpNum(fmp?.netIncome)    ?? safeNum(quote.netIncomeToCommon);
   const ebitda       = fmpNum(fmp?.ebitda)       ?? safeNum(quote.ebitda);
-  // freeCashFlow: FMP doesn't fetch the annual cash-flow-statement, so Yahoo is primary here
-  const freeCashFlow = safeNum(quote.freeCashflow) ?? fmpNum(fmp?.freeCashFlow);
+  // freeCashFlow: FMP annual cash-flow-statement is now primary; Yahoo is fallback
+  const freeCashFlow = fmpNum(fmp?.freeCashFlow) ?? safeNum(quote.freeCashflow);
 
   // ── Margins — FMP primary, Yahoo fallback ────────────────────────────────────
   const grossMargin     = fmpNum(fmp?.grossMargin)     ?? safeNum(quote.grossMargins);
