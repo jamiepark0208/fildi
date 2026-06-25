@@ -46,6 +46,9 @@ export type StockScore = {
   // Debug/display fields: FMP discrepancy flags and WACC computation inputs
   dataSourceFlags?: string[];
   waccInputs?: { beta: number | null; approxWacc: number | null };
+  // Peer group context — present when peerGroupMap was passed to computeRankingsV2
+  peerGroupId?: string;
+  peerGroupConfidence?: 'mapped' | 'auto' | 'unmapped';
 };
 
 export function computeRankings(stocks: StockMetrics[]): StockScore[] {
@@ -221,6 +224,7 @@ export function computeRankingsV2(
   stocks: StockMetrics[],
   preset: FamilyPreset = FAMILY_PRESETS.PUT_SELLER,
   intraWeightOverrides?: Record<string, number>,
+  peerGroupMap: Record<string, { groupId: string; confidence: 'mapped' | 'auto' | 'unmapped' }> = {},
 ): StockScore[] {
   if (stocks.length === 0) return [];
 
@@ -230,10 +234,9 @@ export function computeRankingsV2(
     FAMILIES.map(fam => [fam, SCORECARD_METRICS_V2.filter(m => m.family === fam)]),
   ) as Record<FamilyName, MetricDefV2[]>;
 
-  // Normalize all stocks against the whole universe.
-  // Sector-neutral mode requires a cached sectorStats table (pre-computed from a broader
-  // peer universe on a slow cadence) — not yet wired; always use whole-universe for now.
-  const stockGroupKeys = stocks.map(() => "__global__");
+  const stockGroupKeys = stocks.map(s =>
+    peerGroupMap[s.ticker.toUpperCase()]?.groupId ?? "__global__"
+  );
 
   // ── Raw values ──────────────────────────────────────────────────────────────
   const rawValues: Record<string, (number | null)[]> = {};
@@ -419,6 +422,8 @@ export function computeRankingsV2(
             }),
           }
         : undefined,
+      peerGroupId: peerGroupMap[s.ticker.toUpperCase()]?.groupId,
+      peerGroupConfidence: peerGroupMap[s.ticker.toUpperCase()]?.confidence,
     };
   });
 }

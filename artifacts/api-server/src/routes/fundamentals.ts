@@ -6,6 +6,9 @@ import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls, getAllFundamentalsRows } from "../lib/fundamentals-db.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
+import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
+import { db, unmappedTickers } from "@workspace/db";
+import { desc } from "drizzle-orm";
 
 const router = Router();
 const yahooFinance = new YahooFinanceClass();
@@ -218,6 +221,43 @@ router.get("/fundamentals/rankings", async (_req, res) => {
     });
 
     return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /fundamentals/peer-groups?tickers=AAPL,MSFT,...
+// Resolves peer group classification for each ticker. Used by home.tsx to build
+// peerGroupMap before calling computeRankingsV2.
+router.get("/fundamentals/peer-groups", async (req, res) => {
+  const tickerParam = req.query["tickers"];
+  if (typeof tickerParam !== "string" || !tickerParam.trim()) {
+    return res.status(400).json({ error: "tickers query param required" });
+  }
+  const tickers = tickerParam.split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
+  if (tickers.length === 0) return res.json({});
+
+  try {
+    const entries = await Promise.all(
+      tickers.map(async t => {
+        const result = await classifyTicker(t);
+        return [t, result] as [string, PeerGroupClassification];
+      }),
+    );
+    return res.json(Object.fromEntries(entries));
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /fundamentals/unmapped — admin only; returns tickers that failed peer-group classification.
+router.get("/fundamentals/unmapped", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(unmappedTickers)
+      .orderBy(desc(unmappedTickers.seenAt));
+    return res.json(rows);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
