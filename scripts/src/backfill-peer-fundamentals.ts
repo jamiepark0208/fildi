@@ -98,18 +98,21 @@ interface FMPData {
 
 async function fetchFMPData(ticker: string, apiKey: string): Promise<FMPData> {
   const q = `symbol=${ticker.toUpperCase()}&apikey=${apiKey}`;
-  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw, cfAnnRaw] =
-    await Promise.all([
-      fetchWithRetry(`${FMP_BASE}/key-metrics?${q}&limit=1`),
-      fetchWithRetry(`${FMP_BASE}/ratios?${q}&limit=1`),
-      fetchWithRetry(`${FMP_BASE}/income-statement?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/balance-sheet-statement?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/price-target-consensus?${q}`).catch(() => null),
-      fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
-      fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&limit=1`),
-    ]);
+  // Sequential calls to avoid FMP rate limits — 300ms between each endpoint
+  const endpoints = [
+    () => fetchWithRetry(`${FMP_BASE}/key-metrics?${q}&limit=1`),
+    () => fetchWithRetry(`${FMP_BASE}/ratios?${q}&limit=1`),
+    () => fetchWithRetry(`${FMP_BASE}/income-statement?${q}&limit=2`),
+    () => fetchWithRetry(`${FMP_BASE}/balance-sheet-statement?${q}&limit=2`),
+    () => fetchWithRetry(`${FMP_BASE}/price-target-consensus?${q}`).catch(() => null),
+    () => fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
+    () => fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=2`),
+    () => fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
+    () => fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&limit=1`),
+  ];
+  const results: any[] = [];
+  for (const fn of endpoints) { results.push(await fn()); await sleep(300); }
+  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw, cfAnnRaw] = results;
 
   const km = firstOf(kmRaw), r = firstOf(ratiosRaw), waccRow = firstOf(waccRaw);
   const is0 = firstOf(incomeRaw), is1 = secondOf(incomeRaw);
