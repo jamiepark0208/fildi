@@ -286,6 +286,12 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
   const stockType  = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
   const fairValue  = computeFairValue(earningsPerShare, epsGrowth, peRatio);
 
+  // ── Phase 4 value / acceleration fields — FMP only ──────────────────────────
+  const forwardPe               = fmpNum(fmp?.forwardPe);
+  const evEbitda                = fmpNum(fmp?.evEbitda);
+  const evRevenue               = fmpNum(fmp?.evRevenue);
+  const revenueGrowthYoyPrior   = fmpNum(fmp?.revenueGrowthYoyPrior);
+
   // ── New Phase 3 Safety/Quality fields — FMP only ─────────────────────────────
   const wacc                    = fmpNum(fmp?.wacc);
   const roic                    = fmpNum(fmp?.roic);
@@ -323,6 +329,7 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     debtToEquity,
     totalRevenue,
     revenueGrowthYoY,
+    revenueGrowthYoyPrior,
     revenueGrowthProjected,
     netIncome,
     ebitda,
@@ -350,6 +357,9 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     description: quote.longBusinessSummary?.slice(0, 500) ?? null,
     dayChange:        safeNum(quote.regularMarketChange),
     dayChangePercent: safeNum(quote.regularMarketChangePercent),
+    forwardPe,
+    evEbitda,
+    evRevenue,
     // New FMP-sourced fields
     wacc,
     roic,
