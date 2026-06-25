@@ -655,3 +655,20 @@ export const unmappedTickers = pgTable('unmapped_tickers', {
 })
 
 export type UnmappedTicker = typeof unmappedTickers.$inferSelect
+
+// ── source_ticker_map ─────────────────────────────────────────────────────────
+// Maps internal ticker symbols to the symbol each data source expects.
+// Needed because FMP, Yahoo, and Polygon sometimes use different symbols
+// (e.g. BRK.B vs BRK-B) and FMP free tier may not cover small-caps at all.
+
+export const sourceTickerMap = pgTable('source_ticker_map', {
+  ticker:       text('ticker').notNull(),
+  source:       text('source').notNull(),      // 'yahoo' | 'fmp' | 'polygon' | 'alpha_vantage'
+  sourceTicker: text('source_ticker').notNull(),
+  active:       boolean('active').notNull().default(true),
+  notes:        text('notes'),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.ticker, t.source] })])
+
+export type SourceTickerMap = typeof sourceTickerMap.$inferSelect
+export type InsertSourceTickerMap = typeof sourceTickerMap.$inferInsert
