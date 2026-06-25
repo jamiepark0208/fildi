@@ -8,7 +8,7 @@ import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
-import { db, unmappedTickers, tickerRegistry, peerGroups } from "@workspace/db";
+import { db, unmappedTickers, tickerRegistry, peerGroups, peerGroupMembers, tickerFundamentals } from "@workspace/db";
 import { desc, inArray } from "drizzle-orm";
 
 const router = Router();
@@ -311,6 +311,50 @@ router.get("/fundamentals/peer-groups", async (req, res) => {
 });
 
 // GET /fundamentals/unmapped — admin only; returns tickers that failed peer-group classification.
+// GET /fundamentals/stock-db — admin only; full universe (watchlist + peers) with fundamentals rows.
+// Returns every ticker in scope even if no DB row exists yet (so the grid shows coverage gaps).
+router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
+  try {
+    const upper = WATCHLIST.map((t: string) => t.toUpperCase());
+
+    const regRows = await db
+      .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+      .from(tickerRegistry)
+      .where(inArray(tickerRegistry.ticker, upper));
+
+    const groupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+
+    const memberRows = groupIds.length > 0
+      ? await db.select({ ticker: peerGroupMembers.ticker, groupId: peerGroupMembers.groupId })
+          .from(peerGroupMembers).where(inArray(peerGroupMembers.groupId, groupIds))
+      : [];
+
+    const watchlistSet = new Set(upper);
+    const allTickers = [...new Set([...upper, ...memberRows.map(r => r.ticker.toUpperCase())])].sort();
+
+    // Build peer-group lookup for context column
+    const peerGroupByTicker = new Map<string, string>();
+    regRows.forEach(r => { if (r.primaryPeerGroupId) peerGroupByTicker.set(r.ticker, r.primaryPeerGroupId); });
+    memberRows.forEach(r => { if (!peerGroupByTicker.has(r.ticker.toUpperCase())) peerGroupByTicker.set(r.ticker.toUpperCase(), r.groupId); });
+
+    // Fetch all existing fundamentals rows
+    const fundRows = await db.select().from(tickerFundamentals)
+      .where(inArray(tickerFundamentals.ticker, allTickers));
+    const fundByTicker = new Map(fundRows.map(r => [r.ticker, r]));
+
+    const result = allTickers.map(ticker => ({
+      ticker,
+      isWatchlist: watchlistSet.has(ticker),
+      peerGroupId: peerGroupByTicker.get(ticker) ?? null,
+      fundamentals: fundByTicker.get(ticker) ?? null,
+    }));
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
 router.get("/fundamentals/unmapped", requireAdmin, async (_req, res) => {
   try {
     const rows = await db

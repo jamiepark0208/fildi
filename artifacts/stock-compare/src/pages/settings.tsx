@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield } from "lucide-react";
+import { StockDBTab } from "@/components/settings/StockDBTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -485,7 +486,7 @@ function CacheMonitorTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache";
+type Tab = "profile" | "users" | "cache" | "stockdb";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -495,6 +496,7 @@ export default function Settings() {
     { id: "profile", label: "Profile" },
     { id: "users",   label: "User Mgmt",     adminOnly: true },
     { id: "cache",   label: "Cache Monitor",  adminOnly: true },
+    { id: "stockdb", label: "Stock DB",       adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
@@ -535,6 +537,7 @@ export default function Settings() {
           {tab === "profile" && <ProfileTab />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"   && isAdmin && <CacheMonitorTab />}
+          {tab === "stockdb" && isAdmin && <StockDBTab />}
         </div>
       </main>
     </div>
