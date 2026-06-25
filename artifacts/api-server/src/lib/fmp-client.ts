@@ -10,6 +10,9 @@ export interface FMPFundamentalsData {
   // VALUE
   peRatio?: number;
   pegRatio?: number;
+  forwardPe?: number;
+  evEbitda?: number;
+  evRevenue?: number;
   priceToBook?: number;
   priceToSales?: number;
   debtToEquity?: number;
@@ -17,6 +20,7 @@ export interface FMPFundamentalsData {
   analystTargetPrice?: number;
   // GROWTH
   revenueGrowthYoY?: number;
+  revenueGrowthYoyPrior?: number;
   epsGrowth?: number;
   earningsPerShare?: number;
   // QUALITY
@@ -114,7 +118,7 @@ export async function fetchFMPFundamentals(
       fetchWithRetry(`${FMP_BASE}/balance-sheet-statement?${q}&limit=2`),
       fetchWithRetry(`${FMP_BASE}/price-target-consensus?${q}`).catch(() => null),
       fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=1`),
+      fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=2`),
       fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
     ]);
 
@@ -128,7 +132,8 @@ export async function fetchFMPFundamentals(
   const tgt    = (targetRaw && !Array.isArray(targetRaw)) ? targetRaw as Record<string, unknown>
                   : firstOf(targetRaw);
   const cfQ    = firstOf(cfQtrRaw);
-  const growth = firstOf(growthRaw);
+  const growth  = firstOf(growthRaw);
+  const growth1 = secondOf(growthRaw); // prior-year period — for revenue acceleration
 
   // Log warnings for key scoring fields that came back null from FMP
   const criticalFields = ["returnOnInvestedCapital", "revenue", "netIncome", "grossProfitMargin"];
@@ -146,6 +151,10 @@ export async function fetchFMPFundamentals(
   result.peRatio        = fmpN(r.priceToEarningsRatio);
   // PEG: stable field is priceToEarningsGrowthRatio
   result.pegRatio       = fmpN(r.priceToEarningsGrowthRatio);
+  // Forward P/E and EV multiples — key-metrics endpoint
+  result.forwardPe      = fmpN(km.forwardPE);
+  result.evEbitda       = fmpN(km.enterpriseValueOverEBITDA);
+  result.evRevenue      = fmpN(km.evToRevenue);
   // P/B, P/S: field names unchanged
   result.priceToBook    = fmpN(r.priceToBookRatio);
   result.priceToSales   = fmpN(r.priceToSalesRatio);
@@ -155,7 +164,8 @@ export async function fetchFMPFundamentals(
   result.analystTargetPrice = fmpN(tgt.targetConsensus);
 
   // ── GROWTH — stable financial-growth endpoint (not in ratios) ────────────────
-  result.revenueGrowthYoY = fmpN(growth.revenueGrowth);
+  result.revenueGrowthYoY      = fmpN(growth.revenueGrowth);
+  result.revenueGrowthYoyPrior = fmpN(growth1.revenueGrowth);
   // stable uses lowercase 'epsgrowth'
   result.epsGrowth        = fmpN(growth.epsgrowth);
   result.earningsPerShare = fmpN(is0.eps);

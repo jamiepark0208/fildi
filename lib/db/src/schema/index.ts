@@ -213,6 +213,12 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   sharesOutstanding:          numeric('shares_outstanding'),
   sharesOutstandingPrior:     numeric('shares_outstanding_prior'),
 
+  // Phase 4 — extended value / acceleration fields
+  forwardPe:                  numeric('forward_pe'),
+  evEbitda:                   numeric('ev_ebitda'),
+  evRevenue:                  numeric('ev_revenue'),
+  revenueGrowthYoyPrior:      numeric('revenue_growth_yoy_prior'),
+
   // Phase 1A additions — data source tracking
   lastSource:         text('last_source').default('fmp'),
   dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
