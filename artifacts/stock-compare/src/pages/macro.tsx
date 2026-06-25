@@ -90,7 +90,11 @@ export default function MacroDashboard() {
 
   const { data: macroData, isLoading, isError, refetch: macroRefetch } = useQuery<MacroData>({
     queryKey: ["macro-data"],
-    queryFn: () => fetch("/api/macro/data").then((r) => r.json()),
+    queryFn: async () => {
+      const r = await fetch("/api/macro/data");
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<MacroData>;
+    },
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -225,7 +229,7 @@ export default function MacroDashboard() {
     );
   }
 
-  if (isError) {
+  if (isError || (!isLoading && !macroData)) {
     return (
       <div className="flex h-screen">
         <Sidebar />
