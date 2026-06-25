@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-06-24T21:45:06.515Z",
+  "fetchedAt": "2026-06-25T00:11:05.190Z",
   "vix": {
     "value": 18.63,
     "change": -0.8600006,
@@ -217,6 +217,15 @@
       "yoy": null,
       "date": "2026-06-23",
       "unit": "%"
+    },
+    "ismManufacturing": {
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
+      "unit": "index"
     }
   }
 }
