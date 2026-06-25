@@ -63,6 +63,7 @@ export async function writeFundamentalsRow(
   ticker: string,
   data: FMPFundamentalsData,
   discrepancyFlags: string[],
+  regimeAtScore?: string | null,
 ): Promise<void> {
   const expectedFields = 30; // approximate count of optional numeric fields
   const nonNullCount = Object.values(data).filter(v => v !== undefined).length;
@@ -107,6 +108,7 @@ export async function writeFundamentalsRow(
       quarterlyOperatingCashFlow: num(data.quarterlyOperatingCashFlow),
       sharesOutstanding:          num(data.sharesOutstanding),
       sharesOutstandingPrior:     num(data.sharesOutstandingPrior),
+      regimeAtScore:              regimeAtScore ?? null,
     })
     .onConflictDoUpdate({
       target: tickerFundamentals.ticker,
@@ -146,6 +148,7 @@ export async function writeFundamentalsRow(
         quarterlyOperatingCashFlow: num(data.quarterlyOperatingCashFlow),
         sharesOutstanding:          num(data.sharesOutstanding),
         sharesOutstandingPrior:     num(data.sharesOutstandingPrior),
+        regimeAtScore:              regimeAtScore ?? null,
       },
     });
 }

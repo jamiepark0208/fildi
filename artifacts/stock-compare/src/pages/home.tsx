@@ -89,13 +89,25 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   });
   const peerGroupMap = peerGroupsQuery.data ?? {};
 
+  const regimeQuery = useQuery({
+    queryKey: ["macro-regime"],
+    queryFn: async () => {
+      const res = await fetch("/api/regime/macro");
+      if (!res.ok) return null;
+      const json = await res.json() as { regime?: string };
+      return json.regime ?? null;
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+  const regime = regimeQuery.data ?? undefined;
+
   const rankings = useMemo(() => {
     // Prefer full watchlist data for normalization (n ≥ 8 → z-score, not ordinal rank)
     const watchlistLoaded = watchlistQueries.map(q => q.data).filter((d): d is StockMetrics => d != null);
     const ref = watchlistLoaded.length >= 8 ? watchlistLoaded : loadedStocks;
     const validStocks = ref.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
-    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics, peerGroupMap);
-  }, [watchlistQueries, loadedStocks, weights, peerGroupMap]);
+    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics, peerGroupMap, regime);
+  }, [watchlistQueries, loadedStocks, weights, peerGroupMap, regime]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 

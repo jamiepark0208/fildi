@@ -222,6 +222,8 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   // Phase 1A additions — data source tracking
   lastSource:         text('last_source').default('fmp'),
   dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
+  // Regime active when this row's scores were last computed — audit trail for regime-driven rank shifts
+  regimeAtScore:      text('regime_at_score'),
 })
 
 export const insertTickerFundamentalsSchema = createInsertSchema(tickerFundamentals)

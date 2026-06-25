@@ -45,6 +45,12 @@ export interface StockMetrics {
   peRatio?: number | null;
   /** @nullable */
   pegRatio?: number | null;
+  /** @nullable Forward P/E ratio. Source: FMP key-metrics. */
+  forwardPe?: number | null;
+  /** @nullable EV / EBITDA. Source: FMP key-metrics. */
+  evEbitda?: number | null;
+  /** @nullable EV / Revenue. Source: FMP key-metrics. */
+  evRevenue?: number | null;
   /** @nullable */
   priceToBook?: number | null;
   /** @nullable */
@@ -57,6 +63,8 @@ export interface StockMetrics {
   totalRevenue?: number | null;
   /** @nullable */
   revenueGrowthYoY?: number | null;
+  /** @nullable Prior-year revenue growth (for acceleration = current − prior). Source: FMP. */
+  revenueGrowthYoyPrior?: number | null;
   /** @nullable */
   revenueGrowthProjected?: number | null;
   /** @nullable */

@@ -131,6 +131,17 @@ export const FAMILY_PRESETS: Record<string, FamilyPreset> = {
   GROWTH:     { value: 15, growth: 45, quality: 25, safety: 15 },
 };
 
+// Regime-aware presets — selected at score time based on market_regime DB value.
+// Weights sum to 100 per row.
+export const REGIME_PRESETS: Record<string, FamilyPreset> = {
+  expansion:   { value: 15, growth: 35, quality: 30, safety: 20 },
+  late_cycle:  { value: 20, growth: 20, quality: 35, safety: 25 },
+  contraction: { value: 20, growth: 15, quality: 35, safety: 30 },
+  recession:   { value: 15, growth: 10, quality: 30, safety: 45 },
+  recovery:    { value: 15, growth: 35, quality: 30, safety: 20 },
+  stagflation: { value: 25, growth: 10, quality: 35, safety: 30 },
+};
+
 export type MetricDefV2 = {
   key: string;
   label: string;
@@ -157,10 +168,23 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
     // Clamp to null for negative earnings or non-positive growth — negative PEG is misleading
     getValue: s => (s.epsGrowth != null && s.epsGrowth <= 0) || (s.netIncome != null && s.netIncome < 0)
       ? null : s.pegRatio },
+  { key: "fwdpe",   label: "Forward P/E",     family: "value",   intraWeight: 2, higherIsBetter: false,
+    getValue: s => (s.netIncome != null && s.netIncome < 0) ? null : (s.forwardPe ?? null) },
+  { key: "evEbitda", label: "EV/EBITDA",      family: "value",   intraWeight: 2, higherIsBetter: false,
+    getValue: s => (s.ebitda != null && s.ebitda < 0) ? null : (s.evEbitda ?? null) },
+  { key: "evRev",    label: "EV/Revenue",     family: "value",   intraWeight: 1, higherIsBetter: false,
+    getValue: s => (s.totalRevenue != null && s.totalRevenue <= 0) ? null : (s.evRevenue ?? null) },
+  { key: "pb",       label: "Price / Book",   family: "value",   intraWeight: 1, higherIsBetter: false,
+    getValue: s => (s.totalStockholdersEquity != null && s.totalStockholdersEquity < 0) ? null : (s.priceToBook ?? null) },
+  { key: "divy",     label: "Dividend Yield", family: "value",   intraWeight: 1, higherIsBetter: true,
+    getValue: s => s.dividendYield ?? null },
 
   // GROWTH
-  { key: "revgrow",  label: "Revenue Growth", family: "growth", intraWeight: 3, higherIsBetter: true,  getValue: s => s.revenueGrowthYoY },
-  { key: "epsgrow",  label: "EPS Growth",     family: "growth", intraWeight: 3, higherIsBetter: true,  getValue: s => s.epsGrowth },
+  { key: "revgrow",  label: "Revenue Growth",     family: "growth", intraWeight: 3, higherIsBetter: true,  getValue: s => s.revenueGrowthYoY },
+  { key: "revaccel", label: "Revenue Accel",       family: "growth", intraWeight: 2, higherIsBetter: true,
+    getValue: s => (s.revenueGrowthYoY != null && s.revenueGrowthYoyPrior != null)
+      ? s.revenueGrowthYoY - s.revenueGrowthYoyPrior : null },
+  { key: "epsgrow",  label: "EPS Growth",          family: "growth", intraWeight: 3, higherIsBetter: true,  getValue: s => s.epsGrowth },
   { key: "upside",   label: "Analyst Upside", family: "growth", intraWeight: 1, higherIsBetter: true,
     getValue: s => (s.analystTargetPrice && s.currentPrice) ? (s.analystTargetPrice / s.currentPrice) - 1 : null },
 
@@ -226,8 +250,12 @@ export function computeRankingsV2(
   preset: FamilyPreset = FAMILY_PRESETS.PUT_SELLER,
   intraWeightOverrides?: Record<string, number>,
   peerGroupMap: Record<string, { groupId: string; confidence: 'mapped' | 'auto' | 'unmapped'; metricExclusions?: string[] }> = {},
+  regime?: string,
 ): StockScore[] {
   if (stocks.length === 0) return [];
+
+  // Regime overrides the explicit preset when a recognized regime string is provided
+  const activePreset = (regime && REGIME_PRESETS[regime]) ? REGIME_PRESETS[regime] : preset;
 
   const intraW = (m: MetricDefV2) => intraWeightOverrides?.[m.key] ?? m.intraWeight;
 
@@ -262,6 +290,18 @@ export function computeRankingsV2(
     if ((s.netIncome != null && s.netIncome < 0) ||
         (s.epsGrowth != null && s.epsGrowth <= 0))
       rawValues["peg"][i] = null;
+
+    // fwdpe: same direction-inversion rule as trailing pe
+    if (s.netIncome != null && s.netIncome < 0) rawValues["fwdpe"][i] = null;
+
+    // evEbitda: negative EBITDA makes the ratio meaningless (distressed companies look cheap)
+    if (s.ebitda != null && s.ebitda < 0) rawValues["evEbitda"][i] = null;
+
+    // evRev: non-positive revenue makes EV/Revenue undefined
+    if (s.totalRevenue != null && s.totalRevenue <= 0) rawValues["evRev"][i] = null;
+
+    // pb: negative book value inverts direction (deeply indebted companies look cheap)
+    if (s.totalStockholdersEquity != null && s.totalStockholdersEquity < 0) rawValues["pb"][i] = null;
 
     // roe: directionally broken when equity is negative but company is profitable
     if (s.totalStockholdersEquity != null && s.totalStockholdersEquity < 0 &&
@@ -371,7 +411,7 @@ export function computeRankingsV2(
   // ── Total scores (maxPossible = 100, constant across all stocks) ─────────────
   const maxPossible = 100;
   const totals = stocks.map((_, si) =>
-    FAMILIES.reduce((sum, fam) => sum + familyScoreGrid[si][fam].score * preset[fam], 0),
+    FAMILIES.reduce((sum, fam) => sum + familyScoreGrid[si][fam].score * activePreset[fam], 0),
   );
 
   const ranked = totals.map((score, i) => ({ i, score })).sort((a, b) => b.score - a.score);
@@ -387,7 +427,7 @@ export function computeRankingsV2(
       const availableInFamily = familyMetrics[m.family].filter(fm => normScores[fm.key][si] !== null);
       const totalIntra = availableInFamily.reduce((acc, fm) => acc + intraW(fm), 0);
       const weightedScore = (norm !== null && totalIntra > 0)
-        ? (norm * intraW(m) / totalIntra) * preset[m.family]
+        ? (norm * intraW(m) / totalIntra) * activePreset[m.family]
         : 0;
       ms[m.key] = {
         value: rawValues[m.key][si],
