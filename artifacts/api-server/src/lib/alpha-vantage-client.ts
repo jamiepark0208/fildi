@@ -10,7 +10,7 @@ export interface AVFundamentalsData {
   peRatio?: number;
   pegRatio?: number;
   forwardPe?: number;
-  priceToBook?: number;
+  pbRatio?: number;
   dividendYield?: number;
   analystTargetPrice?: number;
   // QUALITY
@@ -95,7 +95,7 @@ export async function fetchAVOverview(
   result.peRatio            = avN(raw.PERatio);
   result.pegRatio           = avN(raw.PEGRatio);
   result.forwardPe          = avN(raw.ForwardPE);
-  result.priceToBook        = avN(raw.PriceToBookRatio);
+  result.pbRatio            = avN(raw.PriceToBookRatio);
   result.dividendYield      = avN(raw.DividendYield);
   result.analystTargetPrice = avN(raw.AnalystTargetPrice);
 
