@@ -7,8 +7,8 @@
 
 ## Active work
 - Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view
-- In progress: Scoring pipeline enhancements complete: SOFR added to macro-data (FRED series), /macro/risk-free-rate endpoint, ps/fcfYieldSpread/netDebtEbitda metrics added to SCORECARD_METRICS_V2, riskFreeRate threaded into computeRankingsV2, home.tsx fetches and passes rate. Backfill script created (scripts/backfill-peer-fundamentals.ts) with sequential FMP calls + budget guard. Stock DB admin tab built (Settings→Stock DB): shows all 158 tickers (watchlist + peers) with fundamentals grid, null=red, suspect=amber, last-fetched tooltip. DB migrations applied directly via psql. Peer groups seeded: 48 groups, 559 members. 13 fundamentals rows populated. FMP daily limit exhausted today — backfill resumes tomorrow.
-- Blocked: FMP free tier daily limit exhausted (resets midnight UTC) — backfill:peers will populate remaining 145 tickers tomorrow. Server restart needed in Replit to pick up new /fundamentals/stock-db endpoint and credentials fix for Stock DB tab.
+- In progress: Fixed runtime crash: rawValues[pe_ratio] undefined in computeRankingsV2 (V1 key used in V2 structural-null block — added existence guards). Fixed /api/macro/risk-free-rate 500 (optional chaining on data.series.sofr?.value). API server rebuilt + restarted. App is now loading. Stock DB admin view needs UI enhancements: Fundamental label above value/growth/quality/safety, Technical score columns, status icon per ticker, Refresh button needs to trigger FMP refetch (currently only re-queries DB).
+- Blocked: FMP free tier daily limit exhausted (resets midnight UTC) — backfill:peers populates remaining 145 tickers. Stock DB Refresh button is DB-only, not FMP refetch — needs backend /fundamentals/refresh/:ticker endpoint.
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
