@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-25
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema
-- In progress: Macro tab: added IG/HY dual-line chart, Copper/Gold ratio, NFCI, DXY, ISM Manufacturing PMI row; concurrency limiter (allSettledLimited) added to fetchMacroCharts+fetchMacroData; market_regime DB table added to schema + migration 0001 generated; CLAUDE.md hot-file index added
-- Blocked: DB migration 0001 not yet applied (drizzle-kit migrate hangs — needs DATABASE_URL in Replit shell); macro tab preview still unverified post-concurrency fix
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements
+- In progress: Peer group infrastructure complete: 3 new DB tables (peer_groups, peer_group_members, unmapped_tickers), migrations 0002+0003 generated, 48-group seed script, peer-classifier.ts with 3-tier auto-classification, /peer-groups + /unmapped endpoints. Scoring pipeline: tighter winsorization (2nd/98th for n≥20), structural nulls (pe_ratio/peg/roe direction-inversion cases), FMP WACC endpoint added, peerGroupMap threaded into computeRankingsV2 and GET /fundamentals/rankings, home.tsx fetches peer-groups and passes peerGroupMap. GSCPI fixed (NY Fed xlsx), MMMFNS→WRMFNS fixed.
+- Blocked: DB migrations 0001-0003 not yet applied (need DATABASE_URL in Replit shell to run drizzle-kit migrate). Peer groups not yet seeded (run seed:peers after migrations). Macro tab preview unverified post-concurrency fix.
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
