@@ -7,8 +7,8 @@ import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundam
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
-import { db, unmappedTickers } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import { db, unmappedTickers, tickerRegistry, peerGroups } from "@workspace/db";
+import { desc, inArray } from "drizzle-orm";
 
 const router = Router();
 const yahooFinance = new YahooFinanceClass();
@@ -193,8 +193,39 @@ router.get("/fundamentals/rankings", async (_req, res) => {
       }},
     ];
 
+    // Build peerGroupMap from DB — no external API calls
+    const tickers = rows.map(r => r.ticker);
+    const [regRows, ] = await Promise.all([
+      db.select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+        .from(tickerRegistry)
+        .where(inArray(tickerRegistry.ticker, tickers)),
+    ]);
+    const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
+    const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+    const groupExclusionRows = uniqueGroupIds.length > 0
+      ? await db.select({ id: peerGroups.id, metricExclusions: peerGroups.metricExclusions })
+          .from(peerGroups)
+          .where(inArray(peerGroups.id, uniqueGroupIds))
+      : [];
+    const exclusionsByGroup = new Map(groupExclusionRows.map(g => [g.id, new Set(g.metricExclusions ?? [])]));
+
     // Cross-sectional percentile rank per metric
     const values = METRICS.map(m => rows.map(r => m.getValue(r)));
+
+    // Apply group metric exclusions and roe structural null (direction-inversion only)
+    rows.forEach((row, ri) => {
+      const groupId = peerGroupByTicker.get(row.ticker);
+      const excl = groupId ? (exclusionsByGroup.get(groupId) ?? new Set<string>()) : new Set<string>();
+      METRICS.forEach((m, mi) => {
+        if (excl.has(m.key)) { values[mi][ri] = null; return; }
+        // roe: directionally broken when equity is negative but company is profitable
+        if (m.key === "roe" && row.totalStockholdersEquity !== null && row.netIncome !== null) {
+          const eq_ = parseFloat(row.totalStockholdersEquity ?? "");
+          const ni  = parseFloat(row.netIncome ?? "");
+          if (isFinite(eq_) && isFinite(ni) && eq_ < 0 && ni > 0) values[mi][ri] = null;
+        }
+      });
+    });
 
     const pctRanks: (number | null)[][] = METRICS.map((m, mi) => {
       const vals = values[mi];
