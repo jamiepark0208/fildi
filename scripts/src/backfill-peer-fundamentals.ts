@@ -36,10 +36,11 @@ const REQUIRED_COLS: (keyof TickerFundamentalsRow)[] = [
 ];
 
 const STALE_DAYS       = 7;
-const BATCH_SIZE       = 5;
+const BATCH_SIZE       = 10;  // checkpoint/budget-check interval only — processing is sequential
 const CALLS_PER_TICKER = 9;   // 9 FMP endpoints per full fetch
-const MAX_DAILY_CALLS  = 220; // conservative free-tier budget
-const INTER_BATCH_MS   = 2000;
+const MAX_DAILY_CALLS  = 5000; // set to match your FMP plan (free=250, starter=300, pro=750+)
+const INTER_TICKER_MS  = 1500; // delay between each ticker to avoid 429s
+const INTER_BATCH_MS   = 3000; // extra pause every BATCH_SIZE tickers
 const FMP_BASE         = "https://financialmodelingprep.com/stable";
 
 // ── FMP helpers (self-contained — no pino) ────────────────────────────────────
@@ -317,22 +318,24 @@ async function main() {
     const total    = Math.ceil(toFetch.length / BATCH_SIZE);
     console.log(`── Batch ${batchNum}/${total} (tickers ${i + 1}–${Math.min(i + BATCH_SIZE, toFetch.length)}) ──`);
 
-    await Promise.allSettled(
-      batch.map(async ({ ticker, plan }) => {
-        try {
-          const data = await fetchFMPData(ticker, apiKey);
-          await writeRow(ticker, data);
-          await recordCalls(CALLS_PER_TICKER);
-          callsUsed += CALLS_PER_TICKER;
-          fetched++;
-          const detail = plan.action === "patch" ? `patched (${plan.missing.join(",")})` : `fetched (${plan.label})`;
-          console.log(`  ✓ ${ticker}: ${detail}`);
-        } catch (err: any) {
-          errors++;
-          console.error(`  ✗ ${ticker}: error — ${err?.message ?? err}`);
-        }
-      })
-    );
+    for (let j = 0; j < batch.length; j++) {
+      const { ticker, plan } = batch[j];
+      try {
+        const data = await fetchFMPData(ticker, apiKey);
+        await writeRow(ticker, data);
+        await recordCalls(CALLS_PER_TICKER);
+        callsUsed += CALLS_PER_TICKER;
+        fetched++;
+        const detail = plan.action === "patch" ? `patched (${plan.missing.join(",")})` : `fetched (${plan.label})`;
+        console.log(`  ✓ ${ticker}: ${detail}`);
+      } catch (err: any) {
+        errors++;
+        const msg = err?.message ?? String(err);
+        const hint = msg.includes("402") ? "plan limit (402)" : msg.includes("429") ? "rate limited (429)" : msg;
+        console.error(`  ✗ ${ticker}: ${hint}`);
+      }
+      if (j < batch.length - 1) await sleep(INTER_TICKER_MS);
+    }
 
     if (i + BATCH_SIZE < toFetch.length) await sleep(INTER_BATCH_MS);
   }
