@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-06-25T00:11:05.190Z",
+  "fetchedAt": "2026-06-25T13:30:06.259Z",
   "vix": {
-    "value": 18.63,
-    "change": -0.8600006,
-    "changePct": -4.4125223,
+    "value": 17.88,
+    "change": -0.75,
+    "changePct": -4.0236053,
     "level": "low-mid"
   },
   "yield10y": {
-    "value": 4.402,
-    "change": -0.09100008,
-    "changePct": -2.0253747
+    "value": 4.386,
+    "change": -0.015999794,
+    "changePct": -0.36346647
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 93.19999999999999,
+  "yieldSpread": 91.6,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -138,12 +138,12 @@
       "unit": "%"
     },
     "corePce": {
-      "value": 129.63,
-      "prev": 129.321,
-      "change": 0.3089999999999975,
-      "changePct": 0.23894031131834545,
-      "yoy": 3.289190610508199,
-      "date": "2026-04-01",
+      "value": 130.082,
+      "prev": 129.667,
+      "change": 0.41499999999999204,
+      "changePct": 0.3200505911295796,
+      "yoy": 3.412035932904036,
+      "date": "2026-05-01",
       "unit": "%"
     },
     "unemployment": {
@@ -174,10 +174,10 @@
       "unit": "thousands"
     },
     "gdp": {
-      "value": 1.6,
+      "value": 2.1,
       "prev": 0.5,
-      "change": 1.1,
-      "changePct": 220.00000000000003,
+      "change": 1.6,
+      "changePct": 320,
       "yoy": null,
       "date": "2026-01-01",
       "unit": "%"
