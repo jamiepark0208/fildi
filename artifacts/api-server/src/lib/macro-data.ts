@@ -3,6 +3,7 @@ const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import * as XLSX from "xlsx";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -733,9 +734,29 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     return chartToPoints(r[0]);
   };
 
-  // NY Fed GSCPI via FRED series (more reliable than NY Fed direct CDN)
+  // NY Fed GSCPI — downloaded directly from NY Fed as xlsx (FRED blocks server IPs)
   const fetchGSCPI = async (): Promise<ChartPoint[]> => {
-    return fetchFredCSV("GSCPI");
+    const res = await fetch("https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx", {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)" },
+    });
+    if (!res.ok) return [];
+    const buf = Buffer.from(await res.arrayBuffer());
+    const wb = XLSX.read(buf, { type: "buffer" });
+    const ws = wb.Sheets["GSCPI Monthly Data"];
+    if (!ws) return [];
+    const rows = XLSX.utils.sheet_to_json<[string, number]>(ws, { header: 1 }) as [string, number][];
+    const MONTHS: Record<string, string> = {
+      Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+      Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+    };
+    return rows.slice(5).flatMap(([dateStr, val]) => {
+      if (!dateStr || val == null || isNaN(val as number)) return [];
+      // "31-Jan-1998" → "1998-01-31"
+      const m = String(dateStr).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+      if (!m || !MONTHS[m[2]]) return [];
+      const date = `${m[3]}-${MONTHS[m[2]]}-${m[1].padStart(2, "0")}`;
+      return [{ date, value: parseFloat((val as number).toFixed(4)) }];
+    });
   };
 
   const fetchCopperGold = async (): Promise<ChartPoint[]> => {
@@ -766,7 +787,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     () => fetchFearGreed(),
     () => fetchCboePutCall(),
     () => fetchGSCPI(),
-    () => fetchFredCSV("MMMFNS"),
+    () => fetchFredCSV("WRMFNS"), // All Money Market Funds total assets (weekly, $B)
     () => fetchFredCSV("NFCI"),
     () => fetchCopperGold(),
     () => yahooFinance.chart("DX-Y.NYB", { period1, interval: "1d" }, { validateResult: false }),
@@ -777,17 +798,17 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     vixHistory:            chartToPoints(vixResult),
     fedFundsHistory:       chartToPoints(irxResult),
     tenYearHistory:        chartToPoints(tnxResult),
-    vixCurve:              vixCurveResult.status === "fulfilled" ? vixCurveResult.value : [],
-    fedFundsCurve:         ffCurveResult.status  === "fulfilled" ? ffCurveResult.value  : [],
-    hySpreadHistory:       hyResult.status        === "fulfilled" ? hyResult.value       : [],
-    igSpreadHistory:       igResult.status        === "fulfilled" ? igResult.value       : [],
+    vixCurve:              vixCurveResult.status === "fulfilled" ? (vixCurveResult.value as VixCurvePoint[]) : [],
+    fedFundsCurve:         ffCurveResult.status  === "fulfilled" ? (ffCurveResult.value  as FedFundsCurvePoint[]) : [],
+    hySpreadHistory:       hyResult.status        === "fulfilled" ? (hyResult.value       as ChartPoint[]) : [],
+    igSpreadHistory:       igResult.status        === "fulfilled" ? (igResult.value       as ChartPoint[]) : [],
     putCallHistory:        chartToPoints(vvixResult),
-    fearGreedHistory:      fearGreedResult.status === "fulfilled" ? fearGreedResult.value : [],
-    putCallRatioHistory:   putCallResult.status   === "fulfilled" ? putCallResult.value  : [],
-    gscpiHistory:          gscpiResult.status     === "fulfilled" ? gscpiResult.value    : [],
-    moneyMarketHistory:    moneyMarketResult.status === "fulfilled" ? moneyMarketResult.value : [],
-    nfciHistory:           nfciResult.status       === "fulfilled" ? nfciResult.value    : [],
-    copperGoldHistory:     copperGoldResult.status === "fulfilled" ? copperGoldResult.value : [],
+    fearGreedHistory:      fearGreedResult.status === "fulfilled" ? (fearGreedResult.value as ChartPoint[]) : [],
+    putCallRatioHistory:   putCallResult.status   === "fulfilled" ? (putCallResult.value  as ChartPoint[]) : [],
+    gscpiHistory:          gscpiResult.status     === "fulfilled" ? (gscpiResult.value    as ChartPoint[]) : [],
+    moneyMarketHistory:    moneyMarketResult.status === "fulfilled" ? (moneyMarketResult.value as ChartPoint[]) : [],
+    nfciHistory:           nfciResult.status       === "fulfilled" ? (nfciResult.value    as ChartPoint[]) : [],
+    copperGoldHistory:     copperGoldResult.status === "fulfilled" ? (copperGoldResult.value as ChartPoint[]) : [],
     dxyHistory:            chartToPoints(dxyResult),
   };
 }
