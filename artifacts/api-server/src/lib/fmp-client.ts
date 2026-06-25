@@ -107,10 +107,10 @@ export async function fetchFMPFundamentals(
   const t = ticker.toUpperCase();
   const q = `symbol=${t}&apikey=${apiKey}`;
 
-  // 8 endpoints × 31 tickers = 248 requests per full refresh.
+  // 9 endpoints × 31 tickers = ~279 requests per full refresh.
   // beta is NOT fetched from FMP — stable/profile is heavily rate-limited. Yahoo beta
   // (quote.beta in buildMetrics) is the reliable source and is used for approxWACC.
-  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw] =
+  const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw, cfAnnualRaw] =
     await Promise.all([
       fetchWithRetry(`${FMP_BASE}/key-metrics?${q}&limit=1`),
       fetchWithRetry(`${FMP_BASE}/ratios?${q}&limit=1`),
@@ -120,14 +120,16 @@ export async function fetchFMPFundamentals(
       fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
       fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=2`),
       fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
+      fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&limit=1`),
     ]);
 
-  const km     = firstOf(kmRaw);
-  const r      = firstOf(ratiosRaw);
+  const km      = firstOf(kmRaw);
+  const r       = firstOf(ratiosRaw);
   const waccRow = firstOf(waccRaw);
-  const is0    = firstOf(incomeRaw);
-  const is1    = secondOf(incomeRaw);
-  const bs     = firstOf(balanceRaw);
+  const is0     = firstOf(incomeRaw);
+  const is1     = secondOf(incomeRaw);
+  const bs      = firstOf(balanceRaw);
+  const cfAnn   = firstOf(cfAnnualRaw); // annual cash-flow — source for freeCashFlow
   // price-target-consensus may return object directly or array
   const tgt    = (targetRaw && !Array.isArray(targetRaw)) ? targetRaw as Record<string, unknown>
                   : firstOf(targetRaw);
@@ -201,9 +203,8 @@ export async function fetchFMPFundamentals(
   // quarterly OCF: positive = generating cash, negative = burning cash
   result.quarterlyOperatingCashFlow = fmpN(cfQ.operatingCashFlow);
 
-  // Annual FCF: prefer cash-flow-statement if we had it; approximate from key-metrics otherwise
-  // key-metrics has freeCashFlowYield but requires marketCap to back-derive — skip for now.
-  // freeCashFlow will fall back to Yahoo in buildMetrics.
+  // Annual FCF: from annual cash-flow-statement (cfAnn). FMP field is freeCashFlow.
+  result.freeCashFlow = fmpN(cfAnn.freeCashFlow);
 
   return result;
 }
