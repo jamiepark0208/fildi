@@ -101,13 +101,25 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   });
   const regime = regimeQuery.data ?? undefined;
 
+  const riskFreeRateQuery = useQuery({
+    queryKey: ["risk-free-rate"],
+    queryFn: async () => {
+      const res = await fetch("/api/macro/risk-free-rate");
+      if (!res.ok) return null;
+      const json = await res.json() as { riskFreeRate: number | null };
+      return json.riskFreeRate;
+    },
+    staleTime: 4 * 60 * 60 * 1000,
+  });
+  const riskFreeRate = riskFreeRateQuery.data ?? null;
+
   const rankings = useMemo(() => {
     // Prefer full watchlist data for normalization (n ≥ 8 → z-score, not ordinal rank)
     const watchlistLoaded = watchlistQueries.map(q => q.data).filter((d): d is StockMetrics => d != null);
     const ref = watchlistLoaded.length >= 8 ? watchlistLoaded : loadedStocks;
     const validStocks = ref.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
-    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics, peerGroupMap, regime);
-  }, [watchlistQueries, loadedStocks, weights, peerGroupMap, regime]);
+    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics, peerGroupMap, regime, riskFreeRate);
+  }, [watchlistQueries, loadedStocks, weights, peerGroupMap, regime, riskFreeRate]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 

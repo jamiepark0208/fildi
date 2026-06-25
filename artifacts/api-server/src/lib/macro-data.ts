@@ -135,6 +135,7 @@ export interface MacroData {
     retailSales:        FredSeries;
     consumerSentiment:  FredSeries;
     fedFundsRate:       FredSeries;
+    sofr:               FredSeries;
     ismManufacturing:   FredSeries;
   };
 }
@@ -581,6 +582,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     usDebtResult,
     yieldCurveResult,
     ismResult,
+    sofrResult,
   ] = await allSettledLimited([
     () => yahooFinance.quote("^VIX",  {}, { validateResult: false }),
     () => yahooFinance.quote("^TNX",  {}, { validateResult: false }),
@@ -600,6 +602,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     () => fetchFredLatest("GFDEBTN",         "$ millions",0),
     () => fetchYieldCurve(),
     () => fetchFredLatest("NAPM",            "index",    0),
+    () => fetchFredLatest("SOFR",            "%",        0),
   ], 6);
 
   const vixQuote  = vixResult.status  === "fulfilled" ? safeQuote(vixResult.value)  : { value: null, change: null, changePct: null };
@@ -651,6 +654,7 @@ export async function fetchMacroData(): Promise<MacroData> {
       retailSales:       getSeries(retailResult,       nullSeries("$ billions")),
       consumerSentiment:  getSeries(sentimentResult,    nullSeries("index")),
       fedFundsRate:       getSeries(fedFundsResult,     nullSeries("%")),
+      sofr:               getSeries(sofrResult,         nullSeries("%")),
       ismManufacturing:   getSeries(ismResult,          nullSeries("index")),
     },
   };
