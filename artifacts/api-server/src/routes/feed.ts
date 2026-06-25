@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
 import { db, tradePosts, likes, comments, users, stockBuckets } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
+import { getLatestRegime } from './regime.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -166,7 +167,7 @@ router.post('/feed/posts', async (req, res) => {
     notes:              notes ?? null,
     ivRankAtEntry:      ivRankAtEntry != null ? String(ivRankAtEntry) : null,
     techScoreAtEntry:   techScoreAtEntry != null ? String(techScoreAtEntry) : null,
-    regimeAtEntry:      regimeAtEntry ?? null,
+    regimeAtEntry:      regimeAtEntry ?? (await getLatestRegime()),
     vixAtEntry:         vixAtEntry != null ? String(vixAtEntry) : null,
     signalAtEntry:      signalAtEntry ?? null,
   }).returning()
