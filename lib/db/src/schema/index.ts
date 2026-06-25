@@ -340,18 +340,50 @@ export const insertDataSourceSchema = createInsertSchema(dataSources).omit({ id:
 export type InsertDataSource = z.infer<typeof insertDataSourceSchema>
 export type DataSourceRow = typeof dataSources.$inferSelect
 
+// ── peer_groups ───────────────────────────────────────────────────────────────
+// Logical peer groups used for relative fundamental scoring.
+// scoring_mode drives which metric weights / exclusions apply.
+
+export const peerGroups = pgTable('peer_groups', {
+  id:               text('id').primaryKey(),                   // e.g. 'technology.semiconductors_design'
+  name:             text('name').notNull(),
+  scoringMode:      text('scoring_mode').notNull(),            // 'standard' | 'financial' | 'reit' | etc.
+  metricExclusions: text('metric_exclusions').array(),         // metrics skipped for this group
+  benchmarks:       text('benchmarks').array(),                // optional index/ETF benchmarks
+  lowConfidence:    boolean('low_confidence').notNull().default(false),
+})
+
+export type PeerGroup = typeof peerGroups.$inferSelect
+export type InsertPeerGroup = typeof peerGroups.$inferInsert
+
+// ── peer_group_members ────────────────────────────────────────────────────────
+// Junction table: which tickers belong to each peer group.
+// A ticker may appear in multiple groups; ticker_registry.primary_peer_group_id
+// records which group is canonical for scoring.
+
+export const peerGroupMembers = pgTable('peer_group_members', {
+  groupId: text('group_id').notNull().references(() => peerGroups.id, { onDelete: 'cascade' }),
+  ticker:  text('ticker').notNull(),
+}, t => ({
+  pk: primaryKey({ columns: [t.groupId, t.ticker] }),
+}))
+
+export type PeerGroupMember = typeof peerGroupMembers.$inferSelect
+export type InsertPeerGroupMember = typeof peerGroupMembers.$inferInsert
+
 // ── ticker_registry ───────────────────────────────────────────────────────────
 // Master list of tracked tickers with metadata, peers, and index memberships.
 
 export const tickerRegistry = pgTable('ticker_registry', {
-  ticker:           text('ticker').primaryKey(),
-  name:             text('name'),
-  sector:           text('sector'),
-  industryGroup:    text('industry_group'),
-  peerTickers:      text('peer_tickers').array(),           // array of ticker strings
-  indexMemberships: text('index_memberships').array(),      // 'SP100' | 'NDX100' | 'DJIA'
-  isActive:         boolean('is_active').notNull().default(true),
-  addedAt:          timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+  ticker:              text('ticker').primaryKey(),
+  name:                text('name'),
+  sector:              text('sector'),
+  industryGroup:       text('industry_group'),
+  peerTickers:         text('peer_tickers').array(),            // array of ticker strings
+  indexMemberships:    text('index_memberships').array(),       // 'SP100' | 'NDX100' | 'DJIA'
+  primaryPeerGroupId:  text('primary_peer_group_id').references(() => peerGroups.id),
+  isActive:            boolean('is_active').notNull().default(true),
+  addedAt:             timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 export const insertTickerRegistrySchema = createInsertSchema(tickerRegistry).omit({ addedAt: true })
