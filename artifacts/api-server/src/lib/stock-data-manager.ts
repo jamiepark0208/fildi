@@ -3,11 +3,14 @@ import {
   db,
   tickerFundamentals,
   dataSources,
+  sourceTickerMap,
   tickerFundamentalsHistory,
   type TickerFundamentalsRow,
   type TickerFundamentalsHistory,
 } from "@workspace/db";
 import { fetchFMPFundamentals, type FMPFundamentalsData } from "./fmp-client.js";
+import { fetchAVOverview } from "./alpha-vantage-client.js";
+import { fetchPolygonFundamentals } from "./polygon-client.js";
 import { logger } from "./logger.js";
 
 const STALE_DAYS = 7;
@@ -123,6 +126,56 @@ async function upsertFundamentals(
     .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: values })
     .returning();
   return rows[0];
+}
+
+// Merge partial data from a secondary source into an existing DB row.
+// Existing values are preserved for any field the new source left undefined.
+async function patchFundamentals(
+  ticker: string,
+  partial: Partial<FMPFundamentalsData>,
+  source: string,
+): Promise<TickerFundamentalsRow> {
+  const t = ticker.toUpperCase();
+  const existing = await db
+    .select()
+    .from(tickerFundamentals)
+    .where(eq(tickerFundamentals.ticker, t))
+    .limit(1);
+
+  const base: FMPFundamentalsData = {};
+  if (existing.length > 0) {
+    const r = existing[0] as Record<string, unknown>;
+    const fields: (keyof FMPFundamentalsData)[] = [
+      "peRatio","pegRatio","forwardPe","evEbitda","evRevenue","priceToBook","priceToSales",
+      "debtToEquity","dividendYield","analystTargetPrice","revenueGrowthYoY","revenueGrowthYoyPrior",
+      "epsGrowth","earningsPerShare","grossMargin","operatingMargin","netMargin","returnOnEquity",
+      "returnOnAssets","effectiveTaxRate","totalRevenue","netIncome","ebitda","freeCashFlow",
+      "ebit","interestExpense","currentRatio","wacc","roic","totalDebt","totalStockholdersEquity",
+      "cashAndEquivalents","quarterlyOperatingCashFlow","sharesOutstanding","sharesOutstandingPrior","beta",
+    ];
+    for (const f of fields) {
+      const v = r[f];
+      if (v !== null && v !== undefined) {
+        const n = Number(v);
+        if (isFinite(n)) (base as Record<string, number>)[f] = n;
+      }
+    }
+  }
+
+  return upsertFundamentals(t, { ...base, ...partial }, source);
+}
+
+// Record whether a source worked for a ticker in source_ticker_map.
+async function upsertSourceMap(ticker: string, source: string, worked: boolean, notes?: string): Promise<void> {
+  const t = ticker.toUpperCase();
+  await db
+    .insert(sourceTickerMap)
+    .values({ ticker: t, source, sourceTicker: t, active: worked, notes: notes ?? null })
+    .onConflictDoUpdate({
+      target: [sourceTickerMap.ticker, sourceTickerMap.source],
+      set: { active: worked, notes: notes ?? null },
+    })
+    .catch(err => logger.warn({ ticker: t, source, err: String(err) }, "sdm: sourceTickerMap upsert failed"));
 }
 
 // ── Source-specific fetch stubs ───────────────────────────────────────────────
@@ -414,12 +467,45 @@ export class StockDataManager {
       }
     }
 
-    // Priority 5 (final fallback): FMP
+    // Priority 5: FMP
     if ((budgets["fmp"] ?? 0) > 0) {
       const data = await fetchFMPFundamentals(t, FMP_API_KEY);
       await this.incrementCalls("fmp");
       const row = await upsertFundamentals(t, data, "fmp");
       return { data: row, source: "fmp", fromCache: false };
+    }
+
+    // Priority 6: Polygon — no daily cap, 5/min rate limit
+    if (process.env.POLYGON_API_KEY) {
+      try {
+        const partial = await fetchPolygonFundamentals(t, process.env.POLYGON_API_KEY);
+        const filled = Object.values(partial).filter(v => v !== undefined).length;
+        await upsertSourceMap(t, "polygon", filled > 0);
+        if (filled > 0) {
+          const row = await patchFundamentals(t, partial, "polygon");
+          return { data: row, source: "polygon", fromCache: false };
+        }
+      } catch (err) {
+        await upsertSourceMap(t, "polygon", false, String(err));
+        logger.debug({ ticker: t, err: String(err) }, "sdm: polygon unavailable, falling through");
+      }
+    }
+
+    // Priority 7: Alpha Vantage — 25 calls/day; only when budget remains
+    if (process.env.ALPHA_VANTAGE_API_KEY && (budgets["alpha_vantage"] ?? 0) > 0) {
+      try {
+        const partial = await fetchAVOverview(t, process.env.ALPHA_VANTAGE_API_KEY);
+        const filled = Object.values(partial).filter(v => v !== undefined).length;
+        await this.incrementCalls("alpha_vantage");
+        await upsertSourceMap(t, "alpha_vantage", filled > 0);
+        if (filled > 0) {
+          const row = await patchFundamentals(t, partial, "alpha_vantage");
+          return { data: row, source: "alpha_vantage", fromCache: false };
+        }
+      } catch (err) {
+        await upsertSourceMap(t, "alpha_vantage", false, String(err));
+        logger.debug({ ticker: t, err: String(err) }, "sdm: alpha_vantage unavailable, falling through");
+      }
     }
 
     // All budgets exhausted — return stale cache if available, else throw

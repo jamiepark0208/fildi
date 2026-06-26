@@ -256,9 +256,9 @@ No UI needed. Logs for admin review only.
 ## KNOWN GAPS (update as resolved)
 
 ```
-[ ] Alpha Vantage: not wired in stock-data-manager.ts
-[ ] Polygon: not wired in stock-data-manager.ts
-[ ] source_ticker_map: table not yet created
+[x] Alpha Vantage: wired as Priority 7 in stock-data-manager.ts (after FMP, Polygon)
+[x] Polygon: wired as Priority 6 in stock-data-manager.ts (after FMP)
+[x] source_ticker_map: table exists; SDM writes active=true/false after each AV/Polygon attempt
 [x] freeCashFlow: now persisted to DB via writeFundamentalsRow
 [x] writeFundamentalsRow: forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior, freeCashFlow all present
 [ ] Yahoo fundamentals: fetched at serve-time in buildMetrics, not persisted to DB
