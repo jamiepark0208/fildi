@@ -29,6 +29,13 @@
       "when": 1782400514841,
       "tag": "0003_unmapped_tickers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782488934535,
+      "tag": "0004_gifted_black_knight",
+      "breakpoints": true
     }
   ]
 }
