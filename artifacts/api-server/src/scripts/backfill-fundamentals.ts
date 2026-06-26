@@ -308,6 +308,7 @@ async function main(): Promise<void> {
   let fmpUsedTotal = 0;
   const sourceCount: Record<string, number> = { polygon: 0, alpha_vantage: 0, fmp: 0 };
   const allErrors: string[] = [];
+  const unfillable: string[] = []; // tickers where every source returned zero data
 
   // Process in batches of BATCH_SIZE
   for (let batchStart = 0; batchStart < workQueue.length; batchStart += BATCH_SIZE) {
@@ -326,21 +327,35 @@ async function main(): Promise<void> {
 
     const results = await runBatch(batch, fmpAllowed);
 
-    // Tally
+    // Tally batch results
+    let batchFilled = 0;
+    let batchNull = 0;
+    const batchSourceCount: Record<string, number> = { polygon: 0, alpha_vantage: 0, fmp: 0 };
+
     for (const r of results) {
       totalFilled += r.filled;
+      batchFilled += r.filled;
       if (r.error) allErrors.push(`${r.ticker}: ${r.error}`);
-      if (r.filled === 0 && r.sources.length === 0) totalStillNull++;
+      if (r.filled === 0 && r.sources.length === 0) {
+        totalStillNull++;
+        batchNull++;
+        unfillable.push(r.ticker);
+      }
 
       for (const s of r.sources) {
-        if (s.startsWith("polygon")) sourceCount["polygon"]!++;
-        else if (s.startsWith("av"))  sourceCount["alpha_vantage"]!++;
-        else if (s === "fmp")         { sourceCount["fmp"]!++; fmpUsedTotal += CALLS_PER_TICKER_FMP; }
+        if (s.startsWith("polygon")) { sourceCount["polygon"]!++; batchSourceCount["polygon"]!++; }
+        else if (s.startsWith("av")) { sourceCount["alpha_vantage"]!++; batchSourceCount["alpha_vantage"]!++; }
+        else if (s === "fmp")        { sourceCount["fmp"]!++; batchSourceCount["fmp"]!++; fmpUsedTotal += CALLS_PER_TICKER_FMP; }
       }
 
       const status = r.error ? `ERROR:${r.error}` : `filled:${r.filled} sources:[${r.sources.join(",")}]`;
       console.log(`  [${ts()}] ${r.ticker} ${status}`);
     }
+
+    // Write per-batch log line (data-agent.md format)
+    const batchLine = `[${ts()}] BATCH ${batchTickers.join(",")} | filled:${batchFilled} | null:${batchNull} | sources:polygon(${batchSourceCount["polygon"]}) alpha_vantage(${batchSourceCount["alpha_vantage"]}) fmp(${batchSourceCount["fmp"]}) | fmp_remaining:${batchBudget.remaining - (fmpAllowed ? batch.length * CALLS_PER_TICKER_FMP : 0)}`;
+    console.log(batchLine);
+    writeLog([batchLine]);
 
     // Brief pause between batches to respect rate limits
     if (batchStart + BATCH_SIZE < workQueue.length) {
@@ -352,10 +367,8 @@ async function main(): Promise<void> {
   const topNullFields = await getTopNullFields(allTickers);
 
   const summaryLines = [
-    `[${ts()}] BATCH ${workQueue.map(w => w.ticker).join(",")} | filled:${totalFilled} | null:${totalStillNull} | sources:polygon(${sourceCount["polygon"]}) alpha_vantage(${sourceCount["alpha_vantage"]}) fmp(${sourceCount["fmp"]}) | fmp_remaining:${fmpAvailableTotal - fmpUsedTotal}`,
     `[${ts()}] SESSION COMPLETE | tickers:${workQueue.length} | filled:${totalFilled} | still_null:${totalStillNull} | fmp_used:${fmpUsedTotal}`,
-    `         top_null_fields:[${topNullFields.join(",")}]`,
-    ...(allErrors.length ? [`         errors:[${allErrors.join(" | ")}]`] : []),
+    `         top_null_fields:[${topNullFields.join(",")}] | unfillable:[${unfillable.join(",")}]`,
   ];
 
   console.log(`\n${summaryLines.join("\n")}`);
