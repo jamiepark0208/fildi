@@ -16,15 +16,16 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { eq, isNull, or } from "drizzle-orm";
+import { eq, isNull, or, inArray } from "drizzle-orm";
 import {
   db,
-  watchlist,
+  tickerRegistry,
   peerGroupMembers,
   tickerFundamentals,
   sourceTickerMap,
   type TickerFundamentalsRow,
 } from "@workspace/db";
+import { WATCHLIST } from "../lib/constants.js";
 import { fetchFMPFundamentals, type FMPFundamentalsData } from "../lib/fmp-client.js";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
 import { fetchPolygonFundamentals } from "../lib/polygon-client.js";
@@ -131,15 +132,24 @@ async function upsertSourceMap(ticker: string, source: string, worked: boolean, 
 
 // ── Ticker collection ─────────────────────────────────────────────────────────
 
+// Mirror the /fundamentals/stock-db route: WATCHLIST constant → tickerRegistry peer groups → peerGroupMembers.
 async function getAllTargetTickers(): Promise<string[]> {
-  const [wlRows, pgRows] = await Promise.all([
-    db.select({ ticker: watchlist.ticker }).from(watchlist),
-    db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers),
-  ]);
-  const all = [
-    ...wlRows.map(r => r.ticker.toUpperCase()),
-    ...pgRows.map(r => r.ticker.toUpperCase()),
-  ];
+  const upper = WATCHLIST.map((t: string) => t.toUpperCase());
+
+  const regRows = await db
+    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+    .from(tickerRegistry)
+    .where(inArray(tickerRegistry.ticker, upper));
+
+  const groupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+
+  const memberRows = groupIds.length > 0
+    ? await db.select({ ticker: peerGroupMembers.ticker })
+        .from(peerGroupMembers)
+        .where(inArray(peerGroupMembers.groupId, groupIds))
+    : [];
+
+  const all = [...upper, ...memberRows.map(r => r.ticker.toUpperCase())];
   return [...new Set(all)].sort();
 }
 
