@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-26
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script
-- In progress: Wired Alpha Vantage (priority 7) and Polygon (priority 6) into stock-data-manager.ts waterfall with patchFundamentals merge logic. Built backfill-fundamentals.ts script scoped to WATCHLIST+peers (~158 tickers). Fixed Polygon rate limiting: MAX_CONCURRENT=1, sleep(13s). Fixed stock-db route to return ALL ticker_fundamentals rows (was filtered to WATCHLIST+peers only, now shows full DB). Run #1 completed: 170 rows in DB, 391 tickers got 0 fills (rate limited + budgets exhausted). Phase report written at .claude/docs/phase-report-stock-db-prefill.md.
-- Blocked: FMP resets midnight UTC. AV resets midnight UTC (25/day — do NOT run test-av-polygon.ts on backfill day). Polygon data only fills 7 income-stmt fields; FMP-only fields (freeCashFlow, evEbitda, evRevenue, wacc, revenueGrowthYoyPrior) stay null until FMP runs.
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script, yahoo-data-source, edgar-data-source
+- In progress: Yahoo Finance client (yahoo-client.ts) built using yahoo-finance2, uses fundamentalsTimeSeries for annual data. backfill-yahoo.ts ran successfully: 156/158 tickers, 5489 fields into yahoo_fundamentals. SEC EDGAR client (edgar-client.ts) built with bulk CIK bootstrap from company_tickers.json (10433 entries). backfill-edgar.ts ran: 158/158 tickers, 1443 fields into edgar_fundamentals. Both tables live in DB. Stock DB tab enhanced: ticker filter, sortable columns, per-column and per-family coverage fractions.
+- Blocked: FMP resets midnight UTC. AV resets midnight UTC (25/day). Polygon fills only 7 income-stmt fields. ADYEN and ZTO are foreign — not SEC filers, 0 EDGAR fields expected.
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
