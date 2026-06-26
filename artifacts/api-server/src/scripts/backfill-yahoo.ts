@@ -15,8 +15,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { sql } from "drizzle-orm";
-import { db, peerGroupMembers, yahooFundamentals } from "@workspace/db";
+import { sql, inArray } from "drizzle-orm";
+import { db, peerGroupMembers, tickerRegistry, yahooFundamentals } from "@workspace/db";
+import { WATCHLIST } from "../lib/constants.js";
 import { fetchYahooFundamentals, type YahooFundamentalsData } from "../lib/yahoo-client.js";
 import { logger } from "../lib/logger.js";
 
@@ -203,12 +204,19 @@ async function processTicker(
 async function main(): Promise<void> {
   appendLog("backfill-yahoo starting");
 
-  // All distinct tickers from peer_group_members
-  const rows = await db
-    .selectDistinct({ ticker: peerGroupMembers.ticker })
-    .from(peerGroupMembers);
-  const allTickers = rows.map(r => r.ticker).sort();
-  appendLog(`${allTickers.length} distinct tickers from peer_group_members`);
+  // Watchlist + peer groups for watchlist tickers only (mirrors backfill-fundamentals scope)
+  const upper = WATCHLIST.map((t: string) => t.toUpperCase());
+  const regRows = await db
+    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+    .from(tickerRegistry)
+    .where(inArray(tickerRegistry.ticker, upper));
+  const groupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+  const memberRows = groupIds.length > 0
+    ? await db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers)
+        .where(inArray(peerGroupMembers.groupId, groupIds))
+    : [];
+  const allTickers = [...new Set([...upper, ...memberRows.map(r => r.ticker.toUpperCase())])].sort();
+  appendLog(`${allTickers.length} distinct tickers (${upper.length} watchlist + peers from ${groupIds.length} groups)`);
 
   // Load existing yahoo_fundamentals rows to check freshness
   const existing = await db.select({
