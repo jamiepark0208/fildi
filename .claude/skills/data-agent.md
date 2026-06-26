@@ -64,26 +64,30 @@ Stop at first successful result per field. Check source_ticker_map before each a
 3. Finnhub         — peer-resolver.ts (partial), FINNHUB_API_KEY, 60/min free
                      good for profile, basic financials, recommendations
 
-4. Alpha Vantage   — NOT YET WIRED, ALPHA_VANTAGE_API_KEY, 25/day free
+
+4. Polygon         — POLYGON_API_KEY, 5/min, no daily cap, 
+                     EOD fine for fundamentals ← better than AlphaVantage
+                     broad coverage, best fallback for FMP misses
+                     financials endpoint: /vX/reference/financials?ticker=X
+
+5. Alpha Vantage   — ALPHA_VANTAGE_API_KEY, 25/day free. very limited.
                      OVERVIEW endpoint fills FMP gaps well
                      NEWS_SENTIMENT endpoint for sentiment scoring
                      low daily limit — reserve for tickers where 1-3 all fail
 
-5. Polygon         — NOT YET WIRED, POLYGON_API_KEY, unlimited free (delayed)
-                     broad coverage, best fallback for FMP misses
-                     financials endpoint: /vX/reference/financials?ticker=X
-
-6. FactSet         — stock-data-manager.ts (primary), internal, limited quota
-                     most reliable — use only after free sources exhausted
-
-7. EDGAR/SEC       — NOT YET WIRED, no key, generous rate limit
+6. EDGAR/SEC       — NOT YET WIRED, no key, generous rate limit
                      authoritative for any public company
                      gap: requires CIK lookup first, complex JSON structure
                      use only when all others fail for critical fields
 
-8. FRED            — macro-data.ts, FRED_API_KEY
+7. FRED            — macro-data.ts, FRED_API_KEY
                      macro only (SOFR, Fed Funds, CPI, GDP, yield curve)
                      not per-ticker
+
+8. FactSet         — stock-data-manager.ts (primary), internal, limited quota
+                     most reliable — use only after free sources exhausted.
+
+ 
 ```
 
 ---
@@ -255,7 +259,7 @@ No UI needed. Logs for admin review only.
 [ ] Alpha Vantage: not wired in stock-data-manager.ts
 [ ] Polygon: not wired in stock-data-manager.ts
 [ ] source_ticker_map: table not yet created
-[ ] freeCashFlow: Yahoo serve-time only, not persisted to DB
-[ ] writeFundamentalsRow: missing forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior
+[x] freeCashFlow: now persisted to DB via writeFundamentalsRow
+[x] writeFundamentalsRow: forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior, freeCashFlow all present
 [ ] Yahoo fundamentals: fetched at serve-time in buildMetrics, not persisted to DB
 ```
