@@ -737,3 +737,45 @@ export const yahooFundamentals = pgTable('yahoo_fundamentals', {
 export const insertYahooFundamentalsSchema = createInsertSchema(yahooFundamentals).omit({ fetchedAt: true })
 export type InsertYahooFundamentals = z.infer<typeof insertYahooFundamentalsSchema>
 export type YahooFundamentalsRow = typeof yahooFundamentals.$inferSelect
+
+// ── ticker_cik ────────────────────────────────────────────────────────────────
+// CIK lookup cache so EDGAR search is hit only once per ticker.
+// Written by: edgar-client.ts (on first fetch); never expires automatically.
+
+export const tickerCik = pgTable('ticker_cik', {
+  ticker:    text('ticker').primaryKey(),
+  cik:       text('cik').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type TickerCikRow = typeof tickerCik.$inferSelect
+
+// ── edgar_fundamentals ────────────────────────────────────────────────────────
+// Raw SEC EDGAR XBRL data per ticker. One row per ticker, most recent 10-K.
+// Staging/audit table only — ticker_fundamentals is the scorer's source.
+// Written by: edgar-client.ts → backfill-edgar.ts
+
+export const edgarFundamentals = pgTable('edgar_fundamentals', {
+  ticker:    text('ticker').primaryKey(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  edgarTotalRevenue:       numeric('edgar_total_revenue'),
+  edgarGrossProfit:        numeric('edgar_gross_profit'),
+  edgarNetIncome:          numeric('edgar_net_income'),
+  edgarEbit:               numeric('edgar_ebit'),
+  edgarEbitda:             numeric('edgar_ebitda'),           // always null (not in XBRL)
+  edgarFreeCashFlow:       numeric('edgar_free_cash_flow'),   // operatingCF - capex
+  edgarOperatingCashFlow:  numeric('edgar_operating_cash_flow'),
+  edgarCapitalExpenditure: numeric('edgar_capital_expenditure'), // stored positive
+  edgarCashAndEquivalents: numeric('edgar_cash_and_equivalents'),
+  edgarTotalDebt:          numeric('edgar_total_debt'),
+  edgarTotalEquity:        numeric('edgar_total_equity'),
+  edgarInterestExpense:    numeric('edgar_interest_expense'),  // stored positive
+  edgarSharesOutstanding:  numeric('edgar_shares_outstanding'),
+  edgarGrossMargin:        numeric('edgar_gross_margin'),      // computed: grossProfit / totalRevenue
+  edgarNetMargin:          numeric('edgar_net_margin'),        // computed: netIncome / totalRevenue
+})
+
+export const insertEdgarFundamentalsSchema = createInsertSchema(edgarFundamentals).omit({ fetchedAt: true })
+export type InsertEdgarFundamentals = z.infer<typeof insertEdgarFundamentalsSchema>
+export type EdgarFundamentalsRow = typeof edgarFundamentals.$inferSelect
