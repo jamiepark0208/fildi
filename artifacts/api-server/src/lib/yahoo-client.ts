@@ -64,38 +64,43 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
   let raw: Awaited<ReturnType<typeof yahooFinance.quoteSummary>>;
   try {
     raw = await yahooFinance.quoteSummary(symbol, {
-      modules: [
-        "financialData",
-        "defaultKeyStatistics",
-        "incomeStatementHistory",
-        "balanceSheetHistory",
-        "cashflowStatementHistory",
-      ],
+      modules: ["financialData", "defaultKeyStatistics"],
     }, { validateResult: false });
   } catch (err: any) {
     logger.warn({ ticker, err: err.message }, "yahoo: quoteSummary failed");
     return {};
   }
 
-  const fd  = (raw as any).financialData            ?? {};
-  const ks  = (raw as any).defaultKeyStatistics      ?? {};
-  const is0 = (raw as any).incomeStatementHistory?.incomeStatementHistory?.[0]  ?? {};
-  const is1 = (raw as any).incomeStatementHistory?.incomeStatementHistory?.[1]  ?? {};
-  const bs0 = (raw as any).balanceSheetHistory?.balanceSheetStatements?.[0]     ?? {};
-  const cf0 = (raw as any).cashflowStatementHistory?.cashflowStatements?.[0]    ?? {};
+  // fundamentalsTimeSeries is a separate method — fetch 3 years to get 2 annual rows for YoY calc
+  let ftsRows: any[] = [];
+  try {
+    const threeYearsAgo = new Date();
+    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+    ftsRows = (await (yahooFinance as any).fundamentalsTimeSeries(symbol, {
+      period1: threeYearsAgo.toISOString().slice(0, 10),
+      type: "annual",
+      module: "all",
+    }, { validateResult: false })) ?? [];
+  } catch (err: any) {
+    logger.warn({ ticker, err: err.message }, "yahoo: fundamentalsTimeSeries failed (non-fatal)");
+  }
 
-  const opCF  = n(cf0.totalCashFromOperatingActivities);
-  const capex = cf0.capitalExpenditures != null ? Math.abs(Number(cf0.capitalExpenditures)) : undefined;
+  // Results are oldest-first; most recent is last
+  const fts0 = ftsRows.length > 0 ? ftsRows[ftsRows.length - 1] : {};
+  const fts1 = ftsRows.length > 1 ? ftsRows[ftsRows.length - 2] : {};
 
-  const rev0 = n(is0.totalRevenue);
-  const rev1 = n(is1.totalRevenue);
+  const fd  = (raw as any).financialData        ?? {};
+  const ks  = (raw as any).defaultKeyStatistics  ?? {};
+
+  const rev0 = n(fts0.totalRevenue);
+  const rev1 = n(fts1.totalRevenue);
   const revenueYoy = rev0 != null && rev1 != null && rev1 !== 0
     ? (rev0 - rev1) / Math.abs(rev1)
     : undefined;
 
-  const ltd  = n(bs0.longTermDebt);
-  const stlt = n(bs0.shortLongTermDebt);
-  const annualDebt = ltd != null || stlt != null ? (ltd ?? 0) + (stlt ?? 0) : undefined;
+  const rawCapex = n(fts0.capitalExpenditure);
+  const capex = rawCapex != null ? Math.abs(rawCapex) : undefined;
+  const opCF  = n(fts0.operatingCashFlow);
 
   logger.info({ ticker }, "yahoo: parsed successfully");
 
@@ -127,17 +132,17 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_floatShares:        n(ks.floatShares),
     yahoo_heldPercentInsiders:n(ks.heldPercentInsiders),
     yahoo_shortRatio:         n(ks.shortRatio),
-    yahoo_annualTotalRevenue: rev0,
-    yahoo_annualGrossProfit:  n(is0.grossProfit),
-    yahoo_annualEbit:         n(is0.ebit),
-    yahoo_annualNetIncome:    n(is0.netIncome),
-    yahoo_annualRevenueYoy:   revenueYoy,
-    yahoo_annualCash:         n(bs0.cash),
-    yahoo_annualTotalDebt:    annualDebt,
-    yahoo_annualTotalEquity:  n(bs0.totalStockholderEquity),
+    yahoo_annualTotalRevenue:      rev0,
+    yahoo_annualGrossProfit:       n(fts0.grossProfit),
+    yahoo_annualEbit:              n(fts0.EBIT),
+    yahoo_annualNetIncome:         n(fts0.netIncome),
+    yahoo_annualRevenueYoy:        revenueYoy,
+    yahoo_annualCash:              n(fts0.cashAndCashEquivalents),
+    yahoo_annualTotalDebt:         n(fts0.longTermDebt),
+    yahoo_annualTotalEquity:       n(fts0.stockholdersEquity),
     yahoo_annualOperatingCashFlow: opCF,
-    yahoo_annualCapex:        capex,
-    yahoo_annualFreeCashFlow: opCF != null && capex != null ? opCF + capex : undefined,
+    yahoo_annualCapex:             capex,
+    yahoo_annualFreeCashFlow:      n(fts0.freeCashFlow),
   };
 }
 
