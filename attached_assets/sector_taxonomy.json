@@ -1,0 +1,492 @@
+{
+  "_meta": {
+    "description": "Stock market sector/industry peer groups for relative fundamental scoring (z-scores within peer groups)",
+    "created": "2026-06-24",
+    "notes": "Optimized for fundamental comparison — tickers in the same peer group should have comparable P/E, P/S, EV/EBITDA, etc. Not strict GICS but informed by it.",
+    "etfs_exclude_from_scoring": ["SMH", "SOXX", "IWM", "QQQ", "SPY", "BIZD", "JBBB", "NVDY", "SPCX", "PSUS"],
+    "key_metrics_by_sector": {
+      "default": ["pe_ratio", "forward_pe", "ps_ratio", "pb_ratio", "ev_ebitda", "profit_margin", "revenue_growth_yoy", "roe", "debt_to_equity"],
+      "banks": ["pe_ratio", "pb_ratio", "roe", "net_interest_margin", "efficiency_ratio", "dividend_yield", "cet1_ratio"],
+      "reits": ["price_to_ffo", "dividend_yield", "occupancy_rate", "debt_to_ebitda", "nav_premium"],
+      "insurance": ["pe_ratio", "pb_ratio", "combined_ratio", "roe", "dividend_yield"],
+      "biotech_speculative": ["cash_burn_rate", "cash_runway_months", "pipeline_phase", "market_cap", "ps_ratio"],
+      "utilities": ["pe_ratio", "dividend_yield", "payout_ratio", "debt_to_equity", "regulated_vs_unregulated_pct"],
+      "energy": ["pe_ratio", "ev_ebitda", "fcf_yield", "dividend_yield", "reserve_replacement_ratio", "debt_to_equity"],
+      "mining": ["pe_ratio", "ev_ebitda", "aisc_per_oz", "reserve_life", "fcf_yield", "dividend_yield"]
+    }
+  },
+
+  "technology": {
+    "big_tech_platforms": {
+      "description": "Mega-cap cross-sector tech conglomerates — cloud, advertising, devices, e-commerce",
+      "benchmarks": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"],
+      "all_tickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"],
+      "your_tickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"],
+      "missing": [],
+      "notes": "The 'Magnificent 7'. Often compared as a cohort despite different businesses. NVDA and TSLA also belong in semis/autos respectively — dual-list them if your scoring allows."
+    },
+
+    "enterprise_software_cloud": {
+      "description": "SaaS, cloud infrastructure, enterprise platforms, cybersecurity software",
+      "benchmarks": ["CRM", "ORCL", "SAP", "NOW", "ADBE", "INTU", "PANW", "CRWD"],
+      "all_tickers": ["CRM", "ORCL", "SAP", "NOW", "ADBE", "PLTR", "HUBS", "SNOW", "DDOG", "PANW", "ZS", "BOX", "CRWD", "WDAY", "INTU", "VEEV", "TEAM", "DOCU", "MDB", "NET", "FTNT", "SPLK", "ESTC", "MNDY", "PATH", "S", "QLYS", "RPD", "TENB", "CYBR"],
+      "your_tickers": ["CRM", "ORCL", "SAP", "NOW", "ADBE", "PLTR", "HUBS", "SNOW", "DDOG", "PANW", "ZS", "BOX", "CRWD", "WDAY"],
+      "missing": ["INTU", "VEEV", "TEAM", "DOCU", "MDB", "NET", "FTNT", "CYBR", "MNDY", "PATH"]
+    },
+
+    "consumer_internet_digital_media": {
+      "description": "Social media, streaming, digital advertising, consumer apps, e-commerce platforms",
+      "benchmarks": ["NFLX", "SPOT", "SHOP", "UBER", "BKNG"],
+      "all_tickers": ["NFLX", "SPOT", "PINS", "SNAP", "RDDT", "ROKU", "TTD", "DUOL", "SHOP", "ETSY", "WBD", "DIS", "UBER", "LYFT", "DASH", "BKNG", "YELP", "MTCH", "BMBL", "GRAB", "SE", "MELI"],
+      "your_tickers": ["NFLX", "SPOT", "PINS", "SNAP", "RDDT", "ROKU", "TTD", "DUOL", "SHOP", "ETSY", "WBD", "DIS", "MELI"],
+      "missing": ["UBER", "LYFT", "DASH", "BKNG", "MTCH", "SE"]
+    },
+
+    "semiconductors_design": {
+      "description": "Fabless chip designers and IDMs — GPUs, CPUs, mobile, analog, memory",
+      "benchmarks": ["NVDA", "AMD", "INTC", "AVGO", "QCOM", "ARM", "TXN"],
+      "all_tickers": ["NVDA", "AMD", "INTC", "AVGO", "QCOM", "ARM", "MRVL", "MU", "ON", "TXN", "ADI", "NXPI", "SWKS", "MCHP", "MPWR", "GFS", "WOLF"],
+      "your_tickers": ["NVDA", "AMD", "INTC", "AVGO", "QCOM", "ARM", "MRVL", "MU", "ON"],
+      "missing": ["TXN", "ADI", "NXPI", "SWKS", "MCHP", "MPWR"]
+    },
+
+    "semiconductors_equipment_eda": {
+      "description": "Semiconductor capital equipment and electronic design automation tools",
+      "benchmarks": ["ASML", "AMAT", "LRCX", "KLAC"],
+      "all_tickers": ["ASML", "AMAT", "LRCX", "KLAC", "CDNS", "SNPS", "MKSI", "AEIS", "ENTG", "ONTO", "ACLS", "CAMT", "FORM", "COHU"],
+      "your_tickers": ["ASML", "AMAT", "LRCX", "KLAC", "CDNS", "SNPS", "MKSI", "AEIS"],
+      "missing": ["ENTG", "ONTO"]
+    },
+
+    "semiconductor_foundry_specialty": {
+      "description": "Foundries, optical components, specialty semiconductor hardware",
+      "benchmarks": ["TSM"],
+      "all_tickers": ["TSM", "AAOI", "KOPN", "LITE", "RVI", "UMC", "CEVA", "SITM"],
+      "your_tickers": ["TSM", "AAOI", "KOPN", "LITE", "RVI"],
+      "missing": []
+    },
+
+    "it_hardware_networking": {
+      "description": "Servers, networking equipment, PCs, IT infrastructure hardware",
+      "benchmarks": ["CSCO", "DELL", "ANET"],
+      "all_tickers": ["DELL", "SMCI", "CSCO", "ANET", "HPE", "HPQ", "NTAP", "PSTG", "JNPR", "ZBRA"],
+      "your_tickers": ["DELL", "SMCI"],
+      "missing": ["CSCO", "ANET", "HPE"]
+    },
+
+    "chinese_tech": {
+      "description": "Chinese tech conglomerates — different regulatory and valuation framework",
+      "benchmarks": ["BABA", "PDD", "JD", "BIDU"],
+      "all_tickers": ["BABA", "PDD", "JD", "BIDU", "NIO", "XPEV", "LI", "NTES", "BILI", "TME", "ZTO", "FUTU", "VNET", "TCOM"],
+      "your_tickers": ["BABA"],
+      "missing": ["PDD", "JD", "BIDU", "NIO"],
+      "notes": "Must be compared against each other, not US peers — different accounting standards, VIE structure, regulatory risk premium"
+    }
+  },
+
+  "fintech": {
+    "digital_finance_payments": {
+      "description": "Digital payments, neobanks, crypto platforms, buy-now-pay-later, lending platforms",
+      "benchmarks": ["PYPL", "XYZ", "SOFI", "COIN"],
+      "all_tickers": ["PYPL", "XYZ", "SOFI", "COIN", "AFRM", "HOOD", "UPST", "TOST", "BILL", "FIS", "FISV", "GPN", "FOUR", "RELY", "ADYEN", "NU", "PAGS"],
+      "your_tickers": ["PYPL", "XYZ", "SOFI", "COIN", "AFRM", "HOOD", "UPST"],
+      "missing": ["FIS", "FISV", "TOST", "NU"],
+      "notes": "XYZ = Block (formerly Square). Straddles tech and finance."
+    }
+  },
+
+  "financials": {
+    "large_banks": {
+      "description": "Money-center and large investment banks — use bank-specific metrics",
+      "benchmarks": ["JPM", "BAC", "GS", "MS"],
+      "all_tickers": ["JPM", "BAC", "C", "WFC", "GS", "MS", "USB", "PNC", "SCHW", "TFC", "BK", "STT"],
+      "your_tickers": ["JPM", "BAC", "C", "WFC", "GS", "MS"],
+      "missing": ["USB", "PNC", "SCHW"]
+    },
+
+    "regional_banks": {
+      "description": "Regional and community banks",
+      "benchmarks": ["FITB", "KEY", "RF"],
+      "all_tickers": ["RF", "FITB", "KEY", "CFG", "HBAN", "MTB", "ZION", "CMA", "FHN", "EWBC", "WAL", "SIVB"],
+      "your_tickers": ["RF"],
+      "missing": ["FITB", "KEY", "CFG", "HBAN", "MTB"]
+    },
+
+    "asset_management_alt_finance": {
+      "description": "Asset managers, private equity, alternative investment platforms",
+      "benchmarks": ["BLK", "BX", "KKR"],
+      "all_tickers": ["BLK", "BX", "OWL", "KKR", "APO", "ARES", "CG", "TPG", "BAM", "TROW", "IVZ", "BEN", "AMG"],
+      "your_tickers": ["BLK", "BX", "OWL"],
+      "missing": ["KKR", "APO", "ARES"]
+    },
+
+    "payment_networks_credit": {
+      "description": "Card networks and credit services — high-margin toll-booth business models",
+      "benchmarks": ["V", "MA"],
+      "all_tickers": ["V", "MA", "AXP", "COF", "DFS", "SYF"],
+      "your_tickers": ["V", "AXP"],
+      "missing": ["MA", "COF", "DFS"]
+    },
+
+    "insurance": {
+      "description": "Property, casualty, life, and specialty insurance — compare on combined ratio and book value",
+      "benchmarks": ["BRK.B", "PGR", "TRV"],
+      "all_tickers": ["BRK.B", "PGR", "TRV", "ALL", "MET", "AIG", "AFL", "CB", "HIG", "CINF", "GL", "AJG", "MMC", "AON", "WTW"],
+      "your_tickers": [],
+      "missing": ["BRK.B", "PGR", "TRV", "ALL", "MET", "AIG", "AFL"],
+      "gap_severity": "HIGH — entire sub-sector missing"
+    }
+  },
+
+  "consumer_discretionary": {
+    "restaurants_food_service": {
+      "description": "Quick-service and casual dining restaurant chains",
+      "benchmarks": ["MCD", "SBUX", "CMG"],
+      "all_tickers": ["MCD", "SBUX", "CMG", "CAVA", "YUM", "DPZ", "WING", "DRI", "TXRH", "SHAK", "CANE", "QSR"],
+      "your_tickers": ["MCD", "SBUX", "CMG", "CAVA"],
+      "missing": ["YUM", "DPZ", "WING", "DRI"]
+    },
+
+    "retail_home_general": {
+      "description": "Home improvement, big-box, general retail",
+      "benchmarks": ["HD", "LOW", "WMT", "COST"],
+      "all_tickers": ["HD", "LOW", "TGT", "W", "WMT", "COST", "DLTR", "DG", "ROST", "TJX", "FIVE", "BURL", "OLLI"],
+      "your_tickers": ["HD", "LOW", "TGT", "W"],
+      "missing": ["WMT", "COST", "TJX", "ROST"]
+    },
+
+    "travel_leisure_hospitality": {
+      "description": "Airlines, cruises, hotels, casinos, entertainment",
+      "benchmarks": ["MAR", "HLT", "DAL", "RCL"],
+      "all_tickers": ["AAL", "DAL", "UAL", "LUV", "RCL", "CCL", "NCLH", "HLT", "MAR", "WYNN", "LVS", "MGM", "ABNB", "BKNG", "EXPE"],
+      "your_tickers": ["AAL", "DAL", "RCL", "HLT", "WYNN", "LVS", "MGM", "ABNB"],
+      "missing": ["MAR", "UAL", "BKNG", "CCL"]
+    },
+
+    "autos_evs": {
+      "description": "Traditional automakers and electric vehicle manufacturers",
+      "benchmarks": ["TSLA", "F", "GM", "TM"],
+      "all_tickers": ["TSLA", "F", "GM", "LCID", "HYLN", "RIVN", "TM", "HMC", "STLA", "XPEV", "LI", "NIO"],
+      "your_tickers": ["TSLA", "F", "GM", "LCID", "HYLN"],
+      "missing": ["RIVN", "TM"]
+    },
+
+    "apparel_luxury": {
+      "description": "Athletic wear, fashion, beauty, luxury brands",
+      "benchmarks": ["NKE", "LULU"],
+      "all_tickers": ["NKE", "UAA", "COTY", "LULU", "PVH", "TPR", "RL", "DECK", "ONON", "CROX", "SKX", "VFC", "HBI"],
+      "your_tickers": ["NKE", "UAA", "COTY"],
+      "missing": ["LULU", "DECK", "ONON"]
+    },
+
+    "real_estate_platforms": {
+      "description": "Real estate tech, online marketplaces, iBuyers",
+      "benchmarks": ["ZG", "RDFN"],
+      "all_tickers": ["OPEN", "ZG", "RDFN", "RKT", "COMP"],
+      "your_tickers": ["OPEN"],
+      "missing": ["ZG", "RDFN"]
+    }
+  },
+
+  "consumer_staples": {
+    "packaged_goods_beverages": {
+      "description": "Household products, beverages, packaged food — defensive, dividend-paying",
+      "benchmarks": ["PG", "KO", "PEP"],
+      "all_tickers": ["PG", "KO", "PEP", "CL", "KMB", "CHD", "MO", "PM", "STZ", "BF.B", "TAP", "SAM", "MNST", "CELH"],
+      "your_tickers": ["MO"],
+      "missing": ["PG", "KO", "PEP", "PM", "CL", "MNST"],
+      "gap_severity": "HIGH — only 1 ticker in entire sector"
+    },
+
+    "food_grocery_agriculture": {
+      "description": "Food producers, grocery chains, agricultural products",
+      "benchmarks": ["WMT", "COST", "KHC"],
+      "all_tickers": ["WMT", "COST", "KR", "KHC", "GIS", "K", "CPB", "SJM", "MDLZ", "HSY", "TSN", "HRL", "CAG", "ADM", "BG"],
+      "your_tickers": [],
+      "missing": ["WMT", "COST", "KR", "MDLZ", "GIS"],
+      "gap_severity": "HIGH — zero coverage"
+    }
+  },
+
+  "healthcare": {
+    "large_pharma": {
+      "description": "Large-cap pharmaceutical companies with diversified drug portfolios",
+      "benchmarks": ["LLY", "JNJ", "MRK", "ABBV", "PFE"],
+      "all_tickers": ["LLY", "MRK", "ABBV", "JNJ", "PFE", "BMY", "AZN", "NVO", "GSK", "SNY", "RHHBY", "ZTS"],
+      "your_tickers": ["LLY", "MRK", "ABBV"],
+      "missing": ["JNJ", "PFE", "BMY", "NVO", "AZN"]
+    },
+
+    "large_biotech": {
+      "description": "Profitable, established biotech companies",
+      "benchmarks": ["AMGN", "GILD", "REGN", "VRTX"],
+      "all_tickers": ["AMGN", "GILD", "REGN", "VRTX", "MRNA", "BIIB", "ALNY", "SGEN", "BMRN", "IONS"],
+      "your_tickers": [],
+      "missing": ["AMGN", "GILD", "REGN", "VRTX", "MRNA"],
+      "gap_severity": "HIGH — major sub-sector missing"
+    },
+
+    "health_insurance_managed_care": {
+      "description": "Health insurance, PBMs, managed care organizations",
+      "benchmarks": ["UNH", "ELV", "CI"],
+      "all_tickers": ["UNH", "ELV", "CI", "HUM", "CNC", "MOH", "CVS"],
+      "your_tickers": ["UNH"],
+      "missing": ["ELV", "CI", "CVS"]
+    },
+
+    "medical_devices_equipment": {
+      "description": "Medical devices, surgical robots, diagnostics, life sciences tools",
+      "benchmarks": ["ABT", "MDT", "ISRG", "SYK"],
+      "all_tickers": ["BAX", "ABT", "MDT", "SYK", "ISRG", "BSX", "EW", "DXCM", "BDX", "ZBH", "HOLX", "IDXX", "A", "TMO", "DHR"],
+      "your_tickers": ["BAX"],
+      "missing": ["ABT", "MDT", "ISRG", "SYK", "TMO", "DHR"],
+      "gap_severity": "HIGH — only 1 ticker"
+    },
+
+    "speculative_biotech": {
+      "description": "Pre-revenue or early-stage biotech/genomics — use cash-burn metrics, not earnings",
+      "benchmarks": [],
+      "all_tickers": ["DNA", "NTLA", "RXRX", "CMPS", "BNGO", "GOSS", "CRSP", "BEAM", "EDIT", "ARKG"],
+      "your_tickers": ["DNA", "NTLA", "RXRX", "CMPS", "BNGO", "GOSS"],
+      "missing": [],
+      "notes": "Traditional P/E scoring doesn't apply here. Use: market_cap, cash_position, cash_burn_rate, pipeline_stage, ps_ratio if any revenue."
+    }
+  },
+
+  "industrials": {
+    "aerospace_defense": {
+      "description": "Defense contractors, commercial aerospace, military tech",
+      "benchmarks": ["LMT", "RTX", "BA"],
+      "all_tickers": ["BA", "LMT", "RTX", "GD", "NOC", "HII", "TDG", "HWM", "AXON", "LHX", "HEI"],
+      "your_tickers": ["BA", "LMT", "RTX", "GD"],
+      "missing": ["NOC", "TDG", "AXON"]
+    },
+
+    "industrial_conglomerates_machinery": {
+      "description": "Heavy machinery, construction equipment, industrial automation, diversified industrials",
+      "benchmarks": ["CAT", "HON", "DE", "GE"],
+      "all_tickers": ["GE", "CAT", "HON", "DE", "MMM", "EMR", "ETN", "ITW", "ROK", "PH", "IR", "DOV", "OTIS", "CMI", "PCAR"],
+      "your_tickers": ["GE"],
+      "missing": ["CAT", "HON", "DE", "ETN", "ITW", "EMR"],
+      "gap_severity": "HIGH — only 1 ticker in large sector"
+    },
+
+    "waste_management_services": {
+      "description": "Waste collection, recycling, environmental services",
+      "benchmarks": ["WM", "RSG"],
+      "all_tickers": ["WM", "RSG", "WCN", "CLH", "ECOL"],
+      "your_tickers": ["WM"],
+      "missing": ["RSG"]
+    },
+
+    "transportation_logistics": {
+      "description": "Railroads, trucking, logistics, freight, delivery",
+      "benchmarks": ["UNP", "UPS", "FDX"],
+      "all_tickers": ["UNP", "CSX", "NSC", "UPS", "FDX", "ODFL", "SAIA", "JBHT", "XPO", "CHRW"],
+      "your_tickers": [],
+      "missing": ["UNP", "UPS", "FDX", "CSX"],
+      "gap_severity": "HIGH — zero coverage"
+    },
+
+    "professional_services": {
+      "description": "Consulting, staffing, info services, analytics",
+      "benchmarks": ["ACN", "SPGI", "MCO"],
+      "all_tickers": ["ACN", "SPGI", "MCO", "ICE", "CME", "NDAQ", "MSCI", "VRSK", "FDS", "BR"],
+      "your_tickers": [],
+      "missing": ["ACN", "SPGI", "ICE", "CME"],
+      "gap_severity": "MEDIUM — financial infrastructure, often grouped with financials"
+    }
+  },
+
+  "energy": {
+    "integrated_oil_gas": {
+      "description": "Integrated and large E&P companies — upstream, midstream, downstream",
+      "benchmarks": ["XOM", "CVX", "COP"],
+      "all_tickers": ["XOM", "CVX", "COP", "EOG", "PXD", "DVN", "MPC", "VLO", "PSX", "OXY", "FANG", "HES", "APA", "CTRA"],
+      "your_tickers": ["XOM", "CVX", "COP"],
+      "missing": ["EOG", "DVN", "OXY", "MPC", "VLO"],
+      "gap_severity": "MEDIUM — have the big 3 but missing mid-caps and refiners"
+    },
+
+    "oilfield_services": {
+      "description": "Drilling, completions, oilfield equipment and services",
+      "benchmarks": ["SLB", "HAL", "BKR"],
+      "all_tickers": ["SLB", "HAL", "BKR", "FTI", "NOV", "CHX", "HP", "RIG"],
+      "your_tickers": ["SLB", "HAL"],
+      "missing": ["BKR"]
+    },
+
+    "midstream_pipelines": {
+      "description": "Pipeline operators, natural gas gathering and processing, MLPs",
+      "benchmarks": ["WMB", "KMI", "ET"],
+      "all_tickers": ["WMB", "KMI", "ET", "EPD", "MPLX", "OKE", "TRGP", "AM", "PAA"],
+      "your_tickers": [],
+      "missing": ["WMB", "KMI", "ET", "EPD", "OKE"],
+      "gap_severity": "HIGH — zero coverage, significant income/dividend sector"
+    },
+
+    "clean_energy_renewables": {
+      "description": "Solar, wind, hydrogen, clean energy technology",
+      "benchmarks": ["ENPH", "FSLR"],
+      "all_tickers": ["CLNE", "ENPH", "FSLR", "RUN", "SEDG", "PLUG", "BE", "NOVA", "SHLS", "ARRY"],
+      "your_tickers": ["CLNE"],
+      "missing": ["ENPH", "FSLR", "PLUG", "BE"],
+      "gap_severity": "HIGH — only 1 ticker"
+    }
+  },
+
+  "materials": {
+    "precious_metals_mining": {
+      "description": "Gold, silver, and precious metals miners",
+      "benchmarks": ["NEM", "GOLD", "WPM"],
+      "all_tickers": ["AU", "SVM", "NEM", "GOLD", "WPM", "FNV", "RGLD", "AEM", "KGC", "AGI", "PAAS", "HL", "CDE"],
+      "your_tickers": ["AU", "SVM"],
+      "missing": ["NEM", "GOLD", "WPM", "AEM"]
+    },
+
+    "base_metals_mining": {
+      "description": "Copper, iron ore, diversified mining",
+      "benchmarks": ["FCX", "BHP", "RIO"],
+      "all_tickers": ["FCX", "BHP", "RIO", "VALE", "TECK", "SCCO", "AA"],
+      "your_tickers": [],
+      "missing": ["FCX", "BHP", "RIO", "VALE"],
+      "gap_severity": "HIGH — zero coverage"
+    },
+
+    "chemicals": {
+      "description": "Specialty and commodity chemicals, industrial gases",
+      "benchmarks": ["LIN", "APD", "SHW"],
+      "all_tickers": ["LIN", "APD", "SHW", "DD", "DOW", "ECL", "PPG", "RPM", "CE", "EMN", "HUN", "OLN", "AXTA"],
+      "your_tickers": [],
+      "missing": ["LIN", "APD", "SHW", "DOW", "ECL"],
+      "gap_severity": "HIGH — zero coverage"
+    },
+
+    "steel_industrial_metals": {
+      "description": "Steelmakers and industrial metals producers",
+      "benchmarks": ["NUE", "STLD"],
+      "all_tickers": ["NUE", "STLD", "CLF", "X", "RS", "ATI"],
+      "your_tickers": [],
+      "missing": ["NUE", "STLD", "CLF"],
+      "gap_severity": "HIGH — zero coverage"
+    }
+  },
+
+  "real_estate": {
+    "reits_data_center_tower": {
+      "description": "Data center and cell tower REITs — tech-adjacent, secular growth",
+      "benchmarks": ["AMT", "EQIX", "DLR"],
+      "all_tickers": ["AMT", "EQIX", "DLR", "CCI", "SBAC"],
+      "your_tickers": ["AMT", "EQIX"],
+      "missing": ["DLR", "CCI"]
+    },
+
+    "reits_diversified": {
+      "description": "Industrial, retail, residential, healthcare, net-lease REITs",
+      "benchmarks": ["PLD", "SPG", "O"],
+      "all_tickers": ["O", "PLD", "SPG", "PSA", "WELL", "AVB", "EQR", "VTR", "ARE", "MAA", "UDR", "ESS", "PEAK", "NNN", "STOR", "SUI", "ELS"],
+      "your_tickers": ["O"],
+      "missing": ["PLD", "SPG", "PSA", "WELL", "AVB"],
+      "gap_severity": "MEDIUM — have 1 but missing key names"
+    }
+  },
+
+  "utilities": {
+    "electric_utilities": {
+      "description": "Regulated and independent electric utilities — income/defensive plays",
+      "benchmarks": ["NEE", "DUK", "SO"],
+      "all_tickers": ["PCG", "NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "XEL", "WEC", "ED", "ES", "FE", "PPL", "CMS", "DTE", "AES", "ATO", "NI"],
+      "your_tickers": ["PCG"],
+      "missing": ["NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE"],
+      "gap_severity": "HIGH — only 1 ticker, massive sector"
+    },
+
+    "water_gas_multi_utilities": {
+      "description": "Water utilities, natural gas distribution, multi-utilities",
+      "benchmarks": ["AWK", "WTR"],
+      "all_tickers": ["AWK", "WTR", "WTRG", "SWX", "NJR", "OGS", "SR"],
+      "your_tickers": [],
+      "missing": ["AWK", "WTR"],
+      "gap_severity": "MEDIUM — small sector"
+    }
+  },
+
+  "telecom": {
+    "telecommunications": {
+      "description": "Wireless carriers, broadband providers, telecom infrastructure",
+      "benchmarks": ["T", "VZ", "TMUS"],
+      "all_tickers": ["VZ", "TMUS", "LUMN", "T", "CHTR", "CMCSA", "DISH"],
+      "your_tickers": ["VZ", "TMUS", "LUMN"],
+      "missing": ["T", "CMCSA", "CHTR"]
+    }
+  },
+
+  "speculative_thematic": {
+    "space_aerospace_tech": {
+      "description": "Commercial space, eVTOL, satellite — mostly pre-revenue or early revenue",
+      "benchmarks": ["RKLB"],
+      "all_tickers": ["RKLB", "JOBY", "ACHR", "LUNR", "ASTS", "RDW", "SPCE"],
+      "your_tickers": ["RKLB", "JOBY", "ACHR", "LUNR", "ASTS", "RDW", "SPCE"],
+      "missing": [],
+      "notes": "Compare within this cohort only. Most are pre-profit, so use EV/Revenue, cash burn, backlog size."
+    },
+
+    "crypto_digital_assets": {
+      "description": "Bitcoin miners, crypto exchanges, BTC treasury companies",
+      "benchmarks": ["MARA", "RIOT", "COIN"],
+      "all_tickers": ["MARA", "RIOT", "CLSK", "MSTR", "COIN", "HUT", "BITF", "IREN"],
+      "your_tickers": ["MARA", "RIOT", "CLSK", "MSTR", "COIN"],
+      "missing": [],
+      "notes": "COIN dual-listed with fintech. MSTR is really a BTC holding company. Use hash_rate, btc_per_share, energy_cost for miners."
+    },
+
+    "speculative_small_cap": {
+      "description": "Micro/small-cap speculative plays across various themes — 3D printing, quantum, deSPACs",
+      "benchmarks": [],
+      "all_tickers": ["DDD", "BB", "RUM", "SOUN", "POET", "QSI", "TEM", "REBN", "BULL", "HOOY", "ONDS", "LDI", "SG", "PN", "LQDA", "SUPX"],
+      "your_tickers": ["DDD", "BB", "RUM", "SOUN", "POET", "QSI", "TEM", "REBN", "BULL", "HOOY", "ONDS", "LDI", "SG", "PN", "LQDA", "SUPX"],
+      "missing": [],
+      "notes": "Many lack meaningful fundamentals. Consider grouping by theme (AI audio = SOUN, quantum = IONQ+QUBT+QSI, 3D = DDD+XONE) or just flag as 'unscored' if no profitable peers exist."
+    }
+  },
+
+  "_gap_summary": {
+    "critical_missing_sectors": [
+      "Insurance (zero tickers — BRK.B, PGR, TRV, ALL, MET)",
+      "Consumer Staples (1 ticker — missing PG, KO, PEP, WMT, COST)",
+      "Large Biotech (zero — missing AMGN, GILD, REGN, VRTX)",
+      "Industrial Conglomerates (1 ticker — missing CAT, HON, DE, ETN)",
+      "Transportation/Logistics (zero — missing UNP, UPS, FDX)",
+      "Chemicals (zero — missing LIN, SHW, DOW, ECL)",
+      "Base Metals Mining (zero — missing FCX, BHP, RIO)",
+      "Utilities (1 ticker — missing NEE, DUK, SO, D, AEP)",
+      "Midstream/Pipelines (zero — missing WMB, KMI, ET, EPD)",
+      "Clean Energy (1 ticker — missing ENPH, FSLR)"
+    ],
+    "moderate_gaps": [
+      "Medical Devices (1 ticker — missing ABT, MDT, ISRG, SYK, TMO, DHR)",
+      "Steel/Industrial Metals (zero — missing NUE, STLD)",
+      "Regional Banks (1 ticker — missing FITB, KEY, CFG)",
+      "Diversified REITs (1 ticker — missing PLD, SPG, PSA)"
+    ],
+    "well_covered": [
+      "Big Tech Platforms (7/7)",
+      "Semiconductors Design (9/17 — strong core)",
+      "Semiconductor Equipment/EDA (8/14)",
+      "Enterprise Software (14/30 — good coverage)",
+      "Large Banks (6/12 — strong)",
+      "Aerospace & Defense (4/11)",
+      "Travel & Leisure (8/15)",
+      "Space & Aerospace Tech (7/7)",
+      "Crypto/Digital Assets (5/8)"
+    ],
+    "total_your_tickers": 178,
+    "total_unique_equities": 168,
+    "total_etfs": 10,
+    "recommended_additions_priority": [
+      "Tier 1 (broad market coverage): PG, KO, JNJ, PFE, AMGN, CAT, HON, UNP, UPS, NEE, DUK, WMB, FCX, NUE, LIN, BRK.B, PGR, MA",
+      "Tier 2 (sector depth): COST, WMT, GILD, VRTX, MDT, ISRG, TMO, DE, ETN, SO, D, ENPH, FSLR, NEM, APD, SHW, TRV, ELV, CI, T, CMCSA",
+      "Tier 3 (nice to have): USB, SCHW, KKR, COF, TXN, ADI, CSCO, ANET, INTU, NET, UBER, RIVN, LULU, PLD, SPG, AWK"
+    ]
+  }
+}
