@@ -1,5 +1,5 @@
 # Stock DB Prefill — Phase Report
-> Last updated: 2026-06-26
+> Last updated: 2026-06-26 14:42 UTC
 
 ---
 
@@ -41,24 +41,37 @@ The main backfill script. **Do not run automatically — invoke manually after F
 
 ---
 
-## Current Run Status (2026-06-26)
+## Run #1 Results (2026-06-26) — COMPLETED
 
-**Started:** 14:10 UTC | **Still running as of ~14:30 UTC**
+**Started:** 14:10 UTC | **Completed:** 14:41 UTC (~31 minutes)
 
 | Metric | Value |
 |--------|-------|
-| Total tickers | 548 (4 skipped as fresh+complete) |
-| Processed so far | ~335/548 (~61%) |
-| Got ≥1 field filled | ~103 |
-| Got 0 fields (all sources failed) | ~232 |
-| FMP status | **Exhausted** — 616 calls used before script ran |
-| AV status | **Exhausted** — 25/day used by test run (NVDA/AAPL/PLTR) + first batch |
-| Polygon status | Working but rate-limiting (429 on ~70% of concurrent calls) |
+| Total tickers processed | 548 |
+| Fields filled total | 787 |
+| Tickers with ≥1 field filled | 145 (Polygon) + 22 (AV) |
+| Tickers with 0 fields filled | 391 |
+| FMP status | **Exhausted** — 616 calls used before script ran (contributed 0) |
+| AV status | **Exhausted** — 25/day limit hit by test run + first batch only |
+| Polygon status | 145 successes; rest rate-limited (429 on all 3 retries) |
+| Top remaining null fields | evEbitda(170), evRevenue(170), wacc(170), freeCashFlow(166), revenueGrowthYoyPrior(166) |
 
-**Why so many `filled:0` results:**
-- Running 3 concurrent Polygon calls at 300ms spacing hits the 5/min cap immediately
-- After 3 retries with exponential backoff all fail → ticker recorded as 0 filled
-- Data IS available from Polygon — it's a concurrency/pacing issue, not a coverage issue
+**Bugs found and fixed during this run:**
+
+### Bug 1: Wrong ticker universe (548 vs 158)
+The backfill script queried the `watchlist` DB table + ALL `peerGroupMembers` rows globally, yielding 548 tickers. The Stock DB UI tab only shows ~158 tickers (derived from the hardcoded `WATCHLIST` constant in `constants.ts` → their peer groups via `tickerRegistry`). The script was filling data for tickers that don't appear in the UI at all.
+
+**Fix applied:** `getAllTargetTickers()` now mirrors the `/fundamentals/stock-db` route exactly — `WATCHLIST` constant → `tickerRegistry.primaryPeerGroupId` → `peerGroupMembers` for those group IDs only.
+
+### Bug 2: Polygon concurrency too high (3 concurrent → 429 on everything)
+`MAX_CONCURRENT=3` with `sleep(300ms)` between Polygon calls = ~10 req/min, double the 5/min free-tier limit. After exhausting 3 retries with exponential backoff, tickers fell through with `filled:0` and were recorded as failed in `source_ticker_map` (incorrectly — Polygon has the data, we just overran the rate limit).
+
+**Fix applied:** `MAX_CONCURRENT=1` + `sleep(13000)` per Polygon call = 4.6 req/min, safely under the cap.
+
+### Bug 3: AV budget burned by smoke test
+Running `test-av-polygon.ts` on the same day consumed 3 of the 25 daily AV calls before the backfill ran. The first backfill batch used ~22 more, exhausting the budget after batch 1.
+
+**Fix:** Do not run `test-av-polygon.ts` on production keys on the same day as a backfill run. AV budget is now reserved exclusively for the backfill script.
 
 ---
 
@@ -106,11 +119,21 @@ Both new sources use `patchFundamentals()` (merge into existing row) rather than
 
 ## Next Steps to Resolve Nulls
 
-1. **Tonight (after midnight UTC):** Run `backfill-fundamentals.ts` with `MAX_CONCURRENT=1` and `sleep(13000)` between Polygon calls to stay under 5/min
-2. **FMP budget (~35 tickers/day):** Prioritize tickers with the most null CRITICAL fields — script already sorts the work queue this way
-3. **AV budget (25/day):** Reserve entirely for backfill; script correctly gates this via budget check
-4. **After 2-3 days of backfill runs:** Most tickers should have CRITICAL fields covered; IMPORTANT fields (forwardPe, evEbitda, etc.) will take longer given AV's 25/day cap
-5. **EDGAR fallback:** Not yet wired — could cover any remaining gaps with no daily limit
+**Run #2 (tonight, after midnight UTC) — estimated outcome:**
+- ~158 tickers (correct universe)
+- Polygon succeeds on all ~158 (MAX_CONCURRENT=1, sleep 13s) → 7 income-stmt fields per ticker
+- AV fills ~25 tickers with valuation ratios (forwardPe, peRatio, beta, etc.)
+- FMP fills ~35 tickers with full 30-field coverage including FMP-only fields
+
+**Run #3+ (subsequent nights):**
+- Work queue shrinks as tickers get CRITICAL fields filled; FMP/AV budget used on most-null tickers
+- After ~5 nightly runs: all 158 tickers should have CRITICAL fields covered
+- IMPORTANT fields (evEbitda, evRevenue, wacc, revenueGrowthYoyPrior) are FMP-only — 35 tickers/night = ~5 nights for full coverage
+
+**Other actions:**
+- Do NOT run `test-av-polygon.ts` on production keys on a backfill day
+- EDGAR fallback not yet wired — could cover any remaining gaps with no daily limit
+- Once CRITICAL fields are fully populated, re-run scoring pipeline to eliminate null-driven score suppression
 
 ---
 
