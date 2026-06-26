@@ -38,7 +38,7 @@ import { logger } from "../lib/logger.js";
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE      = 5;
-const MAX_CONCURRENT  = 3;
+const MAX_CONCURRENT  = 1;   // Polygon is 5/min; 1 concurrent + 13s sleep = ~4.6/min
 const STALE_DAYS      = 7;
 const CALLS_PER_TICKER_FMP = 7; // fmp-client makes ~7 endpoints per ticker
 
@@ -212,7 +212,7 @@ async function backfillTicker(item: WorkItem, fmpAllowed: boolean): Promise<Fill
       await upsertSourceMap(ticker, "polygon", false, String(err));
       logger.debug({ ticker }, "backfill: polygon failed");
     }
-    await sleep(300); // stay well within 5/min
+    await sleep(13000); // 13s + MAX_CONCURRENT=1 keeps under 5/min (4.6 calls/min)
   }
 
   // ── Alpha Vantage ─────────────────────────────────────────────────────────
