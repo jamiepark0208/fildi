@@ -1,5 +1,6 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,7 +48,6 @@ interface ColDef {
   label: string;
   family: "value" | "growth" | "quality" | "safety" | "meta";
   fmt: FmtType;
-  // returns true if the value is suspect (not null, but looks wrong)
   suspect?: (v: number) => boolean;
 }
 
@@ -94,7 +94,6 @@ const COLS: ColDef[] = [
   { key: "effectiveTaxRate",    label: "Tax Rate",   family: "meta",    fmt: "pct",    suspect: v => v < 0 || v > 0.7 },
 ];
 
-// Fix the OCF key
 (COLS.find(c => c.label === "Qtrly OCF") as ColDef).key = "quarterlyOperatingCashFlow" as keyof FundamentalsRow;
 
 const FAMILY_COLORS: Record<string, string> = {
@@ -144,9 +143,22 @@ function fmtDate(ts: string | null): string {
   return d.toLocaleDateString();
 }
 
+function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: string | null; sortDir: "asc" | "desc" }) {
+  if (sortCol !== colKey) return <span className="opacity-20 ml-0.5 inline-block w-2.5 text-center">↕</span>;
+  return sortDir === "asc"
+    ? <ChevronUp className="inline h-3 w-3 ml-0.5 -mt-0.5" />
+    : <ChevronDown className="inline h-3 w-3 ml-0.5 -mt-0.5" />;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
+const families = ["value", "growth", "quality", "safety", "meta"] as const;
+
 export function StockDBTab() {
+  const [tickerFilter, setTickerFilter] = useState("");
+  const [sortCol, setSortCol]           = useState<string | null>(null);
+  const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
     queryFn: async () => {
@@ -156,6 +168,69 @@ export function StockDBTab() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  function handleSort(colKey: string) {
+    if (sortCol === colKey) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(colKey);
+      setSortDir("asc");
+    }
+  }
+
+  // Per-column and per-family coverage computed over the full dataset
+  const colCoverage = useMemo(() => {
+    if (!data) return {} as Record<string, { filled: number; total: number }>;
+    return Object.fromEntries(
+      COLS.map(col => {
+        const filled = data.filter(r => r.fundamentals?.[col.key] != null).length;
+        return [col.key as string, { filled, total: data.length }];
+      })
+    );
+  }, [data]);
+
+  const familyCoverage = useMemo(() => {
+    if (!data) return {} as Record<string, { filled: number; total: number }>;
+    return Object.fromEntries(
+      families.map(fam => {
+        const famCols = COLS.filter(c => c.family === fam);
+        let filled = 0, total = 0;
+        for (const row of data) {
+          for (const col of famCols) {
+            total++;
+            if (row.fundamentals?.[col.key] != null) filled++;
+          }
+        }
+        return [fam, { filled, total }];
+      })
+    );
+  }, [data]);
+
+  // Filter + sort
+  const displayData = useMemo(() => {
+    if (!data) return [];
+    let d = tickerFilter.trim()
+      ? data.filter(r => r.ticker.toLowerCase().includes(tickerFilter.toLowerCase().trim()))
+      : data;
+
+    if (sortCol) {
+      d = [...d].sort((a, b) => {
+        if (sortCol === "ticker") {
+          const cmp = a.ticker.localeCompare(b.ticker);
+          return sortDir === "asc" ? cmp : -cmp;
+        }
+        const aRaw = a.fundamentals?.[sortCol as keyof FundamentalsRow] ?? null;
+        const bRaw = b.fundamentals?.[sortCol as keyof FundamentalsRow] ?? null;
+        const aVal = aRaw != null ? parseFloat(aRaw as string) : null;
+        const bVal = bRaw != null ? parseFloat(bRaw as string) : null;
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
+    return d;
+  }, [data, tickerFilter, sortCol, sortDir]);
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-48">
@@ -175,9 +250,6 @@ export function StockDBTab() {
   const totalCells = data.length * COLS.length;
   const coverage   = totalCells > 0 ? Math.round((1 - nullCount / totalCells) * 100) : 0;
   const noRow      = data.filter(d => !d.fundamentals).length;
-
-  // Group columns by family for header display
-  const families = ["value", "growth", "quality", "safety", "meta"] as const;
 
   return (
     <div className="space-y-4">
@@ -200,53 +272,102 @@ export function StockDBTab() {
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="flex gap-3 text-xs">
-        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30" /> Watchlist</span>
+      {/* Ticker filter + legend */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={tickerFilter}
+            onChange={e => setTickerFilter(e.target.value)}
+            placeholder="Filter tickers…"
+            className="pl-6 pr-3 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring w-44"
+          />
+          {tickerFilter && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+              {displayData.length}/{data.length}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-3 text-xs">
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30" /> Watchlist</span>
+        </div>
       </div>
 
       {/* Grid */}
-      <div className="border border-border rounded-md overflow-auto max-h-[calc(100vh-280px)]">
+      <div className="border border-border rounded-md overflow-auto max-h-[calc(100vh-300px)]">
         <table className="text-xs border-collapse min-w-max">
           <thead className="sticky top-0 z-20 bg-background">
-            {/* Family header row */}
+            {/* Family header row — shows family name + aggregate coverage */}
             <tr>
-              <th className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium" rowSpan={2}>
-                Ticker
+              <th
+                className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium cursor-pointer hover:bg-muted/30 select-none"
+                rowSpan={2}
+                onClick={() => handleSort("ticker")}
+              >
+                <span className="flex items-center gap-0.5">
+                  Ticker
+                  <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
+                </span>
               </th>
               {families.map(fam => {
                 const cols = COLS.filter(c => c.family === fam);
+                const cov = familyCoverage[fam];
+                const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
                 return (
                   <th
                     key={fam}
                     colSpan={cols.length}
                     className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
                   >
-                    {fam}
+                    <div>{fam}</div>
+                    <div className={cn(
+                      "text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80",
+                      pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-400"
+                    )}>
+                      {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
+                    </div>
                   </th>
                 );
               })}
             </tr>
-            {/* Column labels row */}
+            {/* Column labels row — shows label + per-column coverage + sort icon */}
             <tr>
-              {COLS.map((col, i) => (
-                <th
-                  key={col.key as string}
-                  className={cn(
-                    "border-b border-border px-2 py-1 font-medium whitespace-nowrap",
-                    i === COLS.length - 1 ? "" : "border-r",
-                    FAMILY_COLORS[col.family],
-                  )}
-                >
-                  {col.label}
-                </th>
-              ))}
+              {COLS.map((col, i) => {
+                const cov = colCoverage[col.key as string];
+                const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
+                const isActive = sortCol === (col.key as string);
+                return (
+                  <th
+                    key={col.key as string}
+                    onClick={() => handleSort(col.key as string)}
+                    className={cn(
+                      "border-b border-border px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-muted/30 select-none",
+                      i === COLS.length - 1 ? "" : "border-r",
+                      isActive ? FAMILY_COLORS[col.family] : FAMILY_COLORS[col.family],
+                    )}
+                  >
+                    <div className="flex items-center justify-end gap-0.5">
+                      <span>{col.label}</span>
+                      <SortIcon colKey={col.key as string} sortCol={sortCol} sortDir={sortDir} />
+                    </div>
+                    {cov && (
+                      <div className={cn(
+                        "text-[9px] font-normal text-right mt-0.5",
+                        pct === 0 ? "text-red-400/70" : pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-500/70"
+                      )}>
+                        {cov.filled}/{cov.total}
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {data.map((row, ri) => {
+            {displayData.map((row, ri) => {
               const f = row.fundamentals;
               const fetchedAt = f?.fundamentalsLastFetched ?? null;
               const source    = f?.lastSource ?? "fmp";
@@ -306,6 +427,13 @@ export function StockDBTab() {
                 </tr>
               );
             })}
+            {displayData.length === 0 && (
+              <tr>
+                <td colSpan={COLS.length + 1} className="py-8 text-center text-muted-foreground text-xs">
+                  No tickers match "{tickerFilter}"
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
