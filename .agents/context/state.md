@@ -6,9 +6,9 @@
 **build** — last updated 2026-06-26
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view
-- In progress: Fixed runtime crash: rawValues[pe_ratio] undefined in computeRankingsV2 (V1 key used in V2 structural-null block — added existence guards). Fixed /api/macro/risk-free-rate 500 (optional chaining on data.series.sofr?.value). API server rebuilt + restarted. App is now loading. Stock DB admin view needs UI enhancements: Fundamental label above value/growth/quality/safety, Technical score columns, status icon per ticker, Refresh button needs to trigger FMP refetch (currently only re-queries DB).
-- Blocked: FMP free tier daily limit exhausted (resets midnight UTC) — backfill:peers populates remaining 145 tickers. Stock DB Refresh button is DB-only, not FMP refetch — needs backend /fundamentals/refresh/:ticker endpoint.
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script
+- In progress: Wired Alpha Vantage (priority 7) and Polygon (priority 6) into stock-data-manager.ts waterfall with patchFundamentals merge logic. Built backfill-fundamentals.ts script scoped to WATCHLIST+peers (~158 tickers). Fixed Polygon rate limiting: MAX_CONCURRENT=1, sleep(13s). Fixed stock-db route to return ALL ticker_fundamentals rows (was filtered to WATCHLIST+peers only, now shows full DB). Run #1 completed: 170 rows in DB, 391 tickers got 0 fills (rate limited + budgets exhausted). Phase report written at .claude/docs/phase-report-stock-db-prefill.md.
+- Blocked: FMP resets midnight UTC. AV resets midnight UTC (25/day — do NOT run test-av-polygon.ts on backfill day). Polygon data only fills 7 income-stmt fields; FMP-only fields (freeCashFlow, evEbitda, evRevenue, wacc, revenueGrowthYoyPrior) stay null until FMP runs.
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
