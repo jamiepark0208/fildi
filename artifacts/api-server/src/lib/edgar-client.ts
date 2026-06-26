@@ -1,11 +1,12 @@
+import { sql } from "drizzle-orm";
+import { db, tickerCik } from "@workspace/db";
 import { logger } from "./logger.js";
 
 // ── SEC EDGAR XBRL client ─────────────────────────────────────────────────────
 // No API key required. EDGAR is a public US government service.
-// CIK lookup is cached in the ticker_cik DB table — only hits the EDGAR search
-// endpoint once per ticker, then reuses the cached CIK.
-// User-Agent is required by EDGAR ToS: TradeDash/1.0 jamiepark0208@gmail.com
-// Rate limit: no hard limit — sleep 500ms between retries to stay respectful.
+// CIK cache: bootstrapCikCache() fetches company_tickers.json once (~10k companies)
+// and bulk-upserts into ticker_cik. Subsequent lookups are DB-only.
+// User-Agent required by EDGAR ToS: TradeDash/1.0 jamiepark0208@gmail.com
 
 const UA = "TradeDash/1.0 jamiepark0208@gmail.com";
 
@@ -38,7 +39,7 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
     try {
       res = await fetch(url, {
         headers: { "User-Agent": UA, "Accept": "application/json" },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(20_000),
       });
     } catch (err) {
       if (attempt === maxRetries) throw err;
@@ -58,44 +59,62 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   }
 }
 
-// ── CIK lookup ────────────────────────────────────────────────────────────────
-// Tries the EDGAR company tickers JSON first (fast), falls back to browse-edgar
-// XML scrape. Result should be cached in ticker_cik by the caller.
+// ── CIK bootstrap ─────────────────────────────────────────────────────────────
+// Fetches company_tickers.json once (~10k companies) and bulk-upserts into
+// ticker_cik. Call once before the main backfill loop.
 
-export async function lookupCIK(ticker: string): Promise<string | null> {
-  const t = ticker.toUpperCase();
+export async function bootstrapCikCache(): Promise<number> {
+  logger.info("edgar: fetching bulk CIK map from company_tickers.json");
 
-  // Fast path: EDGAR publishes a company_tickers.json mapping
-  try {
-    const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (res.ok) {
-      const map = await res.json() as Record<string, { cik_str: number; ticker: string; title: string }>;
-      const entry = Object.values(map).find(e => e.ticker.toUpperCase() === t);
-      if (entry) return String(entry.cik_str).padStart(10, "0");
-    }
-  } catch { /* fall through to browse-edgar */ }
+  const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
+    headers: { "User-Agent": UA },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`edgar: company_tickers.json HTTP ${res.status}`);
 
-  // Slow fallback: browse-edgar XML
-  try {
-    const res = await fetch(
-      `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(t)}&type=&dateb=&owner=include&count=1&output=atom`,
-      { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) }
-    );
-    if (!res.ok) return null;
-    const xml = await res.text();
-    const m = xml.match(/CIK=(\d+)/);
-    if (m) return m[1].padStart(10, "0");
-  } catch { /* ignore */ }
+  const map = await res.json() as Record<string, { cik_str: number; ticker: string }>;
+  const entries = Object.values(map);
 
-  return null;
+  // Batch upsert in chunks of 500 to avoid query size limits
+  const CHUNK = 500;
+  let upserted = 0;
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    const chunk = entries.slice(i, i + CHUNK);
+    const values = chunk.map(e => ({
+      ticker:    e.ticker.toUpperCase(),
+      cik:       String(e.cik_str).padStart(10, "0"),
+      fetchedAt: new Date(),
+    }));
+    await db.insert(tickerCik)
+      .values(values)
+      .onConflictDoUpdate({
+        target: tickerCik.ticker,
+        set: {
+          cik:       sql`excluded.cik`,
+          fetchedAt: sql`now()`,
+        },
+      });
+    upserted += values.length;
+  }
+
+  logger.info({ upserted }, "edgar: CIK cache bootstrapped");
+  return upserted;
+}
+
+// ── CIK lookup from DB ────────────────────────────────────────────────────────
+
+export async function getCIK(ticker: string): Promise<string | null> {
+  const rows = await db
+    .select({ cik: tickerCik.cik })
+    .from(tickerCik)
+    .where(sql`${tickerCik.ticker} = ${ticker.toUpperCase()}`)
+    .limit(1);
+  return rows[0]?.cik ?? null;
 }
 
 // ── XBRL concept fetcher ──────────────────────────────────────────────────────
 
-type GaapEntry = { val: number; end: string; form: string; filed: string };
+type GaapEntry = { val: number; end: string; form: string };
 type GaapFacts = Record<string, { units?: { USD?: GaapEntry[]; shares?: GaapEntry[] } }>;
 
 function latestAnnual(gaap: GaapFacts, concept: string, unit: "USD" | "shares" = "USD"): number | undefined {
@@ -111,22 +130,19 @@ function latestAnnual(gaap: GaapFacts, concept: string, unit: "USD" | "shares" =
 
 export async function fetchEdgarFundamentals(
   ticker: string,
-  cachedCIK?: string | null,
 ): Promise<{ data: EdgarFundamentalsData; cik: string | null }> {
   const t = ticker.toUpperCase();
   logger.info({ ticker: t }, "edgar: fetching fundamentals");
 
-  // Resolve CIK
-  let cik = cachedCIK ?? await lookupCIK(t);
+  const cik = await getCIK(t);
   if (!cik) {
-    logger.warn({ ticker: t }, "edgar: CIK not found");
+    logger.warn({ ticker: t }, "edgar: CIK not in cache — run bootstrapCikCache() first");
     return { data: {}, cik: null };
   }
 
-  // Fetch company facts
   const facts = await fetchWithRetry(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
   if (!facts) {
-    logger.warn({ ticker: t, cik }, "edgar: company facts not found");
+    logger.warn({ ticker: t, cik }, "edgar: company facts not found (404)");
     return { data: {}, cik };
   }
 
@@ -162,7 +178,7 @@ export async function fetchEdgarFundamentals(
       edgar_grossProfit:        grossProfit,
       edgar_netIncome:          netIncome,
       edgar_ebit:               ebit,
-      edgar_ebitda:             undefined, // not directly available in XBRL
+      edgar_ebitda:             undefined,
       edgar_freeCashFlow:       freeCashFlow,
       edgar_operatingCashFlow:  opCF,
       edgar_capitalExpenditure: capex,
@@ -182,11 +198,13 @@ export async function fetchEdgarFundamentals(
 if (process.argv[1]?.endsWith("edgar-client.ts") || process.argv[1]?.endsWith("edgar-client.js")) {
   const ticker = process.argv[2] ?? "NVDA";
   console.log(`\nFetching EDGAR fundamentals for: ${ticker}\n`);
-  fetchEdgarFundamentals(ticker).then(({ data, cik }) => {
-    const filled = Object.values(data).filter(v => v !== undefined).length;
-    const total  = Object.keys(data).length;
-    console.log(`CIK: ${cik}`);
-    console.log(`Fields populated: ${filled} / ${total}`);
-    console.log(JSON.stringify(data, null, 2));
-  }).catch(err => { console.error(err.message); process.exit(1); });
+  bootstrapCikCache()
+    .then(() => fetchEdgarFundamentals(ticker))
+    .then(({ data, cik }) => {
+      const filled = Object.values(data).filter(v => v !== undefined).length;
+      console.log(`CIK: ${cik}`);
+      console.log(`Fields populated: ${filled} / ${Object.keys(data).length}`);
+      console.log(JSON.stringify(data, null, 2));
+    })
+    .catch(err => { console.error(err.message); process.exit(1); });
 }
