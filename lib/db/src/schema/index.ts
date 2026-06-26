@@ -672,3 +672,68 @@ export const sourceTickerMap = pgTable('source_ticker_map', {
 
 export type SourceTickerMap = typeof sourceTickerMap.$inferSelect
 export type InsertSourceTickerMap = typeof sourceTickerMap.$inferInsert
+
+// ── yahoo_fundamentals ────────────────────────────────────────────────────────
+// Raw Yahoo Finance data per ticker. One row per ticker, keyed by ticker.
+// Field names mirror Yahoo's own API field names (yahoo_ prefix) so the source
+// is always unambiguous. Never read by the scorer — ticker_fundamentals is the
+// scorer's source. This is a raw staging/audit table only.
+// Written by: yahoo-client.ts → backfill-yahoo.ts
+// Read by: validate-yahoo-fields.ts (comparison against FMP values)
+
+export const yahooFundamentals = pgTable('yahoo_fundamentals', {
+  ticker:     text('ticker').primaryKey(),
+  fetchedAt:  timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // financialData module (TTM) — margins/ratios as decimals, large numbers as raw dollars
+  yahooGrossMargins:       numeric('yahoo_gross_margins'),
+  yahooOperatingMargins:   numeric('yahoo_operating_margins'),
+  yahooProfitMargins:      numeric('yahoo_profit_margins'),
+  yahooReturnOnEquity:     numeric('yahoo_return_on_equity'),
+  yahooReturnOnAssets:     numeric('yahoo_return_on_assets'),
+  yahooRevenueGrowth:      numeric('yahoo_revenue_growth'),
+  yahooDebtToEquity:       numeric('yahoo_debt_to_equity'),  // normalized to raw ratio (not ×100)
+  yahooCurrentRatio:       numeric('yahoo_current_ratio'),
+  yahooTotalRevenue:       numeric('yahoo_total_revenue'),
+  yahooTotalDebt:          numeric('yahoo_total_debt'),
+  yahooTotalCash:          numeric('yahoo_total_cash'),
+  yahooFreeCashflow:       numeric('yahoo_free_cashflow'),
+  yahooOperatingCashflow:  numeric('yahoo_operating_cashflow'),
+  yahooEbitda:             numeric('yahoo_ebitda'),
+  yahooTargetMeanPrice:    numeric('yahoo_target_mean_price'),
+
+  // defaultKeyStatistics module
+  yahooForwardPe:              numeric('yahoo_forward_pe'),
+  yahooPegRatio:               numeric('yahoo_peg_ratio'),
+  yahooPriceToBook:            numeric('yahoo_price_to_book'),
+  yahooEnterpriseToEbitda:     numeric('yahoo_enterprise_to_ebitda'),
+  yahooEnterpriseToRevenue:    numeric('yahoo_enterprise_to_revenue'),
+  yahooTrailingEps:            numeric('yahoo_trailing_eps'),
+  yahooForwardEps:             numeric('yahoo_forward_eps'),
+  yahooBeta:                   numeric('yahoo_beta'),
+  yahooSharesOutstanding:      numeric('yahoo_shares_outstanding'),
+  yahooFloatShares:            numeric('yahoo_float_shares'),
+  yahooHeldPercentInsiders:    numeric('yahoo_held_percent_insiders'),
+  yahooShortRatio:             numeric('yahoo_short_ratio'),
+
+  // incomeStatementHistory module (most recent annual 10-K)
+  yahooAnnualTotalRevenue:  numeric('yahoo_annual_total_revenue'),
+  yahooAnnualGrossProfit:   numeric('yahoo_annual_gross_profit'),
+  yahooAnnualEbit:          numeric('yahoo_annual_ebit'),
+  yahooAnnualNetIncome:     numeric('yahoo_annual_net_income'),
+  yahooAnnualRevenueYoy:    numeric('yahoo_annual_revenue_yoy'),  // computed: (yr0-yr1)/|yr1|
+
+  // balanceSheetHistory module (most recent annual 10-K)
+  yahooAnnualCash:          numeric('yahoo_annual_cash'),
+  yahooAnnualTotalDebt:     numeric('yahoo_annual_total_debt'),   // longTermDebt + shortLongTermDebt
+  yahooAnnualTotalEquity:   numeric('yahoo_annual_total_equity'),
+
+  // cashflowStatementHistory module (most recent annual 10-K)
+  yahooAnnualOperatingCashFlow:  numeric('yahoo_annual_operating_cash_flow'),
+  yahooAnnualCapex:              numeric('yahoo_annual_capex'),           // stored positive
+  yahooAnnualFreeCashFlow:       numeric('yahoo_annual_free_cash_flow'),  // computed: opCF + capex
+})
+
+export const insertYahooFundamentalsSchema = createInsertSchema(yahooFundamentals).omit({ fetchedAt: true })
+export type InsertYahooFundamentals = z.infer<typeof insertYahooFundamentalsSchema>
+export type YahooFundamentalsRow = typeof yahooFundamentals.$inferSelect
