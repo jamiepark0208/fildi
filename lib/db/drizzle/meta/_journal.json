@@ -43,6 +43,13 @@
       "when": 1782491831564,
       "tag": "0005_nasty_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782500717245,
+      "tag": "0006_bright_whistler",
+      "breakpoints": true
     }
   ]
 }
