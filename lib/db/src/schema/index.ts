@@ -779,3 +779,61 @@ export const edgarFundamentals = pgTable('edgar_fundamentals', {
 export const insertEdgarFundamentalsSchema = createInsertSchema(edgarFundamentals).omit({ fetchedAt: true })
 export type InsertEdgarFundamentals = z.infer<typeof insertEdgarFundamentalsSchema>
 export type EdgarFundamentalsRow = typeof edgarFundamentals.$inferSelect
+
+// ── finnhub_fundamentals ──────────────────────────────────────────────────────
+// Raw Finnhub /stock/metric?metric=all data per ticker. One row per ticker.
+// Staging/audit table only — ticker_fundamentals is the scorer's source.
+// Written by: finnhub-client.ts → backfill-finnhub.ts
+
+export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
+  ticker:    text('ticker').primaryKey(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // Valuation
+  finnhubPeRatio:          numeric('finnhub_pe_ratio'),
+  finnhubPbRatio:          numeric('finnhub_pb_ratio'),
+  finnhubPsRatio:          numeric('finnhub_ps_ratio'),
+  finnhubPriceToBook:      numeric('finnhub_price_to_book'),       // pbAnnual
+  finnhubEv:               numeric('finnhub_ev'),
+  finnhubMarketCap:        numeric('finnhub_market_cap'),
+
+  // Margins (stored as decimals, e.g. 0.25 = 25%)
+  finnhubGrossMargin:      numeric('finnhub_gross_margin'),
+  finnhubOperatingMargin:  numeric('finnhub_operating_margin'),
+  finnhubNetMargin:        numeric('finnhub_net_margin'),
+  finnhubFcfMargin:        numeric('finnhub_fcf_margin'),
+
+  // Returns (stored as decimals)
+  finnhubReturnOnEquity:   numeric('finnhub_return_on_equity'),
+  finnhubReturnOnAssets:   numeric('finnhub_return_on_assets'),
+  finnhubRoic:             numeric('finnhub_roic'),
+
+  // Growth (stored as decimals)
+  finnhubRevenueGrowth:    numeric('finnhub_revenue_growth'),
+  finnhubEpsGrowth:        numeric('finnhub_eps_growth'),
+
+  // Leverage (stored as decimals)
+  finnhubDebtToEquity:          numeric('finnhub_debt_to_equity'),
+  finnhubLongTermDebtToEquity:  numeric('finnhub_long_term_debt_to_equity'),
+  finnhubNetDebtToEquity:       numeric('finnhub_net_debt_to_equity'),
+
+  // Liquidity
+  finnhubCurrentRatio:     numeric('finnhub_current_ratio'),
+  finnhubQuickRatio:       numeric('finnhub_quick_ratio'),
+
+  // Per-share
+  finnhubFcfPerShare:      numeric('finnhub_fcf_per_share'),
+  finnhubBookValue:        numeric('finnhub_book_value'),
+  finnhubBeta:             numeric('finnhub_beta'),
+  finnhubEps:              numeric('finnhub_eps'),
+  finnhubEbitPerShare:     numeric('finnhub_ebit_per_share'),
+  finnhubEarningsPerShare: numeric('finnhub_earnings_per_share'),
+
+  // Price range
+  finnhub52weekHigh:       numeric('finnhub_52week_high'),
+  finnhub52weekLow:        numeric('finnhub_52week_low'),
+})
+
+export const insertFinnhubFundamentalsSchema = createInsertSchema(finnhubFundamentals).omit({ fetchedAt: true })
+export type InsertFinnhubFundamentals = z.infer<typeof insertFinnhubFundamentalsSchema>
+export type FinnhubFundamentalsRow = typeof finnhubFundamentals.$inferSelect
