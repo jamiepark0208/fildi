@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-04
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script, yahoo-data-source, edgar-data-source
-- In progress: Yahoo Finance client (yahoo-client.ts) built using yahoo-finance2, uses fundamentalsTimeSeries for annual data. backfill-yahoo.ts ran successfully: 156/158 tickers, 5489 fields into yahoo_fundamentals. SEC EDGAR client (edgar-client.ts) built with bulk CIK bootstrap from company_tickers.json (10433 entries). backfill-edgar.ts ran: 158/158 tickers, 1443 fields into edgar_fundamentals. Both tables live in DB. Stock DB tab enhanced: ticker filter, sortable columns, per-column and per-family coverage fractions.
-- Blocked: FMP resets midnight UTC. AV resets midnight UTC (25/day). Polygon fills only 7 income-stmt fields. ADYEN and ZTO are foreign — not SEC filers, 0 EDGAR fields expected.
+- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script, yahoo-data-source, edgar-data-source, source-fundamentals-table, validate-sources, merge-trusted
+- In progress: Six staging tables built (yahoo/edgar/finnhub/fmp/polygon/av _fundamentals). source_fundamentals table created (PK: ticker+source+field, 11k+ rows). validate-sources.ts runs period-aware cross-source validation (grossMargin 88%, netMargin 96% TRUSTED). merge-trusted.ts uses per-field source priority (yahoo→finnhub→fmp for margins; yahoo→edgar→fmp for balance sheet) and gates on fmp_fundamentals 169-ticker universe. 2275 fields written to ticker_fundamentals. Rejection rules baked into populate-source-fundamentals.ts. Phase report at .claude/docs/phase-report-db-260704.md.
+- Blocked: FMP resets midnight UTC (25/day). AV resets midnight UTC (25/day). Polygon fills only 7 income-stmt fields. ADYEN and ZTO are foreign — not SEC filers, 0 EDGAR fields expected.
 
 ## Next tasks (priority order)
 1. **options-comparison-table** — side-by-side put option comparison UI
