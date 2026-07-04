@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { resolveField, writeProvenance, FIELD_DEFS } from "../scripts/merge-trusted.js";
+import { provenanceCache } from "../lib/provenance-cache.js";
 
 const router = Router();
 
@@ -115,6 +116,9 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
 router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) => {
   const ticker = String(req.params.ticker).toUpperCase();
   try {
+    const cached = provenanceCache.get(ticker);
+    if (cached) return res.json(cached);
+
     const [provRows, sfRows, overrideRows] = await Promise.all([
       db.select().from(fieldProvenance).where(eq(fieldProvenance.ticker, ticker)),
       db.select().from(sourceFundamentals).where(eq(sourceFundamentals.ticker, ticker)),
@@ -194,7 +198,9 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
         };
       });
 
-    return res.json({ ticker, fields });
+    const payload = { ticker, fields };
+    provenanceCache.set(ticker, payload);
+    return res.json(payload);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
@@ -239,6 +245,7 @@ router.put("/fundamentals/override", requireAdmin, async (req, res) => {
       ]);
     }
 
+    provenanceCache.delete(t);
     return res.json({ ok: true, resolved: result });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -272,6 +279,7 @@ router.delete("/fundamentals/override/:ticker/:field", requireAdmin, async (req,
       ]);
     }
 
+    provenanceCache.delete(t);
     return res.json({ ok: true, resolved: result });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

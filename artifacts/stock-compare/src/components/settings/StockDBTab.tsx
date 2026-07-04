@@ -200,15 +200,16 @@ export function StockDBTab() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: provData, isFetching: provFetching } = useQuery<ProvenanceData>({
+  const { data: provData, isFetching: provFetching, isError: provError, refetch: refetchProv } = useQuery<ProvenanceData>({
     queryKey: ["provenance", hoveredTicker],
-    queryFn: async () => {
-      const r = await fetch(`/api/fundamentals/provenance/${hoveredTicker}`, { credentials: "include" });
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`/api/fundamentals/provenance/${hoveredTicker}`, { credentials: "include", signal });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
     enabled: !!hoveredTicker,
-    staleTime: 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 
   const activeProv: FieldProv | null = useMemo(() => {
@@ -556,7 +557,20 @@ export function StockDBTab() {
         sideOffset={4}
         onInteractOutside={() => setActiveCell(null)}
       >
-        {!activeProv && (
+        {!activeProv && provError && (
+          <div className="p-3 flex flex-col gap-2">
+            <div className="text-red-400 flex items-center gap-1.5 text-xs">
+              <AlertTriangle className="h-3 w-3" /> Couldn't load source detail.
+            </div>
+            <button
+              onClick={() => refetchProv()}
+              className="text-[10px] px-2 py-1 border border-border rounded hover:bg-secondary self-start"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!activeProv && !provError && (
           <div className="p-3 text-muted-foreground flex items-center gap-2">
             {provFetching
               ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…</>

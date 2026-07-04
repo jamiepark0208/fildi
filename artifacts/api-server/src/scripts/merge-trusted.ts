@@ -24,6 +24,7 @@ import {
   type ManualOverridesRow,
 } from "@workspace/db";
 import { compareAll } from "./validate-sources.js";
+import { provenanceCache } from "../lib/provenance-cache.js";
 
 // ── Per-field source priority: [source, sf_field] pairs in priority order ────
 // sf_field = the canonical field name as stored in source_fundamentals
@@ -296,6 +297,8 @@ async function main() {
           },
         });
     }
+
+    provenanceCache.delete(ticker);
 
     const srcStr = Object.entries(tickerSourceUsage)
       .sort(([, a], [, b]) => b - a)
