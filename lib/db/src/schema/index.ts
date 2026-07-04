@@ -965,3 +965,23 @@ export const avFundamentals = pgTable('av_fundamentals', {
 export const insertAvFundamentalsSchema = createInsertSchema(avFundamentals).omit({ fetchedAt: true })
 export type InsertAvFundamentals = z.infer<typeof insertAvFundamentalsSchema>
 export type AvFundamentalsRow = typeof avFundamentals.$inferSelect
+
+// ── source_fundamentals ───────────────────────────────────────────────────────
+// Field-level cross-source store. One row per (ticker, source, field).
+// Enables "Yahoo returned 0.72 for NVDA grossMargin vs FMP returned 0.71" queries.
+// Populated by: snapshot-to-staging.ts and future backfill scripts.
+// NOT related to source_ticker_map (which tracks boolean source availability).
+
+export const sourceFundamentals = pgTable('source_fundamentals', {
+  ticker:    text('ticker').notNull(),
+  source:    text('source').notNull(),  // 'yahoo' | 'fmp' | 'edgar' | 'finnhub' | 'polygon' | 'alpha_vantage'
+  field:     text('field').notNull(),   // camelCase field name e.g. 'grossMargin', 'forwardPe'
+  value:     numeric('value').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.source, t.field] }),
+}))
+
+export const insertSourceFundamentalsSchema = createInsertSchema(sourceFundamentals).omit({ fetchedAt: true })
+export type InsertSourceFundamentals = z.infer<typeof insertSourceFundamentalsSchema>
+export type SourceFundamentalsRow = typeof sourceFundamentals.$inferSelect
