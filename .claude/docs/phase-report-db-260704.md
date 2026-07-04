@@ -353,3 +353,40 @@ New file `artifacts/api-server/src/routes/fundamentals-provenance.ts`, registere
 - `field_provenance` is empty until `merge-trusted.ts` is re-run — provenance popover will show "Hover to load" until then.
 - The FMP backfill (wacc, priceToSales, roic) is still blocked on quota reset (midnight UTC). Re-running merge-trusted after that backfill will populate field_provenance for those fields.
 - `openCell` callback captures `activeProv` at click time for override form pre-fill — if provenance fetch is still in flight at click time, the form fields will be empty (non-blocking, user can still type).
+
+---
+
+## Provenance Tooltip — Performance & Reliability Hardening (2026-07-04)
+
+### Audit findings (pre-fix)
+
+- GET /fundamentals/provenance/:ticker hit DB directly (3 queries) on every call — no server cache.
+- Hover fetch had no AbortController — late responses for rows the user left could land after moving on.
+- `isError` was not destructured from the provenance `useQuery` — popover had no error branch.
+- `TTLCache` had no `delete(key)` method — needed before per-ticker invalidation was possible.
+
+### Changes made
+
+**`lib/ttl-cache.ts`**: Added `delete(key: string)` method.
+
+**`lib/provenance-cache.ts`** (new): Single shared `TTLCache<object>` instance with 15-minute TTL, named `"provenance"`. Exported from here so both the route and the batch script can import it without circular dependency.
+
+**`routes/fundamentals-provenance.ts`**:
+- GET handler now checks `provenanceCache.get(ticker)` before querying DB; stores result with `provenanceCache.set(ticker, payload)` on miss.
+- PUT and DELETE handlers call `provenanceCache.delete(t)` after re-resolving and persisting, so the next hover fetch gets fresh data immediately.
+
+**`scripts/merge-trusted.ts`**: Imports `provenanceCache` and calls `provenanceCache.delete(ticker)` inside the batch loop after each ticker's DB writes — every ticker touched by a merge run is evicted from cache before the next GET can serve stale data.
+
+**`StockDBTab.tsx` (client)**:
+- Provenance `useQuery` now passes React Query's built-in `signal` to `fetch()` — in-flight requests auto-cancel when `hoveredTicker` changes (row change).
+- `staleTime` changed from 60s → 10 minutes. `refetchOnWindowFocus: true` added — catches batch merge runs that happened while the tab was in background.
+- Override mutations already invalidate `["provenance", ticker]` explicitly — save reflects immediately regardless of staleTime.
+- `isError` / `refetchProv` now destructured. Popover shows "Couldn't load source detail" + Retry button on fetch failure, instead of blank/loading fallback.
+
+### Cache invalidation summary
+
+| Trigger | Server cache | Client cache |
+|---|---|---|
+| Override PUT/DELETE | `provenanceCache.delete(ticker)` | `invalidateQueries(["provenance", ticker])` |
+| merge-trusted.ts batch | `provenanceCache.delete(ticker)` per ticker | staleTime expires OR refetch-on-focus |
+| TTL expiry | Auto (15 min) | Auto (10 min staleTime) |
