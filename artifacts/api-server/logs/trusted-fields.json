@@ -1,8 +1,22 @@
 {
   "trusted": {
+    "grossMargin": {
+      "preferredSource": "yahoo",
+      "passRate": 0.8767123287671232,
+      "fallbackSources": [
+        "finnhub"
+      ]
+    },
+    "netMargin": {
+      "preferredSource": "yahoo",
+      "passRate": 0.9640287769784173,
+      "fallbackSources": [
+        "finnhub"
+      ]
+    },
     "returnOnEquity": {
       "preferredSource": "yahoo",
-      "passRate": 0.8333333333333334,
+      "passRate": 0.851063829787234,
       "fallbackSources": [
         "finnhub"
       ]
@@ -21,35 +35,23 @@
       "topIssue": "HIGH_DIVERGENCE"
     },
     "currentRatio": {
-      "passRate": 0.26174496644295303,
+      "passRate": 0.2953020134228188,
       "topIssue": "HIGH_DIVERGENCE"
-    },
-    "debtToEquity": {
-      "passRate": 0,
-      "topIssue": "SCALE_MISMATCH"
     },
     "freeCashFlow": {
-      "passRate": 0.32710280373831774,
-      "topIssue": "HIGH_DIVERGENCE"
-    },
-    "grossMargin": {
-      "passRate": 0.6802721088435374,
-      "topIssue": "HIGH_DIVERGENCE"
-    },
-    "netMargin": {
-      "passRate": 0.609271523178808,
+      "passRate": 0,
       "topIssue": "HIGH_DIVERGENCE"
     },
     "operatingCashFlow": {
-      "passRate": 0.6949152542372882,
+      "passRate": 0,
       "topIssue": "HIGH_DIVERGENCE"
     },
     "operatingMargin": {
-      "passRate": 0.5637583892617449,
+      "passRate": 0.60431654676259,
       "topIssue": "HIGH_DIVERGENCE"
     },
     "priceToBook": {
-      "passRate": 0.03496503496503497,
+      "passRate": 0.06993006993006994,
       "topIssue": "HIGH_DIVERGENCE"
     },
     "returnOnAssets": {
@@ -65,8 +67,12 @@
       "topIssue": "HIGH_DIVERGENCE"
     },
     "totalRevenue": {
-      "passRate": 0.6637168141592921,
+      "passRate": 0,
       "topIssue": "HIGH_DIVERGENCE"
+    },
+    "debtToEquity": {
+      "passRate": 0,
+      "topIssue": "SKIP_VALIDATION (definitionally incompatible)"
     }
   }
 }
