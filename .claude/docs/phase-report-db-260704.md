@@ -267,3 +267,40 @@ grossMargin is best covered at 62/169 null (107/169 = 63% have a value).
 3. Write `backfill-av.ts` using `alpha-vantage-client.ts` → insert into `av_fundamentals` (25/day quota)
 4. Wait for FMP/AV quota resets (midnight UTC) then run backfills
 5. Cross-source reconciliation: compare all six sources against `ticker_fundamentals`
+
+---
+
+## Stock DB Tooltip + Override Feature — Pre-build Audit (2026-07-04)
+
+### A. Already exists / can reuse as-is
+
+| What | Location | Notes |
+|---|---|---|
+| `source_fundamentals` table | `lib/db/src/schema/index.ts:975` | PK: (ticker, source, field). Has 11k+ rows. Not wired to any live API endpoint — script-only. |
+| `Tooltip` + `Popover` UI components | `artifacts/stock-compare/src/components/ui/tooltip.tsx`, `popover.tsx` | Full Radix UI wrappers. StockDBTab currently uses plain HTML `title=` on `<td>` — neither component is used there yet. Popover is the right primitive for the rich cell overlay. |
+| `compareTwo()` / `compareAll()` divergence logic | `artifacts/api-server/src/scripts/validate-sources.ts:40–75` | Computes PASS/FAIL/SCALE_MISMATCH between source values per field. Script-only stdout output — not stored anywhere queryable. |
+| `ticker-mapping-overrides.json` | `artifacts/config/ticker-mapping-overrides.json` | Contains only 2 entries (IONQ, FSLY). This is **peer-group classification** overrides, not source-value overrides. Different concept entirely. |
+| `source_ticker_map` table | `lib/db/src/schema/index.ts:664` | Maps ticker → source-specific symbol (e.g. BRK.B → BRK-B). Ticker symbol aliasing only — unrelated to what we're building. |
+
+### B. Partially exists / needs extending
+
+**`merge-trusted.ts` FIELD_DEFS** (`artifacts/api-server/src/scripts/merge-trusted.ts:29–85`)
+The per-field source priority table is complete and correct. But `pickedSource` per field is tracked locally in `tickerSourceUsage` for console logging only — never persisted. To power the tooltip, merge-trusted needs to write `(ticker, field, winningSource, winningValue)` to a new `field_provenance` table or JSONB column. The priority logic itself should be reused directly.
+
+**`ticker_fundamentals.discrepancyFlags`** (`lib/db/src/schema/index.ts:174`)
+Already a `text` column storing comma-separated field names where FMP vs Yahoo diverged >20%. StockDBTab already reads it for cell highlight colors. Limitations: (1) only FMP vs Yahoo — not all source pairs, (2) doesn't store the actual diverging values, (3) written only by `stock-data-manager.ts`, not by `merge-trusted.ts`. Would need extending to cover all source pairs.
+
+**`stock-data-manager.ts` `lastSource` write** (line 119)
+Writes a single row-level `lastSource` string when its FMP/Yahoo waterfall runs. Not per-field. This is what the current StockDBTab tooltip reads.
+
+### C. Genuinely new (no precedent)
+
+- **`field_provenance` table** — needs to store `(ticker, field, winningSource, winningValue, fetchedAt)`. Nothing like this exists in schema or migrations.
+- **`manual_overrides` table** — no override table, no override concept, no half-built UI. `ticker-mapping-overrides.json` is a different concept.
+- **API endpoint for per-source field data** — `GET /fundamentals/stock-db` is the only fundamentals admin endpoint and returns only the merged `ticker_fundamentals` row. No endpoint exposes `source_fundamentals` or divergence data. Zero scaffolding.
+- **Rich cell Popover in StockDBTab** — Radix `Popover` exists but is unused in this tab. Current tooltip is a plain `title=` string.
+
+### Doc/code disagreements flagged
+
+- Schema comment on `source_fundamentals` says "Populated by: snapshot-to-staging.ts" — that file does not exist; the actual script is `populate-source-fundamentals.ts`.
+- `ticker_fundamentals` comment at line 166 still says "Written by the FMP refresh job" — inaccurate now that `merge-trusted.ts` is the writer.
