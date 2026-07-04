@@ -329,4 +329,5 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => { console.error("Fatal:", err); process.exit(1); });
+const isMain = process.argv[1]?.endsWith("merge-trusted.ts") || process.argv[1]?.endsWith("merge-trusted.js");
+if (isMain) main().catch((err) => { console.error("Fatal:", err); process.exit(1); });
