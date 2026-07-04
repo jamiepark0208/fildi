@@ -17,7 +17,7 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/merge-trusted.ts
  */
 
-import { db, sourceFundamentals, tickerFundamentals } from "@workspace/db";
+import { db, sourceFundamentals, tickerFundamentals, fmpFundamentals } from "@workspace/db";
 
 // ── Per-field source priority: [source, sf_field] pairs in priority order ────
 // sf_field = the canonical field name as stored in source_fundamentals
@@ -95,14 +95,20 @@ const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Load all source_fundamentals rows needed
-  const allSFFields = [...new Set(VALID_FIELD_DEFS.flatMap(({ priority }) => priority.map(([, f]) => f)))];
+  // Canonical ticker universe = fmp_fundamentals (169 tickers = Stock DB UI scope).
+  // Using fmp_fundamentals as the allowlist ensures we only UPDATE existing
+  // ticker_fundamentals rows and never INSERT new ones for out-of-scope tickers.
+  const fmpRows = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
+  const trackedTickers = new Set(fmpRows.map(r => r.ticker));
+  console.log(`Canonical universe: ${trackedTickers.size} tickers from fmp_fundamentals\n`);
+
   const sfRows = await db.select().from(sourceFundamentals);
 
-  // Index: ticker → sf_field → source → value
+  // Index: ticker → sf_field → source → value (only for tracked tickers)
   type SFIndex = Map<string, Map<string, Map<string, number>>>;
   const index: SFIndex = new Map();
   for (const row of sfRows) {
+    if (!trackedTickers.has(row.ticker)) continue;
     const val = parseFloat(String(row.value));
     if (!isFinite(val)) continue;
     if (!index.has(row.ticker)) index.set(row.ticker, new Map());
@@ -111,7 +117,8 @@ async function main() {
     byField.get(row.field)!.set(row.source, val);
   }
 
-  const allTickers = [...index.keys()].sort();
+  // Iterate over ALL tracked tickers (even those with no source_fundamentals data)
+  const allTickers = [...trackedTickers].sort();
   let totalTickersMerged = 0;
   let totalFieldsWritten = 0;
   const sourceUsage: Record<string, number> = {};
