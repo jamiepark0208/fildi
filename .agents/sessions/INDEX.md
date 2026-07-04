@@ -3,7 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
-- [2026-07-04](claude-2026-07-04.md) — Built complete multi-source fundamentals pipeline: 6 staging tables, source_fundamentals cross-source store, period-aware validation, and per-field priority merge — all gated to 169-ticker canonical universe. | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset — will fill wacc, priceToSales, roic
+- [2026-07-04](claude-2026-07-04.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset — will fill wacc, priceToSales, roic
 - [2026-06-26](claude-2026-06-26.md) — auto-saved | build | next: 1) Audit Finnhub implementation in stock-data-manager.ts — extract to finnhub-client.ts + finnhub_fundamentals table, same pattern as Yahoo/EDGAR. 2) Wait for FMP/Polygon/AV midnight reset then run backfill-fundamentals.ts. 3) Cross-source reconciliation: compare yahoo_fundamentals, edgar_fundamentals
 - [2026-06-25](claude-2026-06-25.md) — auto-saved | build | next: 1) Enhance Stock DB tab: add Fundamental group label, Technical columns, per-ticker status icon (queued/in-progress/done)
 - [2026-06-24](claude-2026-06-24.md) — auto-saved | build | next: Apply DB migration 0001 (run drizzle-kit migrate from Replit shell with env vars). Verify macro tab loads cleanly. Then file-split: options-scanner.tsx(1199L), stock-breakdown.tsx(1084L), portfolio.tsx(955L)
