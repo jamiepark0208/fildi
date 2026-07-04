@@ -148,6 +148,37 @@ const FMP_FIELDS: Record<string, string> = {
   fmpBeta:                       "beta",
 };
 
+// ── Rejection rules (applied before writing to source_fundamentals) ───────────
+// These mirror the SQL cleanup run on 2026-07-04. Any future backfill passes
+// through these guards so invalid values are never written.
+
+type RejectionRule = { fields: string[]; test: (v: number) => boolean; reason: string };
+
+const REJECTION_RULES: RejectionRule[] = [
+  {
+    fields: ["grossMargin", "operatingMargin", "netMargin"],
+    test: (v) => v > 1.0 || v < -1.0,
+    reason: "margin outside [-1, 1] range",
+  },
+  {
+    fields: ["returnOnEquity", "returnOnAssets"],
+    test: (v) => Math.abs(v) > 2.0,
+    reason: "|ROE/ROA| > 2.0 (200%)",
+  },
+  {
+    fields: ["currentRatio", "priceToBook", "peRatio"],
+    test: (v) => v < 0,
+    reason: "ratio cannot be negative",
+  },
+];
+
+function isRejected(field: string, value: number): boolean {
+  for (const rule of REJECTION_RULES) {
+    if (rule.fields.includes(field) && rule.test(value)) return true;
+  }
+  return false;
+}
+
 // ── Core function ─────────────────────────────────────────────────────────────
 
 async function populateFromTable(
@@ -158,6 +189,7 @@ async function populateFromTable(
 ) {
   let tickers = 0;
   let totalFields = 0;
+  let rejected = 0;
 
   for (const row of rows) {
     const ticker = row["ticker"] as string;
@@ -169,6 +201,7 @@ async function populateFromTable(
       if (val === null || val === undefined) continue;
       const numVal = typeof val === "string" ? parseFloat(val) : Number(val);
       if (!isFinite(numVal)) continue;
+      if (isRejected(canonical, numVal)) { rejected++; continue; }
       batch.push({ ticker, source, field: canonical, value: String(numVal), fetchedAt });
     }
 
@@ -190,7 +223,7 @@ async function populateFromTable(
     totalFields += batch.length;
   }
 
-  return { tickers, totalFields };
+  return { tickers, totalFields, rejected };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -207,26 +240,27 @@ async function main() {
 
   console.log("\nPopulating from yahoo_fundamentals …");
   const yahoo = await populateFromTable(yahooRows as Row[], "yahoo", YAHOO_FIELDS, "fetchedAt");
-  console.log(`  → ${yahoo.tickers} tickers, ${yahoo.totalFields} fields`);
+  console.log(`  → ${yahoo.tickers} tickers, ${yahoo.totalFields} fields, ${yahoo.rejected} rejected`);
 
   console.log("Populating from edgar_fundamentals …");
   const edgar = await populateFromTable(edgarRows as Row[], "edgar", EDGAR_FIELDS, "fetchedAt");
-  console.log(`  → ${edgar.tickers} tickers, ${edgar.totalFields} fields`);
+  console.log(`  → ${edgar.tickers} tickers, ${edgar.totalFields} fields, ${edgar.rejected} rejected`);
 
   console.log("Populating from finnhub_fundamentals …");
   const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt");
-  console.log(`  → ${finnhub.tickers} tickers, ${finnhub.totalFields} fields`);
+  console.log(`  → ${finnhub.tickers} tickers, ${finnhub.totalFields} fields, ${finnhub.rejected} rejected`);
 
   console.log("Populating from fmp_fundamentals …");
   const fmp = await populateFromTable(fmpRows as Row[], "fmp", FMP_FIELDS, "fetchedAt");
-  console.log(`  → ${fmp.tickers} tickers, ${fmp.totalFields} fields`);
+  console.log(`  → ${fmp.tickers} tickers, ${fmp.totalFields} fields, ${fmp.rejected} rejected`);
 
+  const totalRejected = yahoo.rejected + edgar.rejected + finnhub.rejected + fmp.rejected;
   console.log("\nSummary:");
   console.log(`  yahoo:   ${yahoo.tickers} tickers, ${yahoo.totalFields} fields`);
   console.log(`  edgar:   ${edgar.tickers} tickers, ${edgar.totalFields} fields`);
   console.log(`  finnhub: ${finnhub.tickers} tickers, ${finnhub.totalFields} fields`);
   console.log(`  fmp:     ${fmp.tickers} tickers, ${fmp.totalFields} fields`);
-  console.log(`  TOTAL:   ${yahoo.totalFields + edgar.totalFields + finnhub.totalFields + fmp.totalFields} rows in source_fundamentals`);
+  console.log(`  TOTAL:   ${yahoo.totalFields + edgar.totalFields + finnhub.totalFields + fmp.totalFields} rows written, ${totalRejected} rejected`);
 
   process.exit(0);
 }

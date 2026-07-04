@@ -1,87 +1,107 @@
 /**
- * Merge TRUSTED_FIELDS from source_fundamentals into ticker_fundamentals.
- * Reads trusted-fields.json produced by validate-sources.ts.
+ * Merge fundamentals into ticker_fundamentals using per-field source priority.
+ * Reads source_fundamentals; does NOT depend on trusted-fields.json (priority is hardcoded here).
  *
- * For each trusted field: picks value from preferred source, falls back to
- * next source if preferred has no value for that ticker.
- * Only writes to ticker_fundamentals columns that exist.
+ * Priority rules (first non-null source wins per field):
+ *   Valuation ratios:   yahoo → finnhub → fmp
+ *   Margins/returns:    yahoo → finnhub → fmp  (never edgar — period mismatch)
+ *   Growth:             yahoo(revenueGrowth) → finnhub(revenueGrowth) → fmp(revenueGrowthYoY)
+ *   debtToEquity:       yahoo → fmp  (never finnhub — different definition)
+ *   Balance sheet:      yahoo → finnhub → edgar → fmp
+ *   Income statement $: yahoo(annual) → fmp → edgar
+ *   Cash flow:          yahoo → fmp → edgar
+ *   Market/other:       yahoo → finnhub → fmp
+ *
+ * Existing ticker_fundamentals values are preserved when no source has data for that field.
  *
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/merge-trusted.ts
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { eq, inArray } from "drizzle-orm";
 import { db, sourceFundamentals, tickerFundamentals } from "@workspace/db";
-import { sql } from "drizzle-orm";
 
-// ── Field mapping: canonical name → ticker_fundamentals JS property ───────────
-// Only fields that have a direct column in ticker_fundamentals.
-// operatingCashFlow is excluded (annual ≠ quarterlyOperatingCashFlow).
+// ── Per-field source priority: [source, sf_field] pairs in priority order ────
+// sf_field = the canonical field name as stored in source_fundamentals
+// tf_col   = the ticker_fundamentals JS property to write
 
-const FIELD_TO_TF: Record<string, keyof typeof tickerFundamentals.$inferInsert> = {
-  grossMargin:       "grossMargin",
-  netMargin:         "netMargin",
-  operatingMargin:   "operatingMargin",
-  returnOnEquity:    "returnOnEquity",
-  returnOnAssets:    "returnOnAssets",
-  beta:              "beta",
-  currentRatio:      "currentRatio",
-  priceToBook:       "priceToBook",
-  debtToEquity:      "debtToEquity",
-  revenueGrowth:     "revenueGrowthYoY",   // yahoo TTM YoY ≈ revenueGrowthYoY
-  freeCashFlow:      "freeCashFlow",
-  totalRevenue:      "totalRevenue",
-  totalDebt:         "totalDebt",
-  sharesOutstanding: "sharesOutstanding",
-  // operatingCashFlow → skip (annual OCF ≠ quarterlyOperatingCashFlow)
-};
+type SFPair = [source: string, sfField: string];
+type FieldDef = { tfCol: keyof typeof tickerFundamentals.$inferInsert; priority: SFPair[] };
 
-// ── Load trusted-fields.json ──────────────────────────────────────────────────
+const FIELD_DEFS: FieldDef[] = [
+  // ── Valuation ratios ──────────────────────────────────────────────────────
+  { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"]] },
+  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"]] },
+  { tfCol: "pegRatio",           priority: [["yahoo","pegRatio"],     ["fmp","pegRatio"]] },
+  { tfCol: "evEbitda",           priority: [["yahoo","evEbitda"],     ["fmp","evEbitda"]] },
+  { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
+  { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"]] },
+  { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["fmp","priceToSales"]] },
 
-interface TrustedEntry {
-  preferredSource: string;
-  passRate: number;
-  fallbackSources: string[];
-}
+  // ── Margins & returns (TTM: yahoo → finnhub → fmp, never edgar) ───────────
+  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"]] },
+  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"]] },
+  { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"]] },
+  { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"]] },
+  { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"]] },
+  { tfCol: "roic",               priority: [["finnhub","roic"],           ["fmp","roic"]] },
 
-interface TrustedFields {
-  trusted: Record<string, TrustedEntry>;
-  disputed: Record<string, { passRate: number; topIssue: string }>;
-}
+  // ── Growth ────────────────────────────────────────────────────────────────
+  // yahoo/finnhub store as "revenueGrowth", fmp stores as "revenueGrowthYoY"
+  { tfCol: "revenueGrowthYoY",   priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
+  { tfCol: "revenueGrowthYoyPrior", priority: [["fmp","revenueGrowthYoyPrior"]] },
+  { tfCol: "epsGrowth",          priority: [["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
 
-function loadTrustedFields(): TrustedFields {
-  const jsonPath = path.join(process.cwd(), "logs/trusted-fields.json");
-  if (!fs.existsSync(jsonPath)) {
-    throw new Error(`trusted-fields.json not found at ${jsonPath}. Run validate-sources.ts first.`);
-  }
-  return JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-}
+  // ── debtToEquity: yahoo only → fmp fallback (never finnhub — different def) ─
+  { tfCol: "debtToEquity",       priority: [["yahoo","debtToEquity"],  ["fmp","debtToEquity"]] },
+
+  // ── Balance sheet ─────────────────────────────────────────────────────────
+  // yahoo has "totalCash" (TTM cash), edgar/fmp have "cashAndEquivalents"
+  { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"],            ["edgar","cashAndEquivalents"],       ["fmp","cashAndEquivalents"]] },
+  { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["edgar","totalDebt"],                ["fmp","totalDebt"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["edgar","totalEquity"],          ["fmp","totalStockholdersEquity"]] },
+  { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["edgar","sharesOutstanding"],        ["fmp","sharesOutstanding"]] },
+  { tfCol: "sharesOutstandingPrior",  priority: [["fmp","sharesOutstandingPrior"]] },
+  { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"]] },
+
+  // ── Income statement (absolute $) ─────────────────────────────────────────
+  // yahoo annual fields → fmp → edgar
+  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["edgar","totalRevenue"]] },
+  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"]] },
+  { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["edgar","ebitda"]] },
+  { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
+  { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,  // not in TF schema, skip below
+  { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"]] },
+  { tfCol: "effectiveTaxRate",   priority: [["fmp","effectiveTaxRate"]] },
+  { tfCol: "wacc",               priority: [["fmp","wacc"]] },
+
+  // ── Cash flow ─────────────────────────────────────────────────────────────
+  { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"]] },
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["fmp","quarterlyOperatingCashFlow"]] },
+
+  // ── Market / other ────────────────────────────────────────────────────────
+  { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"]] },
+  { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["fmp","dividendYield"]] },
+  { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"]] },
+  { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"]] },
+];
+
+// Filter out fields not in ticker_fundamentals schema
+const TF_COLS = new Set(Object.keys(tickerFundamentals) as string[]);
+const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => {
+  // grossProfit has no TF column — skip
+  if (tfCol === "grossProfit" as any) return false;
+  return true;
+});
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const { trusted, disputed } = loadTrustedFields();
+  // Load all source_fundamentals rows needed
+  const allSFFields = [...new Set(VALID_FIELD_DEFS.flatMap(({ priority }) => priority.map(([, f]) => f)))];
+  const sfRows = await db.select().from(sourceFundamentals);
 
-  // Only process trusted fields that have a ticker_fundamentals column
-  const mergeableFields = Object.entries(trusted).filter(([field]) => FIELD_TO_TF[field]);
-  const skippedFields = Object.keys(trusted).filter((f) => !FIELD_TO_TF[f]);
-
-  console.log(`Trusted fields: ${Object.keys(trusted).length} total, ${mergeableFields.length} mergeable, ${skippedFields.length} skipped (no TF column)`);
-  if (skippedFields.length > 0) console.log(`  Skipped: ${skippedFields.join(", ")}`);
-  console.log(`Disputed fields (untouched): ${Object.keys(disputed).join(", ")}\n`);
-
-  // Load all relevant source_fundamentals rows in one query
-  const relevantFields = mergeableFields.map(([f]) => f);
-  const allSources = [...new Set(mergeableFields.flatMap(([, e]) => [e.preferredSource, ...e.fallbackSources]))];
-
-  const sfRows = await db
-    .select()
-    .from(sourceFundamentals)
-    .where(inArray(sourceFundamentals.field, relevantFields));
-
-  // Index: ticker → field → source → value
-  const index = new Map<string, Map<string, Map<string, number>>>();
+  // Index: ticker → sf_field → source → value
+  type SFIndex = Map<string, Map<string, Map<string, number>>>;
+  const index: SFIndex = new Map();
   for (const row of sfRows) {
     const val = parseFloat(String(row.value));
     if (!isFinite(val)) continue;
@@ -91,51 +111,42 @@ async function main() {
     byField.get(row.field)!.set(row.source, val);
   }
 
-  // Get all tickers in source_fundamentals for these fields
   const allTickers = [...index.keys()].sort();
-
   let totalTickersMerged = 0;
   let totalFieldsWritten = 0;
+  const sourceUsage: Record<string, number> = {};
   const fieldNullCount: Record<string, number> = {};
-
-  for (const [field] of mergeableFields) fieldNullCount[field] = 0;
+  for (const { tfCol } of VALID_FIELD_DEFS) fieldNullCount[tfCol as string] = 0;
 
   for (const ticker of allTickers) {
-    const byField = index.get(ticker);
-    if (!byField) continue;
+    const byField = index.get(ticker)!;
+    const update: Record<string, number> = {};
+    const tickerSourceUsage: Record<string, number> = {};
 
-    const update: Record<string, number | null> = {};
-    let fieldsThisTicker = 0;
-
-    for (const [field, entry] of mergeableFields) {
-      const tfCol = FIELD_TO_TF[field]!;
-      const bySource = byField.get(field);
-
-      if (!bySource) {
-        fieldNullCount[field]++;
-        continue;
-      }
-
-      // Try preferred source first, then fallbacks
-      const sourceOrder = [entry.preferredSource, ...entry.fallbackSources];
+    for (const { tfCol, priority } of VALID_FIELD_DEFS) {
       let picked: number | undefined;
-      for (const src of sourceOrder) {
-        const v = bySource.get(src);
-        if (v !== undefined && isFinite(v)) { picked = v; break; }
+      let pickedSource: string | undefined;
+
+      for (const [src, sfField] of priority) {
+        const val = byField.get(sfField)?.get(src);
+        if (val !== undefined && isFinite(val)) {
+          picked = val;
+          pickedSource = src;
+          break;
+        }
       }
 
-      if (picked === undefined) {
-        fieldNullCount[field]++;
-        continue;
+      if (picked !== undefined && pickedSource !== undefined) {
+        update[tfCol as string] = picked;
+        tickerSourceUsage[pickedSource] = (tickerSourceUsage[pickedSource] ?? 0) + 1;
+        sourceUsage[pickedSource] = (sourceUsage[pickedSource] ?? 0) + 1;
+      } else {
+        fieldNullCount[tfCol as string]++;
       }
-
-      update[tfCol as string] = picked;
-      fieldsThisTicker++;
     }
 
-    if (fieldsThisTicker === 0) continue;
+    if (Object.keys(update).length === 0) continue;
 
-    // Upsert into ticker_fundamentals — only update the fields we have values for
     await db
       .insert(tickerFundamentals)
       .values({ ticker, ...update } as any)
@@ -144,31 +155,33 @@ async function main() {
         set: update as any,
       });
 
-    console.log(`[${ticker}] merged ${fieldsThisTicker} trusted fields`);
+    const srcStr = Object.entries(tickerSourceUsage)
+      .sort(([, a], [, b]) => b - a)
+      .map(([s, n]) => `${s}:${n}`)
+      .join(" ");
+    console.log(`[${ticker}] merged ${Object.keys(update).length} fields — sources used: ${srcStr}`);
     totalTickersMerged++;
-    totalFieldsWritten += fieldsThisTicker;
+    totalFieldsWritten += Object.keys(update).length;
   }
 
-  // Fields still null across >20% of all tickers
   const nullThreshold = Math.ceil(allTickers.length * 0.2);
   const highNullFields = Object.entries(fieldNullCount)
-    .filter(([, count]) => count > nullThreshold)
+    .filter(([, n]) => n > nullThreshold)
     .sort(([, a], [, b]) => b - a)
-    .map(([f, count]) => `${f}(${count}/${allTickers.length} null)`);
+    .map(([f, n]) => `${f}(${n}/${allTickers.length})`);
+
+  const srcBreakdown = Object.entries(sourceUsage)
+    .sort(([, a], [, b]) => b - a)
+    .map(([s, n]) => `${s}=${n}`)
+    .join("  ");
 
   console.log(`\nSummary:`);
   console.log(`  Total tickers merged:  ${totalTickersMerged}`);
   console.log(`  Total fields written:  ${totalFieldsWritten}`);
+  console.log(`  Source usage breakdown: ${srcBreakdown}`);
   console.log(`  Fields null >20% of tickers: ${highNullFields.length > 0 ? highNullFields.join(", ") : "none"}`);
-  console.log(`\nDisputed fields left untouched in ticker_fundamentals:`);
-  for (const [f, info] of Object.entries(disputed)) {
-    console.log(`  ${f.padEnd(22)} pass_rate=${(info.passRate * 100).toFixed(0)}%  issue=${info.topIssue}`);
-  }
 
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+main().catch((err) => { console.error("Fatal:", err); process.exit(1); });

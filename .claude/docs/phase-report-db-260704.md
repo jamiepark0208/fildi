@@ -161,6 +161,65 @@ Notable divergences visible for same canonical field:
 - Fields null >20% of tickers: none
 - Disputed fields: untouched in ticker_fundamentals (awaiting FMP backfill as tiebreaker)
 
+## Step 9: Data cleanup + period-aware validation + per-field priority merge (2026-07-04)
+
+### Step 9a — source_fundamentals cleanup (81 rows deleted)
+
+| Rule | Rows deleted | Notable tickers |
+|---|---|---|
+| margin fields outside [-1, 1] | 76 | EDGAR grossMargin errors: ADI(1.09), AVGO(2.08), HUBS(18.2), MSFT(3.1), CRM(3.8), etc. Many pre-revenue companies (SPCE, ACHR, JOBY) with extreme margins |
+| \|ROE/ROA\| > 2.0 | 4 | BOX(-5.76), REBN(-4.30), RDFN(-2.62), SUPX(-2.29) |
+| negative currentRatio/priceToBook/peRatio | 1 | INTC fmp peRatio(-614.6) |
+
+Rejection rules now baked into `populate-source-fundamentals.ts` — future backfills reject at write time.
+
+### Step 9b — Period-aware re-validation (updated validate-sources.ts)
+
+Key changes:
+- TTM-only fields (grossMargin, netMargin, operatingMargin, returnOnEquity, returnOnAssets, revenueGrowth, totalRevenue, freeCashFlow, operatingCashFlow, ebitda): EDGAR excluded — period mismatch
+- priceToBook: new mid-range bucket (10 < abs < 1000) uses relative 10% threshold instead of absolute ±0.05
+- debtToEquity: SKIP_VALIDATION — definitionally incompatible across sources
+
+| Field | Before | After | Change |
+|---|---|---|---|
+| grossMargin | 68% | 88% ✓ TRUSTED | +20pp — EDGAR errors removed |
+| netMargin | 61% | 96% ✓ TRUSTED | +35pp — EDGAR errors removed |
+| returnOnEquity | 83% | 85% ✓ TRUSTED | +2pp |
+| sharesOutstanding | 82% | 82% ✓ TRUSTED | unchanged |
+| operatingMargin | 56% | 60% DISPUTED | still below threshold |
+| priceToBook | 3% | 7% DISPUTED | mid-range fix helps marginally |
+| totalRevenue / freeCashFlow / operatingCashFlow | 66%/33%/69% | 0% | no comparable pairs after excluding EDGAR (finnhub doesn't carry these fields) |
+
+Note: 0% disputed fields for totalRevenue etc. are informational only — merge uses hardcoded priority, not TRUSTED/DISPUTED list.
+
+### Step 9c — Per-field priority merge (rewritten merge-trusted.ts)
+
+Priority rules by field family (hardcoded, not driven by trusted-fields.json):
+- Valuation: yahoo → finnhub → fmp
+- Margins/returns: yahoo → finnhub → fmp (never edgar)
+- Growth: yahoo(revenueGrowth) → finnhub → fmp(revenueGrowthYoY)
+- debtToEquity: yahoo → fmp (never finnhub)
+- Balance sheet: yahoo → finnhub → edgar → fmp
+- Income statement: yahoo(annual) → fmp → edgar
+- Cash flow: yahoo → fmp → edgar
+- Market/other: yahoo → finnhub → fmp
+
+**Results:**
+
+| Metric | Value |
+|---|---|
+| Total tickers merged | 280 |
+| Total fields written | 5103 |
+| yahoo fields | 3585 (70%) |
+| fmp fields | 1030 (20%) |
+| finnhub fields | 273 (5%) |
+| edgar fields | 215 (4%) |
+
+**Fields still null >20% of tickers (FMP/Polygon/AV targets):**
+wacc(280/280), priceToSales(268/280), roic(268/280), revenueGrowthYoyPrior(268/280), sharesOutstandingPrior(268/280), effectiveTaxRate(268/280), dividendYield(253/280), epsGrowth(191/280), interestExpense(186/280), peRatio(153/280), pegRatio(145/280), debtToEquity(135/280), evEbitda(132/280), ebit(129/280), evRevenue(126/280), sharesOutstanding(126/280), cashAndEquivalents(125/280), freeCashFlow(125/280), quarterlyOperatingCashFlow(124/280), priceToBook(123/280), returnOnAssets(121/280), revenueGrowthYoY(121/280), currentRatio(120/280), earningsPerShare(120/280), forwardPe(115/280), ebitda(113/280), analystTargetPrice(110/280), netMargin(106/280), returnOnEquity(105/280), beta(103/280)
+
+Note: grossMargin(62/280) is the best-covered field. The high null counts reflect that 280 includes tickers tracked only by fmp/finnhub/edgar without full Yahoo coverage — FMP backfill will fill most of these.
+
 ## Next steps
 
 1. Write `backfill-fmp.ts` using `fmp-client.ts` → re-fetch and upsert into `fmp_fundamentals` (after quota reset)
