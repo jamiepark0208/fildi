@@ -71,6 +71,7 @@ interface ColDef {
   family: "value" | "growth" | "quality" | "safety" | "meta";
   fmt: FmtType;
   suspect?: (v: number) => boolean;
+  optional?: boolean; // null means N/A, not missing data — shown as muted dash
 }
 
 const COLS: ColDef[] = [
@@ -82,7 +83,7 @@ const COLS: ColDef[] = [
   { key: "priceToSales",        label: "P/S",        family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
   { key: "evEbitda",            label: "EV/EBITDA",  family: "value",   fmt: "ratio",  suspect: v => v < -50 || v > 200 },
   { key: "evRevenue",           label: "EV/Rev",     family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
-  { key: "dividendYield",       label: "Div Yield",  family: "value",   fmt: "pct",    suspect: v => v < 0 || v > 0.3 },
+  { key: "dividendYield",       label: "Div Yield",  family: "value",   fmt: "pct",    suspect: v => v < 0 || v > 0.3, optional: true },
   // GROWTH
   { key: "revenueGrowthYoY",    label: "Rev Growth", family: "growth",  fmt: "pct",    suspect: v => v > 5 || v < -0.9 },
   { key: "revenueGrowthYoyPrior",label:"Rev Gro Pr", family: "growth",  fmt: "pct",    suspect: v => v > 5 || v < -0.9 },
@@ -498,6 +499,7 @@ export function StockDBTab() {
                   {COLS.map((col, ci) => {
                     const raw = f ? (f[col.key] as string | null) : null;
                     const isNull = raw == null;
+                    const isOptionalNull = isNull && !!col.optional;
                     const suspect = isSuspect(col, raw);
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
@@ -511,13 +513,14 @@ export function StockDBTab() {
                           "px-2 py-1 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
                           isActive && "ring-1 ring-inset ring-primary/50",
-                          isNull   && "bg-red-500/15 text-red-400/70",
+                          isOptionalNull && "text-muted-foreground/40",
+                          !isOptionalNull && isNull && "bg-red-500/15 text-red-400/70",
                           !isNull && suspect && "bg-amber-500/15 text-amber-300",
                           !isNull && !suspect && hasFlag && "bg-orange-500/15 text-orange-300",
                           !isNull && !suspect && !hasFlag && "text-foreground",
                         )}
                       >
-                        {isNull ? <span className="text-red-500/50">null</span> : fmt(raw, col.fmt)}
+                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : fmt(raw, col.fmt)}
                       </td>
                     );
                   })}
