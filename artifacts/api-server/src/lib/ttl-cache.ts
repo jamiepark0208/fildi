@@ -37,6 +37,10 @@ export class TTLCache<T> {
     this.ttlMs = ms;
   }
 
+  delete(key: string) {
+    this.store.delete(key);
+  }
+
   clear() {
     this.store.clear();
   }
