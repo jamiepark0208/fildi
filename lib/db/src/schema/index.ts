@@ -837,3 +837,131 @@ export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
 export const insertFinnhubFundamentalsSchema = createInsertSchema(finnhubFundamentals).omit({ fetchedAt: true })
 export type InsertFinnhubFundamentals = z.infer<typeof insertFinnhubFundamentalsSchema>
 export type FinnhubFundamentalsRow = typeof finnhubFundamentals.$inferSelect
+
+// ── fmp_fundamentals ──────────────────────────────────────────────────────────
+// Raw Financial Modeling Prep data per ticker. One row per ticker.
+// Staging/audit table only — ticker_fundamentals is the scorer's source.
+// Written by: fmp-client.ts → backfill-fmp.ts
+
+export const fmpFundamentals = pgTable('fmp_fundamentals', {
+  ticker:    text('ticker').primaryKey(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // Valuation
+  fmpPeRatio:           numeric('fmp_pe_ratio'),
+  fmpPegRatio:          numeric('fmp_peg_ratio'),
+  fmpForwardPe:         numeric('fmp_forward_pe'),
+  fmpEvEbitda:          numeric('fmp_ev_ebitda'),
+  fmpEvRevenue:         numeric('fmp_ev_revenue'),
+  fmpPriceToBook:       numeric('fmp_price_to_book'),
+  fmpPriceToSales:      numeric('fmp_price_to_sales'),
+  fmpAnalystTargetPrice: numeric('fmp_analyst_target_price'),
+
+  // Growth
+  fmpRevenueGrowthYoY:       numeric('fmp_revenue_growth_yoy'),
+  fmpRevenueGrowthYoyPrior:  numeric('fmp_revenue_growth_yoy_prior'),
+  fmpEpsGrowth:              numeric('fmp_eps_growth'),
+  fmpEarningsPerShare:       numeric('fmp_earnings_per_share'),
+
+  // Margins & Returns (stored as decimals)
+  fmpGrossMargin:       numeric('fmp_gross_margin'),
+  fmpOperatingMargin:   numeric('fmp_operating_margin'),
+  fmpNetMargin:         numeric('fmp_net_margin'),
+  fmpReturnOnEquity:    numeric('fmp_return_on_equity'),
+  fmpReturnOnAssets:    numeric('fmp_return_on_assets'),
+  fmpEffectiveTaxRate:  numeric('fmp_effective_tax_rate'),
+
+  // Income statement
+  fmpTotalRevenue:      numeric('fmp_total_revenue'),
+  fmpNetIncome:         numeric('fmp_net_income'),
+  fmpEbitda:            numeric('fmp_ebitda'),
+  fmpEbit:              numeric('fmp_ebit'),
+  fmpInterestExpense:   numeric('fmp_interest_expense'),  // stored positive
+  fmpFreeCashFlow:      numeric('fmp_free_cash_flow'),
+
+  // Balance sheet & liquidity
+  fmpCurrentRatio:               numeric('fmp_current_ratio'),
+  fmpDebtToEquity:               numeric('fmp_debt_to_equity'),
+  fmpTotalDebt:                  numeric('fmp_total_debt'),
+  fmpTotalStockholdersEquity:    numeric('fmp_total_stockholders_equity'),
+  fmpCashAndEquivalents:         numeric('fmp_cash_and_equivalents'),
+  fmpWacc:                       numeric('fmp_wacc'),
+  fmpRoic:                       numeric('fmp_roic'),
+
+  // Cash flow
+  fmpQuarterlyOperatingCashFlow: numeric('fmp_quarterly_operating_cash_flow'),
+
+  // Share data
+  fmpSharesOutstanding:      numeric('fmp_shares_outstanding'),
+  fmpSharesOutstandingPrior: numeric('fmp_shares_outstanding_prior'),
+  fmpDividendYield:          numeric('fmp_dividend_yield'),
+  fmpBeta:                   numeric('fmp_beta'),
+})
+
+export const insertFmpFundamentalsSchema = createInsertSchema(fmpFundamentals).omit({ fetchedAt: true })
+export type InsertFmpFundamentals = z.infer<typeof insertFmpFundamentalsSchema>
+export type FmpFundamentalsRow = typeof fmpFundamentals.$inferSelect
+
+// ── polygon_fundamentals ──────────────────────────────────────────────────────
+// Raw Polygon.io financials data per ticker. One row per ticker.
+// Staging/audit table only — ticker_fundamentals is the scorer's source.
+// Written by: polygon-client.ts → backfill-polygon.ts
+
+export const polygonFundamentals = pgTable('polygon_fundamentals', {
+  ticker:    text('ticker').primaryKey(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // Income statement
+  polygonTotalRevenue:              numeric('polygon_total_revenue'),
+  polygonNetIncome:                 numeric('polygon_net_income'),
+  polygonInterestExpense:           numeric('polygon_interest_expense'),  // stored positive
+
+  // Computed margins
+  polygonGrossMargin:               numeric('polygon_gross_margin'),
+  polygonOperatingMargin:           numeric('polygon_operating_margin'),
+
+  // Balance sheet
+  polygonTotalDebt:                 numeric('polygon_total_debt'),
+  polygonTotalStockholdersEquity:   numeric('polygon_total_stockholders_equity'),
+
+  // Cash flow
+  polygonQuarterlyOperatingCashFlow: numeric('polygon_quarterly_operating_cash_flow'),
+})
+
+export const insertPolygonFundamentalsSchema = createInsertSchema(polygonFundamentals).omit({ fetchedAt: true })
+export type InsertPolygonFundamentals = z.infer<typeof insertPolygonFundamentalsSchema>
+export type PolygonFundamentalsRow = typeof polygonFundamentals.$inferSelect
+
+// ── av_fundamentals ───────────────────────────────────────────────────────────
+// Raw Alpha Vantage OVERVIEW data per ticker. One row per ticker.
+// Staging/audit table only — ticker_fundamentals is the scorer's source.
+// Written by: alpha-vantage-client.ts → backfill-av.ts
+
+export const avFundamentals = pgTable('av_fundamentals', {
+  ticker:    text('ticker').primaryKey(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // Valuation
+  avPeRatio:            numeric('av_pe_ratio'),
+  avPegRatio:           numeric('av_peg_ratio'),
+  avForwardPe:          numeric('av_forward_pe'),
+  avPbRatio:            numeric('av_pb_ratio'),
+  avDividendYield:      numeric('av_dividend_yield'),
+  avAnalystTargetPrice: numeric('av_analyst_target_price'),
+
+  // Margins & Returns (stored as decimals)
+  avNetMargin:          numeric('av_net_margin'),
+  avOperatingMargin:    numeric('av_operating_margin'),
+  avReturnOnEquity:     numeric('av_return_on_equity'),
+
+  // Income statement
+  avTotalRevenue:       numeric('av_total_revenue'),
+  avEbitda:             numeric('av_ebitda'),
+
+  // Risk
+  avBeta:               numeric('av_beta'),
+})
+
+export const insertAvFundamentalsSchema = createInsertSchema(avFundamentals).omit({ fetchedAt: true })
+export type InsertAvFundamentals = z.infer<typeof insertAvFundamentalsSchema>
+export type AvFundamentalsRow = typeof avFundamentals.$inferSelect

@@ -50,6 +50,13 @@
       "when": 1782500717245,
       "tag": "0006_bright_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783163326894,
+      "tag": "0007_bizarre_susan_delgado",
+      "breakpoints": true
     }
   ]
 }
