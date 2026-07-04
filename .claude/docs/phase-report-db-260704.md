@@ -111,6 +111,56 @@ Notable divergences visible for same canonical field:
 - `totalRevenue`: edgar=215.9B, fmp=215.9B, yahoo=253.5B (fiscal year cutoff difference)
 - `beta`: finnhub=2.25, yahoo=2.20 (expected agreement ✓)
 
+## Step 8: validate-sources.ts + merge-trusted.ts (2026-07-04)
+
+### Scripts
+- `artifacts/api-server/src/scripts/validate-sources.ts`
+- `artifacts/api-server/src/scripts/merge-trusted.ts`
+- Log: `logs/validate-sources-2026-07-04.log`
+- JSON: `logs/trusted-fields.json`
+
+### Validation thresholds applied
+- Ratio fields (abs(v) ≤ 10): PASS if |a − b| ≤ 0.05
+- Large number fields (abs(v) ≥ 1000): PASS if min/max ≥ 0.80 (within 20%)
+- Scale mismatch: max/min > 50 → flagged as SCALE_MISMATCH
+
+### TRUSTED_FIELDS (pass rate ≥ 80%)
+
+| Field | Pass rate | Preferred source | Fallback |
+|---|---|---|---|
+| returnOnEquity | 83% | yahoo | finnhub |
+| sharesOutstanding | 82% | yahoo | edgar |
+
+### DISPUTED_FIELDS (pass rate < 80%) — untouched in ticker_fundamentals
+
+| Field | Pass rate | Issue |
+|---|---|---|
+| grossMargin | 68% | HIGH_DIVERGENCE (edgar annual vs TTM; EDGAR errors for AVGO/ADI where margin > 1) |
+| operatingCashFlow | 69% | HIGH_DIVERGENCE (annual vs TTM period) |
+| returnOnAssets | 68% | HIGH_DIVERGENCE (TTM gap) |
+| netMargin | 61% | HIGH_DIVERGENCE (period gap) |
+| operatingMargin | 56% | HIGH_DIVERGENCE (period gap) |
+| beta | 54% | HIGH_DIVERGENCE (sampling period difference) |
+| revenueGrowth | 54% | HIGH_DIVERGENCE (TTM vs annual growth measurement) |
+| totalRevenue | 66% | HIGH_DIVERGENCE (fiscal year cutoff difference) |
+| freeCashFlow | 33% | HIGH_DIVERGENCE (TTM vs annual; NVDA 46B vs 103B) |
+| totalDebt | 45% | HIGH_DIVERGENCE (debt component definitions differ) |
+| currentRatio | 26% | HIGH_DIVERGENCE (strict ±0.05 absolute threshold too tight for ratios 1–5) |
+| priceToBook | 3% | HIGH_DIVERGENCE (P/B in 10–50 range falls outside both ratio/large-number buckets) |
+| debtToEquity | 0% | SCALE_MISMATCH (yahoo uses total liabilities/equity, finnhub uses net debt/equity) |
+
+### Key observations
+- `priceToBook` always fails: values in 10–50 range fall into neither ratio (≤10) nor large-number (≥1000) bucket → uses abs(a-b) ≤ 0.05 fallback, which is too strict
+- `debtToEquity` is definitionally incompatible across sources; needs source-specific treatment at reconciliation time
+- `grossMargin` EDGAR computation has bugs for some tickers (AVGO=2.077, ADI=1.092 — margin > 1)
+- Most HIGH_DIVERGENCE fields reflect TTM vs annual period differences, not data errors
+
+### Merge results
+- Tickers merged: 160
+- Fields written: 312 (returnOnEquity + sharesOutstanding × 160 tickers)
+- Fields null >20% of tickers: none
+- Disputed fields: untouched in ticker_fundamentals (awaiting FMP backfill as tiebreaker)
+
 ## Next steps
 
 1. Write `backfill-fmp.ts` using `fmp-client.ts` → re-fetch and upsert into `fmp_fundamentals` (after quota reset)
