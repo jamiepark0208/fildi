@@ -62,10 +62,28 @@ Applied via: `psql $DATABASE_URL -f ...` (drizzle-kit push requires TTY)
 | polygon_fundamentals | 0 (empty — awaiting backfill) |
 | av_fundamentals | 0 (empty — awaiting backfill after AV quota reset) |
 
+## Step 6: snapshot-to-staging.ts run results (2026-07-04)
+
+Script: `artifacts/api-server/src/scripts/snapshot-to-staging.ts`
+Source: `ticker_fundamentals` (170 rows)
+Routing: all 170 rows had `lastSource = 'fmp'` (the original/default source)
+
+| Destination | Tickers | Fields written |
+|---|---|---|
+| fmp_fundamentals | 170 | 1529 |
+| polygon_fundamentals | 0 | 0 |
+| av_fundamentals | 0 | 0 |
+| Skipped (all null) | 0 | — |
+
+**Notes:**
+- All rows routed to `fmp_fundamentals` — expected, since FMP was the original data source and `lastSource` defaults to `'fmp'`
+- Field counts vary per ticker (5–30) reflecting partial FMP coverage from prior backfill
+- `polygon_fundamentals` and `av_fundamentals` will be populated after midnight UTC quota resets via dedicated backfill scripts
+
 ## Next steps
 
-1. Write `backfill-fmp.ts` using `fmp-client.ts` → insert into `fmp_fundamentals`
+1. Write `backfill-fmp.ts` using `fmp-client.ts` → re-fetch and upsert into `fmp_fundamentals` (after quota reset)
 2. Write `backfill-polygon.ts` using `polygon-client.ts` → insert into `polygon_fundamentals`
-3. Write `backfill-av.ts` using `alpha-vantage-client.ts` → insert into `av_fundamentals`
+3. Write `backfill-av.ts` using `alpha-vantage-client.ts` → insert into `av_fundamentals` (25/day quota)
 4. Wait for FMP/AV quota resets (midnight UTC) then run backfills
 5. Cross-source reconciliation: compare all six sources against `ticker_fundamentals`
