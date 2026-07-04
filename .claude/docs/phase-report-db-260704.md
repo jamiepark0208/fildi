@@ -304,3 +304,52 @@ Writes a single row-level `lastSource` string when its FMP/Yahoo waterfall runs.
 
 - Schema comment on `source_fundamentals` says "Populated by: snapshot-to-staging.ts" — that file does not exist; the actual script is `populate-source-fundamentals.ts`.
 - `ticker_fundamentals` comment at line 166 still says "Written by the FMP refresh job" — inaccurate now that `merge-trusted.ts` is the writer.
+
+---
+
+## Stock DB Tooltip + Override Feature — Implementation (2026-07-04)
+
+### Phase 1: Schema
+
+Two new tables added to `lib/db/src/schema/index.ts` and migrated (migration `0009_modern_sabretooth.sql` applied directly via psql):
+
+- **`field_provenance`** — PK: (ticker, field). Columns: winning_source, winning_value, is_override (bool), divergent (bool), fetched_at, updated_at. Written by merge-trusted.ts after each merge run. Read by `GET /api/fundamentals/provenance/:ticker`.
+- **`manual_overrides`** — PK: (ticker, field). Columns: override_source, override_value (null = use best value from that source), note, created_at. Written by `PUT /api/fundamentals/override`, cleared by `DELETE`.
+
+Two stale comments fixed in schema: `source_fundamentals` writer (`snapshot-to-staging.ts` → `populate-source-fundamentals.ts`); `ticker_fundamentals` writer (`FMP refresh job` → `merge-trusted.ts`).
+
+### Phase 2: merge-trusted.ts refactor
+
+- Exported `compareTwo` / `compareAll` from `validate-sources.ts` (made `compareAll` generic over `string` keys, not just `SourceName` tuple).
+- `merge-trusted.ts` fully rewritten:
+  - `resolveFromIndex(fieldDef, byField, override)` — internal batch resolver; collects all source values, computes `divergent` via imported `compareAll`, checks `manual_overrides` before priority walk, falls through if override source has no data.
+  - `resolveField(ticker, field)` — exported public function; queries DB directly for a single (ticker, field); used by the API after PUT/DELETE override.
+  - `writeProvenance(ticker, field, result, fetchedAt)` — exported upsert helper for `field_provenance`.
+  - Batch `main()` now loads all `manual_overrides` upfront, passes them into `resolveFromIndex`, and batch-upserts `field_provenance` per ticker alongside the existing `ticker_fundamentals` upsert. Console logging preserved unchanged.
+
+### Phase 3: API routes
+
+New file `artifacts/api-server/src/routes/fundamentals-provenance.ts`, registered in `routes/index.ts`:
+
+| Endpoint | Auth | Description |
+|---|---|---|
+| `GET /fundamentals/provenance/:ticker` | admin | Joins field_provenance + source_fundamentals for ticker. Returns per-field: winner value/source/age/isOverride/divergent + array of all sources with status (used/available/excluded+reason/no_data). |
+| `PUT /fundamentals/override` | admin | Body: `{ticker, field, source, value?, note?}`. Upserts manual_overrides, immediately calls resolveField() and writes ticker_fundamentals + field_provenance. |
+| `DELETE /fundamentals/override/:ticker/:field` | admin | Removes override row, re-resolves and re-persists via resolveField(). |
+
+`EXCLUDED_REASONS` map in the route encodes why each source is excluded per field (period mismatch, definitionally incompatible, not tracked).
+
+### Phase 4: StockDBTab UI
+
+- Imports: added `useMutation`, `useQueryClient`, `Pin`, `TriangleAlert`, `Popover`, `PopoverContent`, `PopoverAnchor`.
+- **Per-row hover fetch**: `onMouseEnter` on each `<tr>` sets `hoveredTicker`; `useQuery(["provenance", hoveredTicker])` fetches provenance with 60s staleTime. 2s debounce timer on `onMouseLeave` keeps the cache warm while clicking.
+- **Single Popover**: one `<Popover>` rendered outside the table, anchored via a fixed-position invisible `<div>` repositioned to the clicked cell's `getBoundingClientRect()`. `activeCell: {ticker, field, rect}` state drives open/close.
+- **Popover content**: header (ticker · field + pin/divergence icons), winner value/source/age, per-source breakdown table (source / value / age / status badge), override control (source dropdown, optional manual value input, note field, Save + Clear override buttons wired to PUT/DELETE mutations).
+- Cell `title=` attribute removed; cells now `cursor-pointer` with `ring-1` highlight when active.
+- Override mutations invalidate both `["provenance", ticker]` and `["admin-stock-db"]` query keys on success.
+
+### Known gaps / next steps
+
+- `field_provenance` is empty until `merge-trusted.ts` is re-run — provenance popover will show "Hover to load" until then.
+- The FMP backfill (wacc, priceToSales, roic) is still blocked on quota reset (midnight UTC). Re-running merge-trusted after that backfill will populate field_provenance for those fields.
+- `openCell` callback captures `activeProv` at click time for override form pre-fill — if provenance fetch is still in flight at click time, the form fields will be empty (non-blocking, user can still type).
