@@ -220,6 +220,46 @@ wacc(280/280), priceToSales(268/280), roic(268/280), revenueGrowthYoyPrior(268/2
 
 Note: grossMargin(62/280) is the best-covered field. The high null counts reflect that 280 includes tickers tracked only by fmp/finnhub/edgar without full Yahoo coverage — FMP backfill will fill most of these.
 
+## Step 10: Ticker universe audit + merge fix (2026-07-04)
+
+### Root cause
+`merge-trusted.ts` iterated over `index.keys()` = all tickers present in `source_fundamentals` (280), rather than the canonical 169-ticker universe. This caused 112 spurious INSERT rows in `ticker_fundamentals` for tickers covered by yahoo/finnhub/edgar but outside the original FMP backfill scope.
+
+### Universe counts
+| Table | Distinct tickers |
+|---|---|
+| peer_group_members | 550 (too broad — all peer group expansions) |
+| ticker_registry | 581 (too broad) |
+| fmp_fundamentals | 169 ← correct canonical universe |
+| yahoo_fundamentals | 161 |
+| finnhub_fundamentals | 158 |
+| edgar_fundamentals | 158 |
+| source_fundamentals (union) | 280 |
+| ticker_fundamentals before fix | 281 (169 original + 112 bad inserts) |
+
+### Fix applied
+1. Deleted 112 spurious ticker_fundamentals rows (`NOT IN fmp_fundamentals`)
+2. Fixed `merge-trusted.ts`: loads `fmp_fundamentals` ticker list as an explicit allowlist; skips any source_fundamentals ticker not in that set; iterates over the full 169-ticker canonical list so fmp-only tickers still get updated
+3. Re-ran merge
+
+### Corrected merge results (169 tickers)
+
+| Metric | Bad run | Fixed run |
+|---|---|---|
+| Tickers | 280 | **169** |
+| Fields written | 5103 | **2275** |
+| yahoo | 3585 | 1078 |
+| fmp | 1030 | 1030 |
+| finnhub | 273 | 92 |
+| edgar | 215 | 75 |
+
+Note: yahoo field count dropped sharply (3585→1078) because 111 of the 280 "tickers" were yahoo/finnhub/edgar-only and now excluded. fmp unchanged at 1030 because all 169 fmp_fundamentals tickers were always in scope.
+
+### Fields still null >20% of tickers (FMP/Polygon/AV targets)
+wacc(169/169), priceToSales(157/169), roic(157/169), revenueGrowthYoyPrior(157/169), sharesOutstandingPrior(157/169), effectiveTaxRate(157/169), epsGrowth(143/169), dividendYield(142/169), interestExpense(135/169), evEbitda(124/169), debtToEquity(124/169), evRevenue(123/169), cashAndEquivalents(123/169), sharesOutstanding(123/169), ebit(123/169), freeCashFlow(123/169), priceToBook(121/169), revenueGrowthYoY(121/169), returnOnAssets(120/169), currentRatio(120/169), earningsPerShare(120/169), peRatio(117/169), pegRatio(113/169), forwardPe(107/169), analystTargetPrice(106/169), ebitda(105/169), netMargin(103/169), returnOnEquity(103/169), beta(102/169)
+
+grossMargin is best covered at 62/169 null (107/169 = 63% have a value).
+
 ## Next steps
 
 1. Write `backfill-fmp.ts` using `fmp-client.ts` → re-fetch and upsert into `fmp_fundamentals` (after quota reset)
