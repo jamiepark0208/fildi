@@ -390,3 +390,104 @@ New file `artifacts/api-server/src/routes/fundamentals-provenance.ts`, registere
 | Override PUT/DELETE | `provenanceCache.delete(ticker)` | `invalidateQueries(["provenance", ticker])` |
 | merge-trusted.ts batch | `provenanceCache.delete(ticker)` per ticker | staleTime expires OR refetch-on-focus |
 | TTL expiry | Auto (15 min) | Auto (10 min staleTime) |
+
+---
+
+## Part A Audit — Gap-targeted backfill (2026-07-04)
+
+### A1. Backfill scripts — existence and scope
+
+| Script | Exists? | Notes |
+|---|---|---|
+| `backfill-fmp.ts` | ❌ | Does not exist. Must be built. |
+| `backfill-polygon.ts` | ❌ | Does not exist. Must be built. |
+| `backfill-av.ts` | ❌ | Does not exist. Must be built. |
+| `backfill-fundamentals.ts` | ✓ | 409 lines. **NOT gap-aware.** Blanket re-backfill: fetches all 7 FMP endpoints per ticker, writes directly to `ticker_fundamentals` (not source staging tables), skips only `isFresh(row) && nullCriticalCount===0`. Targets full WATCHLIST + peer-group members (~500+ tickers), not just canonical 169. |
+
+`backfill-fundamentals.ts` cannot be repurposed as-is. The three new scripts must be built from scratch targeting the source-specific staging tables (`fmp_fundamentals`, `polygon_fundamentals`, `av_fundamentals`).
+
+### A2. Current row counts
+
+| Table | Rows |
+|---|---|
+| `fmp_fundamentals` | 169 |
+| `polygon_fundamentals` | 0 (empty) |
+| `av_fundamentals` | 0 (empty) |
+| `source_fundamentals` | 11,386 |
+
+`source_fundamentals` per source:
+
+| Source | Tickers | Field rows |
+|---|---|---|
+| yahoo | 155 (in SF table, but only 46 overlap canonical 169) | 5,641 |
+| finnhub | 157 | 2,817 |
+| fmp | 169 | 1,517 |
+| edgar | 119 | 1,411 |
+
+### A3. Canonical universe overlap — critical finding
+
+**Only 46 of the 169 canonical tickers have any Yahoo data in `source_fundamentals`.** The canonical 169-ticker universe is FMP-based. Yahoo's `yahoo_fundamentals` table covers different tickers. For 123 of the 169 canonical tickers, Yahoo is irrelevant — FMP must fill those gaps.
+
+FMP has excellent balance sheet coverage for the canonical 169 but almost no valuation/metrics coverage:
+
+| FMP endpoint category | Fields | FMP coverage (canonical 169) |
+|---|---|---|
+| Income/balance sheet | totalRevenue, netIncome, totalDebt, totalStockholdersEquity, operatingMargin | 157–169/169 ✓ |
+| Quarterly cash flow | quarterlyOperatingCashFlow | 156/169 ✓ |
+| Gross margin | grossMargin | 97/169 — partial |
+| /ratios endpoint | peRatio, pegRatio, priceToBook, priceToSales, currentRatio, debtToEquity, effectiveTaxRate, earningsPerShare, freeCashFlow, etc. | 12–33/169 ✗ |
+| /key-metrics endpoint | evEbitda, evRevenue, roic | 0/169 ✗ |
+| /wacc endpoint | wacc | 0/169 ✗ |
+| /financial-growth endpoint | revenueGrowthYoY, epsGrowth, revenueGrowthYoyPrior, dividendYield, beta | 12–33/169 ✗ |
+
+The original backfill fetched income/balance sheet for all 169 tickers but hit rate limits on /ratios, /key-metrics, /wacc before covering most tickers.
+
+### A4. Current null breakdown in `ticker_fundamentals` (canonical 169)
+
+| Field | Null / 169 | Primary gap reason |
+|---|---|---|
+| wacc | 169/169 | FMP /wacc: 0 fetched (rate-limited day 1) |
+| effectiveTaxRate, sharesOutstandingPrior, priceToSales, roic, revenueGrowthYoyPrior | 157/169 | FMP /ratios or /key-metrics: only 12 tickers |
+| epsGrowth, dividendYield, interestExpense | 135–143/169 | Same; partial EDGAR coverage for interestExpense |
+| debtToEquity, evEbitda, ebit, evRevenue, cashAndEquivalents, freeCashFlow, sharesOutstanding, revenueGrowthYoY, priceToBook, currentRatio, returnOnAssets, earningsPerShare | 120–124/169 | FMP /ratios: 12–33 tickers; no Polygon/AV yet |
+| peRatio, pegRatio, forwardPe, analystTargetPrice, ebitda, returnOnEquity, netMargin, beta | 102–116/169 | FMP /ratios partially fetched; free sources thin on canonical universe |
+| grossMargin | 62/169 | FMP has 97 tickers; remainder need /ratios backfill |
+| quarterlyOperatingCashFlow | 13/169 | FMP has 156 ✓ |
+| totalDebt, totalStockholdersEquity, netIncome | 10/169 | Near-complete ✓ |
+| operatingMargin | 1/169 | Only CMPS is null |
+
+**Gap-fill priority by FMP endpoint (1 call/ticker vs 7 for blanket):**
+- `/wacc` (1 call × 169) → fills `wacc` for all 169
+- `/key-metrics` (1 call × 169) → fills `evEbitda`, `evRevenue`, `roic` for all 169
+- `/ratios` (1 call × ~140 gap tickers) → fills `peRatio`, `pegRatio`, `priceToBook`, `priceToSales`, `currentRatio`, `debtToEquity`, `effectiveTaxRate`, `earningsPerShare`, `freeCashFlow`, `dividendYield`
+- `/financial-growth` (1 call × ~140 gap tickers) → fills `revenueGrowthYoY`, `epsGrowth`, `revenueGrowthYoyPrior`
+- Total gap-targeted calls: ~618 vs 7×169=1183 blanket. **Saves ~565 calls (~48%).**
+
+### A5. FMP budget — current state
+
+**Over budget today.** `fmp_api_usage` shows 301 calls used on 2026-07-04 (limit: 220 conservative / 250 actual). Server startup FMP refresh consumed the quota. Backfill must wait for midnight UTC reset.
+
+### A6. Open data quality issues
+
+**`operatingMargin` (60% pass rate in last validation):** Currently only 1 null (CMPS — Compass Pathways, a pre-revenue biotech where operating margin is extreme). The 60% pass rate was a cross-source validation issue, not a coverage issue. No action needed for nulls.
+
+**`priceToBook` (7% pass rate):** Mid-range values (10–50) fall outside both ratio (≤10) and large-number (≥1000) validation buckets, so they always fail the ±0.05 absolute threshold. This is a validation logic bug, not bad data. Values from FMP are likely correct but untestable with current validation thresholds. FMP /ratios backfill will fill the 121 nulls; divergence detection for this field remains unreliable.
+
+**6 Yahoo zero-field tickers (ADYEN, CYBR, JNPR, PSTG, RDFN, SQ):**
+- **ADYEN, CYBR, RDFN**: Not in `ticker_fundamentals` at all — outside the canonical 169-ticker universe. Not a bug.
+- **JNPR, PSTG, SQ**: In canonical 169, but have 0 Yahoo fields and only 7 FMP fields (income/balance sheet only, no valuation ratios). These are targets for the /ratios and /key-metrics backfill. No investigation needed — they're simply tickers where the original FMP backfill ran out of budget before fetching valuation endpoints.
+
+### A7. Polygon and AV assessment
+
+**Polygon:** `polygon_fundamentals` is empty. Polygon's field overlap with FMP is high (totalRevenue, netIncome, grossMargin, operatingMargin, totalDebt, totalStockholdersEquity, quarterlyOperatingCashFlow). Since FMP already covers these better (169 tickers vs Polygon's more limited coverage), Polygon's primary value is cross-validation, not filling unique gaps. Worth building the backfill script, but field impact will be minimal for unique nulls.
+
+**Alpha Vantage:** `av_fundamentals` is empty. AV's unique fields vs Yahoo/Finnhub/FMP: moderate overlap. At 25/day quota, AV covers 25 tickers/day. Its fields (peRatio, pegRatio, forwardPe, pbRatio, dividendYield, analystTargetPrice, netMargin, operatingMargin, returnOnEquity, totalRevenue, ebitda, beta) all have FMP as higher priority per FIELD_DEFS, so AV will only win the merge for tickers where FMP /ratios is also null. Given FMP backfill will fill most of those, AV's unique contribution post-FMP-backfill is likely small. Still worth building for completeness and cross-validation.
+
+### Ready for Part B
+
+Scripts to build (all new, targeting source staging tables, gap-aware):
+1. `backfill-fmp.ts` — gap-targeted, per-endpoint, wraps into `fmp_fundamentals`
+2. `backfill-polygon.ts` — wraps into `polygon_fundamentals`
+3. `backfill-av.ts` — wraps into `av_fundamentals`
+
+Run order after midnight UTC: backfill-fmp → backfill-polygon → populate-source-fundamentals → merge-trusted (AV on separate day per constraint).
