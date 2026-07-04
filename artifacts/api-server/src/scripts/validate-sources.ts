@@ -35,9 +35,9 @@ const TRUSTED_PASS_RATE = 0.80;
 
 // ── Comparison logic ──────────────────────────────────────────────────────────
 
-type CompareResult = "PASS" | "FAIL" | "SCALE_MISMATCH";
+export type CompareResult = "PASS" | "FAIL" | "SCALE_MISMATCH";
 
-function compareTwo(a: number, b: number): CompareResult {
+export function compareTwo(a: number, b: number): CompareResult {
   if (a === 0 && b === 0) return "PASS";
   const absA = Math.abs(a);
   const absB = Math.abs(b);
@@ -62,7 +62,7 @@ function compareTwo(a: number, b: number): CompareResult {
   return Math.abs(a - b) <= 0.05 ? "PASS" : "FAIL";
 }
 
-function compareAll(vals: Map<SourceName, number>): CompareResult {
+export function compareAll(vals: Map<string, number>): CompareResult {
   const entries = [...vals.entries()];
   let result: CompareResult = "PASS";
   for (let i = 0; i < entries.length; i++) {

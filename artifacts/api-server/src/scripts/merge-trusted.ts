@@ -1,6 +1,6 @@
 /**
  * Merge fundamentals into ticker_fundamentals using per-field source priority.
- * Reads source_fundamentals; does NOT depend on trusted-fields.json (priority is hardcoded here).
+ * Also writes field_provenance records and consults manual_overrides.
  *
  * Priority rules (first non-null source wins per field):
  *   Valuation ratios:   yahoo → finnhub → fmp
@@ -17,7 +17,13 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/merge-trusted.ts
  */
 
-import { db, sourceFundamentals, tickerFundamentals, fmpFundamentals } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import {
+  db, sourceFundamentals, tickerFundamentals, fmpFundamentals,
+  fieldProvenance, manualOverrides,
+  type ManualOverridesRow,
+} from "@workspace/db";
+import { compareAll } from "./validate-sources.js";
 
 // ── Per-field source priority: [source, sf_field] pairs in priority order ────
 // sf_field = the canonical field name as stored in source_fundamentals
@@ -26,7 +32,7 @@ import { db, sourceFundamentals, tickerFundamentals, fmpFundamentals } from "@wo
 type SFPair = [source: string, sfField: string];
 type FieldDef = { tfCol: keyof typeof tickerFundamentals.$inferInsert; priority: SFPair[] };
 
-const FIELD_DEFS: FieldDef[] = [
+export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
   { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"]] },
   { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"]] },
@@ -45,16 +51,14 @@ const FIELD_DEFS: FieldDef[] = [
   { tfCol: "roic",               priority: [["finnhub","roic"],           ["fmp","roic"]] },
 
   // ── Growth ────────────────────────────────────────────────────────────────
-  // yahoo/finnhub store as "revenueGrowth", fmp stores as "revenueGrowthYoY"
-  { tfCol: "revenueGrowthYoY",   priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
+  { tfCol: "revenueGrowthYoY",      priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
   { tfCol: "revenueGrowthYoyPrior", priority: [["fmp","revenueGrowthYoyPrior"]] },
-  { tfCol: "epsGrowth",          priority: [["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
+  { tfCol: "epsGrowth",             priority: [["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
 
   // ── debtToEquity: yahoo only → fmp fallback (never finnhub — different def) ─
   { tfCol: "debtToEquity",       priority: [["yahoo","debtToEquity"],  ["fmp","debtToEquity"]] },
 
   // ── Balance sheet ─────────────────────────────────────────────────────────
-  // yahoo has "totalCash" (TTM cash), edgar/fmp have "cashAndEquivalents"
   { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"],            ["edgar","cashAndEquivalents"],       ["fmp","cashAndEquivalents"]] },
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["edgar","totalDebt"],                ["fmp","totalDebt"]] },
   { tfCol: "totalStockholdersEquity", priority: [["edgar","totalEquity"],          ["fmp","totalStockholdersEquity"]] },
@@ -63,12 +67,11 @@ const FIELD_DEFS: FieldDef[] = [
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
-  // yahoo annual fields → fmp → edgar
   { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["edgar","totalRevenue"]] },
   { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"]] },
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["edgar","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
-  { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,  // not in TF schema, skip below
+  { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,
   { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["fmp","wacc"]] },
@@ -84,29 +87,140 @@ const FIELD_DEFS: FieldDef[] = [
   { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"]] },
 ];
 
-// Filter out fields not in ticker_fundamentals schema
-const TF_COLS = new Set(Object.keys(tickerFundamentals) as string[]);
-const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => {
-  // grossProfit has no TF column — skip
-  if (tfCol === "grossProfit" as any) return false;
-  return true;
-});
+// grossProfit has no ticker_fundamentals column — skip in merge
+const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => (tfCol as string) !== "grossProfit");
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Resolution result type ────────────────────────────────────────────────────
+
+export type ResolveResult = {
+  source: string;
+  value: number;
+  isOverride: boolean;
+  divergent: boolean;
+} | null;
+
+// ── Internal: resolve from a pre-built index ──────────────────────────────────
+// byField: sfField → source → value  (from source_fundamentals)
+// override: manual_overrides row for this (ticker, field), if any
+
+function resolveFromIndex(
+  fieldDef: FieldDef,
+  byField: Map<string, Map<string, number>>,
+  override: ManualOverridesRow | undefined,
+): ResolveResult {
+  const { priority } = fieldDef;
+
+  // Collect all (source → value) pairs that have data across all sfField aliases.
+  // First sfField alias wins per source for divergence comparison.
+  const allVals = new Map<string, number>();
+  for (const [src, sfField] of priority) {
+    const val = byField.get(sfField)?.get(src);
+    if (val !== undefined && isFinite(val) && !allVals.has(src)) {
+      allVals.set(src, val);
+    }
+  }
+
+  const divergent = allVals.size >= 2 && compareAll(allVals) !== "PASS";
+
+  // Override takes precedence over normal priority
+  if (override) {
+    // Literal value override (overrideSource = 'manual')
+    if (override.overrideValue !== null) {
+      const v = parseFloat(String(override.overrideValue));
+      if (isFinite(v)) {
+        return { source: override.overrideSource, value: v, isOverride: true, divergent };
+      }
+    }
+    // Source-preference override: use best value from the specified source
+    const srcVal = allVals.get(override.overrideSource);
+    if (srcVal !== undefined) {
+      return { source: override.overrideSource, value: srcVal, isOverride: true, divergent };
+    }
+    // overrideSource has no data — fall through to normal priority
+  }
+
+  // Normal priority walk: first non-null source wins
+  for (const [src, sfField] of priority) {
+    const val = byField.get(sfField)?.get(src);
+    if (val !== undefined && isFinite(val)) {
+      return { source: src, value: val, isOverride: false, divergent };
+    }
+  }
+
+  return null;
+}
+
+// ── Public: resolve a single (ticker, field) by querying DB ──────────────────
+// Used by PUT/DELETE /api/fundamentals/override to re-resolve immediately.
+
+export async function resolveField(ticker: string, field: string): Promise<ResolveResult> {
+  const fieldDef = VALID_FIELD_DEFS.find(d => (d.tfCol as string) === field);
+  if (!fieldDef) return null;
+
+  const [sfRows, overrideRows] = await Promise.all([
+    db.select().from(sourceFundamentals).where(eq(sourceFundamentals.ticker, ticker)),
+    db.select().from(manualOverrides).where(
+      and(eq(manualOverrides.ticker, ticker), eq(manualOverrides.field, field))
+    ),
+  ]);
+
+  const byField = new Map<string, Map<string, number>>();
+  for (const row of sfRows) {
+    const val = parseFloat(String(row.value));
+    if (!isFinite(val)) continue;
+    if (!byField.has(row.field)) byField.set(row.field, new Map());
+    byField.get(row.field)!.set(row.source, val);
+  }
+
+  return resolveFromIndex(fieldDef, byField, overrideRows[0]);
+}
+
+// ── Public: write a field_provenance record ───────────────────────────────────
+
+export async function writeProvenance(
+  ticker: string,
+  field: string,
+  result: ResolveResult,
+  fetchedAt: Date,
+): Promise<void> {
+  if (!result) return;
+  await db
+    .insert(fieldProvenance)
+    .values({
+      ticker, field,
+      winningSource: result.source,
+      winningValue:  String(result.value),
+      isOverride:    result.isOverride,
+      divergent:     result.divergent,
+      fetchedAt,
+    })
+    .onConflictDoUpdate({
+      target: [fieldProvenance.ticker, fieldProvenance.field],
+      set: {
+        winningSource: result.source,
+        winningValue:  String(result.value),
+        isOverride:    result.isOverride,
+        divergent:     result.divergent,
+        fetchedAt,
+        updatedAt:     new Date(),
+      },
+    });
+}
+
+// ── Main batch runner ─────────────────────────────────────────────────────────
 
 async function main() {
-  // Canonical ticker universe = fmp_fundamentals (169 tickers = Stock DB UI scope).
-  // Using fmp_fundamentals as the allowlist ensures we only UPDATE existing
-  // ticker_fundamentals rows and never INSERT new ones for out-of-scope tickers.
   const fmpRows = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
   const trackedTickers = new Set(fmpRows.map(r => r.ticker));
   console.log(`Canonical universe: ${trackedTickers.size} tickers from fmp_fundamentals\n`);
 
-  const sfRows = await db.select().from(sourceFundamentals);
+  const [sfRows, overrideRows] = await Promise.all([
+    db.select().from(sourceFundamentals),
+    db.select().from(manualOverrides),
+  ]);
 
-  // Index: ticker → sf_field → source → value (only for tracked tickers)
-  type SFIndex = Map<string, Map<string, Map<string, number>>>;
-  const index: SFIndex = new Map();
+  // Index: ticker → sfField → source → value
+  const index = new Map<string, Map<string, Map<string, number>>>();
   for (const row of sfRows) {
     if (!trackedTickers.has(row.ticker)) continue;
     const val = parseFloat(String(row.value));
@@ -117,7 +231,12 @@ async function main() {
     byField.get(row.field)!.set(row.source, val);
   }
 
-  // Iterate over ALL tracked tickers (even those with no source_fundamentals data)
+  // Override index: `${ticker}:${field}` → ManualOverridesRow
+  const overrideIndex = new Map<string, ManualOverridesRow>();
+  for (const row of overrideRows) {
+    overrideIndex.set(`${row.ticker}:${row.field}`, row);
+  }
+
   const allTickers = [...trackedTickers].sort();
   let totalTickersMerged = 0;
   let totalFieldsWritten = 0;
@@ -125,30 +244,25 @@ async function main() {
   const fieldNullCount: Record<string, number> = {};
   for (const { tfCol } of VALID_FIELD_DEFS) fieldNullCount[tfCol as string] = 0;
 
+  const now = new Date();
+
   for (const ticker of allTickers) {
-    const byField = index.get(ticker)!;
+    const byField = index.get(ticker) ?? new Map();
     const update: Record<string, number> = {};
     const tickerSourceUsage: Record<string, number> = {};
+    const provenanceBatch: Array<{ field: string; result: ResolveResult }> = [];
 
-    for (const { tfCol, priority } of VALID_FIELD_DEFS) {
-      let picked: number | undefined;
-      let pickedSource: string | undefined;
+    for (const fieldDef of VALID_FIELD_DEFS) {
+      const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
+      const result = resolveFromIndex(fieldDef, byField, override);
 
-      for (const [src, sfField] of priority) {
-        const val = byField.get(sfField)?.get(src);
-        if (val !== undefined && isFinite(val)) {
-          picked = val;
-          pickedSource = src;
-          break;
-        }
-      }
-
-      if (picked !== undefined && pickedSource !== undefined) {
-        update[tfCol as string] = picked;
-        tickerSourceUsage[pickedSource] = (tickerSourceUsage[pickedSource] ?? 0) + 1;
-        sourceUsage[pickedSource] = (sourceUsage[pickedSource] ?? 0) + 1;
+      if (result) {
+        update[fieldDef.tfCol as string] = result.value;
+        tickerSourceUsage[result.source] = (tickerSourceUsage[result.source] ?? 0) + 1;
+        sourceUsage[result.source]       = (sourceUsage[result.source]       ?? 0) + 1;
+        provenanceBatch.push({ field: fieldDef.tfCol as string, result });
       } else {
-        fieldNullCount[tfCol as string]++;
+        fieldNullCount[fieldDef.tfCol as string]++;
       }
     }
 
@@ -157,10 +271,31 @@ async function main() {
     await db
       .insert(tickerFundamentals)
       .values({ ticker, ...update } as any)
-      .onConflictDoUpdate({
-        target: tickerFundamentals.ticker,
-        set: update as any,
-      });
+      .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: update as any });
+
+    if (provenanceBatch.length > 0) {
+      await db
+        .insert(fieldProvenance)
+        .values(provenanceBatch.map(({ field, result }) => ({
+          ticker, field,
+          winningSource: result!.source,
+          winningValue:  String(result!.value),
+          isOverride:    result!.isOverride,
+          divergent:     result!.divergent,
+          fetchedAt:     now,
+        })))
+        .onConflictDoUpdate({
+          target: [fieldProvenance.ticker, fieldProvenance.field],
+          set: {
+            winningSource: sql`excluded.winning_source`,
+            winningValue:  sql`excluded.winning_value`,
+            isOverride:    sql`excluded.is_override`,
+            divergent:     sql`excluded.divergent`,
+            fetchedAt:     sql`excluded.fetched_at`,
+            updatedAt:     now,
+          },
+        });
+    }
 
     const srcStr = Object.entries(tickerSourceUsage)
       .sort(([, a], [, b]) => b - a)

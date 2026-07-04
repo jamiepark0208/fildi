@@ -163,7 +163,7 @@ export type InsertIndicatorCache = z.infer<typeof insertIndicatorCacheSchema>
 export type IndicatorCacheRow = typeof indicatorCache.$inferSelect
 
 // ── ticker_fundamentals ───────────────────────────────────────────────────────
-// One row per ticker. Written by the FMP refresh job (weekly cadence or on-demand).
+// One row per ticker. Written by merge-trusted.ts (per-field source priority merge).
 // The /stocks/quote handler reads from this table as the primary fundamentals source.
 // Yahoo Finance remains the source for price, 52w range, and market data only.
 
@@ -969,7 +969,7 @@ export type AvFundamentalsRow = typeof avFundamentals.$inferSelect
 // ── source_fundamentals ───────────────────────────────────────────────────────
 // Field-level cross-source store. One row per (ticker, source, field).
 // Enables "Yahoo returned 0.72 for NVDA grossMargin vs FMP returned 0.71" queries.
-// Populated by: snapshot-to-staging.ts and future backfill scripts.
+// Populated by: populate-source-fundamentals.ts and backfill scripts.
 // NOT related to source_ticker_map (which tracks boolean source availability).
 
 export const sourceFundamentals = pgTable('source_fundamentals', {
@@ -985,3 +985,47 @@ export const sourceFundamentals = pgTable('source_fundamentals', {
 export const insertSourceFundamentalsSchema = createInsertSchema(sourceFundamentals).omit({ fetchedAt: true })
 export type InsertSourceFundamentals = z.infer<typeof insertSourceFundamentalsSchema>
 export type SourceFundamentalsRow = typeof sourceFundamentals.$inferSelect
+
+// ── field_provenance ──────────────────────────────────────────────────────────
+// One row per (ticker, field). Written by merge-trusted.ts after each merge run.
+// Records which source won for each field, the winning value, and whether any
+// sources disagreed (divergent). is_override = true when a manual_overrides row
+// forced the winner. Read by GET /api/fundamentals/provenance/:ticker for the UI.
+
+export const fieldProvenance = pgTable('field_provenance', {
+  ticker:        text('ticker').notNull(),
+  field:         text('field').notNull(),        // camelCase e.g. 'grossMargin'
+  winningSource: text('winning_source').notNull(),
+  winningValue:  numeric('winning_value'),
+  isOverride:    boolean('is_override').notNull().default(false),
+  divergent:     boolean('divergent').notNull().default(false),
+  fetchedAt:     timestamp('fetched_at', { withTimezone: true }).notNull(),
+  updatedAt:     timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.field] }),
+}))
+
+export const insertFieldProvenanceSchema = createInsertSchema(fieldProvenance).omit({ updatedAt: true })
+export type InsertFieldProvenance = z.infer<typeof insertFieldProvenanceSchema>
+export type FieldProvenanceRow = typeof fieldProvenance.$inferSelect
+
+// ── manual_overrides ──────────────────────────────────────────────────────────
+// One row per (ticker, field). Admin-set overrides that force merge-trusted.ts
+// to use a specific source (or a literal value) for a given ticker+field.
+// Checked before FIELD_DEFS priority in merge-trusted.ts.
+// Written by PUT /api/fundamentals/override; cleared by DELETE.
+
+export const manualOverrides = pgTable('manual_overrides', {
+  ticker:          text('ticker').notNull(),
+  field:           text('field').notNull(),
+  overrideSource:  text('override_source').notNull(), // source name, or 'manual' for literal value
+  overrideValue:   numeric('override_value'),          // null = use best value from overrideSource
+  note:            text('note'),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.field] }),
+}))
+
+export const insertManualOverridesSchema = createInsertSchema(manualOverrides).omit({ createdAt: true })
+export type InsertManualOverrides = z.infer<typeof insertManualOverridesSchema>
+export type ManualOverridesRow = typeof manualOverrides.$inferSelect
