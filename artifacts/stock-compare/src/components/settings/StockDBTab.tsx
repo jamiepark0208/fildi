@@ -214,7 +214,7 @@ export function StockDBTab() {
 
   const activeProv: FieldProv | null = useMemo(() => {
     if (!activeCell || !provData) return null;
-    return provData.fields.find(f => f.field === activeCell.field) ?? null;
+    return (provData.fields ?? []).find(f => f.field === activeCell.field) ?? null;
   }, [activeCell, provData]);
 
   const overrideMutation = useMutation({
