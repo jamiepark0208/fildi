@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, Search } from "lucide-react";
+import { useState, useMemo, useCallback, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,27 @@ interface StockDBEntry {
   peerGroupId: string | null;
   fundamentals: FundamentalsRow | null;
 }
+
+// ── Provenance types (matches GET /api/fundamentals/provenance/:ticker) ───────
+
+interface SourceEntry {
+  source: string;
+  value: number | null;
+  fetchedAt: string | null;
+  status: "used" | "available" | "excluded" | "no_data";
+  exclusionReason?: string;
+}
+interface FieldProv {
+  field: string;
+  winningSource: string | null;
+  winningValue: number | null;
+  isOverride: boolean;
+  divergent: boolean;
+  fetchedAt: string | null;
+  override: { source: string; value: number | null; note: string | null; createdAt: string } | null;
+  sources: SourceEntry[];
+}
+interface ProvenanceData { ticker: string; fields: FieldProv[] }
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -154,10 +176,19 @@ function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: strin
 
 const families = ["value", "growth", "quality", "safety", "meta"] as const;
 
+type ActiveCell = { ticker: string; field: string; rect: DOMRect };
+
 export function StockDBTab() {
+  const qc = useQueryClient();
   const [tickerFilter, setTickerFilter] = useState("");
   const [sortCol, setSortCol]           = useState<string | null>(null);
   const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+  const [hoveredTicker, setHoveredTicker]   = useState<string | null>(null);
+  const [activeCell, setActiveCell]         = useState<ActiveCell | null>(null);
+  const [overrideSrc, setOverrideSrc]       = useState("");
+  const [overrideVal, setOverrideVal]       = useState("");
+  const [overrideNote, setOverrideNote]     = useState("");
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
@@ -168,6 +199,71 @@ export function StockDBTab() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const { data: provData, isFetching: provFetching } = useQuery<ProvenanceData>({
+    queryKey: ["provenance", hoveredTicker],
+    queryFn: async () => {
+      const r = await fetch(`/api/fundamentals/provenance/${hoveredTicker}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!hoveredTicker,
+    staleTime: 60 * 1000,
+  });
+
+  const activeProv: FieldProv | null = useMemo(() => {
+    if (!activeCell || !provData) return null;
+    return provData.fields.find(f => f.field === activeCell.field) ?? null;
+  }, [activeCell, provData]);
+
+  const overrideMutation = useMutation({
+    mutationFn: async ({ ticker, field, source, value, note }: { ticker: string; field: string; source: string; value?: string; note?: string }) => {
+      const r = await fetch("/api/fundamentals/override", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, field, source, value: value || undefined, note }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: (_, { ticker }) => {
+      qc.invalidateQueries({ queryKey: ["provenance", ticker] });
+      qc.invalidateQueries({ queryKey: ["admin-stock-db"] });
+    },
+  });
+
+  const clearOverrideMutation = useMutation({
+    mutationFn: async ({ ticker, field }: { ticker: string; field: string }) => {
+      const r = await fetch(`/api/fundamentals/override/${ticker}/${field}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: (_, { ticker }) => {
+      qc.invalidateQueries({ queryKey: ["provenance", ticker] });
+      qc.invalidateQueries({ queryKey: ["admin-stock-db"] });
+    },
+  });
+
+  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLTableCellElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setActiveCell({ ticker, field, rect });
+    setOverrideSrc(activeProv?.override?.source ?? "");
+    setOverrideVal(activeProv?.override?.value != null ? String(activeProv.override.value) : "");
+    setOverrideNote(activeProv?.override?.note ?? "");
+  }, [activeProv]);
+
+  const onRowEnter = useCallback((ticker: string) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoveredTicker(ticker);
+  }, []);
+
+  const onRowLeave = useCallback(() => {
+    hoverTimerRef.current = setTimeout(() => setHoveredTicker(null), 2000);
+  }, []);
 
   function handleSort(colKey: string) {
     if (sortCol === colKey) {
@@ -252,6 +348,7 @@ export function StockDBTab() {
   const noRow      = data.filter(d => !d.fundamentals).length;
 
   return (
+    <>
     <div className="space-y-4">
       {/* Summary bar */}
       <div className="flex items-center justify-between">
@@ -369,11 +466,6 @@ export function StockDBTab() {
           <tbody>
             {displayData.map((row, ri) => {
               const f = row.fundamentals;
-              const fetchedAt = f?.fundamentalsLastFetched ?? null;
-              const source    = f?.lastSource ?? "fmp";
-              const tooltip   = fetchedAt
-                ? `Last fetched ${fmtDate(fetchedAt)} · source: ${source}`
-                : "No data fetched yet";
 
               return (
                 <tr
@@ -382,6 +474,8 @@ export function StockDBTab() {
                     "border-b border-border hover:bg-muted/30 transition-colors",
                     ri % 2 === 0 ? "" : "bg-muted/10",
                   )}
+                  onMouseEnter={() => onRowEnter(row.ticker)}
+                  onMouseLeave={onRowLeave}
                 >
                   {/* Ticker cell — sticky */}
                   <td className="sticky left-0 z-10 bg-background border-r border-border px-3 py-1.5 font-mono font-semibold whitespace-nowrap">
@@ -406,14 +500,16 @@ export function StockDBTab() {
                     const suspect = isSuspect(col, raw);
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
+                    const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
 
                     return (
                       <td
                         key={col.key as string}
-                        title={tooltip + (hasFlag ? " · ⚠ triangulation flag" : "")}
+                        onClick={(e) => openCell(row.ticker, col.key as string, e)}
                         className={cn(
-                          "px-2 py-1 text-right font-mono whitespace-nowrap border-border transition-colors cursor-default",
+                          "px-2 py-1 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
+                          isActive && "ring-1 ring-inset ring-primary/50",
                           isNull   && "bg-red-500/15 text-red-400/70",
                           !isNull && suspect && "bg-amber-500/15 text-amber-300",
                           !isNull && !suspect && hasFlag && "bg-orange-500/15 text-orange-300",
@@ -438,5 +534,175 @@ export function StockDBTab() {
         </table>
       </div>
     </div>
+    {/* ── Provenance Popover ─────────────────────────────────────────────── */}
+    <Popover open={!!activeCell} onOpenChange={(open) => { if (!open) setActiveCell(null); }}>
+      {/* Virtual anchor: fixed-position invisible div aligned to the clicked cell */}
+      <PopoverAnchor asChild>
+        <div
+          style={{
+            position: "fixed",
+            left:   activeCell?.rect.left  ?? 0,
+            top:    activeCell?.rect.bottom ?? 0,
+            width:  activeCell?.rect.width  ?? 0,
+            height: 0,
+            pointerEvents: "none",
+          }}
+        />
+      </PopoverAnchor>
+
+      <PopoverContent
+        className="w-80 p-0 text-xs overflow-hidden"
+        align="start"
+        sideOffset={4}
+        onInteractOutside={() => setActiveCell(null)}
+      >
+        {!activeProv && (
+          <div className="p-3 text-muted-foreground flex items-center gap-2">
+            {provFetching
+              ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…</>
+              : "Hover the row first to load provenance."}
+          </div>
+        )}
+        {activeProv && (
+          <div>
+            {/* Header */}
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">{activeCell?.ticker} · {activeCell?.field}</span>
+              <div className="flex items-center gap-1">
+                {activeProv.isOverride && <span title="Manual override active"><Pin className="h-3 w-3 text-amber-400" /></span>}
+                {activeProv.divergent  && <span title="Sources disagree"><TriangleAlert className="h-3 w-3 text-orange-400" /></span>}
+              </div>
+            </div>
+
+            {/* Winning value */}
+            <div className="px-3 py-2 border-b border-border">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Winner</span>
+                <span className="font-mono font-medium">
+                  {activeProv.winningValue != null
+                    ? activeProv.winningValue.toPrecision(5)
+                    : <span className="text-red-400/70">null</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="text-muted-foreground">Source</span>
+                <span className="font-mono">{activeProv.winningSource ?? "—"}</span>
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="text-muted-foreground">Age</span>
+                <span className="font-mono">{fmtDate(activeProv.fetchedAt)}</span>
+              </div>
+              {activeProv.divergent && (
+                <div className="mt-1.5 text-[10px] text-orange-400 flex items-center gap-1">
+                  <TriangleAlert className="h-2.5 w-2.5" /> Sources disagree on this value
+                </div>
+              )}
+            </div>
+
+            {/* Per-source table */}
+            <div className="px-3 py-2 border-b border-border">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">All sources</div>
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="text-left font-normal pb-0.5">Source</th>
+                    <th className="text-right font-normal pb-0.5">Value</th>
+                    <th className="text-right font-normal pb-0.5">Age</th>
+                    <th className="text-right font-normal pb-0.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeProv.sources.map(s => (
+                    <tr key={s.source} className={cn(s.status === "excluded" || s.status === "no_data" ? "text-muted-foreground/50" : "")}>
+                      <td className="py-px">{s.source}</td>
+                      <td className="text-right font-mono py-px">
+                        {s.value != null ? s.value.toPrecision(4) : "—"}
+                      </td>
+                      <td className="text-right py-px">{fmtDate(s.fetchedAt)}</td>
+                      <td className="text-right py-px">
+                        {s.status === "used"      && <span className="text-green-400">used</span>}
+                        {s.status === "available" && <span className="text-blue-400">avail</span>}
+                        {s.status === "no_data"   && <span>—</span>}
+                        {s.status === "excluded"  && (
+                          <span className="text-muted-foreground/40" title={s.exclusionReason}>excl</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Override control */}
+            <div className="px-3 py-2">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">
+                {activeProv.override ? "Override active" : "Override source"}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <select
+                  value={overrideSrc}
+                  onChange={e => { setOverrideSrc(e.target.value); setOverrideVal(""); }}
+                  className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1"
+                >
+                  <option value="">— pick source —</option>
+                  {activeProv.sources
+                    .filter(s => s.status !== "excluded")
+                    .map(s => <option key={s.source} value={s.source}>{s.source}</option>)}
+                  <option value="manual">manual value</option>
+                </select>
+                {overrideSrc === "manual" && (
+                  <input
+                    type="number"
+                    value={overrideVal}
+                    onChange={e => setOverrideVal(e.target.value)}
+                    placeholder="numeric value"
+                    className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1 font-mono"
+                  />
+                )}
+                <input
+                  type="text"
+                  value={overrideNote}
+                  onChange={e => setOverrideNote(e.target.value)}
+                  placeholder="note (optional)"
+                  className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    disabled={!overrideSrc || overrideMutation.isPending}
+                    onClick={() => {
+                      if (!activeCell || !overrideSrc) return;
+                      overrideMutation.mutate({
+                        ticker: activeCell.ticker,
+                        field:  activeCell.field,
+                        source: overrideSrc,
+                        value:  overrideSrc === "manual" ? overrideVal : undefined,
+                        note:   overrideNote || undefined,
+                      });
+                    }}
+                    className="flex-1 text-[10px] py-1 rounded bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90"
+                  >
+                    {overrideMutation.isPending ? "Saving…" : "Save"}
+                  </button>
+                  {activeProv.override && (
+                    <button
+                      disabled={clearOverrideMutation.isPending}
+                      onClick={() => {
+                        if (!activeCell) return;
+                        clearOverrideMutation.mutate({ ticker: activeCell.ticker, field: activeCell.field });
+                        setOverrideSrc(""); setOverrideVal(""); setOverrideNote("");
+                      }}
+                      className="flex-1 text-[10px] py-1 rounded border border-border hover:bg-muted/50 disabled:opacity-40"
+                    >
+                      {clearOverrideMutation.isPending ? "Clearing…" : "Clear override"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+    </>
   );
 }
