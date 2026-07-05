@@ -829,3 +829,63 @@ After scripts are built, run each with `--dry-run` flag that logs (ticker, endpo
 - `.claude/skills/db-patterns.md` — add canonical universe = fmp_fundamentals (256 tickers), add bronze/silver/gold layer descriptions, update ticker counts
 - `.claude/skills/data-agent.md` — field priority table per family, gap-targeted approach description, rate limits per source
 - Review for stale writer comments (flagged in prior sessions: `source_fundamentals` schema comment still says "snapshot-to-staging.ts", `ticker_fundamentals` comment says "FMP refresh job")
+
+---
+
+## Parts B/C/D — Backfill Scripts + Dry Runs (2026-07-05)
+
+### Part B — Scripts built
+
+All three scripts created in `artifacts/api-server/src/scripts/`:
+
+**backfill-fmp.ts**
+- Target: `fmp_fundamentals` tickers (257, dynamic query)
+- Always calls `fetchFMPFundamentals` (9 endpoints/ticker in parallel) — client doesn't support per-endpoint calls
+- Skip: if `fmp_wacc IS NOT NULL OR fmp_roic IS NOT NULL` AND `fetchedAt < 7 days`
+- Budget: 9 calls/ticker, checks `checkFMPBudget(9)` before each, calls `recordFMPCalls(9)` after
+- Stops cleanly when budget exhausted; re-run the next day to continue
+- Log: `logs/backfill-fmp-{date}.log`
+
+**backfill-polygon.ts**
+- Target: `fmp_fundamentals` tickers (257, dynamic query)
+- Skip: if Yahoo AND Edgar already cover all 8 Polygon fields in `source_fundamentals`
+- Rate limit: 3 concurrent, 1s sleep between batches
+- Upsert to `polygon_fundamentals`
+- Log: `logs/backfill-polygon-{date}.log`
+
+**backfill-av.ts**
+- Target: `fmp_fundamentals` tickers (257, dynamic query)
+- Quota: 25 calls/day. Resumable cursor in `logs/av-cursor.json` (date, callsToday, lastTicker, done)
+- Skip: if Yahoo already covers all AV fields in `source_fundamentals`
+- Rate limit: 1 concurrent, 12s between requests (5 req/min soft limit)
+- Upsert to `av_fundamentals`
+- Log: `logs/backfill-av-{date}.log`
+
+No `av_api_usage` DB table needed — quota tracked via cursor JSON file.
+
+### Part C — Dry runs (all passing)
+
+| Script | Tickers | Would-call | Skipped | Total calls | Notes |
+|---|---|---|---|---|---|
+| backfill-fmp.ts | 257 | 247 | 10 | 2223 | 10 tickers already have recent FMP data |
+| backfill-polygon.ts | 257 | 257 | 0 | n/a | No staleness check; all need first fetch |
+| backfill-av.ts | 257 | 257 | 0 | 0/25 quota | Full skip logic not triggered (Yahoo covers none yet) |
+
+FMP skip logic verified working: 10 tickers with recent wacc/roic data correctly identified and skipped.
+
+### Part D — Docs updated
+
+- `db-patterns.md`: Added "Fundamentals data layers" section covering Bronze/Silver/Gold layer descriptions, canonical universe (fmp_fundamentals, 256 tickers), per-field priority rules, rate limits, and backfill script locations.
+
+### Run order after midnight UTC quota reset
+
+1. `node dist/scripts/backfill-fmp.mjs` — runs up to budget, re-run daily until all 247 pending tickers done (~10 days)
+2. `node dist/scripts/backfill-polygon.mjs` — one shot, no daily limit
+3. `node dist/scripts/populate-source-fundamentals.mjs` — re-run after each backfill
+4. `node dist/scripts/merge-trusted.mjs` — re-run after populate; populates field_provenance
+5. `node dist/scripts/backfill-av.mjs` — 25/day, resumable; run daily until done
+
+### Remaining items
+
+- provenanceCache not yet registered in cache-registry.ts (admin cache panel)
+- Need to verify provenance tooltip works with real data after merge-trusted re-run
