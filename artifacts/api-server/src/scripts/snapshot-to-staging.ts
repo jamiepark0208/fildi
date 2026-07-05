@@ -1,11 +1,16 @@
 /**
- * One-time script: copy ticker_fundamentals → fmp/polygon/av staging tables.
+ * ONE-TIME migration script: copy ticker_fundamentals → fmp/polygon/av staging tables.
+ *
+ * !! DO NOT RE-RUN unless fmp_fundamentals is empty (initial setup only).
+ * !! Re-running on a populated table silently expanded the canonical universe
+ * !! from 168 → 257 tickers on 2026-07-05. The script now hard-aborts if
+ * !! fmp_fundamentals already has rows, unless you pass --force.
  *
  * Routing logic:
- *   lastSource contains "fmp"           → fmp_fundamentals
+ *   lastSource contains "fmp"           → fmp_fundamentals (existing rows only)
  *   lastSource contains "polygon"       → polygon_fundamentals
  *   lastSource contains "alpha_vantage" → av_fundamentals
- *   null or unrecognized                → fmp_fundamentals (original source)
+ *   null or unrecognized                → fmp_fundamentals (existing rows only)
  *
  * Run: cd artifacts/api-server && npx tsx src/scripts/snapshot-to-staging.ts
  */
@@ -140,15 +145,35 @@ function resolveSource(lastSource: string | null): "fmp" | "polygon" | "alpha_va
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  const force = process.argv.includes("--force");
+
+  // Guard: refuse to run on a populated table unless --force is explicitly passed.
+  // This prevents accidental re-runs from silently expanding the canonical universe.
+  const existingFmp = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
+  const canonicalFmpTickers = new Set(existingFmp.map(r => r.ticker));
+
+  if (canonicalFmpTickers.size > 0 && !force) {
+    console.error(
+      `\nABORT: fmp_fundamentals already has ${canonicalFmpTickers.size} rows.\n` +
+      `This is a one-time migration script. Re-running it on a populated table\n` +
+      `will expand the canonical universe with peer-group tickers.\n\n` +
+      `If you truly need to re-run (e.g. to update existing rows only), pass --force.\n` +
+      `With --force, only tickers already in fmp_fundamentals will be updated.\n`
+    );
+    process.exit(1);
+  }
+
   console.log("Reading ticker_fundamentals …");
   const rows = await db.select().from(tickerFundamentals);
   console.log(`  ${rows.length} rows fetched\n`);
+  if (force) console.log(`  --force: will only update ${canonicalFmpTickers.size} existing fmp tickers, skipping new ones\n`);
 
   const stats = {
     fmp:           { tickers: 0, fields: 0 },
     polygon:       { tickers: 0, fields: 0 },
     alpha_vantage: { tickers: 0, fields: 0 },
     skipped:       0,
+    fmpSkippedNew: 0,
   };
 
   for (const row of rows) {
@@ -213,6 +238,13 @@ async function main() {
       stats.alpha_vantage.fields += fieldCount;
 
     } else {
+      // Update-only: never insert tickers that aren't already in fmp_fundamentals.
+      // (canonicalFmpTickers is empty on first run, so all tickers pass through.)
+      if (canonicalFmpTickers.size > 0 && !canonicalFmpTickers.has(row.ticker)) {
+        console.log(`[${row.ticker}] SKIP — not in canonical fmp universe`);
+        stats.fmpSkippedNew++;
+        continue;
+      }
       const data = toFmp(row);
       const fieldCount = countNonNullData(data as Record<string, unknown>);
       await db
@@ -271,6 +303,7 @@ async function main() {
   console.log(`  polygon_fundamentals: ${stats.polygon.tickers} tickers, ${stats.polygon.fields} fields`);
   console.log(`  av_fundamentals:      ${stats.alpha_vantage.tickers} tickers, ${stats.alpha_vantage.fields} fields`);
   console.log(`  Skipped (all null):   ${stats.skipped} tickers`);
+  if (stats.fmpSkippedNew > 0) console.log(`  Skipped (not in fmp): ${stats.fmpSkippedNew} tickers — would have expanded canonical universe`);
 
   process.exit(0);
 }
