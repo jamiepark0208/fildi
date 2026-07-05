@@ -483,6 +483,48 @@ The original backfill fetched income/balance sheet for all 169 tickers but hit r
 
 **Alpha Vantage:** `av_fundamentals` is empty. AV's unique fields vs Yahoo/Finnhub/FMP: moderate overlap. At 25/day quota, AV covers 25 tickers/day. Its fields (peRatio, pegRatio, forwardPe, pbRatio, dividendYield, analystTargetPrice, netMargin, operatingMargin, returnOnEquity, totalRevenue, ebitda, beta) all have FMP as higher priority per FIELD_DEFS, so AV will only win the merge for tickers where FMP /ratios is also null. Given FMP backfill will fill most of those, AV's unique contribution post-FMP-backfill is likely small. Still worth building for completeness and cross-validation.
 
+---
+
+## Yahoo Coverage Discrepancy — Audit (2026-07-05)
+
+### Root cause
+
+The prior handoff stated "yahoo_fundamentals backfilled for 161 of 169 canonical tickers." This conflated the **total row count** of `yahoo_fundamentals` (161) with canonical overlap — these are different ticker universes. The actual canonical overlap was always only 49 tickers.
+
+### yahoo_fundamentals — confirmed current state
+
+| Metric | Value |
+|---|---|
+| Total rows | 161 |
+| Distinct tickers | 161 (one row/ticker) |
+| Fetched at | 2026-06-26 16:23–16:34 UTC |
+
+### Canonical coverage breakdown
+
+| Category | Count |
+|---|---|
+| Canonical tickers (fmp_fundamentals) | 169 |
+| yahoo_fundamentals tickers matching canonical (exact symbol) | 49 |
+| Of those 49: valid data written to source_fundamentals | **46** |
+| Of those 49: all-null → excluded from source_fundamentals | **3** (JNPR, PSTG, SQ) |
+| Canonical tickers with zero Yahoo coverage (not in yahoo_fundamentals) | **120** |
+
+The 112 remaining yahoo_fundamentals rows cover non-canonical tickers in the broader peer-group/registry universe. `populate-source-fundamentals.ts` wrote all 155 non-null Yahoo tickers to source_fundamentals, but 109 of those are outside the canonical set and are ignored by `merge-trusted.ts` (fmp_fundamentals allowlist).
+
+### Why JNPR, PSTG, SQ are absent from source_fundamentals
+
+All three are in `yahoo_fundamentals` AND `fmp_fundamentals`, but every numeric column is NULL — Yahoo's API returned a timestamped row with no data. `populate-source-fundamentals.ts` skips null values (line 201: `if (val === null || val === undefined) continue`) and skips the ticker entirely if batch is empty (line 208). No bug — correct behavior.
+
+### populate-source-fundamentals.ts — no ticker filtering
+
+The script reads all 161 rows from `yahoo_fundamentals` with no join to `fmp_fundamentals`, no `source_ticker_map` lookup, and no casing filter. The 46-vs-155 split is entirely because 120 canonical tickers were never in `yahoo_fundamentals` to begin with.
+
+### Impact on gap-fill plan
+
+**The Part A gap-fill plan is still correct and requires no recalculation.** The A3 finding already stated this accurately: 46 canonical tickers have usable Yahoo data; 123 do not (120 absent + 3 all-null). The FMP backfill scope, per-endpoint priority order, and ~618-call gap-targeted estimate all remain valid. Proceed with backfill-fmp.ts after FMP quota resets at midnight UTC.
+
+---
+
 ### Ready for Part B
 
 Scripts to build (all new, targeting source staging tables, gap-aware):
