@@ -987,3 +987,54 @@ Polygon 82-ticker skip rate (~32%) plausible: tickers with strong Yahoo+Edgar co
 
 AV 0 skips is correct — av_fundamentals is empty, staleness check finds nothing. After first run, re-running within 7 days will skip completed tickers.
 
+
+---
+
+## Session Summary — 2026-07-05 (evening)
+
+### What was built
+
+Three gap-targeted backfill scripts (all in `artifacts/api-server/src/scripts/`):
+
+**backfill-fmp.ts** — 9 FMP endpoints/ticker via `fetchFMPFundamentals`. Staleness skip: if `fmp_wacc` or `fmp_roic` is non-null AND `fetchedAt < 7 days`. Budget-aware: checks/records via `checkFMPBudget`/`recordFMPCalls`. Stops cleanly when budget exhausted; resume next day.
+
+**backfill-polygon.ts** — 3 concurrent, 1s between batches. Skip if Yahoo+Edgar already have all 6 checkable Polygon fields in `source_fundamentals` (totalRevenue, netIncome, grossMargin, operatingMargin, interestExpense, totalDebt). `totalStockholdersEquity` and `quarterlyOperatingCashFlow` excluded from skip-check — those field names never appear from Yahoo/Edgar.
+
+**backfill-av.ts** — 25/day quota, resumable via `logs/av-cursor.json` cursor (date, callsToday, lastTicker, done). Staleness skip: checks `av_fundamentals.fetchedAt < 7 days`. Field-coverage skip removed — `peRatio`/`dividendYield` never in Yahoo source_fundamentals, so "all covered" can never fire.
+
+### Bugs found and fixed
+
+1. **Polygon skip — field name mismatch**: `totalStockholdersEquity`/`quarterlyOperatingCashFlow` never appear in source_fundamentals under those names from Yahoo/Edgar. Removed from skip-check.
+2. **AV skip — unreachable condition**: `peRatio`/`dividendYield` never in Yahoo source_fundamentals. Replaced field-coverage skip with staleness-based skip.
+3. **Additional finding**: Neither AV nor Polygon are in `merge-trusted.ts` FIELD_DEFS — their data is cross-validation only, does not flow to ticker_fundamentals.
+
+### Universe: 257 (not a bug)
+
+Phase report previously said 256. The 88-ticker batch + IONQ (separate INSERT at 17:52) = 89 additions → 257 total. All legitimate. backfill scripts query fmp_fundamentals dynamically — correct.
+
+### Verified dry-run projections
+
+| Script | Tickers | Would-call | Skipped |
+|---|---|---|---|
+| backfill-fmp.ts | 257 | 247 | 10 (have recent data) |
+| backfill-polygon.ts | 257 | 175 | 82 (Yahoo+Edgar cover) |
+| backfill-av.ts | 257 | 257 | 0 (first run, empty table) |
+
+### db-patterns.md updated
+
+Added Bronze/Silver/Gold layer section: canonical universe, table purposes, merge pipeline order, per-field priority rules, rate limits, script locations.
+
+### Run order (after midnight UTC)
+
+1. `node dist/scripts/backfill-fmp.mjs` — repeat daily until 247 tickers done (~10 days at 250 calls/day)
+2. `node dist/scripts/backfill-polygon.mjs` — one shot (175 tickers, no daily limit)
+3. `node dist/scripts/populate-source-fundamentals.mjs` — re-run after each backfill batch
+4. `node dist/scripts/merge-trusted.mjs` — re-run after populate; refreshes field_provenance
+5. `node dist/scripts/backfill-av.mjs` — 25/day, resumable; run daily (~11 days)
+
+### Still pending
+
+- Register `provenanceCache` in `cache-registry.ts` (admin cache panel)
+- Verify provenance tooltip shows real data after merge-trusted re-run
+- Extend merge-trusted FIELD_DEFS to include Polygon/AV sources (currently cross-validation only)
+
