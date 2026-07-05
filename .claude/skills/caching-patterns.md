@@ -15,17 +15,23 @@ Import: import { TTLCache } from '../lib/ttl-cache'
 3. Registered — add to artifacts/api-server/src/lib/cache-registry.ts
 
 ## Current cache instances and TTLs
-Name              | Display Name              | TTL      | File
-------------------|---------------------------|----------|---------------------------
-search            | Ticker Search             | 24 hours | routes/stocks.ts
-quote             | Stock Price & Profile     | 1 hour   | routes/stocks.ts
-compare           | Stock Comparison          | 1 hour   | routes/stocks.ts
-breakdown         | Stock Analysis            | 2 hours  | routes/stocks.ts
-history           | Price History             | 1 hour   | routes/stocks.ts
-history-1d        | Price History (Intraday)  | 15 min   | routes/stocks.ts
-options           | Options Chain             | 30 min   | routes/options.ts
-options-expiry    | Options Calendar          | 24 hours | lib/options.ts
-macro-regime      | Market Regime (VIX)       | 30 min   | routes/macro-regime.ts (raw var)
+Name              | Display Name                    | TTL      | File
+------------------|---------------------------------|----------|---------------------------
+search            | Ticker Search                   | 24 hours | routes/stocks.ts
+quote             | Stock Price & Profile           | 1 hour   | routes/stocks.ts
+compare           | Stock Comparison                | 1 hour   | routes/stocks.ts
+breakdown         | Stock Analysis                  | 2 hours  | routes/stocks.ts
+history           | Price History                   | 1 hour   | routes/stocks.ts
+history-1d        | Price History (Intraday)        | 15 min   | routes/stocks.ts
+options           | Options Chain                   | 30 min   | routes/options.ts
+options-expiry    | Options Calendar                | 24 hours | lib/options.ts
+macro-regime      | Market Regime (VIX)             | 30 min   | routes/macro-regime.ts
+macro-data        | Macro Data (FRED + Yahoo)       | 4 hours  | file cache (macro-data.json)
+macro-charts      | Macro Charts (VIX/Rates/Sentiment) | 4 hours | file cache (macro-charts.json)
+macro-cot         | COT Positioning (CFTC)          | file     | file cache (cot-cache.json)
+peer-map          | Peer Map                        | 24 hours | lib/peer-resolver.ts
+peer-profile      | Peer Profile                    | 24 hours | lib/peer-resolver.ts
+provenance        | Provenance (field source data)  | 15 min   | lib/provenance-cache.ts (pending registry)
 
 ## Cache key conventions
 - Single ticker: ticker.toUpperCase() e.g. "NVDA"
