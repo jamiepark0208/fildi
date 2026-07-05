@@ -107,11 +107,27 @@ FMP backfill targets: wacc(257/257), priceToSales(~245/257), roic(~245/257), rev
 
 ---
 
+## Step results (2026-07-06 session)
+
+### Step 1 — Universe audit (COMPLETE, awaiting confirmation)
+
+**Result:** 257 unique tickers in `fmp_fundamentals`, no duplicates. All 257 are in `ticker_registry`. Batches:
+
+| Date | Count | Batch |
+|---|---|---|
+| 2026-06-14 to 06-26 | 158 | Original seed (MSFT first, then bulk backfill) |
+| 2026-06-30 to 07-04 | 10 | Incremental: NVDA, PLTR, HOOD, INTC, GOOGL, TSLA, BABA, AMZN, AAPL, NFLX |
+| 2026-07-05 | 89 | Peer-group expansion: semis (ON, ADI, NXPI, QCOM, MU, MRVL, ARM), cyber (CYBR, CRWD, ZS, TENB, RPD, QLYS, S), fintech (COIN, SOFI, PYPL, FISV, GPN, FOUR, NU, ADYEN, PAGS, FIS, BILL), payments (WDAY, INTU, CRM, ORCL, SAP, NOW), space (RKLB, LUNR, RDW, SPCE, SPCX), consumer internet (UBER, LYFT, DASH, SNAP, RDDT, ROKU, TTD, DUOL, ETSY, OPEN, WBD, MTCH, BMBL, GRAB, SE, MELI), SaaS (DDOG, SNOW, MDB, DOCU, TEAM, MNDY), storage/infra (NTAP, ANET, SMCI, HPQ, HPE, DELL), misc (SPOT, PINS, SOFI, TOST, COMP, RKT, SG, IONQ, BB, DDD, SOUN, POET, QSI, TEM, BULL, ONDS, LDI, PN, LQDA, SUPX, GFS, WOLF, REBN, FSLY, RUM) |
+
+**❓ Pending confirmation:** Is 257 the confirmed canonical universe going forward? If yes, proceed to Step 2 (canonical-tickers.json + validate-universe.ts).
+
+---
+
 ## Next session tasks
 
 Full task list: `.claude/docs/next-session-tasks-db.md`
 
-1. Confirm whether 257-ticker expansion is intentional (Step 1 — report only, wait for confirmation)
+1. ~~Confirm whether 257-ticker expansion is intentional~~ → Step 1 complete, awaiting user confirmation
 2. Create `canonical-tickers.json` + `validate-universe.ts`; wire scripts to read from it
 3. Audit ETF exclusion, FIELD_DEFS duplication, rate-limit constants, peer-group drift, schema comments
 4. Wire Polygon/AV into merge-trusted.ts FIELD_DEFS as lowest-priority fallbacks
