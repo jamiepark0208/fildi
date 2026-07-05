@@ -654,3 +654,65 @@ The prior A4 audit estimated FMP must fill gaps for 123 of 169 tickers (46-ticke
 4. `/financial-growth` × ~157 → fills `revenueGrowthYoyPrior`(157), `sharesOutstandingPrior`(157), `epsGrowth`(143), `dividendYield`(142); residual `revenueGrowthYoY`(4)
 
 Total gap-targeted calls still ~618 (same endpoint scope, same tickers for the stub endpoints). The Yahoo backfill dramatically improved coverage on fields Yahoo carries; it did not change the FMP endpoint scope because the remaining gaps are in fields Yahoo never provides (wacc, roic, effectiveTaxRate, priceToSales, revenueGrowthYoyPrior, etc.).
+
+---
+
+## Stale/Dead Ticker Remediation (2026-07-05)
+
+### Pre-change audit — what existed under old symbols
+
+| Table | DISH | JNPR | PSTG | SQ |
+|---|---|---|---|---|
+| fmp_fundamentals | ✓ | ✓ | ✓ | ✓ |
+| yahoo_fundamentals | ✓ all-null | ✓ all-null | ✓ all-null | ✓ all-null |
+| finnhub_fundamentals | ✗ | ✓ 19 fields | ✓ 19 fields | ✓ 17 fields |
+| edgar_fundamentals | ✗ | ✓ | ✓ | ✓ |
+| source_fundamentals | fmp×6 | finnhub×19+fmp×7 | finnhub×19+fmp×7 | finnhub×17+fmp×7 |
+| ticker_fundamentals | ✓ revenue only | ✓ full (Finnhub data) | ✓ full | ✓ full |
+| peer_group_members | telecom.telecommunications | it_hardware_networking | it_hardware_networking | fintech.digital_finance_payments |
+| ticker_registry | ✓ | ✓ | ✓ | ✓ |
+| source_ticker_map | polygon+av (inactive) | polygon+av (inactive) | polygon+av (inactive) | polygon+av (inactive) |
+
+No hardcoded references to any of these symbols found in source files.
+
+JNPR's ticker_fundamentals had real-looking values because Finnhub continued serving fundamental data under the dead symbol after the HPE acquisition — that data is stale/post-delisting and was discarded with the deletion.
+
+### Actions taken
+
+**JNPR — deleted from canonical universe** (acquired by HPE for cash July 2, 2025; delisted; no successor ticker). Removed from all 9 tables: fmp_fundamentals, yahoo_fundamentals, finnhub_fundamentals, edgar_fundamentals, source_fundamentals (26 rows), ticker_fundamentals, peer_group_members, source_ticker_map, ticker_registry.
+
+**DISH → ECHO** (EchoStar renamed DISH→ECHO June 24, 2026): renamed in-place across all 7 tables that had DISH rows. source_ticker_map updated with ticker='ECHO', source_ticker kept as 'DISH' (polygon/AV may still serve under old symbol) + explanatory note.
+
+**PSTG → P** (Pure Storage rebranded to Everpure, PSTG→P April 17, 2026): ticker_registry had a stub P entry (no name, no group membership, no fundamentals — peer-group expansion artifact). Deleted stub first, then renamed PSTG→P across all 9 tables. source_ticker_map updated with ticker='P', source_ticker='PSTG' + note.
+
+**SQ → XYZ** (Block Inc. ticker change, SQ→XYZ January 21, 2025): renamed in-place across all 9 tables. source_ticker_map updated with ticker='XYZ', source_ticker='SQ' + note.
+
+### Re-fetch results under corrected symbols
+
+Stale all-null yahoo_fundamentals rows (ECHO/P/XYZ) deleted, then backfill-yahoo-canonical.ts re-ran:
+
+| Ticker | Yahoo fields | Finnhub fields | Confirms live data? |
+|---|---|---|---|
+| ECHO | 38 | 3 | ✓ (ECHO active on Yahoo; Finnhub thinly covered for EchoStar) |
+| P | 36 | 18 | ✓ (Everpure active on both) |
+| XYZ | 38 | 19 | ✓ (Block Inc. active on both) |
+
+Finnhub re-fetch script: `artifacts/api-server/src/scripts/refetch-renamed-tickers.ts` (one-shot; targets ECHO/P/XYZ explicitly).
+
+### source_ticker_map approach
+
+Decision: did not create a new `ticker_rename_log` table (would require a migration and adds schema complexity for a low-frequency event). Instead, updated source_ticker_map `ticker` key to new canonical symbol, left `source_ticker` pointing to the old symbol (external APIs may still serve under old symbols), and added a `notes` field entry describing the rename and effective date. This gives future backfill scripts an automatic fallback if a source still uses the old symbol — they can join on source_ticker_map to translate. A proper `ticker_rename_log` table (old_ticker, new_ticker, effective_date, reason, is_deleted) should be added in a future migration if renames become more frequent.
+
+### Post-remediation state
+
+| Metric | Value |
+|---|---|
+| Canonical universe | **168** (was 169; JNPR removed) |
+| source_fundamentals total rows | 15,809 |
+| merge-trusted tickers | 168 |
+| Fields written | 4,420 |
+| yahoo share | 3,893 (88%) |
+| fmp share | 390 (9%) |
+| Fields null >20% of tickers | Same FMP-target fields as prior audit; all counts now /168 |
+
+FMP backfill scope is unchanged — wacc(168/168), priceToSales(156/168), roic(156/168), effectiveTaxRate(156/168), revenueGrowthYoyPrior(156/168), sharesOutstandingPrior(156/168) remain the priority endpoints.
