@@ -6,7 +6,7 @@
 
 ## GOAL
 Own the stock DB. Maintain timely, accurate, complete data for all tickers
-in watchlist + peer universe (~180 tickers). Minimize API cost and tokens.
+in watchlist + peer universe (257 canonical tickers). Minimize API cost and tokens.
 Three measures of data quality: timeliness, accuracy, completeness.
 
 ---
@@ -14,7 +14,7 @@ Three measures of data quality: timeliness, accuracy, completeness.
 ## MINDSET
 
 - **Plan first.** Identify what's needed, find the optimal path, then execute.
-- **Free first, paid last.** Exhaust free sources before FactSet.
+- **Free first, paid last.** Exhaust free sources before FactSet/SDM.
 - **Static is static.** sector, exchange, companyName → fetch once, persist permanently. Never re-query.
 - **Own the data.** Every fetch result (success OR failure) gets persisted or mapped.
 - **Suspect means cross-check, not discard.** Extreme values might be real (startup/meme/penny/pre-revenue).
@@ -84,8 +84,9 @@ Stop at first successful result per field. Check source_ticker_map before each a
                      macro only (SOFR, Fed Funds, CPI, GDP, yield curve)
                      not per-ticker
 
-8. FactSet         — stock-data-manager.ts (primary), internal, limited quota
-                     most reliable — use only after free sources exhausted.
+8. FactSet/SDM     — stock-data-manager.ts, OCI proxy at 146.235.223.94:3001
+                     Revenue, EBITDA, margins, ROE, ROA, FCF — use after free sources exhausted
+                     Force refresh: POST /api/sdm/refresh/:ticker?admin=true
 
  
 ```
@@ -232,7 +233,7 @@ cash_flow_statement.net_cash_flow_from_operating_activities→quarterlyOperating
 ```
 1. Create artifacts/api-server/src/lib/{source}-client.ts (follow fmp-client.ts pattern)
 2. Add TTLCache instance if source is called at serve-time (caching-patterns.md)
-3. Wire into stock-data-manager.ts waterfall after existing sources
+3. Add staging table (Bronze layer) + migration. Wire into populate-source-fundamentals.ts and merge-trusted.ts FIELD_DEFS
 4. Map fields to ticker_fundamentals columns (see mappings above)
 5. Test with ONE ticker (use NVDA) before any batch
 6. Update source_ticker_map with test result
@@ -256,9 +257,10 @@ No UI needed. Logs for admin review only.
 ## KNOWN GAPS (update as resolved)
 
 ```
-[x] Alpha Vantage: wired as Priority 7 in stock-data-manager.ts (after FMP, Polygon)
-[x] Polygon: wired as Priority 6 in stock-data-manager.ts (after FMP)
-[x] source_ticker_map: table exists; SDM writes active=true/false after each AV/Polygon attempt
+[x] Alpha Vantage: backfill-av.ts built (25/day quota, resumable cursor). NOT yet in merge FIELD_DEFS — cross-validation only.
+[x] Polygon: backfill-polygon.ts built. NOT yet in merge FIELD_DEFS — cross-validation only.
+[x] source_ticker_map: table exists; ticker=canonical, source_ticker=source-specific alias (e.g. renamed tickers)
+[ ] Wire Polygon + AV into merge-trusted.ts FIELD_DEFS as lowest-priority fallbacks (next-session-tasks-db.md Step 4)
 [x] freeCashFlow: now persisted to DB via writeFundamentalsRow
 [x] writeFundamentalsRow: forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior, freeCashFlow all present
 [ ] Yahoo fundamentals: fetched at serve-time in buildMetrics, not persisted to DB

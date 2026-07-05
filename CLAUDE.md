@@ -51,12 +51,14 @@ Use before touching any source file. codegraph auto-runs on Edit/Write via hook.
 - If context > 40%: use /compact before starting a new large task
 - Auto-compact fires at 45% (CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=45) — do not fight it
 
-## KEY FILES (updated 2026-06-18)
+## KEY FILES (updated 2026-07-05)
 - Security middleware: `middleware/rateLimiter.ts`, `middleware/errorHandler.ts`, `middleware/validate.ts`
 - Shared cache utility: `lib/ttl-cache.ts` — all caches use this; see `.claude/skills/caching-patterns.md` for TTL table + registry rules
 - Auth validators: `lib/validators/auth.ts` (Zod schemas for register/login)
-- Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD)
+- Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD), `routes/fundamentals-provenance.ts` (provenance + overrides)
+- Fundamentals pipeline: `scripts/merge-trusted.ts` (FIELD_DEFS — single source of truth for field priority), `lib/provenance-cache.ts`, `lib/fundamentals-db.ts`
 - Full API catalog: `.agents/context/api-endpoints.md`
+- DB canonical universe: `fmp_fundamentals` table (257 tickers) — **never hardcode a ticker count**
 
 ## HOT FILE INDEX — grep before Read, never load whole file
 These files are edited frequently. Always `grep -n "<pattern>" <file>` to get line numbers, then `Read offset+limit`.
@@ -74,6 +76,8 @@ These files are edited frequently. Always `grep -n "<pattern>" <file>` to get li
 | `stock-compare/src/components/macro/MacroComponents.tsx` | RateHistoryChart props | `grep -n "RateHistoryChart\|referenceLines"` |
 | `stock-compare/src/components/macro/macro-page-types.ts` | MacroCharts / MacroData types | `grep -n "MacroCharts\|MacroData\|igSpread\|nfci"` |
 | `lib/db/src/schema/index.ts` | any table definition | `grep -n "pgTable\|market_regime"` |
+| `api-server/src/scripts/merge-trusted.ts` | FIELD_DEFS priority table | `grep -n "FIELD_DEFS\|tfCol\|priority"` |
+| `api-server/src/lib/cache-registry.ts` | registered cache names | `grep -n "DISPLAY_NAMES\|getAllCaches"` |
 
 ## HOOKS
 Defined in .claude/settings.local.json — never in .claude/hooks/hooks.json (not read).
