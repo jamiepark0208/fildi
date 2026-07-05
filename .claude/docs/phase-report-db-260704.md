@@ -533,3 +533,124 @@ Scripts to build (all new, targeting source staging tables, gap-aware):
 3. `backfill-av.ts` — wraps into `av_fundamentals`
 
 Run order after midnight UTC: backfill-fmp → backfill-polygon → populate-source-fundamentals → merge-trusted (AV on separate day per constraint).
+
+---
+
+## Yahoo Canonical Backfill — Part B (2026-07-05)
+
+### Step 1: Target confirmation
+
+120 canonical tickers confirmed missing from `yahoo_fundamentals` (fmp_fundamentals NOT IN yahoo_fundamentals). Full list: ABBV, ABNB, ABT, ACLS, ACN, ADM, AEM, AES, AJG, ALNY, AM, AMAT, AMG, AMGN, AMT, APA, ARE, ARES, ATI, ATO, AVB, AWK, AXTA, BEN, BF.B, BG, BR, BRK.B, BSX, CELH, CFG, CG, CHD, CME, CMG, CMI, CMPS, CMS, CSX, CTRA, CVS, CVX, DHR, DISH, DLR, DLTR, ED, EDIT, ELS, ELV, EMN, EW, EWBC, EXC, EXPE, FTI, HAL, HBAN, HBI, HD, HSY, HUM, HUN, HUT, JNJ, JPM, LHX, LIN, LLY, MAR, MARA, MCD, MCO, MOH, MPC, MPLX, MRK, NI, NJR, NKE, O, ODFL, OGS, OKE, OLLI, PCAR, PCG, PPG, PPL, PSA, REGN, RF, RGLD, RS, RSG, RTX, RUN, SHAK, SHLS, SHW, SPG, SPGI, SR, SYK, T, TAP, TDG, TPR, TRGP, TROW, TRV, USB, V, WELL, WFC, WING, WM, WMB, YUM, ZBH
+
+### Step 2: Backfill script
+
+New script: `artifacts/api-server/src/scripts/backfill-yahoo-canonical.ts`
+- Ticker source: `fmp_fundamentals NOT IN yahoo_fundamentals` (dynamically computed at runtime)
+- Fetch logic: reuses `fetchYahooFundamentals` from `yahoo-client.ts` unchanged
+- Upsert: same `onConflictDoUpdate` pattern as `backfill-yahoo.ts`
+- Concurrency: MAX_CONCURRENT=3 (same as original)
+- Log: `logs/backfill-yahoo-canonical-{date}.log`
+
+Build helper added: `artifacts/api-server/build-script.mjs` — single-entry esbuild wrapper for compiling individual scripts (same plugin/banner config as build.mjs). Also fixed `merge-trusted.ts` `isMain` guard to match `.mjs` suffix so compiled script runs correctly.
+
+**Backfill result (2026-07-05):**
+
+| Metric | Value |
+|---|---|
+| Target tickers | 120 |
+| Fetched (ok) | **120** |
+| Failed | **0** |
+| Fields written | 4,342 |
+| Avg fields / ticker | 36.2 |
+| All-null (fetched but no data) | 2 — DISH, HBI |
+
+### Step 3: populate-source-fundamentals re-run
+
+| Source | Tickers | Field rows |
+|---|---|---|
+| yahoo | 273 (+118 vs prior) | 9,974 (+4,333) |
+| edgar | 119 | 1,411 |
+| finnhub | 157 | 2,817 |
+| fmp | 169 | 1,517 |
+| **TOTAL** | — | **15,719** |
+
+Canonical Yahoo coverage in `source_fundamentals`: **164 / 169** (+118 vs 46 baseline).
+
+5 canonical tickers with no usable Yahoo data (fetched but all-null): DISH, HBI, JNPR, PSTG, SQ.
+
+### Step 4: merge-trusted re-run results
+
+All 169 canonical tickers merged. Source usage:
+
+| Source | Fields | Share |
+|---|---|---|
+| yahoo | 3,822 | 87% |
+| fmp | 405 | 9% |
+| finnhub | 92 | 2% |
+| edgar | 75 | 2% |
+| **Total** | **4,394** | — |
+
+### Step 5: Updated null breakdown — ticker_fundamentals (canonical 169)
+
+Fields with **zero nulls** (complete coverage — no FMP action needed):
+`totalRevenue`, `netIncome`, `totalDebt`, `operatingMargin`
+
+Fields with **near-zero nulls** (≤13 — minor gaps, Yahoo covered most):
+
+| Field | Null / 169 |
+|---|---|
+| grossMargin | 2 |
+| beta | 2 |
+| earningsPerShare | 2 |
+| returnOnAssets | 3 |
+| netMargin | 6 |
+| freeCashFlow | 6 |
+| analystTargetPrice | 6 |
+| cashAndEquivalents | 6 |
+| returnOnEquity | 10 |
+| totalStockholdersEquity | 10 |
+| currentRatio | 10 |
+| ebitda | 13 |
+| quarterlyOperatingCashFlow | 13 |
+
+Fields still requiring FMP/AV backfill (>20% null):
+
+| Field | Null / 169 | Gap reason |
+|---|---|---|
+| wacc | 169/169 | FMP /wacc endpoint — never fetched |
+| priceToSales | 157/169 | FMP /ratios — only 12 tickers fetched |
+| roic | 157/169 | FMP /key-metrics — none fetched |
+| revenueGrowthYoyPrior | 157/169 | FMP /financial-growth — only 12 tickers |
+| sharesOutstandingPrior | 157/169 | FMP /financial-growth |
+| effectiveTaxRate | 157/169 | FMP /ratios |
+| epsGrowth | 143/169 | FMP /financial-growth |
+| dividendYield | 142/169 | FMP /financial-growth |
+| interestExpense | 135/169 | FMP /income-statement |
+| debtToEquity | 19/169 | Yahoo covers most; FMP fills remainder |
+| peRatio | 116/169 | Yahoo covers most; FMP /ratios for remainder |
+| pegRatio | 20/169 | Yahoo covers most; FMP /ratios for remainder |
+| forwardPe | 7/169 | Yahoo nearly complete |
+| evEbitda | 15/169 | Yahoo nearly complete |
+| evRevenue | 7/169 | Yahoo nearly complete |
+| ebit | 17/169 | FMP /income-statement for remainder |
+| revenueGrowthYoY | 4/169 | Yahoo nearly complete |
+| priceToBook | 9/169 | Yahoo nearly complete |
+
+### Updated FMP gap-fill scope vs prior audit
+
+The prior A4 audit estimated FMP must fill gaps for 123 of 169 tickers (46-ticker Yahoo baseline). With Yahoo now covering 164/169 canonically:
+
+| FMP endpoint | Prior estimate | Updated need |
+|---|---|---|
+| /wacc | 169 tickers | **169** (Yahoo has no wacc) |
+| /key-metrics (roic, evEbitda, evRevenue) | 169 tickers | **~15–157** (Yahoo covers evEbitda/evRevenue mostly; roic fully absent) |
+| /ratios (peRatio, pegRatio, priceToBook, priceToSales, currentRatio, debtToEquity, effectiveTaxRate, earningsPerShare, freeCashFlow, dividendYield) | ~140 tickers | **~10–157** (most now covered by Yahoo; effectiveTaxRate/priceToSales still need 157 tickers) |
+| /financial-growth (revenueGrowthYoY, epsGrowth, revenueGrowthYoyPrior) | ~140 tickers | **~4–157** (revenueGrowthYoY near-complete; Prior and epsGrowth still 143–157 null) |
+
+**Revised FMP priority (gap-targeted after Yahoo):**
+1. `/wacc` × 169 → fills `wacc` for all 169 (Yahoo never has this)
+2. `/ratios` × ~157 → fills `effectiveTaxRate`, `priceToSales`; also fills residual `peRatio`(116), `debtToEquity`(19), `pegRatio`(20), `currentRatio`(10)
+3. `/key-metrics` × ~157 → fills `roic`; also fills residual `evEbitda`(15), `evRevenue`(7)
+4. `/financial-growth` × ~157 → fills `revenueGrowthYoyPrior`(157), `sharesOutstandingPrior`(157), `epsGrowth`(143), `dividendYield`(142); residual `revenueGrowthYoY`(4)
+
+Total gap-targeted calls still ~618 (same endpoint scope, same tickers for the stub endpoints). The Yahoo backfill dramatically improved coverage on fields Yahoo carries; it did not change the FMP endpoint scope because the remaining gaps are in fields Yahoo never provides (wacc, roic, effectiveTaxRate, priceToSales, revenueGrowthYoyPrior, etc.).
