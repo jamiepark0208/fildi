@@ -889,3 +889,101 @@ FMP skip logic verified working: 10 tickers with recent wacc/roic data correctly
 
 - provenanceCache not yet registered in cache-registry.ts (admin cache panel)
 - Need to verify provenance tooltip works with real data after merge-trusted re-run
+
+---
+
+## Pre-Backfill Bug Audit — Findings (2026-07-05)
+
+### Issue 1: Universe discrepancy (257 vs 256 vs 168)
+
+**Finding: 257 is correct. The phase report miscounted.**
+
+Row insertion timeline for fmp_fundamentals:
+| Date | Rows inserted | Cumulative |
+|---|---|---|
+| 2026-06-14 → 2026-07-04 | 168 total | 168 (original canonical) |
+| 2026-07-05 17:47 UTC | 88 (peer-group expansion batch) | 256 |
+| 2026-07-05 17:52 UTC | 1 (IONQ — seed gap fix, separate INSERT) | 257 |
+
+The phase report wrote "88 tickers added → 256 total" but IONQ was added in a separate INSERT at 17:52, making it 89 additions and 257 total. All 257 are legitimate:
+- Every row is in peer_group_members OR watchlist (only FSLY is not in peer_group_members, but FSLY is a pre-existing row from the original 168 and it IS in ticker_registry).
+- Zero stray/spurious rows from legacy scripts.
+
+The "168" cited by the user was the pre-expansion canonical universe. The current canonical universe is **257** (post-expansion).
+
+**The backfill scripts are correct**: they query fmp_fundamentals dynamically (not hardcoded 168/169). fmp_fundamentals IS the correct canonical universe definition — same as merge-trusted.ts line 214.
+
+No changes needed to the backfill scripts for Issue 1.
+
+---
+
+### Issue 2: Polygon and AV skip logic — root cause
+
+**Both skip checks are broken due to field name mismatches in source_fundamentals.**
+
+#### Polygon skip — broken fields
+
+The skip check requires ALL of `POLYGON_FIELDS` to be present in source_fundamentals from Yahoo or Edgar:
+```
+POLYGON_FIELDS = [totalRevenue, netIncome, grossMargin, operatingMargin,
+                  interestExpense, totalDebt, totalStockholdersEquity, quarterlyOperatingCashFlow]
+```
+
+Direct test on NVDA and AAPL confirms:
+| Field | Yahoo in SF | Edgar in SF | Covered? |
+|---|---|---|---|
+| totalRevenue | ✓ | ✓ | ✓ |
+| netIncome | ✗ (Yahoo writes `annualNetIncome`) | ✓ | ✓ edgar |
+| grossMargin | ✓ | ✓ | ✓ |
+| operatingMargin | ✓ | ✗ | ✓ yahoo |
+| interestExpense | ✗ | ✓ | ✓ edgar |
+| totalDebt | ✓ | ✓ | ✓ |
+| **totalStockholdersEquity** | **✗ (writes `annualTotalEquity`)** | **✗ (writes `totalEquity`)** | **✗ NEVER** |
+| **quarterlyOperatingCashFlow** | **✗ (writes `operatingCashFlow`)** | **✗ (writes `operatingCashFlow`)** | **✗ NEVER** |
+
+`totalStockholdersEquity` and `quarterlyOperatingCashFlow` are NEVER in source_fundamentals from Yahoo or Edgar (confirmed SELECT DISTINCT). This blocks the skip from ever firing.
+
+merge-trusted.ts confirms: `quarterlyOperatingCashFlow` has priority `[["fmp","quarterlyOperatingCashFlow"]]` only — FMP-exclusive field. `totalStockholdersEquity` has priority `[["edgar","totalEquity"],["fmp","totalStockholdersEquity"]]` — Edgar uses a DIFFERENT field name.
+
+#### AV skip — broken fields
+
+The skip check requires ALL of these to be in Yahoo in source_fundamentals:
+```
+peRatio, pegRatio, forwardPe, priceToBook, dividendYield, analystTargetPrice,
+netMargin, operatingMargin, returnOnEquity, totalRevenue, ebitda, beta
+```
+
+Direct query confirms Yahoo NEVER has `peRatio` or `dividendYield` in source_fundamentals. The skip can never fire.
+
+#### Additional finding: AV and Polygon NOT in merge-trusted.ts FIELD_DEFS
+
+Neither `"av"` nor `"polygon"` appear in merge-trusted.ts FIELD_DEFS source priority lists. Their data is in source_fundamentals for cross-validation only — not primary data sourcing. This means:
+- Polygon/AV backfills populate staging tables and source_fundamentals
+- They do NOT currently influence ticker_fundamentals via merge-trusted
+- If field impact on ticker_fundamentals is desired, FIELD_DEFS must be extended to include them
+
+---
+
+### Fixes planned
+
+**Issue 2a — Polygon skip:**
+Remove `totalStockholdersEquity` and `quarterlyOperatingCashFlow` from the skip-check fields. They're FMP-exclusive and Polygon's value for them is cross-validation only. Correct check covers: `totalRevenue`, `netIncome`, `grossMargin`, `operatingMargin`, `interestExpense`, `totalDebt` (the 6 fields Yahoo/Edgar actually write to source_fundamentals).
+
+**Issue 2b — AV skip:**
+Since AV isn't in the merge pipeline and `peRatio`/`dividendYield` (its unique fields) are never in Yahoo, the field-coverage skip will never fire. Replace with a staleness-based skip (same pattern as FMP): skip if av_fundamentals.fetchedAt < 7 days for this ticker. This requires adding a per-ticker staleness check against av_fundamentals.
+
+---
+
+
+### Post-fix dry-run results
+
+| Script | Tickers | Would-call | Skipped | Skip reason |
+|---|---|---|---|---|
+| backfill-fmp.ts | 257 | 247 | 10 | fetchedAt < 7d with wacc/roic data (unchanged) |
+| backfill-polygon.ts | 257 | 175 | 82 | Yahoo+Edgar cover all 6 checkable fields |
+| backfill-av.ts | 257 | 257 | 0 | av_fundamentals empty — correct, no prior fetches |
+
+Polygon 82-ticker skip rate (~32%) plausible: tickers with strong Yahoo+Edgar coverage of totalRevenue, netIncome, grossMargin, operatingMargin, interestExpense, totalDebt get skipped. 175 still need Polygon for cross-validation or to fill the two FMP-exclusive fields.
+
+AV 0 skips is correct — av_fundamentals is empty, staleness check finds nothing. After first run, re-running within 7 days will skip completed tickers.
+

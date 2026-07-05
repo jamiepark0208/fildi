@@ -1,12 +1,16 @@
 /**
- * Backfill Polygon.io financials for the canonical 256-ticker universe.
+ * Backfill Polygon.io financials for the canonical 257-ticker universe.
  *
  * Polygon covers: totalRevenue, netIncome, grossMargin (computed),
  * operatingMargin (computed), interestExpense, totalDebt,
  * totalStockholdersEquity, quarterlyOperatingCashFlow.
  *
- * Skip logic: if Yahoo or Edgar already have ALL Polygon fields for a ticker,
- * that ticker is skipped (Polygon adds nothing new for validation).
+ * Skip logic: if Yahoo + Edgar already have the 6 checkable fields for a
+ * ticker, Polygon adds no new data for those and is skipped.
+ * NOTE: totalStockholdersEquity and quarterlyOperatingCashFlow are excluded
+ * from the check — Yahoo writes them under different names (annualTotalEquity,
+ * operatingCashFlow) so they never appear in source_fundamentals under the
+ * Polygon field names.
  *
  * Rate limit: 3 concurrent, 1s sleep between batches.
  *
@@ -26,10 +30,13 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY ?? "";
 const MAX_CONCURRENT = 3;
 
-const POLYGON_FIELDS = [
+// Only the 6 fields Yahoo/Edgar actually write to source_fundamentals under
+// these exact names. totalStockholdersEquity (Yahoo: "annualTotalEquity",
+// Edgar: "totalEquity") and quarterlyOperatingCashFlow (both write
+// "operatingCashFlow") are excluded — they can never satisfy the check.
+const POLYGON_SKIP_CHECK_FIELDS = [
   "totalRevenue", "netIncome", "grossMargin", "operatingMargin",
-  "interestExpense", "totalDebt", "totalStockholdersEquity",
-  "quarterlyOperatingCashFlow",
+  "interestExpense", "totalDebt",
 ] as const;
 
 const HIGHER_PRIORITY_SOURCES = ["yahoo", "edgar"];
@@ -74,7 +81,7 @@ async function coveredByHigherPriority(ticker: string): Promise<boolean> {
       ),
     );
   const covered = new Set(rows.map(r => r.field));
-  return POLYGON_FIELDS.every(f => covered.has(f));
+  return POLYGON_SKIP_CHECK_FIELDS.every(f => covered.has(f));
 }
 
 async function processTicker(ticker: string): Promise<TickerResult> {

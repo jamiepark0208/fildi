@@ -1,12 +1,16 @@
 /**
- * Backfill Alpha Vantage OVERVIEW for the canonical 256-ticker universe.
+ * Backfill Alpha Vantage OVERVIEW for the canonical 257-ticker universe.
  *
  * AV quota: 25 requests/day. Script is resumable — saves a cursor file
  * (logs/av-cursor.json) tracking today's call count and last-processed ticker.
  * Re-running picks up where it left off without re-fetching already-done tickers.
  *
- * Skip logic: if Yahoo already has ALL AV fields for a ticker, skip it —
- * AV is lower priority than Yahoo for every field it covers.
+ * Skip logic: staleness-based — skip if av_fundamentals has a row for this
+ * ticker fetched within the last 7 days (same pattern as backfill-fmp.ts).
+ * Field-coverage skip was removed: AV provides peRatio and dividendYield that
+ * Yahoo never carries, so the "all covered by Yahoo" check can never fire.
+ * AV data goes to source_fundamentals for cross-validation; it is not yet
+ * wired into merge-trusted.ts FIELD_DEFS.
  *
  * Rate limit: 1 concurrent (strict AV limit). 12s sleep between requests
  * to stay within the 5 req/min soft limit.
@@ -17,8 +21,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { sql, eq, and, inArray } from "drizzle-orm";
-import { db, fmpFundamentals, avFundamentals, sourceFundamentals } from "@workspace/db";
+import { sql, eq } from "drizzle-orm";
+import { db, fmpFundamentals, avFundamentals } from "@workspace/db";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -28,15 +32,7 @@ const AV_API_KEY = process.env.ALPHA_VANTAGE_API_KEY ?? "";
 const MAX_DAILY_CALLS = 25;
 // 12s between requests: stays within 5 req/min free tier soft limit
 const INTER_REQUEST_DELAY_MS = 12_000;
-
-const AV_FIELDS = [
-  "peRatio", "pegRatio", "forwardPe", "pbRatio", "dividendYield",
-  "analystTargetPrice", "netMargin", "operatingMargin", "returnOnEquity",
-  "totalRevenue", "ebitda", "beta",
-] as const;
-
-// Yahoo is higher priority for every AV field
-const HIGHER_PRIORITY_SOURCES = ["yahoo"];
+const STALE_DAYS = 7;
 
 // ── Cursor file (quota + resume state) ────────────────────────────────────────
 
@@ -95,20 +91,15 @@ type TickerResult = {
   reason?: string;
 };
 
-async function coveredByHigherPriority(ticker: string): Promise<boolean> {
+async function isRecentlyBackfilled(ticker: string): Promise<boolean> {
   const rows = await db
-    .select({ field: sourceFundamentals.field })
-    .from(sourceFundamentals)
-    .where(
-      and(
-        eq(sourceFundamentals.ticker, ticker),
-        inArray(sourceFundamentals.source, HIGHER_PRIORITY_SOURCES),
-      ),
-    );
-  const covered = new Set(rows.map(r => r.field));
-  // AV pbRatio maps to priceToBook in canonical field names — check both
-  const avCanonicalFields = AV_FIELDS.map(f => f === "pbRatio" ? "priceToBook" : f);
-  return avCanonicalFields.every(f => covered.has(f));
+    .select({ fetchedAt: avFundamentals.fetchedAt })
+    .from(avFundamentals)
+    .where(eq(avFundamentals.ticker, ticker))
+    .limit(1);
+  if (!rows[0]?.fetchedAt) return false;
+  const staleThreshold = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
+  return rows[0].fetchedAt > staleThreshold;
 }
 
 async function processTicker(ticker: string, cursor: Cursor): Promise<TickerResult> {
@@ -117,9 +108,8 @@ async function processTicker(ticker: string, cursor: Cursor): Promise<TickerResu
     return { ticker, status: "quota_stop", reason: `${cursor.callsToday}/${MAX_DAILY_CALLS} calls used today` };
   }
 
-  const allCovered = await coveredByHigherPriority(ticker);
-  if (allCovered) {
-    appendLog(`[${ticker}] SKIP — all AV fields covered by Yahoo`);
+  if (await isRecentlyBackfilled(ticker)) {
+    appendLog(`[${ticker}] SKIP — fetched within ${STALE_DAYS} days`);
     return { ticker, status: "skip" };
   }
 
