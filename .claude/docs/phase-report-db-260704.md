@@ -119,7 +119,22 @@ FMP backfill targets: wacc(257/257), priceToSales(~245/257), roic(~245/257), rev
 | 2026-06-30 to 07-04 | 10 | Incremental: NVDA, PLTR, HOOD, INTC, GOOGL, TSLA, BABA, AMZN, AAPL, NFLX |
 | 2026-07-05 | 89 | Peer-group expansion: semis (ON, ADI, NXPI, QCOM, MU, MRVL, ARM), cyber (CYBR, CRWD, ZS, TENB, RPD, QLYS, S), fintech (COIN, SOFI, PYPL, FISV, GPN, FOUR, NU, ADYEN, PAGS, FIS, BILL), payments (WDAY, INTU, CRM, ORCL, SAP, NOW), space (RKLB, LUNR, RDW, SPCE, SPCX), consumer internet (UBER, LYFT, DASH, SNAP, RDDT, ROKU, TTD, DUOL, ETSY, OPEN, WBD, MTCH, BMBL, GRAB, SE, MELI), SaaS (DDOG, SNOW, MDB, DOCU, TEAM, MNDY), storage/infra (NTAP, ANET, SMCI, HPQ, HPE, DELL), misc (SPOT, PINS, SOFI, TOST, COMP, RKT, SG, IONQ, BB, DDD, SOUN, POET, QSI, TEM, BULL, ONDS, LDI, PN, LQDA, SUPX, GFS, WOLF, REBN, FSLY, RUM) |
 
-**❓ Pending confirmation:** Is 257 the confirmed canonical universe going forward? If yes, proceed to Step 2 (canonical-tickers.json + validate-universe.ts).
+**Verdict: Bug, not intentional expansion.**
+
+Root cause chain:
+1. Peer-group expansion session added 89 tickers to `ticker_registry` + `peer_group_members` (correct — for scoring comparisons)
+2. `backfill-fundamentals.ts` (legacy) reads WATCHLIST + all `peer_group_members` → writes to `ticker_fundamentals` via `writeFundamentalsRow()`
+3. `snapshot-to-staging.ts` ran (labeled "one-time migration script") — reads ALL `ticker_fundamentals`, upserts into `fmp_fundamentals` with no filter → promoted all 89 peer-group tickers into the canonical universe table
+4. `merge-trusted.ts` line 214 uses `SELECT ticker FROM fmp_fundamentals` as its universe definition → all 89 now treated as canonical
+
+The structural hole: `fmp_fundamentals` has no write protection. Anything in `ticker_fundamentals` can be promoted into it by re-running `snapshot-to-staging.ts`.
+
+**Recommended fix sequence (no table changes until confirmed):**
+1. Patch `snapshot-to-staging.ts`: add `WHERE ticker IN (SELECT ticker FROM fmp_fundamentals)` to its `fmp_fundamentals` insert — update-only, no new rows
+2. DELETE the 89 spurious rows from `fmp_fundamentals`, `ticker_fundamentals`, `field_provenance`, `source_fundamentals`
+3. Proceed with Step 2 (canonical-tickers.json) which removes `fmp_fundamentals` as the universe source of truth permanently
+
+**❓ Pending confirmation:** Approve the fix sequence above? If yes, will produce exact DELETE statements for review before touching any data.
 
 ---
 
