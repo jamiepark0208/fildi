@@ -716,3 +716,116 @@ Decision: did not create a new `ticker_rename_log` table (would require a migrat
 | Fields null >20% of tickers | Same FMP-target fields as prior audit; all counts now /168 |
 
 FMP backfill scope is unchanged — wacc(168/168), priceToSales(156/168), roic(156/168), effectiveTaxRate(156/168), revenueGrowthYoyPrior(156/168), sharesOutstandingPrior(156/168) remain the priority endpoints.
+
+---
+
+## Canonical Universe Expansion + Watchlist Gap Fix (2026-07-05)
+
+### Root cause
+fmp_fundamentals (and thus ticker_fundamentals / Stock DB view) only contained 168 of 256 tickers that should have been in the one-time setup. 14 WATCHLIST tickers and their peer group members were missing because the original fmp_fundamentals was seeded from a ticker_fundamentals snapshot that reflected the old FMP backfill scope, not WATCHLIST + full peer groups.
+
+### Fix
+- Queried peer_group_members for all 14 missing WATCHLIST tickers' groups → found 88 distinct tickers not in fmp_fundamentals (includes the 14 WATCHLIST tickers themselves, who are members of their own groups)
+- All 88 had ticker_registry entries; confirmed before inserting
+- Inserted 88 placeholder rows into fmp_fundamentals → canonical universe is now **256**
+- All 88 had Yahoo data already in yahoo_fundamentals (original peer-group backfill covered them)
+- Re-ran populate-source-fundamentals + merge-trusted → **256 tickers, 6,670 fields written**
+- IONQ had a seed gap (ticker_registry but not peer_group_members) — fixed separately
+- ADYEN: Euronext-listed, zero data from all sources → intentional gap (255 merged rows)
+- Stock DB now shows 31/31 WATCHLIST tickers ✓
+
+### Build helper added
+`artifacts/api-server/build-script.mjs` — single-entry esbuild wrapper for compiling individual scripts (same plugin/banner config as build.mjs). Pass script path as first arg.
+
+---
+
+## Pre-Backfill Sanity Check (Part A) — 2026-07-05
+
+### Part A1: Ticker universe references — CLEAN
+
+| File | Universe source | Status |
+|---|---|---|
+| merge-trusted.ts:214 | `fmp_fundamentals` (dynamic query) | ✓ |
+| populate-source-fundamentals.ts | reads all staging tables; no ticker filter (silver layer intentionally broader) | ✓ |
+| fundamentals-provenance.ts | per-ticker queries, no universe needed | ✓ |
+| backfill-fundamentals.ts | WATCHLIST constant (hardcoded) | ⚠️ OLD SCRIPT — being replaced by gap-targeted backfills, not a bug |
+
+No 169/168 hardcoded anywhere in new scripts.
+
+### Part A2: resolveField() vs batch path — IDENTICAL
+
+Both paths use the same `resolveFromIndex(fieldDef, byField, override)` internal function with identically structured `byField` maps. Spot-checked 3 divergent cases against field_provenance:
+
+| Ticker | Field | Batch result | resolveField() result | Match? |
+|---|---|---|---|---|
+| NVDA | debtToEquity | yahoo=6.555, divergent=true | yahoo=6.555, divergent=true | ✓ |
+| AAPL | debtToEquity | yahoo=0.795, divergent=true | yahoo=0.795, divergent=true | ✓ |
+| BABA | beta | yahoo=0.46, divergent=true | yahoo=0.46, divergent=true | ✓ |
+
+No divergence found between the two paths.
+
+### Part A3: populate-source-fundamentals for renamed tickers — CLEAN
+
+Script uses `onConflictDoUpdate` (upsert, no truncate). ECHO/P/XYZ are in yahoo_fundamentals under new symbols → correctly written to source_fundamentals. Verified: zero stale rows for DISH/PSTG/SQ/JNPR in source_fundamentals.
+
+### Part A4: field_provenance and manual_overrides
+
+- field_provenance: **6,726 rows** populated from last merge run (2026-07-05 17:52 UTC)
+- manual_overrides: **0 rows** (no test overrides saved yet)
+- Spot-checked 9 (ticker, field) pairs across NVDA/AAPL/BABA: all match expected resolution logic ✓
+
+### Bugs found: none in core pipeline
+
+---
+
+## Parts B/C/D — PENDING (next session)
+
+### What was read before session ended (context needed for Part B)
+
+**fmp-client.ts:** `fetchFMPFundamentals()` calls **9 endpoints in parallel** per ticker:
+- `key-metrics` → evEbitda, evRevenue, forwardPe, roic, currentRatio, returnOnEquity
+- `ratios` → peRatio, pegRatio, priceToBook, priceToSales, debtToEquity, dividendYield, grossMargin, operatingMargin, netMargin, returnOnEquity, returnOnAssets, effectiveTaxRate, currentRatio, earningsPerShare (via income-statement eps)
+- `income-statement` (limit=2) → totalRevenue, netIncome, ebitda, ebit, interestExpense, sharesOutstanding, sharesOutstandingPrior, earningsPerShare
+- `balance-sheet-statement` → totalDebt, totalStockholdersEquity, cashAndEquivalents, sharesOutstanding
+- `price-target-consensus` → analystTargetPrice
+- `cash-flow-statement` (quarterly, limit=2) → quarterlyOperatingCashFlow
+- `financial-growth` (limit=2) → revenueGrowthYoY, revenueGrowthYoyPrior, epsGrowth
+- `wacc` → wacc
+- `cash-flow-statement` (annual) → freeCashFlow
+
+**Count: 9 FMP API calls per ticker. At 256 tickers = 2,304 calls total. Daily budget = 250. Needs ~10 days at full budget.**
+
+Gap-targeted logic must avoid redundant calls: skip income-statement/balance-sheet for tickers where Yahoo/Edgar already have total revenue, netIncome, totalDebt, etc. (most tickers). This reduces to 4 endpoints/ticker for most: wacc + ratios + key-metrics + financial-growth = ~1,024 calls total = ~5 days.
+
+**fundamentals-db.ts:** `checkFMPBudget(additionalCalls)` → checks `fmp_api_usage` table, returns bool. `recordFMPCalls(n)` → upserts call count for today (resets on new day).
+
+### Part B — Scripts to build
+
+**backfill-fmp.ts:**
+- Target: fmp_fundamentals tickers (256, dynamic query)
+- Gap logic: per-ticker, per-endpoint — check source_fundamentals for existing coverage from higher-priority sources before deciding to call each endpoint
+- Staleness: skip if fmp_fundamentals.fetched_at < 7 days AND all FMP-specific fields for that endpoint are non-null in source_fundamentals
+- Rate limit: 1 concurrent (FMP is free tier), check checkFMPBudget before each batch, call recordFMPCalls after
+- Log: logs/backfill-fmp-{date}.log
+- Priority order (run in this order): wacc → key-metrics → ratios → financial-growth → income-statement (skip if Yahoo/Edgar cover) → balance-sheet (skip if Yahoo/Edgar cover)
+
+**backfill-polygon.ts:**
+- Target: fmp_fundamentals tickers (256)
+- Fields: totalRevenue, netIncome, grossMargin (computed), operatingMargin (computed), totalDebt, totalStockholdersEquity, quarterlyOperatingCashFlow
+- Skip if Yahoo/Edgar already have these fields for the ticker
+- Rate limit: 3 concurrent, 13s sleep between batches (Polygon API constraint)
+- Upsert into polygon_fundamentals
+
+**backfill-av.ts:**
+- Target: fmp_fundamentals tickers (256) — but AV quota is 25/day, so implement a resumable cursor (save last-processed ticker to a file)
+- Fields: peRatio, pegRatio, forwardPe, pbRatio, dividendYield, analystTargetPrice, netMargin, operatingMargin, returnOnEquity, totalRevenue, ebitda, beta
+- Skip if Yahoo already has these (AV is lower priority for all its fields)
+- Rate limit: 25/day — check fmp_api_usage equivalent (av_api_usage table), 1 concurrent
+
+### Part C — Dry run
+After scripts are built, run each with `--dry-run` flag that logs (ticker, endpoints/fields, call count) without hitting APIs.
+
+### Part D — Docs to update
+- `.claude/skills/db-patterns.md` — add canonical universe = fmp_fundamentals (256 tickers), add bronze/silver/gold layer descriptions, update ticker counts
+- `.claude/skills/data-agent.md` — field priority table per family, gap-targeted approach description, rate limits per source
+- Review for stale writer comments (flagged in prior sessions: `source_fundamentals` schema comment still says "snapshot-to-staging.ts", `ticker_fundamentals` comment says "FMP refresh job")
