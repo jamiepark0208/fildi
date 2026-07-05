@@ -3,6 +3,7 @@
 Full detail for each date at `.agents/sessions/claude-YYYY-MM-DD.md` (Claude) or `cursor-YYYY-MM-DD.md` (Cursor).
 Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
+- [2026-07-05](claude-2026-07-05.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 169 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts so it shows in admin cache panel.
 - [2026-07-04](claude-2026-07-04.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 169 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts so it shows in admin cache panel.
 - [2026-06-26](claude-2026-06-26.md) — auto-saved | build | next: 1) Audit Finnhub implementation in stock-data-manager.ts — extract to finnhub-client.ts + finnhub_fundamentals table, same pattern as Yahoo/EDGAR. 2) Wait for FMP/Polygon/AV midnight reset then run backfill-fundamentals.ts. 3) Cross-source reconciliation: compare yahoo_fundamentals, edgar_fundamentals
 - [2026-06-25](claude-2026-06-25.md) — auto-saved | build | next: 1) Enhance Stock DB tab: add Fundamental group label, Technical columns, per-ticker status icon (queued/in-progress/done)
