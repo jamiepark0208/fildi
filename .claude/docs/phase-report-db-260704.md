@@ -129,12 +129,27 @@ Root cause chain:
 
 The structural hole: `fmp_fundamentals` has no write protection. Anything in `ticker_fundamentals` can be promoted into it by re-running `snapshot-to-staging.ts`.
 
-**Recommended fix sequence (no table changes until confirmed):**
-1. Patch `snapshot-to-staging.ts`: add `WHERE ticker IN (SELECT ticker FROM fmp_fundamentals)` to its `fmp_fundamentals` insert — update-only, no new rows
-2. DELETE the 89 spurious rows from `fmp_fundamentals`, `ticker_fundamentals`, `field_provenance`, `source_fundamentals`
-3. Proceed with Step 2 (canonical-tickers.json) which removes `fmp_fundamentals` as the universe source of truth permanently
+**Fix status: patch applied, DELETEs pending approval**
 
-**❓ Pending confirmation:** Approve the fix sequence above? If yes, will produce exact DELETE statements for review before touching any data.
+Trigger: manual re-run of `snapshot-to-staging.ts` by previous Claude session when seeding peer-group tickers. No hooks/automation reference it — one-off mistake, no automated re-trigger risk.
+
+`snapshot-to-staging.ts` patched (2026-07-06):
+- Startup guard: aborts if `fmp_fundamentals` already has rows, unless `--force` passed
+- Update-only: fmp branch skips tickers not already in canonical set (no new inserts)
+- Summary line reports how many tickers were blocked from expanding the universe
+
+**❓ Pending DELETE approval** — exact statements ready, awaiting go-ahead:
+```
+DELETE FROM field_provenance WHERE ticker IN (...89 tickers...);
+DELETE FROM source_fundamentals WHERE ticker IN (...);
+DELETE FROM ticker_fundamentals WHERE ticker IN (...);
+DELETE FROM fmp_fundamentals WHERE ticker IN (...);
+```
+Full list of 89: ADI ADYEN ANET ARM BB BILL BKNG BMBL BULL COIN COMP CRM CRWD CYBR DASH DDD DDOG DELL DOCU DUOL ETSY FIS FISV FOUR GFS GPN GRAB HPE HPQ INTU IONQ LDI LQDA LUNR LYFT MDB MELI MNDY MRVL MTCH MU NOW NTAP NU NXPI ON ONDS OPEN ORCL PAGS PINS PN POET PYPL QCOM QLYS QSI RDDT RDFN RDW RKLB RKT ROKU RPD S SAP SE SG SMCI SNAP SNOW SOFI SOUN SPCE SPCX SPOT SUPX SWKS TEAM TEM TENB TOST TTD TXN UBER WBD WDAY WOLF ZS
+
+Open questions before executing:
+- Clean `yahoo_fundamentals` for these 89 too? (they may have Yahoo data from canonical backfill)
+- Clean `source_ticker_map`? (mapping table, not data — lower priority)
 
 ---
 
