@@ -243,3 +243,28 @@ Polygon and AV confirmed NOT wired into FIELD_DEFS (cross-validation only). Old 
 
 - Removing a ticker from the watchlist does NOT flip `fetch_fundamentals = false` — intentional. Peer group tickers should keep their fundamentals data even if the watchlist ticker is removed; the scoring pipeline needs them.
 - The hardcoded `WATCHLIST` in constants.ts is still used by the indicators and technical routes. It is NOT the universe source for fundamentals and should be treated as a separate concern (options signal config).
+
+---
+
+## 2026-07-06 session — FMP budget overage investigation
+
+### Budget status as of investigation
+`fmp_api_usage` row: **294 calls today** (reset_date 2026-07-06). Code soft-limit = 220. Actual FMP free-tier limit = 250. Both exceeded.
+
+### Source 1 (primary, counted): server startup in index.ts
+On every server restart, `index.ts:37-43` calls `getStaleTickers(WATCHLIST)` → `refreshFundamentals(stale)`. Fires 7 FMP calls per stale WATCHLIST ticker (30-ticker hardcoded list) and records via `recordFMPCalls`. Up to 210 calls per restart. **Critical bug: startup path does NOT call `checkFMPBudget` first** — bypasses the gate that `POST /fundamentals/refresh` uses. This is why 294 exceeded both limits; multiple restarts fired without budget awareness.
+
+### Source 2 (secondary, uncounted): stock breakdown route
+`GET /stocks/:ticker/breakdown` fires one raw `fetch()` to `financialmodelingprep.com/stable/price-target` per page view. Never routed through `recordFMPCalls`. Invisible to the budget tracker. Real FMP usage today is higher than 294.
+
+### APA clarification
+APA's `fmp_fundamentals.fetched_at` = 2026-06-26 — not today. User misread the timestamp. No unexplained fetch occurred for APA today.
+
+### Two separate pipelines (independent, both spend quota)
+- Startup `refreshFundamentals` → `ticker_fundamentals` (legacy gold table), 30-ticker WATCHLIST
+- `backfill-fmp.ts` → `fmp_fundamentals` (new staging table), 257 tickers via `fetch_fundamentals` flag
+
+### Action items (not yet implemented)
+- Add `checkFMPBudget` gate to the startup `refreshFundamentals` call in `index.ts` — prevents restart-triggered overages
+- Add `recordFMPCalls(1)` to the price-target fetch in `stocks.ts` — makes breakdown calls visible to the tracker
+- **Do not restart the server today** — quota already exceeded, restarts will fire stale-ticker refresh again
