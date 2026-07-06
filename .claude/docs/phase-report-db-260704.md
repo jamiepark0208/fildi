@@ -218,3 +218,28 @@ Polygon and AV confirmed NOT wired into FIELD_DEFS (cross-validation only). Old 
 1. Ensure ticker is in `ticker_registry` (insert if needed)
 2. `UPDATE ticker_registry SET fetch_fundamentals = true WHERE ticker = 'XYZ'`
 3. All backfill scripts and merge-trusted will pick it up on next run automatically
+
+---
+
+## 2026-07-06 session — fetch_fundamentals lifecycle wired into POST /watchlist
+
+### Finding: two separate "watchlist" concepts
+
+- **Hardcoded `WATCHLIST`** in `constants.ts`: 30-ticker options-signal list (RSI_THRESHOLDS keys). Used by backfill scripts (now replaced) and indicators/technical routes. Static, requires a code deploy to change.
+- **DB `watchlist` table**: real per-user watchlist. `POST /watchlist` is what the UI calls when a user adds a ticker. This is the correct hook point.
+
+### What was wired (routes/watchlist.ts POST handler)
+
+1. **Upsert ticker into ticker_registry** with `fetch_fundamentals = true`. Handles both new tickers (no registry row yet) and existing ones (just flips the flag).
+2. **Peer group lookup**: queries `peer_group_members` for all groups this ticker belongs to, then sets `fetch_fundamentals = true` for all other members of those groups via a single UPDATE.
+3. **No-peer-group warning**: if the ticker has no peer_group_members rows, the API returns `{ ticker, warnings: ["XYZ has no peer group — add it to a peer group and re-run to flag peers"] }` and logs to stderr. No silent handling — caller sees the gap.
+
+### Response shape change (non-breaking)
+
+`POST /watchlist` → `201 { ticker: "IONQ" }` (unchanged for tickers with peers)  
+`POST /watchlist` → `201 { ticker: "IONQ", warnings: [...] }` (new field, optional — only present when no peer group found)
+
+### What this does NOT handle
+
+- Removing a ticker from the watchlist does NOT flip `fetch_fundamentals = false` — intentional. Peer group tickers should keep their fundamentals data even if the watchlist ticker is removed; the scoring pipeline needs them.
+- The hardcoded `WATCHLIST` in constants.ts is still used by the indicators and technical routes. It is NOT the universe source for fundamentals and should be treated as a separate concern (options signal config).
