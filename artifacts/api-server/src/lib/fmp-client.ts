@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 
@@ -103,9 +104,11 @@ function secondOf(arr: unknown): Record<string, unknown> {
 export async function fetchFMPFundamentals(
   ticker: string,
   apiKey: string,
+  trigger = "unknown",
 ): Promise<FMPFundamentalsData> {
   const t = ticker.toUpperCase();
   const q = `symbol=${t}&apikey=${apiKey}`;
+  try {
 
   // 9 endpoints × 31 tickers = ~279 requests per full refresh.
   // beta is NOT fetched from FMP — stable/profile is heavily rate-limited. Yahoo beta
@@ -206,5 +209,11 @@ export async function fetchFMPFundamentals(
   // Annual FCF: from annual cash-flow-statement (cfAnn). FMP field is freeCashFlow.
   result.freeCashFlow = fmpN(cfAnn.freeCashFlow);
 
+  const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
+  logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "success", fieldsReturned });
   return result;
+  } catch (err: any) {
+    logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "key-metrics, ratios, income-statement, balance-sheet, price-target-consensus, cash-flow-qtr, financial-growth, wacc, cash-flow-ann" });
+    throw err;
+  }
 }

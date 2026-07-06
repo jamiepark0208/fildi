@@ -329,3 +329,52 @@ Added `logger.warn({ err }, "stocks: failed to record FMP price-target call")` i
 **Phase 2 (design):** As part of the `getFundamentals()` access-layer, spec a single `api_usage` table (columns: source, date, calls_made, limit, window) that every source's client writes to through one shared function. The Stock DB-adjacent UI subtab ("API Usage") reads from this one table. No ad hoc dashboard built on top of four inconsistent tracking mechanisms.
 
 **Phase 0 is closed.**
+
+---
+
+## 2026-07-06 session — Standardized API call logging (COMPLETE)
+
+### New shared helper: `lib/api-logger.ts`
+Single `logApiCall(ApiCallParams)` function. Fields: `source`, `fn`, `trigger`, `ticker?`, `outcome`, `fieldsReturned?`, `error?`, `requestedFields?`, `usageToday?`, `usageLimit?`. Uses `logger.info` on success, `logger.warn` on failure. Wrapped in try/catch — can never throw.
+
+### Files touched (all import from `api-logger.ts`, no duplicate implementations)
+| File | Changes |
+|---|---|
+| `lib/api-logger.ts` | **NEW** — shared helper |
+| `fmp-client.ts` | Added `trigger` param (default 'unknown'); wrapped body in try/catch; success + failure logs with fieldsReturned |
+| `polygon-client.ts` | Replaced ad-hoc logger calls; added try/catch around fetchWithRetry; failure logs for API error/no results/network; success log with fieldsReturned |
+| `alpha-vantage-client.ts` | Same pattern; failure for rate-limit throw, not-covered, network; success with fieldsReturned |
+| `finnhub-client.ts` | Replaced start/success/404 logger calls; try/catch around fetchWithRetry; success with fieldsReturned |
+| `yahoo-client.ts` | Replaced start/success logs; failure for quoteSummary throw + non-fatal fts throw; success with fieldsReturned |
+| `edgar-client.ts` | Replaced start/success logs; failure for no-CIK, 404, network; success with fieldsReturned |
+| `macro-data.ts` | Added logApiCall to `fetchFredSeriesData`, `fetchFearGreed`, `fetchGSCPI` closures |
+| `routes/fundamentals.ts` | Passes trigger `"fundamentals-refresh route"` to fetchFMPFundamentals |
+| `scripts/backfill-fmp.ts` | Passes trigger `"backfill-fmp script"` to fetchFMPFundamentals |
+
+### Example log lines
+
+**FMP success (backfill):**
+`INFO: api-call: fmp.fetchFMPFundamentals success { source:'fmp', fn:'fetchFMPFundamentals', trigger:'backfill-fmp script', ticker:'NVDA', outcome:'success', fieldsReturned:28 }`
+
+**FMP failure (fundamentals refresh route):**
+`WARN: api-call: fmp.fetchFMPFundamentals failure { source:'fmp', fn:'fetchFMPFundamentals', trigger:'fundamentals-refresh route', ticker:'AAPL', outcome:'failure', error:'FMP HTTP 503 for ...', requestedFields:'key-metrics, ratios, income-statement, ...' }`
+
+**Polygon success:**
+`INFO: api-call: polygon.fetchPolygonFundamentals success { source:'polygon', fn:'fetchPolygonFundamentals', trigger:'backfill-polygon script', ticker:'MSFT', outcome:'success', fieldsReturned:6 }`
+
+**AV failure (not covered):**
+`WARN: api-call: av.fetchAVOverview failure { source:'av', fn:'fetchAVOverview', trigger:'backfill-av script', ticker:'SPCE', outcome:'failure', error:'ticker not covered or invalid', requestedFields:'OVERVIEW' }`
+
+**Yahoo success:**
+`INFO: api-call: yahoo.fetchYahooFundamentals success { source:'yahoo', fn:'fetchYahooFundamentals', trigger:'backfill-yahoo script', ticker:'TSLA', outcome:'success', fieldsReturned:22 }`
+
+**Edgar failure (no CIK):**
+`WARN: api-call: edgar.fetchEdgarFundamentals failure { source:'edgar', fn:'fetchEdgarFundamentals', trigger:'backfill-edgar script', ticker:'ADYEN', outcome:'failure', error:'CIK not in cache — run bootstrapCikCache() first', requestedFields:'us-gaap XBRL company facts' }`
+
+**FRED success:**
+`INFO: api-call: fred.fetchFredSeriesData success { source:'fred', fn:'fetchFredSeriesData', trigger:'macro data refresh', outcome:'success', fieldsReturned:847 }`
+
+**CNN Fear&Greed failure:**
+`WARN: api-call: cnn.fetchFearGreed failure { source:'cnn', fn:'fetchFearGreed', trigger:'macro chart refresh', outcome:'failure', error:'fetch failed', requestedFields:'fear_and_greed/graphdata' }`
+
+### TypeScript: clean (one pre-existing unrelated error in backfill-edgar.ts)
