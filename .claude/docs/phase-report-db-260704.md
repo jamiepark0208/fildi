@@ -299,4 +299,33 @@ Added `recordFMPCalls(1).catch(() => {})` via `.finally()` on the breakdown rout
 ### Current budget state
 294 calls recorded for 2026-07-06. A restart now will log "startup: FMP budget exhausted — skipping stale refresh" and stop. No further overage possible from restarts today. Budget resets at midnight UTC.
 
-### TypeScript: clean
+### TypeScript: clean (one pre-existing error in backfill-edgar.ts unrelated to this phase)
+
+---
+
+## 2026-07-06 session — Phase 0 close-out
+
+### Item 1: Silent catch now logged
+Added `logger.warn({ err }, "stocks: failed to record FMP price-target call")` inside the `.catch()` on `recordFMPCalls` in stocks.ts. Failures are no longer invisible.
+
+### Item 2: Polygon and AV call path audit
+
+**Polygon (`polygon-client.ts` + `backfill-polygon.ts`):**
+- Only call site: `backfill-polygon.ts` (no route imports `polygon-client`)
+- Rate enforcement: concurrency=3 + 1s sleep between batches (soft throttle matching 5 req/min free tier). On HTTP 429, retries with backoff. No proactive daily call counter or DB-backed gate.
+- Assessment: adequate for a script run manually, but no hard enforcement if the free tier's daily request cap is hit. **Not a high-risk ungated path** — script is only run deliberately.
+
+**Alpha Vantage (`alpha-vantage-client.ts` + `backfill-av.ts`):**
+- Only call site: `backfill-av.ts` (no route imports `alpha-vantage-client`)
+- Rate enforcement: `logs/av-cursor.json` tracks `callsToday` against `MAX_DAILY_CALLS = 25`. Hard stop fires before any call once `callsToday >= 25`. AV API also returns `Information`/`Note` fields on limit hit, caught and thrown.
+- **Risk: cursor is a flat file.** If the log directory is missing, rotated, or the script runs from a different working directory, the gate resets to 0 and the full 25 calls fire again. This is Phase 1 research scope.
+
+### Item 3: Price-target fetch gating status
+**Intentionally ungated for now (tracking only).** The breakdown route fires one price-target call per stock detail page view. Now tracked via `recordFMPCalls(1)`. Whether to gate it behind `checkFMPBudget` is a Phase 1 decision — it requires first consolidating the FMP budget check so it's shared across both the breakdown route and the startup/backfill paths, which is part of the access-layer design.
+
+### Phase 1 + 2 scope (not built now)
+**Phase 1 (research):** For each of FMP, Polygon, AV, Finnhub, Yahoo, EDGAR — document exactly how usage is currently tracked (DB table / flat file / in-memory / none), what the actual limit is, and whether it's enforced before calls or only recorded after.
+
+**Phase 2 (design):** As part of the `getFundamentals()` access-layer, spec a single `api_usage` table (columns: source, date, calls_made, limit, window) that every source's client writes to through one shared function. The Stock DB-adjacent UI subtab ("API Usage") reads from this one table. No ad hoc dashboard built on top of four inconsistent tracking mechanisms.
+
+**Phase 0 is closed.**
