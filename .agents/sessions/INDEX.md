@@ -5,6 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
+- [2026-07-06](claude-2026-07-06.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 169 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts so it shows in admin cache panel.
 - [2026-07-05](claude-2026-07-05.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 169 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts so it shows in admin cache panel.
 - [2026-07-04](claude-2026-07-04.md) — DB staging pipeline: fmp/polygon/av tables, source_fundamentals, validate-sources, merge-trusted, field_provenance, manual_overrides, provenance API, StockDB tooltip + override UI
 - [2026-06-26](claude-2026-06-26.md) — Finnhub/Edgar/Yahoo backfill scripts, source staging tables, SDM waterfall wiring
