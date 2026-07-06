@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sql, eq } from "drizzle-orm";
 import { db, tickerRegistry, avFundamentals } from "@workspace/db";
+import { recordApiUsage } from "../lib/api-usage.js";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ async function processTicker(ticker: string, cursor: Cursor): Promise<TickerResu
   } catch (err: any) {
     // AV limit errors count as a call — record and stop
     if (err?.message?.includes("AV API limit")) {
+      await recordApiUsage("av", 1).catch(() => {});
       cursor.callsToday = MAX_DAILY_CALLS; // force stop
       writeCursor(cursor);
       appendLog(`[${ticker}] QUOTA_STOP — AV rate limit hit: ${err.message}`);
@@ -134,6 +136,7 @@ async function processTicker(ticker: string, cursor: Cursor): Promise<TickerResu
   }
 
   cursor.callsToday += 1;
+  await recordApiUsage("av", 1).catch(() => {});
 
   const nonNull = Object.values(data).filter(v => v !== undefined && v !== null).length;
   if (nonNull === 0) {
@@ -201,6 +204,13 @@ async function main(): Promise<void> {
   }
 
   const cursor = readCursor();
+
+  // Sync callsToday from DB (source of truth) so restarts don't double-count.
+  const dbRows = await db.execute<{ calls_made: number }>(
+    sql`SELECT calls_made FROM api_usage WHERE source = 'av' AND date = current_date`
+  );
+  if (dbRows.rows[0]) cursor.callsToday = dbRows.rows[0].calls_made;
+
   appendLog(
     `backfill-av starting${DRY_RUN ? " (DRY RUN)" : ""}` +
     ` — ${cursor.callsToday}/${MAX_DAILY_CALLS} calls used today` +

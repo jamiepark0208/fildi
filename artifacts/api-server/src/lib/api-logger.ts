@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { recordApiUsage } from "./api-usage.js";
 
 export type ApiSource = "fmp" | "polygon" | "av" | "finnhub" | "yahoo" | "edgar" | "fred" | "cnn" | "nyfed";
 
@@ -23,7 +24,10 @@ export function logApiCall(params: ApiCallParams): void {
     } else {
       logger.warn(params, msg);
     }
+    // Fire-and-forget: persist call count to api_usage table for API Monitor.
+    // Counts both successes and failures — both consume quota.
+    recordApiUsage(params.source, 1).catch(() => {});
   } catch {
-    // must never throw — logging is never allowed to break the caller
+    // must never throw
   }
 }

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
+import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -486,17 +487,18 @@ function CacheMonitorTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache" | "stockdb";
+type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>("profile");
 
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
-    { id: "profile", label: "Profile" },
-    { id: "users",   label: "User Mgmt",     adminOnly: true },
-    { id: "cache",   label: "Cache Monitor",  adminOnly: true },
-    { id: "stockdb", label: "Stock DB",       adminOnly: true },
+    { id: "profile",     label: "Profile" },
+    { id: "users",       label: "User Mgmt",     adminOnly: true },
+    { id: "cache",       label: "Cache Monitor",  adminOnly: true },
+    { id: "stockdb",     label: "Stock DB",       adminOnly: true },
+    { id: "api-monitor", label: "API Monitor",    adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
@@ -536,8 +538,9 @@ export default function Settings() {
         <div className="flex-1 overflow-y-auto p-6">
           {tab === "profile" && <ProfileTab />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
-          {tab === "cache"   && isAdmin && <CacheMonitorTab />}
-          {tab === "stockdb" && isAdmin && <StockDBTab />}
+          {tab === "cache"       && isAdmin && <CacheMonitorTab />}
+          {tab === "stockdb"     && isAdmin && <StockDBTab />}
+          {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
         </div>
       </main>
     </div>

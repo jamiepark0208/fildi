@@ -1,5 +1,6 @@
 import { eq, isNull, or, lt, sql } from "drizzle-orm";
 import { db, tickerFundamentals, fmpApiUsage, type TickerFundamentalsRow } from "@workspace/db";
+import { recordApiUsage, checkDailyBudget } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
 import { logger } from "./logger.js";
 
@@ -224,34 +225,21 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// Returns true if `additionalCalls` can be made without exceeding daily budget.
-// Resets counter automatically when the date changes.
+// Returns whether `additionalCalls` can be made without exceeding daily budget.
+// Reads from unified api_usage table; fmp_api_usage is no longer the source of truth.
 export async function checkFMPBudget(
   additionalCalls: number,
 ): Promise<{ allowed: boolean; callsToday: number; remaining: number }> {
   const today = todayISO();
-  const rows = await db.select().from(fmpApiUsage).where(eq(fmpApiUsage.id, 1)).limit(1);
-  const row = rows[0];
-
-  const callsToday = (!row || row.resetDate !== today) ? 0 : row.callsToday;
+  const rows = await db.execute<{ calls_made: number }>(
+    sql`SELECT calls_made FROM api_usage WHERE source = 'fmp' AND date = ${today}::date`
+  );
+  const callsToday = rows.rows[0]?.calls_made ?? 0;
   const remaining = MAX_DAILY_CALLS - callsToday;
   return { allowed: callsToday + additionalCalls <= MAX_DAILY_CALLS, callsToday, remaining };
 }
 
-// Increment daily call counter by `calls`. Upserts the singleton row.
-// Resets to `calls` if the date has changed.
+// Increment FMP daily call counter. Delegates to unified api_usage table.
 export async function recordFMPCalls(calls: number): Promise<void> {
-  const today = todayISO();
-  const rows = await db.select().from(fmpApiUsage).where(eq(fmpApiUsage.id, 1)).limit(1);
-  const existing = rows[0];
-
-  if (!existing || existing.resetDate !== today) {
-    await db.insert(fmpApiUsage)
-      .values({ id: 1, callsToday: calls, resetDate: today })
-      .onConflictDoUpdate({ target: fmpApiUsage.id, set: { callsToday: calls, resetDate: today } });
-  } else {
-    await db.update(fmpApiUsage)
-      .set({ callsToday: existing.callsToday + calls })
-      .where(eq(fmpApiUsage.id, 1));
-  }
+  await recordApiUsage("fmp", calls);
 }

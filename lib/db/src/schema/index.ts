@@ -231,16 +231,24 @@ export type InsertTickerFundamentals = z.infer<typeof insertTickerFundamentalsSc
 export type TickerFundamentalsRow = typeof tickerFundamentals.$inferSelect
 
 // ── fmp_api_usage ─────────────────────────────────────────────────────────────
-// Single-row table (id always = 1) tracking daily FMP API call consumption.
-// Prevents exhausting the ~250-call/day quota during development.
-// Reset when resetDate differs from today's date.
-
+// Legacy single-row FMP tracker. Kept for backward compat; new code uses api_usage.
 export const fmpApiUsage = pgTable('fmp_api_usage', {
-  id:         integer('id').primaryKey(),    // always 1
+  id:         integer('id').primaryKey(),
   callsToday: integer('calls_today').notNull().default(0),
-  resetDate:  text('reset_date').notNull(), // YYYY-MM-DD
+  resetDate:  text('reset_date').notNull(),
 })
 export type FmpApiUsageRow = typeof fmpApiUsage.$inferSelect
+
+// ── api_usage ─────────────────────────────────────────────────────────────────
+// Unified per-source per-day API call counter. Replaces fmp_api_usage and the
+// AV flat-file cursor. Sources: fmp, av, polygon, finnhub, yahoo, edgar, fred, cnn.
+export const apiUsage = pgTable('api_usage', {
+  source:    text('source').notNull(),
+  date:      date('date').notNull(),
+  callsMade: integer('calls_made').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ pk: primaryKey({ columns: [t.source, t.date] }) }))
+export type ApiUsageRow = typeof apiUsage.$inferSelect
 
 // ── ticker_technicals ─────────────────────────────────────────────────────────
 // One row per ticker. Written by the daily technicals refresh job.

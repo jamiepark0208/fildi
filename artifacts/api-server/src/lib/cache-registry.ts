@@ -1,4 +1,5 @@
 import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache } from '../routes/stocks.js';
+import { provenanceCache } from './provenance-cache.js';
 import { peersCache } from '../lib/peer-resolver.js';
 import { optionsCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
@@ -33,6 +34,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'macro-cot':      'COT Positioning (CFTC)',
   'peer-map':       'Peer Map',
   'peer-profile':   'Peer Profile',
+  'provenance':     'Field Provenance',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -52,6 +54,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   options:          optionsCache,
   'options-expiry': expiryCache,
   'peer-map':       peersCache,
+  'provenance':     provenanceCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -65,7 +68,7 @@ function fileEntry(fetchedAt: number | null, ttlMs: number, key: string, now: nu
 
 export function getAllCaches(): CacheStats[] {
   const now = Date.now();
-  const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache];
+  const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, provenanceCache];
 
   const macroRegimeEntry = macroCache as { fetchedAt?: number } | null;
   const macroDataEntry   = loadMacroCache();
