@@ -317,29 +317,29 @@ router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
   try {
     const watchlistSet = new Set(WATCHLIST.map((t: string) => t.toUpperCase()));
 
-    // All peer-group memberships for context column
-    const memberRows = await db
-      .select({ ticker: peerGroupMembers.ticker, groupId: peerGroupMembers.groupId })
-      .from(peerGroupMembers);
-    const peerGroupByTicker = new Map<string, string>();
-    memberRows.forEach(r => {
-      if (!peerGroupByTicker.has(r.ticker.toUpperCase())) {
-        peerGroupByTicker.set(r.ticker.toUpperCase(), r.groupId);
-      }
+    const [fundRows, regRows, groupRows] = await Promise.all([
+      db.select().from(tickerFundamentals),
+      db.select({ ticker: tickerRegistry.ticker, name: tickerRegistry.name, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId }).from(tickerRegistry),
+      db.select({ id: peerGroups.id, name: peerGroups.name }).from(peerGroups),
+    ]);
+
+    const regByTicker = new Map(regRows.map(r => [r.ticker.toUpperCase(), r]));
+    const groupNameById = new Map(groupRows.map(g => [g.id, g.name]));
+
+    const result = fundRows.map(row => {
+      const reg = regByTicker.get(row.ticker.toUpperCase());
+      const groupId = reg?.primaryPeerGroupId ?? null;
+      return {
+        ticker:        row.ticker,
+        companyName:   reg?.name ?? null,
+        isWatchlist:   watchlistSet.has(row.ticker.toUpperCase()),
+        peerGroupId:   groupId,
+        peerGroupName: groupId ? (groupNameById.get(groupId) ?? null) : null,
+        fundamentals:  row,
+      };
     });
 
-    // Every row we have data for
-    const fundRows = await db.select().from(tickerFundamentals);
-
-    const result = fundRows.map(row => ({
-      ticker:      row.ticker,
-      isWatchlist: watchlistSet.has(row.ticker.toUpperCase()),
-      peerGroupId: peerGroupByTicker.get(row.ticker.toUpperCase()) ?? null,
-      fundamentals: row,
-    }));
-
     result.sort((a, b) => a.ticker.localeCompare(b.ticker));
-
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
