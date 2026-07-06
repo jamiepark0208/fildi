@@ -17,8 +17,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { sql, lt, and, isNotNull } from "drizzle-orm";
-import { db, fmpFundamentals } from "@workspace/db";
+import { sql, lt, and, isNotNull, eq } from "drizzle-orm";
+import { db, fmpFundamentals, tickerRegistry } from "@workspace/db";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
 
@@ -52,7 +52,7 @@ function sleep(ms: number): Promise<void> {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type FmpRow = typeof fmpFundamentals.$inferSelect;
+type FmpRow = { ticker: string; fetchedAt: Date | null; fmpWacc: string | null; fmpRoic: string | null };
 
 type TickerResult = {
   ticker: string;
@@ -209,12 +209,23 @@ async function main(): Promise<void> {
 
   appendLog(`backfill-fmp starting${DRY_RUN ? " (DRY RUN)" : ""}`);
 
-  const rows = await db
-    .select()
-    .from(fmpFundamentals)
-    .orderBy(fmpFundamentals.ticker);
+  const universeTickers = (await db
+    .select({ ticker: tickerRegistry.ticker })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.fetchFundamentals, true))
+    .orderBy(tickerRegistry.ticker))
+    .map(r => r.ticker);
 
-  appendLog(`${rows.length} canonical tickers`);
+  const stalenessRows = await db
+    .select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpWacc: fmpFundamentals.fmpWacc, fmpRoic: fmpFundamentals.fmpRoic })
+    .from(fmpFundamentals);
+  const fmpStaleMap = new Map(stalenessRows.map(r => [r.ticker, r]));
+
+  const rows: FmpRow[] = universeTickers.map(ticker =>
+    fmpStaleMap.get(ticker) ?? { ticker, fetchedAt: null, fmpWacc: null, fmpRoic: null }
+  );
+
+  appendLog(`${rows.length} canonical tickers (fetch_fundamentals=true)`);
 
   if (!DRY_RUN) {
     const budget = await checkFMPBudget(0);

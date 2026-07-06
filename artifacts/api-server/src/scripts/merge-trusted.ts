@@ -19,7 +19,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import {
-  db, sourceFundamentals, tickerFundamentals, fmpFundamentals,
+  db, sourceFundamentals, tickerFundamentals, tickerRegistry,
   fieldProvenance, manualOverrides,
   type ManualOverridesRow,
 } from "@workspace/db";
@@ -211,9 +211,9 @@ export async function writeProvenance(
 // ── Main batch runner ─────────────────────────────────────────────────────────
 
 async function main() {
-  const fmpRows = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
-  const trackedTickers = new Set(fmpRows.map(r => r.ticker));
-  console.log(`Canonical universe: ${trackedTickers.size} tickers from fmp_fundamentals\n`);
+  const regRows = await db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true));
+  const trackedTickers = new Set(regRows.map(r => r.ticker));
+  console.log(`Canonical universe: ${trackedTickers.size} tickers (fetch_fundamentals=true in ticker_registry)\n`);
 
   const [sfRows, overrideRows] = await Promise.all([
     db.select().from(sourceFundamentals),

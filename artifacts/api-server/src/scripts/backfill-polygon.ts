@@ -21,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq, and, inArray } from "drizzle-orm";
-import { db, fmpFundamentals, polygonFundamentals, sourceFundamentals } from "@workspace/db";
+import { db, tickerRegistry, polygonFundamentals, sourceFundamentals } from "@workspace/db";
 import { fetchPolygonFundamentals } from "../lib/polygon-client.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -159,9 +159,10 @@ async function main(): Promise<void> {
   appendLog(`backfill-polygon starting${DRY_RUN ? " (DRY RUN)" : ""}`);
 
   const rows = await db
-    .select({ ticker: fmpFundamentals.ticker })
-    .from(fmpFundamentals)
-    .orderBy(fmpFundamentals.ticker);
+    .select({ ticker: tickerRegistry.ticker })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.fetchFundamentals, true))
+    .orderBy(tickerRegistry.ticker);
 
   const tickers = rows.map(r => r.ticker);
   appendLog(`${tickers.length} canonical tickers`);
