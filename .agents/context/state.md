@@ -7,7 +7,7 @@
 
 ## Active work
 - Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script, yahoo-data-source, edgar-data-source, source-fundamentals-table, validate-sources, merge-trusted, field-provenance, manual-overrides, provenance-tooltip, provenance-cache
-- In progress: Stock DB tooltip + override system complete: field_provenance + manual_overrides tables migrated; merge-trusted.ts refactored (resolveField exported, field_provenance upserted, provenanceCache.delete per ticker); GET/PUT/DELETE provenance API routes live; StockDBTab popover with per-field source breakdown + override control; server-side TTLCache (15min, key=ticker) with explicit invalidation on override save and merge batch; AbortController via react-query signal; 10min client staleTime with refetchOnWindowFocus; error state + retry in popover. field_provenance is empty until merge-trusted.ts is re-run.
+- In progress: Universe fix complete: fetch_fundamentals flag on ticker_registry (257 tickers); all 7 backfill scripts + merge-trusted now read from ticker_registry WHERE fetch_fundamentals=true; POST /watchlist auto-flags new tickers + peer group members; FMP budget gate added to startup; price-target call now tracked; unified logApiCall helper in api-logger.ts wired into all 7 data source clients
 - Blocked: FMP quota resets midnight UTC (wacc, priceToSales, roic). AV quota resets midnight UTC. merge-trusted.ts must be re-run after FMP backfill to populate field_provenance.
 
 ## Next tasks (priority order)
