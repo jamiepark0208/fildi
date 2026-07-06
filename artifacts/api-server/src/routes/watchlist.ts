@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, asc } from "drizzle-orm";
-import { db, watchlist } from "@workspace/db";
+import { eq, and, asc, inArray } from "drizzle-orm";
+import { db, watchlist, tickerRegistry, peerGroupMembers } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -32,7 +32,48 @@ router.post("/watchlist", async (req, res) => {
     .values({ userId: req.session.userId!, ticker: normalized, tier: 1, status: "monitoring" })
     .onConflictDoNothing();
 
-  return res.status(201).json({ ticker: normalized });
+  // Ensure ticker is in ticker_registry with fetch_fundamentals=true.
+  // Uses upsert so a brand-new ticker gets a registry row automatically.
+  await db.insert(tickerRegistry)
+    .values({ ticker: normalized, isActive: true, fetchFundamentals: true })
+    .onConflictDoUpdate({
+      target: tickerRegistry.ticker,
+      set: { fetchFundamentals: true },
+    });
+
+  // Flag all tickers in the same peer group(s) so backfills cover peers automatically.
+  const groups = await db
+    .select({ groupId: peerGroupMembers.groupId })
+    .from(peerGroupMembers)
+    .where(eq(peerGroupMembers.ticker, normalized));
+
+  const warnings: string[] = [];
+
+  if (groups.length === 0) {
+    // No peer group: backfills will fetch this ticker alone. Needs manual peer group assignment.
+    warnings.push(`${normalized} has no peer group — add it to a peer group and re-run to flag peers`);
+    console.warn(`[watchlist] ${normalized} added with no peer group membership`);
+  } else {
+    const groupIds = groups.map(r => r.groupId);
+    const peers = await db
+      .select({ ticker: peerGroupMembers.ticker })
+      .from(peerGroupMembers)
+      .where(inArray(peerGroupMembers.groupId, groupIds));
+
+    const peerTickers = [...new Set(peers.map(r => r.ticker))].filter(t => t !== normalized);
+
+    if (peerTickers.length > 0) {
+      await db
+        .update(tickerRegistry)
+        .set({ fetchFundamentals: true })
+        .where(inArray(tickerRegistry.ticker, peerTickers));
+    }
+  }
+
+  return res.status(201).json({
+    ticker: normalized,
+    ...(warnings.length > 0 ? { warnings } : {}),
+  });
 });
 
 // DELETE /watchlist/:ticker
