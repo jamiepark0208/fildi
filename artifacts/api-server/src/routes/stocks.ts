@@ -11,7 +11,7 @@ import {
   db,
   indicatorCache,
 } from "@workspace/db";
-import { readFundamentalsRow } from "../lib/fundamentals-db.js";
+import { readFundamentalsRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { buildCatalysts, parseEarningsDate, yahooEpochToMs, yahooEpochToDateStr } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
@@ -676,6 +676,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       readFundamentalsRow(upperTicker),
       fmpApiKey
         ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${upperTicker}&apikey=${fmpApiKey}&limit=20`)
+            .finally(() => { recordFMPCalls(1).catch(() => {}); })
             .then(r => r.ok ? r.json() : [])
             .catch(() => [])
         : Promise.resolve([]),
