@@ -35,19 +35,19 @@ type FieldDef = { tfCol: keyof typeof tickerFundamentals.$inferInsert; priority:
 
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
-  { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"]] },
-  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"]] },
-  { tfCol: "pegRatio",           priority: [["yahoo","pegRatio"],     ["fmp","pegRatio"]] },
+  { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"],      ["alpha_vantage","peRatio"]] },
+  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"],                               ["alpha_vantage","forwardPe"]] },
+  { tfCol: "pegRatio",           priority: [["yahoo","pegRatio"],     ["fmp","pegRatio"],                                ["alpha_vantage","pegRatio"]] },
   { tfCol: "evEbitda",           priority: [["yahoo","evEbitda"],     ["fmp","evEbitda"]] },
   { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
-  { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"]] },
+  { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"]] },
   { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["fmp","priceToSales"]] },
 
-  // ── Margins & returns (TTM: yahoo → finnhub → fmp, never edgar) ───────────
-  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"]] },
-  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"]] },
-  { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"]] },
-  { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"]] },
+  // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av) ────────
+  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"]] },
+  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["polygon","operatingMargin"], ["alpha_vantage","operatingMargin"]] },
+  { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"]] },
+  { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"]] },
   { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"]] },
   { tfCol: "roic",               priority: [["finnhub","roic"],           ["fmp","roic"]] },
 
@@ -61,30 +61,30 @@ export const FIELD_DEFS: FieldDef[] = [
 
   // ── Balance sheet ─────────────────────────────────────────────────────────
   { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"],            ["edgar","cashAndEquivalents"],       ["fmp","cashAndEquivalents"]] },
-  { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["edgar","totalDebt"],                ["fmp","totalDebt"]] },
-  { tfCol: "totalStockholdersEquity", priority: [["edgar","totalEquity"],          ["fmp","totalStockholdersEquity"]] },
+  { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["edgar","totalDebt"],                ["fmp","totalDebt"],            ["polygon","totalDebt"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["edgar","totalEquity"],          ["fmp","totalStockholdersEquity"],   ["polygon","totalStockholdersEquity"]] },
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["edgar","sharesOutstanding"],        ["fmp","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
-  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["edgar","totalRevenue"]] },
-  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"]] },
-  { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["edgar","ebitda"]] },
+  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["edgar","totalRevenue"],  ["polygon","totalRevenue"],  ["alpha_vantage","totalRevenue"]] },
+  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"],    ["polygon","netIncome"]] },
+  { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["edgar","ebitda"],       ["alpha_vantage","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
   { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,
-  { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"]] },
+  { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["fmp","wacc"]] },
 
   // ── Cash flow ─────────────────────────────────────────────────────────────
   { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"]] },
-  { tfCol: "quarterlyOperatingCashFlow", priority: [["fmp","quarterlyOperatingCashFlow"]] },
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["fmp","quarterlyOperatingCashFlow"],  ["polygon","operatingCashFlow"]] },
 
   // ── Market / other ────────────────────────────────────────────────────────
-  { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"]] },
-  { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["fmp","dividendYield"]] },
-  { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"]] },
+  { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
+  { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["fmp","dividendYield"],                           ["alpha_vantage","dividendYield"]] },
+  { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"],                      ["alpha_vantage","analystTargetPrice"]] },
   { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"]] },
 ];
 

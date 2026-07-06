@@ -12,6 +12,8 @@ import {
   edgarFundamentals,
   finnhubFundamentals,
   fmpFundamentals,
+  polygonFundamentals,
+  avFundamentals,
   sourceFundamentals,
 } from "@workspace/db";
 
@@ -107,6 +109,32 @@ const FINNHUB_FIELDS: Record<string, string> = {
   finnhubEarningsPerShare:      "earningsPerShare",
   finnhub52weekHigh:            "weekHigh52",
   finnhub52weekLow:             "weekLow52",
+};
+
+const POLYGON_FIELDS: Record<string, string> = {
+  polygonTotalRevenue:               "totalRevenue",
+  polygonNetIncome:                  "netIncome",
+  polygonInterestExpense:            "interestExpense",
+  polygonGrossMargin:                "grossMargin",
+  polygonOperatingMargin:            "operatingMargin",
+  polygonTotalDebt:                  "totalDebt",
+  polygonTotalStockholdersEquity:    "totalStockholdersEquity",
+  polygonQuarterlyOperatingCashFlow: "operatingCashFlow",
+};
+
+const AV_FIELDS: Record<string, string> = {
+  avPeRatio:            "peRatio",
+  avPegRatio:           "pegRatio",
+  avForwardPe:          "forwardPe",
+  avPbRatio:            "priceToBook",
+  avDividendYield:      "dividendYield",
+  avAnalystTargetPrice: "analystTargetPrice",
+  avNetMargin:          "netMargin",
+  avOperatingMargin:    "operatingMargin",
+  avReturnOnEquity:     "returnOnEquity",
+  avTotalRevenue:       "totalRevenue",
+  avEbitda:             "ebitda",
+  avBeta:               "beta",
 };
 
 const FMP_FIELDS: Record<string, string> = {
@@ -229,14 +257,16 @@ async function populateFromTable(
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const [yahooRows, edgarRows, finnhubRows, fmpRows] = await Promise.all([
+  const [yahooRows, edgarRows, finnhubRows, fmpRows, polygonRows, avRows] = await Promise.all([
     db.select().from(yahooFundamentals),
     db.select().from(edgarFundamentals),
     db.select().from(finnhubFundamentals),
     db.select().from(fmpFundamentals),
+    db.select().from(polygonFundamentals),
+    db.select().from(avFundamentals),
   ]);
 
-  console.log(`Loaded: yahoo=${yahooRows.length} edgar=${edgarRows.length} finnhub=${finnhubRows.length} fmp=${fmpRows.length}`);
+  console.log(`Loaded: yahoo=${yahooRows.length} edgar=${edgarRows.length} finnhub=${finnhubRows.length} fmp=${fmpRows.length} polygon=${polygonRows.length} av=${avRows.length}`);
 
   console.log("\nPopulating from yahoo_fundamentals …");
   const yahoo = await populateFromTable(yahooRows as Row[], "yahoo", YAHOO_FIELDS, "fetchedAt");
@@ -254,13 +284,24 @@ async function main() {
   const fmp = await populateFromTable(fmpRows as Row[], "fmp", FMP_FIELDS, "fetchedAt");
   console.log(`  → ${fmp.tickers} tickers, ${fmp.totalFields} fields, ${fmp.rejected} rejected`);
 
-  const totalRejected = yahoo.rejected + edgar.rejected + finnhub.rejected + fmp.rejected;
+  console.log("Populating from polygon_fundamentals …");
+  const polygon = await populateFromTable(polygonRows as Row[], "polygon", POLYGON_FIELDS, "fetchedAt");
+  console.log(`  → ${polygon.tickers} tickers, ${polygon.totalFields} fields, ${polygon.rejected} rejected`);
+
+  console.log("Populating from av_fundamentals …");
+  const av = await populateFromTable(avRows as Row[], "alpha_vantage", AV_FIELDS, "fetchedAt");
+  console.log(`  → ${av.tickers} tickers, ${av.totalFields} fields, ${av.rejected} rejected`);
+
+  const totalFields = yahoo.totalFields + edgar.totalFields + finnhub.totalFields + fmp.totalFields + polygon.totalFields + av.totalFields;
+  const totalRejected = yahoo.rejected + edgar.rejected + finnhub.rejected + fmp.rejected + polygon.rejected + av.rejected;
   console.log("\nSummary:");
-  console.log(`  yahoo:   ${yahoo.tickers} tickers, ${yahoo.totalFields} fields`);
-  console.log(`  edgar:   ${edgar.tickers} tickers, ${edgar.totalFields} fields`);
-  console.log(`  finnhub: ${finnhub.tickers} tickers, ${finnhub.totalFields} fields`);
-  console.log(`  fmp:     ${fmp.tickers} tickers, ${fmp.totalFields} fields`);
-  console.log(`  TOTAL:   ${yahoo.totalFields + edgar.totalFields + finnhub.totalFields + fmp.totalFields} rows written, ${totalRejected} rejected`);
+  console.log(`  yahoo:         ${yahoo.tickers} tickers, ${yahoo.totalFields} fields`);
+  console.log(`  edgar:         ${edgar.tickers} tickers, ${edgar.totalFields} fields`);
+  console.log(`  finnhub:       ${finnhub.tickers} tickers, ${finnhub.totalFields} fields`);
+  console.log(`  fmp:           ${fmp.tickers} tickers, ${fmp.totalFields} fields`);
+  console.log(`  polygon:       ${polygon.tickers} tickers, ${polygon.totalFields} fields`);
+  console.log(`  alpha_vantage: ${av.tickers} tickers, ${av.totalFields} fields`);
+  console.log(`  TOTAL:         ${totalFields} rows written, ${totalRejected} rejected`);
 
   process.exit(0);
 }
