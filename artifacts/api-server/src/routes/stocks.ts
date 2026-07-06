@@ -676,7 +676,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       readFundamentalsRow(upperTicker),
       fmpApiKey
         ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${upperTicker}&apikey=${fmpApiKey}&limit=20`)
-            .finally(() => { recordFMPCalls(1).catch(() => {}); })
+            .finally(() => { recordFMPCalls(1).catch(err => logger.warn({ err }, "stocks: failed to record FMP price-target call")); })
             .then(r => r.ok ? r.json() : [])
             .catch(() => [])
         : Promise.resolve([]),
