@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 export interface FinnhubFundamentalsData {
   finnhub_peRatio?:               number;
@@ -78,20 +79,24 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
   if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
 
   const t = ticker.toUpperCase();
-  logger.info({ ticker: t }, "finnhub: fetching fundamentals");
-
   const url = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(t)}&metric=all&token=${apiKey}`;
-  const raw = await fetchWithRetry(url);
+
+  let raw: any;
+  try {
+    raw = await fetchWithRetry(url);
+  } catch (err: any) {
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubFundamentals", trigger: "backfill-finnhub script", ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/metric?metric=all" });
+    throw err;
+  }
+
   if (!raw) {
-    logger.warn({ ticker: t }, "finnhub: 404 — ticker not found");
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubFundamentals", trigger: "backfill-finnhub script", ticker: t, outcome: "failure", error: "404 — ticker not found", requestedFields: "stock/metric?metric=all" });
     return {};
   }
 
   const m = raw.metric ?? {};
 
-  logger.info({ ticker: t }, "finnhub: parsed successfully");
-
-  return {
+  const result: FinnhubFundamentalsData = {
     finnhub_peRatio:              n(m["peBasicExclExtraTTM"]),
     finnhub_pbRatio:              n(m["pb"]),
     finnhub_psRatio:              n(m["psTTM"]),
@@ -121,6 +126,10 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_52weekLow:            n(m["52WeekLow"]),
     finnhub_marketCap:            n(m["marketCapitalization"]),
   };
+
+  const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
+  logApiCall({ source: "finnhub", fn: "fetchFinnhubFundamentals", trigger: "backfill-finnhub script", ticker: t, outcome: "success", fieldsReturned });
+  return result;
 }
 
 // Run: npx tsx artifacts/api-server/src/lib/finnhub-client.ts NVDA

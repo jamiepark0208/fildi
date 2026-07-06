@@ -92,7 +92,7 @@ async function processTicker(row: FmpRow): Promise<TickerResult> {
 
   let data: Awaited<ReturnType<typeof fetchFMPFundamentals>>;
   try {
-    data = await fetchFMPFundamentals(ticker, FMP_API_KEY);
+    data = await fetchFMPFundamentals(ticker, FMP_API_KEY, "backfill-fmp script");
   } catch (err: any) {
     appendLog(`[${ticker}] FAIL — fetch error: ${err?.message ?? "unknown"}`);
     return { ticker, status: "fail", reason: err?.message };

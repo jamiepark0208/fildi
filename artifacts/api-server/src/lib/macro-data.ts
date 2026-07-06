@@ -1,4 +1,5 @@
 import YahooFinanceClass from "yahoo-finance2";
+import { logApiCall } from "./api-logger.js";
 const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
@@ -171,7 +172,10 @@ async function fetchFredSeriesData(
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "failure", error: `HTTP ${res.status}`, requestedFields: seriesId });
+      return [];
+    }
     const text = await res.text();
     const lines = text.trim().split("\n").slice(1);
     const valid: { date: string; val: number }[] = [];
@@ -182,8 +186,10 @@ async function fetchFredSeriesData(
       if (isNaN(val)) continue;
       valid.push({ date: date.trim(), val });
     }
+    logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "success", fieldsReturned: valid.length });
     return valid;
-  } catch {
+  } catch (err: any) {
+    logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: seriesId });
     return [];
   }
 }
@@ -715,19 +721,26 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   };
 
   const fetchFearGreed = async (): Promise<ChartPoint[]> => {
-    const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.cnn.com/",
-        "Accept": "application/json",
-      },
-    });
-    const json = await res.json() as { fear_and_greed_historical?: { data?: { x: number; y: number }[] } };
-    const raw = json.fear_and_greed_historical?.data ?? [];
-    return raw.map(p => ({
-      date:  new Date(p.x).toISOString().slice(0, 10),
-      value: parseFloat(p.y.toFixed(1)),
-    }));
+    try {
+      const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": "https://www.cnn.com/",
+          "Accept": "application/json",
+        },
+      });
+      const json = await res.json() as { fear_and_greed_historical?: { data?: { x: number; y: number }[] } };
+      const raw = json.fear_and_greed_historical?.data ?? [];
+      const result = raw.map(p => ({
+        date:  new Date(p.x).toISOString().slice(0, 10),
+        value: parseFloat(p.y.toFixed(1)),
+      }));
+      logApiCall({ source: "cnn", fn: "fetchFearGreed", trigger: "macro chart refresh", outcome: "success", fieldsReturned: result.length });
+      return result;
+    } catch (err: any) {
+      logApiCall({ source: "cnn", fn: "fetchFearGreed", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "fear_and_greed/graphdata" });
+      return [];
+    }
   };
 
   // CBOE equity put/call ratio via Yahoo Finance ^PCCE (more reliable than CBOE CDN)
@@ -740,27 +753,40 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
 
   // NY Fed GSCPI — downloaded directly from NY Fed as xlsx (FRED blocks server IPs)
   const fetchGSCPI = async (): Promise<ChartPoint[]> => {
-    const res = await fetch("https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx", {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)" },
-    });
-    if (!res.ok) return [];
-    const buf = Buffer.from(await res.arrayBuffer());
-    const wb = XLSX.read(buf, { type: "buffer" });
-    const ws = wb.Sheets["GSCPI Monthly Data"];
-    if (!ws) return [];
-    const rows = XLSX.utils.sheet_to_json<[string, number]>(ws, { header: 1 }) as [string, number][];
-    const MONTHS: Record<string, string> = {
-      Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
-      Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
-    };
-    return rows.slice(5).flatMap(([dateStr, val]) => {
-      if (!dateStr || val == null || isNaN(val as number)) return [];
-      // "31-Jan-1998" → "1998-01-31"
-      const m = String(dateStr).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
-      if (!m || !MONTHS[m[2]]) return [];
-      const date = `${m[3]}-${MONTHS[m[2]]}-${m[1].padStart(2, "0")}`;
-      return [{ date, value: parseFloat((val as number).toFixed(4)) }];
-    });
+    try {
+      const res = await fetch("https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx", {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)" },
+      });
+      if (!res.ok) {
+        logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: `HTTP ${res.status}`, requestedFields: "gscpi_data.xlsx" });
+        return [];
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      const wb = XLSX.read(buf, { type: "buffer" });
+      const ws = wb.Sheets["GSCPI Monthly Data"];
+      if (!ws) {
+        logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: "sheet 'GSCPI Monthly Data' not found in xlsx", requestedFields: "gscpi_data.xlsx" });
+        return [];
+      }
+      const rows = XLSX.utils.sheet_to_json<[string, number]>(ws, { header: 1 }) as [string, number][];
+      const MONTHS: Record<string, string> = {
+        Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+        Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+      };
+      const result = rows.slice(5).flatMap(([dateStr, val]) => {
+        if (!dateStr || val == null || isNaN(val as number)) return [];
+        // "31-Jan-1998" → "1998-01-31"
+        const m = String(dateStr).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+        if (!m || !MONTHS[m[2]]) return [];
+        const date = `${m[3]}-${MONTHS[m[2]]}-${m[1].padStart(2, "0")}`;
+        return [{ date, value: parseFloat((val as number).toFixed(4)) }];
+      });
+      logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "success", fieldsReturned: result.length });
+      return result;
+    } catch (err: any) {
+      logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "gscpi_data.xlsx" });
+      return [];
+    }
   };
 
   const fetchCopperGold = async (): Promise<ChartPoint[]> => {

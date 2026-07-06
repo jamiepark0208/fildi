@@ -1,5 +1,6 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 const yahooFinance = new YahooFinanceClass();
 
@@ -59,7 +60,6 @@ function debtToEquity(v: unknown): number | undefined {
 
 export async function fetchYahooFundamentals(ticker: string): Promise<YahooFundamentalsData> {
   const symbol = ticker.toUpperCase().replace(".", "-");
-  logger.info({ ticker, symbol }, "yahoo: fetching fundamentals");
 
   let raw: Awaited<ReturnType<typeof yahooFinance.quoteSummary>>;
   try {
@@ -67,7 +67,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
       modules: ["financialData", "defaultKeyStatistics"],
     }, { validateResult: false });
   } catch (err: any) {
-    logger.warn({ ticker, err: err.message }, "yahoo: quoteSummary failed");
+    logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: err.message, requestedFields: "quoteSummary: financialData, defaultKeyStatistics" });
     return {};
   }
 
@@ -82,7 +82,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
       module: "all",
     }, { validateResult: false })) ?? [];
   } catch (err: any) {
-    logger.warn({ ticker, err: err.message }, "yahoo: fundamentalsTimeSeries failed (non-fatal)");
+    logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: `fundamentalsTimeSeries non-fatal: ${err.message}`, requestedFields: "fundamentalsTimeSeries: annual revenue/income/cashflow" });
   }
 
   // Results are oldest-first; most recent is last
@@ -102,9 +102,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
   const capex = rawCapex != null ? Math.abs(rawCapex) : undefined;
   const opCF  = n(fts0.operatingCashFlow);
 
-  logger.info({ ticker }, "yahoo: parsed successfully");
-
-  return {
+  const result = {
     yahoo_grossMargins:       n(fd.grossMargins),
     yahoo_operatingMargins:   n(fd.operatingMargins),
     yahoo_profitMargins:      n(fd.profitMargins),
@@ -144,6 +142,10 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_annualCapex:             capex,
     yahoo_annualFreeCashFlow:      n(fts0.freeCashFlow),
   };
+
+  const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
+  logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "success", fieldsReturned });
+  return result;
 }
 
 // Run directly: node_modules/.bin/tsx artifacts/api-server/src/lib/yahoo-client.ts NVDA

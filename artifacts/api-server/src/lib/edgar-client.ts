@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db, tickerCik } from "@workspace/db";
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 // ── SEC EDGAR XBRL client ─────────────────────────────────────────────────────
 // No API key required. EDGAR is a public US government service.
@@ -132,17 +133,21 @@ export async function fetchEdgarFundamentals(
   ticker: string,
 ): Promise<{ data: EdgarFundamentalsData; cik: string | null }> {
   const t = ticker.toUpperCase();
-  logger.info({ ticker: t }, "edgar: fetching fundamentals");
-
   const cik = await getCIK(t);
   if (!cik) {
-    logger.warn({ ticker: t }, "edgar: CIK not in cache — run bootstrapCikCache() first");
+    logApiCall({ source: "edgar", fn: "fetchEdgarFundamentals", trigger: "backfill-edgar script", ticker: t, outcome: "failure", error: "CIK not in cache — run bootstrapCikCache() first", requestedFields: "us-gaap XBRL company facts" });
     return { data: {}, cik: null };
   }
 
-  const facts = await fetchWithRetry(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
+  let facts: any;
+  try {
+    facts = await fetchWithRetry(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
+  } catch (err: any) {
+    logApiCall({ source: "edgar", fn: "fetchEdgarFundamentals", trigger: "backfill-edgar script", ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "us-gaap XBRL company facts" });
+    throw err;
+  }
   if (!facts) {
-    logger.warn({ ticker: t, cik }, "edgar: company facts not found (404)");
+    logApiCall({ source: "edgar", fn: "fetchEdgarFundamentals", trigger: "backfill-edgar script", ticker: t, outcome: "failure", error: "company facts 404", requestedFields: "us-gaap XBRL company facts" });
     return { data: {}, cik };
   }
 
@@ -169,9 +174,7 @@ export async function fetchEdgarFundamentals(
   const grossMargin   = grossProfit != null && totalRevenue ? grossProfit / totalRevenue : undefined;
   const netMargin     = netIncome   != null && totalRevenue ? netIncome   / totalRevenue : undefined;
 
-  logger.info({ ticker: t, cik }, "edgar: parsed successfully");
-
-  return {
+  const result = {
     cik,
     data: {
       edgar_totalRevenue:       totalRevenue,
@@ -191,6 +194,10 @@ export async function fetchEdgarFundamentals(
       edgar_netMargin:          netMargin,
     },
   };
+
+  const fieldsReturned = Object.values(result.data).filter(v => v !== undefined).length;
+  logApiCall({ source: "edgar", fn: "fetchEdgarFundamentals", trigger: "backfill-edgar script", ticker: t, outcome: "success", fieldsReturned });
+  return result;
 }
 
 // ── Self-test block ───────────────────────────────────────────────────────────

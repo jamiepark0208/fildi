@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 const POLY_BASE = "https://api.polygon.io";
 
@@ -65,20 +66,24 @@ export async function fetchPolygonFundamentals(
   const t = ticker.toUpperCase();
   const url = `${POLY_BASE}/vX/reference/financials?ticker=${t}&timeframe=annual&limit=1&apiKey=${apiKey}`;
 
-  const raw = await fetchWithRetry(url);
+  let raw: any;
+  try {
+    raw = await fetchWithRetry(url);
+  } catch (err: any) {
+    logApiCall({ source: "polygon", fn: "fetchPolygonFundamentals", trigger: "backfill-polygon script", ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "vX/reference/financials" });
+    throw err;
+  }
 
   if (raw?.status === "ERROR" || raw?.error) {
-    logger.warn({ ticker: t, error: raw.error ?? raw.status }, "polygon: API error");
+    logApiCall({ source: "polygon", fn: "fetchPolygonFundamentals", trigger: "backfill-polygon script", ticker: t, outcome: "failure", error: String(raw.error ?? raw.status), requestedFields: "vX/reference/financials" });
     return {};
   }
 
   const results: unknown[] = raw?.results ?? [];
   if (!Array.isArray(results) || results.length === 0) {
-    logger.warn({ ticker: t }, "polygon: no financial results returned");
+    logApiCall({ source: "polygon", fn: "fetchPolygonFundamentals", trigger: "backfill-polygon script", ticker: t, outcome: "failure", error: "no financial results returned", requestedFields: "vX/reference/financials" });
     return {};
   }
-
-  logger.info({ ticker: t, period: (results[0] as any)?.fiscal_period, year: (results[0] as any)?.fiscal_year }, "polygon: financials fetched");
 
   const filing = results[0] as Record<string, any>;
   const is = (filing.financials?.income_statement ?? {}) as Record<string, any>;
@@ -114,6 +119,8 @@ export async function fetchPolygonFundamentals(
   // ── CASH FLOW ────────────────────────────────────────────────────────────────
   result.quarterlyOperatingCashFlow = v(cf, "net_cash_flow_from_operating_activities");
 
+  const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
+  logApiCall({ source: "polygon", fn: "fetchPolygonFundamentals", trigger: "backfill-polygon script", ticker: t, outcome: "success", fieldsReturned });
   return result;
 }
 

@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { logApiCall } from "./api-logger.js";
 
 const AV_BASE = "https://www.alphavantage.co/query";
 
@@ -72,22 +73,26 @@ export async function fetchAVOverview(
   const t = ticker.toUpperCase();
   const url = `${AV_BASE}?function=OVERVIEW&symbol=${t}&apikey=${apiKey}`;
 
-  const raw = await fetchWithRetry(url);
+  let raw: any;
+  try {
+    raw = await fetchWithRetry(url);
+  } catch (err: any) {
+    logApiCall({ source: "av", fn: "fetchAVOverview", trigger: "backfill-av script", ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "OVERVIEW" });
+    throw err;
+  }
 
   // AV returns {"Information": "..."} when rate-limited or {"Note": "..."} for soft limit
   if (raw?.Information || raw?.Note) {
     const msg = raw.Information ?? raw.Note;
-    logger.warn({ ticker: t, msg }, "av: API limit hit");
+    logApiCall({ source: "av", fn: "fetchAVOverview", trigger: "backfill-av script", ticker: t, outcome: "failure", error: `AV API limit: ${msg}`, requestedFields: "OVERVIEW" });
     throw new Error(`AV API limit: ${msg}`);
   }
 
   // Empty object or missing Symbol means ticker not found / not covered
   if (!raw?.Symbol) {
-    logger.warn({ ticker: t }, "av: no data returned (ticker not covered or invalid)");
+    logApiCall({ source: "av", fn: "fetchAVOverview", trigger: "backfill-av script", ticker: t, outcome: "failure", error: "ticker not covered or invalid", requestedFields: "OVERVIEW" });
     return {};
   }
-
-  logger.info({ ticker: t, symbol: raw.Symbol, name: raw.Name }, "av: overview fetched");
 
   const result: AVFundamentalsData = {};
 
@@ -111,6 +116,8 @@ export async function fetchAVOverview(
   // ── MARKET ───────────────────────────────────────────────────────────────────
   result.beta = avN(raw.Beta);
 
+  const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
+  logApiCall({ source: "av", fn: "fetchAVOverview", trigger: "backfill-av script", ticker: t, outcome: "success", fieldsReturned });
   return result;
 }
 

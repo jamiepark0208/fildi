@@ -43,7 +43,7 @@ export async function refreshFundamentals(tickers: string[]): Promise<void> {
 
 async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
   try {
-    const fmpData = await fetchFMPFundamentals(ticker, apiKey);
+    const fmpData = await fetchFMPFundamentals(ticker, apiKey, "fundamentals-refresh route");
 
     // Fetch Yahoo data for triangulation comparison only (not as primary source).
     let discrepancyFlags: string[] = [];
