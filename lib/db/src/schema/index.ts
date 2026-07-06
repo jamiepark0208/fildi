@@ -391,6 +391,7 @@ export const tickerRegistry = pgTable('ticker_registry', {
   indexMemberships:    text('index_memberships').array(),       // 'SP100' | 'NDX100' | 'DJIA'
   primaryPeerGroupId:  text('primary_peer_group_id').references(() => peerGroups.id),
   isActive:            boolean('is_active').notNull().default(true),
+  fetchFundamentals:   boolean('fetch_fundamentals').notNull().default(false),
   addedAt:             timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

@@ -14,9 +14,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { sql, inArray } from "drizzle-orm";
-import { db, peerGroupMembers, tickerRegistry, edgarFundamentals } from "@workspace/db";
-import { WATCHLIST } from "../lib/constants.js";
+import { sql, eq } from "drizzle-orm";
+import { db, tickerRegistry, edgarFundamentals } from "@workspace/db";
 import { bootstrapCikCache, fetchEdgarFundamentals } from "../lib/edgar-client.js";
 
 const MAX_CONCURRENT = 3;
@@ -132,19 +131,13 @@ async function main(): Promise<void> {
   const upserted = await bootstrapCikCache();
   appendLog(`CIK cache: ${upserted} entries upserted`);
 
-  // Scoped ticker list: WATCHLIST + their peer groups
-  const upper = WATCHLIST.map((t: string) => t.toUpperCase());
-  const regRows = await db
-    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+  const allTickers = (await db
+    .select({ ticker: tickerRegistry.ticker })
     .from(tickerRegistry)
-    .where(inArray(tickerRegistry.ticker, upper));
-  const groupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
-  const memberRows = groupIds.length > 0
-    ? await db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers)
-        .where(inArray(peerGroupMembers.groupId, groupIds))
-    : [];
-  const allTickers = [...new Set([...upper, ...memberRows.map(r => r.ticker.toUpperCase())])].sort();
-  appendLog(`${allTickers.length} distinct tickers (${upper.length} watchlist + peers from ${groupIds.length} groups)`);
+    .where(eq(tickerRegistry.fetchFundamentals, true))
+    .orderBy(tickerRegistry.ticker))
+    .map(r => r.ticker);
+  appendLog(`${allTickers.length} tickers (fetch_fundamentals=true)`);
 
   // Check freshness
   const existing = await db.select({ ticker: edgarFundamentals.ticker, fetchedAt: edgarFundamentals.fetchedAt })

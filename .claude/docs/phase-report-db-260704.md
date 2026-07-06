@@ -181,3 +181,40 @@ Reasoning accepted:
 - Future universe changes require an explicit edit to `canonical-tickers.json`, not incidental row inserts
 
 **Not yet implemented** — user confirmed direction, implementation deferred to next session.
+
+---
+
+## 2026-07-06 session — ticker_registry audit + fetch_fundamentals flag
+
+### Universe source audit
+
+`ticker_registry` alone was not sufficient as the universe source (579 rows — all peer group tickers across all groups). The scripts that appeared to "use ticker_registry" were actually using WATCHLIST (30 tickers from `constants.ts`) + peer_group_members lookup — not a full registry scan. Split was:
+
+- fmpFundamentals (257): merge-trusted, backfill-fmp, backfill-polygon, backfill-av, backfill-yahoo-canonical
+- WATCHLIST+peer_group join (30 → ~257): backfill-yahoo, backfill-edgar, backfill-finnhub
+
+Polygon and AV confirmed NOT wired into FIELD_DEFS (cross-validation only). Old notes accurate.
+
+### Resolution: fetch_fundamentals boolean on ticker_registry
+
+**Migration applied (0010_fetch_fundamentals_flag.sql):**
+- `ALTER TABLE ticker_registry ADD COLUMN fetch_fundamentals boolean DEFAULT false NOT NULL`
+- `UPDATE ticker_registry SET fetch_fundamentals = true WHERE ticker IN (SELECT ticker FROM fmp_fundamentals)` → 257 rows flagged
+
+**Scripts updated — all now use `SELECT ticker FROM ticker_registry WHERE fetch_fundamentals = true`:**
+- merge-trusted.ts: removed fmpFundamentals import; added tickerRegistry
+- backfill-fmp.ts: two-query pattern (universe from ticker_registry; staleness from fmpFundamentals by ticker); FmpRow narrowed to {ticker, fetchedAt, fmpWacc, fmpRoic}
+- backfill-polygon.ts: simple swap
+- backfill-av.ts: simple swap
+- backfill-yahoo.ts: removed WATCHLIST + peerGroupMembers + inArray; single ticker_registry query
+- backfill-edgar.ts: same
+- backfill-finnhub.ts: same
+- backfill-yahoo-canonical.ts: **deleted** (fully covered by backfill-yahoo.ts with the new query)
+
+**Verified:** `SELECT COUNT(*) FROM ticker_registry WHERE fetch_fundamentals = true` → 257. TypeScript clean after rebuilding lib/db declaration files.
+
+### Adding a new ticker to the fundamentals universe going forward
+
+1. Ensure ticker is in `ticker_registry` (insert if needed)
+2. `UPDATE ticker_registry SET fetch_fundamentals = true WHERE ticker = 'XYZ'`
+3. All backfill scripts and merge-trusted will pick it up on next run automatically

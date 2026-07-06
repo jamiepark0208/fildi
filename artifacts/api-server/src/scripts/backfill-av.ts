@@ -22,7 +22,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq } from "drizzle-orm";
-import { db, fmpFundamentals, avFundamentals } from "@workspace/db";
+import { db, tickerRegistry, avFundamentals } from "@workspace/db";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -213,9 +213,10 @@ async function main(): Promise<void> {
   }
 
   const rows = await db
-    .select({ ticker: fmpFundamentals.ticker })
-    .from(fmpFundamentals)
-    .orderBy(fmpFundamentals.ticker);
+    .select({ ticker: tickerRegistry.ticker })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.fetchFundamentals, true))
+    .orderBy(tickerRegistry.ticker);
 
   let tickers = rows.map(r => r.ticker);
 
