@@ -66,7 +66,7 @@ export function ApiMonitorTab() {
       if (!res.ok) throw new Error("Failed to load API usage");
       return res.json();
     },
-    refetchInterval: 30_000,
+    refetchInterval: 5 * 60_000,
     staleTime: 0,
   });
 
@@ -92,7 +92,7 @@ export function ApiMonitorTab() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold">API Monitor</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Daily call counts per data source · auto-refreshes every 30s</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>
         </div>
         <button
           onClick={() => refetch()}

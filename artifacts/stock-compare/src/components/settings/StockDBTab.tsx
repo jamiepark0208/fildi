@@ -35,8 +35,10 @@ interface FundamentalsRow {
 
 interface StockDBEntry {
   ticker: string;
+  companyName: string | null;
   isWatchlist: boolean;
   peerGroupId: string | null;
+  peerGroupName: string | null;
   fundamentals: FundamentalsRow | null;
 }
 
@@ -60,6 +62,17 @@ interface FieldProv {
   sources: SourceEntry[];
 }
 interface ProvenanceData { ticker: string; fields: FieldProv[] }
+
+// ── Grouping helpers ──────────────────────────────────────────────────────────
+
+function formatSector(id: string): string {
+  return id.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+type DisplayRow =
+  | { kind: "sector";  sectorId: string; label: string; count: number }
+  | { kind: "group";   groupId: string; groupName: string; count: number }
+  | { kind: "row";     entry: StockDBEntry; ri: number };
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -304,15 +317,18 @@ export function StockDBTab() {
     );
   }, [data]);
 
-  // Filter + sort
-  const displayData = useMemo(() => {
+  // Filter + sort + group
+  const displayData = useMemo((): DisplayRow[] => {
     if (!data) return [];
-    let d = tickerFilter.trim()
-      ? data.filter(r => r.ticker.toLowerCase().includes(tickerFilter.toLowerCase().trim()))
+
+    const filtered = tickerFilter.trim()
+      ? data.filter(r => r.ticker.toLowerCase().includes(tickerFilter.toLowerCase().trim()) ||
+          (r.companyName ?? "").toLowerCase().includes(tickerFilter.toLowerCase().trim()))
       : data;
 
-    if (sortCol) {
-      d = [...d].sort((a, b) => {
+    // Sort within each group (or globally for explicit column sort)
+    const sortFn = (a: StockDBEntry, b: StockDBEntry): number => {
+      if (sortCol) {
         if (sortCol === "ticker") {
           const cmp = a.ticker.localeCompare(b.ticker);
           return sortDir === "asc" ? cmp : -cmp;
@@ -325,9 +341,53 @@ export function StockDBTab() {
         if (aVal == null) return 1;
         if (bVal == null) return -1;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
+      }
+      // Default within-group: watchlist first, then alpha
+      if (a.isWatchlist !== b.isWatchlist) return a.isWatchlist ? -1 : 1;
+      return a.ticker.localeCompare(b.ticker);
+    };
+
+    // Build sector → group → entries map
+    const sectorMap = new Map<string, Map<string, StockDBEntry[]>>();
+    const unclassified: StockDBEntry[] = [];
+
+    for (const entry of filtered) {
+      if (!entry.peerGroupId) { unclassified.push(entry); continue; }
+      const sectorId = entry.peerGroupId.split(".")[0];
+      if (!sectorMap.has(sectorId)) sectorMap.set(sectorId, new Map());
+      const groups = sectorMap.get(sectorId)!;
+      if (!groups.has(entry.peerGroupId)) groups.set(entry.peerGroupId, []);
+      groups.get(entry.peerGroupId)!.push(entry);
     }
-    return d;
+
+    const rows: DisplayRow[] = [];
+    let ri = 0;
+
+    // Sorted sectors
+    const sortedSectors = [...sectorMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+    for (const [sectorId, groups] of sortedSectors) {
+      const sectorCount = [...groups.values()].reduce((s, g) => s + g.length, 0);
+      rows.push({ kind: "sector", sectorId, label: formatSector(sectorId), count: sectorCount });
+
+      const sortedGroups = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+      for (const [groupId, entries] of sortedGroups) {
+        const groupName = entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId;
+        rows.push({ kind: "group", groupId, groupName, count: entries.length });
+        for (const entry of entries.sort(sortFn)) {
+          rows.push({ kind: "row", entry, ri: ri++ });
+        }
+      }
+    }
+
+    if (unclassified.length > 0) {
+      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unclassified.length });
+      rows.push({ kind: "group", groupId: "__unclassified", groupName: "No peer group", count: unclassified.length });
+      for (const entry of unclassified.sort(sortFn)) {
+        rows.push({ kind: "row", entry, ri: ri++ });
+      }
+    }
+
+    return rows;
   }, [data, tickerFilter, sortCol, sortDir]);
 
   if (isLoading) return (
@@ -384,14 +444,14 @@ export function StockDBTab() {
           />
           {tickerFilter && (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-              {displayData.length}/{data.length}
+              {displayData.filter(r => r.kind === "row").length}/{data.length}
             </span>
           )}
         </div>
         <div className="flex gap-3 text-xs">
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30" /> Watchlist</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/40" /> Representative</span>
         </div>
       </div>
 
@@ -466,32 +526,66 @@ export function StockDBTab() {
             </tr>
           </thead>
           <tbody>
-            {displayData.map((row, ri) => {
+            {displayData.map((item, idx) => {
+              if (item.kind === "sector") {
+                return (
+                  <tr key={`sector-${item.sectorId}`} className="bg-muted/40 border-b border-border">
+                    <td
+                      colSpan={COLS.length + 1}
+                      className="sticky left-0 px-3 py-1.5 font-semibold text-[11px] uppercase tracking-widest text-muted-foreground"
+                    >
+                      {item.label}
+                      <span className="ml-2 font-normal normal-case tracking-normal text-[10px]">({item.count})</span>
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (item.kind === "group") {
+                return (
+                  <tr key={`group-${item.groupId}-${idx}`} className="bg-muted/20 border-b border-border/50">
+                    <td
+                      colSpan={COLS.length + 1}
+                      className="sticky left-0 px-5 py-1 text-[10px] text-muted-foreground/80 font-medium italic"
+                    >
+                      {item.groupName}
+                      <span className="ml-1.5 not-italic font-normal opacity-60">· {item.count} tickers</span>
+                    </td>
+                  </tr>
+                );
+              }
+
+              const { entry: row, ri } = item;
               const f = row.fundamentals;
 
               return (
                 <tr
                   key={row.ticker}
                   className={cn(
-                    "border-b border-border hover:bg-muted/30 transition-colors",
-                    ri % 2 === 0 ? "" : "bg-muted/10",
+                    "border-b border-border/50 hover:bg-muted/30 transition-colors",
+                    row.isWatchlist
+                      ? "bg-blue-500/8 border-l-2 border-l-blue-500/50"
+                      : ri % 2 === 0 ? "" : "bg-muted/5",
                   )}
                   onMouseEnter={() => onRowEnter(row.ticker)}
                   onMouseLeave={onRowLeave}
                 >
                   {/* Ticker cell — sticky */}
-                  <td className="sticky left-0 z-10 bg-background border-r border-border px-3 py-1.5 font-mono font-semibold whitespace-nowrap">
+                  <td className={cn(
+                    "sticky left-0 z-10 border-r border-border px-3 py-1.5 font-mono font-semibold whitespace-nowrap",
+                    row.isWatchlist ? "bg-blue-950/40" : "bg-background",
+                  )}>
                     <div className="flex items-center gap-1.5">
-                      <span>{row.ticker}</span>
+                      <span className={row.isWatchlist ? "text-blue-300" : ""}>{row.ticker}</span>
                       {row.isWatchlist && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">WL</span>
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/25 text-blue-400 border border-blue-500/40 font-sans font-medium">rep</span>
                       )}
                       {!f && (
                         <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">NO DATA</span>
                       )}
                     </div>
-                    {row.peerGroupId && (
-                      <div className="text-[9px] text-muted-foreground truncate max-w-[120px]">{row.peerGroupId.split(".")[1] ?? row.peerGroupId}</div>
+                    {row.companyName && (
+                      <div className="text-[9px] text-muted-foreground truncate max-w-[120px]">{row.companyName}</div>
                     )}
                   </td>
 
