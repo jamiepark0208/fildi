@@ -268,3 +268,35 @@ APA's `fmp_fundamentals.fetched_at` = 2026-06-26 — not today. User misread the
 - Add `checkFMPBudget` gate to the startup `refreshFundamentals` call in `index.ts` — prevents restart-triggered overages
 - Add `recordFMPCalls(1)` to the price-target fetch in `stocks.ts` — makes breakdown calls visible to the tracker
 - **Do not restart the server today** — quota already exceeded, restarts will fire stale-ticker refresh again
+
+---
+
+## 2026-07-06 session — Phase 0: FMP budget bleed fixes (COMPLETE)
+
+### External API call inventory (full codebase scan)
+
+| Call path | FMP? | Counted via recordFMPCalls? | Gated by checkFMPBudget? |
+|---|---|---|---|
+| `fetchFMPFundamentals` via fmp-client | Yes | Yes | Yes (backfill scripts + POST /fundamentals/refresh) |
+| Startup `refreshFundamentals` in index.ts | Yes | Yes (records after) | **No — FIXED** |
+| `price-target` fetch in breakdown route (stocks.ts) | Yes | **No — FIXED** | No (tracking only for now) |
+| CNN Fear & Greed (macro-data.ts) | No | N/A | N/A |
+| NY Fed GSCPI Excel (macro-data.ts) | No | N/A | N/A |
+| SEC EDGAR — CIK + company facts (stock-data-manager.ts, edgar-client.ts) | No | N/A | N/A |
+| Finnhub (finnhub-client.ts) | No | N/A | own rate limiter |
+
+### Fix 1: Startup budget gate (index.ts)
+
+Added `checkFMPBudget(stale.length * 7)` before `refreshFundamentals` in the startup path. Three cases handled:
+- Budget check throws → logs warning, skips refresh, server continues normally (fail safe)
+- Budget exhausted → logs warning with callsNeeded/callsToday/remaining, skips refresh
+- Budget available → proceeds as before (no behavior change)
+
+### Fix 2: Price-target call tracking (stocks.ts)
+
+Added `recordFMPCalls(1).catch(() => {})` via `.finally()` on the breakdown route's price-target fetch. Records regardless of fetch success/failure. Failure to record never propagates to the response (fail safe).
+
+### Current budget state
+294 calls recorded for 2026-07-06. A restart now will log "startup: FMP budget exhausted — skipping stale refresh" and stop. No further overage possible from restarts today. Budget resets at midnight UTC.
+
+### TypeScript: clean
