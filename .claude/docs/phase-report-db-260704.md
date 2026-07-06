@@ -162,3 +162,22 @@ Full task list: `.claude/docs/next-session-tasks-db.md`
 3. Audit ETF exclusion, FIELD_DEFS duplication, rate-limit constants, peer-group drift, schema comments
 4. Wire Polygon/AV into merge-trusted.ts FIELD_DEFS as lowest-priority fallbacks
 5. Re-run merge-trusted + dry runs against confirmed universe before any live API call
+
+---
+
+## 2026-07-06 session — DELETE reassessment
+
+**Decision: skip all pending DELETEs. Leave all 257 tickers in all tables.**
+
+Reasoning accepted:
+- The 89 peer-group tickers were intentionally added to `ticker_registry` + `peer_group_members` for sector-relative scoring. Their fundamentals data will be needed by the scoring pipeline — deleting now and re-fetching later wastes FMP/AV quota.
+- The snapshot-to-staging.ts guard (applied last session) eliminates the re-trigger risk. The structural hole is closed.
+- The actual bug was `fmp_fundamentals` acting as the implicit universe definition, not the existence of the data.
+
+**Agreed approach going forward:**
+- `canonical-tickers.json` (168 tickers) = primary tracked universe — what the watchlist UI shows, what "our universe" means in docs/monitoring
+- `validate-universe.ts` checks that `fmp_fundamentals` contains ALL tickers in this file (superset OK — peer-group tickers are valid extras)
+- `merge-trusted.ts` and backfill scripts continue targeting `SELECT ticker FROM fmp_fundamentals` (all 257) — peer tickers need fresh fundamentals for scoring
+- Future universe changes require an explicit edit to `canonical-tickers.json`, not incidental row inserts
+
+**Not yet implemented** — user confirmed direction, implementation deferred to next session.
