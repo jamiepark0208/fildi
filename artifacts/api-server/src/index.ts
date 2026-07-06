@@ -2,7 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seeder";
 import { WATCHLIST } from "./lib/constants";
-import { getStaleTickers } from "./lib/fundamentals-db";
+import { getStaleTickers, checkFMPBudget } from "./lib/fundamentals-db";
 import { refreshFundamentals } from "./routes/fundamentals";
 import { getStaleTechnicalTickers, refreshTechnicals } from "./lib/technicals-db";
 import { withRetry } from "./lib/retry";
@@ -34,8 +34,22 @@ app.listen(port, (err) => {
   }).catch(e => logger.error({ err: e }, "startup: seed failed after retries"));
 
   withRetry(() =>
-    getStaleTickers(WATCHLIST).then(stale => {
+    getStaleTickers(WATCHLIST).then(async stale => {
       if (stale.length === 0) return;
+      let budget;
+      try {
+        budget = await checkFMPBudget(stale.length * 7);
+      } catch (err) {
+        logger.warn({ err }, "startup: FMP budget check failed — skipping stale refresh");
+        return;
+      }
+      if (!budget.allowed) {
+        logger.warn(
+          { callsNeeded: stale.length * 7, callsToday: budget.callsToday, remaining: budget.remaining },
+          "startup: FMP budget exhausted — skipping stale refresh",
+        );
+        return;
+      }
       logger.info({ count: stale.length }, "startup: refreshing stale FMP fundamentals");
       return refreshFundamentals(stale);
     }), {
