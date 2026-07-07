@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-06
+**build** — last updated 2026-07-07
 
 ## Active work
-- Working: macro-subtabs, cot-embedded, tradingview-widgets, sidebar-cleanup, macro-file-splits, workflow-hooks, macro-data-enhancements, market-regime-schema, peer-group-infrastructure, scoring-pipeline-improvements, stock-db-admin-view, av-polygon-data-sources, backfill-script, yahoo-data-source, edgar-data-source, source-fundamentals-table, validate-sources, merge-trusted, field-provenance, manual-overrides, provenance-tooltip, provenance-cache
-- In progress: Universe fix complete: fetch_fundamentals flag on ticker_registry (257 tickers); all 7 backfill scripts + merge-trusted now read from ticker_registry WHERE fetch_fundamentals=true; POST /watchlist auto-flags new tickers + peer group members; FMP budget gate added to startup; price-target call now tracked; unified logApiCall helper in api-logger.ts wired into all 7 data source clients
-- Blocked: FMP quota resets midnight UTC (wacc, priceToSales, roic). AV quota resets midnight UTC. merge-trusted.ts must be re-run after FMP backfill to populate field_provenance.
+- Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table
+- In progress: Phase 1 complete: unified api_usage table (0011 migration), recordApiUsage wired into logApiCall for all sources, FMP budget tracking migrated from fmp_api_usage singleton to api_usage, AV cursor file syncs from DB on startup, GET /api-usage/history route, ApiMonitorTab (5min refresh, progress bars for FMP/AV, raw counts for others). Stock DB endpoint now returns peerGroupName+companyName from ticker_registry+peer_groups join. Stock DB UI adds sector/peer-group row grouping with representative highlighting — but UI quality is poor, needs full redesign next session. Polygon+AV wired into populate-source-fundamentals and merge-trusted FIELD_DEFS as lowest-priority fallbacks.
+- Blocked: FMP quota exceeded today (resets midnight UTC) — run backfill-fmp.mjs first after reset. AV quota resets midnight UTC. merge-trusted must re-run after backfills to populate field_provenance for all 257 tickers. Finnhub PE/ratio coverage is patchy (some tickers null, others not) despite no daily rate cap — suspected backfill bug or Finnhub API returning null for certain ticker types, needs investigation.
 
 ## Next tasks (priority order)
 1. **universe-audit** — Confirm whether 257-ticker fmp_fundamentals expansion is intentional; see `.claude/docs/next-session-tasks-db.md` for full 5-step plan
