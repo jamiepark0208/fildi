@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, Search, Pin, TriangleAlert } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
@@ -70,9 +70,9 @@ function formatSector(id: string): string {
 }
 
 type DisplayRow =
-  | { kind: "sector";  sectorId: string; label: string; count: number }
-  | { kind: "group";   groupId: string; groupName: string; count: number }
-  | { kind: "row";     entry: StockDBEntry; ri: number };
+  | { kind: "sector"; sectorId: string; label: string; count: number; coverage: number }
+  | { kind: "group";  sectorId: string; groupId: string; groupName: string; count: number; coverage: number }
+  | { kind: "row";    sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ interface ColDef {
   family: "value" | "growth" | "quality" | "safety" | "meta";
   fmt: FmtType;
   suspect?: (v: number) => boolean;
-  optional?: boolean; // null means N/A, not missing data — shown as muted dash
+  optional?: boolean;
 }
 
 const COLS: ColDef[] = [
@@ -140,6 +140,27 @@ const FAMILY_COLORS: Record<string, string> = {
   meta:    "text-muted-foreground",
 };
 
+// ── Coverage helpers ──────────────────────────────────────────────────────────
+
+function calcCoverage(entries: StockDBEntry[]): number {
+  if (!entries.length) return 0;
+  let filled = 0;
+  for (const e of entries) {
+    for (const col of COLS) {
+      if (e.fundamentals?.[col.key] != null) filled++;
+    }
+  }
+  return Math.round((filled / (entries.length * COLS.length)) * 100);
+}
+
+function coverageColor(pct: number): string {
+  return pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-400";
+}
+
+function coverageBarColor(pct: number): string {
+  return pct < 50 ? "bg-red-500/70" : pct < 80 ? "bg-amber-500/60" : "bg-green-500/60";
+}
+
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 function fmt(raw: string | null, type: FmtType): string {
@@ -170,8 +191,7 @@ function isSuspect(col: ColDef, raw: string | null): boolean {
 function fmtDate(ts: string | null): string {
   if (!ts) return "never";
   const d = new Date(ts);
-  const now = Date.now();
-  const diff = now - d.getTime();
+  const diff = Date.now() - d.getTime();
   const days = Math.floor(diff / 86_400_000);
   if (days === 0) return "today";
   if (days === 1) return "yesterday";
@@ -194,14 +214,16 @@ type ActiveCell = { ticker: string; field: string; rect: DOMRect };
 
 export function StockDBTab() {
   const qc = useQueryClient();
-  const [tickerFilter, setTickerFilter] = useState("");
-  const [sortCol, setSortCol]           = useState<string | null>(null);
-  const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
-  const [hoveredTicker, setHoveredTicker]   = useState<string | null>(null);
-  const [activeCell, setActiveCell]         = useState<ActiveCell | null>(null);
-  const [overrideSrc, setOverrideSrc]       = useState("");
-  const [overrideVal, setOverrideVal]       = useState("");
-  const [overrideNote, setOverrideNote]     = useState("");
+  const [tickerFilter, setTickerFilter]         = useState("");
+  const [sortCol, setSortCol]                   = useState<string | null>(null);
+  const [sortDir, setSortDir]                   = useState<"asc" | "desc">("asc");
+  const [hoveredTicker, setHoveredTicker]       = useState<string | null>(null);
+  const [activeCell, setActiveCell]             = useState<ActiveCell | null>(null);
+  const [overrideSrc, setOverrideSrc]           = useState("");
+  const [overrideVal, setOverrideVal]           = useState("");
+  const [overrideNote, setOverrideNote]         = useState("");
+  const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(new Set());
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
@@ -289,6 +311,22 @@ export function StockDBTab() {
     }
   }
 
+  function toggleSector(sectorId: string) {
+    setCollapsedSectors(s => {
+      const next = new Set(s);
+      if (next.has(sectorId)) next.delete(sectorId); else next.add(sectorId);
+      return next;
+    });
+  }
+
+  function toggleGroup(groupId: string) {
+    setCollapsedGroups(s => {
+      const next = new Set(s);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    });
+  }
+
   // Per-column and per-family coverage computed over the full dataset
   const colCoverage = useMemo(() => {
     if (!data) return {} as Record<string, { filled: number; total: number }>;
@@ -317,16 +355,15 @@ export function StockDBTab() {
     );
   }, [data]);
 
-  // Filter + sort + group
+  // Filter + sort + group — sectors/groups sorted by coverage % descending
   const displayData = useMemo((): DisplayRow[] => {
     if (!data) return [];
 
-    const filtered = tickerFilter.trim()
-      ? data.filter(r => r.ticker.toLowerCase().includes(tickerFilter.toLowerCase().trim()) ||
-          (r.companyName ?? "").toLowerCase().includes(tickerFilter.toLowerCase().trim()))
+    const lc = tickerFilter.toLowerCase().trim();
+    const filtered = lc
+      ? data.filter(r => r.ticker.toLowerCase().includes(lc) || (r.companyName ?? "").toLowerCase().includes(lc))
       : data;
 
-    // Sort within each group (or globally for explicit column sort)
     const sortFn = (a: StockDBEntry, b: StockDBEntry): number => {
       if (sortCol) {
         if (sortCol === "ticker") {
@@ -342,7 +379,6 @@ export function StockDBTab() {
         if (bVal == null) return -1;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       }
-      // Default within-group: watchlist first, then alpha
       if (a.isWatchlist !== b.isWatchlist) return a.isWatchlist ? -1 : 1;
       return a.ticker.localeCompare(b.ticker);
     };
@@ -360,30 +396,40 @@ export function StockDBTab() {
       groups.get(entry.peerGroupId)!.push(entry);
     }
 
+    // Build sector list with per-group coverage; sort sectors and groups by coverage desc
+    const sectorList = [...sectorMap.entries()].map(([sectorId, groups]) => {
+      const groupList = [...groups.entries()].map(([groupId, entries]) => ({
+        groupId,
+        groupName: entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId,
+        entries: entries.sort(sortFn),
+        coverage: calcCoverage(entries),
+      }));
+      groupList.sort((a, b) => b.coverage - a.coverage);
+      const allEntries = groupList.flatMap(g => g.entries);
+      return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
+    });
+    sectorList.sort((a, b) => b.coverage - a.coverage);
+
     const rows: DisplayRow[] = [];
     let ri = 0;
 
-    // Sorted sectors
-    const sortedSectors = [...sectorMap.entries()].sort(([a], [b]) => a.localeCompare(b));
-    for (const [sectorId, groups] of sortedSectors) {
-      const sectorCount = [...groups.values()].reduce((s, g) => s + g.length, 0);
-      rows.push({ kind: "sector", sectorId, label: formatSector(sectorId), count: sectorCount });
-
-      const sortedGroups = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-      for (const [groupId, entries] of sortedGroups) {
-        const groupName = entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId;
-        rows.push({ kind: "group", groupId, groupName, count: entries.length });
-        for (const entry of entries.sort(sortFn)) {
-          rows.push({ kind: "row", entry, ri: ri++ });
+    for (const sector of sectorList) {
+      rows.push({ kind: "sector", sectorId: sector.sectorId, label: sector.label, count: sector.count, coverage: sector.coverage });
+      for (const group of sector.groups) {
+        rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage });
+        for (const entry of group.entries) {
+          rows.push({ kind: "row", sectorId: sector.sectorId, groupId: group.groupId, entry, ri: ri++ });
         }
       }
     }
 
     if (unclassified.length > 0) {
-      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unclassified.length });
-      rows.push({ kind: "group", groupId: "__unclassified", groupName: "No peer group", count: unclassified.length });
-      for (const entry of unclassified.sort(sortFn)) {
-        rows.push({ kind: "row", entry, ri: ri++ });
+      const unc = unclassified.sort(sortFn);
+      const uncCov = calcCoverage(unc);
+      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov });
+      rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov });
+      for (const entry of unc) {
+        rows.push({ kind: "row", sectorId: "__unclassified", groupId: "__unclassified", entry, ri: ri++ });
       }
     }
 
@@ -408,6 +454,7 @@ export function StockDBTab() {
   const totalCells = data.length * COLS.length;
   const coverage   = totalCells > 0 ? Math.round((1 - nullCount / totalCells) * 100) : 0;
   const noRow      = data.filter(d => !d.fundamentals).length;
+  const visibleRows = displayData.filter(r => r.kind === "row").length;
 
   return (
     <>
@@ -419,7 +466,7 @@ export function StockDBTab() {
           <span><span className="text-foreground font-medium">{data.filter(d => d.isWatchlist).length}</span> watchlist</span>
           <span><span className="text-foreground font-medium">{data.filter(d => !d.isWatchlist).length}</span> peers only</span>
           <span><span className={cn("font-medium", noRow > 0 ? "text-red-400" : "text-green-400")}>{noRow}</span> missing rows</span>
-          <span>Coverage <span className={cn("font-medium", coverage < 80 ? "text-amber-400" : "text-green-400")}>{coverage}%</span></span>
+          <span>Coverage <span className={cn("font-medium", coverageColor(coverage))}>{coverage}%</span></span>
         </div>
         <button
           onClick={() => refetch()}
@@ -444,7 +491,7 @@ export function StockDBTab() {
           />
           {tickerFilter && (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-              {displayData.filter(r => r.kind === "row").length}/{data.length}
+              {visibleRows}/{data.length}
             </span>
           )}
         </div>
@@ -459,7 +506,7 @@ export function StockDBTab() {
       <div className="border border-border rounded-md overflow-auto max-h-[calc(100vh-300px)]">
         <table className="text-xs border-collapse min-w-max">
           <thead className="sticky top-0 z-20 bg-background">
-            {/* Family header row — shows family name + aggregate coverage */}
+            {/* Family header row */}
             <tr>
               <th
                 className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium cursor-pointer hover:bg-muted/30 select-none"
@@ -482,22 +529,18 @@ export function StockDBTab() {
                     className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
                   >
                     <div>{fam}</div>
-                    <div className={cn(
-                      "text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80",
-                      pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-400"
-                    )}>
+                    <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80", coverageColor(pct))}>
                       {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
                     </div>
                   </th>
                 );
               })}
             </tr>
-            {/* Column labels row — shows label + per-column coverage + sort icon */}
+            {/* Column labels row */}
             <tr>
               {COLS.map((col, i) => {
                 const cov = colCoverage[col.key as string];
                 const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
-                const isActive = sortCol === (col.key as string);
                 return (
                   <th
                     key={col.key as string}
@@ -505,7 +548,7 @@ export function StockDBTab() {
                     className={cn(
                       "border-b border-border px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-muted/30 select-none",
                       i === COLS.length - 1 ? "" : "border-r",
-                      isActive ? FAMILY_COLORS[col.family] : FAMILY_COLORS[col.family],
+                      FAMILY_COLORS[col.family],
                     )}
                   >
                     <div className="flex items-center justify-end gap-0.5">
@@ -527,33 +570,69 @@ export function StockDBTab() {
           </thead>
           <tbody>
             {displayData.map((item, idx) => {
+              // ── Sector header ──────────────────────────────────────────────
               if (item.kind === "sector") {
+                const isCollapsed = collapsedSectors.has(item.sectorId);
                 return (
-                  <tr key={`sector-${item.sectorId}`} className="bg-muted/40 border-b border-border">
-                    <td
-                      colSpan={COLS.length + 1}
-                      className="sticky left-0 px-3 py-1.5 font-semibold text-[11px] uppercase tracking-widest text-muted-foreground"
-                    >
-                      {item.label}
-                      <span className="ml-2 font-normal normal-case tracking-normal text-[10px]">({item.count})</span>
+                  <tr
+                    key={`sector-${item.sectorId}`}
+                    className="bg-muted/60 border-y-2 border-border cursor-pointer hover:bg-muted/80 select-none transition-colors"
+                    onClick={() => toggleSector(item.sectorId)}
+                  >
+                    <td colSpan={COLS.length + 1} className="sticky left-0 bg-muted/60 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {isCollapsed
+                          ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          : <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        }
+                        <span className="font-semibold text-[11px] uppercase tracking-widest text-foreground">{item.label}</span>
+                        <span className="text-[10px] text-muted-foreground">({item.count})</span>
+                        <span className={cn("ml-auto text-[10px] font-semibold tabular-nums", coverageColor(item.coverage))}>
+                          {item.coverage}% covered
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 );
               }
 
+              // ── Group header ───────────────────────────────────────────────
               if (item.kind === "group") {
+                if (collapsedSectors.has(item.sectorId)) return null;
+                const isCollapsed = collapsedGroups.has(item.groupId);
                 return (
-                  <tr key={`group-${item.groupId}-${idx}`} className="bg-muted/20 border-b border-border/50">
-                    <td
-                      colSpan={COLS.length + 1}
-                      className="sticky left-0 px-5 py-1 text-[10px] text-muted-foreground/80 font-medium italic"
-                    >
-                      {item.groupName}
-                      <span className="ml-1.5 not-italic font-normal opacity-60">· {item.count} tickers</span>
+                  <tr
+                    key={`group-${item.groupId}-${idx}`}
+                    className="bg-muted/20 border-b border-border/60 cursor-pointer hover:bg-muted/35 select-none transition-colors"
+                    onClick={() => toggleGroup(item.groupId)}
+                  >
+                    <td colSpan={COLS.length + 1} className="sticky left-0 bg-muted/20 px-3 py-1.5">
+                      <div className="flex items-center gap-2 pl-4">
+                        {isCollapsed
+                          ? <ChevronRight className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
+                          : <ChevronDown  className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
+                        }
+                        <span className="text-[10px] font-medium text-muted-foreground">{item.groupName}</span>
+                        <span className="text-[9px] text-muted-foreground/50">· {item.count}</span>
+                        <div className="ml-auto flex items-center gap-2">
+                          <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all", coverageBarColor(item.coverage))}
+                              style={{ width: `${item.coverage}%` }}
+                            />
+                          </div>
+                          <span className={cn("text-[9px] tabular-nums w-8 text-right", coverageColor(item.coverage))}>
+                            {item.coverage}%
+                          </span>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
               }
+
+              // ── Data row ───────────────────────────────────────────────────
+              if (collapsedSectors.has(item.sectorId) || collapsedGroups.has(item.groupId)) return null;
 
               const { entry: row, ri } = item;
               const f = row.fundamentals;
@@ -621,7 +700,7 @@ export function StockDBTab() {
                 </tr>
               );
             })}
-            {displayData.length === 0 && (
+            {visibleRows === 0 && tickerFilter && (
               <tr>
                 <td colSpan={COLS.length + 1} className="py-8 text-center text-muted-foreground text-xs">
                   No tickers match "{tickerFilter}"
@@ -634,7 +713,6 @@ export function StockDBTab() {
     </div>
     {/* ── Provenance Popover ─────────────────────────────────────────────── */}
     <Popover open={!!activeCell} onOpenChange={(open) => { if (!open) setActiveCell(null); }}>
-      {/* Virtual anchor: fixed-position invisible div aligned to the clicked cell */}
       <PopoverAnchor asChild>
         <div
           style={{
@@ -676,7 +754,6 @@ export function StockDBTab() {
         )}
         {activeProv && (
           <div>
-            {/* Header */}
             <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
               <span className="font-semibold text-foreground">{activeCell?.ticker} · {activeCell?.field}</span>
               <div className="flex items-center gap-1">
@@ -685,7 +762,6 @@ export function StockDBTab() {
               </div>
             </div>
 
-            {/* Winning value */}
             <div className="px-3 py-2 border-b border-border">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Winner</span>
@@ -710,7 +786,6 @@ export function StockDBTab() {
               )}
             </div>
 
-            {/* Per-source table */}
             <div className="px-3 py-2 border-b border-border">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">All sources</div>
               <table className="w-full text-[10px]">
@@ -744,7 +819,6 @@ export function StockDBTab() {
               </table>
             </div>
 
-            {/* Override control */}
             <div className="px-3 py-2">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">
                 {activeProv.override ? "Override active" : "Override source"}
