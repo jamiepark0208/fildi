@@ -83,7 +83,7 @@ export const FIELD_DEFS: FieldDef[] = [
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
-  { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["fmp","dividendYield"],                           ["alpha_vantage","dividendYield"]] },
+  { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["finnhub","dividendYield"], ["fmp","dividendYield"], ["alpha_vantage","dividendYield"]] },
   { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"],                      ["alpha_vantage","analystTargetPrice"]] },
   { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"]] },
 ];

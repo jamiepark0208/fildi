@@ -101,6 +101,7 @@ async function processTicker(ticker: string, freshSet: Set<string>): Promise<Res
         finnhubEarningsPerShare:      data.finnhub_earningsPerShare?.toString()     ?? null,
         finnhub52weekHigh:            data.finnhub_52weekHigh?.toString()           ?? null,
         finnhub52weekLow:             data.finnhub_52weekLow?.toString()            ?? null,
+        finnhubDividendYield:         data.finnhub_dividendYield?.toString()        ?? null,
       })
       .onConflictDoUpdate({
         target: finnhubFundamentals.ticker,
@@ -134,6 +135,7 @@ async function processTicker(ticker: string, freshSet: Set<string>): Promise<Res
           finnhubEarningsPerShare:     sql`excluded.finnhub_earnings_per_share`,
           finnhub52weekHigh:           sql`excluded.finnhub_52week_high`,
           finnhub52weekLow:            sql`excluded.finnhub_52week_low`,
+          finnhubDividendYield:        sql`excluded.finnhub_dividend_yield`,
         },
       });
   } catch (err: any) {
