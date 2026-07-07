@@ -161,6 +161,29 @@ function coverageBarColor(pct: number): string {
   return pct < 50 ? "bg-red-500/70" : pct < 80 ? "bg-amber-500/60" : "bg-green-500/60";
 }
 
+// ── Sector color palettes ─────────────────────────────────────────────────────
+
+interface SectorPalette { bg: string; border: string; text: string; badge: string; chevron: string }
+
+const SECTOR_PALETTE: Record<string, SectorPalette> = {
+  technology:    { bg: "bg-blue-950/90",    border: "border-l-blue-500",    text: "text-blue-200",    badge: "bg-blue-500/25 text-blue-300 border border-blue-500/40",    chevron: "text-blue-400" },
+  financial:     { bg: "bg-emerald-950/90", border: "border-l-emerald-500", text: "text-emerald-200", badge: "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40", chevron: "text-emerald-400" },
+  healthcare:    { bg: "bg-violet-950/90",  border: "border-l-violet-500",  text: "text-violet-200",  badge: "bg-violet-500/25 text-violet-300 border border-violet-500/40",  chevron: "text-violet-400" },
+  energy:        { bg: "bg-orange-950/90",  border: "border-l-orange-500",  text: "text-orange-200",  badge: "bg-orange-500/25 text-orange-300 border border-orange-500/40",  chevron: "text-orange-400" },
+  consumer:      { bg: "bg-rose-950/90",    border: "border-l-rose-500",    text: "text-rose-200",    badge: "bg-rose-500/25 text-rose-300 border border-rose-500/40",    chevron: "text-rose-400" },
+  industrial:    { bg: "bg-cyan-950/90",    border: "border-l-cyan-500",    text: "text-cyan-200",    badge: "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40",    chevron: "text-cyan-400" },
+  real_estate:   { bg: "bg-yellow-950/90",  border: "border-l-yellow-500",  text: "text-yellow-200",  badge: "bg-yellow-500/25 text-yellow-300 border border-yellow-500/40",  chevron: "text-yellow-400" },
+  utilities:     { bg: "bg-teal-950/90",    border: "border-l-teal-500",    text: "text-teal-200",    badge: "bg-teal-500/25 text-teal-300 border border-teal-500/40",    chevron: "text-teal-400" },
+  materials:     { bg: "bg-lime-950/90",    border: "border-l-lime-500",    text: "text-lime-200",    badge: "bg-lime-500/25 text-lime-300 border border-lime-500/40",    chevron: "text-lime-400" },
+  communication: { bg: "bg-indigo-950/90",  border: "border-l-indigo-500",  text: "text-indigo-200",  badge: "bg-indigo-500/25 text-indigo-300 border border-indigo-500/40",  chevron: "text-indigo-400" },
+};
+const DEFAULT_SECTOR_PALETTE: SectorPalette = { bg: "bg-zinc-900/90", border: "border-l-zinc-500", text: "text-zinc-200", badge: "bg-zinc-500/25 text-zinc-300 border border-zinc-500/40", chevron: "text-zinc-400" };
+
+function getSectorPalette(sectorId: string): SectorPalette {
+  const k = Object.keys(SECTOR_PALETTE).find(key => sectorId.toLowerCase().includes(key));
+  return k ? SECTOR_PALETTE[k] : DEFAULT_SECTOR_PALETTE;
+}
+
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 function fmt(raw: string | null, type: FmtType): string {
@@ -403,8 +426,9 @@ export function StockDBTab() {
         groupName: entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId,
         entries: entries.sort(sortFn),
         coverage: calcCoverage(entries),
+        count: entries.length,
       }));
-      groupList.sort((a, b) => b.coverage - a.coverage);
+      groupList.sort((a, b) => b.count - a.count);
       const allEntries = groupList.flatMap(g => g.entries);
       return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
     });
@@ -573,23 +597,29 @@ export function StockDBTab() {
               // ── Sector header ──────────────────────────────────────────────
               if (item.kind === "sector") {
                 const isCollapsed = collapsedSectors.has(item.sectorId);
+                const pal = getSectorPalette(item.sectorId);
                 return (
                   <tr
                     key={`sector-${item.sectorId}`}
-                    className="bg-muted/60 border-y-2 border-border cursor-pointer hover:bg-muted/80 select-none transition-colors"
+                    className="cursor-pointer select-none"
                     onClick={() => toggleSector(item.sectorId)}
                   >
-                    <td colSpan={COLS.length + 1} className="sticky left-0 bg-muted/60 px-3 py-2">
-                      <div className="flex items-center gap-2">
+                    <td colSpan={COLS.length + 1} className={cn("p-0 border-l-4", pal.border)}>
+                      <div className={cn("flex items-center gap-2.5 px-3 py-2.5", pal.bg)}>
                         {isCollapsed
-                          ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          : <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          ? <ChevronRight className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
+                          : <ChevronDown  className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
                         }
-                        <span className="font-semibold text-[11px] uppercase tracking-widest text-foreground">{item.label}</span>
-                        <span className="text-[10px] text-muted-foreground">({item.count})</span>
-                        <span className={cn("ml-auto text-[10px] font-semibold tabular-nums", coverageColor(item.coverage))}>
-                          {item.coverage}% covered
-                        </span>
+                        <span className={cn("font-bold text-[11px] uppercase tracking-widest", pal.text)}>{item.label}</span>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", pal.badge)}>{item.count} tickers</span>
+                        <div className="ml-auto flex items-center gap-2.5">
+                          <div className="w-20 h-1.5 rounded-full bg-black/40 overflow-hidden">
+                            <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
+                          </div>
+                          <span className={cn("text-[10px] font-semibold tabular-nums w-10 text-right", coverageColor(item.coverage))}>
+                            {item.coverage}%
+                          </span>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -600,28 +630,26 @@ export function StockDBTab() {
               if (item.kind === "group") {
                 if (collapsedSectors.has(item.sectorId)) return null;
                 const isCollapsed = collapsedGroups.has(item.groupId);
+                const pal = getSectorPalette(item.sectorId);
                 return (
                   <tr
                     key={`group-${item.groupId}-${idx}`}
-                    className="bg-muted/20 border-b border-border/60 cursor-pointer hover:bg-muted/35 select-none transition-colors"
+                    className="cursor-pointer select-none hover:bg-white/[0.03] transition-colors border-b border-border/30"
                     onClick={() => toggleGroup(item.groupId)}
                   >
-                    <td colSpan={COLS.length + 1} className="sticky left-0 bg-muted/20 px-3 py-1.5">
-                      <div className="flex items-center gap-2 pl-4">
+                    <td colSpan={COLS.length + 1} className={cn("p-0 border-l-4", pal.border)}>
+                      <div className="flex items-center gap-2.5 pl-7 pr-3 py-1.5 bg-white/[0.04]">
                         {isCollapsed
-                          ? <ChevronRight className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
-                          : <ChevronDown  className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
+                          ? <ChevronRight className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
+                          : <ChevronDown  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
                         }
-                        <span className="text-[10px] font-medium text-muted-foreground">{item.groupName}</span>
-                        <span className="text-[9px] text-muted-foreground/50">· {item.count}</span>
+                        <span className="text-xs font-semibold text-white">{item.groupName}</span>
+                        <span className="text-[10px] text-muted-foreground/60 font-mono">{item.count}</span>
                         <div className="ml-auto flex items-center gap-2">
-                          <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={cn("h-full rounded-full transition-all", coverageBarColor(item.coverage))}
-                              style={{ width: `${item.coverage}%` }}
-                            />
+                          <div className="w-16 h-1 rounded-full bg-muted/40 overflow-hidden">
+                            <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
                           </div>
-                          <span className={cn("text-[9px] tabular-nums w-8 text-right", coverageColor(item.coverage))}>
+                          <span className={cn("text-[10px] tabular-nums w-8 text-right font-medium", coverageColor(item.coverage))}>
                             {item.coverage}%
                           </span>
                         </div>
@@ -651,7 +679,7 @@ export function StockDBTab() {
                 >
                   {/* Ticker cell — sticky */}
                   <td className={cn(
-                    "sticky left-0 z-10 border-r border-border px-3 py-1.5 font-mono font-semibold whitespace-nowrap",
+                    "sticky left-0 z-10 border-r border-border px-2.5 py-0.5 font-mono font-semibold whitespace-nowrap",
                     row.isWatchlist ? "bg-blue-950/40" : "bg-background",
                   )}>
                     <div className="flex items-center gap-1.5">
@@ -683,7 +711,7 @@ export function StockDBTab() {
                         key={col.key as string}
                         onClick={(e) => openCell(row.ticker, col.key as string, e)}
                         className={cn(
-                          "px-2 py-1 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
+                          "px-2 py-0.5 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
                           isActive && "ring-1 ring-inset ring-primary/50",
                           isOptionalNull && "text-muted-foreground/40",
