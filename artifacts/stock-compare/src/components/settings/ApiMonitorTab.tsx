@@ -66,9 +66,10 @@ export function ApiMonitorTab() {
       if (!res.ok) throw new Error("Failed to load API usage");
       return res.json();
     },
-    refetchInterval: 5 * 60_000,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Pivot: source → date → callsMade
