@@ -1,6 +1,6 @@
 {
-  "pid": 483,
+  "pid": 573,
   "version": "0.9.8",
   "socketPath": "/home/runner/workspace/.codegraph/daemon.sock",
-  "startedAt": 1783383815656
+  "startedAt": 1783385196061
 }
