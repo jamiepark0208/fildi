@@ -109,6 +109,7 @@ const FINNHUB_FIELDS: Record<string, string> = {
   finnhubEarningsPerShare:      "earningsPerShare",
   finnhub52weekHigh:            "weekHigh52",
   finnhub52weekLow:             "weekLow52",
+  finnhubDividendYield:         "dividendYield",
 };
 
 const POLYGON_FIELDS: Record<string, string> = {
