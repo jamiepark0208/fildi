@@ -67,7 +67,8 @@ export function ApiMonitorTab() {
       return res.json();
     },
     refetchInterval: 5 * 60_000,
-    staleTime: 0,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   });
 
   // Pivot: source → date → callsMade

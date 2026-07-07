@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -229,6 +229,14 @@ function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: strin
     : <ChevronDown className="inline h-3 w-3 ml-0.5 -mt-0.5" />;
 }
 
+// ── Persistent collapse state (survives tab switches) ─────────────────────────
+
+const _persist = {
+  collapsedSectors: new Set<string>(),
+  collapsedGroups:  new Set<string>(),
+  groupsInitialized: false,
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 const families = ["value", "growth", "quality", "safety", "meta"] as const;
@@ -245,8 +253,8 @@ export function StockDBTab() {
   const [overrideSrc, setOverrideSrc]           = useState("");
   const [overrideVal, setOverrideVal]           = useState("");
   const [overrideNote, setOverrideNote]         = useState("");
-  const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(new Set());
+  const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(() => new Set(_persist.collapsedSectors));
+  const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
@@ -257,7 +265,17 @@ export function StockDBTab() {
       return r.json();
     },
     staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
+
+  // On first data load: collapse all groups by default, leave sectors expanded
+  useEffect(() => {
+    if (!data || _persist.groupsInitialized) return;
+    const allGroupIds = new Set(data.filter(e => e.peerGroupId).map(e => e.peerGroupId!));
+    _persist.collapsedGroups = allGroupIds;
+    _persist.groupsInitialized = true;
+    setCollapsedGroups(new Set(allGroupIds));
+  }, [data]);
 
   const { data: provData, isFetching: provFetching, isError: provError, refetch: refetchProv } = useQuery<ProvenanceData>({
     queryKey: ["provenance", hoveredTicker],
@@ -338,6 +356,7 @@ export function StockDBTab() {
     setCollapsedSectors(s => {
       const next = new Set(s);
       if (next.has(sectorId)) next.delete(sectorId); else next.add(sectorId);
+      _persist.collapsedSectors = next;
       return next;
     });
   }
@@ -346,6 +365,7 @@ export function StockDBTab() {
     setCollapsedGroups(s => {
       const next = new Set(s);
       if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      _persist.collapsedGroups = next;
       return next;
     });
   }
@@ -643,7 +663,7 @@ export function StockDBTab() {
                           ? <ChevronRight className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
                           : <ChevronDown  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
                         }
-                        <span className="text-xs font-semibold text-white">{item.groupName}</span>
+                        <span className="text-xs font-semibold text-white uppercase tracking-wider">{item.groupName}</span>
                         <span className="text-[10px] text-muted-foreground/60 font-mono">{item.count}</span>
                         <div className="ml-auto flex items-center gap-2">
                           <div className="w-16 h-1 rounded-full bg-muted/40 overflow-hidden">
@@ -671,7 +691,7 @@ export function StockDBTab() {
                   className={cn(
                     "border-b border-border/50 hover:bg-muted/30 transition-colors",
                     row.isWatchlist
-                      ? "bg-blue-500/8 border-l-2 border-l-blue-500/50"
+                      ? "bg-amber-500/8 border-l-2 border-l-amber-500/50"
                       : ri % 2 === 0 ? "" : "bg-muted/5",
                   )}
                   onMouseEnter={() => onRowEnter(row.ticker)}
@@ -680,12 +700,12 @@ export function StockDBTab() {
                   {/* Ticker cell — sticky */}
                   <td className={cn(
                     "sticky left-0 z-10 border-r border-border px-2.5 py-0.5 font-mono font-semibold whitespace-nowrap",
-                    row.isWatchlist ? "bg-blue-950/40" : "bg-background",
+                    row.isWatchlist ? "bg-amber-950/30" : "bg-background",
                   )}>
                     <div className="flex items-center gap-1.5">
-                      <span className={row.isWatchlist ? "text-blue-300" : ""}>{row.ticker}</span>
+                      <span className={row.isWatchlist ? "text-amber-300" : ""}>{row.ticker}</span>
                       {row.isWatchlist && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/25 text-blue-400 border border-blue-500/40 font-sans font-medium">rep</span>
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-sans font-medium">rep</span>
                       )}
                       {!f && (
                         <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">NO DATA</span>
