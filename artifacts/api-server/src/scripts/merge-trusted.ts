@@ -41,7 +41,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "evEbitda",           priority: [["yahoo","evEbitda"],     ["fmp","evEbitda"]] },
   { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
   { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"]] },
-  { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["fmp","priceToSales"]] },
+  { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["finnhub","psRatio"], ["fmp","priceToSales"]] },
 
   // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av) ────────
   { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"]] },
