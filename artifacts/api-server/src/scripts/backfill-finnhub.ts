@@ -19,7 +19,7 @@ import { fetchFinnhubFundamentals } from "../lib/finnhub-client.js";
 
 const MAX_CONCURRENT  = 3;
 const STALE_DAYS      = 7;
-const BATCH_SLEEP_MS  = 1200; // 50 calls/min free tier
+const BATCH_SLEEP_MS  = 3500; // 3 calls per 3.5s ≈ 51 calls/min, under Finnhub's 60/min free limit
 
 // ── Log file ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ async function processTicker(ticker: string, freshSet: Set<string>): Promise<Res
     return { ticker, status: "fail", reason };
   }
 
-  appendLog(`[${ticker}] OK — ${fields}/28 fields`);
+  appendLog(`[${ticker}] OK — ${fields}/29 fields`);
   return { ticker, status: "ok", fields };
 }
 
