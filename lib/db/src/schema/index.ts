@@ -841,6 +841,9 @@ export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
   // Price range
   finnhub52weekHigh:       numeric('finnhub_52week_high'),
   finnhub52weekLow:        numeric('finnhub_52week_low'),
+
+  // Income / yield
+  finnhubDividendYield:    numeric('finnhub_dividend_yield'),
 })
 
 export const insertFinnhubFundamentalsSchema = createInsertSchema(finnhubFundamentals).omit({ fetchedAt: true })

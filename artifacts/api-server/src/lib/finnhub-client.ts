@@ -30,6 +30,7 @@ export interface FinnhubFundamentalsData {
   finnhub_52weekHigh?:            number;
   finnhub_52weekLow?:             number;
   finnhub_marketCap?:             number;
+  finnhub_dividendYield?:         number;
 }
 
 function n(v: unknown): number | undefined {
@@ -97,7 +98,7 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
   const m = raw.metric ?? {};
 
   const result: FinnhubFundamentalsData = {
-    finnhub_peRatio:              n(m["peBasicExclExtraTTM"]),
+    finnhub_peRatio:              n(m["peBasicExclExtraTTM"]) ?? n(m["peTTM"]),
     finnhub_pbRatio:              n(m["pb"]),
     finnhub_psRatio:              n(m["psTTM"]),
     finnhub_grossMargin:          pct(m["grossMarginTTM"]),
@@ -125,6 +126,7 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_52weekHigh:           n(m["52WeekHigh"]),
     finnhub_52weekLow:            n(m["52WeekLow"]),
     finnhub_marketCap:            n(m["marketCapitalization"]),
+    finnhub_dividendYield:        n(m["dividendYieldIndicatedAnnual"]),
   };
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
