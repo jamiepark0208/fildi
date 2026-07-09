@@ -148,6 +148,10 @@ async function processTicker(
         yahooEpsGrowth:              data.yahoo_epsGrowth?.toString()              ?? null,
         yahooSharesOutstandingPrior: data.yahoo_sharesOutstandingPrior?.toString() ?? null,
         yahooEffectiveTaxRate:       data.yahoo_effectiveTaxRate?.toString()       ?? null,
+        yahooInterestExpense:        data.yahoo_interestExpense?.toString()        ?? null,
+        yahooQuarterlyOcf:           data.yahoo_quarterlyOcf?.toString()           ?? null,
+        yahooRoic:                   data.yahoo_roic?.toString()                   ?? null,
+        yahooWacc:                   data.yahoo_wacc?.toString()                   ?? null,
       })
       .onConflictDoUpdate({
         target: yahooFundamentals.ticker,
@@ -196,6 +200,10 @@ async function processTicker(
           yahooEpsGrowth:              sql`excluded.yahoo_eps_growth`,
           yahooSharesOutstandingPrior: sql`excluded.yahoo_shares_outstanding_prior`,
           yahooEffectiveTaxRate:       sql`excluded.yahoo_effective_tax_rate`,
+          yahooInterestExpense:        sql`excluded.yahoo_interest_expense`,
+          yahooQuarterlyOcf:           sql`excluded.yahoo_quarterly_ocf`,
+          yahooRoic:                   sql`excluded.yahoo_roic`,
+          yahooWacc:                   sql`excluded.yahoo_wacc`,
         },
       });
   } catch (err: any) {
