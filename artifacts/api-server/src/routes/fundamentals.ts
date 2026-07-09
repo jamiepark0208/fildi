@@ -231,6 +231,14 @@ router.get("/fundamentals/rankings", async (_req, res) => {
     // Cross-sectional percentile rank per metric
     const values = METRICS.map(m => rows.map(r => m.getValue(r)));
 
+    // Log tickers that have null values for any scoring metric (data-gap diagnostics)
+    rows.forEach((row, ri) => {
+      const nullMetrics = METRICS.filter((_, mi) => values[mi][ri] === null).map(m => m.key);
+      if (nullMetrics.length > 0) {
+        logger.warn({ ticker: row.ticker, nullMetrics, nullCount: nullMetrics.length }, "[FUND-NULL] missing fundamental metrics in DB");
+      }
+    });
+
     // Apply group metric exclusions and roe structural null (direction-inversion only)
     rows.forEach((row, ri) => {
       const groupId = peerGroupByTicker.get(row.ticker);

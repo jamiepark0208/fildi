@@ -252,6 +252,7 @@ async function main() {
     const update: Record<string, number> = {};
     const tickerSourceUsage: Record<string, number> = {};
     const provenanceBatch: Array<{ field: string; result: ResolveResult }> = [];
+    const tickerNullFields: string[] = [];
 
     for (const fieldDef of VALID_FIELD_DEFS) {
       const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
@@ -264,15 +265,21 @@ async function main() {
         provenanceBatch.push({ field: fieldDef.tfCol as string, result });
       } else {
         fieldNullCount[fieldDef.tfCol as string]++;
+        tickerNullFields.push(fieldDef.tfCol as string);
       }
     }
 
     if (Object.keys(update).length === 0) continue;
 
+    const divergentFields = provenanceBatch
+      .filter(({ result }) => result.divergent)
+      .map(({ field }) => field);
+    const discrepancyFlags = divergentFields.length > 0 ? divergentFields.join(",") : null;
+
     await db
       .insert(tickerFundamentals)
-      .values({ ticker, ...update, fundamentalsLastFetched: now } as any)
-      .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: { ...update, fundamentalsLastFetched: now } as any });
+      .values({ ticker, ...update, fundamentalsLastFetched: now, discrepancyFlags } as any)
+      .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: { ...update, fundamentalsLastFetched: now, discrepancyFlags } as any });
 
     if (provenanceBatch.length > 0) {
       await db
@@ -305,6 +312,9 @@ async function main() {
       .map(([s, n]) => `${s}:${n}`)
       .join(" ");
     console.log(`[${ticker}] merged ${Object.keys(update).length} fields — sources used: ${srcStr}`);
+    if (tickerNullFields.length > 0) {
+      console.log(`[FUND-NULL] ${ticker}: ${tickerNullFields.join(", ")} (${tickerNullFields.length}/${VALID_FIELD_DEFS.length} null)`);
+    }
     totalTickersMerged++;
     totalFieldsWritten += Object.keys(update).length;
   }
