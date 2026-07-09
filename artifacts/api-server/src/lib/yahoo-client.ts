@@ -43,6 +43,7 @@ export interface YahooFundamentalsData {
   yahoo_annualOperatingCashFlow?: number;
   yahoo_annualCapex?: number;
   yahoo_annualFreeCashFlow?: number;
+  yahoo_dividendYield?: number;
 }
 
 function n(v: unknown): number | undefined {
@@ -64,7 +65,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
   let raw: Awaited<ReturnType<typeof yahooFinance.quoteSummary>>;
   try {
     raw = await yahooFinance.quoteSummary(symbol, {
-      modules: ["financialData", "defaultKeyStatistics"],
+      modules: ["financialData", "defaultKeyStatistics", "summaryDetail"],
     }, { validateResult: false });
   } catch (err: any) {
     logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: err.message, requestedFields: "quoteSummary: financialData, defaultKeyStatistics" });
@@ -91,6 +92,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
 
   const fd  = (raw as any).financialData        ?? {};
   const ks  = (raw as any).defaultKeyStatistics  ?? {};
+  const sd  = (raw as any).summaryDetail         ?? {};
 
   const rev0 = n(fts0.totalRevenue);
   const rev1 = n(fts1.totalRevenue);
@@ -117,6 +119,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_freeCashflow:       n(fd.freeCashflow),
     yahoo_operatingCashflow:  n(fd.operatingCashflow),
     yahoo_ebitda:             n(fd.ebitda),
+    yahoo_dividendYield:      n(sd.dividendYield),
     yahoo_targetMeanPrice:    n(fd.targetMeanPrice),
     yahoo_forwardPE:          n(ks.forwardPE),
     yahoo_pegRatio:           n(ks.pegRatio),
