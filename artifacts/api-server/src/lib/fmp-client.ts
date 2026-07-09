@@ -101,10 +101,21 @@ function secondOf(arr: unknown): Record<string, unknown> {
 // Fetches the 5 annual FMP endpoints in parallel + the quarterly cash-flow endpoint.
 // Returns undefined for any field where FMP returned null/missing.
 // Never throws on individual field absence — only throws on network failure after retries.
+// Sequential fetch with a short gap — used by backfill to avoid rate-limit bursts.
+async function fetchSerial(urls: string[], gapMs = 300): Promise<any[]> {
+  const results: any[] = [];
+  for (const url of urls) {
+    results.push(await fetchWithRetry(url).catch(() => null));
+    if (gapMs > 0) await sleep(gapMs);
+  }
+  return results;
+}
+
 export async function fetchFMPFundamentals(
   ticker: string,
   apiKey: string,
   trigger = "unknown",
+  serial = false,
 ): Promise<FMPFundamentalsData> {
   const t = ticker.toUpperCase();
   const q = `symbol=${t}&apikey=${apiKey}`;
@@ -113,18 +124,23 @@ export async function fetchFMPFundamentals(
   // 9 endpoints × 31 tickers = ~279 requests per full refresh.
   // beta is NOT fetched from FMP — stable/profile is heavily rate-limited. Yahoo beta
   // (quote.beta in buildMetrics) is the reliable source and is used for approxWACC.
+  const endpoints = [
+    `${FMP_BASE}/key-metrics?${q}&limit=1`,
+    `${FMP_BASE}/ratios?${q}&limit=1`,
+    `${FMP_BASE}/income-statement?${q}&limit=2`,
+    `${FMP_BASE}/balance-sheet-statement?${q}&limit=2`,
+    `${FMP_BASE}/price-target-consensus?${q}`,
+    `${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`,
+    `${FMP_BASE}/financial-growth?${q}&limit=2`,
+    `${FMP_BASE}/wacc?${q}&limit=1`,
+    `${FMP_BASE}/cash-flow-statement?${q}&limit=1`,
+  ];
   const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw, cfAnnualRaw] =
-    await Promise.all([
-      fetchWithRetry(`${FMP_BASE}/key-metrics?${q}&limit=1`),
-      fetchWithRetry(`${FMP_BASE}/ratios?${q}&limit=1`),
-      fetchWithRetry(`${FMP_BASE}/income-statement?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/balance-sheet-statement?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/price-target-consensus?${q}`).catch(() => null),
-      fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&period=quarter&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/financial-growth?${q}&limit=2`),
-      fetchWithRetry(`${FMP_BASE}/wacc?${q}&limit=1`).catch(() => null),
-      fetchWithRetry(`${FMP_BASE}/cash-flow-statement?${q}&limit=1`),
-    ]);
+    serial
+      ? await fetchSerial(endpoints, 400)
+      : await Promise.all(endpoints.map((url, i) =>
+          [4, 7].includes(i) ? fetchWithRetry(url).catch(() => null) : fetchWithRetry(url)
+        ));
 
   const km      = firstOf(kmRaw);
   const r       = firstOf(ratiosRaw);
