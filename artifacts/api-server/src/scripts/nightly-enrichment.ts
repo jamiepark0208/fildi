@@ -30,6 +30,7 @@ import {
   polygonFundamentals,
   avFundamentals,
   fmpFundamentals,
+  sourceFundamentals,
   apiUsage,
 } from "@workspace/db";
 import { FIELD_DEFS } from "./merge-trusted.js";
@@ -141,10 +142,25 @@ async function findNullFields(tickers: string[]): Promise<Map<string, Set<string
   return result;
 }
 
-// Returns which tickers have stale/missing staging rows for each source
-async function staleStagingBySource(tickers: string[]): Promise<Map<string, Set<string>>> {
+// Returns which tickers a source should fetch for, given the null fields that need filling.
+//
+// Skip logic (a ticker is skipped for a source if EITHER condition holds):
+//   1. source_fundamentals already has a non-null value from this source for ALL the fields
+//      this source could fill for this ticker → the data is in the DB, just re-run merge.
+//   2. Staging table is fresh (<7 days) AND source_fundamentals has at least one entry from
+//      this source for this ticker → source was fetched recently and returned null for those
+//      fields; re-fetching won't help.
+//
+// A ticker IS included when: staging is stale/missing OR source_fundamentals has no data from
+// this source at all for this ticker (never fetched).
+async function buildFetchTargets(
+  nullFieldsMap: Map<string, Set<string>>,
+  sourceFieldMap: Map<string, Set<string>>,
+): Promise<Map<string, string[]>> {
+  const tickers = [...nullFieldsMap.keys()];
   const staleThreshold = new Date(Date.now() - STALE_DAYS * 86_400_000);
 
+  // Load staging freshness for all sources in one pass
   const [yahooRows, edgarRows, finnhubRows, polyRows, avRows, fmpRows] = await Promise.all([
     db.select({ ticker: yahooFundamentals.ticker, fetchedAt: yahooFundamentals.fetchedAt }).from(yahooFundamentals).where(inArray(yahooFundamentals.ticker, tickers)),
     db.select({ ticker: edgarFundamentals.ticker, fetchedAt: edgarFundamentals.fetchedAt }).from(edgarFundamentals).where(inArray(edgarFundamentals.ticker, tickers)),
@@ -154,23 +170,86 @@ async function staleStagingBySource(tickers: string[]): Promise<Map<string, Set<
     db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpWacc: fmpFundamentals.fmpWacc, fmpRoic: fmpFundamentals.fmpRoic }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
   ]);
 
-  function buildStaleSet(rows: { ticker: string; fetchedAt: Date | null }[], extraFilter?: (r: any) => boolean): Set<string> {
-    const fresh = new Set(rows.filter(r => {
+  // Build staging-freshness maps: source → Set<ticker> that are fresh
+  const stagingFresh = new Map<string, Set<string>>();
+  function freshSet(rows: { ticker: string; fetchedAt: Date | null }[], extra?: (r: any) => boolean): Set<string> {
+    return new Set(rows.filter(r => {
       if (!r.fetchedAt || r.fetchedAt < staleThreshold) return false;
-      return !extraFilter || !extraFilter(r);
+      return !extra || !extra(r);
     }).map(r => r.ticker));
-    return new Set(tickers.filter(t => !fresh.has(t)));
+  }
+  stagingFresh.set("yahoo",         freshSet(yahooRows));
+  stagingFresh.set("edgar",         freshSet(edgarRows));
+  stagingFresh.set("finnhub",       freshSet(finnhubRows));
+  stagingFresh.set("polygon",       freshSet(polyRows));
+  stagingFresh.set("alpha_vantage", freshSet(avRows));
+  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpWacc === null && r.fmpRoic === null));
+
+  // Load source_fundamentals for all tickers+sources in one query:
+  // ticker → source → Set<sfField> that have non-null values
+  const sfRows = await db
+    .select({ ticker: sourceFundamentals.ticker, source: sourceFundamentals.source, field: sourceFundamentals.field })
+    .from(sourceFundamentals)
+    .where(inArray(sourceFundamentals.ticker, tickers));
+
+  // ticker → source → Set<canonical field names with non-null data>
+  const sfIndex = new Map<string, Map<string, Set<string>>>();
+  for (const row of sfRows) {
+    if (!sfIndex.has(row.ticker)) sfIndex.set(row.ticker, new Map());
+    const bySource = sfIndex.get(row.ticker)!;
+    if (!bySource.has(row.source)) bySource.set(row.source, new Set());
+    bySource.get(row.source)!.add(row.field);
   }
 
-  const map = new Map<string, Set<string>>();
-  map.set("yahoo",         buildStaleSet(yahooRows));
-  map.set("edgar",         buildStaleSet(edgarRows));
-  map.set("finnhub",       buildStaleSet(finnhubRows));
-  map.set("polygon",       buildStaleSet(polyRows));
-  map.set("alpha_vantage", buildStaleSet(avRows));
-  // FMP: also stale if wacc AND roic are both null (indicates placeholder-only row)
-  map.set("fmp",           buildStaleSet(fmpRows, r => r.fmpWacc === null && r.fmpRoic === null));
-  return map;
+  // For each source, determine which sfFields map to tfCols (reverse-map from FIELD_DEFS)
+  // source → sfField → tfCol
+  const sfToTfCol = new Map<string, Map<string, string>>();
+  for (const { tfCol, priority } of FIELD_DEFS) {
+    for (const [src, sfField] of priority) {
+      if (!sfToTfCol.has(src)) sfToTfCol.set(src, new Map());
+      sfToTfCol.get(src)!.set(sfField, tfCol as string);
+    }
+  }
+
+  const result = new Map<string, string[]>();
+
+  for (const src of SOURCE_ORDER) {
+    const coverableFields = sourceFieldMap.get(src) ?? new Set<string>();
+    const isStagingFresh  = stagingFresh.get(src) ?? new Set<string>();
+    const sfFieldToTfCol  = sfToTfCol.get(src) ?? new Map<string, string>();
+
+    const targets = tickers.filter(ticker => {
+      const nullTfCols = nullFieldsMap.get(ticker)!;
+      // Fields this source could fill for this ticker's nulls
+      const needed = [...nullTfCols].filter(f => coverableFields.has(f));
+      if (needed.length === 0) return false;
+
+      const sourceSfFields = sfIndex.get(ticker)?.get(src) ?? new Set<string>();
+
+      // Check which needed tfCols are already covered by non-null source_fundamentals entries
+      const alreadyCovered = needed.filter(tfCol => {
+        // Find the sfField(s) this source uses for this tfCol
+        for (const [sfField, mappedTfCol] of sfFieldToTfCol) {
+          if (mappedTfCol === tfCol && sourceSfFields.has(sfField)) return true;
+        }
+        return false;
+      });
+
+      if (alreadyCovered.length === needed.length) {
+        // All needed fields already in source_fundamentals → just re-run populate+merge, no API call
+        return false;
+      }
+
+      // If staging is fresh AND source has at least some data in sf → source returned null recently
+      if (isStagingFresh.has(ticker) && sourceSfFields.size > 0) return false;
+
+      return true;
+    });
+
+    result.set(src, targets);
+  }
+
+  return result;
 }
 
 // ── Budget check ───────────────────────────────────────────────────────────────
@@ -651,10 +730,7 @@ async function main(): Promise<void> {
   // 4. Which sources can fill which fields
   const sourceFieldMap = buildSourceFieldMap();
 
-  // 5. Freshness check per source
-  const staleMap = await staleStagingBySource(tickersWithNulls);
-
-  // 6. Check remaining budgets
+  // 5. Check remaining budgets
   const budgets = await getRemainingBudgets();
   log("API budgets today:");
   for (const src of SOURCE_ORDER) {
@@ -662,18 +738,12 @@ async function main(): Promise<void> {
     log(`  ${src.padEnd(14)} remaining: ${rem === Infinity ? "∞" : rem}`);
   }
 
-  // 7. Build per-source target lists: tickers that (a) have null fields this source covers AND (b) staging is stale
-  const fetchPlan = new Map<string, string[]>();
+  // 6. Build per-source fetch plan: checks source_fundamentals + staging freshness
+  //    before including a ticker, so we never call an API for data already in the DB
+  log("Building fetch plan (checking source_fundamentals + staging freshness)…");
+  const fetchPlan = await buildFetchTargets(nullFieldsMap, sourceFieldMap);
   for (const src of SOURCE_ORDER) {
-    const coverableFields = sourceFieldMap.get(src) ?? new Set<string>();
-    const staleForSource  = staleMap.get(src) ?? new Set<string>();
-    const targets = tickersWithNulls.filter(t => {
-      const nulls = nullFieldsMap.get(t)!;
-      const hasOverlap = [...nulls].some(f => coverableFields.has(f));
-      return hasOverlap && staleForSource.has(t);
-    });
-    fetchPlan.set(src, targets);
-    log(`[${src}] ${targets.length} tickers need enrichment`);
+    log(`[${src}] ${fetchPlan.get(src)?.length ?? 0} tickers need enrichment`);
   }
 
   // 8. Process each source in order
