@@ -724,6 +724,7 @@ export const yahooFundamentals = pgTable('yahoo_fundamentals', {
   yahooFloatShares:            numeric('yahoo_float_shares'),
   yahooHeldPercentInsiders:    numeric('yahoo_held_percent_insiders'),
   yahooShortRatio:             numeric('yahoo_short_ratio'),
+  yahooDividendYield:          numeric('yahoo_dividend_yield'),
 
   // incomeStatementHistory module (most recent annual 10-K)
   yahooAnnualTotalRevenue:  numeric('yahoo_annual_total_revenue'),
