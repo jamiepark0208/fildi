@@ -271,8 +271,8 @@ async function main() {
 
     await db
       .insert(tickerFundamentals)
-      .values({ ticker, ...update } as any)
-      .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: update as any });
+      .values({ ticker, ...update, fundamentalsLastFetched: now } as any)
+      .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: { ...update, fundamentalsLastFetched: now } as any });
 
     if (provenanceBatch.length > 0) {
       await db
