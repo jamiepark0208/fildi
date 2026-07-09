@@ -126,7 +126,7 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_52weekHigh:           n(m["52WeekHigh"]),
     finnhub_52weekLow:            n(m["52WeekLow"]),
     finnhub_marketCap:            n(m["marketCapitalization"]),
-    finnhub_dividendYield:        n(m["dividendYieldIndicatedAnnual"]),
+    finnhub_dividendYield:        n(m["dividendYieldIndicatedAnnual"]) ?? n(m["currentDividendYieldTTM"]),
   };
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
