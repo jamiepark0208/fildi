@@ -731,7 +731,8 @@ export const yahooFundamentals = pgTable('yahoo_fundamentals', {
   yahooAnnualGrossProfit:   numeric('yahoo_annual_gross_profit'),
   yahooAnnualEbit:          numeric('yahoo_annual_ebit'),
   yahooAnnualNetIncome:     numeric('yahoo_annual_net_income'),
-  yahooAnnualRevenueYoy:    numeric('yahoo_annual_revenue_yoy'),  // computed: (yr0-yr1)/|yr1|
+  yahooAnnualRevenueYoy:      numeric('yahoo_annual_revenue_yoy'),       // computed: (yr0-yr1)/|yr1|
+  yahooAnnualRevenueYoyPrior: numeric('yahoo_annual_revenue_yoy_prior'),  // computed: (yr1-yr2)/|yr2|
 
   // balanceSheetHistory module (most recent annual 10-K)
   yahooAnnualCash:          numeric('yahoo_annual_cash'),

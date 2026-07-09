@@ -53,7 +53,7 @@ export const FIELD_DEFS: FieldDef[] = [
 
   // ── Growth ────────────────────────────────────────────────────────────────
   { tfCol: "revenueGrowthYoY",      priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
-  { tfCol: "revenueGrowthYoyPrior", priority: [["fmp","revenueGrowthYoyPrior"]] },
+  { tfCol: "revenueGrowthYoyPrior", priority: [["yahoo","revenueGrowthYoyPrior"], ["fmp","revenueGrowthYoyPrior"]] },
   { tfCol: "epsGrowth",             priority: [["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
 
   // ── debtToEquity: yahoo only → fmp fallback (never finnhub — different def) ─

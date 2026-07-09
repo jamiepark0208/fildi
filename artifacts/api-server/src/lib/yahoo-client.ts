@@ -43,6 +43,7 @@ export interface YahooFundamentalsData {
   yahoo_annualOperatingCashFlow?: number;
   yahoo_annualCapex?: number;
   yahoo_annualFreeCashFlow?: number;
+  yahoo_annualRevenueYoyPrior?: number;
   yahoo_dividendYield?: number;
 }
 
@@ -89,6 +90,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
   // Results are oldest-first; most recent is last
   const fts0 = ftsRows.length > 0 ? ftsRows[ftsRows.length - 1] : {};
   const fts1 = ftsRows.length > 1 ? ftsRows[ftsRows.length - 2] : {};
+  const fts2 = ftsRows.length > 2 ? ftsRows[ftsRows.length - 3] : {};
 
   const fd  = (raw as any).financialData        ?? {};
   const ks  = (raw as any).defaultKeyStatistics  ?? {};
@@ -96,8 +98,12 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
 
   const rev0 = n(fts0.totalRevenue);
   const rev1 = n(fts1.totalRevenue);
+  const rev2 = n(fts2.totalRevenue);
   const revenueYoy = rev0 != null && rev1 != null && rev1 !== 0
     ? (rev0 - rev1) / Math.abs(rev1)
+    : undefined;
+  const revenueYoyPrior = rev1 != null && rev2 != null && rev2 !== 0
+    ? (rev1 - rev2) / Math.abs(rev2)
     : undefined;
 
   const rawCapex = n(fts0.capitalExpenditure);
@@ -119,7 +125,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_freeCashflow:       n(fd.freeCashflow),
     yahoo_operatingCashflow:  n(fd.operatingCashflow),
     yahoo_ebitda:             n(fd.ebitda),
-    yahoo_dividendYield:      n(sd.dividendYield),
+    yahoo_dividendYield:      n(sd.dividendYield) ?? 0,
     yahoo_targetMeanPrice:    n(fd.targetMeanPrice),
     yahoo_forwardPE:          n(ks.forwardPE),
     yahoo_pegRatio:           n(ks.pegRatio),
@@ -138,6 +144,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_annualEbit:              n(fts0.EBIT),
     yahoo_annualNetIncome:         n(fts0.netIncome),
     yahoo_annualRevenueYoy:        revenueYoy,
+    yahoo_annualRevenueYoyPrior:   revenueYoyPrior,
     yahoo_annualCash:              n(fts0.cashAndCashEquivalents),
     yahoo_annualTotalDebt:         n(fts0.longTermDebt),
     yahoo_annualTotalEquity:       n(fts0.stockholdersEquity),
