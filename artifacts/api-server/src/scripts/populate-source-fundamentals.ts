@@ -55,6 +55,7 @@ const YAHOO_FIELDS: Record<string, string> = {
   yahooAnnualEbit:            "annualEbit",
   yahooAnnualNetIncome:       "annualNetIncome",
   yahooAnnualRevenueYoy:      "annualRevenueYoy",
+  yahooAnnualRevenueYoyPrior: "revenueGrowthYoyPrior",
   yahooAnnualCash:            "annualCash",
   yahooAnnualTotalDebt:       "annualTotalDebt",
   yahooAnnualTotalEquity:     "annualTotalEquity",
