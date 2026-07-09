@@ -145,6 +145,9 @@ async function processTicker(
         yahooAnnualOperatingCashFlow: data.yahoo_annualOperatingCashFlow?.toString() ?? null,
         yahooAnnualCapex:         data.yahoo_annualCapex?.toString()         ?? null,
         yahooAnnualFreeCashFlow:  data.yahoo_annualFreeCashFlow?.toString()  ?? null,
+        yahooEpsGrowth:              data.yahoo_epsGrowth?.toString()              ?? null,
+        yahooSharesOutstandingPrior: data.yahoo_sharesOutstandingPrior?.toString() ?? null,
+        yahooEffectiveTaxRate:       data.yahoo_effectiveTaxRate?.toString()       ?? null,
       })
       .onConflictDoUpdate({
         target: yahooFundamentals.ticker,
@@ -190,6 +193,9 @@ async function processTicker(
           yahooAnnualOperatingCashFlow: sql`excluded.yahoo_annual_operating_cash_flow`,
           yahooAnnualCapex:         sql`excluded.yahoo_annual_capex`,
           yahooAnnualFreeCashFlow:  sql`excluded.yahoo_annual_free_cash_flow`,
+          yahooEpsGrowth:              sql`excluded.yahoo_eps_growth`,
+          yahooSharesOutstandingPrior: sql`excluded.yahoo_shares_outstanding_prior`,
+          yahooEffectiveTaxRate:       sql`excluded.yahoo_effective_tax_rate`,
         },
       });
   } catch (err: any) {

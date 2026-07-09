@@ -54,7 +54,7 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Growth ────────────────────────────────────────────────────────────────
   { tfCol: "revenueGrowthYoY",      priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
   { tfCol: "revenueGrowthYoyPrior", priority: [["yahoo","revenueGrowthYoyPrior"], ["fmp","revenueGrowthYoyPrior"]] },
-  { tfCol: "epsGrowth",             priority: [["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
+  { tfCol: "epsGrowth",             priority: [["yahoo","epsGrowth"],       ["finnhub","epsGrowth"],      ["fmp","epsGrowth"]] },
 
   // ── debtToEquity: yahoo only → fmp fallback (never finnhub — different def) ─
   { tfCol: "debtToEquity",       priority: [["yahoo","debtToEquity"],  ["fmp","debtToEquity"]] },
@@ -64,7 +64,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["edgar","totalDebt"],                ["fmp","totalDebt"],            ["polygon","totalDebt"]] },
   { tfCol: "totalStockholdersEquity", priority: [["edgar","totalEquity"],          ["fmp","totalStockholdersEquity"],   ["polygon","totalStockholdersEquity"]] },
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["edgar","sharesOutstanding"],        ["fmp","sharesOutstanding"]] },
-  { tfCol: "sharesOutstandingPrior",  priority: [["fmp","sharesOutstandingPrior"]] },
+  { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
@@ -74,7 +74,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
   { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,
   { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"]] },
-  { tfCol: "effectiveTaxRate",   priority: [["fmp","effectiveTaxRate"]] },
+  { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["fmp","wacc"]] },
 
   // ── Cash flow ─────────────────────────────────────────────────────────────
