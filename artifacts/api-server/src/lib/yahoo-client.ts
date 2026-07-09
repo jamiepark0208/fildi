@@ -44,6 +44,9 @@ export interface YahooFundamentalsData {
   yahoo_annualCapex?: number;
   yahoo_annualFreeCashFlow?: number;
   yahoo_annualRevenueYoyPrior?: number;
+  yahoo_epsGrowth?: number;
+  yahoo_sharesOutstandingPrior?: number;
+  yahoo_effectiveTaxRate?: number;
   yahoo_dividendYield?: number;
 }
 
@@ -106,6 +109,16 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     ? (rev1 - rev2) / Math.abs(rev2)
     : undefined;
 
+  const ni0 = n(fts0.netIncome);
+  const ni1 = n(fts1.netIncome);
+  const sh0 = n(fts0.basicAverageShares);
+  const sh1 = n(fts1.basicAverageShares);
+  const eps0 = ni0 != null && sh0 != null && sh0 !== 0 ? ni0 / sh0 : undefined;
+  const eps1 = ni1 != null && sh1 != null && sh1 !== 0 ? ni1 / sh1 : undefined;
+  const epsGrowth = eps0 != null && eps1 != null && eps1 !== 0
+    ? (eps0 - eps1) / Math.abs(eps1)
+    : undefined;
+
   const rawCapex = n(fts0.capitalExpenditure);
   const capex = rawCapex != null ? Math.abs(rawCapex) : undefined;
   const opCF  = n(fts0.operatingCashFlow);
@@ -151,6 +164,9 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_annualOperatingCashFlow: opCF,
     yahoo_annualCapex:             capex,
     yahoo_annualFreeCashFlow:      n(fts0.freeCashFlow),
+    yahoo_epsGrowth:               epsGrowth,
+    yahoo_sharesOutstandingPrior:  sh1,
+    yahoo_effectiveTaxRate:        n(fts0.taxRateForCalcs),
   };
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
