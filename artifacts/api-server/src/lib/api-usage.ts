@@ -17,7 +17,7 @@ export async function recordApiUsage(source: string, calls: number): Promise<voi
 // Return call counts for the past N days across all sources.
 export async function getApiUsageHistory(days: number): Promise<{ source: string; date: string; callsMade: number }[]> {
   const rows = await db.execute<{ source: string; date: string; calls_made: number }>(
-    sql`SELECT source, date::text, calls_made FROM api_usage WHERE date >= current_date - ${days - 1} ORDER BY source, date DESC`
+    sql`SELECT source, date::text, calls_made FROM api_usage WHERE date >= current_date - ${sql.raw(String(days - 1))} ORDER BY source, date DESC`
   );
   return rows.rows.map(r => ({ source: r.source, date: r.date, callsMade: r.calls_made }));
 }
