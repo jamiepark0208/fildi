@@ -132,8 +132,20 @@ async function upsertSourceMap(ticker: string, source: string, worked: boolean, 
 
 // ── Ticker collection ─────────────────────────────────────────────────────────
 
+const ALL_TICKERS_MODE = process.argv.includes("--all-tickers");
+
 // Mirror the /fundamentals/stock-db route: WATCHLIST constant → tickerRegistry peer groups → peerGroupMembers.
+// With --all-tickers: return every ticker in ticker_registry where fetch_fundamentals = true.
 async function getAllTargetTickers(): Promise<string[]> {
+  if (ALL_TICKERS_MODE) {
+    const rows = await db
+      .select({ ticker: tickerRegistry.ticker })
+      .from(tickerRegistry)
+      .where(eq(tickerRegistry.fetchFundamentals, true))
+      .orderBy(tickerRegistry.ticker);
+    return rows.map(r => r.ticker);
+  }
+
   const upper = WATCHLIST.map((t: string) => t.toUpperCase());
 
   const regRows = await db
@@ -300,7 +312,7 @@ async function main(): Promise<void> {
   console.log(`[${ts()}] backfill-fundamentals starting`);
 
   const allTickers = await getAllTargetTickers();
-  console.log(`[${ts()}] ${allTickers.length} distinct tickers (watchlist + peer groups)`);
+  console.log(`[${ts()}] ${allTickers.length} distinct tickers (${ALL_TICKERS_MODE ? "all fetch_fundamentals=true" : "watchlist + peer groups"})`);
 
   const workQueue = await buildWorkQueue(allTickers);
   if (workQueue.length === 0) {

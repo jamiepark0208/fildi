@@ -21,12 +21,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq, and, inArray } from "drizzle-orm";
-import { db, tickerRegistry, polygonFundamentals, sourceFundamentals } from "@workspace/db";
+import { db, tickerRegistry, polygonFundamentals, sourceFundamentals, tickerFundamentals } from "@workspace/db";
 import { fetchPolygonFundamentals } from "../lib/polygon-client.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const FORCE   = process.argv.includes("--force");
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY ?? "";
 const MAX_CONCURRENT = 3;
 
@@ -84,11 +85,25 @@ async function coveredByHigherPriority(ticker: string): Promise<boolean> {
   return POLYGON_SKIP_CHECK_FIELDS.every(f => covered.has(f));
 }
 
-async function processTicker(ticker: string): Promise<TickerResult> {
-  const allCovered = await coveredByHigherPriority(ticker);
-  if (allCovered) {
-    appendLog(`[${ticker}] SKIP — all Polygon fields covered by Yahoo/Edgar`);
-    return { ticker, status: "skip" };
+// Fields this script can fill in ticker_fundamentals (for --force null-check)
+const POLYGON_TF_FIELDS: (keyof typeof tickerFundamentals.$inferSelect)[] = [
+  "totalRevenue", "netIncome", "interestExpense", "grossMargin",
+  "operatingMargin", "totalDebt", "totalStockholdersEquity", "quarterlyOperatingCashFlow",
+];
+
+async function processTicker(ticker: string, tfRow?: Record<string, unknown>): Promise<TickerResult> {
+  if (FORCE) {
+    // In force mode: skip only if ALL Polygon-coverable fields are already non-null in ticker_fundamentals
+    if (tfRow && POLYGON_TF_FIELDS.every(f => tfRow[f] != null)) {
+      appendLog(`[${ticker}] SKIP — all Polygon fields already populated in ticker_fundamentals`);
+      return { ticker, status: "skip" };
+    }
+  } else {
+    const allCovered = await coveredByHigherPriority(ticker);
+    if (allCovered) {
+      appendLog(`[${ticker}] SKIP — all Polygon fields covered by Yahoo/Edgar`);
+      return { ticker, status: "skip" };
+    }
   }
 
   if (DRY_RUN) {
@@ -156,7 +171,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  appendLog(`backfill-polygon starting${DRY_RUN ? " (DRY RUN)" : ""}`);
+  appendLog(`backfill-polygon starting${DRY_RUN ? " (DRY RUN)" : ""}${FORCE ? " (--force)" : ""}`);
 
   const rows = await db
     .select({ ticker: tickerRegistry.ticker })
@@ -167,11 +182,19 @@ async function main(): Promise<void> {
   const tickers = rows.map(r => r.ticker);
   appendLog(`${tickers.length} canonical tickers`);
 
+  // In force mode: pre-load ticker_fundamentals to skip tickers already fully covered
+  const tfMap = new Map<string, Record<string, unknown>>();
+  if (FORCE) {
+    const tfRows = await db.select().from(tickerFundamentals);
+    for (const r of tfRows) tfMap.set(r.ticker, r as Record<string, unknown>);
+    appendLog(`--force: loaded ${tfMap.size} existing ticker_fundamentals rows`);
+  }
+
   const results: TickerResult[] = [];
 
   for (let i = 0; i < tickers.length; i += MAX_CONCURRENT) {
     const chunk = tickers.slice(i, i + MAX_CONCURRENT);
-    const chunkResults = await Promise.all(chunk.map(t => processTicker(t)));
+    const chunkResults = await Promise.all(chunk.map(t => processTicker(t, tfMap.get(t))));
     results.push(...chunkResults);
     if (!DRY_RUN && i + MAX_CONCURRENT < tickers.length) {
       await sleep(1000);
