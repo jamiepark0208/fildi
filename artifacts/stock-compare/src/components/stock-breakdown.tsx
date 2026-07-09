@@ -385,7 +385,7 @@ function AnalystRatingsSection({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground/55 italic">Per-analyst price targets not yet loaded — check back shortly.</p>
+            <p className="text-sm text-foreground/55 italic">Per-analyst price targets not available on current data plan.</p>
           )}
         </div>
       )}

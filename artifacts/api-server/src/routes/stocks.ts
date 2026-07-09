@@ -652,7 +652,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 4;
+const BREAKDOWN_CACHE_VER = 5;
 
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
@@ -667,19 +667,12 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
 
   try {
-    const fmpApiKey = process.env.FMP_API_KEY ?? "";
-    const [summary, newsRes, fmpRow, fmpTargetsRaw, earningsDbRows, peersPayload] = await Promise.all([
+    const [summary, newsRes, fmpRow, earningsDbRows, peersPayload] = await Promise.all([
       yahooFinance.quoteSummary(upperTicker, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
       }),
       yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
-      fmpApiKey
-        ? fetch(`https://financialmodelingprep.com/stable/price-target?symbol=${upperTicker}&apikey=${fmpApiKey}&limit=20`)
-            .finally(() => { recordFMPCalls(1).catch(err => logger.warn({ err }, "stocks: failed to record FMP price-target call")); })
-            .then(r => r.ok ? r.json() : [])
-            .catch(() => [])
-        : Promise.resolve([]),
       db.select({ earningsDate: indicatorCache.earningsDate })
         .from(indicatorCache)
         .where(eq(indicatorCache.ticker, upperTicker))
@@ -738,24 +731,8 @@ router.get("/stocks/breakdown", async (req, res) => {
       median: safeNum(fd.targetMedianPrice) ?? null,
     };
 
-    // Per-analyst price targets from FMP — deduplicate by firm, most recent first
-    const rawTargets: any[] = Array.isArray(fmpTargetsRaw) ? fmpTargetsRaw : [];
-    const targetFirmMap = new Map<string, any>();
-    for (const t of rawTargets) {
-      const firm = (t.analystCompany ?? t.newsPublisher ?? "Unknown") as string;
-      if (!targetFirmMap.has(firm)) targetFirmMap.set(firm, t);
-    }
-    const analystPriceTargets = Array.from(targetFirmMap.values())
-      .sort((a, b) => new Date(b.publishedDate ?? 0).getTime() - new Date(a.publishedDate ?? 0).getTime())
-      .slice(0, 10)
-      .map(t => ({
-        firm: t.analystCompany ?? t.newsPublisher ?? "Unknown",
-        analyst: t.analystName ?? null,
-        priceTarget: typeof t.priceTarget === "number" ? t.priceTarget : null,
-        date: t.publishedDate ?? null,
-        priceWhenPosted: typeof t.priceWhenPosted === "number" ? t.priceWhenPosted : null,
-        newsTitle: t.newsTitle ?? null,
-      }));
+    // Per-analyst price targets unavailable on current FMP plan — always empty
+    const analystPriceTargets: unknown[] = [];
 
     // Metric-driven bull/bear bullets
     const bullBullets = buildBullBullets(metrics);
