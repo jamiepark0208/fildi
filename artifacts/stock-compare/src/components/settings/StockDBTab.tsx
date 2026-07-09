@@ -70,9 +70,10 @@ function formatSector(id: string): string {
 }
 
 type DisplayRow =
-  | { kind: "sector"; sectorId: string; label: string; count: number; coverage: number }
-  | { kind: "group";  sectorId: string; groupId: string; groupName: string; count: number; coverage: number }
-  | { kind: "row";    sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
+  | { kind: "sector";     sectorId: string; label: string; count: number; coverage: number }
+  | { kind: "group";      sectorId: string; groupId: string; groupName: string; count: number; coverage: number }
+  | { kind: "group-cols"; sectorId: string; groupId: string; colData: Record<string, { filled: number; total: number }> }
+  | { kind: "row";        sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -452,7 +453,7 @@ export function StockDBTab() {
       const allEntries = groupList.flatMap(g => g.entries);
       return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
     });
-    sectorList.sort((a, b) => b.coverage - a.coverage);
+    sectorList.sort((a, b) => b.count - a.count);
 
     const rows: DisplayRow[] = [];
     let ri = 0;
@@ -461,6 +462,13 @@ export function StockDBTab() {
       rows.push({ kind: "sector", sectorId: sector.sectorId, label: sector.label, count: sector.count, coverage: sector.coverage });
       for (const group of sector.groups) {
         rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage });
+        const groupColData = Object.fromEntries(
+          COLS.map(col => {
+            const filled = group.entries.filter(e => e.fundamentals?.[col.key] != null).length;
+            return [col.key as string, { filled, total: group.entries.length }];
+          })
+        );
+        rows.push({ kind: "group-cols", sectorId: sector.sectorId, groupId: group.groupId, colData: groupColData });
         for (const entry of group.entries) {
           rows.push({ kind: "row", sectorId: sector.sectorId, groupId: group.groupId, entry, ri: ri++ });
         }
@@ -472,6 +480,13 @@ export function StockDBTab() {
       const uncCov = calcCoverage(unc);
       rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov });
       rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov });
+      const uncColData = Object.fromEntries(
+        COLS.map(col => {
+          const filled = unc.filter(e => e.fundamentals?.[col.key] != null).length;
+          return [col.key as string, { filled, total: unc.length }];
+        })
+      );
+      rows.push({ kind: "group-cols", sectorId: "__unclassified", groupId: "__unclassified", colData: uncColData });
       for (const entry of unc) {
         rows.push({ kind: "row", sectorId: "__unclassified", groupId: "__unclassified", entry, ri: ri++ });
       }
@@ -675,6 +690,38 @@ export function StockDBTab() {
                         </div>
                       </div>
                     </td>
+                  </tr>
+                );
+              }
+
+              // ── Group column coverage sub-header ──────────────────────────
+              if (item.kind === "group-cols") {
+                if (collapsedSectors.has(item.sectorId) || collapsedGroups.has(item.groupId)) return null;
+                const pal = getSectorPalette(item.sectorId);
+                return (
+                  <tr key={`group-cols-${item.groupId}`} className={cn("border-b border-border/40", pal.border.replace("border-l-", "border-l-4 border-l-"))}>
+                    <td className={cn(
+                      "sticky left-0 z-10 border-r border-border/50 px-2.5 py-0.5 text-[9px] font-medium text-muted-foreground/50 whitespace-nowrap uppercase tracking-wider",
+                      "bg-muted/10 border-l-4", pal.border,
+                    )}>
+                      coverage
+                    </td>
+                    {COLS.map((col, i) => {
+                      const cov = item.colData[col.key as string];
+                      const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
+                      return (
+                        <td
+                          key={col.key as string}
+                          className={cn(
+                            "px-2 py-0.5 text-[9px] text-right tabular-nums bg-muted/10",
+                            i === COLS.length - 1 ? "" : "border-r border-border/20",
+                            cov && cov.total > 0 ? coverageColor(pct) : "text-muted-foreground/30",
+                          )}
+                        >
+                          {cov ? `${cov.filled}/${cov.total}` : "—"}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               }
