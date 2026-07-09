@@ -713,12 +713,14 @@ export function StockDBTab() {
                         <td
                           key={col.key as string}
                           className={cn(
-                            "px-2 py-0.5 text-[9px] text-right tabular-nums bg-muted/10",
+                            "px-2 py-1 text-right bg-muted/10",
                             i === COLS.length - 1 ? "" : "border-r border-border/20",
-                            cov && cov.total > 0 ? coverageColor(pct) : "text-muted-foreground/30",
                           )}
                         >
-                          {cov ? `${cov.filled}/${cov.total}` : "—"}
+                          <div className="text-[9px] font-medium text-muted-foreground/70 whitespace-nowrap">{col.label}</div>
+                          <div className={cn("text-[9px] tabular-nums", cov && cov.total > 0 ? coverageColor(pct) : "text-muted-foreground/30")}>
+                            {cov ? `${cov.filled}/${cov.total}` : "—"}
+                          </div>
                         </td>
                       );
                     })}
