@@ -69,11 +69,12 @@ function formatSector(id: string): string {
   return id.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+type FamilyCovSummary = Record<string, { filled: number; total: number }>;
+
 type DisplayRow =
-  | { kind: "sector";     sectorId: string; label: string; count: number; coverage: number }
-  | { kind: "group";      sectorId: string; groupId: string; groupName: string; count: number; coverage: number }
-  | { kind: "group-cols"; sectorId: string; groupId: string; colData: Record<string, { filled: number; total: number }> }
-  | { kind: "row";        sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
+  | { kind: "sector"; sectorId: string; label: string; count: number; coverage: number }
+  | { kind: "group";  sectorId: string; groupId: string; groupName: string; count: number; coverage: number; famCov: FamilyCovSummary }
+  | { kind: "row";    sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -442,14 +443,26 @@ export function StockDBTab() {
 
     // Build sector list with per-group coverage; sort sectors and groups by coverage desc
     const sectorList = [...sectorMap.entries()].map(([sectorId, groups]) => {
-      const groupList = [...groups.entries()].map(([groupId, entries]) => ({
-        groupId,
-        groupName: entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId,
-        entries: entries.sort(sortFn),
-        coverage: calcCoverage(entries),
-        count: entries.length,
-      }));
-      groupList.sort((a, b) => b.count - a.count);
+      const groupList = [...groups.entries()].map(([groupId, entries]) => {
+        const sortedEntries = entries.sort(sortFn);
+        const coverage = calcCoverage(sortedEntries);
+        const famCov: FamilyCovSummary = Object.fromEntries(
+          families.map(fam => {
+            const famCols = COLS.filter(c => c.family === fam);
+            const filled = sortedEntries.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
+            return [fam, { filled, total: sortedEntries.length * famCols.length }];
+          })
+        );
+        return {
+          groupId,
+          groupName: entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId,
+          entries: sortedEntries,
+          coverage,
+          count: entries.length,
+          famCov,
+        };
+      });
+      groupList.sort((a, b) => b.coverage - a.coverage);
       const allEntries = groupList.flatMap(g => g.entries);
       return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
     });
@@ -461,14 +474,7 @@ export function StockDBTab() {
     for (const sector of sectorList) {
       rows.push({ kind: "sector", sectorId: sector.sectorId, label: sector.label, count: sector.count, coverage: sector.coverage });
       for (const group of sector.groups) {
-        rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage });
-        const groupColData = Object.fromEntries(
-          COLS.map(col => {
-            const filled = group.entries.filter(e => e.fundamentals?.[col.key] != null).length;
-            return [col.key as string, { filled, total: group.entries.length }];
-          })
-        );
-        rows.push({ kind: "group-cols", sectorId: sector.sectorId, groupId: group.groupId, colData: groupColData });
+        rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage, famCov: group.famCov });
         for (const entry of group.entries) {
           rows.push({ kind: "row", sectorId: sector.sectorId, groupId: group.groupId, entry, ri: ri++ });
         }
@@ -478,15 +484,15 @@ export function StockDBTab() {
     if (unclassified.length > 0) {
       const unc = unclassified.sort(sortFn);
       const uncCov = calcCoverage(unc);
-      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov });
-      rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov });
-      const uncColData = Object.fromEntries(
-        COLS.map(col => {
-          const filled = unc.filter(e => e.fundamentals?.[col.key] != null).length;
-          return [col.key as string, { filled, total: unc.length }];
+      const uncFamCov: FamilyCovSummary = Object.fromEntries(
+        families.map(fam => {
+          const famCols = COLS.filter(c => c.family === fam);
+          const filled = unc.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
+          return [fam, { filled, total: unc.length * famCols.length }];
         })
       );
-      rows.push({ kind: "group-cols", sectorId: "__unclassified", groupId: "__unclassified", colData: uncColData });
+      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov });
+      rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov, famCov: uncFamCov });
       for (const entry of unc) {
         rows.push({ kind: "row", sectorId: "__unclassified", groupId: "__unclassified", entry, ri: ri++ });
       }
@@ -678,8 +684,29 @@ export function StockDBTab() {
                           ? <ChevronRight className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
                           : <ChevronDown  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
                         }
-                        <span className="text-xs font-semibold text-white uppercase tracking-wider">{item.groupName}</span>
-                        <span className="text-[10px] text-muted-foreground/60 font-mono">{item.count}</span>
+                        <span className="text-xs font-semibold text-white/90 tracking-wide">{item.groupName}</span>
+                        <span className="text-[10px] text-muted-foreground/50 font-mono">{item.count}</span>
+                        {/* Per-family coverage pills */}
+                        <div className="flex items-center gap-1 ml-2">
+                          {families.map(fam => {
+                            const fc = item.famCov[fam];
+                            if (!fc || fc.total === 0) return null;
+                            const pct = Math.round((fc.filled / fc.total) * 100);
+                            return (
+                              <span
+                                key={fam}
+                                className={cn(
+                                  "text-[9px] px-1 py-px rounded font-medium tabular-nums",
+                                  pct < 50 ? "bg-red-500/15 text-red-400/80"
+                                  : pct < 80 ? "bg-amber-500/15 text-amber-400/80"
+                                  : "bg-green-500/10 text-green-500/70",
+                                )}
+                              >
+                                {fam[0].toUpperCase()} {pct}%
+                              </span>
+                            );
+                          })}
+                        </div>
                         <div className="ml-auto flex items-center gap-2">
                           <div className="w-16 h-1 rounded-full bg-muted/40 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
@@ -690,40 +717,6 @@ export function StockDBTab() {
                         </div>
                       </div>
                     </td>
-                  </tr>
-                );
-              }
-
-              // ── Group column coverage sub-header ──────────────────────────
-              if (item.kind === "group-cols") {
-                if (collapsedSectors.has(item.sectorId) || collapsedGroups.has(item.groupId)) return null;
-                const pal = getSectorPalette(item.sectorId);
-                return (
-                  <tr key={`group-cols-${item.groupId}`} className={cn("border-b border-border/40", pal.border.replace("border-l-", "border-l-4 border-l-"))}>
-                    <td className={cn(
-                      "sticky left-0 z-10 border-r border-border/50 px-2.5 py-0.5 text-[9px] font-medium text-muted-foreground/50 whitespace-nowrap uppercase tracking-wider",
-                      "bg-muted/10 border-l-4", pal.border,
-                    )}>
-                      coverage
-                    </td>
-                    {COLS.map((col, i) => {
-                      const cov = item.colData[col.key as string];
-                      const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
-                      return (
-                        <td
-                          key={col.key as string}
-                          className={cn(
-                            "px-2 py-1 text-right bg-muted/10",
-                            i === COLS.length - 1 ? "" : "border-r border-border/20",
-                          )}
-                        >
-                          <div className="text-[9px] font-medium text-muted-foreground/70 whitespace-nowrap">{col.label}</div>
-                          <div className={cn("text-[9px] tabular-nums", cov && cov.total > 0 ? coverageColor(pct) : "text-muted-foreground/30")}>
-                            {cov ? `${cov.filled}/${cov.total}` : "—"}
-                          </div>
-                        </td>
-                      );
-                    })}
                   </tr>
                 );
               }
