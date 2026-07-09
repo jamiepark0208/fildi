@@ -3,7 +3,7 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-07
+**build** — last updated 2026-07-09
 
 ## Active work
 - Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table

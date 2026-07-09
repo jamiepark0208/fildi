@@ -5,6 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
+- [2026-07-09](claude-2026-07-09.md) — auto-saved | build | next: 1) REWRITE Stock DB UI completely: collapsible sector+peer-group sections, ordered by coverage %, clear visual hierarchy
 - [2026-07-07](claude-2026-07-07.md) — auto-saved | build | next: 1) REWRITE Stock DB UI completely: collapsible sector+peer-group sections, ordered by coverage %, clear visual hierarchy
 - [2026-07-06](claude-2026-07-06.md) — auto-saved | build | next: 1) Run backfill-fmp.ts after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 257 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts. 5) Phase 1: audit all 6 data source usage-tracking mechanisms for Phase 2 api_usage table design.
 - [2026-07-05](claude-2026-07-05.md) — auto-saved | build | next: 1) Run FMP backfill (backfill-fmp.ts) after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 169 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts so it shows in admin cache panel.
