@@ -12,7 +12,7 @@
  * operatingCashFlow) so they never appear in source_fundamentals under the
  * Polygon field names.
  *
- * Rate limit: 3 concurrent, 1s sleep between batches.
+ * Rate limit: 1 concurrent, 12s sleep between requests (5 calls/min free tier).
  *
  * Run: cd artifacts/api-server && npx tsx src/scripts/backfill-polygon.ts
  * Dry run: npx tsx src/scripts/backfill-polygon.ts --dry-run
@@ -28,7 +28,8 @@ import { fetchPolygonFundamentals } from "../lib/polygon-client.js";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY ?? "";
-const MAX_CONCURRENT = 3;
+const MAX_CONCURRENT  = 1;
+const BATCH_SLEEP_MS  = 12000; // 5 calls/min free tier
 
 // Only the 6 fields Yahoo/Edgar actually write to source_fundamentals under
 // these exact names. totalStockholdersEquity (Yahoo: "annualTotalEquity",
@@ -84,7 +85,11 @@ async function coveredByHigherPriority(ticker: string): Promise<boolean> {
   return POLYGON_SKIP_CHECK_FIELDS.every(f => covered.has(f));
 }
 
-async function processTicker(ticker: string): Promise<TickerResult> {
+async function processTicker(ticker: string, alreadyStaged: Set<string>): Promise<TickerResult> {
+  if (alreadyStaged.has(ticker)) {
+    appendLog(`[${ticker}] SKIP — already in polygon staging`);
+    return { ticker, status: "skip" };
+  }
   const allCovered = await coveredByHigherPriority(ticker);
   if (allCovered) {
     appendLog(`[${ticker}] SKIP — all Polygon fields covered by Yahoo/Edgar`);
@@ -158,23 +163,23 @@ async function main(): Promise<void> {
 
   appendLog(`backfill-polygon starting${DRY_RUN ? " (DRY RUN)" : ""}`);
 
-  const rows = await db
-    .select({ ticker: tickerRegistry.ticker })
-    .from(tickerRegistry)
-    .where(eq(tickerRegistry.fetchFundamentals, true))
-    .orderBy(tickerRegistry.ticker);
+  const [rows, staged] = await Promise.all([
+    db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true)).orderBy(tickerRegistry.ticker),
+    db.select({ ticker: polygonFundamentals.ticker }).from(polygonFundamentals),
+  ]);
+  const alreadyStaged = new Set(staged.map(r => r.ticker));
 
   const tickers = rows.map(r => r.ticker);
-  appendLog(`${tickers.length} canonical tickers`);
+  appendLog(`${tickers.length} canonical tickers, ${alreadyStaged.size} already in polygon staging`);
 
   const results: TickerResult[] = [];
 
   for (let i = 0; i < tickers.length; i += MAX_CONCURRENT) {
     const chunk = tickers.slice(i, i + MAX_CONCURRENT);
-    const chunkResults = await Promise.all(chunk.map(t => processTicker(t)));
+    const chunkResults = await Promise.all(chunk.map(t => processTicker(t, alreadyStaged)));
     results.push(...chunkResults);
     if (!DRY_RUN && i + MAX_CONCURRENT < tickers.length) {
-      await sleep(1000);
+      await sleep(BATCH_SLEEP_MS);
     }
   }
 
