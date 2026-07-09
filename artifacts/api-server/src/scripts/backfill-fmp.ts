@@ -92,7 +92,7 @@ async function processTicker(row: FmpRow): Promise<TickerResult> {
 
   let data: Awaited<ReturnType<typeof fetchFMPFundamentals>>;
   try {
-    data = await fetchFMPFundamentals(ticker, FMP_API_KEY, "backfill-fmp script");
+    data = await fetchFMPFundamentals(ticker, FMP_API_KEY, "backfill-fmp script", true);
   } catch (err: any) {
     appendLog(`[${ticker}] FAIL — fetch error: ${err?.message ?? "unknown"}`);
     return { ticker, status: "fail", reason: err?.message };
@@ -245,9 +245,9 @@ async function main(): Promise<void> {
       break;
     }
 
-    // Small delay between live tickers to be polite on free tier
-    if (!DRY_RUN && result.status === "ok") {
-      await sleep(200);
+    // Serial mode spaces calls 400ms apart (3.6s/ticker); small gap here for safety.
+    if (!DRY_RUN && (result.status === "ok" || result.status === "fail")) {
+      await sleep(500);
     }
   }
 
