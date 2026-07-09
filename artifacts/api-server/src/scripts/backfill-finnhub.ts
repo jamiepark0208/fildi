@@ -19,8 +19,7 @@ import { fetchFinnhubFundamentals } from "../lib/finnhub-client.js";
 
 const MAX_CONCURRENT  = 3;
 const STALE_DAYS      = 7;
-const BATCH_SLEEP_MS  = 3500;
-const FORCE           = process.argv.includes("--force"); // 3 calls per 3.5s ≈ 51 calls/min, under Finnhub's 60/min free limit
+const BATCH_SLEEP_MS  = 3500; // 3 calls per 3.5s ≈ 51 calls/min, under Finnhub's 60/min free limit
 
 // ── Log file ──────────────────────────────────────────────────────────────────
 
@@ -170,12 +169,8 @@ async function main(): Promise<void> {
   // Check freshness
   const existing = await db.select({ ticker: finnhubFundamentals.ticker, fetchedAt: finnhubFundamentals.fetchedAt })
     .from(finnhubFundamentals);
-  const freshSet = FORCE
-    ? new Set<string>()
-    : new Set(existing.filter(r => isFresh(r.fetchedAt)).map(r => r.ticker));
-  appendLog(FORCE
-    ? `--force: skipping freshness check, re-fetching all ${allTickers.length} tickers`
-    : `${freshSet.size} tickers already fresh (< ${STALE_DAYS}d old) — will skip`);
+  const freshSet = new Set(existing.filter(r => isFresh(r.fetchedAt)).map(r => r.ticker));
+  appendLog(`${freshSet.size} tickers already fresh (< ${STALE_DAYS}d old) — will skip`);
 
   // Process with concurrency + sleep between batches
   const results: Result[] = [];
