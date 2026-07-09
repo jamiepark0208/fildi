@@ -59,18 +59,21 @@ export function ApiMonitorTab() {
   const DAYS = 5;
   const dates = buildDateLabels(DAYS);
 
-  const { data, isLoading, isFetching, refetch } = useQuery<UsageRow[]>({
+  const { data, isFetching, refetch, dataUpdatedAt } = useQuery<UsageRow[]>({
     queryKey: ["api-usage", "history", DAYS],
     queryFn: async () => {
       const res = await fetch(`/api/api-usage/history?days=${DAYS}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load API usage");
       return res.json();
     },
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
+    staleTime: 2 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchInterval: 2 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
 
   // Pivot: source → date → callsMade
   const pivot = new Map<string, Map<string, number>>();
@@ -96,19 +99,19 @@ export function ApiMonitorTab() {
           <h2 className="text-sm font-semibold">API Monitor</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-        >
-          {isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-3">
+          {lastUpdated && <span className="text-[10px] text-muted-foreground/60">as of {lastUpdated}</span>}
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+          >
+            {isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
-      {isLoading ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
-      ) : (
-        <table className="w-full text-xs">
+      <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border">
               <th className="text-left py-2 pr-4 font-medium text-muted-foreground w-32">Source</th>
@@ -170,7 +173,6 @@ export function ApiMonitorTab() {
             })}
           </tbody>
         </table>
-      )}
 
       <p className="text-[10px] text-muted-foreground mt-4">
         FMP and AV enforce daily limits; progress bars show consumption. Polygon, Finnhub, Yahoo, and EDGAR are rate-limited per minute/second but have no enforced daily cap.
