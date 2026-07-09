@@ -24,7 +24,6 @@ import { logger } from "../lib/logger.js";
 
 const MAX_CONCURRENT = 3;
 const STALE_DAYS     = 7;
-const FORCE          = process.argv.includes("--force");
 
 // Fields where 0 is not a valid value — treat as null before writing
 const ZERO_AS_NULL_FIELDS: (keyof YahooFundamentalsData)[] = [
@@ -218,12 +217,8 @@ async function main(): Promise<void> {
     fetchedAt: yahooFundamentals.fetchedAt,
   }).from(yahooFundamentals);
 
-  const freshSet = FORCE
-    ? new Set<string>()
-    : new Set(existing.filter(r => isFresh(r.fetchedAt)).map(r => r.ticker));
-  appendLog(FORCE
-    ? `--force: skipping freshness check, re-fetching all ${allTickers.length} tickers`
-    : `${freshSet.size} tickers already fresh (< ${STALE_DAYS}d old) — will skip`);
+  const freshSet = new Set(existing.filter(r => isFresh(r.fetchedAt)).map(r => r.ticker));
+  appendLog(`${freshSet.size} tickers already fresh (< ${STALE_DAYS}d old) — will skip`);
 
   // Process with MAX_CONCURRENT concurrency
   const results: TickerResult[] = [];
