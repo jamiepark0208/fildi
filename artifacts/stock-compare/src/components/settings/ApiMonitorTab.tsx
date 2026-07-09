@@ -66,11 +66,11 @@ export function ApiMonitorTab() {
       if (!res.ok) throw new Error("Failed to load API usage");
       return res.json();
     },
-    staleTime: 2 * 60_000,
+    staleTime: 0,
     gcTime: 60 * 60_000,
-    refetchInterval: 2 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
