@@ -462,7 +462,8 @@ export function StockDBTab() {
           famCov,
         };
       });
-      groupList.sort((a, b) => b.coverage - a.coverage);
+      // Sort by total filled cells (coverage% × count) so large well-covered groups rank above tiny 100%-coverage groups
+      groupList.sort((a, b) => (b.coverage * b.count) - (a.coverage * a.count) || b.count - a.count);
       const allEntries = groupList.flatMap(g => g.entries);
       return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
     });
