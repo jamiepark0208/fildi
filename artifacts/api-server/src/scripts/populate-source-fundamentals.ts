@@ -65,6 +65,10 @@ const YAHOO_FIELDS: Record<string, string> = {
   yahooEpsGrowth:             "epsGrowth",
   yahooSharesOutstandingPrior:"sharesOutstandingPrior",
   yahooEffectiveTaxRate:      "effectiveTaxRate",
+  yahooInterestExpense:       "interestExpense",
+  yahooQuarterlyOcf:          "quarterlyOperatingCashFlow",
+  yahooRoic:                  "roic",
+  yahooWacc:                  "wacc",
 };
 
 const EDGAR_FIELDS: Record<string, string> = {

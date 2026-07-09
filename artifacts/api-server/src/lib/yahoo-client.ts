@@ -47,6 +47,10 @@ export interface YahooFundamentalsData {
   yahoo_epsGrowth?: number;
   yahoo_sharesOutstandingPrior?: number;
   yahoo_effectiveTaxRate?: number;
+  yahoo_interestExpense?: number;
+  yahoo_quarterlyOcf?: number;
+  yahoo_roic?: number;
+  yahoo_wacc?: number;
   yahoo_dividendYield?: number;
 }
 
@@ -76,7 +80,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     return {};
   }
 
-  // fundamentalsTimeSeries is a separate method — fetch 3 years to get 2 annual rows for YoY calc
+  // fundamentalsTimeSeries annual — fetch 3 years to get 2 annual rows for YoY calc
   let ftsRows: any[] = [];
   try {
     const threeYearsAgo = new Date();
@@ -87,7 +91,21 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
       module: "all",
     }, { validateResult: false })) ?? [];
   } catch (err: any) {
-    logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: `fundamentalsTimeSeries non-fatal: ${err.message}`, requestedFields: "fundamentalsTimeSeries: annual revenue/income/cashflow" });
+    logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: `fundamentalsTimeSeries annual non-fatal: ${err.message}`, requestedFields: "fundamentalsTimeSeries: annual" });
+  }
+
+  // fundamentalsTimeSeries quarterly — most recent quarter OCF
+  let ftsQRows: any[] = [];
+  try {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    ftsQRows = (await (yahooFinance as any).fundamentalsTimeSeries(symbol, {
+      period1: oneYearAgo.toISOString().slice(0, 10),
+      type: "quarterly",
+      module: "all",
+    }, { validateResult: false })) ?? [];
+  } catch (err: any) {
+    logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: `fundamentalsTimeSeries quarterly non-fatal: ${err.message}`, requestedFields: "fundamentalsTimeSeries: quarterly" });
   }
 
   // Results are oldest-first; most recent is last
@@ -122,6 +140,43 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
   const rawCapex = n(fts0.capitalExpenditure);
   const capex = rawCapex != null ? Math.abs(rawCapex) : undefined;
   const opCF  = n(fts0.operatingCashFlow);
+
+  // Quarterly OCF — most recent quarter (rows oldest-first)
+  const ftsQ0 = ftsQRows.length > 0 ? ftsQRows[ftsQRows.length - 1] : {};
+  const quarterlyOcf = n(ftsQ0.operatingCashFlow);
+
+  // ROIC = NOPAT / InvestedCapital
+  const ebit      = n(fts0.EBIT);
+  const taxRate   = n(fts0.taxRateForCalcs);
+  const equity    = n(fts0.stockholdersEquity);
+  const ltDebt    = n(fts0.longTermDebt)    ?? 0;
+  const stDebt    = n(fts0.currentDebt)     ?? 0;
+  const cash      = n(fts0.cashAndCashEquivalents) ?? 0;
+  const totalDebt = ltDebt + stDebt;
+  const nopat = ebit != null && taxRate != null ? ebit * (1 - taxRate) : undefined;
+  const investedCapital = equity != null ? equity + totalDebt - cash : undefined;
+  const roic = nopat != null && investedCapital != null && investedCapital !== 0
+    ? nopat / investedCapital
+    : undefined;
+
+  // approxWACC — rf=4.5%, ERP=5.5% (Damodaran 2026); cost of debt from interestExpense/totalDebt
+  const beta         = n(ks.beta);
+  const currentPrice = n(fd.currentPrice);
+  const shares       = n(ks.sharesOutstanding);
+  const intExp       = n(fts0.interestExpense);
+  const marketCap    = currentPrice != null && shares != null ? currentPrice * shares : undefined;
+  const wacc = (() => {
+    if (beta == null || marketCap == null || marketCap <= 0) return undefined;
+    const ke = 0.045 + beta * 0.055;
+    const enterpriseValue = marketCap + totalDebt - cash;
+    if (enterpriseValue <= 0) return undefined;
+    const we = marketCap / enterpriseValue;
+    const wd = totalDebt / enterpriseValue;
+    const kd = intExp != null && totalDebt > 0 && taxRate != null
+      ? (intExp / totalDebt) * (1 - taxRate)
+      : 0;
+    return ke * we + kd * wd;
+  })();
 
   const result = {
     yahoo_grossMargins:       n(fd.grossMargins),
@@ -167,6 +222,10 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_epsGrowth:               epsGrowth,
     yahoo_sharesOutstandingPrior:  sh1,
     yahoo_effectiveTaxRate:        n(fts0.taxRateForCalcs),
+    yahoo_interestExpense:         n(fts0.interestExpense),
+    yahoo_quarterlyOcf:            quarterlyOcf,
+    yahoo_roic:                    roic,
+    yahoo_wacc:                    wacc,
   };
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;

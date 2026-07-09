@@ -49,7 +49,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"]] },
   { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"]] },
   { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"]] },
-  { tfCol: "roic",               priority: [["finnhub","roic"],           ["fmp","roic"]] },
+  { tfCol: "roic",               priority: [["yahoo","roic"],             ["finnhub","roic"],           ["fmp","roic"]] },
 
   // ── Growth ────────────────────────────────────────────────────────────────
   { tfCol: "revenueGrowthYoY",      priority: [["yahoo","revenueGrowth"],    ["finnhub","revenueGrowth"],    ["fmp","revenueGrowthYoY"]] },
@@ -73,13 +73,13 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["edgar","ebitda"],       ["alpha_vantage","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
   { tfCol: "grossProfit",        priority: [["edgar","grossProfit"],        ["yahoo","annualGrossProfit"]] } as any,
-  { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"]] },
+  { tfCol: "interestExpense",    priority: [["edgar","interestExpense"],    ["yahoo","interestExpense"],  ["fmp","interestExpense"],   ["polygon","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
-  { tfCol: "wacc",               priority: [["fmp","wacc"]] },
+  { tfCol: "wacc",               priority: [["yahoo","wacc"],             ["fmp","wacc"]] },
 
   // ── Cash flow ─────────────────────────────────────────────────────────────
   { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"]] },
-  { tfCol: "quarterlyOperatingCashFlow", priority: [["fmp","quarterlyOperatingCashFlow"],  ["polygon","operatingCashFlow"]] },
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"], ["fmp","quarterlyOperatingCashFlow"],  ["polygon","operatingCashFlow"]] },
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },

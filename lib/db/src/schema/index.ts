@@ -748,6 +748,10 @@ export const yahooFundamentals = pgTable('yahoo_fundamentals', {
   yahooEpsGrowth:               numeric('yahoo_eps_growth'),              // computed: (eps0-eps1)/|eps1|
   yahooSharesOutstandingPrior:  numeric('yahoo_shares_outstanding_prior'),
   yahooEffectiveTaxRate:        numeric('yahoo_effective_tax_rate'),      // taxRateForCalcs (decimal)
+  yahooInterestExpense:         numeric('yahoo_interest_expense'),        // fts0.interestExpense
+  yahooQuarterlyOcf:            numeric('yahoo_quarterly_ocf'),           // most recent quarter operatingCashFlow
+  yahooRoic:                    numeric('yahoo_roic'),                    // computed: NOPAT / InvestedCapital
+  yahooWacc:                    numeric('yahoo_wacc'),                    // computed: approxWACC (rf=4.5%, ERP=5.5%)
 })
 
 export const insertYahooFundamentalsSchema = createInsertSchema(yahooFundamentals).omit({ fetchedAt: true })
