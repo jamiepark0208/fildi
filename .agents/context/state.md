@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-10
 
 ## Active work
-- Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table, merge-trusted-freshness-stamp, api-usage-query-fix, fmp-serial-backfill, ws1-price-target-cleanup, ws2-null-logging, ws3-av-field-defs-already-done, ws4-discrepancy-flags-fix, nightly-enrichment-script, audit-suspicious-values, data-health-endpoint, scheduler, z-score-outlier-detection, db-first-quote-compare, persist-fund-scores, leaderboard-server-scores, tooltip-debounce, enh7-sentry-observability, enh4-api-test-harness, enh3-ci-pipeline
-- In progress: Stock DB cell highlighting fixed: discrepancy=light blue bg, suspect=amber ring, tooltips explain each. Options scanner bid fallback to lastPrice when market closed (bidIsLive flag). Nightly refresh expanded from 31-ticker WATCHLIST to full 257-ticker fmp_fundamentals universe for both fundamentals and technicals. Sentry+requestId wired (no-op without DSN). 15-test unit harness for merge-trusted priority algorithm. GitHub Actions CI on push/PR: typecheck+test both packages.
+- Working: technical-leaderboard-zscore-table, leaderboard-collapse-toggle-fix, peer-classify-cache, ticker-dedupe-fix
+- In progress: Investigated app-wide slowness (Google perf report: 126 fetches, 4.5-5s per-ticker latency, FCP 7.1s). Confirmed classifyTicker() was uncached (N+1 DB pattern on /fundamentals/peer-groups) -- fixed with 24h TTLCache (classifyCache), registered in cache-registry.ts + caching-patterns.md. Confirmed 'Duplicate Queries' React Query warning was caused by unbounded duplicate tickers in fildi_tickers sessionStorage state -- fixed by deduping tickers on read+write in App.tsx Router(). Both api-server and stock-compare typecheck clean. Broader perf research (top-10 industry tips, Netflix-style preload pattern) handed to Cursor to research/plan.
 - Blocked: none
 
 ## Next tasks (priority order)
