@@ -18,7 +18,14 @@ Sub-clusters (from `bugs/CLUSTERS.md`, referenced not duplicated):
 
 **Build order (this session):** Wave 1 P0 bugs (1, 4, 19) → verify/fix Wave 2 (2, 3, 5, 6, 8, 11, 12, 13, 18) as time allows → enh/34 Waves A–D (A/B are net-new perf work; Wave C *is* bugs 4/5/11/12, don't double-implement) → Wave D devx.
 
-**Status:** in progress — see per-file `Status` field for each bug/enh/34 as source of truth.
+**Status (2026-07-10 session):** Wave 1 done, session cut short before Wave 2 / enh/34.
+
+- **bug/1 done.** Fixed via path-scoped `router.use([...paths], requireAuth)` on the parent router (not a wrapper sub-router with blanket `.use(requireAuth)` — that leaks auth onto every route mounted after it; caught this the hard way on the first attempt, see task file DONE note). `watchlist.ts`/`feed.ts` keep their own blanket-pattern auth but are now mounted last so nothing downstream can leak. Verified live via curl, not just tsc.
+- **bug/1 side-find, also fixed:** `scoring-config.ts` routes were double-prefixed (`/api/scoring-config` inside a router already mounted at `/api`) so the frontend's real call never matched — pre-existing, unrelated to bug/1, found during live verification. Also had to create the missing `app_config` table (schema-defined, never pushed to this DB) via a targeted `CREATE TABLE IF NOT EXISTS`, not `drizzle-kit push` (which hit an unsafe interactive create-vs-rename prompt).
+- **bug/4 done.** New `lib/startup-refresh.ts`, capped + registry-scoped + budget-gated. Verified live across 3 restarts this session.
+- **bug/19 rejected, not just "not done".** Implemented exactly as specced (seed 31-ticker `WATCHLIST` on register), verified live, then reverted at explicit user direction: no cross-account/shared-list seeding on new accounts, full stop — new users start empty. Do not re-file this task as-is; see the task file's DONE note for what a re-scoped version would need to look like.
+
+**Not started:** Wave 2 bugs (2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18), enh/34 Waves A–D. Next session picks up here.
 
 ---
 

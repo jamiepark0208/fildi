@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P0 |
 | **Area** | continuous-run / infra |
 | **Effort** | M (~1 session) |
@@ -132,3 +132,11 @@ Reuse: `getStaleTickers`, `checkFMPBudget`, `getStaleTechnicalTickers`, `refresh
 - `runSeed()` still runs on boot
 - `startScheduler()` unchanged
 - Do not disable nightly enrichment (bug/8 separate)
+
+---
+
+## DONE (2026-07-10)
+
+Confirmed real before fixing (verified `index.ts` L38-77 queried the full `fmp_fundamentals` table, ~257 tickers, on every boot with no cap). Implemented Fix option B from this task: new `lib/startup-refresh.ts` with `runStartupStaleRefresh()` — universe resolved from `ticker_registry` where `fetchFundamentals=true AND isActive=true` (falls back to the `WATCHLIST` constant if registry is empty, e.g. fresh DB), capped at `STARTUP_REFRESH_CAP` (default 25), gated by the existing `checkFMPBudget`, with `SKIP_STARTUP_REFRESH=true` escape hatch. `index.ts` now just calls `runStartupStaleRefresh()`; old full-universe query removed.
+
+Verified live: restarted the server 3x during this session, each boot logs `startup: resolved refresh universe` (registry-scoped count, not ~257) instead of the old `startup: resolved FMP universe` line. Vendor calls only fire for tickers actually stale, capped, budget-checked — a crash loop now costs at most `cap` FMP calls per boot instead of re-scanning the whole table. `pnpm test` 35/35 pass, typecheck clean (same 2 pre-existing unrelated errors noted in bug/1).
