@@ -224,6 +224,14 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
   // Regime active when this row's scores were last computed — audit trail for regime-driven rank shifts
   regimeAtScore:      text('regime_at_score'),
+
+  // Persisted fundamental scores — recomputed after every refresh or override
+  fundTotalScore:        numeric('fund_total_score'),
+  fundQualityScore:      numeric('fund_quality_score'),
+  fundGrowthScore:       numeric('fund_growth_score'),
+  fundSafetyScore:       numeric('fund_safety_score'),
+  fundRank:              integer('fund_rank'),
+  fundScoreComputedAt:   timestamp('fund_score_computed_at', { withTimezone: true }),
 })
 
 export const insertTickerFundamentalsSchema = createInsertSchema(tickerFundamentals)
