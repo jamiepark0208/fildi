@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types --experimental-transform-types --no-warnings --test src/scripts/merge-trusted.priority.test.ts"
+    "test": "node --experimental-strip-types --experimental-transform-types --no-warnings --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

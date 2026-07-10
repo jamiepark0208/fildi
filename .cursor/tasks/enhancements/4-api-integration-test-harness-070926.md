@@ -1,13 +1,22 @@
 # api-integration-test-harness
 
-## ✅ DONE — 2026-07-10
+## ⚠️ PARTIALLY DONE — audit 2026-07-10
 
-**What was implemented (Phase A):**
-- `src/scripts/merge-trusted.priority.test.ts` — 15 self-contained tests covering the `resolveFromIndex` algorithm (priority fallthrough, override wins, NaN rejection) and FIELD_DEFS priority locks (peRatio yahoo-first, analystTargetPrice fmp-first, etc.). No DB, no network.
-- `"test"` script added to `artifacts/api-server/package.json` using `node --experimental-strip-types` matching stock-compare pattern.
-- All 15 tests pass locally in 165ms.
+**What is shipped (Phase A):**
+- `src/scripts/merge-trusted.priority.test.ts` — 15 self-contained tests covering `resolveFromIndex` and FIELD_DEFS priority locks. No DB, no network. All 15 pass.
+- `"test"` script was added to `api-server/package.json`.
 
-**Why no import of merge-trusted.ts:** `@workspace/db` throws on import without `DATABASE_URL` — self-contained approach is correct for CI. Phase B (healthz supertest with MemoryStore session seam) deferred.
+**Gap found (2026-07-10 audit):**
+- Test script used an **explicit single-file path** — new test files would never run in CI. **Fixed:** now uses `'src/**/*.test.ts'` glob.
+- No `catalysts.test.ts` exists anywhere in api-server — still missing.
+- No FIELD_DEFS fixture tests beyond what's in `merge-trusted.priority.test.ts` (which does cover some FIELD_DEFS locks).
+
+**Why no import of merge-trusted.ts:** `@workspace/db` throws on import without `DATABASE_URL` — self-contained fixture approach is correct for CI. Phase B (healthz supertest with MemoryStore session seam) deferred.
+
+**Remaining before marking fully done:**
+- [ ] Add `catalysts.test.ts` (or confirm catalysts logic is not testable without DB and close this gap explicitly)
+- [ ] Verify FIELD_DEFS fixture coverage is sufficient or expand
+- [ ] CI green end-to-end (blocked on enh/3 z-score fix)
 
 ---
 

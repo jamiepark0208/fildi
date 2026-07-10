@@ -1,11 +1,18 @@
 # ci-pipeline-typecheck-tests
 
-## ✅ DONE — 2026-07-10
+## ⚠️ PARTIALLY DONE — audit 2026-07-10
 
-**What was implemented:**
-- `.github/workflows/ci.yml` — runs on push to main and all PRs. Steps: checkout → pnpm@10 + Node 24 setup with pnpm cache → frozen install → typecheck api-server → typecheck stock-compare → test api-server (unit) → test stock-compare (unit).
-- No secrets, no live vendor calls. Both test suites run clean without DATABASE_URL.
-- `catalysts.test.ts` was already not present in `src/lib/` (confirmed); the test script explicitly lists files so it is never accidentally included.
+**What is shipped:**
+- `.github/workflows/ci.yml` exists and runs on push/PR: typecheck api-server → typecheck stock-compare → `pnpm test` both packages.
+
+**Gap found (2026-07-10 audit):**
+- Both package.json `test` scripts used **explicit file lists** instead of a glob — new test files would be silently excluded from CI.
+- **Fixed:** both scripts now use `'src/**/*.test.ts'` glob pattern. Verified: api-server 15/15 pass; stock-compare 267/268 pass.
+- **Known pre-existing failure:** `rankings-helpers.test.ts:158` — z-score winsorization test (`spread too small after winsorization`). This was failing before the glob change. Needs investigation before CI is fully green.
+
+**Remaining before marking fully done:**
+- [ ] Fix or skip the z-score winsorization test in `stock-compare/src/lib/rankings-helpers.test.ts:158`
+- [ ] Confirm CI green on next push (workflow runs in GitHub Actions, not locally)
 
 ---
 
