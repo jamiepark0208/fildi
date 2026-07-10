@@ -8,8 +8,8 @@ import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
-import { db, unmappedTickers, tickerRegistry, peerGroups, peerGroupMembers, tickerFundamentals } from "@workspace/db";
-import { desc, inArray } from "drizzle-orm";
+import { db, unmappedTickers, tickerRegistry, peerGroups, peerGroupMembers, tickerFundamentals, tickerTechnicals, indicatorCache } from "@workspace/db";
+import { desc, inArray, sql } from "drizzle-orm";
 
 const router = Router();
 const yahooFinance = new YahooFinanceClass();
@@ -213,17 +213,25 @@ router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
   try {
     const watchlistSet = new Set(WATCHLIST.map((t: string) => t.toUpperCase()));
 
-    const [fundRows, regRows, groupRows] = await Promise.all([
+    const [fundRows, regRows, groupRows, techRows, signalResult] = await Promise.all([
       db.select().from(tickerFundamentals),
       db.select({ ticker: tickerRegistry.ticker, name: tickerRegistry.name, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId }).from(tickerRegistry),
       db.select({ id: peerGroups.id, name: peerGroups.name }).from(peerGroups),
+      db.select().from(tickerTechnicals),
+      db.execute<{ ticker: string; signal: string }>(sql`
+        SELECT DISTINCT ON (ticker) ticker, signal
+        FROM indicator_cache
+        ORDER BY ticker, scored_date DESC
+      `),
     ]);
 
-    const regByTicker = new Map(regRows.map(r => [r.ticker.toUpperCase(), r]));
-    const groupNameById = new Map(groupRows.map(g => [g.id, g.name]));
+    const regByTicker    = new Map(regRows.map(r => [r.ticker.toUpperCase(), r]));
+    const groupNameById  = new Map(groupRows.map(g => [g.id, g.name]));
+    const techByTicker   = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
+    const signalByTicker = new Map(signalResult.rows.map(r => [r.ticker.toUpperCase(), r.signal]));
 
     const result = fundRows.map(row => {
-      const reg = regByTicker.get(row.ticker.toUpperCase());
+      const reg     = regByTicker.get(row.ticker.toUpperCase());
       const groupId = reg?.primaryPeerGroupId ?? null;
       return {
         ticker:        row.ticker,
@@ -232,6 +240,8 @@ router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
         peerGroupId:   groupId,
         peerGroupName: groupId ? (groupNameById.get(groupId) ?? null) : null,
         fundamentals:  row,
+        technicals:    techByTicker.get(row.ticker.toUpperCase()) ?? null,
+        signal:        signalByTicker.get(row.ticker.toUpperCase()) ?? null,
       };
     });
 
