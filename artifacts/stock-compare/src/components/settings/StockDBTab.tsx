@@ -323,7 +323,7 @@ export function StockDBTab() {
     },
     enabled: !!hoveredTicker,
     staleTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const activeProv: FieldProv | null = useMemo(() => {
@@ -373,7 +373,7 @@ export function StockDBTab() {
 
   const onRowEnter = useCallback((ticker: string) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setHoveredTicker(ticker);
+    hoverTimerRef.current = setTimeout(() => setHoveredTicker(ticker), 250);
   }, []);
 
   const onRowLeave = useCallback(() => {
