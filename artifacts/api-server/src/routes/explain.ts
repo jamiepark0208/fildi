@@ -54,7 +54,7 @@ interface ExplainRequest {
 
 // ── Score hash — deterministic fingerprint of key inputs ──────────────────────
 // Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
-const PROMPT_VERSION = "v2";
+const PROMPT_VERSION = "v3";
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
@@ -96,12 +96,12 @@ ${metricLines ? `\nKey metrics:\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
 
 Write exactly 3 bullet points (starting with -). Rules:
-- Pick the 3 MOST SIGNIFICANT factors that explain the score — not all metrics, only what truly drives it
-- Each bullet: one short plain-English sentence that explains WHY this matters for put-selling risk, then the actual number in parentheses vs a typical benchmark (e.g. "(84% gross margin vs ~60% tech average)")
-- If something is in the top or bottom 10% of what you'd expect for a stock like this, say so plainly ("unusually high", "rare for this sector", "most peers are around X")
-- Focus on: is the business fundamentally strong enough that a put seller sleeps well? What's the one thing that could surprise them?
+- Each bullet: max 12 words + one parenthetical with the key number and peer context
+- Format: "[what it means for a put seller] (value vs benchmark)"
+- Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% peers)"
+- Only the 3 most significant drivers — skip anything near average
 
-No intro sentence. No outro. No investment advice. Plain English throughout.`;
+No intro. No outro. No investment advice.`;
 }
 
 function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {
@@ -127,9 +127,10 @@ ${earningsNote}
 Component scores (0–1): oversold depth ${cs.oversoldDepth.toFixed(2)} | reversal signal ${cs.reversalSignal.toFixed(2)} | vol state ${cs.volatilityState.toFixed(2)} | trend ${cs.trendContext.toFixed(2)}
 
 Write exactly 2 bullets (starting with -). Rules:
-- Focus only on the 2 things that most explain why the signal is ${d.signal} right now — skip anything near neutral
-- Each bullet: one plain-English sentence on what this means for a put seller ("is now a good time to sell a put?"), with the key number in parentheses and what makes it notable ("RSI at its lowest 15% historically means the stock is cheap vs itself")
-- If there's a key risk (earnings soon, falling knife, overbought IV), lead with it
+- Each bullet: max 12 words + one parenthetical with the key number
+- Format: "[what this means for selling a put] (value, context)"
+- Example: "Oversold vs own history, good entry timing (RSI 28, bottom 15%)"
+- Lead with any key risk (earnings, falling knife, overbought IV)
 
 No intro. No outro. No investment advice.`;
 }

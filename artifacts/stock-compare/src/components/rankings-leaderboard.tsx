@@ -94,14 +94,16 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
   });
 }
 
+interface ExplainState { text: string; status: "idle" | "loading" | "done" | "error"; }
+
 interface RowProps {
   score: StockScore;
   idx: number;
   maxScore: number;
   allScores: StockScore[];
   stocks?: StockMetrics[];
+  explainState: ExplainState;
   explain: ReturnType<typeof useScoreExplanation>["explain"];
-  getState: ReturnType<typeof useScoreExplanation>["getState"];
 }
 
 function zScoreColor(z: number): string {
@@ -118,8 +120,8 @@ function shortenBullet(text: string): string {
   return sentence.length > 120 ? sentence.slice(0, 117) + "…" : sentence;
 }
 
-const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explain, getState }: RowProps) {
-  const state = getState(score.ticker, "fundamental");
+const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explainState, explain }: RowProps) {
+  const state = explainState;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -232,13 +234,13 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
         {scores.map((score, idx) => (
           <LeaderboardRow
             allScores={scores}
+            explainState={getState(score.ticker, "fundamental")}
             key={score.ticker}
             score={score}
             idx={idx}
             maxScore={maxScore}
             stocks={stocks}
             explain={explain}
-            getState={getState}
           />
         ))}
       </div>
