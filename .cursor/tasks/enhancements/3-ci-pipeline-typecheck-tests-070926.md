@@ -1,8 +1,17 @@
 # ci-pipeline-typecheck-tests
 
+## ✅ DONE — 2026-07-10
+
+**What was implemented:**
+- `.github/workflows/ci.yml` — runs on push to main and all PRs. Steps: checkout → pnpm@10 + Node 24 setup with pnpm cache → frozen install → typecheck api-server → typecheck stock-compare → test api-server (unit) → test stock-compare (unit).
+- No secrets, no live vendor calls. Both test suites run clean without DATABASE_URL.
+- `catalysts.test.ts` was already not present in `src/lib/` (confirmed); the test script explicitly lists files so it is never accidentally included.
+
+---
+
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done |
 | **Priority** | P0 |
 | **Area** | infra |
 | **Effort** | S (~30–60 min) |
