@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db, watchlist, tickerRegistry, peerGroupMembers } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 
@@ -49,7 +49,11 @@ router.post("/watchlist", async (req, res) => {
       set: { fetchFundamentals: true },
     });
 
-  // Flag all tickers in the same peer group(s) so backfills cover peers automatically.
+  // bug/9: peers used to get fetchFundamentals=true synchronously here, which meant
+  // one watchlist add could flag an entire peer group (up to hundreds of tickers)
+  // for fundamentals fetch on every request. Peers still need fetchFundamentals=true
+  // for peer-relative scoring to work — that flip now happens in nightly-enrichment.ts,
+  // budget-gated, instead of unbounded on the request path.
   const groups = await db
     .select({ groupId: peerGroupMembers.groupId })
     .from(peerGroupMembers)
@@ -61,21 +65,6 @@ router.post("/watchlist", async (req, res) => {
     // No peer group: backfills will fetch this ticker alone. Needs manual peer group assignment.
     warnings.push(`${normalized} has no peer group — add it to a peer group and re-run to flag peers`);
     console.warn(`[watchlist] ${normalized} added with no peer group membership`);
-  } else {
-    const groupIds = groups.map(r => r.groupId);
-    const peers = await db
-      .select({ ticker: peerGroupMembers.ticker })
-      .from(peerGroupMembers)
-      .where(inArray(peerGroupMembers.groupId, groupIds));
-
-    const peerTickers = [...new Set(peers.map(r => r.ticker))].filter(t => t !== normalized);
-
-    if (peerTickers.length > 0) {
-      await db
-        .update(tickerRegistry)
-        .set({ fetchFundamentals: true })
-        .where(inArray(tickerRegistry.ticker, peerTickers));
-    }
   }
 
   return res.status(201).json({
