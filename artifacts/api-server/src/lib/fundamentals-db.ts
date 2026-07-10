@@ -387,7 +387,7 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     });
     return {
       ticker: row.ticker,
-      totalScore: parseFloat((totalDen > 0 ? (totalNum / totalDen) * 100 : 50).toFixed(2)),
+      totalScore: parseFloat((totalDen > 0 ? (totalNum / totalDen) * 100 : 0).toFixed(2)),
       qualityScore: parseFloat(familyScores.quality.toFixed(2)),
       growthScore:  parseFloat(familyScores.growth.toFixed(2)),
       safetyScore:  parseFloat(familyScores.safety.toFixed(2)),
