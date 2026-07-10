@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done |
 | **Priority** | P1 |
 | **Area** | overprocessing / multi-user |
 | **Effort** | S |
@@ -115,3 +115,22 @@ Peers still backfill via nightly enrichment / admin paths.
 - New ticker still inserted into `ticker_registry` with `fetch_fundamentals=true`
 - Peer group warning in POST response unchanged
 - Do not break watchlist POST 201 shape
+
+---
+
+## DONE (2026-07-10)
+
+**Cursor's fix options (§6) were incomplete.** Traced every reader of `fetch_fundamentals` before editing: `nightly-enrichment.ts`, `merge-trusted.ts`, `startup-refresh.ts`, `data-health.ts`, and every `backfill-*.ts` script all gate their universe on `WHERE fetch_fundamentals=true` — it's the single source-of-truth flag from the 2026-07-06 universe-unification work (`.claude/docs/phase-report-db-260704.md`). Option A ("just delete the block") would have permanently stranded peer tickers from ever getting fundamentals data — nightly enrichment does **not** already cover unflagged tickers, contrary to the task's §5 assumption. Also confirmed peer-relative scoring needs peers' fundamentals in the DB (not just cosmetic) — this was the explicit reason the peer bulk-flag was added in the first place.
+
+**Fix implemented (Option B, moved not deleted):**
+1. `routes/watchlist.ts` POST — removed the synchronous bulk `UPDATE ticker_registry SET fetch_fundamentals=true WHERE ticker IN (peers)`. Kept the single added-ticker upsert and the "no peer group" warning lookup unchanged.
+2. `scripts/nightly-enrichment.ts` — added a peer-expansion step before the fetch pipeline runs: pulls peer-group members of the already-flagged universe that aren't flagged yet, caps at 25/run (`PEER_EXPANSION_CAP`), flips `fetch_fundamentals=true` for them (skipped under `--dry-run`), then folds them into the same run's fetch + `merge-trusted` pass so peer-relative scoring picks them up without waiting a second cycle.
+
+**Verified live:**
+- Built + restarted the real api-server process (killed the supervised pid, `start.sh`'s crash-restart loop brought it back up on the rebuilt `dist/`).
+- Created a throwaway test user, logged in, `POST /api/watchlist {"ticker":"CMI"}` against `industrials.industrial_conglomerates_machinery` (13 unflagged peers) — confirmed via `psql` the flagged-peer count stayed at 0 before and after (previously this would have jumped to 13). Cleaned up the test user/watchlist row after.
+- Verified the nightly-enrichment peer-expansion SQL logic with a read-only `psql` query mirroring the new drizzle queries exactly (no script invocation, no vendor calls, no `api_usage` writes) — found 294 pre-existing unflagged peers in the backlog, confirms the cap/query shape is sound.
+- Did **not** invoke `nightly-enrichment.ts` end-to-end (dry-run or real) per explicit user decision — the app is a preview/prototype that isn't always running, and this wasn't a planned test session. The twice-weekly scheduler (`lib/scheduler.ts`, already wired since the 2026-07-10 01:55 DB-maintenance-strategy session) will pick up the new peer-expansion logic on its existing Sun/Thu 02:00 UTC cadence whenever the app happens to be running — no new job was scheduled by this fix.
+- `tsc` clean on both touched files (2 pre-existing unrelated errors in `backfill-edgar.ts`/`merge-trusted.ts` confirmed via `git stash` to predate this change). All 35 existing unit tests pass.
+
+**Not done:** end-to-end live run of the real (non-dry-run) nightly-enrichment fetch/merge path — deferred by user request, not a blocker for this bug's acceptance criteria.
