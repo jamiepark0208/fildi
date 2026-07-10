@@ -89,32 +89,38 @@ interface ColDef {
   optional?: boolean;
 }
 
+// Fields where distribution is right-skewed — log-transform before z-score
+const LOG_TRANSFORM_COLS = new Set(["peRatio", "forwardPe", "pegRatio", "priceToBook", "priceToSales", "evEbitda", "evRevenue"]);
+
+// Growth fields where a value > 10× (1000%) indicates a near-zero prior-period base
+const NM_GROWTH_COLS = new Set(["epsGrowth", "revenueGrowthYoY", "revenueGrowthYoyPrior"]);
+
 const COLS: ColDef[] = [
-  // VALUE
-  { key: "peRatio",             label: "P/E",        family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 500 },
-  { key: "pegRatio",            label: "PEG",        family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
-  { key: "forwardPe",           label: "Fwd P/E",    family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 500 },
-  { key: "priceToBook",         label: "P/B",        family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
-  { key: "priceToSales",        label: "P/S",        family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
-  { key: "evEbitda",            label: "EV/EBITDA",  family: "value",   fmt: "ratio",  suspect: v => v < -50 || v > 200 },
-  { key: "evRevenue",           label: "EV/Rev",     family: "value",   fmt: "ratio",  suspect: v => v < 0 || v > 100 },
-  { key: "dividendYield",       label: "Div Yield",  family: "value",   fmt: "pct",    suspect: v => v < 0 || v > 0.3 },
-  // GROWTH
-  { key: "revenueGrowthYoY",    label: "Rev Growth", family: "growth",  fmt: "pct",    suspect: v => v > 5 || v < -0.9 },
-  { key: "revenueGrowthYoyPrior",label:"Rev Gro Pr", family: "growth",  fmt: "pct",    suspect: v => v > 5 || v < -0.9 },
-  { key: "epsGrowth",           label: "EPS Growth", family: "growth",  fmt: "pct",    suspect: v => v > 10 || v < -0.9 },
+  // VALUE — suspect only for structural impossibilities (negative prices/yields)
+  { key: "peRatio",             label: "P/E",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "pegRatio",            label: "PEG",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "forwardPe",           label: "Fwd P/E",    family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "priceToBook",         label: "P/B",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "priceToSales",        label: "P/S",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "evEbitda",            label: "EV/EBITDA",  family: "value",   fmt: "ratio",  suspect: v => v < -200 },
+  { key: "evRevenue",           label: "EV/Rev",     family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "dividendYield",       label: "Div Yield",  family: "value",   fmt: "pct",    suspect: v => v < 0 || v > 2.0 },
+  // GROWTH — z-score flags outliers; N/M displayed for near-zero base (>10×)
+  { key: "revenueGrowthYoY",    label: "Rev Growth", family: "growth",  fmt: "pct" },
+  { key: "revenueGrowthYoyPrior",label:"Rev Gro Pr", family: "growth",  fmt: "pct" },
+  { key: "epsGrowth",           label: "EPS Growth", family: "growth",  fmt: "pct" },
   { key: "analystTargetPrice",  label: "Analyst TP", family: "growth",  fmt: "price",  suspect: v => v <= 0 },
-  // QUALITY
-  { key: "grossMargin",         label: "Gross Mgn",  family: "quality", fmt: "pct",    suspect: v => v > 1.0 || v < -1.0 },
-  { key: "operatingMargin",     label: "Op Margin",  family: "quality", fmt: "pct",    suspect: v => v > 1.0 || v < -2.0 },
-  { key: "netMargin",           label: "Net Margin", family: "quality", fmt: "pct",    suspect: v => v > 1.0 || v < -5.0 },
-  { key: "returnOnEquity",      label: "ROE",        family: "quality", fmt: "pct",    suspect: v => v > 10 || v < -10 },
-  { key: "returnOnAssets",      label: "ROA",        family: "quality", fmt: "pct",    suspect: v => v > 2 || v < -2 },
-  { key: "roic",                label: "ROIC",       family: "quality", fmt: "pct",    suspect: v => v > 5 || v < -2 },
-  { key: "wacc",                label: "WACC",       family: "quality", fmt: "pct",    suspect: v => v <= 0 || v > 0.5 },
+  // QUALITY — only flag values beyond economic possibility
+  { key: "grossMargin",         label: "Gross Mgn",  family: "quality", fmt: "pct",    suspect: v => v > 1.5 || v < -2.0 },
+  { key: "operatingMargin",     label: "Op Margin",  family: "quality", fmt: "pct",    suspect: v => v > 1.5 || v < -5.0 },
+  { key: "netMargin",           label: "Net Margin", family: "quality", fmt: "pct",    suspect: v => v > 1.5 || v < -10.0 },
+  { key: "returnOnEquity",      label: "ROE",        family: "quality", fmt: "pct" },
+  { key: "returnOnAssets",      label: "ROA",        family: "quality", fmt: "pct" },
+  { key: "roic",                label: "ROIC",       family: "quality", fmt: "pct" },
+  { key: "wacc",                label: "WACC",       family: "quality", fmt: "pct",    suspect: v => v <= 0 || v > 0.8 },
   // SAFETY
   { key: "currentRatio",        label: "Curr Ratio", family: "safety",  fmt: "ratio",  suspect: v => v <= 0 },
-  { key: "debtToEquity",        label: "D/E",        family: "safety",  fmt: "ratio",  suspect: v => v < 0 || v > 20 },
+  { key: "debtToEquity",        label: "D/E",        family: "safety",  fmt: "ratio",  suspect: v => v < 0 },
   { key: "ebitda",              label: "EBITDA",     family: "safety",  fmt: "dollars" },
   { key: "ebit",                label: "EBIT",       family: "safety",  fmt: "dollars" },
   { key: "interestExpense",     label: "Int Exp",    family: "safety",  fmt: "dollars", suspect: v => v < 0 },
@@ -128,8 +134,8 @@ const COLS: ColDef[] = [
   { key: "totalStockholdersEquity", label: "Equity", family: "safety",  fmt: "dollars" },
   { key: "sharesOutstanding",   label: "Shares",     family: "meta",    fmt: "shares" },
   { key: "sharesOutstandingPrior",label:"Shares Pr", family: "meta",    fmt: "shares" },
-  { key: "beta",                label: "Beta",       family: "meta",    fmt: "ratio",  suspect: v => v > 5 || v < -2 },
-  { key: "effectiveTaxRate",    label: "Tax Rate",   family: "meta",    fmt: "pct",    suspect: v => v < 0 || v > 0.7 },
+  { key: "beta",                label: "Beta",       family: "meta",    fmt: "ratio",  suspect: v => v > 10 || v < -5 },
+  { key: "effectiveTaxRate",    label: "Tax Rate",   family: "meta",    fmt: "pct",    suspect: v => v < -0.5 || v > 1.0 },
 ];
 
 (COLS.find(c => c.label === "Qtrly OCF") as ColDef).key = "quarterlyOperatingCashFlow" as keyof FundamentalsRow;
@@ -211,6 +217,35 @@ function isSuspect(col: ColDef, raw: string | null): boolean {
   if (!col.suspect || raw == null) return false;
   const v = parseFloat(raw);
   return isFinite(v) && col.suspect(v);
+}
+
+// Modified z-score (MAD-based) — robust to the outliers being detected.
+// Returns Map<ticker, zScore> for one column within one peer group.
+// logTransform: apply to right-skewed ratio fields (P/E, EV/EBITDA, etc.).
+function computeGroupZScores(entries: StockDBEntry[], colKey: keyof FundamentalsRow, logTransform: boolean): Map<string, number> {
+  const MIN_GROUP = 5;
+  const pairs: [string, number][] = [];
+  for (const e of entries) {
+    const raw = e.fundamentals?.[colKey];
+    if (raw == null) continue;
+    const v = parseFloat(raw as string);
+    if (!isFinite(v)) continue;
+    const t = logTransform ? Math.log(Math.max(Math.abs(v), 1e-6)) : v;
+    pairs.push([e.ticker, t]);
+  }
+  if (pairs.length < MIN_GROUP) return new Map();
+  const vals = pairs.map(([, v]) => v).sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  const absDevs = vals.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+  const mad = absDevs[Math.floor(absDevs.length / 2)];
+  if (mad === 0) return new Map();
+  return new Map(pairs.map(([ticker, v]) => [ticker, 0.6745 * (v - median) / mad]));
+}
+
+function isNearZeroBase(col: ColDef, raw: string | null): boolean {
+  if (!NM_GROWTH_COLS.has(col.key as string) || raw == null) return false;
+  const v = parseFloat(raw);
+  return isFinite(v) && Math.abs(v) > 10;
 }
 
 function fmtDate(ts: string | null): string {
@@ -502,6 +537,27 @@ export function StockDBTab() {
     return rows;
   }, [data, tickerFilter, sortCol, sortDir]);
 
+  // Per-column, per-peer-group modified z-scores for statistical outlier detection.
+  // Keyed as groupId → colKey → Map<ticker, zScore>.
+  const zScoreMap = useMemo(() => {
+    const result = new Map<string, Map<string, Map<string, number>>>();
+    const byGroup = new Map<string, StockDBEntry[]>();
+    for (const e of data ?? []) {
+      const gid = e.peerGroupId ?? "__unclassified";
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid)!.push(e);
+    }
+    for (const [gid, entries] of byGroup) {
+      const colMap = new Map<string, Map<string, number>>();
+      for (const col of COLS) {
+        const scores = computeGroupZScores(entries, col.key, LOG_TRANSFORM_COLS.has(col.key as string));
+        if (scores.size > 0) colMap.set(col.key as string, scores);
+      }
+      if (colMap.size > 0) result.set(gid, colMap);
+    }
+    return result;
+  }, [data]);
+
   if (isLoading) return (
     <div className="flex items-center justify-center h-48">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -764,7 +820,10 @@ export function StockDBTab() {
                     const raw = f ? (f[col.key] as string | null) : null;
                     const isNull = raw == null;
                     const isOptionalNull = isNull && !!col.optional;
-                    const suspect = isSuspect(col, raw);
+                    const hardInvalid = isSuspect(col, raw);
+                    const z = zScoreMap.get(row.peerGroupId ?? "__unclassified")?.get(col.key as string)?.get(row.ticker);
+                    const isStatOutlier = z != null && Math.abs(z) > 3.0;
+                    const suspect = hardInvalid || isStatOutlier;
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
                     const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
@@ -784,7 +843,7 @@ export function StockDBTab() {
                           !isNull && !suspect && !hasFlag && "text-foreground",
                         )}
                       >
-                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : fmt(raw, col.fmt)}
+                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-muted-foreground/60" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
                       </td>
                     );
                   })}
