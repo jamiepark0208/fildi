@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P0 |
 | **Area** | multi-user / data |
 | **Effort** | L (3–5 sessions) |
@@ -147,3 +147,20 @@ All **P0** rows in §8 — scorecard alone is insufficient.
 ## Impact & Risk Analysis
 
 Highest blast radius bug in backlog — coordinate with [bug/3](3-home-hardcoded-fundamental-universe-070926.md), [bug/11](11-options-scanner-fetch-storm-070926.md).
+
+---
+
+## DONE (2026-07-10)
+
+Implemented Fix option A (session-scoped scorecard). New `lib/watchlist-tickers.ts` provides `getUserWatchlistTickers`, `getUnionWatchlistTickers` (all users' distinct tickers ∪ default `WATCHLIST` seed), and `isTickerOnUserWatchlist`.
+
+- `routes/technical.ts` — `/technical/scorecard` and `/technical/refresh/:ticker` now read the authenticated user's watchlist (route is already behind `requireAuth` at the router level).
+- `routes/indicators.ts` — `/indicators/:ticker` gate uses `isTickerOnUserWatchlist`; `/indicators/batch` defaults to the caller's watchlist when `?tickers=` omitted.
+- `lib/seeder.ts` — `getMissingTickers` now sources from `getUnionWatchlistTickers()` instead of the frozen constant, so newly-added user tickers get backfilled overnight. `seedTickerConfig` (tier/RSI metadata bootstrap) intentionally left on `WATCHLIST` — that's seeding `ticker_config` defaults, not a user-facing list.
+- `routes/technicals.ts` and `routes/fundamentals.ts` (admin refresh/status/stock-db endpoints) — switched from `WATCHLIST` to `getUnionWatchlistTickers()` so admin bulk operations cover every user's tickers, not just the original 31.
+- `constants.ts` — `WATCHLIST` now documented as seed-template-only, not runtime SSOT.
+- `options-scanner.tsx` retested conceptually: it already consumes `/api/technical/scorecard` + `useWatchlist()`, so it picks up the per-user fix with no code change.
+
+**Not touched (explicitly out of scope):** `lib/macro-highlights.ts`, `lib/startup-refresh.ts` (bug/4, already done), and the one-off `scripts/backfill-*.ts` CLI tools — none were named in §8's P0/P1 file list, and backfill scripts are intentionally scoped to the seed set per their own comments.
+
+Verified: `pnpm --filter @workspace/api-server test` (35 pass), `pnpm --filter @workspace/stock-compare test` (268 pass), `tsc --noEmit` clean on both packages (two pre-existing unrelated errors in `backfill-edgar.ts`/`merge-trusted.ts`, not touched by this change).

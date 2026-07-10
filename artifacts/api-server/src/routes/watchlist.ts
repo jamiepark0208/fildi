@@ -5,6 +5,9 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
 
+// Bounds client-side N+1 quote fan-out (see bug/12); must stay > register seed size if seeding is reintroduced.
+const MAX_WATCHLIST_SIZE = 75;
+
 // All watchlist routes require auth
 router.use(requireAuth);
 
@@ -26,6 +29,11 @@ router.post("/watchlist", async (req, res) => {
   const normalized = ticker.trim().toUpperCase();
   if (normalized.length === 0 || normalized.length > 10) {
     return res.status(400).json({ error: "ticker must be 1-10 characters" });
+  }
+
+  const existingCount = await db.$count(watchlist, eq(watchlist.userId, req.session.userId!));
+  if (existingCount >= MAX_WATCHLIST_SIZE) {
+    return res.status(400).json({ error: `Watchlist is full (max ${MAX_WATCHLIST_SIZE} tickers)` });
   }
 
   await db.insert(watchlist)

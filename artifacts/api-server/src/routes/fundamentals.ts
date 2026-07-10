@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import YahooFinanceClass from "yahoo-finance2";
-import { WATCHLIST } from "../lib/constants.js";
+import { getUnionWatchlistTickers } from "../lib/watchlist-tickers.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls, getAllFundamentalsRows, computeAndPersistFundamentalScores, readPersistedScores } from "../lib/fundamentals-db.js";
 import { getLatestRegime } from "./regime.js";
@@ -85,7 +85,8 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
 // POST /fundamentals/refresh — refresh all 31 watchlist tickers from FMP.
 // Checks daily API budget before starting. Returns 202 if budget allows, 429 if not.
 router.post("/fundamentals/refresh", requireAdmin, async (_req, res) => {
-  const callsNeeded = WATCHLIST.length * 7;
+  const unionTickers = await getUnionWatchlistTickers();
+  const callsNeeded = unionTickers.length * 7;
   const budget = await checkFMPBudget(callsNeeded);
   if (!budget.allowed) {
     logger.warn({ callsNeeded, callsToday: budget.callsToday, remaining: budget.remaining },
@@ -97,8 +98,8 @@ router.post("/fundamentals/refresh", requireAdmin, async (_req, res) => {
       remaining: budget.remaining,
     });
   }
-  res.status(202).json({ message: "Fundamentals refresh started", tickers: WATCHLIST.length, budgetRemaining: budget.remaining });
-  refreshFundamentals(WATCHLIST).catch(err =>
+  res.status(202).json({ message: "Fundamentals refresh started", tickers: unionTickers.length, budgetRemaining: budget.remaining });
+  refreshFundamentals(unionTickers).catch(err =>
     logger.error({ err }, "fundamentals: background refresh crashed"),
   );
   return;
@@ -149,7 +150,8 @@ router.get("/fundamentals/status", async (_req, res) => {
       checkFMPBudget(0), // 0 additional calls — just read current state
     ]);
     const byTicker = Object.fromEntries(status.map(s => [s.ticker, s]));
-    const summary = WATCHLIST.map(t => ({
+    const unionTickers = await getUnionWatchlistTickers();
+    const summary = unionTickers.map(t => ({
       ticker:          t,
       lastFetched:     byTicker[t]?.lastFetched ?? null,
       coveragePct:     byTicker[t]?.coveragePct ?? null,
@@ -211,7 +213,7 @@ router.get("/fundamentals/peer-groups", async (req, res) => {
 // Shows all tickers we have data for, regardless of watchlist membership.
 router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
   try {
-    const watchlistSet = new Set(WATCHLIST.map((t: string) => t.toUpperCase()));
+    const watchlistSet = new Set((await getUnionWatchlistTickers()).map((t: string) => t.toUpperCase()));
 
     const [fundRows, regRows, groupRows, techRows, signalResult] = await Promise.all([
       db.select().from(tickerFundamentals),

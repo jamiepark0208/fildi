@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { WATCHLIST } from "../lib/constants.js";
+import { getUnionWatchlistTickers } from "../lib/watchlist-tickers.js";
 import {
   getStaleTechnicalTickers,
   getAllTechnicalsStatus,
@@ -21,7 +21,8 @@ export { refreshTechnicals };
 router.post("/technicals/refresh", requireAdmin, async (req, res) => {
   try {
     const force = req.query["force"] === "true";
-    const tickers = force ? WATCHLIST : await getStaleTechnicalTickers(WATCHLIST);
+    const unionTickers = await getUnionWatchlistTickers();
+    const tickers = force ? unionTickers : await getStaleTechnicalTickers(unionTickers);
     if (tickers.length === 0) {
       return res.status(200).json({ message: "All technicals are fresh", tickers: 0 });
     }
@@ -40,7 +41,8 @@ router.get("/technicals/status", async (_req, res) => {
   try {
     const status = await getAllTechnicalsStatus();
     const byTicker = Object.fromEntries(status.map(s => [s.ticker, s]));
-    const summary = WATCHLIST.map(t => ({
+    const unionTickers = await getUnionWatchlistTickers();
+    const summary = unionTickers.map(t => ({
       ticker:      t,
       lastFetched: byTicker[t]?.lastFetched ?? null,
       coveragePct: byTicker[t]?.coveragePct ?? null,

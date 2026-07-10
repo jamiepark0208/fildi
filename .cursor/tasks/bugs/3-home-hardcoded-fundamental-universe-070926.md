@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P1 |
 | **Area** | ui / multi-user |
 | **Effort** | S (~half day) |
@@ -130,3 +130,9 @@ Optional **B:** `GET /fundamentals/rankings?tickers=` server filter — only if 
 
 - `GET /api/fundamentals/rankings` still returns full DB (client filter only in option A)
 - Do not reintroduce client `computeRankingsV2` full universe
+
+---
+
+## DONE (2026-07-10)
+
+Removed the hardcoded `FUNDAMENTAL_WATCHLIST` array from `home.tsx`. Peer-groups query now uses `useWatchlist().tickers`, gated with `enabled: watchlistTickers.length > 0`. `rankings` memo filters `serverRankings` down to the watchlist ticker set before mapping to `StockScore[]`. Did not touch `new_app_features/4` rescope note (out of this cluster's file-edit scope; flagging here for a follow-up doc pass). Verified via `tsc --noEmit` (clean) + full stock-compare test suite (268 pass).

@@ -5,6 +5,7 @@ import {
   ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList, Activity,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
@@ -109,6 +110,7 @@ export function applySidebarWidth(collapsed: boolean) {
 export function Sidebar() {
   const [location, navigate] = useLocation();
   const { isAdmin, refetch } = useAuth();
+  const queryClient = useQueryClient();
 
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSED_KEY) === "true"; } catch { return false; }
@@ -329,6 +331,8 @@ export function Sidebar() {
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+            queryClient.removeQueries({ queryKey: ["watchlist"] });
+            queryClient.removeQueries({ queryKey: ["portfolio-snapshot-latest"] });
             await refetch();
             navigate("/login");
           }}

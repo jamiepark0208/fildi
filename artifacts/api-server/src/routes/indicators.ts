@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getIndicators, getIndicatorsBatch } from "../lib/indicators.js";
-import { WATCHLIST } from "../lib/constants.js";
+import { getUserWatchlistTickers, isTickerOnUserWatchlist } from "../lib/watchlist-tickers.js";
 
 const router = Router();
 
@@ -9,7 +9,9 @@ const router = Router();
 router.get("/indicators/:ticker", async (req, res) => {
   const ticker  = req.params.ticker.toUpperCase();
   const refresh = req.query.refresh === "true";
-  if (!WATCHLIST.includes(ticker)) return res.status(404).json({ error: `Unknown ticker: ${ticker}` });
+  if (!(await isTickerOnUserWatchlist(req.session.userId!, ticker))) {
+    return res.status(404).json({ error: `Unknown ticker: ${ticker}` });
+  }
   try {
     const result = await getIndicators(ticker, refresh);
     return res.json(result);
@@ -19,14 +21,14 @@ router.get("/indicators/:ticker", async (req, res) => {
 });
 
 // GET /api/indicators/batch
-// ?tickers=NVDA,AAPL  (omit = all 31)
+// ?tickers=NVDA,AAPL  (omit = caller's full watchlist)
 // ?refresh=true        re-fetches only the tickers listed (or all if none listed)
 router.get("/indicators/batch", async (req, res) => {
   const raw     = typeof req.query.tickers === "string" ? req.query.tickers : "";
   const refresh = req.query.refresh === "true";
   const tickers = raw
     ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean)
-    : WATCHLIST;
+    : await getUserWatchlistTickers(req.session.userId!);
 
   if (tickers.some(t => t.length === 0 || t.length > 10)) {
     return res.status(400).json({ error: "Invalid tickers param" });
