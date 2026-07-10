@@ -4,15 +4,15 @@ Use with [INDEX.md](INDEX.md) wave order and [CLAUDE-IMPLEMENT.md](CLAUDE-IMPLEM
 
 ---
 
-## Cluster A — Watchlist SSOT (multi-user)
+## Cluster A — Watchlist SSOT (multi-user) — DONE 2026-07-10
 
-| # | Slug | Role |
-|---|---|---|
-| 19 | register-empty-watchlist | New users get default rows (**before** testing 2/3) |
-| 2 | watchlist-global-constant-split | API: scorecard, indicators, seeder — DB not `WATCHLIST` |
-| 3 | home-hardcoded-fundamental-universe | FE: `home.tsx` peer-groups from `useWatchlist` |
-| 10 | watchlist-no-max-size | Server cap; **MAX ≥ 31** (register seed size) |
-| 13 | react-query-cross-user-bleed | `queryKey` + logout `removeQueries` |
+| # | Slug | Role | Status |
+|---|---|---|---|
+| 19 | register-empty-watchlist | New users get default rows (**before** testing 2/3) | rejected — product decision, see task DONE note |
+| 2 | watchlist-global-constant-split | API: scorecard, indicators, seeder — DB not `WATCHLIST` | done |
+| 3 | home-hardcoded-fundamental-universe | FE: `home.tsx` peer-groups from `useWatchlist` | done |
+| 10 | watchlist-no-max-size | Server cap; **MAX ≥ 31** (register seed size) | done |
+| 13 | react-query-cross-user-bleed | `queryKey` + logout `removeQueries` | done |
 
 **Coupling:** Fix **2** without `indicators.ts` → scanner 404 on user-added tickers.
 
