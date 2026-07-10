@@ -7,6 +7,9 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { resolveField, writeProvenance, FIELD_DEFS } from "../scripts/merge-trusted.js";
 import { provenanceCache } from "../lib/provenance-cache.js";
+import { computeAndPersistFundamentalScores } from "../lib/fundamentals-db.js";
+import { getLatestRegime } from "./regime.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -246,6 +249,10 @@ router.put("/fundamentals/override", requireAdmin, async (req, res) => {
     }
 
     provenanceCache.delete(t);
+    // Scores are cross-sectional — any override invalidates all. Fire-and-forget.
+    getLatestRegime().then(regime => computeAndPersistFundamentalScores(regime)).catch(err =>
+      logger.warn({ err: String(err) }, "fundamentals: score recompute after override failed")
+    );
     return res.json({ ok: true, resolved: result });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -280,6 +287,9 @@ router.delete("/fundamentals/override/:ticker/:field", requireAdmin, async (req,
     }
 
     provenanceCache.delete(t);
+    getLatestRegime().then(regime => computeAndPersistFundamentalScores(regime)).catch(err =>
+      logger.warn({ err: String(err) }, "fundamentals: score recompute after override delete failed")
+    );
     return res.json({ ok: true, resolved: result });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
