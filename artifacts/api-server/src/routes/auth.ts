@@ -2,13 +2,14 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { eq, or, and, isNull } from "drizzle-orm";
-import { db, users, inviteCodes } from "@workspace/db";
+import { db, users, inviteCodes, watchlist } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { logger } from "../lib/logger.js";
 import { authLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { registerSchema, loginSchema } from "../lib/validators/auth.js";
+import { WATCHLIST, getTier } from "../lib/constants.js";
 
 const router = Router();
 
@@ -38,6 +39,17 @@ router.post("/auth/register", authLimiter, validate(registerSchema), async (req,
   await db.update(inviteCodes)
     .set({ usedBy: newUser.id, usedAt: new Date() })
     .where(eq(inviteCodes.code, inviteCode));
+
+  // bug/19: seed the default watchlist so new users aren't empty on day one.
+  // onConflictDoNothing keeps this idempotent if register is ever retried.
+  await db.insert(watchlist)
+    .values(WATCHLIST.map(ticker => ({
+      userId: newUser.id,
+      ticker,
+      tier: getTier(ticker),
+      status: "monitoring" as const,
+    })))
+    .onConflictDoNothing();
 
   req.session.userId = newUser.id;
   req.session.role = newUser.role as "admin" | "member";
