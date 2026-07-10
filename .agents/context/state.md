@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-09
+**build** — last updated 2026-07-10
 
 ## Active work
 - Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table, merge-trusted-freshness-stamp, api-usage-query-fix, fmp-serial-backfill, ws1-price-target-cleanup, ws2-null-logging, ws3-av-field-defs-already-done, ws4-discrepancy-flags-fix, nightly-enrichment-script
-- In progress: nightly-enrichment.ts built: covers all null tfCols, checks source_fundamentals before calling API, processes cheapest sources first (yahoo→edgar→finnhub→polygon→av→fmp), --dry-run and --fields= flags for testing. Investigated dividendYield: Finnhub normalization bug found (reports in pct format, stored with n() not pct() → ×100 error in UI). Yahoo had zero dividendYield pipeline. Fixed: (1) Finnhub pct() applied, (2) yahoo_dividend_yield column added to schema+DB migration, yahooDividendYield added to schema type. Still need: update yahoo-client.ts to fetch fd.dividendYield, update populate YAHOO_FIELDS, update backfill-yahoo upsert, then re-run backfill-finnhub (to fix stored pct values), populate, merge.
-- Blocked: Yahoo dividendYield pipeline incomplete — client/populate/backfill-yahoo not yet updated. Finnhub stored values need re-backfill after pct() fix. FMP budget 22 calls left resets midnight UTC. AV resumes from ADYEN 25/day.
+- In progress: Yahoo pipeline fully wired for 13 fields: dividendYield (summaryDetail), revenueGrowthYoyPrior (fts yr1/yr2), epsGrowth, sharesOutstandingPrior, effectiveTaxRate, interestExpense, quarterlyOCF (quarterly fts), roic (NOPAT/IC computed), wacc (approxWACC rf=4.5% ERP=5.5%). All in yahoo-client.ts, backfill-yahoo, populate-source-fundamentals, merge-trusted FIELD_DEFS. DB columns migrated. Backfill ran 257 tickers.
+- Blocked: none — all coverage targets met. Suspicious data audit deferred to next session.
 
 ## Next tasks (priority order)
 
