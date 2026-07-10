@@ -18,7 +18,7 @@ Root: `INDEX.md` only. Done → `archive/`.
 |---|---|---|---|
 | 1 | P0 | done | [competitive-ux-research](new_app_features/1-competitive-ux-research-070926.md) |
 | 2 | P0 | ready | [onboarding-product-tour](new_app_features/2-onboarding-product-tour-070926.md) |
-| 3 | P0 | done | [contextual-score-explanations](new_app_features/3-contextual-score-explanations-070926.md) |
+| 3 | P0 | ready | [contextual-score-explanations](new_app_features/3-contextual-score-explanations-070926.md) |
 | 4 | P0 | ready | [home-dashboard-redesign](new_app_features/4-home-dashboard-redesign-070926.md) |
 | 5 | P1 | ready | [scanner-simplified-view](new_app_features/5-scanner-simplified-view-070926.md) |
 | 6 | P1 | ready | [todays-top-picks-feed](new_app_features/6-todays-top-picks-feed-070926.md) |
@@ -36,8 +36,8 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 |---|---|---|---|
 | 1 | P0 | done | [feature-purpose-research](enhancements/1-feature-purpose-research-070926.md) |
 | 2 | P0 | done | [competitive-tech-research](enhancements/2-competitive-tech-research-070926.md) |
-| 3 | P0 | done | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
-| 4 | P0 | done | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
+| 3 | P0 | ready | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
+| 4 | P0 | ready | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
 | 5 | P1 | ready | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) |
 | 6 | P1 | ready | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) |
 | 7 | P1 | ready | [observability-error-tracking](enhancements/7-observability-error-tracking-070926.md) |
@@ -84,7 +84,7 @@ Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 befo
 | 8 | P1 | ready | [agentic-skills-discovery](ai/8-agentic-skills-discovery-070926.md) |
 | 9 | P1 | ready | [agentic-commands-playbooks](ai/9-agentic-commands-playbooks-070926.md) |
 | 10 | P2 | ready | [agentic-agents-md-bridge](ai/10-agentic-agents-md-bridge-070926.md) |
-| 11 | P0 | unblocked | [product-ai-explain-csp](ai/11-product-ai-explain-csp-070926.md) |
+| 11 | P0 | ready | [product-ai-explain-csp](ai/11-product-ai-explain-csp-070926.md) |
 | 12 | P1 | ready | [product-ai-data-quality-chat](ai/12-product-ai-data-quality-chat-070926.md) |
 | 13 | P1 | ready | [product-ai-trade-journal-loop](ai/13-product-ai-trade-journal-loop-070926.md) |
 | 14 | P0 | ready | [product-ai-trader-account-research](ai/14-product-ai-trader-account-research-070926.md) |
