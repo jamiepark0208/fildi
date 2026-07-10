@@ -7,6 +7,7 @@ Layout (2026-07-09). Filename = `{seq}-{slug}-070926.md` — **seq is build orde
 | [`new_app_features/`](new_app_features/) | New product UX surfaces |
 | [`enhancements/`](enhancements/) | Improve existing + engineering |
 | [`ai/`](ai/) | Dev agentic harness + product AI |
+| [`bugs/`](bugs/) | Production bugs, scale/multi-user, perf drift (fix tasks) |
 
 Root: `INDEX.md` only. Done → `archive/`.
 
@@ -67,6 +68,34 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) |
 
 Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay — spawn **34** data enrichment / **35** CSP replay after checklist; feeds **ai/14**.
+
+---
+
+## bugs/ (seq 1→19)
+
+| # | P | Status | File |
+|---|---|---|---|
+| 1 | P0 | ready | [unauthenticated-vendor-routes](bugs/1-unauthenticated-vendor-routes-070926.md) |
+| 2 | P0 | ready | [watchlist-global-constant-split](bugs/2-watchlist-global-constant-split-070926.md) |
+| 3 | P1 | ready | [home-hardcoded-fundamental-universe](bugs/3-home-hardcoded-fundamental-universe-070926.md) |
+| 4 | P0 | ready | [startup-universe-refresh-storm](bugs/4-startup-universe-refresh-storm-070926.md) |
+| 5 | P1 | ready | [ttlcache-unbounded-memory](bugs/5-ttlcache-unbounded-memory-070926.md) |
+| 6 | P1 | ready | [pg-pool-session-contention](bugs/6-pg-pool-session-contention-070926.md) |
+| 7 | P2 | ready | [rate-limit-single-instance](bugs/7-rate-limit-single-instance-070926.md) |
+| 8 | P1 | ready | [scheduler-restart-drift](bugs/8-scheduler-restart-drift-070926.md) |
+| 9 | P1 | ready | [watchlist-peer-flag-cascade](bugs/9-watchlist-peer-flag-cascade-070926.md) |
+| 10 | P1 | ready | [watchlist-no-max-size](bugs/10-watchlist-no-max-size-070926.md) |
+| 11 | P1 | ready | [options-scanner-fetch-storm](bugs/11-options-scanner-fetch-storm-070926.md) |
+| 12 | P1 | ready | [watchlist-quote-n-plus-one](bugs/12-watchlist-quote-n-plus-one-070926.md) |
+| 13 | P1 | ready | [react-query-cross-user-bleed](bugs/13-react-query-cross-user-bleed-070926.md) |
+| 14 | P1 | ready | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
+| 15 | P2 | ready | [catalyst-dual-buildCatalysts](bugs/15-catalyst-dual-buildCatalysts-070926.md) |
+| 16 | P2 | ready | [feed-winrate-expired-excluded](bugs/16-feed-winrate-expired-excluded-070926.md) |
+| 17 | P2 | ready | [admin-routes-auth-not-admin](bugs/17-admin-routes-auth-not-admin-070926.md) |
+| 18 | P2 | ready | [session-table-growth](bugs/18-session-table-growth-070926.md) |
+| 19 | P1 | ready | [register-empty-watchlist](bugs/19-register-empty-watchlist-070926.md) |
+
+Full matrix + waves: [`bugs/INDEX.md`](bugs/INDEX.md). **Claude implement:** [`bugs/CLAUDE-IMPLEMENT.md`](bugs/CLAUDE-IMPLEMENT.md) + [`bugs/CLUSTERS.md`](bugs/CLUSTERS.md). **Wave 1 fix order:** 1 → 4 → 19 → 2. Block prod hardening until **bugs/1**. Tie prevention to **enh/3** + **enh/4** when landing fixes.
 
 ---
 
