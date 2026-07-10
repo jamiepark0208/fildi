@@ -804,7 +804,13 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-main().catch(err => {
-  log(`FATAL — ${err.message}`);
-  process.exit(1);
-});
+export { main as runNightlyEnrichment };
+
+// Run directly when invoked as a script
+const isMain = process.argv[1]?.includes("nightly-enrichment");
+if (isMain) {
+  main().catch(err => {
+    log(`FATAL — ${err.message}`);
+    process.exit(1);
+  });
+}

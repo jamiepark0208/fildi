@@ -1,6 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
+// ── Data Health types ─────────────────────────────────────────────────────────
+
+interface DataHealthResponse {
+  totalActive: number;
+  fresh: number;
+  stale: number;
+  neverFetched: number;
+  staleDaysThreshold: number;
+  divergentCount: number;
+  topNullFields: { field: string; nullCount: number }[];
+  lastEnrichmentRun: string | null;
+  enrichmentRunning: boolean;
+}
+
 // ── Rate limit metadata (hardcoded — doesn't change) ──────────────────────────
 
 type LimitKind = "daily" | "per-min" | "per-sec" | "none";
@@ -74,6 +88,17 @@ export function ApiMonitorTab() {
   });
 
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+
+  const { data: health } = useQuery<DataHealthResponse>({
+    queryKey: ["data-health"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/data-health", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load data health");
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
 
   // Pivot: source → date → callsMade
   const pivot = new Map<string, Map<string, number>>();
@@ -177,6 +202,72 @@ export function ApiMonitorTab() {
       <p className="text-[10px] text-muted-foreground mt-4">
         FMP and AV enforce daily limits; progress bars show consumption. Polygon, Finnhub, Yahoo, and EDGAR are rate-limited per minute/second but have no enforced daily cap.
       </p>
+
+      {/* ── Data Health ─────────────────────────────────────── */}
+      {health && (
+        <div className="mt-6 pt-5 border-t border-border">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold">Data Health</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Freshness and coverage across {health.totalActive} tracked tickers</p>
+            </div>
+            {health.enrichmentRunning && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 animate-pulse">Enrichment running…</span>
+            )}
+          </div>
+
+          {/* Freshness row */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              { label: `Fresh (<${health.staleDaysThreshold}d)`, value: health.fresh, color: "text-green-400", bar: "bg-green-500" },
+              { label: `Stale (≥${health.staleDaysThreshold}d)`, value: health.stale, color: "text-yellow-400", bar: "bg-yellow-500" },
+              { label: "Never fetched", value: health.neverFetched, color: "text-red-400", bar: "bg-red-500" },
+            ].map(({ label, value, color, bar }) => {
+              const pct = health.totalActive > 0 ? (value / health.totalActive) * 100 : 0;
+              return (
+                <div key={label} className="bg-muted/30 rounded-lg px-3 py-2.5">
+                  <div className={cn("text-xl font-bold tabular-nums", color)}>{value}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+                  <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
+                    <div className={cn("h-full rounded-full", bar)} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Worst-coverage fields + divergence */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Highest null count fields</p>
+              {health.topNullFields.map(({ field, nullCount }) => {
+                const pct = health.totalActive > 0 ? (nullCount / health.totalActive) * 100 : 0;
+                return (
+                  <div key={field} className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-mono text-muted-foreground w-36 truncate">{field}</span>
+                    <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-red-500/60" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[10px] tabular-nums text-muted-foreground w-12 text-right">{nullCount} null</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="w-40 shrink-0 bg-muted/30 rounded-lg px-3 py-2.5">
+              <div className={cn("text-xl font-bold tabular-nums", health.divergentCount > 50 ? "text-orange-400" : "text-muted-foreground")}>
+                {health.divergentCount}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">divergent fields</div>
+              <div className="text-[10px] text-muted-foreground/60 mt-1">(sources disagree &gt;20%)</div>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground/60 mt-3">
+            Last enrichment: {health.lastEnrichmentRun ? new Date(health.lastEnrichmentRun).toLocaleString() : "not yet run this session"}
+            {" · "}Runs Sun &amp; Thu at 02:00 UTC
+          </p>
+        </div>
+      )}
     </div>
   );
 }

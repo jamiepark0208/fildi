@@ -6,6 +6,7 @@ import { getStaleTickers, checkFMPBudget } from "./lib/fundamentals-db";
 import { refreshFundamentals } from "./routes/fundamentals";
 import { getStaleTechnicalTickers, refreshTechnicals } from "./lib/technicals-db";
 import { withRetry } from "./lib/retry";
+import { startScheduler } from "./lib/scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -28,6 +29,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startScheduler();
 
   withRetry(() => runSeed(), {
     onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: seed retry"),
