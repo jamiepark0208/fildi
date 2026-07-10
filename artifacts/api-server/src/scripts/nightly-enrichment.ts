@@ -32,6 +32,7 @@ import {
   fmpFundamentals,
   sourceFundamentals,
   apiUsage,
+  peerGroupMembers,
 } from "@workspace/db";
 import { FIELD_DEFS } from "./merge-trusted.js";
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
@@ -47,6 +48,12 @@ import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
 
 const DRY_RUN    = process.argv.includes("--dry-run");
 const STALE_DAYS = 7;
+
+// bug/9: peers of an added ticker used to get fetchFundamentals=true synchronously
+// on every POST /watchlist (unbounded — one add could flag an entire peer group).
+// That flip now happens here instead, capped per run so a large backlog of newly
+// unflagged peers can't blow the nightly budget in one pass.
+const PEER_EXPANSION_CAP = 25;
 
 // --fields dividendYield,epsGrowth  → restrict to only these tfCol names (for testing)
 const FIELDS_ARG = process.argv.find(a => a.startsWith("--fields="))?.split("=")[1];
@@ -708,13 +715,49 @@ async function main(): Promise<void> {
   log(`nightly-enrichment starting${DRY_RUN ? " (DRY RUN)" : ""}${FIELD_FILTER ? ` [fields: ${[...FIELD_FILTER].join(",")}]` : ""}`);
 
   // 1. Get canonical ticker universe
-  const allTickers = (await db
+  const flaggedTickers = (await db
     .select({ ticker: tickerRegistry.ticker })
     .from(tickerRegistry)
     .where(eq(tickerRegistry.fetchFundamentals, true))
     .orderBy(tickerRegistry.ticker))
     .map(r => r.ticker);
-  log(`Universe: ${allTickers.length} tickers (fetch_fundamentals=true)`);
+  log(`Universe: ${flaggedTickers.length} tickers (fetch_fundamentals=true)`);
+
+  // 1b. bug/9 — expand to peers of the flagged universe that aren't flagged yet,
+  // capped per run, and flip fetch_fundamentals=true for them now (before the
+  // fetch pipeline + merge-trusted run below) so peer-relative scoring picks
+  // them up this same pass instead of needing a second nightly cycle.
+  const peerGroupIds = flaggedTickers.length > 0
+    ? [...new Set((await db
+        .select({ groupId: peerGroupMembers.groupId })
+        .from(peerGroupMembers)
+        .where(inArray(peerGroupMembers.ticker, flaggedTickers)))
+        .map(r => r.groupId))]
+    : [];
+
+  const unflaggedPeers = peerGroupIds.length > 0
+    ? [...new Set((await db
+        .select({ ticker: peerGroupMembers.ticker })
+        .from(peerGroupMembers)
+        .where(inArray(peerGroupMembers.groupId, peerGroupIds)))
+        .map(r => r.ticker)
+        .filter(t => !flaggedTickers.includes(t)))]
+      .slice(0, PEER_EXPANSION_CAP)
+    : [];
+
+  if (unflaggedPeers.length > 0) {
+    if (DRY_RUN) {
+      log(`Peer expansion: would flag ${unflaggedPeers.length} peer tickers for fundamentals DRY-RUN (capped at ${PEER_EXPANSION_CAP})`);
+    } else {
+      await db
+        .update(tickerRegistry)
+        .set({ fetchFundamentals: true })
+        .where(inArray(tickerRegistry.ticker, unflaggedPeers));
+      log(`Peer expansion: flagged ${unflaggedPeers.length} peer tickers for fundamentals (capped at ${PEER_EXPANSION_CAP})`);
+    }
+  }
+
+  const allTickers = [...flaggedTickers, ...unflaggedPeers];
 
   // 2. Bootstrap Edgar CIK cache
   log("Bootstrapping EDGAR CIK cache…");
