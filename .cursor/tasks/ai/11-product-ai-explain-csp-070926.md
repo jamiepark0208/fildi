@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | unblocked — ready to build (dep naf/3 ✅ done 2026-07-10) |
 | **Priority** | P0 |
 | **Area** | ui |
 | **Effort** | M (~1 session **after** new_app_features/3 ships shared hook/component; longer if merged) |
@@ -12,6 +12,20 @@
 | **Related** | [contextual-score-explanations](../new_app_features/3-contextual-score-explanations-070926.md) (**hard dep**), [scanner-simplified-view](../new_app_features/5-scanner-simplified-view-070926.md), [home-dashboard-redesign](../new_app_features/4-home-dashboard-redesign-070926.md) |
 | **Type** | ENHANCE |
 | **Impl research** | 2026-07-09 deep (ai/2 intensity) — product UI; prefer **no** API change |
+
+## ✅ UNBLOCKED — 2026-07-10 (dep naf/3 shipped)
+
+**What naf/3 delivered (do not re-implement):**
+- `stock-compare/src/components/ExplainableScore.tsx` — popover component wrapping any score chip
+- `stock-compare/src/hooks/useScoreExplanation.ts` — shared hook with module-level memCache; calls `POST /api/explain/score`; server now checks `explain_cache` DB table before Haiku (so second click is instant)
+- `stock-compare/src/lib/score-summary-copy.ts` — static one-liners per scoreType
+- `api-server/src/routes/explain.ts` — updated: cache-first, upserts on miss, PROMPT_VERSION="v2" in hash
+
+**What ai/11 still needs to build (scanner surface):**
+- Wire `ExplainableScore` into the options-scanner expanded panel (under `buildReasoning` line, L573+)
+- Map scanner row data → `technicalData` payload (mirror `technical.tsx` `buildTechnicalPayload` — it's already extracted as a module-level function there, read it before building)
+- `stopPropagation` on the Explain more button so it doesn't toggle the row
+- Only show "Explain more" if the technical payload can be fully built from the row; otherwise show a CTA link to the Technical Scorecard
 
 ### Purpose
 Traders understand **why** a CSP setup / score reads GO-WATCH-NO without leaving the card — AI narrates trusted numbers; it never replaces them.

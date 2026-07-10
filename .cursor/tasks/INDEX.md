@@ -84,7 +84,7 @@ Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 befo
 | 8 | P1 | ready | [agentic-skills-discovery](ai/8-agentic-skills-discovery-070926.md) |
 | 9 | P1 | ready | [agentic-commands-playbooks](ai/9-agentic-commands-playbooks-070926.md) |
 | 10 | P2 | ready | [agentic-agents-md-bridge](ai/10-agentic-agents-md-bridge-070926.md) |
-| 11 | P0 | ready | [product-ai-explain-csp](ai/11-product-ai-explain-csp-070926.md) |
+| 11 | P0 | unblocked | [product-ai-explain-csp](ai/11-product-ai-explain-csp-070926.md) |
 | 12 | P1 | ready | [product-ai-data-quality-chat](ai/12-product-ai-data-quality-chat-070926.md) |
 | 13 | P1 | ready | [product-ai-trade-journal-loop](ai/13-product-ai-trade-journal-loop-070926.md) |
 | 14 | P0 | ready | [product-ai-trader-account-research](ai/14-product-ai-trader-account-research-070926.md) |
