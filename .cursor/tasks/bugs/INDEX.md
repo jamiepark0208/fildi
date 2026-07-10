@@ -24,7 +24,7 @@ Source: production-readiness code audit (plan v2). Each task includes §3 root c
 | 6 | P1 | ready | S | Med | Low | [pg-pool-session-contention](6-pg-pool-session-contention-070926.md) |
 | 7 | P2 | ready | S–L | Med | Low–Med | [rate-limit-single-instance](7-rate-limit-single-instance-070926.md) |
 | 8 | P1 | ready | M | Med | Med | [scheduler-restart-drift](8-scheduler-restart-drift-070926.md) |
-| 9 | P1 | ready | S | Med | Med | [watchlist-peer-flag-cascade](9-watchlist-peer-flag-cascade-070926.md) |
+| 9 | P1 | done | S | Med | Med | [watchlist-peer-flag-cascade](9-watchlist-peer-flag-cascade-070926.md) |
 | 10 | P1 | ready | XS | Med | Low | [watchlist-no-max-size](10-watchlist-no-max-size-070926.md) |
 | 11 | P1 | ready | M | High | Med | [options-scanner-fetch-storm](11-options-scanner-fetch-storm-070926.md) |
 | 12 | P1 | ready | M | Med | Low | [watchlist-quote-n-plus-one](12-watchlist-quote-n-plus-one-070926.md) |
