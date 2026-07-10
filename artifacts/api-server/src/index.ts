@@ -36,8 +36,8 @@ app.listen(port, (err) => {
   }).catch(e => logger.error({ err: e }, "startup: seed failed after retries"));
 
   // Resolve the full FMP universe once; use it for both fundamentals and technicals.
-  db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals).then(async rows => {
-    const fmpUniverse = rows.map(r => r.ticker);
+  db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals).then(async (rows: Array<{ ticker: string }>) => {
+    const fmpUniverse = rows.map((r: { ticker: string }) => r.ticker);
     logger.info({ count: fmpUniverse.length }, "startup: resolved FMP universe");
 
     withRetry(() =>
@@ -74,5 +74,5 @@ app.listen(port, (err) => {
       onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: technicals retry"),
     }).catch(e => logger.error({ err: e }, "startup: technicals failed after retries"));
 
-  }).catch(e => logger.error({ err: e }, "startup: failed to resolve FMP universe"));
+  }).catch((e: unknown) => logger.error({ err: e }, "startup: failed to resolve FMP universe"));
 });

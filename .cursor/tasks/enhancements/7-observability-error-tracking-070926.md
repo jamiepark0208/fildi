@@ -1,8 +1,21 @@
 # observability-error-tracking
 
+## ✅ DONE — 2026-07-10
+
+**What was implemented:**
+- `requestId` middleware: generates UUID or propagates `x-request-id` header; echoes it on every response; runs before all other middleware
+- `@sentry/node` init in `app.ts` (no-op when `SENTRY_DSN` unset); `setupExpressErrorHandler` wired before `errorHandler`
+- `errorHandler.ts` captures 5xx exceptions in Sentry with `requestId`, `method`, `url` tags; Zod 400s and 4xx stay local only
+- `@sentry/react` init in `main.tsx` with `ErrorBoundary` wrapping `<App />`; graceful fallback message on crash
+- `custom-fetch.ts` lazy-imports `@sentry/react` on 5xx API responses; attaches `x-request-id` from response header as tag
+
+**Activation:** set `SENTRY_DSN` (API) and `VITE_SENTRY_DSN` (frontend) env vars. Both are no-op when unset.
+
+---
+
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done |
 | **Priority** | P1 |
 | **Area** | infra |
 | **Effort** | S (~1 session) |
