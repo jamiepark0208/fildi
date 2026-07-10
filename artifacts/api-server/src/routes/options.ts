@@ -31,17 +31,57 @@ router.get("/options/position-quote", async (req, res) => {
   }
 });
 
+async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
+  const cached = optionsCache.get(ticker);
+  if (cached) return cached;
+  const result = await getOptionsChain(ticker);
+  optionsCache.set(ticker, result);
+  return result;
+}
+
+// GET /api/options/batch?tickers=A,B,C — batched chain fetch, per-ticker optionsCache reuse.
+// Caps concurrent Yahoo calls so a large watchlist doesn't fan out N simultaneous requests.
+// MUST be declared before /options/:ticker so it isn't captured by the wildcard
+const OPTIONS_BATCH_CONCURRENCY = 6;
+
+router.get("/options/batch", async (req, res) => {
+  const { tickers } = req.query as { tickers?: string };
+  if (!tickers || typeof tickers !== "string") {
+    return res.status(400).json({ error: "tickers is required" });
+  }
+  const keys = [...new Set(tickers.split(",").map(t => t.trim().toUpperCase()).filter(Boolean))];
+  if (keys.some(k => !/^[A-Z]{1,10}$/.test(k))) {
+    return res.status(400).json({ error: "Invalid ticker in list" });
+  }
+  if (keys.length === 0) {
+    return res.status(400).json({ error: "tickers is required" });
+  }
+
+  const results: Record<string, OptionsChainResult[] | { error: string }> = {};
+  let cursor = 0;
+  async function worker() {
+    while (cursor < keys.length) {
+      const key = keys[cursor++];
+      try {
+        results[key] = await fetchOptionsChain(key);
+      } catch (err: any) {
+        results[key] = { error: String(err?.message ?? err) };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(OPTIONS_BATCH_CONCURRENCY, keys.length) }, worker));
+
+  return res.json(results);
+});
+
 // GET /api/options/:ticker  — full chain scan
 router.get("/options/:ticker", async (req, res) => {
   const ticker = req.params.ticker.toUpperCase();
   if (!/^[A-Z]{1,10}$/.test(ticker)) {
     return res.status(400).json({ error: "Invalid ticker" });
   }
-  const cached = optionsCache.get(ticker);
-  if (cached) return res.json(cached);
   try {
-    const result = await getOptionsChain(ticker);
-    optionsCache.set(ticker, result);
+    const result = await fetchOptionsChain(ticker);
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
