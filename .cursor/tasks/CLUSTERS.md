@@ -4,9 +4,10 @@ Tasks grouped by dependency / logical cohesion. Check INDEX.md for current statu
 
 ---
 
-## Cluster 1 — CI / Test foundation ✅ DONE
-- enh/3 ci-pipeline — done
-- enh/4 api-integration-test-harness — done
+## Cluster 1 — CI / Test + Observability ✅ DONE
+- enh/3 ci-pipeline — done (GitHub Actions on push/PR; typecheck + test both packages)
+- enh/4 api-integration-test-harness — done (15-test unit harness for merge-trusted priority)
+- enh/7 observability-error-tracking — done (Sentry + requestId wired; no-op without DSN)
 
 ---
 
@@ -23,19 +24,19 @@ Tasks grouped by dependency / logical cohesion. Check INDEX.md for current statu
 
 ---
 
-## Cluster 3 — Score explanations + AI narration ✅ DONE (naf/3); ai/11 unblocked
+## Cluster 3 — Score explanations + AI narration ✅ DONE (naf/3); ai/11 → Cursor next
 - naf/3 contextual-score-explanations — **done 2026-07-10**
   - ExplainableScore component, useScoreExplanation hook, score-summary-copy.ts
   - explain_cache DB table (migration 0016), server-side caching in explain.ts
   - Refactored rankings-leaderboard + technical TechnicalLeaderboard
   - Sidebar renamed, scorecard deep-link wired
-- ai/11 product-ai-explain-csp — **ready** (unblocked; wire ExplainableScore to scanner)
+- ai/11 product-ai-explain-csp — **CURSOR NEXT (P0)** — wire ExplainableScore into scanner expanded panel; details in CURSOR-HANDOFF-2026-07-10.md
 
 ---
 
 ## Cluster 4 — Home + scanner + picks (extract scanner-reasoning.ts first)
 - naf/4 home-dashboard-redesign (L)
-- naf/5 scanner-simplified-view (M)
+- naf/5 scanner-simplified-view (M) — **CLAUDE NEXT (P1)** — simple/advanced toggle
 - naf/6 todays-top-picks-feed (M)
 
 ---
@@ -83,7 +84,7 @@ Tasks grouped by dependency / logical cohesion. Check INDEX.md for current statu
 - enh/20 scorecard-guide-improvements (S)
 - enh/21 settings-trader-preferences-improvements (M)
 - naf/2 onboarding-product-tour (M)
-- naf/8 command-palette-navigation (M) — cmdk already installed
+- naf/8 command-palette-navigation (M) — **CLAUDE NEXT (P2)** — cmdk already installed
 - naf/9 social-sentiment-polish (M–L)
 - ai/12 product-ai-data-quality-chat (M) — needs enh/23 first
 
