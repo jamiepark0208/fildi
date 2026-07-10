@@ -1,5 +1,92 @@
 [
   {
+    "date": "7/10/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 15.76,
+        "change": -0.07999992,
+        "changePct": -0.50473136
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 751.71,
+        "change": 6.31,
+        "changePct": 0.846525
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 723.28,
+        "change": 11.84,
+        "changePct": 1.66423
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.5490003,
+        "change": 0.010000229,
+        "changePct": 0.22031789
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7590.75,
+        "change": 2,
+        "changePct": 0.0263548
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29811,
+        "change": -126,
+        "changePct": -0.42088386
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 378.18,
+        "change": 3.72998,
+        "changePct": 0.996122
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.36,
+        "change": 0,
+        "changePct": 0
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 84.49,
+        "change": 0.129997,
+        "changePct": 0.154098
+      }
+    ],
+    "content": "# Daily Briefing | 7/10/2026\n\n## 🌍 Macro Environment\n\n- **Yield curve steepening pressure**: 10Y TNX at 4.55% (+22 bps today) signals Fed hawkishness or inflation expectations creeping higher. For a cash-secured put seller, this is a headwind—higher rates compress equity multiples and reduce the attractiveness of levered tech/growth positions at strike prices you're defending.\n- **VIX subliminal**: At 15.76 (-0.50%), volatility is pricing in complacency. This is below your typical \"comfortable selling\" threshold (17–18 range). Premium collection today will be thin; you're being compensated for *duration* risk, not volatility risk. Wait for a 0.5–1% market pullback to reset VIX into the 16.5–17.5 zone before scaling put sales.\n- **Equity technicals: risk-on facade hiding breadth weakness**: SPY +0.85%, QQQ +1.66%, but NQ futures *down* 0.42%. Nasdaq cash outpacing futures suggests index rotation into mega-cap (NVDA, AAPL) masking weakness in mid-cap tech where most of your portfolio lives (PLTR, HOOD, ONDS, RKLB).\n\n## 📊 Market Pulse\n\n- **Chips leading into earnings calendar**: QQQ up 1.66% on NVDA's reaffirmed BUY from BofA and momentum into the second-half chip supercycle narrative. This is artificial lift—Cramer's caveat on China exposure and the valuation warning (first signal in 7 years) should make you cautious about naked short positions near current levels.\n- **Nasdaq futures rolling over while spot rallies**: NQ -0.42% vs. QQQ +1.66% implies large-cap concentration risk. Your smaller-cap holdings (ONDS, RKLB, POET, REBN) are not participating. This is a *warning*: broad tech put-selling exposure is dangerous; be surgical with strike selection.\n- **Risk-on but fragile**: SPY gains and long bonds +0.15% *simultaneously* suggest liquidity flows, not conviction. Ideal conditions for *selling premium at distance* (30–45 DTE), not aggressive near-the-money puts. Skew is likely favorable (out-of-money puts cheaply bid).\n\n## 🏭 Sector & Stock Catalysts\n\n- **NVDA: valuation inflection point, but still a net positive for put sellers**: BofA reiterates Buy, but the 7-year valuation warning is real. The stock has likely priced in H2 2026 guidance. Do *not* sell puts below $130 strike; if you're running naked positions, reduce to 50% and use rallies to cover. NVDA is a macro barometer—if it rolls over, your entire tech portfolio unwinds.\n- **PLTR: commercial traction, not valuation**: Latin America GNP win is incremental. Stock is \"back at a level it has defended\"—code for support, not breakout. Sell puts 8–12% out of the money; avoid loading into consolidation. Premium is thin at these VIX levels, so skip fresh positions here until VIX ≥16.5.\n- **HOOD: analyst reprices surge (KBW $65→$100, MS $95→$124)**: This is momentum, not fundamentals. Keefe & BW's upgrade is 54% upside in their base case—massive bid for short-dated put sellers. Open 30 DTE puts at 5–8% OTM if you want to capitalize on the premium surge; close on 50% profit to avoid whipsaw into earnings.\n- **RDW: -28.8% in one month + defense/space contract wins = binary/illiquid**: The penguin UAS contract to Taiwan is geopolitically sensitive. Do *not* sell puts here until the stock stabilizes; bid-ask spreads will punish you on assignment. Watch for shorts covering if it holds $X support level.\n- **ONDS: 62% undervalue thesis post-DZYNE deal**: Cheap valuation can persist or crater based on deal execution. Selling puts here is asymmetric *downside*—the deal must close successfully. Only sell puts if you're willing to own at strike price; otherwise, wait for deal clarity in Q3 earnings.\n\n## ⚠️ Risks This Week\n\n- **Earnings calendar collides with yield lift**: OpenText reports 8/6; REBN, RUM, and other portfolio names likely have earnings in Q2 wrap-ups. Rising 10Y yields into earnings will suppress multiples. Be prepared for post-earnings gaps; avoid selling too much premium into announced dates.\n- **Taiwan geopolitical noise (RDW, indirect chip exposure)**: The Taiwan Coast Guard contract for RDW + broader US-China tech decoupling narrative could reignite volatility spikes. If tensions escalate, NVDA, PLTR, and semiconductor-adjacent names gap down. Keep stop-losses tight on assigned positions.",
+    "generatedAt": "2026-07-10T13:28:20.022Z",
+    "tickers": [
+      "HOOY",
+      "OPEN",
+      "POET",
+      "REBN",
+      "RUM",
+      "RDW",
+      "NVDY",
+      "HOOD",
+      "PLTR",
+      "ONDS",
+      "NVDA",
+      "PLTU",
+      "AAOI",
+      "RKLB"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "6/21/2026",
     "marketData": [
       {
