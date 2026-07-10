@@ -7,8 +7,8 @@
 
 ## Active work
 - Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table, merge-trusted-freshness-stamp, api-usage-query-fix, fmp-serial-backfill, ws1-price-target-cleanup, ws2-null-logging, ws3-av-field-defs-already-done, ws4-discrepancy-flags-fix, nightly-enrichment-script
-- In progress: Yahoo pipeline fully wired for 13 fields: dividendYield (summaryDetail), revenueGrowthYoyPrior (fts yr1/yr2), epsGrowth, sharesOutstandingPrior, effectiveTaxRate, interestExpense, quarterlyOCF (quarterly fts), roic (NOPAT/IC computed), wacc (approxWACC rf=4.5% ERP=5.5%). All in yahoo-client.ts, backfill-yahoo, populate-source-fundamentals, merge-trusted FIELD_DEFS. DB columns migrated. Backfill ran 257 tickers.
-- Blocked: none — all coverage targets met. Suspicious data audit deferred to next session.
+- In progress: Added Yahoo trailingPE (from summaryDetail, NOT defaultKeyStatistics) → peRatio in FIELD_DEFS. P/E now 209→210/256. Yahoo contributes 205 tickers as primary source. Remaining 46 null = genuinely undefined P/E (loss-making or negative TTM EPS). All schema/backfill/populate/merge wired. All Yahoo fields: 14 total.
+- Blocked: none
 
 ## Next tasks (priority order)
 

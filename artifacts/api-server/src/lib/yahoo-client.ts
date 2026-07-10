@@ -42,6 +42,7 @@ export interface YahooFundamentalsData {
   yahoo_annualTotalEquity?: number;
   yahoo_annualOperatingCashFlow?: number;
   yahoo_annualCapex?: number;
+  yahoo_trailingPE?: number;
   yahoo_annualFreeCashFlow?: number;
   yahoo_annualRevenueYoyPrior?: number;
   yahoo_epsGrowth?: number;
@@ -195,6 +196,7 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     yahoo_ebitda:             n(fd.ebitda),
     yahoo_dividendYield:      n(sd.dividendYield) ?? 0,
     yahoo_targetMeanPrice:    n(fd.targetMeanPrice),
+    yahoo_trailingPE:         n(sd.trailingPE),
     yahoo_forwardPE:          n(ks.forwardPE),
     yahoo_pegRatio:           n(ks.pegRatio),
     yahoo_priceToBook:        n(ks.priceToBook),

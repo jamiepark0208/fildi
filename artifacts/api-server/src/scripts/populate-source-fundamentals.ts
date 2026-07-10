@@ -38,6 +38,7 @@ const YAHOO_FIELDS: Record<string, string> = {
   yahooEbitda:                "ebitda",
   yahooDividendYield:         "dividendYield",
   yahooTargetMeanPrice:       "analystTargetPrice",
+  yahooTrailingPe:            "peRatio",
   yahooForwardPe:             "forwardPe",
   yahooPegRatio:              "pegRatio",
   yahooPriceToBook:           "priceToBook",

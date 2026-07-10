@@ -712,6 +712,7 @@ export const yahooFundamentals = pgTable('yahoo_fundamentals', {
   yahooTargetMeanPrice:    numeric('yahoo_target_mean_price'),
 
   // defaultKeyStatistics module
+  yahooTrailingPe:             numeric('yahoo_trailing_pe'),
   yahooForwardPe:              numeric('yahoo_forward_pe'),
   yahooPegRatio:               numeric('yahoo_peg_ratio'),
   yahooPriceToBook:            numeric('yahoo_price_to_book'),
