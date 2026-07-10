@@ -43,7 +43,8 @@ export const watchlist = pgTable('watchlist', {
   addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
   notes:   text('notes'),
 }, t => ({
-  pk: primaryKey({ columns: [t.userId, t.ticker] }),
+  pk:        primaryKey({ columns: [t.userId, t.ticker] }),
+  userIdx:   index('idx_watchlist_user_id').on(t.userId),
 }))
 
 export const insertWatchlistSchema = createInsertSchema(watchlist).omit({ addedAt: true })
@@ -82,6 +83,7 @@ export const positions = pgTable('positions', {
   notes:        text('notes'),
 }, t => ({
   tickerIdx: index('idx_positions_ticker').on(t.ticker),
+  userIdx:   index('idx_positions_user_id').on(t.userId),
 }))
 
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true })
@@ -232,7 +234,9 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   fundSafetyScore:       numeric('fund_safety_score'),
   fundRank:              integer('fund_rank'),
   fundScoreComputedAt:   timestamp('fund_score_computed_at', { withTimezone: true }),
-})
+}, t => ({
+  lastFetchedIdx: index('idx_ticker_fundamentals_last_fetched').on(t.fundamentalsLastFetched),
+}))
 
 export const insertTickerFundamentalsSchema = createInsertSchema(tickerFundamentals)
 export type InsertTickerFundamentals = z.infer<typeof insertTickerFundamentalsSchema>
@@ -409,7 +413,10 @@ export const tickerRegistry = pgTable('ticker_registry', {
   isActive:            boolean('is_active').notNull().default(true),
   fetchFundamentals:   boolean('fetch_fundamentals').notNull().default(false),
   addedAt:             timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, t => ({
+  sectorIdx:   index('idx_ticker_registry_sector').on(t.sector),
+  industryIdx: index('idx_ticker_registry_industry').on(t.industryGroup),
+}))
 
 export const insertTickerRegistrySchema = createInsertSchema(tickerRegistry).omit({ addedAt: true })
 export type InsertTickerRegistry = z.infer<typeof insertTickerRegistrySchema>
@@ -498,7 +505,10 @@ export const tradePosts = pgTable('trade_posts', {
   resolvedPnl:          numeric('resolved_pnl'),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, t => ({
+  userIdx:   index('idx_trade_posts_user_id').on(t.userId),
+  tickerIdx: index('idx_trade_posts_ticker').on(t.ticker),
+}))
 
 export const insertTradePostSchema = createInsertSchema(tradePosts).omit({ id: true, createdAt: true, updatedAt: true })
 export type InsertTradePost = z.infer<typeof insertTradePostSchema>
@@ -513,6 +523,8 @@ export const likes = pgTable('likes', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqueLike: unique().on(t.postId, t.userId),
+  postIdx:    index('idx_likes_post_id').on(t.postId),
+  userIdx:    index('idx_likes_user_id').on(t.userId),
 }))
 
 export const insertLikeSchema = createInsertSchema(likes).omit({ id: true, createdAt: true })
@@ -527,7 +539,9 @@ export const comments = pgTable('comments', {
   userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   body:      text('body').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, t => ({
+  postIdx: index('idx_comments_post_id').on(t.postId),
+}))
 
 export const insertCommentSchema = createInsertSchema(comments).omit({ id: true, createdAt: true })
 export type InsertComment = z.infer<typeof insertCommentSchema>

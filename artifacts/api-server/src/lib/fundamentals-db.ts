@@ -187,17 +187,20 @@ export async function readRegistryRow(ticker: string): Promise<Pick<TickerRegist
 
 // Return tickers whose fundamentals are missing or older than STALE_DAYS.
 export async function getStaleTickers(allTickers: string[]): Promise<string[]> {
+  if (allTickers.length === 0) return [];
+  const normalized = allTickers.map(t => t.toUpperCase());
   const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
 
+  // Only scan rows for tickers we care about; let the index on fundamentalsLastFetched filter stale ones
   const freshRows = await db
     .select({ ticker: tickerFundamentals.ticker })
     .from(tickerFundamentals)
     .where(
-      sql`${tickerFundamentals.fundamentalsLastFetched} > ${cutoff}`,
+      sql`${tickerFundamentals.ticker} = ANY(${normalized}) AND ${tickerFundamentals.fundamentalsLastFetched} > ${cutoff}`,
     );
 
   const freshSet = new Set(freshRows.map(r => r.ticker.toUpperCase()));
-  return allTickers.map(t => t.toUpperCase()).filter(t => !freshSet.has(t));
+  return normalized.filter(t => !freshSet.has(t));
 }
 
 // Get last-fetched status for all tickers (for the /fundamentals/status endpoint).
@@ -405,19 +408,28 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     computedAt: computedAt.toISOString(),
   }));
 
-  // Persist scores back to DB (batch updates)
-  await Promise.all(results.map(r =>
-    db.update(tickerFundamentals)
-      .set({
-        fundTotalScore:      String(r.totalScore),
-        fundQualityScore:    String(r.qualityScore),
-        fundGrowthScore:     String(r.growthScore),
-        fundSafetyScore:     String(r.safetyScore),
-        fundRank:            r.rank,
-        fundScoreComputedAt: computedAt,
-      })
-      .where(eq(tickerFundamentals.ticker, r.ticker))
-  ));
+  // Persist scores back to DB — single batch upsert instead of one UPDATE per ticker
+  await db.insert(tickerFundamentals)
+    .values(results.map(r => ({
+      ticker:              r.ticker,
+      fundTotalScore:      String(r.totalScore),
+      fundQualityScore:    String(r.qualityScore),
+      fundGrowthScore:     String(r.growthScore),
+      fundSafetyScore:     String(r.safetyScore),
+      fundRank:            r.rank,
+      fundScoreComputedAt: computedAt,
+    })))
+    .onConflictDoUpdate({
+      target: tickerFundamentals.ticker,
+      set: {
+        fundTotalScore:      sql`excluded.fund_total_score`,
+        fundQualityScore:    sql`excluded.fund_quality_score`,
+        fundGrowthScore:     sql`excluded.fund_growth_score`,
+        fundSafetyScore:     sql`excluded.fund_safety_score`,
+        fundRank:            sql`excluded.fund_rank`,
+        fundScoreComputedAt: sql`excluded.fund_score_computed_at`,
+      },
+    });
 
   logger.info({ count: results.length, regime }, "fundamental scores computed and persisted");
   return results;

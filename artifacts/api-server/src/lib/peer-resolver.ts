@@ -80,14 +80,15 @@ async function fetchProfileMetadata(ticker: string): Promise<{ sector: string | 
 async function upsertRegistryMeta(
   ticker: string,
   meta: { sector?: string | null; industry?: string | null; name?: string | null; peerTickers?: string[] },
+  existing?: TickerRegistryRow | null,
 ): Promise<void> {
-  const existing = await readRegistryRow(ticker);
+  const row = existing ?? await readRegistryRow(ticker);
   const values = {
     ticker,
-    name:          meta.name ?? existing?.name ?? null,
-    sector:        meta.sector ?? existing?.sector ?? null,
-    industryGroup: meta.industry ?? existing?.industryGroup ?? null,
-    peerTickers:   meta.peerTickers ?? existing?.peerTickers ?? [],
+    name:          meta.name ?? row?.name ?? null,
+    sector:        meta.sector ?? row?.sector ?? null,
+    industryGroup: meta.industry ?? row?.industryGroup ?? null,
+    peerTickers:   meta.peerTickers ?? row?.peerTickers ?? [],
     isActive:      true,
   };
   await db.insert(tickerRegistry)
@@ -110,14 +111,17 @@ export async function mergePeerLinks(subject: string, peers: string[]): Promise<
   const normalized = uniqUpper(peers).filter(p => p !== s);
   if (normalized.length === 0) return;
 
-  const subjectRow = await readRegistryRow(s);
-  const subjectPeers = uniqUpper([...(subjectRow?.peerTickers ?? []), ...normalized]);
+  // Batch-fetch all rows in one query instead of one per ticker
+  const allTickers = [s, ...normalized];
+  const rows = await db.select().from(tickerRegistry).where(inArray(tickerRegistry.ticker, allTickers));
+  const rowMap = new Map(rows.map(r => [r.ticker, r]));
+
+  const subjectPeers = uniqUpper([...(rowMap.get(s)?.peerTickers ?? []), ...normalized]);
   await upsertRegistryMeta(s, { peerTickers: subjectPeers });
 
   for (const p of normalized) {
-    const peerRow = await readRegistryRow(p);
     const linked = uniqUpper([
-      ...(peerRow?.peerTickers ?? []),
+      ...(rowMap.get(p)?.peerTickers ?? []),
       s,
       ...normalized.filter(x => x !== p),
     ]);
@@ -194,8 +198,20 @@ export async function resolvePeers(ticker: string): Promise<PeersPayload> {
         industry: profile.industry,
         name: profile.name,
         peerTickers: reg?.peerTickers ?? [],
-      });
-      reg = await readRegistryRow(key);
+      }, reg);
+      // Update in-memory instead of re-reading
+      reg = {
+        ticker:             key,
+        isActive:           true,
+        fetchFundamentals:  false,
+        addedAt:            reg?.addedAt ?? new Date(),
+        indexMemberships:   reg?.indexMemberships ?? null,
+        primaryPeerGroupId: reg?.primaryPeerGroupId ?? null,
+        peerTickers:        reg?.peerTickers ?? null,
+        sector:             profile.sector   ?? reg?.sector        ?? null,
+        industryGroup:      profile.industry ?? reg?.industryGroup ?? null,
+        name:               profile.name     ?? reg?.name          ?? null,
+      };
       peers = await collectPeersFromRegistry(reg, key);
     }
   }
@@ -204,7 +220,19 @@ export async function resolvePeers(ticker: string): Promise<PeersPayload> {
     const finnhubPeers = await fetchFinnhubPeers(key);
     if (finnhubPeers.length > 0) {
       await mergePeerLinks(key, finnhubPeers);
-      reg = await readRegistryRow(key);
+      // Update peerTickers in-memory — mergePeerLinks wrote subject's merged list to DB
+      reg = {
+        ticker:             key,
+        isActive:           reg?.isActive           ?? true,
+        fetchFundamentals:  reg?.fetchFundamentals  ?? false,
+        addedAt:            reg?.addedAt            ?? new Date(),
+        indexMemberships:   reg?.indexMemberships   ?? null,
+        primaryPeerGroupId: reg?.primaryPeerGroupId ?? null,
+        name:               reg?.name               ?? null,
+        sector:             reg?.sector             ?? null,
+        industryGroup:      reg?.industryGroup      ?? null,
+        peerTickers:        uniqUpper([...(reg?.peerTickers ?? []), ...finnhubPeers]),
+      };
       peers = await collectPeersFromRegistry(reg, key);
     }
   }
@@ -213,7 +241,18 @@ export async function resolvePeers(ticker: string): Promise<PeersPayload> {
     const fmpPeers = await fetchFMPStockPeers(key);
     if (fmpPeers.length > 0) {
       await mergePeerLinks(key, fmpPeers);
-      reg = await readRegistryRow(key);
+      reg = {
+        ticker:             key,
+        isActive:           reg?.isActive           ?? true,
+        fetchFundamentals:  reg?.fetchFundamentals  ?? false,
+        addedAt:            reg?.addedAt            ?? new Date(),
+        indexMemberships:   reg?.indexMemberships   ?? null,
+        primaryPeerGroupId: reg?.primaryPeerGroupId ?? null,
+        name:               reg?.name               ?? null,
+        sector:             reg?.sector             ?? null,
+        industryGroup:      reg?.industryGroup      ?? null,
+        peerTickers:        uniqUpper([...(reg?.peerTickers ?? []), ...fmpPeers]),
+      };
       peers = await collectPeersFromRegistry(reg, key);
     }
   }
