@@ -67,7 +67,7 @@ const DEFAULT_GROUPS: NavGroup[] = [
     id: "general",
     label: "General",
     items: [
-      { id: "scorecard-guide", href: "/scorecard-explanation", label: "Scorecard Guide", icon: "BookOpen" },
+      { id: "scorecard-guide", href: "/scorecard-explanation", label: "Scoring Reference", icon: "BookOpen" },
       { id: "settings", href: "/settings", label: "Settings", icon: "Settings" },
     ],
   },

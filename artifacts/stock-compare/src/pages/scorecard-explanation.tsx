@@ -19,7 +19,8 @@ export default function ScorecardExplanation() {
   const status = useGuideStatus();
   const { isAdmin } = useAuth();
   const { weights, saveConfig, resetDefaults, isSaving } = useScoringPreferences();
-  const [tab, setTab] = useState("fundamental");
+  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "fundamental";
+  const [tab, setTab] = useState(initialTab);
   const [draft, setDraft] = useState<ScoringWeightsConfig>(weights);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
