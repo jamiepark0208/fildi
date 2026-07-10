@@ -381,6 +381,7 @@ function buildTechMetricRows(score: TechnicalScore, allScores: TechnicalScore[])
 
 function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow> }) {
   const { explain, getState } = useScoreExplanation();
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   if (scores.length < 2) return null;
 
@@ -410,7 +411,7 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
           const state      = getState(score.ticker, "technical");
           const isLoading  = state.status === "loading";
           const bullets    = state.status === "done" ? parseBullets(state.text) : [];
-          const isExpanded = state.status === "done" && bullets.length > 0;
+          const isExpanded = state.status === "done" && bullets.length > 0 && !collapsed.has(score.ticker);
           const metricRows = isExpanded ? buildTechMetricRows(score, scores) : [];
 
           const signalCls =
@@ -449,7 +450,18 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
                 </div>
 
                 <button
-                  onClick={() => explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap))}
+                  onClick={() => {
+                    if (state.status === "done") {
+                      setCollapsed(prev => {
+                        const next = new Set(prev);
+                        if (next.has(score.ticker)) next.delete(score.ticker);
+                        else next.add(score.ticker);
+                        return next;
+                      });
+                    } else {
+                      explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap));
+                    }
+                  }}
                   disabled={isLoading}
                   className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors shrink-0 disabled:opacity-50"
                 >
