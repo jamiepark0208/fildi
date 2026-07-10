@@ -148,6 +148,8 @@ router.post("/explain/score", async (req, res) => {
   let prompt: string;
   let scoreHash: string;
 
+  const log = req.log.child({ ticker, scoreType });
+
   try {
     if (scoreType === "fundamental") {
       if (!fundamentalData) return res.status(400).json({ error: "fundamentalData required" });
@@ -159,7 +161,8 @@ router.post("/explain/score", async (req, res) => {
       scoreHash = technicalHash(technicalData);
     }
 
-    // Cache hit: same ticker+scoreType and score hasn't changed
+    log.info({ scoreHash, step: "cache-lookup" }, "explain: checking DB cache");
+
     const cached = await db.select()
       .from(explainCache)
       .where(and(
@@ -170,10 +173,13 @@ router.post("/explain/score", async (req, res) => {
       .limit(1);
 
     if (cached.length > 0) {
+      log.info({ step: "cache-hit" }, "explain: serving from cache");
       return res.json({ explanation: cached[0].explanation, cached: true });
     }
 
-    // Cache miss: call Haiku
+    const hasApiKey = !!process.env["ANTHROPIC_API_KEY"];
+    log.info({ step: "anthropic-call", hasApiKey, model: "claude-haiku-4-5-20251001" }, "explain: calling Haiku");
+
     const msg = await anthropic.messages.create({
       model:      "claude-haiku-4-5-20251001",
       max_tokens: 300,
@@ -181,8 +187,9 @@ router.post("/explain/score", async (req, res) => {
     });
 
     const explanation = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
+    log.info({ step: "anthropic-ok", chars: explanation.length }, "explain: got response");
 
-    // Persist — upsert so stale rows for the same ticker+scoreType are replaced
+    log.info({ step: "db-upsert" }, "explain: persisting to cache");
     await db.insert(explainCache)
       .values({ ticker, scoreType, scoreHash, explanation })
       .onConflictDoUpdate({
@@ -191,8 +198,9 @@ router.post("/explain/score", async (req, res) => {
       });
 
     return res.json({ explanation });
-  } catch {
-    return res.json({ explanation: "Unable to generate explanation at this time." });
+  } catch (err) {
+    log.error({ err, step: "failed" }, "explain/score error");
+    return res.status(500).json({ error: String(err) });
   }
 });
 
