@@ -34,4 +34,13 @@
 
 ## Completed (recent)
 See `.agents/sessions/INDEX.md` for session log.
-See `.claude/docs/phase-report*.md` for detailed phase reports.
+See `.claude/docs/phase-report-technical.md`, `phase-report-data.md`,
+`phase-report-options-scanner-enhancement.md`, `phase-report-db-260704.md`
+for the phase reports that are still referenced elsewhere (older ones with
+no inbound references were deleted 2026-07-10 — content had gone stale).
+
+> NOTE (2026-07-10): This roadmap itself is stale (last updated 2026-06-10) —
+> the Pending Features and Known Issues tables below predate the options
+> scanner, technical scorecard V2, and the 257-ticker universe expansion.
+> `.cursor/tasks/CLUSTERS.md` and `.agents/context/state.md` are the
+> up-to-date planning docs; treat this file as historical until refreshed.
