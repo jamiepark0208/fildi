@@ -12,11 +12,24 @@ description: Rebuild the API server and restart it. Use after ANY change to api-
 
 ## Quick rebuild (use after every backend change)
 
+**NEVER start the server manually.** The Replit-managed `pnpm run dev` process holds all env vars (ANTHROPIC_API_KEY, DATABASE_URL, PORT=8080). Starting manually always fails with missing secrets.
+
+**NEVER read /proc/<pid>/environ** — it exposes secrets in the conversation.
+
+### Step 1 — Build the dist (safe, no restart needed)
 ```bash
-pkill -f "api-server/dist/index" 2>/dev/null; sleep 0.3 && cd /home/runner/workspace/artifacts/api-server && node build.mjs && PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs >> /tmp/api-server.log 2>&1 & sleep 2 && echo "✓ server up" && curl -s "http://localhost:8080/api/daily-brief" | head -c 60
+cd /home/runner/workspace/artifacts/api-server && node build.mjs
 ```
 
-Expected: JSON response (not HTML, not connection refused).
+### Step 2 — Restart the server
+Tell the user: **"Please Stop and Run the Replit app to pick up the backend changes."**
+The Replit wrapper (`pnpm run dev`) will rebuild from source and start with all secrets.
+
+### Step 3 — Verify
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/daily-brief
+```
+Expected: 401 (auth required = server is up).
 
 ## Check logs
 
