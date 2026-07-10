@@ -166,6 +166,8 @@
 | GET | /api/admin/cache/status | requireAdmin | All cache stats |
 | DELETE | /api/admin/cache/clear/:name | requireAdmin | Clear named cache |
 | GET | /api/admin/cache/ttl/:name | requireAdmin | Get TTL for named cache |
+| GET | /api/admin/data-health | requireAuth | DB freshness counts, top null fields, divergent count, last enrichment run |
+| GET | /api/api-usage/history?days=N | requireAuth | Daily call counts per source (last N days, default 5) |
 
 ## Route file map
 ```
