@@ -303,6 +303,7 @@ export function StockDBTab() {
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // On first data load: collapse all groups by default, leave sectors expanded
@@ -730,6 +731,7 @@ export function StockDBTab() {
                 const isCollapsed = collapsedGroups.has(item.groupId);
                 const pal = getSectorPalette(item.sectorId);
                 return (
+                  <>
                   <tr
                     key={`group-${item.groupId}-${idx}`}
                     className="cursor-pointer select-none hover:bg-white/[0.03] transition-colors border-b border-border/30"
@@ -775,6 +777,31 @@ export function StockDBTab() {
                       </div>
                     </td>
                   </tr>
+                  {/* Per-group column sub-header when expanded */}
+                  {!isCollapsed && (
+                    <tr key={`group-cols-${item.groupId}`} className="border-b border-border/40">
+                      <td className={cn(
+                        "sticky left-0 z-10 bg-background border-r border-border/40 px-3 py-0.5",
+                        "text-[9px] font-semibold text-muted-foreground/60 tracking-wide",
+                        pal.border, "border-l-4",
+                      )}>
+                        TICKER
+                      </td>
+                      {COLS.map((col, i) => (
+                        <td
+                          key={col.key as string}
+                          className={cn(
+                            "text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap",
+                            i < COLS.length - 1 && "border-r border-border/20",
+                            FAMILY_COLORS[col.family],
+                          )}
+                        >
+                          {col.label}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
+                </>
                 );
               }
 
