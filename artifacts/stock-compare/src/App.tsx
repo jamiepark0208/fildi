@@ -1,4 +1,4 @@
-import { useState, useCallback, type Dispatch, type SetStateAction } from "react";
+import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -60,7 +60,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
-  const [tickers, setTickers] = useSessionState<string[]>("fildi_tickers", []);
+  const [rawTickers, setRawTickers] = useSessionState<string[]>("fildi_tickers", []);
+  // Dedupe defensively: a duplicate ticker here fans out into duplicate
+  // useQueries keys (home.tsx, technical.tsx, price-chart.tsx), which React
+  // Query flags as "Duplicate Queries" and can trigger redundant fetches.
+  const tickers = useMemo(() => Array.from(new Set(rawTickers)), [rawTickers]);
+  const setTickers = useCallback<Dispatch<SetStateAction<string[]>>>(action => {
+    setRawTickers(prev => {
+      const next = typeof action === "function" ? (action as (p: string[]) => string[])(prev) : action;
+      return Array.from(new Set(next));
+    });
+  }, [setRawTickers]);
 
   return (
     <Switch>

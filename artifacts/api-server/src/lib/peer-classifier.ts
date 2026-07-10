@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { TTLCache } from "./ttl-cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -129,11 +130,26 @@ async function fetchMetricExclusions(groupId: string): Promise<string[]> {
   return rows[0]?.metricExclusions ?? [];
 }
 
+// Classification is DB-backed and effectively static (sector/industry rarely
+// changes) — cache per ticker so repeat /fundamentals/peer-groups calls for
+// the same watchlist don't re-run the registry lookup (or the full peer
+// overlap + keyword-match path for unmapped tickers) on every request.
+export const classifyCache = new TTLCache<PeerGroupClassification>(24 * 60 * 60 * 1000, "ticker-classify");
+
 /** Classify a ticker to its best-fit peer group.
  *  Priority: DB primary → peer overlap (≥2) → keyword map → unmapped */
 export async function classifyTicker(ticker: string): Promise<PeerGroupClassification> {
   const key = ticker.toUpperCase();
 
+  const cached = classifyCache.get(key);
+  if (cached) return cached;
+
+  const result = await classifyTickerUncached(key);
+  classifyCache.set(key, result);
+  return result;
+}
+
+async function classifyTickerUncached(key: string): Promise<PeerGroupClassification> {
   // 1. Already mapped in registry
   const regRows = await db
     .select({ primaryPeerGroupId: tickerRegistry.primaryPeerGroupId, sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })

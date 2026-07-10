@@ -31,6 +31,7 @@ macro-charts      | Macro Charts (VIX/Rates/Sentiment) | 4 hours | file cache (m
 macro-cot         | COT Positioning (CFTC)          | file     | file cache (cot-cache.json)
 peer-map          | Peer Map                        | 24 hours | lib/peer-resolver.ts
 peer-profile      | Peer Profile                    | 24 hours | lib/peer-resolver.ts
+ticker-classify   | Peer Group Classification       | 24 hours | lib/peer-classifier.ts
 provenance        | Provenance (field source data)  | 15 min   | lib/provenance-cache.ts (pending registry)
 
 ## Cache key conventions
