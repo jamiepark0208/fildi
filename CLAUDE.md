@@ -23,6 +23,8 @@ First time only: read .claude/skills/replit-setup.md and follow the steps
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
+| Yahoo/Redis fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
+| Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
 
 
 ---

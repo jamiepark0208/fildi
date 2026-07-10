@@ -2,10 +2,9 @@
 > last_updated: 2026-06-10 | update when build process, routing, or tooling changes
 
 ## Backend build (CRITICAL — causes 502s if skipped)
-After ANY change to `artifacts/api-server/src/**`, rebuild and restart:
-```bash
-pkill -f "api-server/dist/index" 2>/dev/null; sleep 0.3 && cd /home/runner/workspace/artifacts/api-server && node build.mjs && PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs >> /tmp/api-server.log 2>&1 & sleep 2 && curl -s "http://localhost:8080/api/daily-brief" | head -c 60
-```
+Full procedure: `.claude/skills/build-and-run.md`. Short version: rebuild with
+`node build.mjs`, then ask the user to Stop/Run the Replit app (it's a
+managed process holding secrets — never start it manually in the background).
 The server does NOT hot-reload. Vite frontend hot-reloads automatically.
 
 ## Routing rules (never repeat these bugs)
