@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 import { StockScore } from "@/lib/rankings";
 import { StockMetrics } from "@workspace/api-client-react";
 import { Trophy, ChevronDown } from "lucide-react";
@@ -28,19 +28,83 @@ const ROW_STYLE = (idx: number) =>
   idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
               "border-border/40 bg-background/30";
 
-export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps) {
-  const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
-  const [loading,      setLoading]      = useState<Set<string>>(new Set());
-  const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
+interface LeaderboardRowProps {
+  score: StockScore;
+  idx: number;
+  maxScore: number;
+  isLoading: boolean;
+  explanation: string | undefined;
+  isExpanded: boolean;
+  onFetch: (score: StockScore) => void;
+}
 
-  async function fetchExplanation(score: StockScore) {
+const LeaderboardRow = memo(function LeaderboardRow({
+  score, idx, maxScore, isLoading, explanation, isExpanded, onFetch,
+}: LeaderboardRowProps) {
+  const bullets = explanation ? parseBullets(explanation) : [];
+  return (
+    <div className={cn("rounded-md border px-3 py-1.5", ROW_STYLE(idx))}>
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0",
+          RANK_STYLE(idx)
+        )}>
+          {score.rank}
+        </div>
+
+        <div className="w-[88px] shrink-0">
+          <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
+          <span className="block text-xs text-white/60 truncate max-w-[84px]">{score.companyName}</span>
+        </div>
+
+        <div className="w-[56px] shrink-0 text-right">
+          <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
+          <span className="text-xs text-white/50"> pts</span>
+        </div>
+
+        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full",
+              idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-slate-400" : idx === 2 ? "bg-amber-700" : "bg-primary/60"
+            )}
+            style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
+          />
+        </div>
+
+        <button
+          onClick={() => onFetch(score)}
+          disabled={isLoading}
+          className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
+        >
+          {isLoading ? "…" : "Why"}
+          <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
+        </button>
+      </div>
+
+      {isExpanded && bullets.length > 0 && (
+        <ul className="mt-2.5 mb-1 pl-9 space-y-1.5">
+          {bullets.map((b, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-white leading-relaxed">
+              <span className="text-white/50 shrink-0 mt-0.5">•</span>
+              {b}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+});
+
+export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps) {
+  const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [loading,      setLoading]      = useState<Record<string, boolean>>({});
+  const [expanded,     setExpanded]     = useState<Record<string, boolean>>({});
+
+  const fetchExplanation = useCallback(async (score: StockScore) => {
     const { ticker } = score;
-    if (explanations.has(ticker)) {
-      setExpanded(prev => {
-        const next = new Set(prev);
-        next.has(ticker) ? next.delete(ticker) : next.add(ticker);
-        return next;
-      });
+    if (explanations[ticker] !== undefined) {
+      setExpanded(prev => ({ ...prev, [ticker]: !prev[ticker] }));
       return;
     }
 
@@ -51,11 +115,9 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
     const weakMetrics = metricEntries.slice(-4).map(([k]) => k);
     const fs = score.familyScores;
     const stockData = stocks?.find(s => s.ticker === ticker);
-    const metricValues = Object.fromEntries(
-      metricEntries.map(([k, v]) => [k, v.value])
-    );
+    const metricValues = Object.fromEntries(metricEntries.map(([k, v]) => [k, v.value]));
 
-    setLoading(prev => new Set(prev).add(ticker));
+    setLoading(prev => ({ ...prev, [ticker]: true }));
     try {
       const res = await fetch("/api/explain/score", {
         method:  "POST",
@@ -82,15 +144,15 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
         }),
       });
       const data = await res.json() as { explanation?: string };
-      setExplanations(prev => new Map(prev).set(ticker, data.explanation ?? ""));
-      setExpanded(prev => new Set(prev).add(ticker));
+      setExplanations(prev => ({ ...prev, [ticker]: data.explanation ?? "" }));
+      setExpanded(prev => ({ ...prev, [ticker]: true }));
     } catch {
-      setExplanations(prev => new Map(prev).set(ticker, "Unable to generate explanation at this time."));
-      setExpanded(prev => new Set(prev).add(ticker));
+      setExplanations(prev => ({ ...prev, [ticker]: "Unable to generate explanation at this time." }));
+      setExpanded(prev => ({ ...prev, [ticker]: true }));
     } finally {
-      setLoading(prev => { const next = new Set(prev); next.delete(ticker); return next; });
+      setLoading(prev => ({ ...prev, [ticker]: false }));
     }
-  }
+  }, [explanations, stocks]);
 
   if (scores.length < 2) return null;
   const maxScore = scores[0].totalScore;
@@ -103,70 +165,18 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
       </div>
 
       <div className="flex flex-col gap-0.5">
-        {scores.map((score, idx) => {
-          const isLoading   = loading.has(score.ticker);
-          const explanation = explanations.get(score.ticker);
-          const isExpanded  = expanded.has(score.ticker);
-          const bullets     = explanation ? parseBullets(explanation) : [];
-
-          return (
-            <div key={score.ticker} className={cn("rounded-md border px-3 py-1.5", ROW_STYLE(idx))}>
-              <div className="flex items-center gap-3">
-                {/* Rank badge */}
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0",
-                  RANK_STYLE(idx)
-                )}>
-                  {score.rank}
-                </div>
-
-                {/* Ticker + name */}
-                <div className="w-[88px] shrink-0">
-                  <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
-                  <span className="block text-xs text-white/60 truncate max-w-[84px]">{score.companyName}</span>
-                </div>
-
-                {/* Score */}
-                <div className="w-[56px] shrink-0 text-right">
-                  <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
-                  <span className="text-xs text-white/50"> pts</span>
-                </div>
-
-                {/* Bar */}
-                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-slate-400" : idx === 2 ? "bg-amber-700" : "bg-primary/60"
-                    )}
-                    style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
-                  />
-                </div>
-
-                {/* Explain toggle */}
-                <button
-                  onClick={() => fetchExplanation(score)}
-                  disabled={isLoading}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
-                >
-                  {isLoading ? "…" : "Why"}
-                  <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
-                </button>
-              </div>
-
-              {isExpanded && bullets.length > 0 && (
-                <ul className="mt-2.5 mb-1 pl-9 space-y-1.5">
-                  {bullets.map((b, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-white leading-relaxed">
-                      <span className="text-white/50 shrink-0 mt-0.5">•</span>
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+        {scores.map((score, idx) => (
+          <LeaderboardRow
+            key={score.ticker}
+            score={score}
+            idx={idx}
+            maxScore={maxScore}
+            isLoading={!!loading[score.ticker]}
+            explanation={explanations[score.ticker]}
+            isExpanded={!!expanded[score.ticker]}
+            onFetch={fetchExplanation}
+          />
+        ))}
       </div>
     </div>
   );

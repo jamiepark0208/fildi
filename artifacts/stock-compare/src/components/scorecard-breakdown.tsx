@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { StockScore, SCORECARD_METRICS_V2 } from "@/lib/rankings";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -6,7 +7,7 @@ interface ScorecardBreakdownProps {
   scores: StockScore[];
 }
 
-export function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
+export const ScorecardBreakdown = memo(function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
   if (scores.length < 2) return null;
 
   return (
@@ -61,4 +62,4 @@ export function ScorecardBreakdown({ scores }: ScorecardBreakdownProps) {
       </div>
     </div>
   );
-}
+});

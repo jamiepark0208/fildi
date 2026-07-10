@@ -256,7 +256,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   const tier = getTier(key);
 
   // Use cached expiry dates if available; skip the undated initial call entirely
-  const cachedDates = expiryCache.get('shared');
+  const cachedDates = expiryCache.get(key);
   let raw0: RawOptionsResponse | null = null;
   let targets: Date[];
 
@@ -267,7 +267,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
     // Cache miss — initial undated fetch to discover expiry calendar
     raw0 = await fetchChain(key);
     const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
-    expiryCache.set('shared', allDates);
+    expiryCache.set(key, allDates);
     targets = allDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 2);
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   }

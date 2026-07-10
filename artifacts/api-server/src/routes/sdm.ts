@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   db,
   dataSources,
@@ -162,17 +162,14 @@ router.get("/sdm/peers/:ticker", async (req, res) => {
     const entry = rows[0];
     const peerTickers = entry.peerTickers ?? [];
 
-    // Fetch all peers individually (simple approach, peer lists are small)
-    const peers = await Promise.all(
-      peerTickers.map(p =>
-        db.select().from(tickerRegistry).where(eq(tickerRegistry.ticker, p)).limit(1)
-          .then(r => r[0] ?? null),
-      ),
-    );
+    const peerRows = peerTickers.length > 0
+      ? await db.select().from(tickerRegistry).where(inArray(tickerRegistry.ticker, peerTickers))
+      : [];
+    const peerMap = new Map(peerRows.map(r => [r.ticker, r]));
 
     return res.json({
       ticker: entry,
-      peers: peers.filter(Boolean),
+      peers: peerTickers.map(p => peerMap.get(p)).filter(Boolean),
     });
   } catch (err: any) {
     logger.error({ ticker, err }, "sdm: peers error");

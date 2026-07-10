@@ -20,20 +20,18 @@ interface StockCardsProps {
 export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, onAddClick, onRemove }: StockCardsProps) {
   const slots = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
 
+  const rankMap = useMemo(() => new Map(rankings.map(r => [r.ticker, r.rank])), [rankings]);
+
   const sortedSlots = useMemo(() => {
     const active = slots
       .map((ticker, originalIndex) => ({ ticker, originalIndex }))
       .filter(s => s.ticker !== null)
-      .sort((a, b) => {
-        const rankA = rankings.find(r => r.ticker === a.ticker)?.rank ?? 999;
-        const rankB = rankings.find(r => r.ticker === b.ticker)?.rank ?? 999;
-        return rankA - rankB;
-      });
+      .sort((a, b) => (rankMap.get(a.ticker!) ?? 999) - (rankMap.get(b.ticker!) ?? 999));
     const empty = slots
       .map((ticker, originalIndex) => ({ ticker, originalIndex }))
       .filter(s => s.ticker === null);
     return [...active, ...empty];
-  }, [slots, rankings]);
+  }, [slots, rankMap]);
 
   return (
     <div className="grid grid-cols-5 gap-3 mb-4">

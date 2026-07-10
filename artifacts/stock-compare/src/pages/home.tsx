@@ -53,16 +53,6 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     })),
   });
 
-  // BUG-01 fix: background queries for full watchlist → stable normalization reference
-  const watchlistQueries = useQueries({
-    queries: FUNDAMENTAL_WATCHLIST.map((ticker) => ({
-      ...getGetStockQuoteQueryOptions({ ticker }),
-      staleTime: 10 * 60 * 1000,
-      gcTime: 15 * 60 * 1000,
-      retry: 1,
-    })),
-  });
-
   const loadingTickers = useMemo(() => {
     const obj: Record<string, boolean> = {};
     tickers.forEach((ticker, i) => { obj[ticker] = queries[i]?.isLoading || false; });

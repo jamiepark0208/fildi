@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { StockMetrics } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, formatNumber, formatLargeNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,7 @@ function SectionHeader({ title, colSpan }: { title: string; colSpan: number }) {
   );
 }
 
-export function MetricsTable({ stocks, loadingTickers }: MetricsTableProps) {
+export const MetricsTable = memo(function MetricsTable({ stocks, loadingTickers }: MetricsTableProps) {
   if (stocks.length === 0) return null;
 
   return (
@@ -215,4 +216,4 @@ export function MetricsTable({ stocks, loadingTickers }: MetricsTableProps) {
       </div>
     </div>
   );
-}
+});
