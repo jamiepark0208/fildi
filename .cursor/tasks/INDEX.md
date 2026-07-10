@@ -36,8 +36,8 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 |---|---|---|---|
 | 1 | P0 | done | [feature-purpose-research](enhancements/1-feature-purpose-research-070926.md) |
 | 2 | P0 | done | [competitive-tech-research](enhancements/2-competitive-tech-research-070926.md) |
-| 3 | P0 | ready | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
-| 4 | P0 | ready | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
+| 3 | P0 | partial | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
+| 4 | P0 | partial | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
 | 5 | P1 | ready | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) |
 | 6 | P1 | ready | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) |
 | 7 | P1 | ready | [observability-error-tracking](enhancements/7-observability-error-tracking-070926.md) |
