@@ -5,7 +5,7 @@ import { TickerShelf } from "@/components/ticker-shelf";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { MetricsTable } from "@/components/metrics-table";
 import { ScorecardBreakdown } from "@/components/scorecard-breakdown";
-import { computeRankingsV2 } from "@/lib/rankings";
+import { type StockScore } from "@/lib/rankings";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
@@ -113,13 +113,38 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   });
   const riskFreeRate = riskFreeRateQuery.data ?? null;
 
-  const rankings = useMemo(() => {
-    // Prefer full watchlist data for normalization (n ≥ 8 → z-score, not ordinal rank)
-    const watchlistLoaded = watchlistQueries.map(q => q.data).filter((d): d is StockMetrics => d != null);
-    const ref = watchlistLoaded.length >= 8 ? watchlistLoaded : loadedStocks;
-    const validStocks = ref.filter(s => s.currentPrice !== undefined && s.currentPrice !== null);
-    return computeRankingsV2(validStocks, weights.familyPreset, weights.fundamentalMetrics, peerGroupMap, regime, riskFreeRate);
-  }, [watchlistQueries, loadedStocks, weights, peerGroupMap, regime, riskFreeRate]);
+  const { data: serverRankings } = useQuery({
+    queryKey: ["fundamentals-rankings"],
+    queryFn: async () => {
+      const res = await fetch("/api/fundamentals/rankings");
+      if (!res.ok) throw new Error("fundamentals/rankings failed");
+      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string }>>;
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const rankings = useMemo((): StockScore[] => {
+    if (!serverRankings?.length) return [];
+    const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
+    return [...serverRankings]
+      .sort((a, b) => a.rank - b.rank)
+      .map(r => ({
+        ticker:       r.ticker,
+        companyName:  stockByTicker.get(r.ticker)?.companyName ?? r.ticker,
+        totalScore:   r.totalScore,
+        maxPossible:  100,
+        rank:         r.rank,
+        metricScores: {},
+        reason:       "",
+        familyScores: {
+          value:   { score: 50,             coverage: 0, lowCoverage: true },
+          quality: { score: r.qualityScore, coverage: 1, lowCoverage: false },
+          growth:  { score: r.growthScore,  coverage: 1, lowCoverage: false },
+          safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
+        },
+      }));
+  }, [serverRankings, loadedStocks]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 
