@@ -57,19 +57,72 @@ function buildFundamentalPayload(score: StockScore, stocks?: StockMetrics[]) {
   };
 }
 
+export interface MetricRow {
+  label: string;
+  value: string;
+  zScore: number;
+}
+
+function metricLabel(key: string): string {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
+}
+
+function metricValueStr(val: number): string {
+  if (Math.abs(val) >= 1000) return val.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (Math.abs(val) >= 10) return val.toFixed(1);
+  return val.toFixed(2);
+}
+
+function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[] {
+  const top = Object.entries(score.metricScores)
+    .filter(([, v]) => v.value != null)
+    .sort((a, b) => Math.abs(b[1].weightedScore) - Math.abs(a[1].weightedScore))
+    .slice(0, 5);
+
+  return top.map(([key, mv]) => {
+    const rawVal = mv.value ?? 0;
+    const peerVals = allScores
+      .map(s => s.metricScores[key]?.value)
+      .filter((v): v is number => v != null);
+    const mean = peerVals.reduce((a, b) => a + b, 0) / peerVals.length;
+    const std = Math.sqrt(peerVals.reduce((a, b) => a + (b - mean) ** 2, 0) / peerVals.length);
+    return {
+      label: metricLabel(key),
+      value: metricValueStr(rawVal),
+      zScore: std > 0 ? (rawVal - mean) / std : 0,
+    };
+  });
+}
+
 interface RowProps {
   score: StockScore;
   idx: number;
   maxScore: number;
+  allScores: StockScore[];
   stocks?: StockMetrics[];
   explain: ReturnType<typeof useScoreExplanation>["explain"];
   getState: ReturnType<typeof useScoreExplanation>["getState"];
 }
 
-const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, stocks, explain, getState }: RowProps) {
+function zScoreColor(z: number): string {
+  if (z >= 1.5) return "text-emerald-400";
+  if (z >= 0.5) return "text-emerald-300/80";
+  if (z <= -1.5) return "text-red-400";
+  if (z <= -0.5) return "text-red-300/80";
+  return "text-white/50";
+}
+
+function shortenBullet(text: string): string {
+  const clean = text.replace(/\*\*/g, "").replace(/^\s*[-•]\s*/, "").trim();
+  const sentence = clean.split(/(?<=[.!?])\s/)[0];
+  return sentence.length > 120 ? sentence.slice(0, 117) + "…" : sentence;
+}
+
+const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explain, getState }: RowProps) {
   const state = getState(score.ticker, "fundamental");
-  const bullets = state.status === "done" ? parseBullets(state.text) : [];
-  const isExpanded = state.status === "done" && bullets.length > 0;
+  const isExpanded = state.status === "done" && !!state.text;
+  const metricRows = isExpanded ? buildMetricRows(score, allScores) : [];
+  const bullets = isExpanded ? parseBullets(state.text).map(shortenBullet).filter(Boolean) : [];
 
   return (
     <div className={cn("rounded-md border px-3 py-1.5", ROW_STYLE(idx))}>
@@ -112,15 +165,42 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, stoc
       </div>
 
       {isExpanded && (
-        <ul className="mt-2.5 mb-1 pl-9 space-y-1.5">
-          {bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-white leading-relaxed">
-              <span className="text-white/50 shrink-0 mt-0.5">•</span>
-              {b}
-            </li>
-          ))}
-          <li className="text-[10px] text-white/40 pl-0">AI narrative — not a trade recommendation.</li>
-        </ul>
+        <div className="mt-2.5 mb-1 pl-9 space-y-2.5">
+          {/* Metric table */}
+          {metricRows.length > 0 && (
+            <table className="w-full text-[11px] border-collapse">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left pb-1 text-white/40 font-medium">Metric</th>
+                  <th className="text-right pb-1 text-white/40 font-medium pr-3">Value</th>
+                  <th className="text-right pb-1 text-white/40 font-medium">vs Peers</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metricRows.map((row, i) => (
+                  <tr key={i} className="border-b border-white/5 last:border-0">
+                    <td className="py-1 text-white/80">{row.label}</td>
+                    <td className="py-1 pr-3 text-right font-mono text-white/70">{row.value}</td>
+                    <td className={cn("py-1 text-right font-mono font-semibold", zScoreColor(row.zScore))}>
+                      {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}σ
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Shortened bullets */}
+          <ul className="space-y-1">
+            {bullets.map((b, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-white/70 leading-relaxed">
+                <span className="text-white/30 shrink-0 mt-0.5">•</span>
+                {b}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-white/30">AI narrative — not a trade recommendation.</p>
+        </div>
       )}
     </div>
   );
@@ -142,6 +222,7 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
       <div className="flex flex-col gap-0.5">
         {scores.map((score, idx) => (
           <LeaderboardRow
+            allScores={scores}
             key={score.ticker}
             score={score}
             idx={idx}
