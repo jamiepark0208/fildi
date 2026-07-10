@@ -53,25 +53,26 @@ interface ExplainRequest {
 }
 
 // ── Score hash — deterministic fingerprint of key inputs ──────────────────────
-// Changes when the score changes → cache miss → fresh Haiku call
+// Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
+const PROMPT_VERSION = "v2";
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
-  return `${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}`;
+  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}`;
 }
 
 function technicalHash(d: TechnicalData): string {
-  return `${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
+  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
 function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
   const suspectNote = d.suspectMetrics?.length
-    ? `Note: ${d.suspectMetrics.join(", ")} flagged as potentially unreliable data.`
+    ? `Caution: ${d.suspectMetrics.join(", ")} may be unreliable.`
     : "";
   const qualityNote = d.dataQuality && d.dataQuality !== "good"
-    ? `Data quality: ${d.dataQuality}.`
+    ? `Data coverage: ${d.dataQuality}.`
     : "";
 
   const sectorCtx = d.sector ? `Sector: ${d.sector}${d.industry ? ` / ${d.industry}` : ""}` : "";
@@ -83,23 +84,24 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
         .join("\n")
     : "";
 
-  return `You are a senior equity analyst writing a concise but substantive explanation of a stock's fundamental score for an options trader. Be specific, cite actual numbers, and compare them to typical sector/industry benchmarks where relevant (e.g. "P/E of 12x vs. sector average ~18x").
+  return `You explain stock fundamentals to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid and specific. Skip anything unremarkable; only explain what stands out.
 
 Ticker: ${ticker}
 ${sectorCtx}
-Overall score: ${d.totalScore.toFixed(1)}/100 (rank #${d.rank} out of the comparison group)
-Family scores — Value: ${d.familyScores.value.toFixed(0)}/100 | Growth: ${d.familyScores.growth.toFixed(0)}/100 | Quality: ${d.familyScores.quality.toFixed(0)}/100 | Safety: ${d.familyScores.safety.toFixed(0)}/100
-Strengths: ${d.topMetrics.join(", ") || "none identified"}
-Weaknesses: ${d.weakMetrics.join(", ") || "none identified"}
-${metricLines ? `\nActual metric values:\n${metricLines}` : ""}
+Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} in the universe (top ${((d.rank / 256) * 100).toFixed(0)}% is worse, so this is genuinely exceptional or genuinely weak depending on rank)
+Pillar scores — Value: ${d.familyScores.value.toFixed(0)}/100 | Growth: ${d.familyScores.growth.toFixed(0)}/100 | Quality: ${d.familyScores.quality.toFixed(0)}/100 | Safety: ${d.familyScores.safety.toFixed(0)}/100
+Top strengths: ${d.topMetrics.join(", ") || "none"}
+Top weaknesses: ${d.weakMetrics.join(", ") || "none"}
+${metricLines ? `\nKey metrics:\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
 
-Write 3–4 bullet points (starting with -) explaining WHY ${ticker} scores this way. Each bullet should:
-- Name a specific metric with its actual value
-- Compare it to what's typical for the sector/industry (e.g. "vs. tech sector median ~25x P/E")
-- State whether this is a strength or concern and why it matters for an options seller
+Write exactly 3 bullet points (starting with -). Rules:
+- Pick the 3 MOST SIGNIFICANT factors that explain the score — not all metrics, only what truly drives it
+- Each bullet: one short plain-English sentence that explains WHY this matters for put-selling risk, then the actual number in parentheses vs a typical benchmark (e.g. "(84% gross margin vs ~60% tech average)")
+- If something is in the top or bottom 10% of what you'd expect for a stock like this, say so plainly ("unusually high", "rare for this sector", "most peers are around X")
+- Focus on: is the business fundamentally strong enough that a put seller sleeps well? What's the one thing that could surprise them?
 
-Be direct and informative. No intro or outro. No investment advice.`;
+No intro sentence. No outro. No investment advice. Plain English throughout.`;
 }
 
 function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {
@@ -113,18 +115,23 @@ function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {
     : "No near-term earnings.";
 
   const cs = d.componentScores;
-  return `You are a technical analyst explaining a stock's technical setup to a trader in 2-3 clear sentences. Focus on what the signals mean for near-term price action and entry timing for selling cash-secured puts. Do not give investment advice.
+  return `You explain a stock's technical setup to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid. Skip unremarkable readings; only explain what stands out.
 
 Ticker: ${ticker}
-Signal: ${d.signal} | Regime: ${d.regime}
-Overall score: ${d.totalScore.toFixed(1)}/100 (rank #${d.rank} out of 31)
-RSI: ${d.rsi14.toFixed(1)} (at ${d.rsi14Pct.toFixed(0)}th percentile of own history — ${oversoldLabel})
-IV rank: ${d.ivRank.toFixed(0)} | IV vs realized vol: ${d.ivVsRealizedVol.toFixed(2)}x
-MACD: ${d.macdDirection} | Falling knife: ${d.fallingKnife ? "yes (caution)" : "no"}
+Signal: ${d.signal} | Macro regime: ${d.regime}
+Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} in universe
+RSI: ${d.rsi14.toFixed(1)} — at the ${d.rsi14Pct.toFixed(0)}th percentile of its own 1-year history (${oversoldLabel})
+IV rank: ${d.ivRank.toFixed(0)}/100 | IV vs realized: ${d.ivVsRealizedVol.toFixed(2)}x
+MACD: ${d.macdDirection} | Falling knife: ${d.fallingKnife ? "YES — price momentum sharply negative" : "no"}
 ${earningsNote}
-Component breakdown: oversold ${(cs.oversoldDepth * 100).toFixed(0)}%, reversal ${(cs.reversalSignal * 100).toFixed(0)}%, volatility ${(cs.volatilityState * 100).toFixed(0)}%, trend ${(cs.trendContext * 100).toFixed(0)}%
+Component scores (0–1): oversold depth ${cs.oversoldDepth.toFixed(2)} | reversal signal ${cs.reversalSignal.toFixed(2)} | vol state ${cs.volatilityState.toFixed(2)} | trend ${cs.trendContext.toFixed(2)}
 
-Write a 2-3 sentence explanation of what this technical setup means for ${ticker} right now. Include what is driving the signal and any key risks or caveats.`;
+Write exactly 2 bullets (starting with -). Rules:
+- Focus only on the 2 things that most explain why the signal is ${d.signal} right now — skip anything near neutral
+- Each bullet: one plain-English sentence on what this means for a put seller ("is now a good time to sell a put?"), with the key number in parentheses and what makes it notable ("RSI at its lowest 15% historically means the stock is cheap vs itself")
+- If there's a key risk (earnings soon, falling knife, overbought IV), lead with it
+
+No intro. No outro. No investment advice.`;
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -169,7 +176,7 @@ router.post("/explain/score", async (req, res) => {
     // Cache miss: call Haiku
     const msg = await anthropic.messages.create({
       model:      "claude-haiku-4-5-20251001",
-      max_tokens: 200,
+      max_tokens: 300,
       messages:   [{ role: "user", content: prompt }],
     });
 
