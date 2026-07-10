@@ -38,7 +38,7 @@ function validatePartial(p: ScoringWeightsPayload): string | null {
 }
 
 // GET /api/scoring-config — public read (returns stored overrides or null)
-router.get("/api/scoring-config", async (_req, res) => {
+router.get("/scoring-config", async (_req, res) => {
   try {
     const value = await getScoringConfigValue();
     res.json({ weights: value });
@@ -49,7 +49,7 @@ router.get("/api/scoring-config", async (_req, res) => {
 });
 
 // PUT /api/scoring-config — admin only
-router.put("/api/scoring-config", requireAdmin, async (req, res) => {
+router.put("/scoring-config", requireAdmin, async (req, res) => {
   const body = req.body as { weights?: ScoringWeightsPayload | null };
   if (body.weights === null) {
     try {
