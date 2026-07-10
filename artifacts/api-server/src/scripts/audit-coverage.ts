@@ -5,10 +5,11 @@
  *   node dist/audit-coverage.mjs                    — full summary
  *   node dist/audit-coverage.mjs --ticker=AAPL      — drilldown for one ticker
  *   node dist/audit-coverage.mjs --field=wacc       — all tickers null for this field + why
+ *   node dist/audit-coverage.mjs --suspicious       — statistical outlier + cross-source audit
  */
 import { eq } from "drizzle-orm";
 import {
-  db, tickerFundamentals, tickerRegistry, sourceFundamentals,
+  db, tickerFundamentals, tickerRegistry, sourceFundamentals, fieldProvenance,
   yahooFundamentals, fmpFundamentals, finnhubFundamentals,
   edgarFundamentals, polygonFundamentals, avFundamentals,
 } from "@workspace/db";
@@ -17,8 +18,9 @@ import { FIELD_DEFS } from "./merge-trusted.js";
 const VALID_FIELDS = FIELD_DEFS.filter(d => (d.tfCol as string) !== "grossProfit");
 
 // CLI flags
-const TICKER_ARG = process.argv.find(a => a.startsWith("--ticker="))?.split("=")[1]?.toUpperCase();
-const FIELD_ARG  = process.argv.find(a => a.startsWith("--field="))?.split("=")[1];
+const TICKER_ARG  = process.argv.find(a => a.startsWith("--ticker="))?.split("=")[1]?.toUpperCase();
+const FIELD_ARG   = process.argv.find(a => a.startsWith("--field="))?.split("=")[1];
+const SUSPICIOUS  = process.argv.includes("--suspicious");
 
 // Staging table presence index: ticker → source → fetchedAt (non-null means "API was called")
 type StagingIndex = Map<string, Map<string, Date | null>>;
@@ -48,7 +50,185 @@ async function buildStagingIndex(): Promise<StagingIndex> {
   return idx;
 }
 
+// ── Suspicious value audit ────────────────────────────────────────────────────
+
+const LOG_TRANSFORM_FIELDS = new Set(["peRatio","forwardPe","pegRatio","priceToBook","priceToSales","evEbitda","evRevenue"]);
+const NM_GROWTH_FIELDS     = new Set(["epsGrowth","revenueGrowthYoY","revenueGrowthYoyPrior"]);
+const STALE_SINGLE_DAYS    = 180; // single-source value older than this → stale
+
+function modifiedZScores(pairs: [string, number][], logTransform: boolean): Map<string, number> {
+  if (pairs.length < 5) return new Map();
+  const vals = pairs.map(([, v]) => logTransform ? Math.log(Math.max(Math.abs(v), 1e-6)) : v);
+  const sorted = [...vals].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const absDevs = vals.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+  const mad = absDevs[Math.floor(absDevs.length / 2)];
+  if (mad === 0) return new Map();
+  return new Map(pairs.map(([ticker], i) => [ticker, 0.6745 * (vals[i] - median) / mad]));
+}
+
+async function auditSuspicious() {
+  const [tfRows, regRows, sfRows, provRows] = await Promise.all([
+    db.select().from(tickerFundamentals),
+    db.select({
+      ticker: tickerRegistry.ticker,
+      peerGroupId: tickerRegistry.primaryPeerGroupId,
+    }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true)),
+    db.select({
+      ticker: sourceFundamentals.ticker,
+      source: sourceFundamentals.source,
+      field:  sourceFundamentals.field,
+      value:  sourceFundamentals.value,
+      fetchedAt: sourceFundamentals.fetchedAt,
+    }).from(sourceFundamentals),
+    db.select({
+      ticker:        fieldProvenance.ticker,
+      field:         fieldProvenance.field,
+      winningSource: fieldProvenance.winningSource,
+      fetchedAt:     fieldProvenance.fetchedAt,
+      divergent:     fieldProvenance.divergent,
+    }).from(fieldProvenance),
+  ]);
+
+  const tfMap    = new Map(tfRows.map(r => [r.ticker, r]));
+  const groupMap = new Map(regRows.map(r => [r.ticker, r.peerGroupId ?? "__unclassified"]));
+
+  // source_fundamentals index: ticker → field → source → { value, fetchedAt }
+  const sfIdx = new Map<string, Map<string, Map<string, { value: number; fetchedAt: Date | null }>>>();
+  for (const r of sfRows) {
+    if (!sfIdx.has(r.ticker)) sfIdx.set(r.ticker, new Map());
+    const byField = sfIdx.get(r.ticker)!;
+    if (!byField.has(r.field)) byField.set(r.field, new Map());
+    byField.get(r.field)!.set(r.source, { value: Number(r.value), fetchedAt: r.fetchedAt });
+  }
+
+  // provenance index: ticker → field → { winningSource, fetchedAt, divergent }
+  const provIdx = new Map<string, Map<string, typeof provRows[0]>>();
+  for (const r of provRows) {
+    if (!provIdx.has(r.ticker)) provIdx.set(r.ticker, new Map());
+    provIdx.get(r.ticker)!.set(r.field, r);
+  }
+
+  const now = Date.now();
+  const findings: {
+    ticker: string; field: string; value: number;
+    winningSource: string; fetchedAt: string;
+    altSources: string; divergent: boolean;
+    verdict: string; detail: string;
+  }[] = [];
+
+  for (const fd of VALID_FIELDS) {
+    const tfCol = fd.tfCol as string;
+
+    // Group values by peer group for z-score computation
+    const byGroup = new Map<string, [string, number][]>();
+    for (const [ticker, tf] of tfMap) {
+      const raw = (tf as Record<string, unknown>)[tfCol];
+      if (raw == null) continue;
+      const v = Number(raw);
+      if (!isFinite(v)) continue;
+      const gid = groupMap.get(ticker) ?? "__unclassified";
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid)!.push([ticker, v]);
+    }
+
+    // Compute z-scores per group
+    const zMap = new Map<string, number>();
+    for (const [gid, pairs] of byGroup) {
+      const scores = modifiedZScores(pairs, LOG_TRANSFORM_FIELDS.has(tfCol));
+      for (const [ticker, z] of scores) zMap.set(`${gid}:${ticker}`, z);
+    }
+
+    for (const [ticker, tf] of tfMap) {
+      const raw = (tf as Record<string, unknown>)[tfCol];
+      if (raw == null) continue;
+      const v = Number(raw);
+      if (!isFinite(v)) continue;
+      const gid = groupMap.get(ticker) ?? "__unclassified";
+      const z = zMap.get(`${gid}:${ticker}`);
+      const isStatOutlier = z != null && Math.abs(z) > 3.0;
+      const isNearZeroBase = NM_GROWTH_FIELDS.has(tfCol) && Math.abs(v) > 10;
+
+      if (!isStatOutlier && !isNearZeroBase) continue;
+
+      const prov = provIdx.get(ticker)?.get(tfCol);
+      const fetchedAt = prov?.fetchedAt ? new Date(prov.fetchedAt as unknown as string) : null;
+      const ageDays = fetchedAt ? Math.floor((now - fetchedAt.getTime()) / 86_400_000) : null;
+      const winningSource = prov?.winningSource ?? "unknown";
+      const divergent = prov?.divergent ?? false;
+
+      // Alt source values from source_fundamentals
+      const altSources = sfIdx.get(ticker)?.get(tfCol);
+      const altParts: string[] = [];
+      if (altSources) {
+        for (const [src, { value: av }] of altSources) {
+          if (src !== winningSource) altParts.push(`${src}=${av.toFixed(4)}`);
+        }
+      }
+      const sourceCount = (altSources?.size ?? 0);
+
+      let verdict: string;
+      let detail: string;
+      if (isNearZeroBase) {
+        verdict = "NEAR_ZERO_BASE";
+        detail = `|value| > 10× — prior period likely near zero; display as N/M`;
+      } else if (ageDays != null && ageDays > STALE_SINGLE_DAYS && sourceCount <= 1) {
+        verdict = "STALE_SINGLE_SOURCE";
+        detail = `${ageDays}d old, only 1 source — re-fetch candidate`;
+      } else if (isStatOutlier && !divergent && sourceCount >= 2) {
+        verdict = "STAT_OUTLIER_AGREE";
+        detail = `z=${z!.toFixed(1)} — sources agree, likely real but unusual`;
+      } else if (isStatOutlier && divergent) {
+        verdict = "STAT_OUTLIER_DISAGREE";
+        detail = `z=${z!.toFixed(1)} — sources disagree, investigate winning source`;
+      } else {
+        verdict = "STAT_OUTLIER";
+        detail = `z=${z!.toFixed(1)}`;
+      }
+
+      findings.push({
+        ticker, field: tfCol, value: v,
+        winningSource, fetchedAt: ageDays != null ? `${ageDays}d ago` : "never",
+        altSources: altParts.join(" | ") || "none",
+        divergent, verdict, detail,
+      });
+    }
+  }
+
+  // Sort: stale/disagree first, then by |z| (stat outliers), then near-zero-base
+  const ORDER: Record<string, number> = {
+    STALE_SINGLE_SOURCE: 0, STAT_OUTLIER_DISAGREE: 1, STAT_OUTLIER: 2,
+    STAT_OUTLIER_AGREE: 3, NEAR_ZERO_BASE: 4,
+  };
+  findings.sort((a, b) => (ORDER[a.verdict] ?? 9) - (ORDER[b.verdict] ?? 9));
+
+  console.log(`\n── SUSPICIOUS VALUES (${findings.length} findings) ──\n`);
+  const verdictGroups = new Map<string, typeof findings>();
+  for (const f of findings) {
+    if (!verdictGroups.has(f.verdict)) verdictGroups.set(f.verdict, []);
+    verdictGroups.get(f.verdict)!.push(f);
+  }
+  for (const [verdict, items] of verdictGroups) {
+    console.log(`\n  [${verdict}] — ${items.length} cases`);
+    for (const f of items) {
+      const val = Math.abs(f.value) > 1000 ? f.value.toFixed(0)
+               : Math.abs(f.value) < 0.01  ? f.value.toExponential(2)
+               : f.value.toFixed(4);
+      const divFlag = f.divergent ? " ⚠divergent" : "";
+      console.log(`    ${f.ticker.padEnd(8)} ${f.field.padEnd(28)} val=${val.padStart(12)}  src=${f.winningSource.padEnd(14)} fetched=${f.fetchedAt.padEnd(10)}  alt=[${f.altSources}]${divFlag}`);
+      console.log(`             → ${f.detail}`);
+    }
+  }
+  console.log(`\n  Action guide:`);
+  console.log(`    STALE_SINGLE_SOURCE  → re-run nightly-enrichment --tickers=TICKER --fields=FIELD`);
+  console.log(`    STAT_OUTLIER_DISAGREE → open provenance popover, set manual override or re-fetch`);
+  console.log(`    STAT_OUTLIER_AGREE   → verify in provenance popover; likely real`);
+  console.log(`    NEAR_ZERO_BASE       → UI shows N/M automatically, no data fix needed`);
+}
+
 async function main() {
+  if (SUSPICIOUS) { await auditSuspicious(); return; }
+
   const [tfRows, regRows, sfRows, stagingIdx] = await Promise.all([
     db.select().from(tickerFundamentals),
     db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true)),
