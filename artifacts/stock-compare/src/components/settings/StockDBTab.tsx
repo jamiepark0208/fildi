@@ -33,6 +33,18 @@ interface FundamentalsRow {
   beta: string | null; effectiveTaxRate: string | null;
 }
 
+interface TechnicalsRow {
+  regime: string | null; fallingKnife: number | null; earningsDaysOut: number | null;
+  rsi14: string | null; mfi14: string | null; stoch: string | null;
+  macdDirection: string | null; rsiVelocity: string | null;
+  volumeRatio: string | null;
+  realizedVol20d: string | null; ivRank: string | null; atmPutIv: string | null;
+  impliedMoveWeekly: string | null; bbWidthPct: string | null;
+  priceVsMa20Atr: string | null; priceVsMa50Atr: string | null;
+  priceZScore: string | null; priceVsVwapPct: string | null;
+  technicalsLastFetched: string | null;
+}
+
 interface StockDBEntry {
   ticker: string;
   companyName: string | null;
@@ -40,6 +52,8 @@ interface StockDBEntry {
   peerGroupId: string | null;
   peerGroupName: string | null;
   fundamentals: FundamentalsRow | null;
+  technicals: TechnicalsRow | null;
+  signal: string | null;
 }
 
 // ── Provenance types (matches GET /api/fundamentals/provenance/:ticker) ───────
@@ -146,6 +160,61 @@ const FAMILY_COLORS: Record<string, string> = {
   quality: "text-purple-400",
   safety:  "text-amber-400",
   meta:    "text-muted-foreground",
+};
+
+// ── Technicals column definitions ─────────────────────────────────────────────
+
+type TechFamily = "signal" | "momentum" | "volume" | "volatility" | "structure";
+
+interface TechColDef {
+  key: keyof TechnicalsRow;
+  label: string;
+  family: TechFamily;
+  fmt: (v: string | number | null | undefined) => string;
+}
+
+const n1 = (v: string | number | null | undefined) => v == null ? "—" : parseFloat(String(v)).toFixed(1);
+const n2 = (v: string | number | null | undefined) => v == null ? "—" : parseFloat(String(v)).toFixed(2);
+const p1 = (v: string | number | null | undefined) => v == null ? "—" : parseFloat(String(v)).toFixed(1) + "%";
+const p01 = (v: string | number | null | undefined) => v == null ? "—" : (parseFloat(String(v)) * 100).toFixed(0) + "%";
+const txt = (v: string | number | null | undefined) => v == null ? "—" : String(v);
+const flag = (v: string | number | null | undefined) => v == null ? "—" : Number(v) === 1 ? "Yes" : "No";
+const days = (v: string | number | null | undefined) => v == null ? "—" : Math.round(Number(v)) + "d";
+
+const TECH_COLS: TechColDef[] = [
+  // SIGNAL
+  { key: "regime",            label: "Regime",    family: "signal",     fmt: txt  },
+  { key: "fallingKnife",      label: "F.Knife",   family: "signal",     fmt: flag },
+  { key: "earningsDaysOut",   label: "Earn.",     family: "signal",     fmt: days },
+  // MOMENTUM
+  { key: "rsi14",             label: "RSI",       family: "momentum",   fmt: n1   },
+  { key: "mfi14",             label: "MFI",       family: "momentum",   fmt: n1   },
+  { key: "stoch",             label: "Stoch %K",  family: "momentum",   fmt: n1   },
+  { key: "macdDirection",     label: "MACD",      family: "momentum",   fmt: txt  },
+  { key: "rsiVelocity",       label: "RSI Vel",   family: "momentum",   fmt: n2   },
+  // VOLUME
+  { key: "volumeRatio",       label: "Vol Ratio", family: "volume",     fmt: n2   },
+  // VOLATILITY
+  { key: "realizedVol20d",    label: "RVol 20d",  family: "volatility", fmt: p1   },
+  { key: "ivRank",            label: "IV Rank",   family: "volatility", fmt: p01  },
+  { key: "atmPutIv",          label: "ATM IV",    family: "volatility", fmt: p1   },
+  { key: "impliedMoveWeekly", label: "Impl Mv",   family: "volatility", fmt: p1   },
+  { key: "bbWidthPct",        label: "BB Width",  family: "volatility", fmt: p01  },
+  // STRUCTURE
+  { key: "priceVsMa20Atr",    label: "vs MA20",   family: "structure",  fmt: n2   },
+  { key: "priceVsMa50Atr",    label: "vs MA50",   family: "structure",  fmt: n2   },
+  { key: "priceZScore",       label: "Z-Score",   family: "structure",  fmt: n2   },
+  { key: "priceVsVwapPct",    label: "vs VWAP",   family: "structure",  fmt: p1   },
+];
+
+const techFamilies: TechFamily[] = ["signal", "momentum", "volume", "volatility", "structure"];
+
+const TECH_FAMILY_COLORS: Record<TechFamily, string> = {
+  signal:     "text-red-400",
+  momentum:   "text-cyan-400",
+  volume:     "text-indigo-400",
+  volatility: "text-orange-400",
+  structure:  "text-teal-400",
 };
 
 // ── Coverage helpers ──────────────────────────────────────────────────────────
@@ -292,6 +361,7 @@ export function StockDBTab() {
   const [overrideNote, setOverrideNote]         = useState("");
   const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(() => new Set(_persist.collapsedSectors));
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
+  const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals">("fundamentals");
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
@@ -601,6 +671,24 @@ export function StockDBTab() {
         </button>
       </div>
 
+      {/* View toggle */}
+      <div className="flex items-center gap-1 p-0.5 bg-muted/30 border border-border rounded-md w-fit text-xs font-medium">
+        {(["fundamentals", "technicals"] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={cn(
+              "px-3 py-1 rounded capitalize transition-colors",
+              viewMode === mode
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {mode === "fundamentals" ? "Fundamentals" : "Technicals"}
+          </button>
+        ))}
+      </div>
+
       {/* Ticker filter + legend */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative">
@@ -629,67 +717,106 @@ export function StockDBTab() {
       <div className="border border-border rounded-md overflow-auto max-h-[calc(100vh-300px)]">
         <table className="text-xs border-collapse min-w-max">
           <thead className="sticky top-0 z-20 bg-background">
-            {/* Family header row */}
-            <tr>
-              <th
-                className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium cursor-pointer hover:bg-muted/30 select-none"
-                rowSpan={2}
-                onClick={() => handleSort("ticker")}
-              >
-                <span className="flex items-center gap-0.5">
+            {viewMode === "fundamentals" ? (<>
+              {/* Fundamentals — family header row */}
+              <tr>
+                <th
+                  className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium cursor-pointer hover:bg-muted/30 select-none"
+                  rowSpan={2}
+                  onClick={() => handleSort("ticker")}
+                >
+                  <span className="flex items-center gap-0.5">
+                    Ticker
+                    <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
+                  </span>
+                </th>
+                {families.map(fam => {
+                  const cols = COLS.filter(c => c.family === fam);
+                  const cov = familyCoverage[fam];
+                  const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
+                  return (
+                    <th
+                      key={fam}
+                      colSpan={cols.length}
+                      className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
+                    >
+                      <div>{fam}</div>
+                      <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80", coverageColor(pct))}>
+                        {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+              {/* Fundamentals — column labels row */}
+              <tr>
+                {COLS.map((col, i) => {
+                  const cov = colCoverage[col.key as string];
+                  const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
+                  return (
+                    <th
+                      key={col.key as string}
+                      onClick={() => handleSort(col.key as string)}
+                      className={cn(
+                        "border-b border-border px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-muted/30 select-none",
+                        i === COLS.length - 1 ? "" : "border-r",
+                        FAMILY_COLORS[col.family],
+                      )}
+                    >
+                      <div className="flex items-center justify-end gap-0.5">
+                        <span>{col.label}</span>
+                        <SortIcon colKey={col.key as string} sortCol={sortCol} sortDir={sortDir} />
+                      </div>
+                      {cov && (
+                        <div className={cn(
+                          "text-[9px] font-normal text-right mt-0.5",
+                          pct === 0 ? "text-red-400/70" : pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-500/70"
+                        )}>
+                          {cov.filled}/{cov.total}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </>) : (<>
+              {/* Technicals — family header row */}
+              <tr>
+                <th
+                  className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium"
+                  rowSpan={2}
+                >
                   Ticker
-                  <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
-                </span>
-              </th>
-              {families.map(fam => {
-                const cols = COLS.filter(c => c.family === fam);
-                const cov = familyCoverage[fam];
-                const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
-                return (
-                  <th
-                    key={fam}
-                    colSpan={cols.length}
-                    className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
-                  >
-                    <div>{fam}</div>
-                    <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80", coverageColor(pct))}>
-                      {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-            {/* Column labels row */}
-            <tr>
-              {COLS.map((col, i) => {
-                const cov = colCoverage[col.key as string];
-                const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
-                return (
+                </th>
+                {techFamilies.map(fam => {
+                  const cols = TECH_COLS.filter(c => c.family === fam);
+                  return (
+                    <th
+                      key={fam}
+                      colSpan={cols.length}
+                      className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", TECH_FAMILY_COLORS[fam])}
+                    >
+                      {fam}
+                    </th>
+                  );
+                })}
+              </tr>
+              {/* Technicals — column labels row */}
+              <tr>
+                {TECH_COLS.map((col, i) => (
                   <th
                     key={col.key as string}
-                    onClick={() => handleSort(col.key as string)}
                     className={cn(
-                      "border-b border-border px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-muted/30 select-none",
-                      i === COLS.length - 1 ? "" : "border-r",
-                      FAMILY_COLORS[col.family],
+                      "border-b border-border px-2 py-1 font-medium whitespace-nowrap",
+                      i < TECH_COLS.length - 1 && "border-r",
+                      TECH_FAMILY_COLORS[col.family],
                     )}
                   >
-                    <div className="flex items-center justify-end gap-0.5">
-                      <span>{col.label}</span>
-                      <SortIcon colKey={col.key as string} sortCol={sortCol} sortDir={sortDir} />
-                    </div>
-                    {cov && (
-                      <div className={cn(
-                        "text-[9px] font-normal text-right mt-0.5",
-                        pct === 0 ? "text-red-400/70" : pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-500/70"
-                      )}>
-                        {cov.filled}/{cov.total}
-                      </div>
-                    )}
+                    {col.label}
                   </th>
-                );
-              })}
-            </tr>
+                ))}
+              </tr>
+            </>)}
           </thead>
           <tbody>
             {displayData.map((item, idx) => {
@@ -703,7 +830,7 @@ export function StockDBTab() {
                     className="cursor-pointer select-none"
                     onClick={() => toggleSector(item.sectorId)}
                   >
-                    <td colSpan={COLS.length + 1} className={cn("p-0 border-l-4", pal.border)}>
+                    <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
                       <div className={cn("flex items-center gap-2.5 px-3 py-2.5", pal.bg)}>
                         {isCollapsed
                           ? <ChevronRight className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
@@ -737,7 +864,7 @@ export function StockDBTab() {
                     className="cursor-pointer select-none hover:bg-white/[0.03] transition-colors border-b border-border/30"
                     onClick={() => toggleGroup(item.groupId)}
                   >
-                    <td colSpan={COLS.length + 1} className={cn("p-0 border-l-4", pal.border)}>
+                    <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
                       <div className="flex items-center gap-2.5 pl-7 pr-3 py-1.5 bg-white/[0.04]">
                         {isCollapsed
                           ? <ChevronRight className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
@@ -787,18 +914,18 @@ export function StockDBTab() {
                       )}>
                         TICKER
                       </td>
-                      {COLS.map((col, i) => (
-                        <td
-                          key={col.key as string}
-                          className={cn(
-                            "text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap",
-                            i < COLS.length - 1 && "border-r border-border/20",
-                            FAMILY_COLORS[col.family],
-                          )}
-                        >
-                          {col.label}
-                        </td>
-                      ))}
+                      {viewMode === "fundamentals"
+                        ? COLS.map((col, i) => (
+                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < COLS.length - 1 && "border-r border-border/20", FAMILY_COLORS[col.family])}>
+                            {col.label}
+                          </td>
+                        ))
+                        : TECH_COLS.map((col, i) => (
+                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < TECH_COLS.length - 1 && "border-r border-border/20", TECH_FAMILY_COLORS[col.family])}>
+                            {col.label}
+                          </td>
+                        ))
+                      }
                     </tr>
                   )}
                 </>
@@ -843,7 +970,7 @@ export function StockDBTab() {
                   </td>
 
                   {/* Metric cells */}
-                  {COLS.map((col, ci) => {
+                  {viewMode === "fundamentals" ? COLS.map((col, ci) => {
                     const raw = f ? (f[col.key] as string | null) : null;
                     const isNull = raw == null;
                     const isOptionalNull = isNull && !!col.optional;
@@ -854,7 +981,6 @@ export function StockDBTab() {
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
                     const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
-
                     return (
                       <td
                         key={col.key as string}
@@ -873,13 +999,35 @@ export function StockDBTab() {
                         {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-muted-foreground/60" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
                       </td>
                     );
+                  }) : TECH_COLS.map((col, ci) => {
+                    const t = row.technicals;
+                    const raw = t ? t[col.key] : null;
+                    const isNull = raw == null;
+                    const isText = col.fmt === txt || col.fmt === flag;
+                    const regimeColor = col.key === "regime" && !isNull
+                      ? raw === "BULLISH" ? "text-green-400" : raw === "BEARISH" ? "text-red-400" : "text-amber-400"
+                      : null;
+                    const signalColor = col.key === "fallingKnife" && Number(raw) === 1 ? "text-red-400 font-bold" : null;
+                    return (
+                      <td
+                        key={col.key as string}
+                        className={cn(
+                          "px-2 py-0.5 font-mono whitespace-nowrap border-border",
+                          isText ? "text-center" : "text-right",
+                          ci < TECH_COLS.length - 1 && "border-r",
+                          isNull ? "text-muted-foreground/30" : regimeColor ?? signalColor ?? "text-foreground",
+                        )}
+                      >
+                        {col.fmt(raw)}
+                      </td>
+                    );
                   })}
                 </tr>
               );
             })}
             {visibleRows === 0 && tickerFilter && (
               <tr>
-                <td colSpan={COLS.length + 1} className="py-8 text-center text-muted-foreground text-xs">
+                <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className="py-8 text-center text-muted-foreground text-xs">
                   No tickers match "{tickerFilter}"
                 </td>
               </tr>
