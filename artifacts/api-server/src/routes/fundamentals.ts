@@ -47,6 +47,7 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
 
     // Fetch Yahoo data for triangulation comparison only (not as primary source).
     let discrepancyFlags: string[] = [];
+    let yahooBeta: number | null = null;
     try {
       const yahoo = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
         modules: ["financialData", "defaultKeyStatistics"] as any,
@@ -54,16 +55,18 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
       const yahooResult = yahoo as { financialData?: unknown; defaultKeyStatistics?: unknown };
       const yahooQuote = { ...(yahooResult.financialData ?? {}), ...(yahooResult.defaultKeyStatistics ?? {}) } as Record<string, unknown>;
       discrepancyFlags = checkTriangulation(fmpData, yahooQuote);
+      if (yahooQuote["beta"] != null) yahooBeta = Number(yahooQuote["beta"]);
     } catch (err) {
       logger.warn({ ticker, err: String(err) }, "fundamentals: Yahoo triangulation fetch failed, skipping");
     }
 
     const regime = await getLatestRegime();
-    await writeFundamentalsRow(ticker, fmpData, discrepancyFlags, regime);
-    // beta is not available from FMP stable/profile (rate-limited at scale). buildMetrics
-    // falls back to Yahoo quote.beta. Log here so we know which tickers rely on Yahoo beta.
-    if (fmpData.beta == null) {
-      logger.debug({ ticker }, "fundamentals: beta null from FMP — will use Yahoo fallback");
+    const dataToWrite = fmpData.beta == null && yahooBeta !== null
+      ? { ...fmpData, beta: yahooBeta }
+      : fmpData;
+    await writeFundamentalsRow(ticker, dataToWrite, discrepancyFlags, regime);
+    if (fmpData.beta == null && yahooBeta !== null) {
+      logger.debug({ ticker, yahooBeta }, "fundamentals: beta filled from Yahoo fallback");
     }
     logger.debug({ ticker }, "fundamentals: ticker refreshed");
   } catch (err: any) {

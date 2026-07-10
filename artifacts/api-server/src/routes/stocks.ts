@@ -11,7 +11,7 @@ import {
   db,
   indicatorCache,
 } from "@workspace/db";
-import { readFundamentalsRow, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { buildCatalysts, parseEarningsDate, yahooEpochToMs, yahooEpochToDateStr } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
@@ -227,7 +227,7 @@ function fmpNum(v: string | null | undefined): number | null {
 
 // Build StockMetrics from Yahoo quote data + optional FMP fundamentals DB row.
 // FMP values take priority for all fundamental fields; Yahoo provides price/meta/fallback.
-function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: string) {
+function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: string, reg?: { name: string | null; sector: string | null; industryGroup: string | null } | null) {
   // ── Price & market data — always Yahoo ───────────────────────────────────────
   const currentPrice = safeNum(quote.regularMarketPrice);
   const marketCap    = safeNum(quote.marketCap);
@@ -318,7 +318,7 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
 
   return {
     ticker: ticker.toUpperCase(),
-    companyName: quote.longName ?? quote.shortName ?? ticker.toUpperCase(),
+    companyName: reg?.name ?? quote.longName ?? quote.shortName ?? ticker.toUpperCase(),
     currentPrice,
     marketCap,
     peRatio,
@@ -349,8 +349,8 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     analystTargetPrice,
     fairValueEstimate: fairValue,
     stockType,
-    sector:      quote.sector      ?? null,
-    industry:    quote.industry    ?? null,
+    sector:      reg?.sector        ?? quote.sector   ?? null,
+    industry:    reg?.industryGroup ?? quote.industry ?? null,
     exchange:    quote.exchangeName ?? quote.exchange ?? null,
     currency:    quote.currency    ?? "USD",
     logoUrl:     null,
@@ -391,22 +391,24 @@ router.get("/stocks/compare", async (req, res) => {
   try {
     const t1 = ticker1.toUpperCase();
     const t2 = ticker2.toUpperCase();
-    const [q1, q2, fmp1, fmp2] = await Promise.all([
+    const [q1, q2, fmp1, fmp2, reg1, reg2] = await Promise.all([
       yahooFinance.quoteSummary(t1, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
       }),
       yahooFinance.quoteSummary(t2, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
+        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
       }),
       readFundamentalsRow(t1),
       readFundamentalsRow(t2),
+      readRegistryRow(t1),
+      readRegistryRow(t2),
     ]);
 
-    const merged1 = { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics, ...q1.assetProfile };
-    const merged2 = { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics, ...q2.assetProfile };
+    const merged1 = { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics };
+    const merged2 = { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics };
 
-    const stock1 = buildMetrics(merged1, fmp1, t1);
-    const stock2 = buildMetrics(merged2, fmp2, t2);
+    const stock1 = buildMetrics(merged1, fmp1, t1, reg1);
+    const stock2 = buildMetrics(merged2, fmp2, t2, reg2);
     const scorecard = buildScorecard(stock1, stock2, ticker1.toUpperCase(), ticker2.toUpperCase());
 
     const payload = { stock1, stock2, scorecard };
@@ -514,7 +516,7 @@ export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote');
 
 async function fetchQuoteSummary(ticker: string) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
-    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
+    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
   });
 }
 
@@ -528,12 +530,13 @@ router.get("/stocks/quote", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [q, fmpRow] = await Promise.all([
+    const [q, fmpRow, regRow] = await Promise.all([
       fetchQuoteSummary(key),
       readFundamentalsRow(key),
+      readRegistryRow(key),
     ]);
-    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-    const metrics = buildMetrics(merged, fmpRow, key);
+    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics };
+    const metrics = buildMetrics(merged, fmpRow, key, regRow);
     quoteCache.set(key, metrics);
     return res.json(metrics);
   } catch (err: any) {
@@ -667,12 +670,13 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
 
   try {
-    const [summary, newsRes, fmpRow, earningsDbRows, peersPayload] = await Promise.all([
+    const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload] = await Promise.all([
       yahooFinance.quoteSummary(upperTicker, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
       }),
       yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
+      readRegistryRow(upperTicker),
       db.select({ earningsDate: indicatorCache.earningsDate })
         .from(indicatorCache)
         .where(eq(indicatorCache.ticker, upperTicker))
@@ -690,7 +694,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       ...summary.defaultKeyStatistics,
       ...summary.assetProfile,
     };
-    const metrics = buildMetrics(merged, fmpRow, upperTicker);
+    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow);
 
     const recTrend = (summary as any).recommendationTrend?.trend?.[0];
     const recommendations = recTrend ? {

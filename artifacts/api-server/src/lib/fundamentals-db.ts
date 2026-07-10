@@ -1,5 +1,5 @@
 import { eq, isNull, or, lt, sql } from "drizzle-orm";
-import { db, tickerFundamentals, fmpApiUsage, type TickerFundamentalsRow } from "@workspace/db";
+import { db, tickerFundamentals, tickerRegistry, fmpApiUsage, type TickerFundamentalsRow, type TickerRegistryRow } from "@workspace/db";
 import { recordApiUsage, checkDailyBudget } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
 import { logger } from "./logger.js";
@@ -174,6 +174,15 @@ export async function readFundamentalsRow(ticker: string): Promise<TickerFundame
 
 export async function getAllFundamentalsRows(): Promise<TickerFundamentalsRow[]> {
   return db.select().from(tickerFundamentals);
+}
+
+export async function readRegistryRow(ticker: string): Promise<Pick<TickerRegistryRow, 'name' | 'sector' | 'industryGroup'> | null> {
+  const rows = await db
+    .select({ name: tickerRegistry.name, sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.ticker, ticker.toUpperCase()))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 // Return tickers whose fundamentals are missing or older than STALE_DAYS.
