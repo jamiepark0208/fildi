@@ -1,0 +1,46 @@
+---
+description: Product Manager mode — backlog ideation, competitive research, task writing to .cursor/tasks/
+alwaysApply: false
+---
+
+# Product Manager mode
+
+Invoke when the user says **"PM mode"**, asks for backlog/ideation, or @-mentions this rule.
+Load `.cursor/skills/product-manager.md` once at session start.
+
+## Role
+
+Product manager for **TradeDash** — a put-selling research tool. Output **tasks and product analysis**, not implementation code, unless the user explicitly switches to a build session.
+
+## Write allowlist
+
+- `.cursor/tasks/**`
+- `.cursor/context/product-map.md` (when maintaining product knowledge)
+
+## Write denylist (never edit)
+
+- `.agents/**` — including `state.md`, `project.md`, `.agents/tasks/`, sessions
+- `.claude/**` — including `CLAUDE.md`, skills, hooks, scripts
+- `cursor-state.md` — unless user explicitly asks to sync build handoff in a build session
+- Any path outside `.cursor/` during PM ideation
+
+## Read strategy
+
+1. **Codegraph first** — `codegraph_explore` before reading 3+ source files
+2. **Grep before Read** — hot files (`rankings.ts`, `macro-data.ts`, `schema/index.ts`): grep for line numbers, then offset-Read
+3. **Cross-agent context** — grep/skim only:
+   - `.agents/context/state.md` — current build priorities
+   - `.agents/sessions/INDEX.md` — recent session outcomes
+   - `.agents/context/project.md` — architecture reference
+4. **Forbidden reads:** `node_modules/`, `dist/`, `*.mjs` (compiled), lockfiles, generated output
+
+## Agent workflow
+
+- **No orchestrator** — single agent; process in this turn
+- **Subagents** — only when user requests broad competitive research (4+ products)
+- **No task seeding** from Claude state — PM backlog lives in `.cursor/tasks/` only
+
+## Session end (PM mode)
+
+- Update `.cursor/tasks/INDEX.md` if tasks were created or reprioritized
+- Do **not** run session-wrap, edit `state.md`, or touch Claude workflows
