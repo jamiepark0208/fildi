@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -688,11 +688,10 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 
 export default function OptionsScanner() {
   const { isAdmin } = useAuth();
-  const queryClient = useQueryClient();
   const { weights } = useScoringPreferences();
 
   const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
-  const [fetchedOnce,   setFetchedOnce]   = useState<Set<string>>(new Set());
+  const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("score");
   const [show1wk,       setShow1wk]       = useState(true);
@@ -766,19 +765,23 @@ export default function OptionsScanner() {
     })),
   });
 
-  // ── Per-ticker options — enabled only after first expand ────────────────────
-  const optionsQueries = useQueries({
-    queries: displayTickers.map(ticker => ({
-      queryKey:             ["options", ticker],
-      queryFn:              async () => {
-        const res = await fetch(`/api/options/${ticker}`);
-        if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
-        return res.json() as Promise<OptionsChainResult[]>;
-      },
-      enabled:              fetchedOnce.has(ticker),
-      staleTime:            5 * 60_000,
-      refetchOnWindowFocus: false,
-    })),
+  // ── Options — one batched request for all display tickers ───────────────────
+  // Every sort key (income/buffer/otm/optionScore) is computed FROM the options
+  // chain, so there's no way to lazy-load "just the top N" — the ranking itself
+  // depends on having every ticker's chain. Batching avoids an N-way parallel
+  // burst against Yahoo; the server caps concurrency and reuses optionsCache.
+  const displayTickersKey = useMemo(() => [...displayTickers].sort().join(","), [displayTickers]);
+
+  const { data: batchOptionsData, isFetching: batchOptionsFetching } = useQuery({
+    queryKey:             ["options-batch", displayTickersKey],
+    queryFn:              async () => {
+      const res = await fetch(`/api/options/batch?tickers=${encodeURIComponent(displayTickersKey)}`);
+      if (!res.ok) throw new Error("options batch fetch failed");
+      return res.json() as Promise<Record<string, OptionsChainResult[] | { error: string }>>;
+    },
+    enabled:              isLoaded && displayTickers.length > 0,
+    staleTime:            5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // ── Derived maps ─────────────────────────────────────────────────────────────
@@ -793,15 +796,23 @@ export default function OptionsScanner() {
 
   const optionsMap = useMemo(() => {
     const m = new Map<string, OptionsChainResult[] | null>();
-    displayTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.data ?? null));
+    displayTickers.forEach(t => {
+      const refreshed = refreshedOptions.get(t);
+      if (refreshed) { m.set(t, refreshed); return; }
+      const entry = batchOptionsData?.[t];
+      m.set(t, entry && !("error" in entry) ? entry : null);
+    });
     return m;
-  }, [displayTickers, optionsQueries]);
+  }, [displayTickers, batchOptionsData, refreshedOptions]);
 
   const optionsLoadingMap = useMemo(() => {
     const m = new Map<string, boolean>();
-    displayTickers.forEach((t, i) => m.set(t, optionsQueries[i]?.isFetching ?? false));
+    displayTickers.forEach(t => {
+      const hasData = refreshedOptions.has(t) || !!batchOptionsData?.[t];
+      m.set(t, batchOptionsFetching && !hasData);
+    });
     return m;
-  }, [displayTickers, optionsQueries]);
+  }, [displayTickers, batchOptionsFetching, batchOptionsData, refreshedOptions]);
 
   // ── Macro regime — for Option Scorer overlay ─────────────────────────────────
   const { data: macroRegimeData } = useQuery({
@@ -986,17 +997,6 @@ export default function OptionsScanner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTickers, sort, isLoaded]);
 
-  // Auto-fetch options for all tickers once watchlist + scorecard are ready
-  useEffect(() => {
-    if (isLoaded && displayTickers.length > 0) {
-      setFetchedOnce(prev => {
-        const next = new Set(prev);
-        displayTickers.forEach(t => next.add(t));
-        return next;
-      });
-    }
-  }, [isLoaded, displayTickers]);
-
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
@@ -1004,16 +1004,20 @@ export default function OptionsScanner() {
       next.has(ticker) ? next.delete(ticker) : next.add(ticker);
       return next;
     });
-    setFetchedOnce(prev => prev.has(ticker) ? prev : new Set([...prev, ticker]));
   };
 
-  const handleRowRefresh = (ticker: string) => {
-    setFetchedOnce(prev => new Set([...prev, ticker]));
-    queryClient.invalidateQueries({ queryKey: ["options", ticker] });
+  const handleRowRefresh = async (ticker: string) => {
+    try {
+      const res = await fetch(`/api/options/${ticker}`);
+      if (!res.ok) throw new Error(`options refresh failed: ${ticker}`);
+      const data = await res.json() as OptionsChainResult[];
+      setRefreshedOptions(prev => new Map(prev).set(ticker, data));
+    } catch {
+      // keep existing data on failure
+    }
   };
 
   const handleOverride = (ticker: string) => {
-    setFetchedOnce(prev => new Set([...prev, ticker]));
     setOverrides(prev => new Set([...prev, ticker]));
   };
 

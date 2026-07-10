@@ -1,9 +1,8 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  getGetStockQuoteQueryOptions,
   useSearchStocks,
   getSearchStocksQueryKey,
   StockMetrics
@@ -125,19 +124,31 @@ function WatchlistView() {
     return entries.filter(e => e.colorTag === filterColor);
   }, [entries, filterColor]);
 
-  const listQueries = useQueries({
-    queries: filteredEntries.map((entry) => ({
-      ...getGetStockQuoteQueryOptions({ ticker: entry.ticker }),
-      staleTime: 5 * 60 * 1000,
-    })),
+  const tickerKey = useMemo(
+    () => [...filteredEntries.map(e => e.ticker)].sort().join(","),
+    [filteredEntries],
+  );
+
+  const { data: quotesData } = useQuery({
+    queryKey: ["stocks-quotes", tickerKey],
+    queryFn: async (): Promise<Record<string, StockMetrics | { error: string }>> => {
+      const res = await fetch(`/api/stocks/quotes?tickers=${encodeURIComponent(tickerKey)}`);
+      if (!res.ok) throw new Error("quotes fetch failed");
+      return res.json();
+    },
+    enabled: tickerKey.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Build quote map for sort access before sorting
   const quoteMap = useMemo(() => {
-    const m: Record<string, import("@workspace/api-client-react").StockMetrics | undefined> = {};
-    filteredEntries.forEach((e, i) => { m[e.ticker] = listQueries[i]?.data; });
+    const m: Record<string, StockMetrics | undefined> = {};
+    filteredEntries.forEach((e) => {
+      const q = quotesData?.[e.ticker];
+      m[e.ticker] = q && !("error" in q) ? q : undefined;
+    });
     return m;
-  }, [filteredEntries, listQueries]);
+  }, [filteredEntries, quotesData]);
 
   const visibleEntries = useMemo(() => {
     const sorted = [...filteredEntries].sort((a, b) => {

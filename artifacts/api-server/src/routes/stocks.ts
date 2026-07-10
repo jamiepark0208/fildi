@@ -520,24 +520,30 @@ async function fetchQuoteSummary(ticker: string) {
   });
 }
 
+async function fetchQuoteMetrics(ticker: string) {
+  const key = ticker.toUpperCase();
+  const cached = quoteCache.get(key);
+  if (cached) return cached;
+
+  const [q, fmpRow, regRow] = await Promise.all([
+    fetchQuoteSummary(key),
+    readFundamentalsRow(key),
+    readRegistryRow(key),
+  ]);
+  const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics };
+  const metrics = buildMetrics(merged, fmpRow, key, regRow);
+  quoteCache.set(key, metrics);
+  return metrics;
+}
+
 router.get("/stocks/quote", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
   if (!ticker || typeof ticker !== "string") {
     return res.status(400).json({ error: "ticker is required" });
   }
   const key = ticker.toUpperCase();
-  const cached = quoteCache.get(key);
-  if (cached) return res.json(cached);
-
   try {
-    const [q, fmpRow, regRow] = await Promise.all([
-      fetchQuoteSummary(key),
-      readFundamentalsRow(key),
-      readRegistryRow(key),
-    ]);
-    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics };
-    const metrics = buildMetrics(merged, fmpRow, key, regRow);
-    quoteCache.set(key, metrics);
+    const metrics = await fetchQuoteMetrics(key);
     return res.json(metrics);
   } catch (err: any) {
     const msg = String(err?.message ?? err);
@@ -546,6 +552,38 @@ router.get("/stocks/quote", async (req, res) => {
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
   }
+});
+
+// GET /stocks/quotes?tickers=A,B,C — batched quote fetch, per-ticker quoteCache reuse.
+// Caps concurrent Yahoo calls so a large watchlist doesn't fan out N simultaneous requests.
+const QUOTES_BATCH_CONCURRENCY = 6;
+
+router.get("/stocks/quotes", async (req, res) => {
+  const { tickers } = req.query as { tickers?: string };
+  if (!tickers || typeof tickers !== "string") {
+    return res.status(400).json({ error: "tickers is required" });
+  }
+  const keys = [...new Set(tickers.split(",").map(t => t.trim().toUpperCase()).filter(Boolean))];
+  if (keys.length === 0) {
+    return res.status(400).json({ error: "tickers is required" });
+  }
+
+  const results: Record<string, object | { error: string }> = {};
+  let cursor = 0;
+  async function worker() {
+    while (cursor < keys.length) {
+      const key = keys[cursor++];
+      try {
+        results[key] = await fetchQuoteMetrics(key);
+      } catch (err: any) {
+        const msg = String(err?.message ?? err);
+        results[key] = { error: msg.includes("No fundamentals data") || msg.includes("Not Found") ? `Ticker not found: ${key}` : `Failed to fetch stock data: ${msg}` };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(QUOTES_BATCH_CONCURRENCY, keys.length) }, worker));
+
+  return res.json(results);
 });
 
 function scoreValue(pe: number | null, peg: number | null, pb: number | null, ps: number | null): number {
