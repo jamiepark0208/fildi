@@ -3,6 +3,8 @@
 cd /home/runner/workspace/artifacts/stock-compare
 
 while true; do
+  # Evict anything that grabbed our port (e.g. Replit agent starting mockup-sandbox)
+  fuser -k 8081/tcp 2>/dev/null || true
   PORT=8081 BASE_PATH=/ pnpm run dev >> /tmp/vite-dev.log 2>&1
   echo "$(date): Vite exited (code $?), restarting in 2s..." >> /tmp/vite-dev.log
   sleep 2
