@@ -1075,3 +1075,19 @@ export const manualOverrides = pgTable('manual_overrides', {
 export const insertManualOverridesSchema = createInsertSchema(manualOverrides).omit({ createdAt: true })
 export type InsertManualOverrides = z.infer<typeof insertManualOverridesSchema>
 export type ManualOverridesRow = typeof manualOverrides.$inferSelect
+
+// ── Explain cache ─────────────────────────────────────────────────────────────
+// Stores AI-generated score explanations keyed by ticker + scoreType + scoreHash.
+// scoreHash is a deterministic string of the key inputs; changes when score changes,
+// causing a cache miss and regeneration on the next explain request.
+export const explainCache = pgTable('explain_cache', {
+  ticker:        text('ticker').notNull(),
+  scoreType:     text('score_type').notNull(),    // "fundamental" | "technical"
+  scoreHash:     text('score_hash').notNull(),
+  explanation:   text('explanation').notNull(),
+  generatedAt:   timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.scoreType] }),
+}));
+
+export type ExplainCacheRow = typeof explainCache.$inferSelect

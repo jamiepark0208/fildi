@@ -18,7 +18,7 @@ Root: `INDEX.md` only. Done → `archive/`.
 |---|---|---|---|
 | 1 | P0 | done | [competitive-ux-research](new_app_features/1-competitive-ux-research-070926.md) |
 | 2 | P0 | ready | [onboarding-product-tour](new_app_features/2-onboarding-product-tour-070926.md) |
-| 3 | P0 | ready | [contextual-score-explanations](new_app_features/3-contextual-score-explanations-070926.md) |
+| 3 | P0 | done | [contextual-score-explanations](new_app_features/3-contextual-score-explanations-070926.md) |
 | 4 | P0 | ready | [home-dashboard-redesign](new_app_features/4-home-dashboard-redesign-070926.md) |
 | 5 | P1 | ready | [scanner-simplified-view](new_app_features/5-scanner-simplified-view-070926.md) |
 | 6 | P1 | ready | [todays-top-picks-feed](new_app_features/6-todays-top-picks-feed-070926.md) |

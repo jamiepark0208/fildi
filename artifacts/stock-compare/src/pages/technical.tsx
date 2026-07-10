@@ -1,4 +1,5 @@
 import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
+import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { Sidebar } from "@/components/sidebar";
@@ -300,68 +301,44 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
 
 // ── Technical Rankings Leaderboard ────────────────────────────────────────────
 
+function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>) {
+  const row = rowMap?.[score.ticker];
+  const cs  = score.componentScores ?? {};
+  return {
+    technicalData: {
+      totalScore:      score.totalScore,
+      rank:            score.rank,
+      signal:          score.signal,
+      regime:          score.regime ?? "NEUTRAL",
+      componentScores: {
+        oversoldDepth:   cs["oversoldDepth"]?.score   ?? 0,
+        reversalSignal:  cs["reversalSignal"]?.score  ?? 0,
+        volatilityState: cs["volatilityState"]?.score ?? 0,
+        trendContext:    cs["trendContext"]?.score     ?? 0,
+        optionsFlow:     cs["optionsFlow"]?.score      ?? 0,
+        volumeConfirm:   cs["volumeConfirm"]?.score    ?? 0,
+      },
+      rsi14:           parseFloat(row?.rsi14 ?? "0") || 0,
+      rsi14Pct:        parseFloat(row?.rsi14Pct ?? "50") || 50,
+      ivRank:          parseFloat(row?.ivRank ?? "0") || 0,
+      ivVsRealizedVol: parseFloat(row?.ivVsRealizedVol ?? "1") || 1,
+      macdDirection:   row?.macdDirection ?? "flat",
+      fallingKnife:    (row?.fallingKnife ?? 0) === 1,
+      earningsDaysOut: row?.earningsDaysOut ?? null,
+      reason:          score.reason,
+    },
+  };
+}
+
+function parseBullets(text: string): string[] {
+  return text
+    .split(/\n|(?<=[.!?])\s{1,2}(?=[A-Z•\-])/)
+    .map(s => s.replace(/^[-•*]\s*/, "").trim())
+    .filter(s => s.length > 8);
+}
+
 function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow> }) {
-  const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
-  const [loading,      setLoading]      = useState<Set<string>>(new Set());
-  const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
-
-  async function fetchExplanation(score: TechnicalScore) {
-    const { ticker } = score;
-
-    if (explanations.has(ticker)) {
-      setExpanded(prev => {
-        const next = new Set(prev);
-        next.has(ticker) ? next.delete(ticker) : next.add(ticker);
-        return next;
-      });
-      return;
-    }
-
-    const row = rowMap?.[ticker];
-    const cs  = score.componentScores ?? {};
-
-    setLoading(prev => new Set(prev).add(ticker));
-    try {
-      const res = await fetch("/api/explain/score", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticker,
-          scoreType: "technical",
-          technicalData: {
-            totalScore:      score.totalScore,
-            rank:            score.rank,
-            signal:          score.signal,
-            regime:          score.regime ?? "NEUTRAL",
-            componentScores: {
-              oversoldDepth:   cs["oversoldDepth"]?.score   ?? 0,
-              reversalSignal:  cs["reversalSignal"]?.score  ?? 0,
-              volatilityState: cs["volatilityState"]?.score ?? 0,
-              trendContext:    cs["trendContext"]?.score     ?? 0,
-              optionsFlow:     cs["optionsFlow"]?.score      ?? 0,
-              volumeConfirm:   cs["volumeConfirm"]?.score    ?? 0,
-            },
-            rsi14:           parseFloat(row?.rsi14 ?? "0") || 0,
-            rsi14Pct:        parseFloat(row?.rsi14Pct ?? "50") || 50,
-            ivRank:          parseFloat(row?.ivRank ?? "0") || 0,
-            ivVsRealizedVol: parseFloat(row?.ivVsRealizedVol ?? "1") || 1,
-            macdDirection:   row?.macdDirection ?? "flat",
-            fallingKnife:    (row?.fallingKnife ?? 0) === 1,
-            earningsDaysOut: row?.earningsDaysOut ?? null,
-            reason:          score.reason,
-          },
-        }),
-      });
-      const data = await res.json() as { explanation?: string };
-      setExplanations(prev => new Map(prev).set(ticker, data.explanation ?? ""));
-      setExpanded(prev => new Set(prev).add(ticker));
-    } catch {
-      setExplanations(prev => new Map(prev).set(ticker, "Unable to generate explanation at this time."));
-      setExpanded(prev => new Set(prev).add(ticker));
-    } finally {
-      setLoading(prev => { const next = new Set(prev); next.delete(ticker); return next; });
-    }
-  }
+  const { explain, getState } = useScoreExplanation();
 
   if (scores.length < 2) return null;
 
@@ -379,13 +356,6 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
     idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
                 "border-border/40 bg-background/30";
 
-  function parseBullets(text: string): string[] {
-    return text
-      .split(/\n|(?<=[.!?])\s{1,2}(?=[A-Z•\-])/)
-      .map(s => s.replace(/^[-•*]\s*/, "").trim())
-      .filter(s => s.length > 8);
-  }
-
   return (
     <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
@@ -395,10 +365,10 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
 
       <div className="flex flex-col gap-0.5">
         {scores.map((score, idx) => {
-          const isLoading   = loading.has(score.ticker);
-          const explanation = explanations.get(score.ticker);
-          const isExpanded  = expanded.has(score.ticker);
-          const bullets     = explanation ? parseBullets(explanation) : [];
+          const state      = getState(score.ticker, "technical");
+          const isLoading  = state.status === "loading";
+          const bullets    = state.status === "done" ? parseBullets(state.text) : [];
+          const isExpanded = state.status === "done" && bullets.length > 0;
 
           const signalCls =
             score.signal === "GO"    ? "text-green-400" :
@@ -436,7 +406,7 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
                 </div>
 
                 <button
-                  onClick={() => fetchExplanation(score)}
+                  onClick={() => explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap))}
                   disabled={isLoading}
                   className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors shrink-0 disabled:opacity-50"
                 >
@@ -445,7 +415,7 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
                 </button>
               </div>
 
-              {isExpanded && bullets.length > 0 && (
+              {isExpanded && (
                 <ul className="mt-2 mb-0.5 pl-9 space-y-0.5">
                   {bullets.map((b, i) => (
                     <li key={i} className="flex items-start gap-1.5 text-xs text-white leading-snug">
@@ -453,6 +423,7 @@ function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; ro
                       {b}
                     </li>
                   ))}
+                  <li className="text-[10px] text-slate-500 pl-0">AI narrative — not a trade recommendation.</li>
                 </ul>
               )}
             </div>

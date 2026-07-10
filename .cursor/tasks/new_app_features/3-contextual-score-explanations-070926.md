@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done |
 | **Priority** | P0 |
 | **Area** | ui (+ thin frontend hook; no API changes v1) |
 | **Effort** | M (~1–2 build sessions) |
@@ -11,6 +11,24 @@
 | **Related** | [2-onboarding](2-onboarding-product-tour-070926.md), [ai/11 product-ai-explain-csp](../ai/11-product-ai-explain-csp-070926.md) (**hard consumer**), [enh/20 scorecard-guide](../enhancements/20-scorecard-guide-improvements-070926.md), [4-home](4-home-dashboard-redesign-070926.md) |
 | **Type** | ENHANCE (extract duplicate Why → shared component) |
 | **Impl research** | 2026-07-09 deep (ai/2 intensity) |
+
+## ✅ DONE — 2026-07-10
+
+**What was implemented:**
+- `lib/score-summary-copy.ts` — static one-liners + `guideTabFor()` + `staticCopy()` for all score types
+- `hooks/useScoreExplanation.ts` — shared hook with module-level `memCache` (in-session) calling `POST /api/explain/score`; server now checks `explain_cache` DB table before calling Haiku
+- `components/ExplainableScore.tsx` — popover wrapping any score chip; static copy always visible; "Explain more" for fund/tech only; guide deep-link to correct tab
+- `rankings-leaderboard.tsx` refactored — removed local `fetchExplanation` / `useState` Maps, uses shared hook
+- `technical.tsx` TechnicalLeaderboard refactored — same; `buildTechnicalPayload` + `parseBullets` extracted to module level
+- `scorecard-explanation.tsx` — reads `?tab=` from URL on mount (deep-link from popover)
+- `sidebar.tsx` — "Scorecard Guide" renamed to "Scoring Reference"
+- `explain.ts` (server) — checks `explain_cache` DB before Haiku; upserts on miss; `scoreHash` detects stale entries
+- DB schema — `explain_cache` table: `(ticker, score_type)` PK, `score_hash`, `explanation`, `generated_at`
+- Migration `0016_explain_cache.sql` added
+
+**Architecture decision (2026-07-10):** Score explanations go to DB (same for all users, objective inputs). Macro/portfolio briefs stay in JSON files (personalized per watchlist).
+
+**Tests:** 35/35 api-server, 268/268 stock-compare. Both typechecks clean.
 
 ### Purpose
 Scores explain themselves at the decision moment — static one-liner + optional on-demand AI — so CSP traders don’t homework-trip to the guide.

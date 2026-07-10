@@ -1,5 +1,7 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { eq, and } from "drizzle-orm";
+import { db, explainCache } from "@workspace/db";
 
 const router  = Router();
 const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
@@ -48,6 +50,18 @@ interface ExplainRequest {
   scoreType:        "fundamental" | "technical";
   fundamentalData?: FundamentalData;
   technicalData?:   TechnicalData;
+}
+
+// ── Score hash — deterministic fingerprint of key inputs ──────────────────────
+// Changes when the score changes → cache miss → fresh Haiku call
+
+function fundamentalHash(d: FundamentalData): string {
+  const fs = d.familyScores;
+  return `${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}`;
+}
+
+function technicalHash(d: TechnicalData): string {
+  return `${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
@@ -115,7 +129,8 @@ Write a 2-3 sentence explanation of what this technical setup means for ${ticker
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
-// POST /api/explain/score — generate AI explanation for a ticker's score
+// POST /api/explain/score — generate AI explanation for a ticker's score.
+// Checks explain_cache first; only calls Haiku on a cache miss.
 router.post("/explain/score", async (req, res) => {
   const { ticker, scoreType, fundamentalData, technicalData } = req.body as ExplainRequest;
 
@@ -124,22 +139,50 @@ router.post("/explain/score", async (req, res) => {
   }
 
   let prompt: string;
+  let scoreHash: string;
+
   try {
     if (scoreType === "fundamental") {
       if (!fundamentalData) return res.status(400).json({ error: "fundamentalData required" });
       prompt = buildFundamentalPrompt(ticker, fundamentalData);
+      scoreHash = fundamentalHash(fundamentalData);
     } else {
       if (!technicalData) return res.status(400).json({ error: "technicalData required" });
       prompt = buildTechnicalPrompt(ticker, technicalData);
+      scoreHash = technicalHash(technicalData);
     }
 
+    // Cache hit: same ticker+scoreType and score hasn't changed
+    const cached = await db.select()
+      .from(explainCache)
+      .where(and(
+        eq(explainCache.ticker, ticker),
+        eq(explainCache.scoreType, scoreType),
+        eq(explainCache.scoreHash, scoreHash),
+      ))
+      .limit(1);
+
+    if (cached.length > 0) {
+      return res.json({ explanation: cached[0].explanation, cached: true });
+    }
+
+    // Cache miss: call Haiku
     const msg = await anthropic.messages.create({
-      model:    "claude-haiku-4-5-20251001",
+      model:      "claude-haiku-4-5-20251001",
       max_tokens: 200,
-      messages: [{ role: "user", content: prompt }],
+      messages:   [{ role: "user", content: prompt }],
     });
 
     const explanation = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
+
+    // Persist — upsert so stale rows for the same ticker+scoreType are replaced
+    await db.insert(explainCache)
+      .values({ ticker, scoreType, scoreHash, explanation })
+      .onConflictDoUpdate({
+        target: [explainCache.ticker, explainCache.scoreType],
+        set: { scoreHash, explanation, generatedAt: new Date() },
+      });
+
     return res.json({ explanation });
   } catch {
     return res.json({ explanation: "Unable to generate explanation at this time." });
