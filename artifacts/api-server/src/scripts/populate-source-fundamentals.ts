@@ -225,6 +225,7 @@ async function populateFromTable(
   source: string,
   fieldMap: Record<string, string>,
   fetchedAtKey: string,
+  transforms: Record<string, (v: number) => number> = {},
 ) {
   let tickers = 0;
   let totalFields = 0;
@@ -238,8 +239,9 @@ async function populateFromTable(
     for (const [prop, canonical] of Object.entries(fieldMap)) {
       const val = row[prop];
       if (val === null || val === undefined) continue;
-      const numVal = typeof val === "string" ? parseFloat(val) : Number(val);
+      let numVal = typeof val === "string" ? parseFloat(val) : Number(val);
       if (!isFinite(numVal)) continue;
+      if (transforms[canonical]) numVal = transforms[canonical](numVal);
       if (isRejected(canonical, numVal)) { rejected++; continue; }
       batch.push({ ticker, source, field: canonical, value: String(numVal), fetchedAt });
     }
@@ -288,7 +290,8 @@ async function main() {
   console.log(`  → ${edgar.tickers} tickers, ${edgar.totalFields} fields, ${edgar.rejected} rejected`);
 
   console.log("Populating from finnhub_fundamentals …");
-  const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt");
+  // Finnhub reports dividendYield as a percentage (1.47 = 1.47%); convert to decimal to match all other sources.
+  const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt", { dividendYield: v => v / 100 });
   console.log(`  → ${finnhub.tickers} tickers, ${finnhub.totalFields} fields, ${finnhub.rejected} rejected`);
 
   console.log("Populating from fmp_fundamentals …");
