@@ -16,6 +16,7 @@ export interface OptionRow {
   openInterest: number | null;
   incomePct: number;
   meetsGate: boolean;
+  bidIsLive: boolean;
   delta: number | null;
   spreadPct: number | null;
 }
@@ -210,7 +211,10 @@ function buildRows(
       const iv           = p.impliedVolatility ?? 0;
       const volume       = typeof p.volume === "number" ? p.volume : null;
       const openInterest = typeof p.openInterest === "number" ? p.openInterest : null;
-      const incomePct    = bid > 0 ? (bid / strike) * 100 : 0;
+      // When market is closed, Yahoo returns bid=0; fall back to lastPrice so the scanner
+      // can still show indicative income estimates outside of market hours.
+      const priceForIncome = bid > 0 ? bid : lastPrice;
+      const incomePct    = priceForIncome > 0 ? (priceForIncome / strike) * 100 : 0;
       const mid          = bid > 0 && ask > 0 ? (bid + ask) / 2 : null;
       const spreadPct    = mid !== null && mid > 0 ? parseFloat(((ask - bid) / mid).toFixed(4)) : null;
 
@@ -223,7 +227,8 @@ function buildRows(
       return {
         strike, bid, ask, lastPrice, iv, volume, openInterest,
         incomePct: Math.round(incomePct * 1000) / 1000,
-        meetsGate: bid > 0,
+        meetsGate: priceForIncome > 0,
+        bidIsLive: bid > 0,
         delta,
         spreadPct,
       };
