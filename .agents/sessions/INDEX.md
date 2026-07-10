@@ -5,7 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
-- [2026-07-10](claude-2026-07-10.md) — DB-first fundamentals pipeline complete — scores persisted, leaderboard server-driven, tooltip crash fixed via debounce | build | next: Performance audit across the webapp: identify N+1 queries, over-fetching, redundant re-renders
+- [2026-07-10](claude-2026-07-10.md) — auto-saved | build | next: Performance audit across the webapp: identify N+1 queries, over-fetching, redundant re-renders
 - [2026-07-09](claude-2026-07-09.md) — auto-saved | build | next: 1) Complete Yahoo dividendYield: add yahoo_dividendYield to yahoo-client.ts result (fd.dividendYield already available in financialData module), add to populate YAHOO_FIELDS, add to backfill-yahoo upsert. 2) Re-run backfill-finnhub to refresh dividendYield with corrected pct() values. 3) Run populate-source-fundamentals + merge-trusted. 4) Verify NVDA dividendYield now shows ~0.027% not 51.3%. 5) Run nightly-enrichment.ts dry-run then live for all fields. 6) FMP backfill post-midnight reset. 7) AV resumes from ADYEN.
 - [2026-07-07](claude-2026-07-07.md) — auto-saved | build | next: 1) REWRITE Stock DB UI completely: collapsible sector+peer-group sections, ordered by coverage %, clear visual hierarchy
 - [2026-07-06](claude-2026-07-06.md) — auto-saved | build | next: 1) Run backfill-fmp.ts after midnight UTC quota reset. 2) Re-run merge-trusted.ts to populate field_provenance for all 257 tickers. 3) Verify provenance tooltip shows real source data in UI. 4) Register provenanceCache in cache-registry.ts. 5) Phase 1: audit all 6 data source usage-tracking mechanisms for Phase 2 api_usage table design.
