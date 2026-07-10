@@ -1,21 +1,22 @@
 import { Router } from "express";
 import { getAllCachedIndicators, getIndicators, getIndicatorsBatch, type IndicatorResult } from "../lib/indicators.js";
-import { WATCHLIST } from "../lib/constants.js";
+import { getUserWatchlistTickers } from "../lib/watchlist-tickers.js";
 
 const router = Router();
 
 // GET /api/technical/scorecard
-// Returns indicator rows for all watchlist tickers.
+// Returns indicator rows for the authenticated user's watchlist tickers.
 // Reads from today's cache where available; computes fresh from stored OHLCV
 // for any ticker not yet cached today (no Yahoo Finance calls for warm data).
-router.get("/technical/scorecard", async (_req, res) => {
+router.get("/technical/scorecard", async (req, res) => {
   try {
+    const userTickers = await getUserWatchlistTickers(req.session.userId!);
     const today  = new Date().toISOString().slice(0, 10);
     const cached = await getAllCachedIndicators();
     const map    = new Map(cached.map(r => [r.ticker, r]));
 
     // Find tickers missing from today's cache and compute them from stored OHLCV
-    const missing = WATCHLIST.filter(t => !map.has(t) || map.get(t)!.scoredDate !== today);
+    const missing = userTickers.filter(t => !map.has(t) || map.get(t)!.scoredDate !== today);
     if (missing.length > 0) {
       const fresh = await getIndicatorsBatch(missing, false);
       for (const [ticker, result] of Object.entries(fresh)) {
@@ -23,7 +24,7 @@ router.get("/technical/scorecard", async (_req, res) => {
       }
     }
 
-    const results: Array<IndicatorResult & { stale: boolean }> = WATCHLIST.map(ticker => {
+    const results: Array<IndicatorResult & { stale: boolean }> = userTickers.map(ticker => {
       const row = map.get(ticker);
       if (row) return { ...row, stale: row.scoredDate !== today };
       return {
@@ -49,7 +50,8 @@ router.get("/technical/scorecard", async (_req, res) => {
 // Force-recomputes a single ticker and updates indicator_cache.
 router.post("/technical/refresh/:ticker", async (req, res) => {
   const ticker = req.params.ticker.toUpperCase();
-  if (!WATCHLIST.includes(ticker)) {
+  const userTickers = await getUserWatchlistTickers(req.session.userId!);
+  if (!userTickers.includes(ticker)) {
     return res.status(404).json({ error: `${ticker} not in watchlist` });
   }
   try {

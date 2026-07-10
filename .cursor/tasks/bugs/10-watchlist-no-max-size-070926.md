@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P1 |
 | **Area** | multi-user / perf |
 | **Effort** | XS |
@@ -106,3 +106,9 @@ Script or loop: POST watchlist until 200+ rows — no server rejection today.
 
 - Register seed (bug/19) + POST shape unchanged
 - PK `(user_id, ticker)` conflicts still `onConflictDoNothing`
+
+---
+
+## DONE (2026-07-10)
+
+Added `MAX_WATCHLIST_SIZE = 75` guard in `routes/watchlist.ts` POST — counts existing rows via `db.$count` before insert, returns 400 when at cap. `use-watchlist.ts` `addEntry` now checks `res.ok` and surfaces the 400 via `toast()` (destructive variant), matching the existing error-toast pattern in `price-chart.tsx`. Verified via `pnpm --filter @workspace/api-server test` (35 pass) and `tsc --noEmit` on both packages (clean).

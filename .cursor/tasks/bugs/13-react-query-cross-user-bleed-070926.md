@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P1 |
 | **Area** | multi-user / security |
 | **Effort** | XS |
@@ -118,3 +118,9 @@ Audit: `["data-health"]`, snapshot queries if user-specific.
 
 - Color tags still user-scoped (`fildi_watchlist_colors_${userId}`)
 - `invalidateQueries` on add/remove still works
+
+---
+
+## DONE (2026-07-10)
+
+`use-watchlist.ts` queryKey is now `['watchlist', userId]` with `enabled: !!userId`. Logout handler in `sidebar.tsx` calls `queryClient.removeQueries` for `['watchlist']` and `['portfolio-snapshot-latest']` (the other user-scoped list query, found via grep audit) before `refetch()`/navigate. `['data-health']` audited and left alone — it's global/admin state, not user-specific. Verified via typecheck + full test suite (268 pass, stock-compare).

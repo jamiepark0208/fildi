@@ -10,14 +10,7 @@ import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
-
-// BUG-01 fix: always normalise fundamental rankings against the full watchlist so
-// adding/removing tickers from the compare view doesn't change other tickers' scores.
-const FUNDAMENTAL_WATCHLIST = [
-  "NVDA","INTC","MRVL","PLTR","HOOD","RDDT","AAPL","AMZN","GOOGL","TSLA","NOW",
-  "BABA","SMCI","SNOW","AAOI","NFLX","NET","OPEN","ONDS","POET","SHOP","FSLY","RUM",
-  "JOBY","ACHR","BB","IONQ","SOFI","TTD","RKLB","RDW",
-];
+import { useWatchlist } from "@/hooks/use-watchlist";
 
 interface HomeProps {
   tickers: string[];
@@ -28,6 +21,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
   const inputRef = useRef<HTMLInputElement>(null);
   const { weights } = useScoringPreferences();
+  const { tickers: watchlistTickers } = useWatchlist();
 
   const focusInput = () => {
     const el = document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]');
@@ -69,12 +63,13 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   }, [queries, tickers]);
 
   const peerGroupsQuery = useQuery({
-    queryKey: ["peer-groups", FUNDAMENTAL_WATCHLIST],
+    queryKey: ["peer-groups", watchlistTickers],
     queryFn: async () => {
-      const res = await fetch(`/api/fundamentals/peer-groups?tickers=${FUNDAMENTAL_WATCHLIST.join(",")}`);
+      const res = await fetch(`/api/fundamentals/peer-groups?tickers=${watchlistTickers.join(",")}`);
       if (!res.ok) return {} as Record<string, { groupId: string; confidence: "mapped" | "auto" | "unmapped"; metricExclusions?: string[] }>;
       return res.json() as Promise<Record<string, { groupId: string; confidence: "mapped" | "auto" | "unmapped"; metricExclusions?: string[] }>>;
     },
+    enabled: watchlistTickers.length > 0,
     staleTime: 24 * 60 * 60 * 1000,
   });
   const peerGroupMap = peerGroupsQuery.data ?? {};
@@ -116,8 +111,10 @@ export default function Home({ tickers, setTickers }: HomeProps) {
 
   const rankings = useMemo((): StockScore[] => {
     if (!serverRankings?.length) return [];
+    const watchlistSet = new Set(watchlistTickers);
     const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
-    return [...serverRankings]
+    return serverRankings
+      .filter(r => watchlistSet.has(r.ticker))
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
@@ -136,7 +133,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
           safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
         },
       }));
-  }, [serverRankings, loadedStocks]);
+  }, [serverRankings, loadedStocks, watchlistTickers]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, indicatorCache, tickerConfig } from "@workspace/db";
 import { WATCHLIST, RSI_THRESHOLDS, getTier } from "./constants.js";
 import { getIndicators, fetchAndStoreOHLCV, readOHLCVFromDB, type OHLCVRow } from "./indicators.js";
+import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
 
 const yahooFinance = new YahooFinanceClass();
@@ -27,14 +28,18 @@ async function seedTickerConfig(): Promise<void> {
   logger.info({ count: WATCHLIST.length }, "seeder: ticker_config populated");
 }
 
-// Return tickers not yet in today's indicator_cache.
+// Return tickers not yet in today's indicator_cache, across the union of every
+// user's watchlist (plus the default WATCHLIST seed set).
 async function getMissingTickers(): Promise<string[]> {
   const today = todayStr();
-  const done  = await db.select({ ticker: indicatorCache.ticker })
-    .from(indicatorCache)
-    .where(eq(indicatorCache.scoredDate, today));
+  const [unionTickers, done] = await Promise.all([
+    getUnionWatchlistTickers(),
+    db.select({ ticker: indicatorCache.ticker })
+      .from(indicatorCache)
+      .where(eq(indicatorCache.scoredDate, today)),
+  ]);
   const doneSet = new Set(done.map(r => r.ticker));
-  return WATCHLIST.filter(t => !doneSet.has(t));
+  return unionTickers.filter(t => !doneSet.has(t));
 }
 
 // Fetch SPY OHLCV (needed for vs_spy_20d calculation).

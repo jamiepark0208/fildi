@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 export type WatchlistEntry = {
   ticker: string;
@@ -36,7 +37,7 @@ function saveColorMap(map: Record<string, string>, userId: number | undefined) {
   try { localStorage.setItem(colorKey(userId), JSON.stringify(map)); } catch {}
 }
 
-const QUERY_KEY = ["watchlist"] as const;
+const WATCHLIST_QUERY_BASE = "watchlist" as const;
 
 async function fetchWatchlist(): Promise<{ ticker: string; addedAt: string }[]> {
   const res = await fetch("/api/watchlist", { credentials: "include" });
@@ -48,12 +49,14 @@ export function useWatchlist() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id;
+  const QUERY_KEY = [WATCHLIST_QUERY_BASE, userId] as const;
 
   const { data = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchWatchlist,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: !!userId,
   });
 
   const colorMap = loadColorMap(userId);
@@ -65,12 +68,21 @@ export function useWatchlist() {
   }));
 
   const addEntry = useCallback(async (ticker: string, colorTag: string = "") => {
-    await fetch("/api/watchlist", {
+    const res = await fetch("/api/watchlist", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticker }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      toast({
+        title: "Couldn't add ticker",
+        description: body.error ?? "Unknown error",
+        variant: "destructive",
+      });
+      return;
+    }
     if (colorTag) {
       const map = loadColorMap(userId);
       map[ticker] = colorTag;

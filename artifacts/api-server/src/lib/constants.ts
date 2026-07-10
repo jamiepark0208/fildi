@@ -29,5 +29,7 @@ export function getTier(ticker: string): 1 | 2 | 3 {
   return TIER_MAP[ticker.toUpperCase()] ?? 2;
 }
 
-// TODO(multi-user): replace with SELECT DISTINCT ticker FROM watchlist across all users
+// Default seed template / RSI-threshold universe only — NOT the runtime source of truth for
+// user-visible ticker lists. Per-user and cross-user ticker sets live in the `watchlist` table;
+// use lib/watchlist-tickers.ts (getUserWatchlistTickers / getUnionWatchlistTickers) for those.
 export const WATCHLIST = Object.keys(RSI_THRESHOLDS);
