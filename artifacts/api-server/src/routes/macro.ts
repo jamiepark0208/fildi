@@ -25,6 +25,7 @@ import {
   MacroData,
   BankResearch,
 } from "../lib/macro-data.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 import {
   buildFactsPacket,
   buildHighlightsPrompt,
@@ -39,6 +40,10 @@ const ROOT       = join(__dirname, "..", "..");
 
 const HIGHLIGHTS_FILE    = join(ROOT, "macro-highlights.json");
 const BANK_RESEARCH_FILE = join(ROOT, "macro-bank-research.json");
+
+// Caches for routes that previously had no backend caching
+const indicatorHistoryCache = new TTLCache<object>(30 * 60 * 1000, "macro-indicator-history");
+const sepActualsCache       = new TTLCache<object>(60 * 60 * 1000, "macro-sep-actuals");
 
 const router = Router();
 
@@ -92,11 +97,15 @@ router.get("/indicator-history", async (req: Request, res: Response) => {
   if (!key || !INDICATOR_SERIES[key]) {
     return res.status(400).json({ error: "Unknown indicator key" });
   }
+  const cached = indicatorHistoryCache.get(key);
+  if (cached) return res.json(cached);
   const meta = INDICATOR_SERIES[key];
   try {
     const periodsForYoY = meta.isYoY ? 12 : 0;
     const data = await fetchIndicatorHistory(meta.id, periodsForYoY, 4380); // ~12 years
-    return res.json({ key, label: meta.label, unit: meta.unit, isYoY: !!meta.isYoY, data });
+    const result = { key, label: meta.label, unit: meta.unit, isYoY: !!meta.isYoY, data };
+    indicatorHistoryCache.set(key, result);
+    return res.json(result);
   } catch (err) {
     console.error("[macro] indicator-history failed:", err);
     return res.status(500).json({ error: "Failed to fetch indicator history" });
@@ -107,6 +116,8 @@ router.get("/indicator-history", async (req: Request, res: Response) => {
 // Returns recent actual values for each SEP metric from FRED
 
 router.get("/sep-actuals", async (_req: Request, res: Response) => {
+  const cached = sepActualsCache.get("sep-actuals");
+  if (cached) return res.json(cached);
   try {
     const [gdpData, pcePData, unemploymentData, ffData] = await Promise.allSettled([
       fetchIndicatorHistory("A191RL1Q225SBEA", 0, 3650),    // GDP quarterly
@@ -114,13 +125,14 @@ router.get("/sep-actuals", async (_req: Request, res: Response) => {
       fetchIndicatorHistory("UNRATE", 0, 3650),              // Unemployment
       fetchIndicatorHistory("DFF", 0, 3650),                 // Fed Funds
     ]);
-
-    return res.json({
+    const result = {
       gdp:          gdpData.status === "fulfilled"          ? gdpData.value          : [],
       corePce:      pcePData.status === "fulfilled"         ? pcePData.value         : [],
       unemployment: unemploymentData.status === "fulfilled" ? unemploymentData.value : [],
       fedFunds:     ffData.status === "fulfilled"           ? ffData.value           : [],
-    });
+    };
+    sepActualsCache.set("sep-actuals", result);
+    return res.json(result);
   } catch (err) {
     console.error("[macro] sep-actuals failed:", err);
     return res.status(500).json({ error: "Failed to fetch SEP actuals" });
