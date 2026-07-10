@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | rejected — 2026-07-10 (see DONE note) |
 | **Priority** | P1 |
 | **Area** | multi-user / onboarding |
 | **Effort** | S (~1–2 hours) |
@@ -129,3 +129,13 @@ Mirror shape from `watchlist.ts` POST defaults.
 - Register still sets session cookie
 - Invite code consumption unchanged
 - bug/10 cap must be **> 31** if implemented same PR
+
+---
+
+## DONE (2026-07-10) — implemented, then reverted per product decision
+
+Confirmed real before fixing (register only inserted into `users`, no watchlist rows). Implemented Fix option A exactly as specced: bulk insert `WATCHLIST` (31 tickers) with `getTier()` + `status: monitoring` on register, `onConflictDoNothing()` for idempotency. Verified live via a real register call — new user got 31 watchlist rows.
+
+**Reverted at explicit user direction.** Product decision: watchlists must be user-specific with zero cross-account seeding — a brand-new account should start empty, not pre-loaded with a shared "house" ticker list, regardless of size. This is a product-scope rejection of the task's premise (bug/19's stated rationale — "new users get a working scorecard/scanner on day one" — was not accepted), not an implementation bug. `auth.ts` is back to inserting only the user row; the `watchlist`/`WATCHLIST`/`getTier` imports were removed.
+
+**Do not re-attempt this task as filed.** If onboarding UX for empty-watchlist new users is still wanted, it needs a different design (e.g. explicit "add starter tickers" prompt the user opts into, not silent server-side seeding) — that would be a new task, not a revival of this one.

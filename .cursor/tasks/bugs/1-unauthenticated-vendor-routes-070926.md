@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-10 |
 | **Priority** | P0 |
 | **Area** | security |
 | **Effort** | M (~1 session) |
@@ -183,3 +183,13 @@ Logged-in browser: same routes return 200 (same-origin sends session cookie by d
 - Do not block `POST /auth/login`, `POST /auth/register`
 - New routes must mount under `protectedRouter`, not public stack
 - `watchlist.ts` / `positions.ts` already use `requireAuth` — double middleware OK
+
+---
+
+## DONE (2026-07-10)
+
+Confirmed real before fixing (verified `routes/index.ts` had zero auth on stocks/options/explain/technical/indicators/sdm). Fixed via path-scoped `router.use([...paths], requireAuth)` directly on the parent router in `routes/index.ts` — **not** a wrapper sub-router with a blanket `.use(requireAuth)`, because that pattern (as already used by `watchlist.ts`/`feed.ts`) leaks: a no-path `.use()` on a router mounted with no prefix runs unconditionally for every request that reaches it, blocking anything mounted *after* it in the chain even if it doesn't match any of its own routes. First attempt used that wrong pattern and broke `daily-brief`/`macro`/`fundamentals` GET (should stay public) — caught via live curl verification, not assumed. Final fix keeps `watchlist.ts`/`feed.ts` (which can't avoid the blanket pattern — their routes are pre-baked with the `/watchlist`/`/feed` prefix) mounted **last** so nothing is left downstream to leak onto.
+
+Also found and fixed two unrelated pre-existing bugs while verifying: (1) `scoring-config.ts` declared routes as `/api/scoring-config` inside a router already mounted at `/api`, so the real path was `/api/api/scoring-config` and the frontend's actual call never matched — fixed by dropping the redundant prefix. (2) That exposed a missing `app_config` table (schema defined it, never pushed to this DB) — created via targeted `CREATE TABLE IF NOT EXISTS` rather than `drizzle-kit push` (which prompted an interactive create-vs-rename disambiguation unsafe to force blindly).
+
+Verified live via curl (not just tsc/tests): stocks/options/indicators/technical/explain/sdm → 401 anonymous; daily-brief/macro/fundamentals-rankings/scoring-config/healthz → 200 anonymous; watchlist/feed → 401 (own pre-existing auth, unchanged). `pnpm test` 35/35 pass, `pnpm run typecheck` clean (2 pre-existing unrelated errors in `backfill-edgar.ts`/`merge-trusted.ts` confirmed present on `main` before this session).
