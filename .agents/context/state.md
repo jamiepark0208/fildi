@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-10
 
 ## Active work
-- Working: technical-leaderboard-zscore-table, leaderboard-collapse-toggle-fix, peer-classify-cache, ticker-dedupe-fix
-- In progress: Investigated app-wide slowness (Google perf report: 126 fetches; 4.5-5s per-ticker latency; FCP 7.1s). Confirmed classifyTicker() was uncached (N+1 DB pattern on /fundamentals/peer-groups) -- fixed with 24h TTLCache (classifyCache); registered in cache-registry.ts + caching-patterns.md. Confirmed 'Duplicate Queries' React Query warning was caused by unbounded duplicate tickers in fildi_tickers sessionStorage state -- fixed by deduping tickers on read+write in App.tsx Router(). Both api-server and stock-compare typecheck clean. Broader perf research (top-10 industry tips; Netflix-style preload pattern) handed to Cursor to research/plan.
+- Working: peer-classify-cache;ticker-dedupe-fix;technical-leaderboard-zscore-table;md-docs-cleanup
+- In progress: Session wrap-up + doc audit. Verified session-wrap.md is a Read-only reference doc (frontmatter mimics a Skill but it is NOT registered with the Skill tool -- confirmed by a direct 'Unknown skill' error -- this is why it shows as unavailable). Audited .claude/ and .agents/ docs for staleness/dead-weight per user request: deleted 12 unreferenced phase-report-*.md files after verifying (not assuming) their content was stale or already fixed in code; kept 4 phase-reports still pointed to live; deleted duplicate .agents/context/project.md; trimmed workflow.md's stale/dangerous manual-restart section (verified build-and-run.md is correct via live process tree + .replit config); added orphaned data-agent.md/startup.md skills to CLAUDE.md's table; fixed FILDI_ROADMAP.md's dangling phase-report wildcard pointer and flagged the roadmap itself as stale vs .cursor/tasks/CLUSTERS.md.
 - Blocked: none
 
 ## Next tasks (priority order)
