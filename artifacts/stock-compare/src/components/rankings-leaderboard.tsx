@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { StockScore } from "@/lib/rankings";
 import { StockMetrics } from "@workspace/api-client-react";
 import { Trophy, ChevronDown } from "lucide-react";
@@ -120,7 +120,12 @@ function shortenBullet(text: string): string {
 
 const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explain, getState }: RowProps) {
   const state = getState(score.ticker, "fundamental");
-  const isExpanded = state.status === "done" && !!state.text;
+  const [open, setOpen] = useState(false);
+
+  // Auto-open when explanation arrives
+  if (state.status === "done" && !!state.text && !open) setOpen(true);
+
+  const isExpanded = state.status === "done" && !!state.text && open;
   const metricRows = isExpanded ? buildMetricRows(score, allScores) : [];
   const bullets = isExpanded ? parseBullets(state.text).map(shortenBullet).filter(Boolean) : [];
 
@@ -155,8 +160,12 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
         </div>
 
         <button
-          onClick={() => explain(score.ticker, "fundamental", buildFundamentalPayload(score, stocks))}
+          onClick={() => {
+            if (state.status === "done") setOpen(!open);
+            else explain(score.ticker, "fundamental", buildFundamentalPayload(score, stocks));
+          }}
           disabled={state.status === "loading"}
+          // setOpen toggle uses explicit bool to satisfy noImplicitAny
           className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
         >
           {state.status === "loading" ? "…" : "Why"}
