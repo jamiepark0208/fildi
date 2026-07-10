@@ -79,7 +79,8 @@ export const FIELD_DEFS: FieldDef[] = [
 
   // ── Cash flow ─────────────────────────────────────────────────────────────
   { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"]] },
-  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"], ["fmp","quarterlyOperatingCashFlow"],  ["polygon","operatingCashFlow"]] },
+  // FMP "quarter" cash-flow endpoint returns YTD from 10-Q, not isolated quarter — Yahoo only.
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"]] },
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
