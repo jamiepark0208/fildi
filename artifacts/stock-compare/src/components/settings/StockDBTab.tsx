@@ -981,19 +981,25 @@ export function StockDBTab() {
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
                     const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
+                    const tooltipParts: string[] = [];
+                    if (suspect) {
+                      if (hardInvalid) tooltipParts.push(`Suspect: ${col.label} value is structurally invalid (e.g. negative when it shouldn't be)`);
+                      else if (isStatOutlier) tooltipParts.push(`Outlier: z = ${z!.toFixed(1)} — unusually ${z! > 0 ? "high" : "low"} vs peer group median`);
+                    }
+                    if (hasFlag) tooltipParts.push(`Discrepancy: multiple data sources report different values for ${col.label}`);
                     return (
                       <td
                         key={col.key as string}
                         onClick={(e) => openCell(row.ticker, col.key as string, e)}
+                        title={tooltipParts.length ? tooltipParts.join("\n") : undefined}
                         className={cn(
                           "px-2 py-0.5 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
                           isActive && "ring-1 ring-inset ring-primary/50",
                           isOptionalNull && "text-muted-foreground/40",
                           !isOptionalNull && isNull && "bg-red-500/15 text-red-400/70",
-                          !isNull && suspect && "bg-amber-500/15 text-amber-300",
-                          !isNull && !suspect && hasFlag && "bg-orange-500/15 text-orange-300",
-                          !isNull && !suspect && !hasFlag && "text-foreground",
+                          !isNull && hasFlag && "bg-sky-500/15",
+                          !isNull && suspect && "ring-1 ring-inset ring-amber-500/80",
                         )}
                       >
                         {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-muted-foreground/60" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
