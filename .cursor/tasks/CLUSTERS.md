@@ -4,6 +4,24 @@ Tasks grouped by dependency / logical cohesion. Check INDEX.md for current statu
 
 ---
 
+## Cluster 0 — Bugs + perf/resilience (CLAUDE ACTIVE — supersedes prior "CLAUDE NEXT" tags below until done)
+
+Cursor filed 19 tasks in `bugs/` (own [CLUSTERS.md](bugs/CLUSTERS.md) / [CLAUDE-IMPLEMENT.md](bugs/CLAUDE-IMPLEMENT.md) / [INDEX.md](bugs/INDEX.md)) plus [enh/34 performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md), which explicitly depends on bug/4, 5, 11, 12, 13. Claude is gatekeeper: every bug is verified against live code before fixing — Cursor wrote these without running the app, so some may already be fixed or mis-scoped. Verified/actual status recorded per-task in the file itself, not assumed from Cursor's "ready" label.
+
+Sub-clusters (from `bugs/CLUSTERS.md`, referenced not duplicated):
+- **A — Watchlist SSOT** (19, 2, 3, 10, 13)
+- **B — Fetch overprocessing** (9, 11, 12)
+- **C — Continuous-run health** (5, 6, 8, 18)
+- **D — Security** (1, 7, 17)
+- **E — Correctness** (15, 16)
+- **F — Portfolio** (14, coordinate enh/8)
+
+**Build order (this session):** Wave 1 P0 bugs (1, 4, 19) → verify/fix Wave 2 (2, 3, 5, 6, 8, 11, 12, 13, 18) as time allows → enh/34 Waves A–D (A/B are net-new perf work; Wave C *is* bugs 4/5/11/12, don't double-implement) → Wave D devx.
+
+**Status:** in progress — see per-file `Status` field for each bug/enh/34 as source of truth.
+
+---
+
 ## Cluster 1 — CI / Test + Observability ✅ DONE
 - enh/3 ci-pipeline — done (GitHub Actions on push/PR; typecheck + test both packages)
 - enh/4 api-integration-test-harness — done (15-test unit harness for merge-trusted priority)
