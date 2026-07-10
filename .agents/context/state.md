@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-10
 
 ## Active work
-- Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table, merge-trusted-freshness-stamp, api-usage-query-fix, fmp-serial-backfill, ws1-price-target-cleanup, ws2-null-logging, ws3-av-field-defs-already-done, ws4-discrepancy-flags-fix, nightly-enrichment-script
-- In progress: Added Yahoo trailingPE (from summaryDetail, NOT defaultKeyStatistics) → peRatio in FIELD_DEFS. P/E now 209→210/256. Yahoo contributes 205 tickers as primary source. Remaining 46 null = genuinely undefined P/E (loss-making or negative TTM EPS). All schema/backfill/populate/merge wired. All Yahoo fields: 14 total.
+- Working: api-monitor-tab, api-usage-table, populate-source-fundamentals-polygon-av, merge-trusted-polygon-av-field-defs, provenance-cache-registry, stock-db-grouping-ui, backfill-av-db-migration, fmp-budget-unified-table, merge-trusted-freshness-stamp, api-usage-query-fix, fmp-serial-backfill, ws1-price-target-cleanup, ws2-null-logging, ws3-av-field-defs-already-done, ws4-discrepancy-flags-fix, nightly-enrichment-script, audit-suspicious-values, data-health-endpoint, scheduler, z-score-outlier-detection
+- In progress: Data maintenance strategy implemented: z-score outlier detection replaces hardcoded thresholds in StockDBTab; N/M display for near-zero-base growth; --suspicious audit mode in audit-coverage.ts; CTRA dividendYield fixed (Finnhub pct→decimal normalization); FMP quarterly OCF removed from FIELD_DEFS (YTD period mismatch); TROW/INTC manual overrides applied; twice-weekly scheduler (Sun+Thu 02:00 UTC) in lib/scheduler.ts; GET /api/admin/data-health endpoint; Data Health section in ApiMonitorTab. Server rebuilt and running.
 - Blocked: none
 
 ## Next tasks (priority order)
