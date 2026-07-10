@@ -267,6 +267,7 @@ export type FundScoreResult = {
   rank: number;
   regime: string;
   computedAt: string;
+  metricScores?: Record<string, { value: number | null; weightedScore: number }>;
 };
 
 type Family = 'quality' | 'growth' | 'safety';
@@ -316,6 +317,40 @@ const REGIME_WEIGHTS: Record<string, Record<Family, number>> = {
   stagflation: { quality: 35, growth: 10, safety: 30 },
 };
 const DEFAULT_WEIGHTS: Record<Family, number> = { quality: 35, growth: 25, safety: 20 };
+
+function computePerMetricScores(
+  rows: TickerFundamentalsRow[],
+  familyWeights: Record<Family, number>,
+): Map<string, Record<string, { value: number | null; weightedScore: number }>> {
+  const values = SCORING_METRICS.map(m => rows.map(r => m.getValue(r)));
+  const pctRanks: (number | null)[][] = SCORING_METRICS.map((m, mi) => {
+    const vals = values[mi];
+    const nonNull = vals.filter((v): v is number => v !== null);
+    if (nonNull.length === 0) return vals.map(() => null);
+    const sorted = [...nonNull].sort((a, b) => a - b);
+    return vals.map(v => {
+      if (v === null) return null;
+      const idx = sorted.findIndex(s => s >= v);
+      const pct = sorted.length === 1 ? 0.5 : idx / (sorted.length - 1);
+      return m.higherBetter ? pct : 1 - pct;
+    });
+  });
+
+  const result = new Map<string, Record<string, { value: number | null; weightedScore: number }>>();
+  rows.forEach((row, ri) => {
+    const ms: Record<string, { value: number | null; weightedScore: number }> = {};
+    SCORING_METRICS.forEach((m, mi) => {
+      const pct = pctRanks[mi][ri];
+      const famWeight = familyWeights[m.family];
+      ms[m.key] = {
+        value: values[mi][ri],
+        weightedScore: pct !== null ? parseFloat((pct * m.weight * famWeight / 100).toFixed(4)) : 0,
+      };
+    });
+    result.set(row.ticker, ms);
+  });
+  return result;
+}
 
 // Compute cross-sectional fundamental scores for all tickers in DB and persist them.
 // Must be called with the current macro regime so score weights are applied correctly.
@@ -401,11 +436,14 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   const sorted = [...rawResults].sort((a, b) => b.totalScore - a.totalScore);
   const rankMap = new Map(sorted.map((r, i) => [r.ticker, i + 1]));
 
+  const perMetric = computePerMetricScores(rows, familyWeights);
+
   const results: FundScoreResult[] = rawResults.map(r => ({
     ...r,
     rank: rankMap.get(r.ticker) ?? 0,
     regime: regime ?? "unknown",
     computedAt: computedAt.toISOString(),
+    metricScores: perMetric.get(r.ticker),
   }));
 
   // Persist scores back to DB — single batch upsert instead of one UPDATE per ticker
@@ -466,6 +504,11 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   if (Date.now() - oldest > staleMs) return null;
   if (currentRegime && rows.some(r => r.regimeAtScore !== currentRegime)) return null;
 
+  const rawRows = await getAllFundamentalsRows();
+  const familyWeights: Record<Family, number> =
+    (currentRegime && REGIME_WEIGHTS[currentRegime]) ? REGIME_WEIGHTS[currentRegime] : DEFAULT_WEIGHTS;
+  const perMetric = computePerMetricScores(rawRows, familyWeights);
+
   return rows.map(r => ({
     ticker:       r.ticker,
     totalScore:   parseFloat(r.fundTotalScore!),
@@ -475,5 +518,6 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     rank:         r.fundRank ?? 0,
     regime:       r.regimeAtScore ?? currentRegime ?? "unknown",
     computedAt:   r.fundScoreComputedAt!.toISOString(),
+    metricScores: perMetric.get(r.ticker),
   }));
 }
