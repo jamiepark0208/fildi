@@ -27,28 +27,11 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router: IRouter = Router();
 
-// PUBLIC_PATHS: health + auth only. Everything else below either mounts its
-// own requireAuth/requireAdmin per-route, or sits on protectedRouter (bug/1).
+// PUBLIC_PATHS: health + auth, plus every router below down to the
+// "vendor-cost" block that stays DB/file-read-only with no session.
 router.use(healthRouter);
 router.use(authRouter);
-
-// Vendor-cost routes (Yahoo/Anthropic/SDM on cache miss) — bug/1: these had
-// zero auth, relying on the FE's ProtectedRoute which is not a security
-// boundary. Everything else in this file already gates POST/PUT/DELETE with
-// requireAdmin or requireAuth per-route and its public GETs are DB/file reads.
-const protectedRouter: IRouter = Router();
-protectedRouter.use(requireAuth);
-protectedRouter.use(stocksRouter);
-protectedRouter.use(indicatorsRouter);
-protectedRouter.use(optionsRouter);
-protectedRouter.use(technicalRouter);
-protectedRouter.use(explainRouter);
-protectedRouter.use(sdmRouter);
-router.use(protectedRouter);
-
-router.use(watchlistRouter);
 router.use(scoringConfigRouter);
-router.use(feedRouter);
 router.use(dailyBriefRouter);
 router.use("/macro", macroRouter);
 router.use(fundamentalsRouter);
@@ -62,5 +45,30 @@ router.use(cotRouter);
 router.use(regimeRouter);
 router.use(apiUsageRouter);
 router.use(dataHealthRouter);
+
+// bug/1: vendor-cost routes (Yahoo/Anthropic/SDM on cache miss) had zero
+// auth. Path-scoped directly on the parent router — NOT a blanket
+// `subRouter.use(requireAuth)` — because a sub-router mounted with no path
+// prefix still runs its own internal middleware for every request that
+// reaches it, even ones matching nothing inside it, before falling through.
+// A no-path `.use(requireAuth)` in that position becomes a global gate for
+// everything mounted after it in this file, which is exactly what broke
+// dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
+router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm"], requireAuth);
+router.use(stocksRouter);
+router.use(indicatorsRouter);
+router.use(optionsRouter);
+router.use(technicalRouter);
+router.use(explainRouter);
+router.use(sdmRouter);
+
+// watchlist.ts and feed.ts each have their own internal blanket
+// `router.use(requireAuth)` (all-user-specific routes, intentional), and
+// their route paths are already baked in (e.g. "/watchlist"), so they can't
+// be mounted at a matching path prefix without double-prefixing. Same leak
+// risk as above — keep these LAST so there's nothing left downstream to leak
+// auth onto. Do not insert new routers below this line.
+router.use(watchlistRouter);
+router.use(feedRouter);
 
 export default router;
