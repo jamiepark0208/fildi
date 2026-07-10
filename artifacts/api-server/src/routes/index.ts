@@ -22,6 +22,7 @@ import portfolioSnapshotRouter from "./portfolio-snapshot";
 import cotRouter from "./macro-cot";
 import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
+import dataHealthRouter from "./data-health";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(portfolioSnapshotRouter);
 router.use(cotRouter);
 router.use(regimeRouter);
 router.use(apiUsageRouter);
+router.use(dataHealthRouter);
 
 export default router;
