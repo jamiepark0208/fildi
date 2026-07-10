@@ -364,7 +364,19 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    const apiError = new ApiError(response, errorData, requestInfo);
+    if (response.status >= 500 && typeof window !== "undefined") {
+      import("@sentry/react").then(({ captureException, withScope }) => {
+        withScope(scope => {
+          const reqId = response.headers.get("x-request-id");
+          if (reqId) scope.setTag("requestId", reqId);
+          scope.setTag("url", requestInfo.url);
+          scope.setTag("method", requestInfo.method);
+          captureException(apiError);
+        });
+      }).catch(() => { /* Sentry not configured */ });
+    }
+    throw apiError;
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;

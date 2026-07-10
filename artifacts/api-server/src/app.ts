@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -9,9 +10,20 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { generalLimiter } from "./middleware/rateLimiter";
 import { errorHandler } from "./middleware/errorHandler";
+import { requestId } from "./middleware/requestId";
+
+if (process.env["SENTRY_DSN"]) {
+  Sentry.init({
+    dsn: process.env["SENTRY_DSN"],
+    environment: process.env["NODE_ENV"] ?? "development",
+    // Only capture errors, no performance tracing in v1
+    tracesSampleRate: 0,
+  });
+}
 
 const app: Express = express();
 
+app.use(requestId);
 app.use(helmet());
 app.use(
   pinoHttp({
@@ -56,6 +68,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+if (process.env["SENTRY_DSN"]) {
+  Sentry.setupExpressErrorHandler(app);
+}
 app.use(errorHandler);
 
 export default app;

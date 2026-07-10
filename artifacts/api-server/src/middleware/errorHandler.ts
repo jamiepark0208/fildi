@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
 import { logger } from "../lib/logger";
@@ -22,6 +23,14 @@ export const errorHandler: ErrorRequestHandler = (err: AppError, req, res, _next
 
   if (status >= 500) {
     logger.error({ err, req: { method: req.method, url: req.url } }, "Unhandled server error");
+    if (process.env["SENTRY_DSN"]) {
+      Sentry.withScope(scope => {
+        scope.setTag("requestId", String(req.id ?? ""));
+        scope.setTag("method", req.method);
+        scope.setTag("url", req.url?.split("?")[0] ?? "");
+        Sentry.captureException(err);
+      });
+    }
   }
 
   res.status(status).json({
