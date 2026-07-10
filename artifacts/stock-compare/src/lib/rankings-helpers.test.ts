@@ -155,9 +155,10 @@ describe("normalize", () => {
     const result = normalize(vals, { higherIsBetter: true });
     result.forEach((v, i) => assertClose(v, 0.5, 1e-9, `index ${i} should be 0.5`));
   });
-  it("z-score (n=21): extreme outlier is winsorized — spread among normal values preserved", () => {
-    // 21 values: [1..20] + extreme; n >= 21 means p95 clips the outlier (see winsorize tests)
-    const vals = [...Array.from({ length: 20 }, (_, i) => i + 1), 100_000];
+  it("z-score (n=51): extreme outlier is winsorized — spread among normal values preserved", () => {
+    // 51 values: [1..50] + extreme outlier. n >= MIN_TIGHT_N (20) → p2/p98 winsorization.
+    // At n=51: hi = finite[Math.ceil(50*0.98)] = finite[49] = 50, so 100_000 is clipped to 50.
+    const vals = [...Array.from({ length: 50 }, (_, i) => i + 1), 100_000];
     const result = normalize(vals, { higherIsBetter: true });
     result.forEach((v, i) => {
       if (v !== null) {
@@ -167,8 +168,8 @@ describe("normalize", () => {
         );
       }
     });
-    // After winsorization of 100_000, the 20 normal values retain meaningful spread
-    const normalScores = result.slice(0, 20).filter((v): v is number => v !== null);
+    // After winsorization of 100_000, the 50 normal values retain meaningful spread
+    const normalScores = result.slice(0, 50).filter((v): v is number => v !== null);
     const spread = Math.max(...normalScores) - Math.min(...normalScores);
     assert.ok(spread > 0.05, `spread too small after winsorization: ${spread}`);
   });

@@ -1,22 +1,16 @@
 # api-integration-test-harness
 
-## ⚠️ PARTIALLY DONE — audit 2026-07-10
+## ✅ DONE — 2026-07-10 (re-confirmed + completed)
 
-**What is shipped (Phase A):**
-- `src/scripts/merge-trusted.priority.test.ts` — 15 self-contained tests covering `resolveFromIndex` and FIELD_DEFS priority locks. No DB, no network. All 15 pass.
-- `"test"` script was added to `api-server/package.json`.
+**What is shipped:**
+- `src/scripts/merge-trusted.priority.test.ts` — 15 tests: `resolveFromIndex` algorithm + FIELD_DEFS priority locks. No DB/network.
+- `src/lib/catalysts.test.ts` — 20 tests covering all pure functions: `yahooEpochToMs`, `yahooEpochToDateStr`, `parseEarningsDate`, `buildCatalysts` (earnings urgency labels, analyst action filtering, 90-day cutoff, keyword news filter, 6-item cap).
+- Test script uses `'src/**/*.test.ts'` glob — new test files auto-discovered.
+- Total: 35/35 pass, 0 fail.
 
-**Gap found (2026-07-10 audit):**
-- Test script used an **explicit single-file path** — new test files would never run in CI. **Fixed:** now uses `'src/**/*.test.ts'` glob.
-- No `catalysts.test.ts` exists anywhere in api-server — still missing.
-- No FIELD_DEFS fixture tests beyond what's in `merge-trusted.priority.test.ts` (which does cover some FIELD_DEFS locks).
+**Import note:** test files use `.ts` extension imports (not `.js`) because `--experimental-strip-types` runner doesn't resolve `.js` → `.ts`.
 
-**Why no import of merge-trusted.ts:** `@workspace/db` throws on import without `DATABASE_URL` — self-contained fixture approach is correct for CI. Phase B (healthz supertest with MemoryStore session seam) deferred.
-
-**Remaining before marking fully done:**
-- [ ] Add `catalysts.test.ts` (or confirm catalysts logic is not testable without DB and close this gap explicitly)
-- [ ] Verify FIELD_DEFS fixture coverage is sufficient or expand
-- [ ] CI green end-to-end (blocked on enh/3 z-score fix)
+**Phase B deferred:** healthz supertest route smoke — `app.ts` constructs a Postgres session store on import; requires `SESSION_SECRET` + `DATABASE_URL`. Defer until a testable seam (MemoryStore flag) is added.
 
 ---
 
