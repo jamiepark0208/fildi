@@ -30,6 +30,7 @@ interface OptionRow {
   openInterest: number | null;
   incomePct: number;
   meetsGate: boolean;
+  bidIsLive: boolean;
   delta: number | null;
   spreadPct: number | null;
 }
@@ -212,8 +213,11 @@ function StrikeRow({
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
         </div>
-        {/* Bid */}
-        <div className="font-mono text-slate-200">${put.bid.toFixed(2)}</div>
+        {/* Bid — dimmed with "~" prefix when using lastPrice fallback (market closed) */}
+        <div className={cn("font-mono", put.bidIsLive ? "text-slate-200" : "text-slate-500")}
+          title={put.bidIsLive ? undefined : "Market closed — showing last traded price"}>
+          {put.bidIsLive ? "" : "~"}${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)}
+        </div>
         {/* %/wk */}
         <div className={cn("font-mono font-semibold", incomeColor)}>{weeklyIncome.toFixed(2)}%</div>
         {/* OTM% */}
