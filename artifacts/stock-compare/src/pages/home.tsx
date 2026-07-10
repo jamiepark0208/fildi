@@ -108,7 +108,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
-      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string }>>;
+      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }> }>>;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -125,7 +125,9 @@ export default function Home({ tickers, setTickers }: HomeProps) {
         totalScore:   r.totalScore,
         maxPossible:  100,
         rank:         r.rank,
-        metricScores: {},
+        metricScores: Object.fromEntries(
+          Object.entries(r.metricScores ?? {}).map(([k, v]) => [k, { value: v.value, weightedScore: v.weightedScore, rank: 0 }])
+        ),
         reason:       "",
         familyScores: {
           value:   { score: 50,             coverage: 0, lowCoverage: true },
