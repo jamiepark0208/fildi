@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { StockScore } from "@/lib/rankings";
 import { StockMetrics } from "@workspace/api-client-react";
 import { Trophy, ChevronDown } from "lucide-react";
@@ -122,8 +122,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
   const state = getState(score.ticker, "fundamental");
   const [open, setOpen] = useState(false);
 
-  // Auto-open when explanation arrives
-  if (state.status === "done" && !!state.text && !open) setOpen(true);
+  useEffect(() => {
+    if (state.status === "done" && state.text) setOpen(true);
+  }, [state.status, state.text]);
 
   const isExpanded = state.status === "done" && !!state.text && open;
   const metricRows = isExpanded ? buildMetricRows(score, allScores) : [];
@@ -165,7 +166,6 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
             else explain(score.ticker, "fundamental", buildFundamentalPayload(score, stocks));
           }}
           disabled={state.status === "loading"}
-          // setOpen toggle uses explicit bool to satisfy noImplicitAny
           className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
         >
           {state.status === "loading" ? "…" : "Why"}
