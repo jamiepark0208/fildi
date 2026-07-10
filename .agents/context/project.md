@@ -127,6 +127,26 @@ Extra/hidden tickers persisted to localStorage (`fildi_scanner_extra`, `fildi_sc
 ## AI explain endpoint
 `POST /api/explain/score` — Haiku, 200 tokens, no storage. Explain button in Rankings + Technical Leaderboard; session-cached per ticker.
 
+## Data Maintenance Pipeline (2026-07-10)
+
+**Scripts (run manually or via scheduler):**
+| Script | Command | Purpose |
+|---|---|---|
+| `merge-trusted.ts` | `npx tsx src/scripts/merge-trusted.ts` | Re-merge all fields from source_fundamentals → ticker_fundamentals |
+| `populate-source-fundamentals.ts` | same pattern | Re-populate source_fundamentals from all staging tables |
+| `nightly-enrichment.ts` | `npx tsx src/scripts/nightly-enrichment.ts [--dry-run]` | Gap-fill null fields, budget-aware, free sources first |
+| `audit-coverage.ts --suspicious` | same pattern + `--suspicious` | Statistical outlier detection (z-score) + cross-source disagreement |
+
+**Scheduler:** `lib/scheduler.ts` — runs `nightly-enrichment` in-process Sun + Thu at 02:00 UTC. No external cron needed.
+
+**Known data quirks (fixed):**
+- **Finnhub dividendYield**: Reports as percentage (2.7 = 2.7%), all others as decimal (0.027). Fixed in `populate-source-fundamentals.ts` via transforms param.
+- **FMP quarterlyOperatingCashFlow**: Returns YTD from 10-Q, not isolated quarter. Removed FMP from this field's FIELD_DEFS priority — Yahoo-only.
+- **Near-zero base growth**: epsGrowth/revenueGrowthYoY > 10× (1000%) displays as "N/M" in StockDB UI — prior period near zero, not a data error.
+- **Manual overrides**: TROW operatingMargin → fmp (Yahoo outlier at 37% vs 3 sources at 30%); INTC cashAndEquivalents → fmp (Yahoo includes short-term investments).
+
+**Outlier detection:** StockDBTab uses per-peer-group modified z-scores (MAD-based, log-transform for ratio fields). Threshold |z| > 3.0. Replaces old hardcoded per-field thresholds.
+
 ## Context files
 - **API endpoints**: `.agents/context/api-endpoints.md` — all routes, check before adding new ones
 - **Skills**: `.claude/skills/` — authoritative skill files
