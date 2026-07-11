@@ -255,8 +255,11 @@ export function notionalValue(entry: PortfolioEntry): number {
 }
 
 export function premiumReceived(entry: PortfolioEntry): number {
+  // avgPrice is already the per-contract dollar total (Robinhood's "Avg Premium (per
+  // contract)" convention, matched by the manual-entry form's "per contract" label) —
+  // do not re-multiply by 100 here, that double-counts the 100-shares-per-contract factor.
   if (!isShortPosition(entry.positionType)) return 0;
-  return entry.avgPrice * 100 * entry.qty;
+  return entry.avgPrice * entry.qty;
 }
 
 export function daysToExpiry(expiry: string | undefined): number | null {

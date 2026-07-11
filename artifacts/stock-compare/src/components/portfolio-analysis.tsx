@@ -81,13 +81,14 @@ function ChartTooltip({ active, payload, format }: {
 function PieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0];
+  const displayValue = d.payload.signedValue ?? d.value;
   return (
     <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs">
       <div className="flex items-center gap-2">
         <div className="w-2 h-2 rounded-full" style={{ background: d.payload.color }} />
         <span className="text-muted-foreground">{d.name}</span>
       </div>
-      <div className="font-mono font-semibold mt-0.5">{formatCurrency(d.value)}</div>
+      <div className="font-mono font-semibold mt-0.5">{formatCurrency(displayValue)}</div>
       <div className="text-muted-foreground">{d.payload.pct?.toFixed(1)}%</div>
     </div>
   );
@@ -96,7 +97,7 @@ function PieTooltip({ active, payload }: any) {
 // ── Donut chart ───────────────────────────────────────────────────────────────
 
 function DonutChart({ data, total, label }: {
-  data: { name: string; value: number; color: string; pct?: number }[];
+  data: { name: string; value: number; color: string; pct?: number; signedValue?: number }[];
   total: number; label: string;
 }) {
   if (!data.length) return (
@@ -123,7 +124,7 @@ function DonutChart({ data, total, label }: {
   );
 }
 
-function PieLegend({ data }: { data: { name: string; value: number; color: string; pct?: number }[] }) {
+function PieLegend({ data }: { data: { name: string; value: number; color: string; pct?: number; signedValue?: number }[] }) {
   return (
     <div className="space-y-1.5 mt-2">
       {data.map((d, i) => (
@@ -156,15 +157,30 @@ function RiskStat({ label, value, sub, icon, color }: {
 
 // ── Portfolio Analysis ────────────────────────────────────────────────────────
 
+interface AccountSummary {
+  account: string; nickname: string | null; totalValue: string | null;
+  equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null;
+}
+
+interface RealizedEvent {
+  account: string; symbol: string; assetType: "stock" | "option"; direction: "long" | "short";
+  optionType: "call" | "put" | null; qty: number; pnl: number; fees: number; closedAt: string;
+}
+
 interface PortfolioAnalysisProps {
   entries: PortfolioEntry[];
   priceMap: Record<string, number | undefined>;
   stockDataMap: Record<string, StockMetrics>;
   portfolioNames: string[];
+  accountSummaries?: AccountSummary[];
+  realizedEvents?: RealizedEvent[];
 }
 
-export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [] }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
+  const [pnlAssetFilter, setPnlAssetFilter] = useState<"all" | "stock" | "option">("all");
+  const [pnlOptionType, setPnlOptionType] = useState<"all" | "call" | "put">("all");
+  const [pnlDirection, setPnlDirection] = useState<"all" | "long" | "short">("all");
 
   const filtered = useMemo(() =>
     (activePortfolio === "All"
@@ -177,30 +193,34 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   const coveredCalls = useMemo(() => detectCoveredCalls(filtered), [filtered]);
 
   // ── Allocation ──────────────────────────────────────────────────────────────
+  // Sourced from Robinhood's own per-account "Account Summary" CSV section (Equity
+  // Value / Options Value / Crypto Value / Cash) — these sum exactly to the account's
+  // Total Value by construction, so this is the single reconciled source of truth for
+  // the donut (previously computed bottom-up from individual positions, which drifted
+  // from the Portfolio Value banner by the value of un-modeled short-option liability).
   const { allocationData, totalValue } = useMemo(() => {
-    let collateral = 0, optionMktVal = 0, stockVal = 0;
-    filtered.forEach(e => {
-      if (e.positionType === "short_put") {
-        // prefer CSV market value; fall back to notional collateral
-        if (e.currentValue != null) optionMktVal += e.currentValue;
-        else { collateral += cashCollateral(e); }
-      } else if (e.positionType === "short_call" || e.positionType === "long_put" || e.positionType === "long_call") {
-        if (e.currentValue != null) optionMktVal += e.currentValue;
-        else optionMktVal += premiumReceived(e);
-      } else if (e.positionType === "stock") {
-        stockVal += e.currentValue ?? (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
-      }
+    let stockVal = 0, optionsVal = 0, cash = 0, crypto = 0, total = 0;
+    accountSummaries.forEach(a => {
+      stockVal  += parseFloat(a.equityValue ?? "0");
+      optionsVal += parseFloat(a.optionsValue ?? "0");
+      cash      += parseFloat(a.cash ?? "0");
+      crypto    += parseFloat(a.cryptoValue ?? "0");
+      total     += parseFloat(a.totalValue ?? "0");
     });
-    const total = collateral + optionMktVal + stockVal;
     return {
       totalValue: total,
       allocationData: [
-        { name: "Stock Equity",    value: stockVal,     color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0 },
-        { name: "Options (Mark)",  value: optionMktVal, color: "#34d399", pct: total > 0 ? (optionMktVal/total)*100 : 0 },
-        { name: "Cash Collateral", value: collateral,   color: "#fbbf24", pct: total > 0 ? (collateral/total)*100 : 0 },
+        { name: "Stock Equity", value: stockVal,        color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0 },
+        { name: "Cash",         value: cash,             color: "#a78bfa", pct: total > 0 ? (cash/total)*100 : 0 },
+        { name: "Crypto",       value: crypto,           color: "#f472b6", pct: total > 0 ? (crypto/total)*100 : 0 },
+        // Options value is typically negative (net short-premium liability still
+        // outstanding) — shown by magnitude with a distinct color; sign kept in tooltip.
+        { name: optionsVal < 0 ? "Options (net short)" : "Options (net long)",
+          value: Math.abs(optionsVal), signedValue: optionsVal, color: "#f87171",
+          pct: total > 0 ? (Math.abs(optionsVal)/total)*100 : 0 },
       ].filter(d => d.value > 0),
     };
-  }, [filtered, priceMap]);
+  }, [accountSummaries]);
 
   // ── Sector ──────────────────────────────────────────────────────────────────
   const sectorData = useMemo(() => {
@@ -249,6 +269,36 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       };
     }).sort((a, b) => b.contribution - a.contribution);
   }, [filtered, priceMap, stockDataMap, coveredCalls]);
+
+  // ── Concentration risk (HHI + top-5 tickers) ────────────────────────────────
+  // HHI on a standard 0-10,000 scale (sum of squared % weights, e.g. two tickers at
+  // 50% each = 5,000; fully diversified across many small positions → near 0).
+  const concentration = useMemo(() => {
+    const weights = betaData.map(d => d.weight).sort((a, b) => b - a);
+    const hhi = weights.reduce((s, w) => s + w * w, 0);
+    const top5Pct = weights.slice(0, 5).reduce((s, w) => s + w, 0);
+    const level: "Low" | "Moderate" | "High" = hhi < 1500 ? "Low" : hhi < 2500 ? "Moderate" : "High";
+    return { hhi: Math.round(hhi), top5Pct, level, topTicker: betaData[0]?.ticker, topTickerPct: betaData[0]?.weight };
+  }, [betaData]);
+
+  // ── Realized P&L (from transaction history — cumulative $ earned/lost to date) ──
+  const pnlTotals = useMemo(() => {
+    const stock = realizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
+    const optionShort = realizedEvents.filter(e => e.assetType === "option" && e.direction === "short").reduce((s, e) => s + e.pnl, 0);
+    const optionLong = realizedEvents.filter(e => e.assetType === "option" && e.direction === "long").reduce((s, e) => s + e.pnl, 0);
+    return { stock, optionShort, optionLong, total: stock + optionShort + optionLong };
+  }, [realizedEvents]);
+
+  const filteredPnlEvents = useMemo(() => {
+    return realizedEvents.filter(e => {
+      if (pnlAssetFilter !== "all" && e.assetType !== pnlAssetFilter) return false;
+      if (pnlAssetFilter === "option") {
+        if (pnlOptionType !== "all" && e.optionType !== pnlOptionType) return false;
+        if (pnlDirection !== "all" && e.direction !== pnlDirection) return false;
+      }
+      return true;
+    });
+  }, [realizedEvents, pnlAssetFilter, pnlOptionType, pnlDirection]);
 
   // ── DTE histogram ───────────────────────────────────────────────────────────
   const dteData = useMemo(() => {
@@ -399,11 +449,35 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
         <Card>
           <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sector Exposure</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+              <span>Sector Exposure</span>
+              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded normal-case tracking-normal",
+                concentration.level === "High" ? "bg-red-500/15 text-red-400"
+                  : concentration.level === "Moderate" ? "bg-yellow-500/15 text-yellow-400"
+                  : "bg-green-500/15 text-green-400")}>
+                {concentration.level} concentration
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <DonutChart data={sectorData} total={totalValue} label="Notional" />
             <PieLegend data={sectorData.slice(0, 6)} />
+            <div className="mt-2 pt-2 border-t border-border/40 grid grid-cols-3 gap-x-2 text-[10px]">
+              <div>
+                <div className="text-muted-foreground uppercase tracking-wide">HHI</div>
+                <div className="font-mono font-semibold">{concentration.hhi}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground uppercase tracking-wide">Top-5 %</div>
+                <div className="font-mono font-semibold">{concentration.top5Pct.toFixed(1)}%</div>
+              </div>
+              <div className="truncate">
+                <div className="text-muted-foreground uppercase tracking-wide">Largest</div>
+                <div className="font-mono font-semibold truncate">
+                  {concentration.topTicker ?? "—"} {concentration.topTickerPct != null ? `${concentration.topTickerPct.toFixed(1)}%` : ""}
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -433,6 +507,106 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
       </div>
+
+      {/* Row 1.5: Realized P&L from transaction history */}
+      <Card>
+        <CardHeader className="px-4 pt-4 pb-0">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Realized P&L <span className="normal-case font-normal">— cumulative, from transaction history</span>
+            </CardTitle>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
+                {(["all", "stock", "option"] as const).map(f => (
+                  <button key={f} onClick={() => setPnlAssetFilter(f)}
+                    className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
+                      pnlAssetFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              {pnlAssetFilter === "option" && (
+                <>
+                  <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
+                    {(["all", "put", "call"] as const).map(f => (
+                      <button key={f} onClick={() => setPnlOptionType(f)}
+                        className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
+                          pnlOptionType === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
+                    {(["all", "short", "long"] as const).map(f => (
+                      <button key={f} onClick={() => setPnlDirection(f)}
+                        className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
+                          pnlDirection === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="grid grid-cols-4 gap-3 mt-2">
+            {[
+              { label: "Stock (Capital Gains)", value: pnlTotals.stock },
+              { label: "Options — Short Premium", value: pnlTotals.optionShort },
+              { label: "Options — Long (Capital Gains)", value: pnlTotals.optionLong },
+              { label: "Total Realized", value: pnlTotals.total, bold: true },
+            ].map(({ label, value, bold }) => (
+              <div key={label} className="p-2.5 rounded-lg bg-secondary/20 border border-border/50">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide leading-none">{label}</div>
+                <div className={cn("font-mono tabular-nums mt-1", bold ? "text-base font-bold" : "text-sm font-semibold",
+                  value > 0 ? "text-green-400" : value < 0 ? "text-red-400" : "text-muted-foreground")}>
+                  {value >= 0 ? "+" : ""}{formatCurrency(value)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {filteredPnlEvents.length === 0 ? (
+            <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground mt-3">
+              No closed positions match this filter yet
+            </div>
+          ) : (
+            <div className="mt-3 border-t border-border/40 pt-2 max-h-[160px] overflow-y-auto">
+              <table className="w-full text-[11px]">
+                <thead className="sticky top-0 bg-card">
+                  <tr>
+                    {["Closed", "Ticker", "Type", "Qty", "P&L"].map(h => (
+                      <th key={h} className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPnlEvents.slice(0, 30).map((e, i) => (
+                    <tr key={i} className="border-t border-border/20 hover:bg-secondary/10">
+                      <td className="py-1 px-2 text-muted-foreground font-mono">{new Date(e.closedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}</td>
+                      <td className="py-1 px-2 font-mono font-bold">{e.symbol}</td>
+                      <td className="py-1 px-2">
+                        <span className={cn("text-[9px] font-semibold px-1 py-0.5 rounded uppercase",
+                          e.assetType === "stock" ? "bg-sky-500/15 text-sky-400"
+                            : e.direction === "short" ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400")}>
+                          {e.assetType === "stock" ? "Stock" : `${e.direction} ${e.optionType ?? ""}`}
+                        </span>
+                      </td>
+                      <td className="py-1 px-2 font-mono text-muted-foreground">{e.qty}</td>
+                      <td className={cn("py-1 px-2 text-right font-mono font-semibold",
+                        e.pnl > 0 ? "text-green-400" : e.pnl < 0 ? "text-red-400" : "text-muted-foreground")}>
+                        {e.pnl >= 0 ? "+" : ""}{formatCurrency(e.pnl)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Row 2: Beta bar + DTE histogram */}
       <div className="grid grid-cols-2 gap-4">

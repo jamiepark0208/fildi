@@ -311,8 +311,8 @@ function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function RobinhoodPortfolio() {
-  const { data, isLoading, error, refetch } = useQuery<SnapshotResponse>({
+function useSnapshotQuery() {
+  return useQuery<SnapshotResponse>({
     queryKey: ['portfolio-snapshot-latest'],
     queryFn: async () => {
       const res = await fetch('/api/portfolio/snapshot/latest', { credentials: 'include' })
@@ -320,6 +320,34 @@ export function RobinhoodPortfolio() {
       return res.json()
     },
   })
+}
+
+// Header + CSV upload — rendered above Portfolio Analysis.
+export function RobinhoodPortfolioHeader() {
+  const { data, refetch } = useSnapshotQuery()
+  const snapshot = data?.snapshot ?? null
+  const importedAt = snapshot?.importedAt
+    ? new Date(snapshot.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <h2 className="text-sm font-semibold text-white">Robinhood Portfolio</h2>
+        {importedAt && (
+          <p className="text-[11px] text-white/35 mt-0.5">Last import: {importedAt}</p>
+        )}
+      </div>
+      <div className="w-72">
+        <PortfolioUpload onSuccess={() => refetch()} />
+      </div>
+    </div>
+  )
+}
+
+// Equity + option holdings tables — rendered below Portfolio Analysis.
+export function RobinhoodPortfolioTables() {
+  const { data, isLoading, error } = useSnapshotQuery()
 
   const snapshot = data?.snapshot ?? null
   const positions = data?.positions ?? []
@@ -331,26 +359,8 @@ export function RobinhoodPortfolio() {
     if (p.accountNickname) accountMap.set(p.account, p.accountNickname)
   }
 
-  const totalValue = snapshot?.totalValue ? parseFloat(snapshot.totalValue) : null
-  const importedAt = snapshot?.importedAt
-    ? new Date(snapshot.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null
-
   return (
     <div className="space-y-4">
-      {/* Header + upload */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-white">Robinhood Portfolio</h2>
-          {importedAt && (
-            <p className="text-[11px] text-white/35 mt-0.5">Last import: {importedAt}</p>
-          )}
-        </div>
-        <div className="w-72">
-          <PortfolioUpload onSuccess={() => refetch()} />
-        </div>
-      </div>
-
       {isLoading && (
         <p className="text-xs text-white/30 animate-pulse px-2">Loading portfolio…</p>
       )}
