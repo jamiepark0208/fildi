@@ -60,10 +60,26 @@ try {
     console.log(`API: ✓ HTTP ${res.statusCode}\n`);
   });
   req.on('error', () => {
-    const { spawn } = require('child_process');
-    const child = spawn('bash', ['/home/runner/workspace/artifacts/api-server/start.sh'], { detached: true, stdio: 'ignore' });
-    child.unref();
-    console.log(`API: ✗ starting (PID ${child.pid})\n`);
+    // start.sh already runs an infinite crash-restart loop under the Replit
+    // workflow supervisor — a failed probe here is often just the ordinary 2s
+    // gap between a crash and its own restart, not a dead process. Spawning
+    // unconditionally on every failed probe (this hook fires on EVERY prompt)
+    // created duplicate orphaned supervisors that crash-loop forever on
+    // EADDRINUSE once the real one comes back (incident: 2026-07-10). Only
+    // spawn if no supervisor is running at all.
+    const { execSync, spawn } = require('child_process');
+    let alreadyRunning = false;
+    try {
+      execSync('pgrep -f "artifacts/api-server/start.sh"', { stdio: 'pipe' });
+      alreadyRunning = true;
+    } catch { /* pgrep exit 1 = no match found */ }
+    if (alreadyRunning) {
+      console.log(`API: ✗ unreachable, supervisor already running — self-healing\n`);
+    } else {
+      const child = spawn('bash', ['/home/runner/workspace/artifacts/api-server/start.sh'], { detached: true, stdio: 'ignore' });
+      child.unref();
+      console.log(`API: ✗ down, starting supervisor (PID ${child.pid})\n`);
+    }
   });
   req.on('timeout', () => req.destroy());
 } catch (e) { console.log(`API: check failed\n`); }
