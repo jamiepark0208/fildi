@@ -187,10 +187,6 @@ interface PortfolioAnalysisProps {
 
 export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [] }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
-  const [pnlAssetFilter, setPnlAssetFilter] = useState<"all" | "stock" | "option">("all");
-  const [pnlOptionType, setPnlOptionType] = useState<"all" | "call" | "put">("all");
-  const [pnlDirection, setPnlDirection] = useState<"all" | "long" | "short">("all");
-
   const filtered = useMemo(() =>
     (activePortfolio === "All"
       ? entries
@@ -369,24 +365,48 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     staleTime: 15 * 60 * 1000,
   });
 
-  // ── Realized P&L (from transaction history — cumulative $ earned/lost to date) ──
+  // ── P&L: realized (from transaction history) + unrealized (from open positions) ──
   const pnlTotals = useMemo(() => {
-    const stock = realizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
-    const optionShort = realizedEvents.filter(e => e.assetType === "option" && e.direction === "short").reduce((s, e) => s + e.pnl, 0);
-    const optionLong = realizedEvents.filter(e => e.assetType === "option" && e.direction === "long").reduce((s, e) => s + e.pnl, 0);
-    return { stock, optionShort, optionLong, total: stock + optionShort + optionLong };
-  }, [realizedEvents]);
+    const stockRealized = realizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
+    const optionShortRealized = realizedEvents.filter(e => e.assetType === "option" && e.direction === "short").reduce((s, e) => s + e.pnl, 0);
+    const optionLongRealized = realizedEvents.filter(e => e.assetType === "option" && e.direction === "long").reduce((s, e) => s + e.pnl, 0);
 
-  const filteredPnlEvents = useMemo(() => {
-    return realizedEvents.filter(e => {
-      if (pnlAssetFilter !== "all" && e.assetType !== pnlAssetFilter) return false;
-      if (pnlAssetFilter === "option") {
-        if (pnlOptionType !== "all" && e.optionType !== pnlOptionType) return false;
-        if (pnlDirection !== "all" && e.direction !== pnlDirection) return false;
-      }
-      return true;
+    const stockUnrealized = filtered.filter(e => e.positionType === "stock").reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+    const optionShortUnrealized = filtered.filter(e => isShortPosition(e.positionType)).reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+    const optionLongUnrealized = filtered.filter(e => e.positionType === "long_put" || e.positionType === "long_call").reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+
+    const rows = [
+      { label: "Stock",          realized: stockRealized,       unrealized: stockUnrealized },
+      { label: "Options — Short", realized: optionShortRealized, unrealized: optionShortUnrealized },
+      { label: "Options — Long",  realized: optionLongRealized,  unrealized: optionLongUnrealized },
+    ].map(r => ({ ...r, total: r.realized + r.unrealized }));
+
+    const grandTotal = {
+      realized: stockRealized + optionShortRealized + optionLongRealized,
+      unrealized: stockUnrealized + optionShortUnrealized + optionLongUnrealized,
+      total: stockRealized + optionShortRealized + optionLongRealized + stockUnrealized + optionShortUnrealized + optionLongUnrealized,
+    };
+
+    return { rows, grandTotal };
+  }, [realizedEvents, filtered]);
+
+  // ── Top tickers by options-sold frequency, net premium YTD (net of buybacks) ──
+  const topSoldTickers = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const bySymbol = new Map<string, { count: number; netPremium: number }>();
+    realizedEvents.forEach(e => {
+      if (e.assetType !== "option" || e.direction !== "short") return;
+      if (new Date(e.closedAt).getFullYear() !== currentYear) return;
+      const cur = bySymbol.get(e.symbol) ?? { count: 0, netPremium: 0 };
+      cur.count += 1;
+      cur.netPremium += e.pnl;
+      bySymbol.set(e.symbol, cur);
     });
-  }, [realizedEvents, pnlAssetFilter, pnlOptionType, pnlDirection]);
+    return Array.from(bySymbol.entries())
+      .map(([symbol, v]) => ({ symbol, ...v }))
+      .sort((a, b) => b.count - a.count || b.netPremium - a.netPremium)
+      .slice(0, 10);
+  }, [realizedEvents]);
 
   // ── DTE histogram ───────────────────────────────────────────────────────────
   const dteData = useMemo(() => {
@@ -663,102 +683,84 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </Card>
       )}
 
-      {/* Row 1.5: Realized P&L from transaction history */}
+      {/* Row 1.5: P&L — realized + unrealized, stock vs. short/long options */}
       <Card>
         <CardHeader className="px-4 pt-4 pb-0">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Realized P&L <span className="normal-case font-normal">— cumulative, from transaction history</span>
-            </CardTitle>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
-                {(["all", "stock", "option"] as const).map(f => (
-                  <button key={f} onClick={() => setPnlAssetFilter(f)}
-                    className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
-                      pnlAssetFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-              {pnlAssetFilter === "option" && (
-                <>
-                  <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
-                    {(["all", "put", "call"] as const).map(f => (
-                      <button key={f} onClick={() => setPnlOptionType(f)}
-                        className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
-                          pnlOptionType === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1 bg-secondary/40 p-0.5 rounded-md">
-                    {(["all", "short", "long"] as const).map(f => (
-                      <button key={f} onClick={() => setPnlDirection(f)}
-                        className={cn("px-2 py-0.5 text-[10px] font-medium rounded transition-colors capitalize",
-                          pnlDirection === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            P&amp;L
+          </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div className="grid grid-cols-4 gap-3 mt-2">
-            {[
-              { label: "Stock (Capital Gains)", value: pnlTotals.stock },
-              { label: "Options — Short Premium", value: pnlTotals.optionShort },
-              { label: "Options — Long (Capital Gains)", value: pnlTotals.optionLong },
-              { label: "Total Realized", value: pnlTotals.total, bold: true },
-            ].map(({ label, value, bold }) => (
-              <div key={label} className="p-2.5 rounded-lg bg-secondary/20 border border-border/50">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wide leading-none">{label}</div>
-                <div className={cn("font-mono tabular-nums mt-1", bold ? "text-base font-bold" : "text-sm font-semibold",
-                  value > 0 ? "text-green-400" : value < 0 ? "text-red-400" : "text-muted-foreground")}>
-                  {value >= 0 ? "+" : ""}{formatCurrency(value)}
-                </div>
-              </div>
-            ))}
-          </div>
+          <table className="w-full text-[11px] mt-2">
+            <thead>
+              <tr>
+                <th className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider"></th>
+                {["Realized", "Unrealized", "Total"].map(h => (
+                  <th key={h} className="text-right py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pnlTotals.rows.map(row => (
+                <tr key={row.label} className="border-t border-border/20">
+                  <td className="py-1.5 px-2 font-medium">{row.label}</td>
+                  {[row.realized, row.unrealized, row.total].map((v, i) => (
+                    <td key={i} className={cn("py-1.5 px-2 text-right font-mono tabular-nums font-semibold",
+                      v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                      {v >= 0 ? "+" : ""}{formatCurrency(v)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr className="border-t border-border/40">
+                <td className="py-1.5 px-2 font-bold">Total</td>
+                {[pnlTotals.grandTotal.realized, pnlTotals.grandTotal.unrealized, pnlTotals.grandTotal.total].map((v, i) => (
+                  <td key={i} className={cn("py-1.5 px-2 text-right font-mono tabular-nums font-bold text-base",
+                    v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    {v >= 0 ? "+" : ""}{formatCurrency(v)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
 
-          {filteredPnlEvents.length === 0 ? (
-            <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground mt-3">
-              No closed positions match this filter yet
+      {/* Row 1.6: Top tickers by options-sold frequency, net premium YTD */}
+      <Card>
+        <CardHeader className="px-4 pt-4 pb-0">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Top Tickers — Options Sold <span className="normal-case font-normal">— by frequency, net premium YTD</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {topSoldTickers.length === 0 ? (
+            <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground mt-2">
+              No short options closed this year yet
             </div>
           ) : (
-            <div className="mt-3 border-t border-border/40 pt-2 max-h-[160px] overflow-y-auto">
-              <table className="w-full text-[11px]">
-                <thead className="sticky top-0 bg-card">
-                  <tr>
-                    {["Closed", "Ticker", "Type", "Qty", "P&L"].map(h => (
-                      <th key={h} className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPnlEvents.slice(0, 30).map((e, i) => (
-                    <tr key={i} className="border-t border-border/20 hover:bg-secondary/10">
-                      <td className="py-1 px-2 text-muted-foreground font-mono">{new Date(e.closedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}</td>
-                      <td className="py-1 px-2 font-mono font-bold">{e.symbol}</td>
-                      <td className="py-1 px-2">
-                        <span className={cn("text-[9px] font-semibold px-1 py-0.5 rounded uppercase",
-                          e.assetType === "stock" ? "bg-sky-500/15 text-sky-400"
-                            : e.direction === "short" ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400")}>
-                          {e.assetType === "stock" ? "Stock" : `${e.direction} ${e.optionType ?? ""}`}
-                        </span>
-                      </td>
-                      <td className="py-1 px-2 font-mono text-muted-foreground">{e.qty}</td>
-                      <td className={cn("py-1 px-2 text-right font-mono font-semibold",
-                        e.pnl > 0 ? "text-green-400" : e.pnl < 0 ? "text-red-400" : "text-muted-foreground")}>
-                        {e.pnl >= 0 ? "+" : ""}{formatCurrency(e.pnl)}
-                      </td>
-                    </tr>
+            <table className="w-full text-[11px] mt-2">
+              <thead>
+                <tr>
+                  {["#", "Ticker", "Times Sold", "Net Premium YTD"].map(h => (
+                    <th key={h} className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </tr>
+              </thead>
+              <tbody>
+                {topSoldTickers.map((t, i) => (
+                  <tr key={t.symbol} className="border-t border-border/20 hover:bg-secondary/10">
+                    <td className="py-1 px-2 text-muted-foreground font-mono">{i + 1}</td>
+                    <td className="py-1 px-2 font-mono font-bold">{t.symbol}</td>
+                    <td className="py-1 px-2 font-mono text-muted-foreground">{t.count}</td>
+                    <td className={cn("py-1 px-2 text-right font-mono font-semibold",
+                      t.netPremium > 0 ? "text-green-400" : t.netPremium < 0 ? "text-red-400" : "text-muted-foreground")}>
+                      {t.netPremium >= 0 ? "+" : ""}{formatCurrency(t.netPremium)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardContent>
       </Card>
