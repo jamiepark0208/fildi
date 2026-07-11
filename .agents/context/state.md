@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: bugs 2,3,9,10,11,12,13 confirmed done in code, tracker corrected. next: bug/5 ttlcache-unbounded-memory (genuinely open, no prune/cap in lib/ttl-cache.ts)
+- Working: bugs 2, 3, 9, 10, 11, 12, 13 verified done in code; tracker (bugs/INDEX.md) corrected and merged with bugs/CLUSTERS.md (deleted, was duplicate+stale)
 - In progress: none
 - Blocked: none
 

@@ -56,7 +56,7 @@ Sub-clusters (from `bugs/CLUSTERS.md`, referenced not duplicated):
   - Refactored rankings-leaderboard + technical TechnicalLeaderboard
   - Sidebar renamed, scorecard deep-link wired
   - **follow-up 2026-07-10**: TechnicalLeaderboard "Why" panel now shows a metric z-score table (top 5 metrics, value + σ vs peers), matching the fundamental rankings-leaderboard pattern. Computed lazily, only for the expanded row. Also fixed a bug where the panel could expand but not collapse (added per-ticker `collapsed` toggle state).
-- ai/11 product-ai-explain-csp — **CURSOR NEXT (P0)** — wire ExplainableScore into scanner expanded panel; details in CURSOR-HANDOFF-2026-07-10.md
+- ai/11 product-ai-explain-csp — **CURSOR NEXT (P0)** — wire ExplainableScore into scanner expanded panel; details in [ai/11 task file](ai/11-product-ai-explain-csp-070926.md)
 
 ---
 

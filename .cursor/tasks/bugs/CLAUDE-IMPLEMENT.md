@@ -52,28 +52,9 @@ When done: set task header `Status` → `done`, add `## DONE (date)` with commit
 
 ---
 
-## Cluster reading order (read related tasks together)
+## Cluster reading order
 
-### A — Watchlist multi-user SSOT
-**2, 3, 10, 13** (+ **19** before UX test of 2)  
-Shared goal: DB watchlist drives API + FE; `WATCHLIST` = seed template only.
-
-### B — Fetch overprocessing
-**9, 11, 12**  
-User action → too many HTTP/vendor calls. Fixing **9** affects `ticker_registry` → cross-check **4** startup universe.
-
-### C — Continuous-run server health
-**5, 6, 8, 18**  
-**5:** prune expired RAM only — **keep TTL values high**. **8:** persist to `app_config`, not fictional `scoring_config`.
-
-### D — Security
-**1, 7, 17** — **1** first (auth boundary).
-
-### E — Data correctness
-**15, 16** — small, isolated.
-
-### F — Portfolio migration
-**14** alone — coordinate [enh/8](../enhancements/8-portfolio-analysis-improvements-070926.md).
+See [INDEX.md](INDEX.md) — the Cluster column in the matrix, plus the "Clusters" section below it, are the single source for grouping/coupling/status. Don't re-derive or duplicate that list here.
 
 ---
 
