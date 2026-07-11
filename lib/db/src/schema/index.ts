@@ -90,6 +90,24 @@ export const insertPositionSchema = createInsertSchema(positions).omit({ id: tru
 export type InsertPosition = z.infer<typeof insertPositionSchema>
 export type Position = typeof positions.$inferSelect
 
+// ── user_portfolio_names ────────────────────────────────────────────────────────
+// bug/14 P0 (2026-07-11): table was referenced via raw SQL in routes/positions.ts
+// with no Drizzle schema/migration, so it never existed on a fresh DB (500 on
+// GET/POST /api/portfolio-names). Unique (userId, name) backs the route's
+// `ON CONFLICT DO NOTHING` on insert.
+
+export const userPortfolioNames = pgTable('user_portfolio_names', {
+  id:        serial('id').primaryKey(),
+  userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+}, t => ({
+  userNameUnique: unique('idx_user_portfolio_names_user_name').on(t.userId, t.name),
+}))
+
+export type UserPortfolioName = typeof userPortfolioNames.$inferSelect
+export type InsertUserPortfolioName = typeof userPortfolioNames.$inferInsert
+
 // ── signal_log ────────────────────────────────────────────────────────────────
 
 export const signalLog = pgTable('signal_log', {

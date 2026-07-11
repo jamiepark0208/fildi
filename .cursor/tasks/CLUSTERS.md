@@ -1,66 +1,32 @@
-# Task Clusters — build groupings (2026-07-10)
+# Task Clusters — build groupings (updated 2026-07-11)
 
-Tasks grouped by dependency / logical cohesion. Check INDEX.md for current status of each task.
-
----
-
-## Cluster 0 — Bugs + perf/resilience (CLAUDE ACTIVE — supersedes prior "CLAUDE NEXT" tags below until done)
-
-Cursor filed 19 tasks in `bugs/` (see [`bugs/CLAUDE-IMPLEMENT.md`](bugs/CLAUDE-IMPLEMENT.md) + the bugs matrix in [INDEX.md](INDEX.md#bugs-seq-119)) plus [enh/34 performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md), which explicitly depends on bug/4, 5, 11, 12, 13. Claude is gatekeeper: every bug is verified against live code before fixing — Cursor wrote these without running the app, so some may already be fixed or mis-scoped. Verified/actual status recorded per-task in the file itself, not assumed from Cursor's "ready" label.
-
-Sub-clusters (from `INDEX.md`, referenced not duplicated):
-- **A — Watchlist SSOT** (19, 2, 3, 10, 13)
-- **B — Fetch overprocessing** (9, 11, 12)
-- **C — Continuous-run health** (5, 6, 8, 18)
-- **D — Security** (1, 7, 17)
-- **E — Correctness** (15, 16)
-- **F — Portfolio** (14, coordinate enh/8)
-
-**Build order (this session):** Wave 1 P0 bugs (1, 4, 19) → verify/fix Wave 2 (2, 3, 5, 6, 8, 11, 12, 13, 18) as time allows → enh/34 Waves A–D (A/B are net-new perf work; Wave C *is* bugs 4/5/11/12, don't double-implement) → Wave D devx.
-
-**Status (2026-07-10 session):** Wave 1 done, session cut short before Wave 2 / enh/34.
-
-- **bug/1 done.** Fixed via path-scoped `router.use([...paths], requireAuth)` on the parent router (not a wrapper sub-router with blanket `.use(requireAuth)` — that leaks auth onto every route mounted after it; caught this the hard way on the first attempt, see task file DONE note). `watchlist.ts`/`feed.ts` keep their own blanket-pattern auth but are now mounted last so nothing downstream can leak. Verified live via curl, not just tsc.
-- **bug/1 side-find, also fixed:** `scoring-config.ts` routes were double-prefixed (`/api/scoring-config` inside a router already mounted at `/api`) so the frontend's real call never matched — pre-existing, unrelated to bug/1, found during live verification. Also had to create the missing `app_config` table (schema-defined, never pushed to this DB) via a targeted `CREATE TABLE IF NOT EXISTS`, not `drizzle-kit push` (which hit an unsafe interactive create-vs-rename prompt).
-- **bug/4 done.** New `lib/startup-refresh.ts`, capped + registry-scoped + budget-gated. Verified live across 3 restarts this session.
-- **bug/19 rejected, not just "not done".** Implemented exactly as specced (seed 31-ticker `WATCHLIST` on register), verified live, then reverted at explicit user direction: no cross-account/shared-list seeding on new accounts, full stop — new users start empty. Do not re-file this task as-is; see the task file's DONE note for what a re-scoped version would need to look like.
-
-**Not started:** Wave 2 bugs (2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18), enh/34 Waves A–D. Next session picks up here.
+Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug status.
 
 ---
 
-## Cluster 1 — CI / Test + Observability ✅ DONE
-- enh/3 ci-pipeline — done (GitHub Actions on push/PR; typecheck + test both packages)
-- enh/4 api-integration-test-harness — done (15-test unit harness for merge-trusted priority)
-- enh/7 observability-error-tracking — done (Sentry + requestId wired; no-op without DSN)
+## Completed
+
+**Bugs (bugs/1–19)** — all done or intentionally rejected. Per-task detail in `INDEX.md`'s bugs table, not duplicated here. Note: bug/19 was implemented, verified, then reverted at explicit user direction (no shared-watchlist seeding on register) — don't re-file as-is, see the task file's DONE note.
+
+**enh/34 performance-resilience-optimization** — done 2026-07-11 (Waves A–D): route error boundaries, lazy routes + `PageSkeleton` + unified query-keys + idle chunk-prefetch, `tsx watch` dev server, `scripts/dev-up.sh`. Wave C was already covered by bugs 4/5/11/12 (skipped, not double-implemented). Full notes in the task file.
+
+**enh/5 api-dev-hot-reload** — done 2026-07-11, folded into enh/34 Wave D (same `tsx watch` change). Don't re-file separately.
+
+**Cluster 1 — CI / Test + Observability**
+- enh/3 ci-pipeline, enh/4 api-integration-test-harness, enh/7 observability-error-tracking — all done.
+
+**Cluster 3 — Score explanations + AI narration**
+- naf/3 contextual-score-explanations — done 2026-07-10 (ExplainableScore, useScoreExplanation, explain_cache table, both leaderboards refactored).
+- ai/11 product-ai-explain-csp — unblocked by naf/3, **CURSOR NEXT (P0)**.
 
 ---
 
-## Cluster 2 — Agentic hygiene (SKIP — defer to Cursor)
-- ai/2 context-isolation
-- ai/3 lesson-memory-hygiene
-- ai/4 scoped-rules-trim
-- ai/5 mcp-selective
-- ai/6 cursor-hooks-parity
-- ai/8 skills-discovery
-- ai/9 commands-playbooks
-- ai/10 agents-md-bridge
-> These are Cursor config / docs tasks. Ship as one CURSOR.md PR when ready. Risk of poor design is high.
+## Skipped / Cursor-owned
+- **Cluster 2 — Agentic hygiene**: ai/2 context-isolation, ai/3 lesson-memory-hygiene, ai/4 scoped-rules-trim, ai/5 mcp-selective, ai/6 cursor-hooks-parity, ai/8 skills-discovery, ai/9 commands-playbooks, ai/10 agents-md-bridge. Config/docs tasks for Cursor's own tooling, partially maintained by Cursor already — defer entirely, don't pick up from Claude side.
 
 ---
 
-## Cluster 3 — Score explanations + AI narration ✅ DONE (naf/3); ai/11 → Cursor next
-- naf/3 contextual-score-explanations — **done 2026-07-10**
-  - ExplainableScore component, useScoreExplanation hook, score-summary-copy.ts
-  - explain_cache DB table (migration 0016), server-side caching in explain.ts
-  - Refactored rankings-leaderboard + technical TechnicalLeaderboard
-  - Sidebar renamed, scorecard deep-link wired
-  - **follow-up 2026-07-10**: TechnicalLeaderboard "Why" panel now shows a metric z-score table (top 5 metrics, value + σ vs peers), matching the fundamental rankings-leaderboard pattern. Computed lazily, only for the expanded row. Also fixed a bug where the panel could expand but not collapse (added per-ticker `collapsed` toggle state).
-- ai/11 product-ai-explain-csp — **CURSOR NEXT (P0)** — wire ExplainableScore into scanner expanded panel; details in [ai/11 task file](ai/11-product-ai-explain-csp-070926.md)
-
----
-
-## Cluster 4 — Home + scanner + picks (extract scanner-reasoning.ts first)
+## Cluster 4 — Home + scanner + picks (NEXT — extract scanner-reasoning.ts first)
 - naf/4 home-dashboard-redesign (L)
 - naf/5 scanner-simplified-view (M) — **CLAUDE NEXT (P1)** — simple/advanced toggle
 - naf/6 todays-top-picks-feed (M)
@@ -77,9 +43,8 @@ Sub-clusters (from `INDEX.md`, referenced not duplicated):
 ---
 
 ## Cluster 6 — Portfolio risk + daily brief + journal
-- bug/14 portfolio-localstorage-not-server — DONE 2026-07-11, done together with enh/8 Phase A1
-- enh/8 portfolio-analysis-improvements (L) — ship first. Phase A1 (unlock nav) **deferred 2026-07-11**,
-  intentionally — see enh/8 rescope note; A2–A4 still open
+- bug/14 portfolio-localstorage-not-server — done (conditional); two P0 follow-ups still open, see `FOLLOWUPS.md`
+- enh/8 portfolio-analysis-improvements (L) — ship first. Phase A1 (unlock nav) deferred 2026-07-11, see task file rescope note; A2–A4 still open
 - enh/9 portfolio-daily-brief-improvements (M)
 - ai/13 product-ai-trade-journal-loop (L) — shares journal schema with enh/8
 
@@ -100,13 +65,12 @@ Sub-clusters (from `INDEX.md`, referenced not duplicated):
 
 ## Cluster 9 — Research sprints (each spawns follow-ons)
 - enh/30 liquidity-money-flow-research (M) → spawns enh/31 + enh/32
-- enh/33 csp-momentum-backtest-learning-research (M) → spawns enh/34 + enh/35 → feeds ai/14
+- enh/33 csp-momentum-backtest-learning-research (M) — standalone, can run independently of enh/34 (confirmed by user 2026-07-11). Spawns its own follow-on research tasks on pickup, feeds ai/14; don't assume those spawns are numbered 34/35 — enh/34 is already performance-resilience-optimization.
 - ai/14 product-ai-trader-account-research (M) → spawns ai/15–17
 
 ---
 
 ## Cluster 10 — Standalone polish (any order)
-- enh/5 api-dev-hot-reload (S)
 - enh/15 technical-scorecard-improvements (M)
 - enh/16 watchlist-monitor-improvements (M)
 - enh/20 scorecard-guide-improvements (S)
@@ -128,7 +92,6 @@ Sub-clusters (from `INDEX.md`, referenced not duplicated):
 ---
 
 ## Key dependency rules
-- ai/11 requires naf/3 ✅ (now unblocked)
 - ai/12 requires enh/23
 - ai/13 requires enh/8 journal schema design
 - ai/14 requires ai/13 + enh/33
@@ -136,5 +99,4 @@ Sub-clusters (from `INDEX.md`, referenced not duplicated):
 - enh/12 analyst section requires enh/6 Track 1
 - naf/4–6 require scanner-reasoning.ts extract
 - enh/30 spawns enh/31+32 (do not collide with enh/19 heatmap)
-- enh/33 spawns enh/34+35
 - enh/27–29 are permanently deferred (goals already met by existing code)

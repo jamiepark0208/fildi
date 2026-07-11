@@ -8,6 +8,7 @@ import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { prefetchRouteChunk } from "@/lib/prefetch-policy";
 
 const COLLAPSED_KEY = "fildi_sidebar_collapsed";
 const ORDER_KEY = "fildi_sidebar_order";
@@ -304,6 +305,7 @@ export function Sidebar() {
                       onDragEnd={() => { setDragKey(null); setDropKey(null); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropKey(itemKey); }}
                       onDrop={e => { e.stopPropagation(); handleItemDrop(group.id, item.id); }}
+                      onMouseEnter={() => prefetchRouteChunk(item.href.slice(1))}
                       className={cn(
                         "rounded-md transition-colors duration-100",
                         isItemDrop && "ring-1 ring-primary/60 bg-primary/10"

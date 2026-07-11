@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: bugs 15, 16, 6, 7, 8, 17, 18 fixed and live-verified, bug14 portfolio-localstorage done, enh8 phase A1 deferred and documented
-- In progress: none
-- Blocked: none
+- Working: enh34-wave-A-error-boundaries;enh34-wave-B-lazy-routes-and-query-key-unify;enh34-wave-D-tsx-watch-and-dev-up.sh;enh5-folded-into-enh34;CLUSTERS.md-cleanup;INDEX.md-status-sync
+- In progress: none - session complete
+- Blocked: playwright unavailable - no browser verification for enh34 waves A/B this session
 
 ## Next tasks (priority order)
 

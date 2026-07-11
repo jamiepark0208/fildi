@@ -1,33 +1,49 @@
-import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
+import { useState, useCallback, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
-import Watchlist from "@/pages/watchlist";
-import Technical from "@/pages/technical";
-import Breakdown from "@/pages/breakdown";
-import Portfolio from "@/pages/portfolio";
-import ScorecardExplanation from "@/pages/scorecard-explanation";
-import OptionsScanner from "@/pages/options-scanner";
-import Macro from "@/pages/macro";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import Login from "@/pages/login";
-import Settings from "@/pages/settings";
-import Profile from "@/pages/profile";
-import Feed from "@/pages/feed";
-import Sentiment from "@/pages/sentiment";
+
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Home = lazy(() => import("@/pages/home"));
+const Watchlist = lazy(() => import("@/pages/watchlist"));
+const Technical = lazy(() => import("@/pages/technical"));
+const Breakdown = lazy(() => import("@/pages/breakdown"));
+const Portfolio = lazy(() => import("@/pages/portfolio"));
+const ScorecardExplanation = lazy(() => import("@/pages/scorecard-explanation"));
+const OptionsScanner = lazy(() => import("@/pages/options-scanner"));
+const Macro = lazy(() => import("@/pages/macro"));
+const Settings = lazy(() => import("@/pages/settings"));
+const Profile = lazy(() => import("@/pages/profile"));
+const Feed = lazy(() => import("@/pages/feed"));
+const Sentiment = lazy(() => import("@/pages/sentiment"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
+
+function RouteBoundary({ children }: { children: ReactNode }) {
+  return (
+    <QueryErrorResetBoundary>
+      {({ reset }) => (
+        <RouteErrorBoundary onReset={reset}>
+          <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+        </RouteErrorBoundary>
+      )}
+    </QueryErrorResetBoundary>
+  );
+}
 
 function useSessionState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
   const [val, set] = useState<T>(() => {
@@ -56,7 +72,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user) return <Redirect to="/login" />;
-  return <>{children}</>;
+  return <RouteBoundary>{children}</RouteBoundary>;
 }
 
 function Router() {
@@ -115,7 +131,11 @@ function Router() {
       <Route path="/sentiment">
         <ProtectedRoute><Sentiment /></ProtectedRoute>
       </Route>
-      <Route component={NotFound} />
+      <Route>
+        <Suspense fallback={<PageSkeleton />}>
+          <NotFound />
+        </Suspense>
+      </Route>
     </Switch>
   );
 }

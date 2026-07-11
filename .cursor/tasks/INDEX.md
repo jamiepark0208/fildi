@@ -39,7 +39,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 2 | P0 | done | [competitive-tech-research](enhancements/2-competitive-tech-research-070926.md) |
 | 3 | P0 | done | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
 | 4 | P0 | done | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
-| 5 | P1 | ready | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) |
+| 5 | P1 | done | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) — folded into enh/34 Wave D 2026-07-11 |
 | 6 | P1 | ready | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) |
 | 7 | P1 | done | [observability-error-tracking](enhancements/7-observability-error-tracking-070926.md) |
 | 8 | P0 | ready | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) |
@@ -65,9 +65,10 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) |
 | 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) |
 | 30 | P0 | ready | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) |
-| 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) |
+| 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, can run independently of 34 |
+| 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D done 2026-07-11 |
 
-Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay — spawn **34** data enrichment / **35** CSP replay after checklist; feeds **ai/14**.
+Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup, not assumed to be 34/35 (34 is now performance-resilience-optimization, unrelated); feeds **ai/14**.
 
 ---
 
@@ -90,7 +91,7 @@ Merged from the former `bugs/INDEX.md` (deleted 2026-07-11 — was a duplicate s
 | 11 | B | P1 | done | M | High | Med | [options-scanner-fetch-storm](bugs/11-options-scanner-fetch-storm-070926.md) |
 | 12 | B | P1 | done | M | Med | Low | [watchlist-quote-n-plus-one](bugs/12-watchlist-quote-n-plus-one-070926.md) |
 | 13 | A | P1 | done | XS | Med | Low | [react-query-cross-user-bleed](bugs/13-react-query-cross-user-bleed-070926.md) |
-| 14 | F | P1 | done | L | High | High | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
+| 14 | F | P1 | done (conditional) | L | High | High | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
 | 15 | E | P2 | done | S | Med | Low | [catalyst-dual-buildCatalysts](bugs/15-catalyst-dual-buildCatalysts-070926.md) |
 | 16 | E | P2 | done | S | Med | Low | [feed-winrate-expired-excluded](bugs/16-feed-winrate-expired-excluded-070926.md) |
 | 17 | D | P2 | done | XS | Low | Low | [admin-routes-auth-not-admin](bugs/17-admin-routes-auth-not-admin-070926.md) |

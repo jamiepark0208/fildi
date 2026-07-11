@@ -20,12 +20,10 @@ Action items from gatekeeper re-audits (bugs 1–19). **Status lives in INDEX/CL
 | bug/14 | Migration shim clears legacy localStorage in `finally` even when POST fails — silent data loss, no retry | `use-portfolio.ts` `migrateLegacyLocalStorage()` | Set flag only after successful imports; or retry on next load if flag unset. |
 | bug/14 | React Query keys `["positions"]` / `["portfolio-names"]` lack `userId`; logout does not clear them | `use-portfolio.ts`, `sidebar.tsx` | Same class as bug/13. Fold into enh/26 or fix with bug/14 patch. |
 | bug/13 | React Query bleed: `peer-groups`, `indicators`, `fundamentals-rankings` keys lack user scope | `home.tsx`, `technical.tsx` | → enh/26 |
-| bug/2 | Auth check on `/indicators/batch?tickers=` (vendor cost on cache miss) | `routes/indicators.ts` | bug/1 fixed path-scoped auth; batch route may still leak. |
-| bug/1 | `macro-regime` still public Yahoo on cache miss | `routes/macro-regime.ts` | bug/1 AC partial — not behind `requireAuth`. |
+| bug/1 | `macro-regime` still public Yahoo on cache miss | `routes/macro-regime.ts` | Confirmed still open 2026-07-11: `macroRegimeRouter` mounted at `routes/index.ts:41`, before the `requireAuth` gate at line 58 — its own `/macro/regime` handler has no auth. bug/1 AC partial. |
 | bug/9 | `findNullFields()` skips peers with no `ticker_fundamentals` row — flagged but unfetched | `nightly-enrichment.ts` | Live enrichment path not re-run in bug/9 close. |
 | bug/16 | Profile SQL vs `feed.tsx` TopPerformers: client skips resolved rows when `resolvedPnl == null`; server counts `EXPIRED_*` regardless | `feed.ts`, `feed.tsx` | Align when expiry job lands. |
-| bug/5 | **`ttl-cache.test.ts` failing** in api-server suite (35/36 pass) | `lib/ttl-cache.test.ts` | Regression from bug/5 prune/maxEntries work — fix or adjust test. |
-| bug/5 | `indicatorHistoryCache` + `sepActualsCache` not in sweep/registry | `routes/macro.ts` | Low risk; inconsistent with bug/5 AC. |
+| bug/5 | `indicatorHistoryCache` + `sepActualsCache` not in sweep/registry | `routes/macro.ts` | Confirmed still open 2026-07-11: both defined in `routes/macro.ts` but absent from `ttlCaches` array in `lib/cache-registry.ts:75`. Low risk; inconsistent with bug/5 AC. |
 
 ---
 
@@ -77,12 +75,25 @@ Also closed (non-bug): enh/3, enh/4 (partial), enh/7 · naf/3 conditional.
 
 ---
 
+## Corrections from 2026-07-11 verification pass (best-effort code check, no live server)
+
+Went through every row above against current code. Two rows in the original doc did not hold up and were removed above rather than left to rot:
+
+- **bug/2** (`/indicators/batch` auth leak) — **not an issue.** `routes/index.ts:58` applies `requireAuth` to `["/stocks", "/indicators", ...]` *before* `indicatorsRouter` is mounted at line 60 — Express runs middleware in registration order, so `/indicators/batch` is already gated. The FOLLOWUPS row was speculative ("may still leak") and didn't hold up under a direct read of the mount order. Closed, no code change needed.
+- **bug/5 `ttl-cache.test.ts` "35/36 pass"** — **not reproducible.** Ran the suite via the project's actual test script (`node --experimental-strip-types ... --test 'src/**/*.test.ts'`, not raw `vitest`, which mis-reads the `node:test` syntax and reports a false failure). Full suite: **40/40 pass, 0 fail.** Whatever produced "35/36" either used the wrong runner or was stale. Closed.
+
+Correction to my own note above (not a new finding — checked bugs/5's own task file after writing this): `api-server` still fails `tsc --noEmit` with 2 errors (`scripts/backfill-edgar.ts:70` arg not assignable to `Record<string, unknown>`; `scripts/merge-trusted.ts:276` `result` possibly null). bug/5's DONE note already disclosed these as **pre-existing on main before that change** — not a regression, not new. The inaccurate part is the later session checkpoint commit message claiming "both packages typecheck clean," which was wrong for `api-server` (confirmed clean only for `stock-compare`). Leaving both errors untriaged here since neither bug/5 nor bug/14 own them.
+
+No live server/DB was available to re-run the manual/curl-verification rows (bug/6,7,8,17,18) — those are unchanged from prior session notes, not re-verified here.
+
 ## Suggested fix order for Replit
 
-1. **bug/14 P0** — migration + schema for `user_portfolio_names`; optional `portfolioSnapshots.userId` in same pass
+1. **bug/14 P0** — migration + schema for `user_portfolio_names`; optional `portfolioSnapshots.userId` in same pass (confirmed still open 2026-07-11 — not actually resolved by the bug/14 commit despite INDEX.md's prior unconditional "done")
 2. **bug/14 P1** — migration shim safety + query keys + logout cleanup (or batch with enh/26)
-3. **bug/5** — fix `ttl-cache.test.ts` failure
+3. **pre-existing** — `api-server` tsc errors (`backfill-edgar.ts`, `merge-trusted.ts`), open since before bug/5; low urgency, but stop writing "typecheck clean" in checkpoints until fixed
 4. **enh/8 Phase A1** — nav unlock after #1
 5. **enh/34** Wave A
 
-**Bug audit backlog: complete.** Remaining work lives in this file + enhancements/ai/naf folders.
+(bug/5 `ttl-cache.test.ts` and bug/2 `/indicators/batch` rows removed above — verified not actual issues, see Corrections section.)
+
+**Bug audit backlog: complete, with bug/14 downgraded to "done (conditional)"** in INDEX.md/CLUSTERS.md to match reality. Remaining work lives in this file + enhancements/ai/naf folders.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done 2026-07-11 — implemented as part of enh/34 Wave D (same `tsx watch` scope) |
 | **Priority** | P1 |
 | **Area** | infra |
 | **Effort** | S (~30–60 min) |

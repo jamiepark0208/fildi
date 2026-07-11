@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
-import { db, positions } from "@workspace/db";
+import { db, positions, userPortfolioNames } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -70,35 +70,30 @@ router.delete("/positions/:id", async (req, res) => {
 
 // GET /portfolio-names
 router.get("/portfolio-names", async (req, res) => {
-  const rows = await db.execute(sql`
-    SELECT name FROM user_portfolio_names
-    WHERE user_id = ${req.session.userId!}
-    ORDER BY sort_order ASC, name ASC
-  `);
-  return res.json((rows.rows as { name: string }[]).map(r => r.name));
+  const rows = await db.select({ name: userPortfolioNames.name })
+    .from(userPortfolioNames)
+    .where(eq(userPortfolioNames.userId, req.session.userId!))
+    .orderBy(asc(userPortfolioNames.sortOrder), asc(userPortfolioNames.name));
+  return res.json(rows.map(r => r.name));
 });
 
 // POST /portfolio-names
 router.post("/portfolio-names", async (req, res) => {
   const { name } = req.body as { name?: string };
   if (!name?.trim()) return res.status(400).json({ error: "name required" });
-  const countRes = await db.execute(sql`
-    SELECT COUNT(*) as c FROM user_portfolio_names WHERE user_id = ${req.session.userId!}
-  `);
-  const sortOrder = Number((countRes.rows[0] as { c: string }).c);
-  await db.execute(sql`
-    INSERT INTO user_portfolio_names (user_id, name, sort_order)
-    VALUES (${req.session.userId!}, ${name.trim()}, ${sortOrder})
-    ON CONFLICT DO NOTHING
-  `);
+  const [{ c: sortOrder }] = await db.select({ c: sql<number>`count(*)`.mapWith(Number) })
+    .from(userPortfolioNames)
+    .where(eq(userPortfolioNames.userId, req.session.userId!));
+  await db.insert(userPortfolioNames)
+    .values({ userId: req.session.userId!, name: name.trim(), sortOrder })
+    .onConflictDoNothing();
   return res.status(201).json({ ok: true });
 });
 
 // DELETE /portfolio-names/:name
 router.delete("/portfolio-names/:name", async (req, res) => {
-  await db.execute(sql`
-    DELETE FROM user_portfolio_names WHERE user_id = ${req.session.userId!} AND name = ${req.params.name}
-  `);
+  await db.delete(userPortfolioNames)
+    .where(and(eq(userPortfolioNames.userId, req.session.userId!), eq(userPortfolioNames.name, req.params.name)));
   return res.json({ ok: true });
 });
 
