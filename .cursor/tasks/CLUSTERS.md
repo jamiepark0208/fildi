@@ -77,7 +77,9 @@ Sub-clusters (from `INDEX.md`, referenced not duplicated):
 ---
 
 ## Cluster 6 — Portfolio risk + daily brief + journal
-- enh/8 portfolio-analysis-improvements (L) — ship first
+- bug/14 portfolio-localstorage-not-server — DONE 2026-07-11, done together with enh/8 Phase A1
+- enh/8 portfolio-analysis-improvements (L) — ship first. Phase A1 (unlock nav) **deferred 2026-07-11**,
+  intentionally — see enh/8 rescope note; A2–A4 still open
 - enh/9 portfolio-daily-brief-improvements (M)
 - ai/13 product-ai-trade-journal-loop (L) — shares journal schema with enh/8
 
