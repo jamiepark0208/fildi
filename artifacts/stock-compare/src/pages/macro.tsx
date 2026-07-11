@@ -41,6 +41,7 @@ import {
 import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
 import { RegimeBanner } from "@/components/macro/RegimeBanner";
 import { useAuth } from "@/context/AuthContext";
+import { useSessionState } from "@/hooks/use-session-state";
 
 
 // Types and sub-components extracted for token-efficient editing
@@ -76,7 +77,7 @@ const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 export default function MacroDashboard() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<MacroTab>("regime");
+  const [activeTab, setActiveTab] = useSessionState<MacroTab>("fildi_macro_tab", "regime");
   const [fedSection, setFedSection] = useState<"voting" | "all">("voting");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
   const [treasuryPeriod, setTreasuryPeriod] = useState<CurvePeriod>("current");

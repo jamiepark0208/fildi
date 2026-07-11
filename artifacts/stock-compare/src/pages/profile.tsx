@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { useParams, useLocation, Link } from "wouter"
+import { useParams, Link } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
 import { TopNav } from "@/components/top-nav"
@@ -583,28 +583,8 @@ export default function Profile() {
   const { username: routeUsername } = useParams<{ username: string }>()
   const { user: me } = useAuth()
   const qc = useQueryClient()
-  const [, navigate] = useLocation()
-  const [userSearch, setUserSearch] = useState("")
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-
   const username = routeUsername === "me" ? (me?.username ?? "") : routeUsername
   const [showForm, setShowForm] = useState(false)
-
-  const { data: allUsers = [] } = useQuery<{ username: string; avatarUrl: string | null }[]>({
-    queryKey: ["feed", "users"],
-    queryFn: () => apiFeed("/users"),
-    staleTime: 60000,
-  })
-
-  const filteredUsers = userSearch.trim()
-    ? allUsers.filter(u => u.username.toLowerCase().includes(userSearch.toLowerCase()))
-    : allUsers
-
-  function goToUser(uname: string) {
-    setUserSearch("")
-    setUserDropdownOpen(false)
-    navigate(`/profile/${uname}`)
-  }
 
   const { data, isLoading, error } = useQuery<ProfileData>({
     queryKey: ["feed", "profile", username],
@@ -640,46 +620,11 @@ export default function Profile() {
       <TopNav />
       <main className="pt-14 p-5 max-w-2xl space-y-5">
 
-        {/* ── Nav bar: back to my profile + find user ── */}
-        <div className="flex items-center gap-3">
-          {!isOwnerProfile && me && (
-            <Link href="/profile/me" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
-              ← My Profile
-            </Link>
-          )}
-          <div className="relative ml-auto">
-            <input
-              value={userSearch}
-              onChange={e => setUserSearch(e.target.value)}
-              onFocus={() => setUserDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setUserDropdownOpen(false), 150)}
-              placeholder="Find user…"
-              className="bg-secondary border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary w-36"
-            />
-            {userDropdownOpen && filteredUsers.length > 0 && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
-                {filteredUsers.map(u => (
-                  <button
-                    key={u.username}
-                    onMouseDown={() => goToUser(u.username)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left",
-                      u.username === username && "bg-primary/10 text-primary"
-                    )}
-                  >
-                    <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                      {u.avatarUrl
-                        ? <img src={u.avatarUrl} alt={u.username} className="w-5 h-5 rounded-full object-cover" />
-                        : u.username[0]?.toUpperCase()}
-                    </div>
-                    <span className="font-medium text-foreground">{u.username}</span>
-                    {u.username === me?.username && <span className="ml-auto text-[10px] text-muted-foreground">you</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        {!isOwnerProfile && me && (
+          <Link href="/profile/me" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            ← My Profile
+          </Link>
+        )}
 
         {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
         {error    && <div className="text-sm text-red-400">Failed to load profile.</div>}

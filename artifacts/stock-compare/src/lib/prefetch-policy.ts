@@ -29,7 +29,7 @@ function runIdle(fn: () => void) {
 }
 
 // Call once after the calling page's own data has finished loading.
-export function idlePrefetchRouteChunks(routes: string[] = ["watchlist", "options-scanner"]) {
+export function idlePrefetchRouteChunks(routes: string[] = ["watchlist", "rankings"]) {
   if (idlePrefetchScheduled || hasSaveData()) return;
   idlePrefetchScheduled = true;
   runIdle(() => {

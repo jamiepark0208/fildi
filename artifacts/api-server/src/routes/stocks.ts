@@ -13,8 +13,9 @@ import {
 } from "@workspace/db";
 import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { buildCatalysts, parseEarningsDate, yahooEpochToMs, yahooEpochToDateStr } from "../lib/catalysts.js";
+import { buildCatalysts, parseEarningsDate } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
+import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -708,10 +709,12 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
 
   try {
+    const analystFresh = await isAnalystDataFresh(upperTicker);
+    const modules = ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
+    if (!analystFresh) modules.push("upgradeDowngradeHistory");
+
     const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload] = await Promise.all([
-      yahooFinance.quoteSummary(upperTicker, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "upgradeDowngradeHistory", "calendarEvents"] as any,
-      }),
+      yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
       yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
       readRegistryRow(upperTicker),
@@ -743,26 +746,17 @@ router.get("/stocks/breakdown", async (req, res) => {
       strongSell: recTrend.strongSell ?? 0,
     } : null;
 
-    // Per-firm analyst actions — most recent action per firm, sorted newest first
-    const rawHistory: any[] = (summary as any).upgradeDowngradeHistory?.history ?? [];
-    const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
-    const firmMap = new Map<string, any>();
-    for (const item of rawHistory) {
-      const ts = yahooEpochToMs(item.epochGradeDate);
-      if (!ts || ts < cutoff) continue;
-      const firm = (item.firm ?? "Unknown") as string;
-      if (!firmMap.has(firm)) firmMap.set(firm, item);
+    // Per-firm analyst actions — DB-first when fresh (<7d), else live Yahoo + write-through
+    let analystActions;
+    if (analystFresh) {
+      analystActions = await readAnalystEventsFromDb(upperTicker);
+    } else {
+      const rawHistory: any[] = (summary as any).upgradeDowngradeHistory?.history ?? [];
+      analystActions = parseAnalystHistory(rawHistory);
+      writeAnalystEvents(upperTicker, rawHistory).catch(err => {
+        logger.warn({ ticker: upperTicker, err }, "analyst events write-through failed");
+      });
     }
-    const analystActions = Array.from(firmMap.values())
-      .sort((a, b) => yahooEpochToMs(b.epochGradeDate) - yahooEpochToMs(a.epochGradeDate))
-      .slice(0, 10)
-      .map(item => ({
-        firm: item.firm ?? "Unknown",
-        toGrade: item.toGrade ?? "",
-        fromGrade: item.fromGrade ?? "",
-        action: item.action ?? "maintain",
-        date: yahooEpochToDateStr(item.epochGradeDate),
-      }));
 
     // Aggregate price target range from financialData
     const fd = (summary as any).financialData ?? {};
