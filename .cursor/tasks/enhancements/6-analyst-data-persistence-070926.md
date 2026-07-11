@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done (Track 1) — Track 2 (Finviz PT) still pending spike |
 | **Priority** | P1 |
 | **Area** | data |
 | **Effort** | L (Track 1 M; Track 2 M after spike) |
@@ -212,3 +212,17 @@ Track 2: `feat(data): Finviz analyst price targets backfill` (after spike)
 
 **Verdict:** APPROVE — Track 1 ready; Track 2 after spike  
 **Rescope:** FMP removal + CACHE_VER=5 **already shipped**. Focus = persistence + FE dedupe + Finviz spike.
+
+---
+
+## Track 1 — done (2026-07-11)
+
+- `yahoo_analyst_actions` + `analyst_events` tables applied via psql (hand-extracted from migration 0011, which also contained 2 unrelated pre-existing tables — did not run the full migration file).
+- Verified end-to-end on NVDA: 982 raw Yahoo events → 164 deduped rows in both bronze + gold.
+- **Bug found + fixed during verification:** `getStaleAnalystTickers` used raw `sql\`= ANY(${array})\`` which drizzle doesn't serialize as a Postgres array — every call threw `malformed array literal`, which would have 500'd `/stocks/breakdown` for every ticker. Fixed with drizzle's `inArray` (`analyst-events.ts`).
+- **Bug found + fixed:** `fetchYahooAnalystActions` only called `logApiCall` on failure, never success — Yahoo call volume for this feature was invisible to the API Monitor tab. Added the success-path log to match `fetchYahooFundamentals`'s convention.
+- FE dedupe (W5) confirmed not needed — out of scope items already correctly deferred.
+- UI: `analystActions` was computed by the backend but never rendered (dead prop + unused `actionBullets` helper). Wired into `AnalystRatingsSection` as a new "Analyst Rating Changes" compact table (Entity / Recommendation / Notes / Last Updated), with green/red/yellow grade coloring via a shared `classifyGrade()` helper.
+- Confirmed no changes needed to `source_ticker_map` or `ticker_fundamentals`/`FIELD_DEFS` (single-source, no waterfall — see plan's own out-of-scope note) and no new caching layer needed (`breakdownCache` 2h TTL + 7-day DB freshness window already matches the existing two-tier pattern).
+- Full-universe `backfill-analyst-events.ts` run intentionally deferred — DB-first route falls back to live Yahoo + write-through per ticker until backfilled, so this is safe to defer indefinitely.
+- Pre-existing gap noted, not fixed (out of scope): none of `/stocks/breakdown`'s own `quoteSummary` calls log to `api_usage` at all — affects the whole route's Yahoo visibility, not just analyst data.

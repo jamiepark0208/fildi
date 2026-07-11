@@ -11,7 +11,9 @@ export async function fetchYahooAnalystActions(ticker: string): Promise<unknown[
     const raw = await yahooFinance.quoteSummary(symbol, {
       modules: ["upgradeDowngradeHistory"],
     }, { validateResult: false });
-    return (raw as any).upgradeDowngradeHistory?.history ?? [];
+    const history = (raw as any).upgradeDowngradeHistory?.history ?? [];
+    logApiCall({ source: "yahoo", fn: "fetchYahooAnalystActions", trigger: "backfill-analyst-events script", ticker, outcome: "success", fieldsReturned: history.length });
+    return history;
   } catch (err: any) {
     logApiCall({ source: "yahoo", fn: "fetchYahooAnalystActions", trigger: "backfill-analyst-events script", ticker, outcome: "failure", error: err.message, requestedFields: "quoteSummary: upgradeDowngradeHistory" });
     return [];

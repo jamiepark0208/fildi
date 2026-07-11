@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { sql, inArray, eq } from "drizzle-orm";
 import { db, yahooAnalystActions, analystEvents } from "@workspace/db";
 import { yahooEpochToMs, yahooEpochToDateStr, type CatalystAnalystAction } from "./catalysts.js";
 import { logger } from "./logger.js";
@@ -51,7 +51,7 @@ export async function getStaleAnalystTickers(allTickers: string[]): Promise<stri
   const freshRows = await db
     .select({ ticker: analystEvents.ticker })
     .from(analystEvents)
-    .where(sql`${analystEvents.ticker} = ANY(${normalized})`)
+    .where(inArray(analystEvents.ticker, normalized))
     .groupBy(analystEvents.ticker)
     .having(sql`MAX(${analystEvents.fetchedAt}) > ${cutoff}`);
 
@@ -131,7 +131,7 @@ export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystA
       eventDate: analystEvents.eventDate,
     })
     .from(analystEvents)
-    .where(sql`${analystEvents.ticker} = ${ticker.toUpperCase()}`)
+    .where(eq(analystEvents.ticker, ticker.toUpperCase()))
     .orderBy(sql`${analystEvents.eventDate} DESC`)
     .limit(MAX_ACTIONS);
 

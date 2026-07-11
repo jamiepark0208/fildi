@@ -224,16 +224,27 @@ function actionLabel(action: string): string {
   return "→ Maintain";
 }
 
+function classifyGrade(toGrade: string): "bull" | "bear" | "neutral" {
+  const grade = toGrade.toLowerCase();
+  if (["buy", "strong buy", "outperform", "overweight", "positive"].some(g => grade.includes(g))) return "bull";
+  if (["sell", "strong sell", "underperform", "underweight", "negative"].some(g => grade.includes(g))) return "bear";
+  return "neutral";
+}
+
+const GRADE_COLOR_CLASS: Record<"bull" | "bear" | "neutral", string> = {
+  bull: "text-green-400",
+  bear: "text-red-400",
+  neutral: "text-yellow-400",
+};
+
 function actionBullets(action: AnalystAction): string[] {
-  const grade = action.toGrade.toLowerCase();
-  const isBullish = ["buy", "strong buy", "outperform", "overweight", "positive"].some(g => grade.includes(g));
-  const isBearish = ["sell", "strong sell", "underperform", "underweight", "negative"].some(g => grade.includes(g));
-  if (isBullish) {
+  const sentiment = classifyGrade(action.toGrade);
+  if (sentiment === "bull") {
     if (action.action === "up") return ["Raised from prior rating — improved fundamental or near-term outlook", "May reflect accelerating earnings, margin expansion, or valuation re-rating catalyst"];
     if (action.action === "init") return ["Initiated coverage with constructive thesis on growth and/or valuation", "Entry point suggests risk/reward favors upside at current price"];
     return ["Reaffirming confidence in current trajectory — no material thesis change", "Sees continued upside relative to peers"];
   }
-  if (isBearish) {
+  if (sentiment === "bear") {
     if (action.action === "down") return ["Downgraded — deteriorating fundamentals, guidance cut, or valuation concern", "Risk/reward seen as unfavorable relative to sector peers"];
     if (action.action === "init") return ["Initiated with cautious stance — elevated valuation or competitive headwinds", "Sees limited upside versus downside risk at current price"];
     return ["Maintains cautious view — not yet seeing catalysts to turn constructive", "Monitoring for signs of stabilization before upgrading"];
@@ -242,10 +253,11 @@ function actionBullets(action: AnalystAction): string[] {
 }
 
 function AnalystRatingsSection({
-  recs, metrics, analystPriceTargets, priceTargetRange,
+  recs, metrics, analystActions, analystPriceTargets, priceTargetRange,
 }: {
   recs: Recommendations;
   metrics: any;
+  analystActions: AnalystAction[];
   analystPriceTargets: AnalystPriceTarget[];
   priceTargetRange: PriceTargetRange | null;
 }) {
@@ -330,6 +342,41 @@ function AnalystRatingsSection({
                 {pt!.median != null && <span>Median ${pt!.median!.toFixed(2)}</span>}
                 <span>High ${pt!.high!.toFixed(2)}</span>
               </div>
+            </div>
+          )}
+
+          {/* Recent analyst rating changes (upgrade/downgrade history) */}
+          {analystActions.length > 0 && (
+            <div>
+              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">
+                Analyst Rating Changes
+              </div>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-border/40">
+                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Entity</th>
+                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
+                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Notes</th>
+                    <th className="text-right font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5">Last Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analystActions.map((a, i) => {
+                    const color = GRADE_COLOR_CLASS[classifyGrade(a.toGrade)];
+                    const gradeLabel = a.fromGrade && a.toGrade && a.fromGrade !== a.toGrade
+                      ? `${a.fromGrade} → ${a.toGrade}`
+                      : (a.toGrade || "—");
+                    return (
+                      <tr key={i} className="border-b border-border/20 last:border-0">
+                        <td className="py-1.5 pr-2 text-xs font-medium text-foreground whitespace-nowrap">{a.firm}</td>
+                        <td className={cn("py-1.5 pr-2 text-xs font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
+                        <td className="py-1.5 pr-2 text-[13px] text-foreground leading-snug">{actionBullets(a)[0]}</td>
+                        <td className="py-1.5 text-xs text-foreground text-right whitespace-nowrap">{a.date ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -1034,6 +1081,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               <AnalystRatingsSection
                 recs={data.recommendations}
                 metrics={m}
+                analystActions={data.analystActions ?? []}
                 analystPriceTargets={data.analystPriceTargets ?? []}
                 priceTargetRange={data.priceTargetRange ?? null}
               />
