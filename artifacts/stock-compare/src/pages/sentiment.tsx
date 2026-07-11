@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from "recharts";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 
@@ -317,9 +317,9 @@ export default function Sentiment() {
   const selected = summaries?.find(s => s.instrument === selectedInstrument);
 
   return (
-    <div className="flex min-h-[100dvh] bg-background">
-      <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto" style={{ marginLeft: "var(--sidebar-w, 220px)" }}>
+    <div className="min-h-[100dvh] bg-background">
+      <TopNav />
+      <main className="min-w-0 mt-14 h-[calc(100dvh-3.5rem)] overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-8">
 
           {/* Header */}

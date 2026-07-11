@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
@@ -1210,9 +1210,9 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
 export default function OptionsScanner() {
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 p-6 space-y-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
+    <div className="min-h-screen bg-background">
+      <TopNav />
+      <main className="pt-14 p-6 space-y-4">
         <OptionsScannerContent />
       </main>
     </div>

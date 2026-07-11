@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { GuideMetricGrid } from "@/components/scorecard-guide/guide-metric-grid";
@@ -59,7 +59,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
   return (
     <>
         {showHeader && (
-          <div className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
+          <div className="px-6 py-4 border-b border-border/50 sticky top-14 bg-background/95 backdrop-blur z-40">
             <div className="flex items-start gap-3">
               <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -159,7 +159,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           </Tabs>
 
           {isAdmin && dirty && (
-            <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-w,220px)] z-50 flex items-center gap-3 px-6 py-3 border-t border-border bg-background/95 backdrop-blur">
+            <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-6 py-3 border-t border-border bg-background/95 backdrop-blur">
               <Button size="sm" className="text-sm" disabled={isSaving} onClick={handleSave}>
                 {isSaving ? "Saving…" : "Save weights"}
               </Button>
@@ -180,9 +180,9 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
 
 export default function ScorecardExplanation() {
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex">
-      <Sidebar />
-      <main className="flex-1 min-w-0" style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}>
+    <div className="min-h-[100dvh] bg-background text-foreground">
+      <TopNav />
+      <main className="pt-14 min-w-0">
         <ScorecardGuideContent />
       </main>
     </div>
