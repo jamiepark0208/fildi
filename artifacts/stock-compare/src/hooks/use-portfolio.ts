@@ -17,6 +17,8 @@ export interface PortfolioEntry {
   unrealizedPnL?: number;
   delta?: number;
   theta?: number;
+  gamma?: number;
+  vega?: number;
 }
 
 // bug/14 (2026-07-11): this hook used to be 100% localStorage

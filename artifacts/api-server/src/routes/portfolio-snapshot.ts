@@ -3,8 +3,28 @@ import { requireAuth } from '../middleware/requireAuth.js'
 import { db, portfolioSnapshots, portfolioPositions, portfolioOptions, portfolioAccountSummaries, portfolioOrders } from '@workspace/db'
 import { desc, eq } from 'drizzle-orm'
 import { computeRealizedPnL } from '../lib/realized-pnl.js'
+import { computePortfolioRisk, type PortfolioRiskInput } from '../lib/portfolio-risk.js'
 
 const router = Router()
+
+// Correlation matrix + parametric 95% VaR/CVaR across held tickers. Frontend
+// supplies { ticker, weight } pairs (it already computes notional weights for
+// the beta-contribution card) rather than this route re-deriving position
+// sizing from CSV/manual-entry data, since both admin and non-admin portfolios
+// share this endpoint.
+router.post('/portfolio/risk', requireAuth, async (req, res, next) => {
+  try {
+    const { positions, portfolioValueUsd } = req.body as { positions?: PortfolioRiskInput[]; portfolioValueUsd?: number }
+    if (!Array.isArray(positions) || positions.length === 0) {
+      res.json({ tickers: [], correlationMatrix: [], dailyVolatilityPct: 0, var95Pct: 0, cvar95Pct: 0, var95Usd: 0, cvar95Usd: 0, skippedTickers: [] })
+      return
+    }
+    const result = await computePortfolioRisk(positions, portfolioValueUsd ?? 0)
+    res.json(result)
+  } catch (err) {
+    next(err)
+  }
+})
 
 router.get('/portfolio/snapshot/latest', requireAuth, async (req, res, next) => {
   try {
