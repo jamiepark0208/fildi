@@ -9,8 +9,9 @@
  * ticker fetched within the last 7 days (same pattern as backfill-fmp.ts).
  * Field-coverage skip was removed: AV provides peRatio and dividendYield that
  * Yahoo never carries, so the "all covered by Yahoo" check can never fire.
- * AV data goes to source_fundamentals for cross-validation; it is not yet
- * wired into merge-trusted.ts FIELD_DEFS.
+ * AV data goes to source_fundamentals for cross-validation and is already
+ * wired into merge-trusted.ts FIELD_DEFS (peRatio, forwardPe, netMargin,
+ * returnOnEquity, ebitda, beta, dividendYield, etc.).
  *
  * Rate limit: 1 concurrent (strict AV limit). 12s sleep between requests
  * to stay within the 5 req/min soft limit.

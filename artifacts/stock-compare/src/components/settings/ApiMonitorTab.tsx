@@ -13,6 +13,7 @@ interface DataHealthResponse {
   topNullFields: { field: string; nullCount: number }[];
   lastEnrichmentRun: string | null;
   enrichmentRunning: boolean;
+  bronze: { polygonRows: number; avRows: number };
 }
 
 // ── Rate limit metadata (hardcoded — doesn't change) ──────────────────────────
@@ -260,6 +261,24 @@ export function ApiMonitorTab() {
               <div className="text-[10px] text-muted-foreground mt-0.5">divergent fields</div>
               <div className="text-[10px] text-muted-foreground/60 mt-1">(sources disagree &gt;20%)</div>
             </div>
+          </div>
+
+          {/* Bronze table coverage */}
+          <div className="flex gap-3 mt-4">
+            {([
+              { label: "Polygon bronze rows", value: health.bronze.polygonRows },
+              { label: "AV bronze rows", value: health.bronze.avRows },
+            ] as const).map(({ label, value }) => (
+              <div key={label} className="flex-1 bg-muted/30 rounded-lg px-3 py-2.5">
+                <div className={cn("text-xl font-bold tabular-nums", value === 0 ? "text-red-400" : "text-muted-foreground")}>
+                  {value}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+                {value === 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 mt-1 inline-block">empty</span>
+                )}
+              </div>
+            ))}
           </div>
 
           <p className="text-[10px] text-muted-foreground/60 mt-3">

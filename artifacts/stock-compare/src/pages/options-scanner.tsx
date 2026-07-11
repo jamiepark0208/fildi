@@ -815,11 +815,12 @@ export default function OptionsScanner() {
     return m;
   }, [displayTickers, batchOptionsFetching, batchOptionsData, refreshedOptions]);
 
-  // ── Macro regime — for Option Scorer overlay ─────────────────────────────────
+  // ── Volatility regime (VIX-band, intraday) — for Option Scorer overlay ───────
+  // Distinct from the business-cycle "macro-regime" used on home.tsx.
   const { data: macroRegimeData } = useQuery({
-    queryKey: ["macro", "regime"],
+    queryKey: ["volatility", "regime"],
     queryFn: async (): Promise<MacroRegimeResult> => {
-      const res = await fetch("/api/macro/regime");
+      const res = await fetch("/api/volatility/regime");
       if (!res.ok) return { vix: null, spxChange1d: null, ndxChange1d: null, rutChange1d: null, regime: "BASELINE", indexDirection: "NEUTRAL", error: "fetch failed" };
       return res.json();
     },

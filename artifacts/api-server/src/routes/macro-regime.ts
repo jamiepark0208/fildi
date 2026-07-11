@@ -2,6 +2,13 @@ import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 import { logger } from "../lib/logger.js";
 
+// Intraday VIX-band volatility regime (LOW_VOL/BASELINE/ELEVATED/EXTREME),
+// recomputed live every 30 min for option-strike scoring. Distinct from the
+// business-cycle regime in routes/regime.ts (expansion/contraction/etc.,
+// DB-persisted, 24h cache) — different taxonomy, different consumer. The two
+// used to share the word "regime" in their URLs (/macro/regime vs
+// /regime/macro), which is why this one now lives at /volatility/regime.
+
 const yahooFinance = new YahooFinanceClass();
 const router = Router();
 
@@ -50,7 +57,7 @@ export const CACHE_TTL_MS = 30 * 60 * 1000;
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
-router.get("/macro/regime", async (_req, res) => {
+router.get("/volatility/regime", async (_req, res) => {
   if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) {
     return res.json(_cache);
   }

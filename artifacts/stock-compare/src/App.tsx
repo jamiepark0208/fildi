@@ -10,6 +10,7 @@ import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
+const Rankings = lazy(() => import("@/pages/rankings"));
 const Home = lazy(() => import("@/pages/home"));
 const Watchlist = lazy(() => import("@/pages/watchlist"));
 const Technical = lazy(() => import("@/pages/technical"));
@@ -91,6 +92,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/rankings">
+        <ProtectedRoute><Rankings /></ProtectedRoute>
+      </Route>
       <Route path="/">
         <ProtectedRoute>
           <Home tickers={tickers} setTickers={setTickers} />
