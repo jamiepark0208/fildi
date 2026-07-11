@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: cluster-b-bugs (bugs/9,11,12 — fetch overprocessing)
-- In progress: bug/9 done (see task file DONE note). bug/11 next: options-scanner-fetch-storm.
+- Working: cluster-b-bugs done (9,11,12). next: bug/10 watchlist-no-max-size
+- In progress: none
 - Blocked: none
 
 ## Next tasks (priority order)
