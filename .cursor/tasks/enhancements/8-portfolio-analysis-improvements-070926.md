@@ -198,3 +198,87 @@ Snapshots already in Postgres. Phase A = UI only. Phase B may add nullable colum
 
 **Verdict:** APPROVE — Phase A ready; Phase B design-gated  
 **Was:** thin draft. **Now:** verified adminOnly gate, snapshot/ingest paths, explicit ai/13 boundary.
+
+---
+
+## Addendum (2026-07-11) — rescope + cash/crypto bug fix + research backlog
+
+Owner determined most of the original Phase A scope above is stale (cost basis already shown via
+AVG COST; A1 nav-unlock stays deliberately deferred, see 2026-07-11 rescope note). Real work this
+session, replacing Phase A:
+
+### Done this session
+1. **Root-caused and fixed** the "Portfolio Value" banner ($152,078.40) vs "Capital Allocation"
+   ($128,284.49) mismatch. Not a data-source conflict — both read the same DB-persisted CSV
+   snapshot. Capital Allocation simply never summed cash (CSV parser discarded the `Cash` column
+   entirely) or crypto. Confirmed against the real export
+   (`attached_assets/robinhood-export-20260709.csv`): per-account `Cash` column sums to
+   ~$24,419.83, matching the gap almost exactly (one account runs margin, i.e. negative cash).
+2. **CSV parser (`api-server/src/lib/portfolio-parser.ts`) rewritten for full section parity** —
+   previously silently discarded most columns per section, including the entire EQUITY
+   FUNDAMENTALS section. Now captures: per-account Cash/Margin Used/Buying Power/Crypto Value
+   (`portfolio_account_summaries`, new table), equity fundamentals incl. Div/Share, Div Yield,
+   Sector, Industry (`portfolio_equity_fundamentals`, new table), option Open Interest/Volume/Bid/Ask/
+   Current Value/Adj Mark, equity Ext Hours Price/Prev Close, and on `portfolio_orders`: Robinhood's
+   own `Strategy` tag (was already captured, just mislabeled as generic `orderType`) plus previously
+   -missing `Leg Side`/`Leg Effect` (open vs close — the key primitive for wheel-cycle chaining,
+   see Phase B below), Fees, Cumulative/Processed/Canceled Qty, Limit/Stop Price, Premium fields.
+3. Schema additions applied directly via `psql` (pure additive — new nullable columns + 2 new
+   tables, no renames/drops; `drizzle-kit push` is not usable non-interactively in this environment,
+   hit a TTY-prompt dead end — future schema changes should go straight to hand-written additive SQL
+   like `/tmp/portfolio-schema-additive.sql` used here, reviewed before applying).
+4. `GET /api/portfolio/snapshot/latest` now also returns `accountSummaries` and the snapshot's
+   `cashBalance`/`cryptoValue` rollups.
+5. Verified end-to-end: re-ingested the sample CSV (snapshot id 4) and confirmed `cashBalance` =
+   24419.83, `cryptoValue` = 1804.34, 12 equity-fundamentals rows, per-account cash/margin correct.
+
+### Not done yet — pick up next session
+- **Frontend**: `portfolio-analysis.tsx` Capital Allocation `useMemo` (~L180-203) still needs Cash +
+  Crypto segments added to the donut so the two numbers actually reconcile in the UI (backend data
+  is ready and verified — this is pure frontend wiring against `rhData.snapshot.cashBalance` /
+  `.cryptoValue`, already returned by the API).
+- **Reorder**: Portfolio Analysis section still renders below the Holdings tables. Plan: split
+  `RobinhoodPortfolio.tsx` (currently one component, L339-404) into a header/upload piece and a
+  holdings-tables piece, then in `pages/portfolio.tsx` admin branch (~L931-945) render
+  header → `PortfolioAnalysis` → tables.
+- **Wheel-cycle grouping (Phase B, previously thought to need new schema)**: now much cheaper than
+  the original Phase B design worried about — Robinhood already tags each option order with its own
+  `Strategy` (short_put, covered_call, etc., in `portfolio_orders.order_type`) and `Leg Effect`
+  (open/close, in the new `leg_effect` column). Chaining a wheel cycle may now be mostly "group by
+  ticker + strategy + expiration, order by `created_at`" rather than needing new schema — revisit the
+  Phase B design checklist with this in mind before assuming a new `wheel_cycles` table is needed.
+
+### 10 researched portfolio-analysis enhancements (not implemented — documented backlog only)
+
+Recharts is already the charting lib in `stock-compare` (donut/bar/treemap all available — no new
+viz dependency needed for any of these). DB currently has only 3 historical snapshots (2026-06-19,
+06-24, 07-09), which constrains which time-series metrics are meaningful today.
+
+**Tier 1 — buildable now, zero new data needed (schema already has the fields, unused in UI):**
+1. Concentration risk (HHI / top-5 % of NAV)
+2. Portfolio-level Vega exposure (`portfolio_options.vega` exists, never aggregated)
+3. Portfolio-level Gamma exposure (`portfolio_options.gamma` exists, only shown per-position today)
+4. Liquidity/spread risk flags (`bid`/`ask` on positions+options now captured, unused for this)
+5. Allocation drift vs. user-set target bands (needs a small settings input, no new data source)
+
+**Tier 2 — needs a data-fetch spike (reuse existing price-history plumbing if the app has it
+elsewhere, e.g. technical scorecard, rather than a new vendor call):**
+6. Correlation matrix across held tickers
+7. Parametric VaR / CVaR (95%)
+
+**Tier 3 — needs snapshot history to accumulate (only 3 points today; not urgent):**
+8. Equity curve / max drawdown since inception (new `GET /api/portfolio/snapshots` history endpoint
+   — table already retains every import, this is a read-only query away)
+9. Time-weighted return (TWR) since inception (approximate until deposits/withdrawals tracked)
+10. Sharpe / Sortino / Calmar ratios — explicitly **not** meaningful yet with 3 monthly-ish data
+    points; revisit once snapshot cadence is denser
+
+Sources: tradingwyckoff.com/en/algorithmic-trading/advanced-trading-metrics,
+questdb.com/glossary/sharpe-ratio-vs-sortino-ratio, blog.quantinsti.com/performance-metrics-risk-metrics-optimization,
+hedgepointglobal.com/en/blog/options-greeks-from-delta-to-theta,
+mbrenndoerfer.com/writing/greeks-option-risk-management-delta-gamma-theta-vega,
+github.com/wilsonfreitas/awesome-quant, github.com/quantopian/pyfolio, github.com/ranaroussi/quantstats
+
+External tools/widgets checked: **none recommended** — Recharts covers every visualization above;
+third-party widgets (TradingView-style) are built for market/symbol data, not private portfolio
+positions, so custom Recharts panels stay cheaper and keep data in-house.

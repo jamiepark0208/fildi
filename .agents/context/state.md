@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: enh6-track1-analyst-persistence-done, enh6-track1-ui-table-added, enh6-track1-bugs-fixed-inarray-and-api-monitor-logging
-- In progress: enh6 track1 done; awaiting next task pick
+- Working: enh8-cash-crypto-mismatch-rootcaused-and-fixed;enh8-csv-parser-full-field-capture-rewrite;enh8-schema-2-new-tables-plus-columns-applied-via-psql;enh8-snapshot-api-returns-cashBalance-cryptoValue-accountSummaries;enh8-backfill-reingest-verified-snapshot4
+- In progress: enh8 backend done and DB-verified; frontend still needed: Cash+Crypto donut segments in portfolio-analysis.tsx and reorder Analysis above Holdings table in portfolio.tsx/RobinhoodPortfolio.tsx
 - Blocked: none
 
 ## Next tasks (priority order)
