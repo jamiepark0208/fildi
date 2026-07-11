@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// PreToolUse hook on Edit|Write|Read
-// Edit/Write: injects codegraph structural context (no code blocks) to avoid manual file reads.
+// PreToolUse hook on Read only (Edit/Write codegraph auto-injection removed —
+// cost of ~1200 chars + a codegraph subprocess call on every single edit
+// wasn't worth it; CLAUDE.md already tells the model to call codegraph
+// tools itself before editing when it's actually useful).
 // Read: warns when reading a large file without offset+limit — enforces targeted reads.
 const { execSync } = require('child_process');
 const readline = require('readline');
@@ -42,27 +44,6 @@ rl.on('close', () => {
     process.exit(0);
   }
 
-  // ── Edit/Write: inject codegraph structural context ───────────────────────
-  if (!inSource) { process.exit(0); }
-
-  try {
-    const result = execSync(
-      `codegraph context "${filePath.replace(/"/g, '\\"')}" 2>/dev/null`,
-      { cwd: '/home/runner/workspace', timeout: 5000, encoding: 'utf8' }
-    ).trim();
-
-    if (!result) { process.exit(0); }
-
-    // Strip code blocks — keep only entry points + related symbols.
-    const codeIdx = result.indexOf('\n### Code');
-    const structural = (codeIdx > -1 ? result.slice(0, codeIdx) : result).trim();
-
-    process.stdout.write(JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        additionalContext: `[CODEGRAPH:${filePath}]\n${structural.slice(0, 1200)}\n[/CODEGRAPH]`
-      }
-    }));
-  } catch { /* codegraph unavailable — silent pass-through */ }
+  // Edit/Write: no-op — codegraph auto-injection removed, see header comment.
   process.exit(0);
 });

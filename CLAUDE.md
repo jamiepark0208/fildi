@@ -26,7 +26,7 @@ Build/restart questions → `.claude/skills/build-and-run.md` (has the correct r
 | Feature planning | .claude/skills/feature-planner.md |
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
-| End of session | .claude/skills/session-wrap.md |
+| End of session — user-triggered only, at ~90-95% context, never automatic | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
 | Yahoo/Redis fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
 | Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
