@@ -17,24 +17,24 @@ Source: production-readiness code audit (plan v2). Each task includes §3 root c
 | # | P | Status | Effort | Benefit | Impl risk | File |
 |---|---|---|---|---|---|---|
 | 1 | P0 | ready | M | Critical | Med | [unauthenticated-vendor-routes](1-unauthenticated-vendor-routes-070926.md) |
-| 2 | P0 | ready | L | Critical | High | [watchlist-global-constant-split](2-watchlist-global-constant-split-070926.md) |
-| 3 | P1 | ready | S | High | Low | [home-hardcoded-fundamental-universe](3-home-hardcoded-fundamental-universe-070926.md) |
+| 2 | P0 | done | L | Critical | High | [watchlist-global-constant-split](2-watchlist-global-constant-split-070926.md) |
+| 3 | P1 | done | S | High | Low | [home-hardcoded-fundamental-universe](3-home-hardcoded-fundamental-universe-070926.md) |
 | 4 | P0 | ready | M | High | Med | [startup-universe-refresh-storm](4-startup-universe-refresh-storm-070926.md) |
 | 5 | P1 | ready | S | High | Low | [ttlcache-unbounded-memory](5-ttlcache-unbounded-memory-070926.md) |
 | 6 | P1 | ready | S | Med | Low | [pg-pool-session-contention](6-pg-pool-session-contention-070926.md) |
 | 7 | P2 | ready | S–L | Med | Low–Med | [rate-limit-single-instance](7-rate-limit-single-instance-070926.md) |
 | 8 | P1 | ready | M | Med | Med | [scheduler-restart-drift](8-scheduler-restart-drift-070926.md) |
 | 9 | P1 | done | S | Med | Med | [watchlist-peer-flag-cascade](9-watchlist-peer-flag-cascade-070926.md) |
-| 10 | P1 | ready | XS | Med | Low | [watchlist-no-max-size](10-watchlist-no-max-size-070926.md) |
+| 10 | P1 | done | XS | Med | Low | [watchlist-no-max-size](10-watchlist-no-max-size-070926.md) |
 | 11 | P1 | done | M | High | Med | [options-scanner-fetch-storm](11-options-scanner-fetch-storm-070926.md) |
 | 12 | P1 | done | M | Med | Low | [watchlist-quote-n-plus-one](12-watchlist-quote-n-plus-one-070926.md) |
-| 13 | P1 | ready | XS | Med | Low | [react-query-cross-user-bleed](13-react-query-cross-user-bleed-070926.md) |
+| 13 | P1 | done | XS | Med | Low | [react-query-cross-user-bleed](13-react-query-cross-user-bleed-070926.md) |
 | 14 | P1 | ready | L | High | High | [portfolio-localstorage-not-server](14-portfolio-localstorage-not-server-070926.md) |
 | 15 | P2 | ready | S | Med | Low | [catalyst-dual-buildCatalysts](15-catalyst-dual-buildCatalysts-070926.md) |
 | 16 | P2 | ready | S | Med | Low | [feed-winrate-expired-excluded](16-feed-winrate-expired-excluded-070926.md) |
 | 17 | P2 | ready | XS | Low | Low | [admin-routes-auth-not-admin](17-admin-routes-auth-not-admin-070926.md) |
 | 18 | P2 | ready | S | Med | Low | [session-table-growth](18-session-table-growth-070926.md) |
-| 19 | P1 | ready | S | High | Low | [register-empty-watchlist](19-register-empty-watchlist-070926.md) |
+| 19 | P1 | rejected | S | High | Low | [register-empty-watchlist](19-register-empty-watchlist-070926.md) |
 
 **Themes:** security · multi-user · continuous-run · overprocessing · data-drift
 

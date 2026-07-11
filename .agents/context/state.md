@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: cluster-b-bugs done (9,11,12). next: bug/10 watchlist-no-max-size
+- Working: bugs 2,3,9,10,11,12,13 confirmed done in code, tracker corrected. next: bug/5 ttlcache-unbounded-memory (genuinely open, no prune/cap in lib/ttl-cache.ts)
 - In progress: none
 - Blocked: none
 
