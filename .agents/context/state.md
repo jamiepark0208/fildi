@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: tier1-vega-gamma-exposure-aggregated-into-risk-metrics-card, tier1-liquidity-spread-flags-via-live-yahoo-quote-not-stale-csv-reusing-options-position-quote-endpoint, tier2-correlation-matrix-plus-parametric-95pct-VaR-CVaR-new-backend-endpoint-and-frontend-card, root-caused-account-filter-tabs-not-cascading-to-Capital-Allocation-and-Realized-PnL-sections-fix-identified-not-yet-applied, investigated-realized-pnl-undercounting-vs-user-expectation-parser-and-premium-math-verified-correct-against-real-DB-user-suspects-source-CSV-is-missing-pre-June-2026-orders
-- In progress: backend rebuilt and restarted via documented build.mjs plus pkill dist/index.mjs procedure and verified 200/401 responses; user about to eyeball new Risk Metrics rows and Correlation/VaR card in browser this session ended before feedback came back
-- Blocked: realized-pnl fix and account-filter-cascade fix both paused pending user re-exporting full Robinhood transaction history since current CSV appears to start June 2026 despite user recalling February trades
+- Working: one-time-ytd-orders-backfill-1445-new-orders-deduped-into-latest-snapshot, pnl-box-header-renamed-to-P&L, pnl-box-redesigned-as-realized-unrealized-total-grid-stock-options-short-options-long, removed-old-closed-transactions-table-and-its-filter-buttons, added-top-tickers-options-sold-card-frequency-plus-net-premium-ytd
+- In progress: user reported PnL numbers dont tie out to Robinhood IRA plus32609 and FILDI plus6.5k YTD - was mid-investigation querying portfolio_account_summaries and portfolio_orders by account when interrupted; leading theory is dividend or interest cash flows (esp YieldMax NVDY/HOOY monthly distributions) are entirely absent from our order-history-only PnL calc since no CSV export section captures them
+- Blocked: PnL tie-out investigation paused mid-query - need to check portfolio_account_summaries schema for an existing unrealized/total-return column and confirm dividends are the missing piece before proposing a fix
 
 ## Next tasks (priority order)
 
