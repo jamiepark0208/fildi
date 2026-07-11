@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: bugs 15, 16, 6, 7, 8, 17, 18 all fixed and live-verified, only bug14 portfolio-localstorage remains ready
+- Working: bugs 15, 16, 6, 7, 8, 17, 18 fixed and live-verified, bug14 portfolio-localstorage done, enh8 phase A1 deferred and documented
 - In progress: none
 - Blocked: none
 
