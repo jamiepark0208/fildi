@@ -73,29 +73,39 @@ Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 befo
 
 ## bugs/ (seq 1→19)
 
-| # | P | Status | File |
-|---|---|---|---|
-| 1 | P0 | ready | [unauthenticated-vendor-routes](bugs/1-unauthenticated-vendor-routes-070926.md) |
-| 2 | P0 | ready | [watchlist-global-constant-split](bugs/2-watchlist-global-constant-split-070926.md) |
-| 3 | P1 | ready | [home-hardcoded-fundamental-universe](bugs/3-home-hardcoded-fundamental-universe-070926.md) |
-| 4 | P0 | ready | [startup-universe-refresh-storm](bugs/4-startup-universe-refresh-storm-070926.md) |
-| 5 | P1 | ready | [ttlcache-unbounded-memory](bugs/5-ttlcache-unbounded-memory-070926.md) |
-| 6 | P1 | ready | [pg-pool-session-contention](bugs/6-pg-pool-session-contention-070926.md) |
-| 7 | P2 | ready | [rate-limit-single-instance](bugs/7-rate-limit-single-instance-070926.md) |
-| 8 | P1 | ready | [scheduler-restart-drift](bugs/8-scheduler-restart-drift-070926.md) |
-| 9 | P1 | ready | [watchlist-peer-flag-cascade](bugs/9-watchlist-peer-flag-cascade-070926.md) |
-| 10 | P1 | ready | [watchlist-no-max-size](bugs/10-watchlist-no-max-size-070926.md) |
-| 11 | P1 | ready | [options-scanner-fetch-storm](bugs/11-options-scanner-fetch-storm-070926.md) |
-| 12 | P1 | ready | [watchlist-quote-n-plus-one](bugs/12-watchlist-quote-n-plus-one-070926.md) |
-| 13 | P1 | ready | [react-query-cross-user-bleed](bugs/13-react-query-cross-user-bleed-070926.md) |
-| 14 | P1 | ready | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
-| 15 | P2 | ready | [catalyst-dual-buildCatalysts](bugs/15-catalyst-dual-buildCatalysts-070926.md) |
-| 16 | P2 | ready | [feed-winrate-expired-excluded](bugs/16-feed-winrate-expired-excluded-070926.md) |
-| 17 | P2 | ready | [admin-routes-auth-not-admin](bugs/17-admin-routes-auth-not-admin-070926.md) |
-| 18 | P2 | ready | [session-table-growth](bugs/18-session-table-growth-070926.md) |
-| 19 | P1 | ready | [register-empty-watchlist](bugs/19-register-empty-watchlist-070926.md) |
+Merged from the former `bugs/INDEX.md` (deleted 2026-07-11 — was a duplicate status source that had drifted out of sync with this file; this is now the single status source for bugs/). Filename = `{seq}-{slug}-070926.md`, seq = fix priority wave, not strict dependency order. **Claude implement:** [`bugs/CLAUDE-IMPLEMENT.md`](bugs/CLAUDE-IMPLEMENT.md) → matrix below → individual task §9–§13.
 
-Full matrix + waves: [`bugs/INDEX.md`](bugs/INDEX.md). **Claude implement:** [`bugs/CLAUDE-IMPLEMENT.md`](bugs/CLAUDE-IMPLEMENT.md) + [`bugs/CLUSTERS.md`](bugs/CLUSTERS.md). **Wave 1 fix order:** 1 → 4 → 19 → 2. Block prod hardening until **bugs/1**. Tie prevention to **enh/3** + **enh/4** when landing fixes.
+| # | Cluster | P | Status | Effort | Benefit | Impl risk | File |
+|---|---|---|---|---|---|---|---|
+| 1 | D | P0 | done | M | Critical | Med | [unauthenticated-vendor-routes](bugs/1-unauthenticated-vendor-routes-070926.md) |
+| 2 | A | P0 | done | L | Critical | High | [watchlist-global-constant-split](bugs/2-watchlist-global-constant-split-070926.md) |
+| 3 | A | P1 | done | S | High | Low | [home-hardcoded-fundamental-universe](bugs/3-home-hardcoded-fundamental-universe-070926.md) |
+| 4 | — | P0 | done | M | High | Med | [startup-universe-refresh-storm](bugs/4-startup-universe-refresh-storm-070926.md) |
+| 5 | C | P1 | done | S | High | Low | [ttlcache-unbounded-memory](bugs/5-ttlcache-unbounded-memory-070926.md) |
+| 6 | C | P1 | done | S | Med | Low | [pg-pool-session-contention](bugs/6-pg-pool-session-contention-070926.md) |
+| 7 | D | P2 | done | S–L | Med | Low–Med | [rate-limit-single-instance](bugs/7-rate-limit-single-instance-070926.md) |
+| 8 | C | P1 | done | M | Med | Med | [scheduler-restart-drift](bugs/8-scheduler-restart-drift-070926.md) |
+| 9 | B | P1 | done | S | Med | Med | [watchlist-peer-flag-cascade](bugs/9-watchlist-peer-flag-cascade-070926.md) |
+| 10 | A | P1 | done | XS | Med | Low | [watchlist-no-max-size](bugs/10-watchlist-no-max-size-070926.md) |
+| 11 | B | P1 | done | M | High | Med | [options-scanner-fetch-storm](bugs/11-options-scanner-fetch-storm-070926.md) |
+| 12 | B | P1 | done | M | Med | Low | [watchlist-quote-n-plus-one](bugs/12-watchlist-quote-n-plus-one-070926.md) |
+| 13 | A | P1 | done | XS | Med | Low | [react-query-cross-user-bleed](bugs/13-react-query-cross-user-bleed-070926.md) |
+| 14 | F | P1 | ready | L | High | High | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
+| 15 | E | P2 | done | S | Med | Low | [catalyst-dual-buildCatalysts](bugs/15-catalyst-dual-buildCatalysts-070926.md) |
+| 16 | E | P2 | done | S | Med | Low | [feed-winrate-expired-excluded](bugs/16-feed-winrate-expired-excluded-070926.md) |
+| 17 | D | P2 | done | XS | Low | Low | [admin-routes-auth-not-admin](bugs/17-admin-routes-auth-not-admin-070926.md) |
+| 18 | C | P2 | done | S | Med | Low | [session-table-growth](bugs/18-session-table-growth-070926.md) |
+| 19 | A | P1 | rejected | S | High | Low | [register-empty-watchlist](bugs/19-register-empty-watchlist-070926.md) |
+
+**Clusters** (read together, implement in order):
+- **A — Watchlist SSOT (multi-user)** — 19, 2, 3, 10, 13 — DONE 2026-07-10 except 19 (rejected, product decision — see task DONE note). **Coupling:** fix 2 without `indicators.ts` → scanner 404 on user-added tickers.
+- **B — Fetch overprocessing** — 9, 11, 12 — DONE 2026-07-11. **Coupling:** 9 shrinks `fetch_fundamentals` registry → affects 4's startup universe size.
+- **C — Continuous-run health** — 5, 6, 8, 18. ALL DONE 2026-07-11: 5 (prune + maxEntries LRU, TTLs unchanged), 6 (pool max/idleTimeout env-tunable), 8 (last-run persisted to `app_config`, not `scoring_config`), 18 (`pruneSessionInterval: 900` on PgSession).
+- **D — Security** — 1, 7, 17. ALL DONE: 1 (2026-07-10, router-level `requireAuth`, live curl-verified), 7 (2026-07-11, `trust proxy` prod-only), 17 (2026-07-11, admin GETs now `requireAdmin`, live curl-verified 401).
+- **E — Correctness (small)** — 15, 16. DONE 2026-07-11 both: 15 (deleted duplicate FE `buildCatalysts`, server is now sole source), 16 (server winRate SQL now matches client resolved-status set).
+- **F — Portfolio (large)** — 14 alone. Coordinate [enh/8](enhancements/8-portfolio-analysis-improvements-070926.md).
+
+Bug 4 isn't part of a lettered cluster but is coupled to cluster B. Block prod hardening until bug/1 (done). Tie prevention to **enh/3** + **enh/4** when landing fixes.
 
 ---
 

@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: bug/5 ttlcache maxEntries+prune done, fixed bug/1 and bug/4 stale ready status in INDEX
+- Working: bugs 15, 16, 6, 7, 8, 17, 18 all fixed and live-verified, only bug14 portfolio-localstorage remains ready
 - In progress: none
-- Blocked: bugs INDEX.md status column unreliable vs per-file Status field for several rows - needs full audit
+- Blocked: none
 
 ## Next tasks (priority order)
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, tickerFundamentals, tickerRegistry, fieldProvenance } from "@workspace/db";
 import { eq, isNull, isNotNull } from "drizzle-orm";
-import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { lastEnrichmentRun, enrichmentRunning } from "../lib/scheduler.js";
 import { FIELD_DEFS } from "../scripts/merge-trusted.js";
 
@@ -10,7 +10,7 @@ const router = Router();
 const STALE_DAYS = 14;
 const TOP_NULL_FIELDS = 5;
 
-router.get("/admin/data-health", requireAuth, async (_req, res, next) => {
+router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {
   try {
     const [tfRows, regRows, provRows] = await Promise.all([
       db.select({

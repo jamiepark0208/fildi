@@ -6,9 +6,9 @@ Tasks grouped by dependency / logical cohesion. Check INDEX.md for current statu
 
 ## Cluster 0 — Bugs + perf/resilience (CLAUDE ACTIVE — supersedes prior "CLAUDE NEXT" tags below until done)
 
-Cursor filed 19 tasks in `bugs/` (own [CLUSTERS.md](bugs/CLUSTERS.md) / [CLAUDE-IMPLEMENT.md](bugs/CLAUDE-IMPLEMENT.md) / [INDEX.md](bugs/INDEX.md)) plus [enh/34 performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md), which explicitly depends on bug/4, 5, 11, 12, 13. Claude is gatekeeper: every bug is verified against live code before fixing — Cursor wrote these without running the app, so some may already be fixed or mis-scoped. Verified/actual status recorded per-task in the file itself, not assumed from Cursor's "ready" label.
+Cursor filed 19 tasks in `bugs/` (see [`bugs/CLAUDE-IMPLEMENT.md`](bugs/CLAUDE-IMPLEMENT.md) + the bugs matrix in [INDEX.md](INDEX.md#bugs-seq-119)) plus [enh/34 performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md), which explicitly depends on bug/4, 5, 11, 12, 13. Claude is gatekeeper: every bug is verified against live code before fixing — Cursor wrote these without running the app, so some may already be fixed or mis-scoped. Verified/actual status recorded per-task in the file itself, not assumed from Cursor's "ready" label.
 
-Sub-clusters (from `bugs/CLUSTERS.md`, referenced not duplicated):
+Sub-clusters (from `INDEX.md`, referenced not duplicated):
 - **A — Watchlist SSOT** (19, 2, 3, 10, 13)
 - **B — Fetch overprocessing** (9, 11, 12)
 - **C — Continuous-run health** (5, 6, 8, 18)

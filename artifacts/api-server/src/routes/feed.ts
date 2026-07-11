@@ -405,12 +405,14 @@ router.get('/feed/profile/:username', async (req, res) => {
 
   if (!user) return res.status(404).json({ error: 'User not found' })
 
+  // resolved = CLOSED (manual close) + EXPIRED_WIN/EXPIRED_LOSS (auto-expired) — must match
+  // the client's TopPerformers aggregation in feed.tsx, which counts both paths as resolved.
   const [stats] = await db
     .select({
       totalPosts: count(),
       openPosts:  sql<number>`SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END)`.mapWith(Number),
-      wins:       sql<number>`SUM(CASE WHEN status = 'CLOSED' AND resolved_pnl > 0 THEN 1 ELSE 0 END)`.mapWith(Number),
-      losses:     sql<number>`SUM(CASE WHEN status = 'CLOSED' AND resolved_pnl <= 0 THEN 1 ELSE 0 END)`.mapWith(Number),
+      wins:       sql<number>`SUM(CASE WHEN (status = 'CLOSED' AND resolved_pnl > 0) OR status = 'EXPIRED_WIN' THEN 1 ELSE 0 END)`.mapWith(Number),
+      losses:     sql<number>`SUM(CASE WHEN (status = 'CLOSED' AND resolved_pnl <= 0) OR status = 'EXPIRED_LOSS' THEN 1 ELSE 0 END)`.mapWith(Number),
       closed:     sql<number>`SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END)`.mapWith(Number),
       totalPnl:   sum(tradePosts.resolvedPnl),
     })

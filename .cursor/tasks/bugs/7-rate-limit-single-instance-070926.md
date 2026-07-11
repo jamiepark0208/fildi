@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P2 |
 | **Area** | security / scale |
 | **Effort** | S (proxy) / L (multi-instance store) |
@@ -116,3 +116,9 @@ Behind proxy: all clients may share one IP bucket.
 
 - `skipGeneralLimit` for `/api/auth` and `/api/healthz` preserved
 - Less urgent after bug/1 auth gate
+
+---
+
+## DONE (2026-07-11)
+
+Applied fix option A: `app.set('trust proxy', 1)` in `app.ts`, gated to `NODE_ENV === 'production'` only (dev stays direct-connection, no spoofing risk from trusting an X-Forwarded-For header that isn't actually coming through a real proxy). `1` = trust exactly one hop, not the full chain, per the fix side-effects note. Documented the single-instance limitation as a comment directly in `rateLimiter.ts` (more discoverable than a skill file for the next person editing that limiter) rather than CURSOR.md. Redis-backed shared store (option B) intentionally not built — non-goal until horizontal scaling is actually approved (enh/29). Verified: `pnpm run typecheck` clean (2 pre-existing unrelated errors only). Did not verify `X-Forwarded-For` behavior live against the real Replit proxy (§12, manual-only — needs actual production hop count).

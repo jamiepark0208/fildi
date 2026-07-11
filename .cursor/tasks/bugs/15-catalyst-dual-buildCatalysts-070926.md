@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P2 |
 | **Area** | correctness / data-drift |
 | **Effort** | S |
@@ -112,3 +112,9 @@ Change server urgency rule → FE still old until both updated.
 
 - `catalysts.test.ts` import path `.ts` extension (Node test runner)
 - Breakdown cache invalidation (`stocks.ts` bump comment) if payload shape changes
+
+---
+
+## DONE (2026-07-11)
+
+Confirmed `attachCatalysts()` in `routes/stocks.ts` runs on both the cache-hit and cache-miss response paths (L707, L800), so `catalysts` is always populated by the server — safe to drop the FE fallback entirely rather than just deprioritize it. Deleted the duplicate `buildCatalysts`/`analystLine`/`daysUntil` logic and the now-unused `CatalystAnalystAction`/`CatalystNewsItem` types from `catalysts-section.tsx`; component is now a pure renderer taking only a `catalysts` prop. Updated the one caller (`stock-breakdown.tsx`) to drop the now-unused `earningsDate`/`analystActions`/`news` props. Verified: `grep buildCatalysts` now shows exactly one definition (server `lib/catalysts.ts`). `pnpm run typecheck` clean in both api-server and stock-compare; `catalysts.test.ts` (20 tests, unaffected) + full api-server suite 40/40 pass.
