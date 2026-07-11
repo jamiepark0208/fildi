@@ -1,15 +1,12 @@
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 
-// Suspense fallback for lazy-loaded routes: sidebar paints immediately,
+// Suspense fallback for lazy-loaded routes: nav paints immediately,
 // only the main content area shows pulse placeholders (enh/34 Wave B).
 export function PageSkeleton() {
   return (
-    <div className="flex h-[100dvh] bg-background">
-      <Sidebar />
-      <main
-        className="flex-1 min-w-0 p-6 space-y-4"
-        style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}
-      >
+    <div className="min-h-[100dvh] bg-background">
+      <TopNav />
+      <main className="mt-14 p-6 space-y-4">
         <div className="h-8 w-48 bg-white/10 rounded animate-pulse" />
         <div className="grid grid-cols-3 gap-4">
           <div className="h-24 bg-white/10 rounded animate-pulse" />

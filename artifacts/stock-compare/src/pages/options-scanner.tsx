@@ -687,11 +687,15 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function OptionsScanner() {
+export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
   const { isAdmin } = useAuth();
   const { weights } = useScoringPreferences();
 
-  const [expandedSet,   setExpandedSet]   = useState<Set<string>>(new Set());
+  // sessionStorage (not localStorage) — expanded rows are tab-lifetime UI state,
+  // restored on returning to this tab/sub-tab, but not meant to persist forever.
+  const [expandedSet,   setExpandedSet]   = useState<Set<string>>(() => {
+    try { const s = sessionStorage.getItem("fildi_scanner_expanded"); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
+  });
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("score");
@@ -709,6 +713,7 @@ export default function OptionsScanner() {
 
   useEffect(() => { localStorage.setItem("fildi_scanner_extra",  JSON.stringify(extraTickers)); }, [extraTickers]);
   useEffect(() => { localStorage.setItem("fildi_scanner_hidden", JSON.stringify([...hiddenTickers])); }, [hiddenTickers]);
+  useEffect(() => { try { sessionStorage.setItem("fildi_scanner_expanded", JSON.stringify([...expandedSet])); } catch {} }, [expandedSet]);
 
   const { entries, isLoaded } = useWatchlist();
 
@@ -1045,15 +1050,12 @@ export default function OptionsScanner() {
   const nonRedColors = PRESET_COLORS.filter(c => c !== RED_TAG);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 p-6 space-y-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
-
+    <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Options Scanner</h1>
-            <div className="flex items-center gap-3 mt-1">
+            {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
+            <div className={cn("flex items-center gap-3", showHeader && "mt-1")}>
               {nonRedColors.map(c => (
                 <span key={c} className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c }} />
@@ -1202,6 +1204,16 @@ export default function OptionsScanner() {
             ))}
           </div>
         )}
+    </div>
+  );
+}
+
+export default function OptionsScanner() {
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 p-6 space-y-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
+        <OptionsScannerContent />
       </main>
     </div>
   );

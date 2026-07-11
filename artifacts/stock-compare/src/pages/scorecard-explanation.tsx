@@ -15,7 +15,7 @@ import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { validateScoringWeights, type ScoringWeightsConfig } from "@/lib/scoring-weights";
 import { BookOpen } from "lucide-react";
 
-export default function ScorecardExplanation() {
+export function ScorecardGuideContent({ showHeader = true }: { showHeader?: boolean }) {
   const status = useGuideStatus();
   const { isAdmin } = useAuth();
   const { weights, saveConfig, resetDefaults, isSaving } = useScoringPreferences();
@@ -57,23 +57,23 @@ export default function ScorecardExplanation() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex">
-      <Sidebar />
-      <main className="flex-1 min-w-0" style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}>
-        <div className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
-          <div className="flex items-start gap-3">
-            <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-bold leading-tight tracking-tight">Scorecard Guide</h1>
-              <DataTransparencyBar
-                chips={status.headerChips?.()}
-                factset={status.sources.factset}
-                fmp={status.sources.fmp}
-                fmpRemaining={status.fmpRemaining}
-              />
+    <>
+        {showHeader && (
+          <div className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
+            <div className="flex items-start gap-3">
+              <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-bold leading-tight tracking-tight">Scorecard Guide</h1>
+                <DataTransparencyBar
+                  chips={status.headerChips?.()}
+                  factset={status.sources.factset}
+                  fmp={status.sources.fmp}
+                  fmpRemaining={status.fmpRemaining}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="p-6 max-w-6xl pb-24">
           <p className="text-sm text-foreground/90 mb-5 leading-relaxed">
@@ -174,6 +174,16 @@ export default function ScorecardExplanation() {
             Relative to watchlist. Missing data → 0.
           </p>
         </div>
+    </>
+  );
+}
+
+export default function ScorecardExplanation() {
+  return (
+    <div className="min-h-[100dvh] bg-background text-foreground flex">
+      <Sidebar />
+      <main className="flex-1 min-w-0" style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}>
+        <ScorecardGuideContent />
       </main>
     </div>
   );

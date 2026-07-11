@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
+import { useSessionState } from "@/hooks/use-session-state";
 import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -44,23 +45,6 @@ function RouteBoundary({ children }: { children: ReactNode }) {
       )}
     </QueryErrorResetBoundary>
   );
-}
-
-function useSessionState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
-  const [val, set] = useState<T>(() => {
-    try {
-      const v = sessionStorage.getItem(key);
-      return v ? JSON.parse(v) : initial;
-    } catch { return initial; }
-  });
-  const setVal = useCallback<Dispatch<SetStateAction<T>>>(action => {
-    set(prev => {
-      const next = typeof action === "function" ? (action as (p: T) => T)(prev) : action;
-      try { sessionStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [key]);
-  return [val, setVal];
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
