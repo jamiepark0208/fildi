@@ -637,10 +637,41 @@ export const portfolioSnapshots = pgTable('portfolio_snapshots', {
   accountIds:   text('account_ids').array().notNull().default([]),
   totalValue:   numeric('total_value'),
   rawFilename:  text('raw_filename'),
+  // Rollups summed across portfolio_account_summaries at ingest time — cheap
+  // read access for the UI without a join. Source of truth is the per-account table.
+  cashBalance:  numeric('cash_balance'),
+  cryptoValue:  numeric('crypto_value'),
 })
 
 export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect
 export type InsertPortfolioSnapshot = typeof portfolioSnapshots.$inferInsert
+
+// ── portfolio_account_summaries ─────────────────────────────────────────────
+// One row per account per snapshot — the ACCOUNT SUMMARY CSV section, which
+// carries per-account cash/margin figures the COMBINED row doesn't (e.g. a
+// margin account can show negative cash while an IRA can't).
+
+export const portfolioAccountSummaries = pgTable('portfolio_account_summaries', {
+  id:              serial('id').primaryKey(),
+  snapshotId:      integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  account:         text('account').notNull(),
+  nickname:        text('nickname'),
+  type:            text('type'),              // 'individual' | 'ira_traditional' etc.
+  totalValue:      numeric('total_value'),
+  equityValue:     numeric('equity_value'),
+  optionsValue:    numeric('options_value'),
+  cryptoValue:     numeric('crypto_value'),
+  eventContracts:  numeric('event_contracts'),
+  cash:            numeric('cash'),            // can be negative on margin
+  marginUsed:      numeric('margin_used'),      // null/N-A for cash-only accounts
+  buyingPower:     numeric('buying_power'),
+  unleveragedBp:   numeric('unleveraged_bp'),
+}, t => ({
+  snapshotIdx: index('portfolio_account_summaries_snapshot_idx').on(t.snapshotId),
+}))
+
+export type PortfolioAccountSummary = typeof portfolioAccountSummaries.$inferSelect
+export type InsertPortfolioAccountSummary = typeof portfolioAccountSummaries.$inferInsert
 
 // ── portfolio_positions ───────────────────────────────────────────────────────
 
@@ -653,6 +684,7 @@ export const portfolioPositions = pgTable('portfolio_positions', {
   quantity:         numeric('quantity'),
   avgCost:          numeric('avg_cost'),
   lastPrice:        numeric('last_price'),
+  extHoursPrice:    numeric('ext_hours_price'),
   marketValue:      numeric('market_value'),
   costBasis:        numeric('cost_basis'),
   unrealizedPnL:    numeric('unrealized_pnl'),
@@ -660,12 +692,45 @@ export const portfolioPositions = pgTable('portfolio_positions', {
   dayChangePct:     numeric('day_change_pct'),
   bid:              numeric('bid'),
   ask:              numeric('ask'),
+  prevClose:        numeric('prev_close'),
 }, t => ({
   snapshotIdx: index('portfolio_positions_snapshot_idx').on(t.snapshotId),
 }))
 
 export type PortfolioPosition = typeof portfolioPositions.$inferSelect
 export type InsertPortfolioPosition = typeof portfolioPositions.$inferInsert
+
+// ── portfolio_equity_fundamentals ───────────────────────────────────────────
+// The EQUITY FUNDAMENTALS CSV section — previously parsed and discarded
+// entirely. Kept per-symbol (not per-account) to mirror the CSV. Useful as a
+// fallback for small-cap/derivative-ETF holdings not in the app's own
+// fmp_fundamentals canonical universe (see .claude/skills/db-patterns.md).
+
+export const portfolioEquityFundamentals = pgTable('portfolio_equity_fundamentals', {
+  id:                 serial('id').primaryKey(),
+  snapshotId:         integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  symbol:             text('symbol').notNull(),
+  open:               numeric('open'),
+  high:               numeric('high'),
+  low:                numeric('low'),
+  volume:             numeric('volume'),
+  avgVol2w:           numeric('avg_vol_2w'),
+  marketCap:          numeric('market_cap'),
+  peRatio:            numeric('pe_ratio'),
+  pbRatio:            numeric('pb_ratio'),
+  week52High:         numeric('week52_high'),
+  week52Low:          numeric('week52_low'),
+  sharesOutstanding:  numeric('shares_outstanding'),
+  divPerShare:        numeric('div_per_share'),
+  divYield:            numeric('div_yield'),
+  sector:             text('sector'),
+  industry:           text('industry'),
+}, t => ({
+  snapshotIdx: index('portfolio_equity_fundamentals_snapshot_idx').on(t.snapshotId),
+}))
+
+export type PortfolioEquityFundamental = typeof portfolioEquityFundamentals.$inferSelect
+export type InsertPortfolioEquityFundamental = typeof portfolioEquityFundamentals.$inferInsert
 
 // ── portfolio_options ─────────────────────────────────────────────────────────
 
@@ -682,13 +747,20 @@ export const portfolioOptions = pgTable('portfolio_options', {
   avgPremium:     numeric('avg_premium'),
   totalPremium:   numeric('total_premium'),
   markPrice:      numeric('mark_price'),
+  adjMark:        numeric('adj_mark'),
+  currentValue:   numeric('current_value'),   // CSV's own per-contract current value
   unrealizedPnL:  numeric('unrealized_pnl'),
   pnlPct:         numeric('pnl_pct'),
+  bid:            numeric('bid'),
+  ask:            numeric('ask'),
+  prevClose:      numeric('prev_close'),
   iv:             numeric('iv'),
   delta:          numeric('delta'),
   gamma:          numeric('gamma'),
   theta:          numeric('theta'),
   vega:           numeric('vega'),
+  openInterest:   numeric('open_interest'),
+  volume:         numeric('volume'),
 }, t => ({
   snapshotIdx: index('portfolio_options_snapshot_idx').on(t.snapshotId),
 }))
@@ -699,20 +771,35 @@ export type InsertPortfolioOption = typeof portfolioOptions.$inferInsert
 // ── portfolio_orders ──────────────────────────────────────────────────────────
 
 export const portfolioOrders = pgTable('portfolio_orders', {
-  id:               serial('id').primaryKey(),
-  snapshotId:       integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
-  account:          text('account').notNull(),
-  symbol:           text('symbol').notNull(),
-  side:             text('side'),             // 'buy' | 'sell'
-  orderType:        text('order_type'),       // 'market' | 'limit' | 'stop' etc.
-  state:            text('state'),            // 'filled' | 'cancelled' | 'pending' etc.
-  quantity:         numeric('quantity'),
-  avgFillPrice:     numeric('avg_fill_price'),
-  createdAt:        timestamp('created_at', { withTimezone: true }),
-  isOption:         boolean('is_option').notNull().default(false),
-  optionStrike:     numeric('option_strike'),
-  optionExpiration: date('option_expiration'),
-  optionSide:       text('option_side'),      // 'call' | 'put'
+  id:                 serial('id').primaryKey(),
+  snapshotId:         integer('snapshot_id').notNull().references(() => portfolioSnapshots.id, { onDelete: 'cascade' }),
+  orderId:            text('order_id'),
+  account:            text('account').notNull(),
+  symbol:             text('symbol').notNull(),
+  side:               text('side'),             // equity: 'buy'|'sell'; option: 'debit'|'credit'
+  orderType:          text('order_type'),        // equity: 'market'|'limit'|'stop'; option: strategy e.g. 'short_put'
+  state:              text('state'),             // 'filled' | 'cancelled' | 'pending' etc.
+  quantity:           numeric('quantity'),
+  cumulativeQty:      numeric('cumulative_qty'),  // equity: Cumulative Qty
+  processedQty:       numeric('processed_qty'),   // option: Processed Qty
+  canceledQty:        numeric('canceled_qty'),    // option: Canceled Qty
+  limitPrice:         numeric('limit_price'),      // equity only
+  stopPrice:          numeric('stop_price'),       // equity only
+  avgFillPrice:       numeric('avg_fill_price'),
+  premium:            numeric('premium'),          // option: Premium (per order)
+  processedPremium:   numeric('processed_premium'), // option: Processed Premium
+  fees:               numeric('fees'),
+  timeInForce:        text('time_in_force'),
+  marketHours:        text('market_hours'),
+  placedAgent:        text('placed_agent'),
+  createdAt:          timestamp('created_at', { withTimezone: true }),
+  lastTransactionAt:  timestamp('last_transaction_at', { withTimezone: true }),
+  isOption:           boolean('is_option').notNull().default(false),
+  optionStrike:       numeric('option_strike'),
+  optionExpiration:   date('option_expiration'),
+  optionSide:         text('option_side'),      // 'call' | 'put'
+  legSide:            text('leg_side'),         // option: 'buy' | 'sell'
+  legEffect:          text('leg_effect'),       // option: 'open' | 'close' — key for wheel-cycle chaining
 }, t => ({
   snapshotIdx: index('portfolio_orders_snapshot_idx').on(t.snapshotId),
 }))
