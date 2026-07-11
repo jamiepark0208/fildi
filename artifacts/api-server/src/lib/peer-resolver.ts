@@ -7,10 +7,11 @@ import { logger } from "./logger.js";
 
 const yahooFinance = new YahooFinanceClass();
 
-export const peersCache = new TTLCache<PeersPayload>(24 * 60 * 60 * 1000, "peer-map");
-const profileCache = new TTLCache<{ sector: string | null; industry: string | null; name: string | null }>(
+export const peersCache = new TTLCache<PeersPayload>(24 * 60 * 60 * 1000, "peer-map", 1000); // key = ticker
+export const profileCache = new TTLCache<{ sector: string | null; industry: string | null; name: string | null }>(
   24 * 60 * 60 * 1000,
   "peer-profile",
+  1000, // key = ticker
 );
 
 export interface PeersPayload {

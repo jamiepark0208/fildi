@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: bugs 2, 3, 9, 10, 11, 12, 13 verified done in code; tracker (bugs/INDEX.md) corrected and merged with bugs/CLUSTERS.md (deleted, was duplicate+stale)
+- Working: bug/5 ttlcache maxEntries+prune done, fixed bug/1 and bug/4 stale ready status in INDEX
 - In progress: none
-- Blocked: none
+- Blocked: bugs INDEX.md status column unreliable vs per-file Status field for several rows - needs full audit
 
 ## Next tasks (priority order)
 

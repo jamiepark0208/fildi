@@ -19,8 +19,8 @@ import { logger } from "../lib/logger.js";
 
 const router = Router();
 
-export const searchCache = new TTLCache<object[]>(24 * 60 * 60 * 1000, 'search');
-export const compareCache = new TTLCache<object>(60 * 60 * 1000, 'compare');
+export const searchCache = new TTLCache<object[]>(24 * 60 * 60 * 1000, 'search', 2000);
+export const compareCache = new TTLCache<object>(60 * 60 * 1000, 'compare', 2000); // key = "TICKER1:TICKER2", combinatorial — cap well above realistic pair traffic
 
 function safeNum(val: unknown): number | null {
   if (val === null || val === undefined || typeof val === "object") return null;
@@ -453,8 +453,8 @@ router.get("/stocks/search", async (req, res) => {
   }
 });
 
-export const historyCache = new TTLCache<object[]>(60 * 60 * 1000, 'history');
-export const historyCache1D = new TTLCache<object[]>(15 * 60 * 1000, 'history-1d');
+export const historyCache = new TTLCache<object[]>(60 * 60 * 1000, 'history', 2000); // key = "TICKER_PERIOD", ~250 tickers x periods, cap covers off-universe symbols too
+export const historyCache1D = new TTLCache<object[]>(15 * 60 * 1000, 'history-1d', 1000); // key = ticker only
 
 function getPeriod1(period: string): Date {
   const now = new Date();
@@ -512,7 +512,7 @@ router.get("/stocks/history", async (req, res) => {
   }
 });
 
-export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote');
+export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote', 1000); // key = ticker
 
 async function fetchQuoteSummary(ticker: string) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
@@ -664,7 +664,7 @@ function buildBearBullets(m: any): string[] {
   return out.slice(0, 4);
 }
 
-export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown');
+export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown', 1000); // key = "TICKER:vN"
 
 type BreakdownPayload = {
   metrics: unknown;

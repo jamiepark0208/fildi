@@ -134,7 +134,7 @@ async function fetchMetricExclusions(groupId: string): Promise<string[]> {
 // changes) — cache per ticker so repeat /fundamentals/peer-groups calls for
 // the same watchlist don't re-run the registry lookup (or the full peer
 // overlap + keyword-match path for unmapped tickers) on every request.
-export const classifyCache = new TTLCache<PeerGroupClassification>(24 * 60 * 60 * 1000, "ticker-classify");
+export const classifyCache = new TTLCache<PeerGroupClassification>(24 * 60 * 60 * 1000, "ticker-classify", 1000); // key = ticker
 
 /** Classify a ticker to its best-fit peer group.
  *  Priority: DB primary → peer overlap (≥2) → keyword map → unmapped */

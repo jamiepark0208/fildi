@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P1 |
 | **Area** | continuous-run / perf |
 | **Effort** | S |
@@ -128,3 +128,9 @@ Optional soak: varied search queries over 48h → `search.entryCount` climbs wit
 - All 11 `TTLCache` instances keep same TTL durations
 - Admin PATCH `/admin/cache/ttl/:name` still works
 - `quoteCache` / `searchCache` hit behavior unchanged within TTL
+
+---
+
+## DONE (2026-07-11)
+
+`pruneExpired()` + optional `maxEntries` (LRU eviction on `set`, recency bump on `get`) added to `ttl-cache.ts`. `cache-registry.ts` runs a 10-min `startCacheSweep()` interval calling `pruneExpired()` on all caches, wired into `index.ts` at startup. All TTLs unchanged. `maxEntries` set per-cache by key cardinality: per-ticker caches (quote/breakdown/options/options-expiry/peer-map/peer-profile/ticker-classify/provenance/history-1d) = 1000; combinatorial-key caches (history, compare) = 2000; search already had 2000. Found and fixed a related gap: `profileCache` in `peer-resolver.ts` had a reserved `DISPLAY_NAMES` entry but was never registered or swept — now exported, capped, and wired in. Deduplicated the `ttlCaches` array (was copy-pasted between `startCacheSweep`/`getAllCaches`, which is how `profileCache` got missed) into one shared list. New test file `ttl-cache.test.ts` (4 suites, 8 tests) covers prune + LRU eviction. Full suite: 40/40 pass. Typecheck: no new errors (2 pre-existing failures in `backfill-edgar.ts`/`merge-trusted.ts`, confirmed present on main before this change).
