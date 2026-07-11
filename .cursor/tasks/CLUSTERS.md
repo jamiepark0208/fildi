@@ -51,7 +51,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 ---
 
 ## Cluster 7 — Analyst data + breakdown
-- enh/6 analyst-data-persistence (L) — Track 1 gates enh/12 analyst section
+- enh/6 analyst-data-persistence (L) — Track 1 DONE 2026-07-11: schema applied (yahoo_analyst_actions + analyst_events), NVDA backfilled+verified, fixed inArray staleness-check bug + missing API Monitor success logging, wired analystActions into a compact color-coded "Analyst Rating Changes" table in stock-breakdown.tsx. Track 2 (Finviz per-firm PT) still pending spike.
 - enh/12 stock-breakdown-sections-improvements (L)
 
 ---
