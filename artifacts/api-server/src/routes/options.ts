@@ -4,7 +4,7 @@ import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
 
-export const optionsCache = new TTLCache<OptionsChainResult[]>(30 * 60 * 1000, 'options');
+export const optionsCache = new TTLCache<OptionsChainResult[]>(30 * 60 * 1000, 'options', 1000); // key = ticker
 
 // GET /api/options/position-quote?ticker=NVDA&expiry=2026-06-20&strike=850&type=call
 // MUST be declared before /options/:ticker so it isn't captured by the wildcard

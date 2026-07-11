@@ -4,6 +4,7 @@ import { runSeed } from "./lib/seeder";
 import { withRetry } from "./lib/retry";
 import { startScheduler } from "./lib/scheduler";
 import { runStartupStaleRefresh } from "./lib/startup-refresh";
+import { startCacheSweep } from "./lib/cache-registry";
 
 const rawPort = process.env["PORT"];
 
@@ -27,6 +28,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startScheduler();
+  startCacheSweep(); // bug/5: periodic prune of expired TTLCache entries
 
   withRetry(() => runSeed(), {
     onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: seed retry"),

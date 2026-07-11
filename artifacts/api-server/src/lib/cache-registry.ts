@@ -1,6 +1,6 @@
 import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache } from '../routes/stocks.js';
 import { provenanceCache } from './provenance-cache.js';
-import { peersCache } from '../lib/peer-resolver.js';
+import { peersCache, profileCache } from '../lib/peer-resolver.js';
 import { classifyCache } from './peer-classifier.js';
 import { optionsCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
@@ -56,6 +56,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   options:          optionsCache,
   'options-expiry': expiryCache,
   'peer-map':       peersCache,
+  'peer-profile':   profileCache,
   'ticker-classify': classifyCache,
   'provenance':     provenanceCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
@@ -69,9 +70,20 @@ function fileEntry(fetchedAt: number | null, ttlMs: number, key: string, now: nu
   return [{ key, expiresAt, expiresInSec: Math.round(Math.max(0, expiresAt - now) / 1000) }];
 }
 
+// Single source of truth for pruning + stats — keeps the two in sync (profileCache
+// was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache];
+
+const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
+
+export function startCacheSweep(): NodeJS.Timeout {
+  return setInterval(() => {
+    for (const c of ttlCaches) c.pruneExpired();
+  }, PRUNE_INTERVAL_MS).unref();
+}
+
 export function getAllCaches(): CacheStats[] {
   const now = Date.now();
-  const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, classifyCache, provenanceCache];
 
   const macroRegimeEntry = macroCache as { fetchedAt?: number } | null;
   const macroDataEntry   = loadMacroCache();

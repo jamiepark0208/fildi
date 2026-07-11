@@ -60,7 +60,7 @@ const FLAT_MAX_OTM   = 0.15;  // 15% — maximum OTM distance
 const RISK_FREE_RATE = 0.045; // ~current T-bill rate
 
 // ── Shared expiry date cache (24h TTL — expiry calendars change rarely) ───────
-export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry');
+export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry', 1000); // key = ticker
 
 // ── Black-Scholes Greeks ──────────────────────────────────────────────────────
 
