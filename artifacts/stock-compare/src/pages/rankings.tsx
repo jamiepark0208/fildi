@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { StockMetrics } from "@workspace/api-client-react";
 import { Sidebar } from "@/components/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
+import { OptionsScannerContent } from "@/pages/options-scanner";
 import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -14,7 +16,7 @@ import { queryKeys } from "@/lib/query-keys";
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
-  const [tab, setTab] = useState<"fundamental" | "technical">("fundamental");
+  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options">("fildi_rankings_tab", "fundamental");
   const { weights } = useScoringPreferences();
   const { tickers: watchlistTickers } = useWatchlist();
 
@@ -109,10 +111,11 @@ export default function Rankings() {
         </div>
 
         <div className="p-5">
-          <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical")}>
+          <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical" | "options")}>
             <TabsList className="h-10 mb-4">
               <TabsTrigger value="fundamental" className="text-sm px-4">Fundamentals</TabsTrigger>
               <TabsTrigger value="technical" className="text-sm px-4">Technicals</TabsTrigger>
+              <TabsTrigger value="options" className="text-sm px-4">Options</TabsTrigger>
             </TabsList>
 
             <TabsContent value="fundamental" className="mt-0">
@@ -129,6 +132,10 @@ export default function Rankings() {
               ) : (
                 <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
               )}
+            </TabsContent>
+
+            <TabsContent value="options" className="mt-0">
+              <OptionsScannerContent showHeader={false} />
             </TabsContent>
           </Tabs>
         </div>

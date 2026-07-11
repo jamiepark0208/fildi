@@ -1,11 +1,13 @@
 import { Fragment, useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield } from "lucide-react";
+import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
+import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,7 +40,18 @@ interface CacheStatus { caches: CacheRow[]; generatedAt: number }
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 
 function ProfileTab() {
-  const { user } = useAuth();
+  const { user, refetch } = useAuth();
+  const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    queryClient.removeQueries({ queryKey: ["watchlist"] });
+    queryClient.removeQueries({ queryKey: ["portfolio-snapshot-latest"] });
+    await refetch();
+    navigate("/login");
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-lg">
       <h2 className="text-sm font-semibold mb-4">Account</h2>
@@ -64,6 +77,14 @@ function ProfileTab() {
             {user?.role}
           </span>
         </div>
+        <div className="h-px bg-border/40" />
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-red-400 transition-colors pt-1"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Log out
+        </button>
       </div>
     </div>
   );
@@ -487,29 +508,27 @@ function CacheMonitorTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor";
+type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>("profile");
 
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
-    { id: "profile",     label: "Profile" },
-    { id: "users",       label: "User Mgmt",     adminOnly: true },
-    { id: "cache",       label: "Cache Monitor",  adminOnly: true },
-    { id: "stockdb",     label: "Stock DB",       adminOnly: true },
-    { id: "api-monitor", label: "API Monitor",    adminOnly: true },
+    { id: "profile",         label: "Profile" },
+    { id: "scorecard-guide", label: "Scorecard Guide" },
+    { id: "users",           label: "User Mgmt",     adminOnly: true },
+    { id: "cache",           label: "Cache Monitor",  adminOnly: true },
+    { id: "stockdb",         label: "Stock DB",       adminOnly: true },
+    { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex">
-      <Sidebar />
-      <main
-        className="flex-1 flex flex-col overflow-hidden"
-        style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}
-      >
+    <div className="min-h-[100dvh] bg-background text-foreground">
+      <TopNav />
+      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
         {/* Header */}
         <div className="shrink-0 border-b border-border bg-background px-6 py-4">
           <h1 className="text-lg font-bold tracking-tight leading-none">Settings</h1>
@@ -537,6 +556,7 @@ export default function Settings() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-6">
           {tab === "profile" && <ProfileTab />}
+          {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
           {tab === "stockdb"     && isAdmin && <StockDBTab />}

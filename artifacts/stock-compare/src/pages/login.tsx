@@ -15,7 +15,7 @@ export default function Login() {
   // Navigate once auth state is confirmed — avoids race where ProtectedRoute
   // sees stale null user between refetch() resolving and React re-rendering.
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) navigate("/profile/me");
   }, [user]);
 
   async function handleSignIn(e: React.FormEvent<HTMLFormElement>) {

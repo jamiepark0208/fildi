@@ -65,9 +65,6 @@ const DEFAULT_GROUPS: NavGroup[] = [
     label: "Analysis",
     items: [
       { id: "rankings", href: "/rankings", label: "Rankings", icon: "Trophy" },
-      { id: "fundamental", href: "/", label: "Fundamental", icon: "BarChart" },
-      { id: "technical", href: "/technical", label: "Technical", icon: "LineChart" },
-      { id: "options-scanner", href: "/options-scanner", label: "Options Scanner", icon: "ScanLine" },
       { id: "macro", href: "/macro", label: "Macro", icon: "Globe" },
     ],
   },
@@ -75,7 +72,6 @@ const DEFAULT_GROUPS: NavGroup[] = [
     id: "general",
     label: "General",
     items: [
-      { id: "scorecard-guide", href: "/scorecard-explanation", label: "Scoring Reference", icon: "BookOpen" },
       { id: "settings", href: "/settings", label: "Settings", icon: "Settings" },
     ],
   },
@@ -85,7 +81,10 @@ function loadGroups(): NavGroup[] {
   try {
     const raw = localStorage.getItem(ORDER_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as NavGroup[];
+      let parsed = JSON.parse(raw) as NavGroup[];
+      // Drop any items removed from DEFAULT_GROUPS (e.g. retired nav entries)
+      const validItemIds = new Set(DEFAULT_GROUPS.flatMap(g => g.items.map(i => i.id)));
+      parsed = parsed.map(g => ({ ...g, items: g.items.filter(i => validItemIds.has(i.id)) }));
       // Ensure any new items added to DEFAULT_GROUPS are included
       const allItemIds = new Set(parsed.flatMap(g => g.items.map(i => i.id)));
       const defaultItemMap = new Map(DEFAULT_GROUPS.flatMap(g => g.items.map(i => [i.id, i])));
