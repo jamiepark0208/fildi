@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
-import { RobinhoodPortfolio } from "@/components/RobinhoodPortfolio";
+import { RobinhoodPortfolioHeader, RobinhoodPortfolioTables } from "@/components/RobinhoodPortfolio";
 import { useAuth } from "@/context/AuthContext";
 
 // ── Position types ────────────────────────────────────────────────────────────
@@ -746,9 +746,11 @@ export default function Portfolio() {
   // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request).
   // Admin-only data source — disabled for regular users, who use manualEntries instead.
   const { data: rhData } = useQuery<{
-    snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null } | null;
+    snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null; cashBalance: string | null; cryptoValue: string | null } | null;
     positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue: string | null; unrealizedPnL: string | null }>;
     options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null }>;
+    accountSummaries: Array<{ account: string; nickname: string | null; totalValue: string | null; equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null }>;
+    realizedEvents: Array<{ account: string; symbol: string; assetType: 'stock' | 'option'; direction: 'long' | 'short'; optionType: 'call' | 'put' | null; qty: number; pnl: number; fees: number; closedAt: string }>;
   }>({
     queryKey: ['portfolio-snapshot-latest'],
     queryFn: async () => {
@@ -930,18 +932,23 @@ export default function Portfolio() {
 
               {isAdmin ? (
                 <>
-                  {/* Robinhood CSV Portfolio — admin-only, CSV upload gated here */}
-                  <RobinhoodPortfolio />
+                  {/* Header + CSV upload — admin-only, gated here */}
+                  <RobinhoodPortfolioHeader />
 
-                  {/* Portfolio Analysis — driven by Robinhood snapshot */}
+                  {/* Portfolio Analysis — driven by Robinhood snapshot, above the holdings tables */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis
                       entries={entries}
                       priceMap={priceMap}
                       stockDataMap={stockDataMap}
                       portfolioNames={portfolioNames}
+                      accountSummaries={rhData?.accountSummaries ?? []}
+                      realizedEvents={rhData?.realizedEvents ?? []}
                     />
                   )}
+
+                  {/* Equity + option holdings tables */}
+                  <RobinhoodPortfolioTables />
                 </>
               ) : (
                 // Regular-user manual entry view — server-backed via use-portfolio.ts (bug/14).

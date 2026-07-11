@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: enh8-cash-crypto-mismatch-rootcaused-and-fixed;enh8-csv-parser-full-field-capture-rewrite;enh8-schema-2-new-tables-plus-columns-applied-via-psql;enh8-snapshot-api-returns-cashBalance-cryptoValue-accountSummaries;enh8-backfill-reingest-verified-snapshot4
-- In progress: enh8 backend done and DB-verified; frontend still needed: Cash+Crypto donut segments in portfolio-analysis.tsx and reorder Analysis above Holdings table in portfolio.tsx/RobinhoodPortfolio.tsx
+- Working: enh8-cash-crypto-donut-wired;enh8-analysis-reordered-above-holdings;fixed-premiumReceived-100x-bug-root-cause-of-wrong-premium-collected-banner;capital-allocation-now-sourced-from-robinhoods-own-accountSummaries-fixes-2.4k-gap;added-HHI-concentration-risk-to-sector-exposure-card;built-realized-pnl-feature-FIFO-stock-plus-option-open-close-matching-with-filters
+- In progress: realized pnl backend+frontend built and typecheck-clean and server-restarted; verified via tsx script against real DB 135 events totaling 1511.32; not yet eyeballed in browser (no playwright this session)
 - Blocked: none
 
 ## Next tasks (priority order)
