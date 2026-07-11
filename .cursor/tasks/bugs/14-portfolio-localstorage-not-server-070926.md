@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P1 |
 | **Area** | multi-user / data |
 | **Effort** | L |
@@ -129,3 +129,31 @@ Code: `use-portfolio.ts` `fildi_portfolio_v1` — no `userId` in key. Server `/p
 
 - `/api/portfolio/snapshot/latest` ingest flow unchanged
 - Do not delete localStorage until migration confirmed
+
+---
+
+## 14. Resolution (2026-07-11)
+
+**What actually shipped:** Option A (migrate to `/positions`), plus two things
+discovered during implementation that weren't in the original writeup:
+
+1. **`positions.ts` router existed but was never mounted** in
+   `api-server/src/routes/index.ts` — `/api/positions` and `/api/portfolio-names`
+   were 404ing. Added the mount (grouped with `watchlistRouter`/`feedRouter`,
+   which also carry their own internal `requireAuth` blanket).
+2. **Manual "Add Position" was fully dead in the UI**, not just non-persistent —
+   `openAddPosition` had no button wired to it, and `PortfolioBox` was never
+   mounted. Fixed alongside enh/8's rescope: see that file for the admin/regular-user
+   split this turned into.
+
+**use-portfolio.ts** rewritten to be server-backed (react-query + `/api/positions` +
+`/api/portfolio-names`) instead of localStorage, with a one-time client-side
+migration shim (`fildi_portfolio_migrated_v1` flag) that POSTs any pre-existing
+localStorage entries to the server on first load, then clears the legacy keys.
+Field map: `PortfolioEntry.portfolioName` ↔ `positions.accountId`.
+
+**Follow-up not in scope here:** `portfolioSnapshots` (Robinhood CSV ingest table)
+has no `userId` FK — any authenticated user's ingest is visible to all users. Not
+fixed in this pass since the Portfolio tab is admin-only and there's currently one
+admin, but worth a tracked bug before ever adding a second admin or opening the
+tab more broadly.

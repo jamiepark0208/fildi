@@ -50,12 +50,25 @@ Reuse `GET /api/portfolio/snapshot/latest` + existing ingest. **No** serve-time 
 ## 3. What (build scope)
 
 ### In scope — Phase A (ship first)
-| # | Work |
-|---|---|
-| A1 | Sidebar: `adminOnly: false` (or remove flag) for portfolio |
-| A2 | Position health / at-risk row → `/breakdown?ticker=` or existing breakdown route pattern |
-| A3 | Display effective / adjusted cost basis where snapshot premium or avgCost fields exist |
-| A4 | Import history list (ingest timestamps) if API already returns history — else list latest only + “last imported” |
+| # | Work | Status |
+|---|---|---|
+| A1 | Sidebar: `adminOnly: false` (or remove flag) for portfolio | **Deferred 2026-07-11** — see rescope note below |
+| A2 | Position health / at-risk row → `/breakdown?ticker=` or existing breakdown route pattern | ready |
+| A3 | Display effective / adjusted cost basis where snapshot premium or avgCost fields exist | ready |
+| A4 | Import history list (ingest timestamps) if API already returns history — else list latest only + “last imported” | ready |
+
+#### Rescope note (2026-07-11, alongside bug/14)
+
+A1 is **deferred, not implemented**. Owner decided the Robinhood-CSV admin view and
+a regular-user manual-entry view need to stay two different experiences rather than
+one unlocked-for-everyone page — CSV upload stays admin-only, regular users get a
+manual "Add Position" flow instead once the tab opens up. That split (admin branch
+vs. regular-user branch in `portfolio.tsx`, both server-backed via
+`use-portfolio.ts`) was built as part of bug/14's fix, so the machinery for A1 exists
+and works — the nav flag (`sidebar.tsx` `adminOnly: true`) just hasn't been flipped
+yet, intentionally, until the regular-user experience gets more real-world use by the
+single current admin. Flipping it later is a one-line change once ready. A2–A4
+untouched, still `ready` for whoever picks this up next.
 
 ### In scope — Phase B (design-gated)
 | # | Work |

@@ -51,6 +51,10 @@ const DEFAULT_GROUPS: NavGroup[] = [
       { id: "feed", href: "/feed", label: "Feed", icon: "LayoutList" },
       { id: "watchlist", href: "/watchlist", label: "Watchlist", icon: "Bookmark" },
       { id: "profile", href: "/profile/me", label: "My Profile", icon: "User" },
+      // adminOnly is intentional, not a leftover — enh/8 Phase A1 (unlock nav for
+      // everyone) is deferred until the regular-user manual-entry experience in
+      // portfolio.tsx is solidified (bug/14, 2026-07-11). Don't "fix" this without
+      // checking enh/8's status first.
       { id: "portfolio", href: "/portfolio", label: "Portfolio", icon: "BriefcaseBusiness", adminOnly: true },
     ],
   },

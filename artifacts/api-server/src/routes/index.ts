@@ -23,6 +23,7 @@ import cotRouter from "./macro-cot";
 import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
+import positionsRouter from "./positions";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router: IRouter = Router();
@@ -62,13 +63,19 @@ router.use(technicalRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
 
-// watchlist.ts and feed.ts each have their own internal blanket
-// `router.use(requireAuth)` (all-user-specific routes, intentional), and
-// their route paths are already baked in (e.g. "/watchlist"), so they can't
-// be mounted at a matching path prefix without double-prefixing. Same leak
-// risk as above — keep these LAST so there's nothing left downstream to leak
-// auth onto. Do not insert new routers below this line.
+// watchlist.ts, feed.ts, and positions.ts each have their own internal
+// blanket `router.use(requireAuth)` (all-user-specific routes, intentional),
+// and their route paths are already baked in (e.g. "/watchlist"), so they
+// can't be mounted at a matching path prefix without double-prefixing. Same
+// leak risk as above — keep these LAST so there's nothing left downstream to
+// leak auth onto. Do not insert new routers below this line.
+//
+// bug/14 (2026-07-11): positionsRouter existed as a file but was never
+// mounted here, so /api/positions + /api/portfolio-names 404'd — the
+// server-backed CRUD the frontend now depends on (use-portfolio.ts) requires
+// this line.
 router.use(watchlistRouter);
 router.use(feedRouter);
+router.use(positionsRouter);
 
 export default router;

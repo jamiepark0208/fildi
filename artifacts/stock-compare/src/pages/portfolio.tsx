@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
 import { RobinhoodPortfolio } from "@/components/RobinhoodPortfolio";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Position types ────────────────────────────────────────────────────────────
 
@@ -724,8 +725,16 @@ function dbToEntries(
 }
 
 export default function Portfolio() {
+  // bug/14 + enh/8 (2026-07-11): admins get the Robinhood-CSV-driven view
+  // (unchanged); regular users get the server-backed manual-entry view
+  // (PortfolioBox below) instead of CSV upload. See use-portfolio.ts header
+  // comment for the persistence-layer side of this split. The Portfolio nav
+  // item itself stays `adminOnly: true` in sidebar.tsx for now (deliberate,
+  // see comment there) — this split is prepped ahead of that flag flipping.
+  const { isAdmin, isLoading: authLoading } = useAuth();
+
   const {
-    entries: _legacyEntries, portfolioNames: _legacyPortfolioNames, isLoaded,
+    entries: manualEntries, portfolioNames: manualPortfolioNames, isLoaded,
     addEntry, removeEntry, updateEntry, addPortfolioName,
   } = usePortfolio();
 
@@ -734,7 +743,8 @@ export default function Portfolio() {
   const [presetPortfolio,  setPresetPortfolio]  = useState<string | undefined>(undefined);
   const [editingEntry,     setEditingEntry]      = useState<PortfolioEntry | null>(null);
 
-  // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request)
+  // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request).
+  // Admin-only data source — disabled for regular users, who use manualEntries instead.
   const { data: rhData } = useQuery<{
     snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null } | null;
     positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue: string | null; unrealizedPnL: string | null }>;
@@ -746,6 +756,7 @@ export default function Portfolio() {
       if (!res.ok) throw new Error('Failed to load portfolio')
       return res.json()
     },
+    enabled: isAdmin,
   })
 
   const rhPositions = rhData?.positions ?? []
@@ -756,8 +767,12 @@ export default function Portfolio() {
     return m
   }, [rhPositions])
 
-  const entries = useMemo(() => dbToEntries(rhPositions, rhOptions, accountMap), [rhPositions, rhOptions, accountMap])
-  const portfolioNames = useMemo(() => [...new Set(entries.map(e => e.portfolioName).filter(Boolean) as string[])], [entries])
+  const rhEntries = useMemo(() => dbToEntries(rhPositions, rhOptions, accountMap), [rhPositions, rhOptions, accountMap])
+
+  const entries = isAdmin ? rhEntries : manualEntries;
+  const portfolioNames = isAdmin
+    ? [...new Set(rhEntries.map(e => e.portfolioName).filter(Boolean) as string[])]
+    : manualPortfolioNames;
   const uniqueTickers  = useMemo(() => [...new Set(entries.map(e => e.ticker))], [entries]);
 
   const priceQueries = useQueries({
@@ -821,7 +836,9 @@ export default function Portfolio() {
     setShowAddPosition(true);
   };
 
-  if (!isLoaded) return null;
+  // Admin doesn't wait on manualEntries load (unused in that branch) — keeps
+  // the admin page load identical to before this change, no added delay.
+  if (authLoading || (!isAdmin && !isLoaded)) return null;
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
@@ -839,9 +856,12 @@ export default function Portfolio() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
-              <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
-            </Button>
+            {/* Manual-entry portfolios are a non-admin concept — admins get theirs from the RH CSV import */}
+            {!isAdmin && (
+              <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
+                <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
+              </Button>
+            )}
           </div>
         </div>
 
@@ -854,12 +874,16 @@ export default function Portfolio() {
               <div>
                 <p className="text-sm font-medium">No positions tracked yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Create portfolios (IRA, FILDI, MOM) then add positions to each.
+                  {isAdmin
+                    ? "Upload a Robinhood CSV below to get started."
+                    : "Create portfolios (IRA, FILDI, MOM) then add positions to each."}
                 </p>
               </div>
-              <Button onClick={() => setShowAddPortfolio(true)} className="gap-1.5">
-                <FolderPlus className="w-4 h-4" /> Create first portfolio
-              </Button>
+              {!isAdmin && (
+                <Button onClick={() => setShowAddPortfolio(true)} className="gap-1.5">
+                  <FolderPlus className="w-4 h-4" /> Create first portfolio
+                </Button>
+              )}
             </div>
           ) : (
             <>
@@ -904,43 +928,78 @@ export default function Portfolio() {
               {/* Daily AI Highlights */}
               <DailyBrief tickers={uniqueTickers} />
 
-              {/* Robinhood CSV Portfolio */}
-              <RobinhoodPortfolio />
+              {isAdmin ? (
+                <>
+                  {/* Robinhood CSV Portfolio — admin-only, CSV upload gated here */}
+                  <RobinhoodPortfolio />
 
-              {/* Portfolio Analysis — driven by Robinhood snapshot */}
-              {entries.length > 0 && (
-                <PortfolioAnalysis
-                  entries={entries}
-                  priceMap={priceMap}
-                  stockDataMap={stockDataMap}
-                  portfolioNames={portfolioNames}
-                />
+                  {/* Portfolio Analysis — driven by Robinhood snapshot */}
+                  {entries.length > 0 && (
+                    <PortfolioAnalysis
+                      entries={entries}
+                      priceMap={priceMap}
+                      stockDataMap={stockDataMap}
+                      portfolioNames={portfolioNames}
+                    />
+                  )}
+                </>
+              ) : (
+                // Regular-user manual entry view — server-backed via use-portfolio.ts (bug/14).
+                // Reuses PortfolioBox/PositionRow, which existed but were unmounted dead code
+                // before this fix; do not delete them again as "unused".
+                <div className="space-y-4">
+                  {portfolioNames.map(name => (
+                    <PortfolioBox
+                      key={name}
+                      name={name}
+                      entries={grouped[name] ?? []}
+                      priceMap={priceMap}
+                      onEdit={setEditingEntry}
+                      onRemove={removeEntry}
+                      onAddPosition={openAddPosition}
+                    />
+                  ))}
+                  {grouped["Unassigned"]?.length > 0 && (
+                    <PortfolioBox
+                      name="Unassigned"
+                      entries={grouped["Unassigned"]}
+                      priceMap={priceMap}
+                      onEdit={setEditingEntry}
+                      onRemove={removeEntry}
+                      onAddPosition={openAddPosition}
+                    />
+                  )}
+                </div>
               )}
             </>
           )}
         </div>
       </main>
 
-      {/* Add Portfolio dialog */}
-      <AddPortfolioDialog
-        open={showAddPortfolio}
-        onClose={() => setShowAddPortfolio(false)}
-        onAdd={addPortfolioName}
-        existing={portfolioNames}
-      />
+      {/* Add Portfolio dialog — non-admin only */}
+      {!isAdmin && (
+        <AddPortfolioDialog
+          open={showAddPortfolio}
+          onClose={() => setShowAddPortfolio(false)}
+          onAdd={addPortfolioName}
+          existing={portfolioNames}
+        />
+      )}
 
-      {/* Add Position dialog */}
-      <PositionDialog
-        open={showAddPosition}
-        onClose={() => { setShowAddPosition(false); setPresetPortfolio(undefined); }}
-        onSubmit={addEntry}
-        portfolioNames={portfolioNames}
-        presetPortfolio={presetPortfolio}
-        entries={entries}
-      />
+      {/* Add Position dialog — non-admin only */}
+      {!isAdmin && (
+        <PositionDialog
+          open={showAddPosition}
+          onClose={() => { setShowAddPosition(false); setPresetPortfolio(undefined); }}
+          onSubmit={addEntry}
+          portfolioNames={portfolioNames}
+          presetPortfolio={presetPortfolio}
+          entries={entries}
+        />
+      )}
 
       {/* Edit Position dialog */}
-      {editingEntry && (
+      {!isAdmin && editingEntry && (
         <PositionDialog
           open={!!editingEntry}
           onClose={() => setEditingEntry(null)}

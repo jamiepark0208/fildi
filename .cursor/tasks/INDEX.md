@@ -90,7 +90,7 @@ Merged from the former `bugs/INDEX.md` (deleted 2026-07-11 — was a duplicate s
 | 11 | B | P1 | done | M | High | Med | [options-scanner-fetch-storm](bugs/11-options-scanner-fetch-storm-070926.md) |
 | 12 | B | P1 | done | M | Med | Low | [watchlist-quote-n-plus-one](bugs/12-watchlist-quote-n-plus-one-070926.md) |
 | 13 | A | P1 | done | XS | Med | Low | [react-query-cross-user-bleed](bugs/13-react-query-cross-user-bleed-070926.md) |
-| 14 | F | P1 | ready | L | High | High | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
+| 14 | F | P1 | done | L | High | High | [portfolio-localstorage-not-server](bugs/14-portfolio-localstorage-not-server-070926.md) |
 | 15 | E | P2 | done | S | Med | Low | [catalyst-dual-buildCatalysts](bugs/15-catalyst-dual-buildCatalysts-070926.md) |
 | 16 | E | P2 | done | S | Med | Low | [feed-winrate-expired-excluded](bugs/16-feed-winrate-expired-excluded-070926.md) |
 | 17 | D | P2 | done | XS | Low | Low | [admin-routes-auth-not-admin](bugs/17-admin-routes-auth-not-admin-070926.md) |
@@ -103,7 +103,7 @@ Merged from the former `bugs/INDEX.md` (deleted 2026-07-11 — was a duplicate s
 - **C — Continuous-run health** — 5, 6, 8, 18. ALL DONE 2026-07-11: 5 (prune + maxEntries LRU, TTLs unchanged), 6 (pool max/idleTimeout env-tunable), 8 (last-run persisted to `app_config`, not `scoring_config`), 18 (`pruneSessionInterval: 900` on PgSession).
 - **D — Security** — 1, 7, 17. ALL DONE: 1 (2026-07-10, router-level `requireAuth`, live curl-verified), 7 (2026-07-11, `trust proxy` prod-only), 17 (2026-07-11, admin GETs now `requireAdmin`, live curl-verified 401).
 - **E — Correctness (small)** — 15, 16. DONE 2026-07-11 both: 15 (deleted duplicate FE `buildCatalysts`, server is now sole source), 16 (server winRate SQL now matches client resolved-status set).
-- **F — Portfolio (large)** — 14 alone. Coordinate [enh/8](enhancements/8-portfolio-analysis-improvements-070926.md).
+- **F — Portfolio (large)** — 14 DONE 2026-07-11: `use-portfolio.ts` rewritten server-backed (`/api/positions` + `/api/portfolio-names`, previously unmounted router — now mounted), one-time localStorage migration shim, admin/regular-user split in `portfolio.tsx` (admin keeps RH-CSV view, regular users get revived manual-entry `PortfolioBox`). Done together with [enh/8](enhancements/8-portfolio-analysis-improvements-070926.md) Phase A1, which is **deferred** (nav stays `adminOnly: true`) — see enh/8 rescope note. A2–A4 still open.
 
 Bug 4 isn't part of a lettered cluster but is coupled to cluster B. Block prod hardening until bug/1 (done). Tie prevention to **enh/3** + **enh/4** when landing fixes.
 
