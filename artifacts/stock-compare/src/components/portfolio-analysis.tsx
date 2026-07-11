@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
@@ -167,6 +168,14 @@ interface RealizedEvent {
   optionType: "call" | "put" | null; qty: number; pnl: number; fees: number; closedAt: string;
 }
 
+interface PortfolioRiskResult {
+  tickers: string[];
+  correlationMatrix: number[][];
+  dailyVolatilityPct: number;
+  var95Pct: number; cvar95Pct: number; var95Usd: number; cvar95Usd: number;
+  skippedTickers: string[];
+}
+
 interface PortfolioAnalysisProps {
   entries: PortfolioEntry[];
   priceMap: Record<string, number | undefined>;
@@ -280,6 +289,85 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     const level: "Low" | "Moderate" | "High" = hhi < 1500 ? "Low" : hhi < 2500 ? "Moderate" : "High";
     return { hhi: Math.round(hhi), top5Pct, level, topTicker: betaData[0]?.ticker, topTickerPct: betaData[0]?.weight };
   }, [betaData]);
+
+  // ── Portfolio Greeks (Vega/Gamma exposure) ──────────────────────────────────
+  // Position-level sign flips for short options (selling a put/call means you're
+  // short that option's gamma/vega, i.e. exposure runs opposite the raw per-contract
+  // Greek) — same convention as the Delta/Theta banners elsewhere in this app.
+  const greeksExposure = useMemo(() => {
+    let netVega = 0, netGamma = 0;
+    for (const e of filtered) {
+      if (e.positionType === "stock" || e.gamma == null && e.vega == null) continue;
+      const sign = isShortPosition(e.positionType) ? -1 : 1;
+      if (e.vega != null)  netVega  += e.vega  * 100 * e.qty * sign;
+      if (e.gamma != null) netGamma += e.gamma * 100 * e.qty * sign;
+    }
+    return { netVega, netGamma };
+  }, [filtered]);
+
+  // ── Liquidity / spread risk ──────────────────────────────────────────────────
+  // CSV bid/ask are a stale snapshot from import time — same problem the options
+  // scanner solves by hitting Yahoo live. Reuse its exact per-contract endpoint
+  // (/api/options/position-quote → getOptionPositionQuote) instead of the CSV values.
+  const openOptionPositions = useMemo(
+    () => filtered.filter(e => isShortPosition(e.positionType) || e.positionType === "long_put" || e.positionType === "long_call")
+      .filter(e => e.strike != null && e.expiry),
+    [filtered],
+  );
+
+  const liquidityQueries = useQueries({
+    queries: openOptionPositions.map(e => {
+      const optionType: "call" | "put" = e.positionType.includes("call") ? "call" : "put";
+      return {
+        queryKey: ["option-position-quote", e.ticker, e.expiry, e.strike, optionType],
+        queryFn: async () => {
+          const params = new URLSearchParams({ ticker: e.ticker, expiry: e.expiry!, strike: String(e.strike), type: optionType });
+          const res = await fetch(`/api/options/position-quote?${params}`, { credentials: "include" });
+          if (!res.ok) throw new Error("Failed to fetch live quote");
+          return res.json() as Promise<{ bid: number | null; ask: number | null; midPrice: number | null }>;
+        },
+        staleTime: 5 * 60 * 1000,
+      };
+    }),
+  });
+
+  const liquidityRisk = useMemo(() => {
+    let wide = 0, moderate = 0, checked = 0;
+    liquidityQueries.forEach(q => {
+      const d = q.data;
+      if (!d || d.bid == null || d.ask == null || d.midPrice == null || d.midPrice <= 0) return;
+      checked++;
+      const spreadPct = (d.ask - d.bid) / d.midPrice;
+      if (spreadPct >= 0.40) wide++;
+      else if (spreadPct >= 0.20) moderate++;
+    });
+    return { wide, moderate, checked };
+  }, [liquidityQueries]);
+
+  // ── Correlation matrix + parametric VaR/CVaR ────────────────────────────────
+  // betaData already carries per-ticker notional weight — reuse it as the risk
+  // endpoint's input instead of re-deriving position sizing server-side.
+  const riskPositions = useMemo(
+    () => betaData.map(d => ({ ticker: d.ticker, weight: d.weight })),
+    [betaData],
+  );
+  const riskKey = useMemo(() => riskPositions.map(p => `${p.ticker}:${p.weight}`).sort().join(","), [riskPositions]);
+
+  const { data: portfolioRisk } = useQuery<PortfolioRiskResult>({
+    queryKey: ["portfolio-risk", riskKey],
+    queryFn: async () => {
+      const res = await fetch("/api/portfolio/risk", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ positions: riskPositions, portfolioValueUsd: totalValue }),
+      });
+      if (!res.ok) throw new Error("Failed to compute portfolio risk");
+      return res.json();
+    },
+    enabled: riskPositions.length > 0,
+    staleTime: 15 * 60 * 1000,
+  });
 
   // ── Realized P&L (from transaction history — cumulative $ earned/lost to date) ──
   const pnlTotals = useMemo(() => {
@@ -491,12 +579,16 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 { label: "Beta (adj.)", value: risk.weightedBeta.toFixed(2), color: risk.weightedBeta > 1.5 ? "text-red-400" : risk.weightedBeta > 1.1 ? "text-yellow-400" : "text-green-400" },
                 { label: "Net Delta", value: risk.netDelta > 0 ? `+${risk.netDelta.toFixed(0)}` : risk.netDelta.toFixed(0), color: Math.abs(risk.netDelta) > 5000 ? "text-orange-400" : "text-foreground" },
                 { label: "Daily Theta", value: `+${formatCurrency(risk.dailyTheta)}`, color: "text-green-400" },
+                { label: "Net Gamma", value: greeksExposure.netGamma >= 0 ? `+${greeksExposure.netGamma.toFixed(1)}` : greeksExposure.netGamma.toFixed(1), color: Math.abs(greeksExposure.netGamma) > 50 ? "text-orange-400" : "text-foreground" },
+                { label: "Net Vega", value: greeksExposure.netVega >= 0 ? `+${greeksExposure.netVega.toFixed(0)}` : greeksExposure.netVega.toFixed(0), color: Math.abs(greeksExposure.netVega) > 500 ? "text-orange-400" : "text-foreground" },
                 { label: "Income Yield", value: `${risk.incomeYield.toFixed(1)}%`, color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground" },
                 { label: "Max Assign Risk", value: formatCurrency(risk.maxAssign), color: "text-yellow-400" },
                 { label: "Avg DTE", value: `${risk.avgDTE.toFixed(0)}d`, color: "text-foreground" },
                 ...(risk.atRiskPositions > 0 ? [{ label: "At-Risk Puts", value: String(risk.atRiskPositions), color: "text-red-400" }] : []),
                 ...(risk.expiringSoon > 0 ? [{ label: "Expiring ≤7d", value: String(risk.expiringSoon), color: "text-orange-400" }] : []),
                 ...(risk.coveredCallCount > 0 ? [{ label: "Covered Calls", value: String(risk.coveredCallCount), color: "text-blue-400" }] : []),
+                ...(liquidityRisk.wide > 0 ? [{ label: "Wide Spreads", value: String(liquidityRisk.wide), color: "text-red-400" }] : []),
+                ...(liquidityRisk.moderate > 0 ? [{ label: "Moderate Spreads", value: String(liquidityRisk.moderate), color: "text-yellow-400" }] : []),
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex flex-col gap-0.5">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wide leading-none">{label}</span>
@@ -507,6 +599,69 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
       </div>
+
+      {/* Row 1.2: Correlation matrix + parametric VaR/CVaR (95%, 1-day) */}
+      {portfolioRisk && portfolioRisk.tickers.length > 1 && (
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-0">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Correlation &amp; Value-at-Risk <span className="normal-case font-normal">— 3mo daily returns, 95% 1-day</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1 grid grid-cols-1 gap-y-3 content-start">
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">VaR 95% (1d)</div>
+                  <div className="text-sm font-bold font-mono tabular-nums text-yellow-400">
+                    {formatCurrency(portfolioRisk.var95Usd)} <span className="text-muted-foreground font-normal">({portfolioRisk.var95Pct.toFixed(2)}%)</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">CVaR 95% (1d)</div>
+                  <div className="text-sm font-bold font-mono tabular-nums text-red-400">
+                    {formatCurrency(portfolioRisk.cvar95Usd)} <span className="text-muted-foreground font-normal">({portfolioRisk.cvar95Pct.toFixed(2)}%)</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Daily Vol</div>
+                  <div className="text-sm font-bold font-mono tabular-nums">{portfolioRisk.dailyVolatilityPct.toFixed(2)}%</div>
+                </div>
+                {portfolioRisk.skippedTickers.length > 0 && (
+                  <div className="text-[10px] text-muted-foreground">
+                    No price history: {portfolioRisk.skippedTickers.join(", ")}
+                  </div>
+                )}
+              </div>
+              <div className="col-span-2 overflow-x-auto">
+                <table className="text-[10px] font-mono border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="p-1"></th>
+                      {portfolioRisk.tickers.map(t => (
+                        <th key={t} className="p-1 text-muted-foreground font-medium">{t}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portfolioRisk.tickers.map((rowTicker, i) => (
+                      <tr key={rowTicker}>
+                        <td className="p-1 text-muted-foreground font-medium text-right pr-2">{rowTicker}</td>
+                        {portfolioRisk.correlationMatrix[i].map((v, j) => (
+                          <td key={j} className="p-1 text-center tabular-nums"
+                            style={{ backgroundColor: `rgba(${v >= 0 ? "56,189,248" : "248,113,113"},${Math.min(Math.abs(v), 1) * 0.35})` }}>
+                            {v.toFixed(2)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Row 1.5: Realized P&L from transaction history */}
       <Card>

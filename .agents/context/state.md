@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: enh8-cash-crypto-donut-wired;enh8-analysis-reordered-above-holdings;fixed-premiumReceived-100x-bug-root-cause-of-wrong-premium-collected-banner;capital-allocation-now-sourced-from-robinhoods-own-accountSummaries-fixes-2.4k-gap;added-HHI-concentration-risk-to-sector-exposure-card;built-realized-pnl-feature-FIFO-stock-plus-option-open-close-matching-with-filters
-- In progress: realized pnl backend+frontend built and typecheck-clean and server-restarted; verified via tsx script against real DB 135 events totaling 1511.32; not yet eyeballed in browser (no playwright this session)
-- Blocked: none
+- Working: tier1-vega-gamma-exposure-aggregated-into-risk-metrics-card, tier1-liquidity-spread-flags-via-live-yahoo-quote-not-stale-csv-reusing-options-position-quote-endpoint, tier2-correlation-matrix-plus-parametric-95pct-VaR-CVaR-new-backend-endpoint-and-frontend-card, root-caused-account-filter-tabs-not-cascading-to-Capital-Allocation-and-Realized-PnL-sections-fix-identified-not-yet-applied, investigated-realized-pnl-undercounting-vs-user-expectation-parser-and-premium-math-verified-correct-against-real-DB-user-suspects-source-CSV-is-missing-pre-June-2026-orders
+- In progress: backend rebuilt and restarted via documented build.mjs plus pkill dist/index.mjs procedure and verified 200/401 responses; user about to eyeball new Risk Metrics rows and Correlation/VaR card in browser this session ended before feedback came back
+- Blocked: realized-pnl fix and account-filter-cascade fix both paused pending user re-exporting full Robinhood transaction history since current CSV appears to start June 2026 despite user recalling February trades
 
 ## Next tasks (priority order)
 

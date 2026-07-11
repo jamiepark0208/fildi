@@ -674,7 +674,7 @@ function AggCard({ label, value, sub, icon, highlight }: {
 // Convert Robinhood DB rows → PortfolioEntry for PortfolioAnalysis
 function dbToEntries(
   positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue?: string | null; unrealizedPnL?: string | null }>,
-  options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice?: string | null; unrealizedPnL?: string | null; delta?: string | null; theta?: string | null }>,
+  options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice?: string | null; unrealizedPnL?: string | null; delta?: string | null; theta?: string | null; gamma?: string | null; vega?: string | null }>,
   accountMap: Map<string, string>,
 ): PortfolioEntry[] {
   const posEntries: PortfolioEntry[] = positions.map(p => ({
@@ -718,6 +718,8 @@ function dbToEntries(
       unrealizedPnL: o.unrealizedPnL != null ? parseFloat(o.unrealizedPnL) : undefined,
       delta: o.delta != null ? parseFloat(o.delta) : undefined,
       theta: o.theta != null ? parseFloat(o.theta) : undefined,
+      gamma: o.gamma != null ? parseFloat(o.gamma) : undefined,
+      vega: o.vega != null ? parseFloat(o.vega) : undefined,
     }]
   })
 
@@ -748,7 +750,7 @@ export default function Portfolio() {
   const { data: rhData } = useQuery<{
     snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null; cashBalance: string | null; cryptoValue: string | null } | null;
     positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue: string | null; unrealizedPnL: string | null }>;
-    options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null }>;
+    options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null; gamma: string | null; vega: string | null }>;
     accountSummaries: Array<{ account: string; nickname: string | null; totalValue: string | null; equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null }>;
     realizedEvents: Array<{ account: string; symbol: string; assetType: 'stock' | 'option'; direction: 'long' | 'short'; optionType: 'call' | 'put' | null; qty: number; pnl: number; fees: number; closedAt: string }>;
   }>({
