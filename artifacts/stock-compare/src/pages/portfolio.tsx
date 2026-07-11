@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -841,12 +841,12 @@ export default function Portfolio() {
   if (authLoading || (!isAdmin && !isLoaded)) return null;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
-      <Sidebar />
+    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
+      <TopNav />
 
-      <main className="flex-1 min-w-0" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
+      <main className="pt-14 min-w-0">
         {/* Header */}
-        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
+        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Portfolio</h1>
             <p className="text-xs text-muted-foreground mt-0.5">

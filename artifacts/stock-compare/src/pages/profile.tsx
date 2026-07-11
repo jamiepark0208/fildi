@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react"
 import { useParams, useLocation, Link } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
-import { Sidebar } from "@/components/sidebar"
+import { TopNav } from "@/components/top-nav"
 import { TradeCard, type TradePost } from "@/components/TradeCard"
 import { useAuth } from "@/context/AuthContext"
 import { useDebounce } from "@/hooks/use-debounce"
@@ -636,9 +636,9 @@ export default function Profile() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] bg-background">
-      <Sidebar />
-      <main className="flex-1 ml-[var(--sidebar-w)] p-5 max-w-2xl space-y-5">
+    <div className="min-h-[100dvh] bg-background">
+      <TopNav />
+      <main className="pt-14 p-5 max-w-2xl space-y-5">
 
         {/* ── Nav bar: back to my profile + find user ── */}
         <div className="flex items-center gap-3">

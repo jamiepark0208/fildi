@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { StockMetrics } from "@workspace/api-client-react";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
@@ -101,11 +101,11 @@ export default function Rankings() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 flex">
-      <Sidebar />
+    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
+      <TopNav />
 
-      <main className="flex-1 min-w-0" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
-        <div className="p-5 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-40">
+      <main className="pt-14 min-w-0">
+        <div className="p-5 border-b border-border/50 sticky top-14 bg-background/95 backdrop-blur z-40">
           <h1 className="text-lg font-bold tracking-tight leading-none">Rankings</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Watchlist leaderboards — fundamental and technical scoring</p>
         </div>

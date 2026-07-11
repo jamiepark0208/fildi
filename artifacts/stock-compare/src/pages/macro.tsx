@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -220,9 +220,9 @@ export default function MacroDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen">
-        <Sidebar />
-        <div className="flex flex-1 items-center justify-center" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
+      <div className="h-screen">
+        <TopNav />
+        <div className="flex items-center justify-center mt-14 h-[calc(100vh-3.5rem)]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
@@ -231,9 +231,9 @@ export default function MacroDashboard() {
 
   if (isError || (!isLoading && !macroData)) {
     return (
-      <div className="flex h-screen">
-        <Sidebar />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4" style={{ marginLeft: 'var(--sidebar-w, 220px)', transition: 'margin-left 200ms ease' }}>
+      <div className="h-screen">
+        <TopNav />
+        <div className="flex flex-col items-center justify-center gap-4 mt-14 h-[calc(100vh-3.5rem)]">
           <AlertTriangle className="h-8 w-8 text-red-400" />
           <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
           <button
@@ -254,13 +254,10 @@ export default function MacroDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <Sidebar />
+    <div className="min-h-screen bg-background text-foreground">
+      <TopNav />
 
-      <main
-        className="flex-1 flex flex-col overflow-hidden"
-        style={{ marginLeft: "var(--sidebar-w, 220px)", transition: "margin-left 200ms ease" }}
-      >
+      <main className="flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden">
         {/* ── Header ─────────────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-border bg-background px-6 py-4 flex items-center justify-between">
           <div>
