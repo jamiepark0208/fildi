@@ -10,7 +10,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Shared by Drizzle queries + connect-pg-simple sessions (app.ts) — default max (10) was
+// getting starved by data-health's full table scans during enrichment under concurrent load.
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.DATABASE_POOL_MAX ?? 20),
+  idleTimeoutMillis: 30_000,
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

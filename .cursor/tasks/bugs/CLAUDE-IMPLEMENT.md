@@ -1,13 +1,13 @@
 # Claude — bug fix implementation guide
 
-> **Scope:** `.cursor/tasks/bugs/` only. Implement bugs in **wave order** (see [INDEX.md](INDEX.md)).  
+> **Scope:** `.cursor/tasks/bugs/` only. Implement bugs in **wave order** (see [../INDEX.md](../INDEX.md#bugs-seq-119)).  
 > **Do not** edit unrelated features. **Do not** mark tasks `done` until §9–§11 verified.
 
 ---
 
 ## Before any fix
 
-1. Read **this file** + the specific bug task + [INDEX.md](INDEX.md) cluster/deps.
+1. Read **this file** + the specific bug task + [../INDEX.md](../INDEX.md#bugs-seq-119) cluster/deps.
 2. Load skills **one at a time** as needed:
    - `.claude/skills/caching-patterns.md` — TTLCache, registry, **do not shorten TTLs** to fix RAM
    - `.claude/skills/data-architecture.md` — FMP budget, stale windows, registry flags
@@ -48,13 +48,13 @@
 | **12 Manual-only** | Things Claude cannot confirm in sandbox |
 | **13 Regression** | Files/flows that must still work |
 
-When done: set task header `Status` → `done`, add `## DONE (date)` with commit-ish summary, update [INDEX.md](INDEX.md) matrix.
+When done: set task header `Status` → `done`, add `## DONE (date)` with commit-ish summary, update [../INDEX.md](../INDEX.md#bugs-seq-119) matrix.
 
 ---
 
 ## Cluster reading order
 
-See [INDEX.md](INDEX.md) — the Cluster column in the matrix, plus the "Clusters" section below it, are the single source for grouping/coupling/status. Don't re-derive or duplicate that list here.
+See [../INDEX.md](../INDEX.md#bugs-seq-119) — the Cluster column in the matrix, plus the "Clusters" section below it, are the single source for grouping/coupling/status. Don't re-derive or duplicate that list here.
 
 ---
 

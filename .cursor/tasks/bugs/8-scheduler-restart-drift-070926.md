@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P1 |
 | **Area** | continuous-run |
 | **Effort** | M |
@@ -118,3 +118,9 @@ Pattern: same as `SCORING_CONFIG_KEY` → `app_config` table (`lib/db/src/schema
 
 - 30-minute heartbeat interval unchanged
 - `enrichmentRunning` in-memory guard still prevents concurrent runs within process
+
+---
+
+## DONE (2026-07-11)
+
+Applied fix option A, inline in `scheduler.ts` rather than a separate `app-config-keys.ts` (small enough to keep local, same select-then-insert-or-update pattern as `scoring-config-db.ts`, key `last_enrichment_run` on the existing `app_config` table — confirmed live via `to_regclass`, no migration needed since bug/1 already created it). `startScheduler()` is now async: it awaits `loadPersistedLastRun()` (hydrates the in-memory `lastEnrichmentRun` export from DB) before registering the 30-min interval, so `data-health.ts` needed no changes — it already reads that same export. After a successful run, `persistLastRun()` writes the ISO timestamp back. Updated `index.ts`'s call site to `.catch()` since the function is now async (matches the existing fire-and-forget pattern used for `runSeed`/`runStartupStaleRefresh` in that same listen callback). Verified: `pnpm run typecheck` clean (2 pre-existing unrelated errors only), 40/40 tests pass. Did not add a unit test for `shouldRunNow()`/persistence (optional per §11, and this repo's tests are pure-function only — DB-backed logic isn't covered by the existing pattern, same reasoning as bug/16). Manual restart-at-02:15-UTC verification not performed (§12, needs the actual schedule window).

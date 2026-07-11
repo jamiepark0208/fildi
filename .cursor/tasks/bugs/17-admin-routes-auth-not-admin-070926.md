@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P2 |
 | **Area** | security |
 | **Effort** | XS |
@@ -115,3 +115,9 @@ PATCH/DELETE cache already `requireAdmin`.
 
 - `ApiMonitorTab` only visible to admin in `settings.tsx` — already gated
 - Do not lock out admin cache clear/TTL PATCH
+
+---
+
+## DONE (2026-07-11)
+
+Applied fix option A: swapped `requireAuth` → `requireAdmin` on `GET /admin/cache/status` (`admin-cache.ts`) and `GET /admin/data-health` (`data-health.ts`), removed the now-unused `requireAuth` imports. Live-verified via curl against a rebuilt/restarted server (not just tsc, per the bug/1 lesson that typecheck alone missed a real routing bug): anonymous requests to both routes now return 401 (previously 200), `healthz` unaffected at 200. Full member-session → 403 path not separately tested (no member test cookie handy this session) but `requireAdmin` wraps `requireAuth` internally, so anonymous-401 confirms the auth layer is active; member-403 is the same code path already proven correct on the PATCH/DELETE cache routes. Verified: `pnpm run typecheck` clean (2 pre-existing unrelated errors only).

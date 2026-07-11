@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P2 |
 | **Area** | correctness |
 | **Effort** | S |
@@ -118,3 +118,9 @@ Optional: extract shared `resolvedStatuses` constant used by FE + BE.
 
 - OPEN posts still excluded from win rate
 - CLOSED manual close path unchanged
+
+---
+
+## DONE (2026-07-11)
+
+Extended the `wins`/`losses` SQL CASE in `routes/feed.ts` (profile stats query) to also count `EXPIRED_WIN`/`EXPIRED_LOSS` statuses, matching `feed.tsx`'s client-side `TopPerformers` aggregation exactly (win if `CLOSED` with `resolved_pnl > 0`, or status is `EXPIRED_WIN`; loss otherwise for resolved statuses). `winRate` is derived from `wins`/`losses` only, so this fixes it without touching the separate `closed` stat (still CLOSED-only — distinct, correct meaning: manual closes). Added an inline comment documenting the resolved-status set per the task's prevention note. No unit test added — this codebase's test suite is pure-function only (no DB-fixture tests exist for any route), so a SQL CASE expression isn't testable in that pattern without a larger DB-fixture harness (out of scope here). Verified via typecheck (clean, same 2 pre-existing unrelated errors as main).

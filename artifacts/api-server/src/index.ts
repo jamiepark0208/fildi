@@ -27,7 +27,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startScheduler();
+  startScheduler().catch((e: unknown) => logger.error({ err: e }, "startup: scheduler init failed"));
   startCacheSweep(); // bug/5: periodic prune of expired TTLCache entries
 
   withRetry(() => runSeed(), {

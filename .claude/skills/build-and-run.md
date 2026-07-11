@@ -14,6 +14,8 @@ description: Rebuild the API server and restart it. Use after ANY change to api-
 
 The `.replit` "Project" workflow runs exactly two supervised tasks, each an infinite crash-restart loop that already holds all secrets (ANTHROPIC_API_KEY, DATABASE_URL, PORT):
 
+Optional tuning env vars (unset = safe default, don't need to be secrets): `DATABASE_POOL_MAX` (default 20) — shared Postgres pool size for Drizzle + connect-pg-simple sessions in `lib/db/src/index.ts`, see bugs/6.
+
 - `bash artifacts/stock-compare/start.sh` → `pnpm run dev` → vite on **8081**
 - `bash artifacts/api-server/start.sh` → `node dist/index.mjs` on **8080**
 

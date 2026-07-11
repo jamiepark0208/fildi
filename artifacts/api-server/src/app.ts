@@ -23,6 +23,13 @@ if (process.env["SENTRY_DSN"]) {
 
 const app: Express = express();
 
+// bug/7: behind a reverse proxy (Replit), req.ip is the proxy's IP unless we trust
+// X-Forwarded-For — without this every client shares one rate-limit bucket. `1` = trust
+// exactly one hop (the proxy in front of us), not the full chain, to avoid IP spoofing.
+if (process.env["NODE_ENV"] === "production") {
+  app.set("trust proxy", 1);
+}
+
 app.use(requestId);
 app.use(helmet());
 app.use(
@@ -53,7 +60,7 @@ const PgSession = connectPgSimple(session as any);
 // express-session uses CJS `export =`; bundler moduleResolution can't synthesize callable default
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((session as any)({
-  store: new PgSession({ pool, tableName: 'session' }),
+  store: new PgSession({ pool, tableName: 'session', pruneSessionInterval: 900 }), // bug/18: 15-min expired-row cleanup
   secret: process.env['SESSION_SECRET']!,
   resave: false,
   saveUninitialized: false,

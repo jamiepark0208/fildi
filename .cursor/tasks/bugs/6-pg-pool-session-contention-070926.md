@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P1 |
 | **Area** | continuous-run / multi-user |
 | **Effort** | S |
@@ -116,3 +116,9 @@ Optional phase 2: dedicated small pool for `connect-pg-simple` in `app.ts`.
 ## 13. Regression watchlist
 
 - Same `pool` used by Drizzle + session store — do not create orphan pools without documenting total connection budget
+
+---
+
+## DONE (2026-07-11)
+
+Applied fix option A: `lib/db/src/index.ts` pool now sets `max: Number(process.env.DATABASE_POOL_MAX ?? 20)` and `idleTimeoutMillis: 30_000`, env-tunable with a safe default (up from the pg default of 10). Did not build a dedicated second pool for `connect-pg-simple` (option B / phase 2) — out of scope for this pass, single shared pool with more headroom addresses the acceptance criteria. Documented `DATABASE_POOL_MAX` in `.claude/skills/build-and-run.md` (no `.env.example` exists in this repo to add it to). Verified: `pnpm run typecheck` in api-server clean (same 2 pre-existing unrelated errors as main). No load test run (manual-only per §12, needs real concurrent traffic to observe).

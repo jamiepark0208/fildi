@@ -1048,12 +1048,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               />
             )}
 
-            <CatalystsSection
-              catalysts={data.catalysts}
-              earningsDate={data.earningsDate}
-              analystActions={data.analystActions}
-              news={data.news}
-            />
+            <CatalystsSection catalysts={data.catalysts} />
 
             {propTicker && activeTicker && (
               <CompetitorsSection

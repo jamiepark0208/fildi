@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — 2026-07-11 |
 | **Priority** | P2 |
 | **Area** | continuous-run |
 | **Effort** | S |
@@ -114,3 +114,9 @@ See connect-pg-simple docs — uses `expire` column.
 
 - `rolling: true` cookie behavior unchanged
 - Shared pool with bug/6 — prune adds light periodic DB load
+
+---
+
+## DONE (2026-07-11)
+
+Applied fix option A: added `pruneSessionInterval: 900` (15 min) to the `PgSession` store config in `app.ts`. connect-pg-simple's built-in pruner deletes rows past the `expire` column on that interval — doesn't touch active sessions since it only targets already-expired rows, so `rolling: true` refresh behavior is unaffected. Uses the same shared `pool` as bug/6's now-larger connection budget, so the periodic prune query has headroom. Verified: `pnpm run typecheck` clean (2 pre-existing unrelated errors only). No manual production-scale row-count verification (§12, needs months of real traffic to observe).
