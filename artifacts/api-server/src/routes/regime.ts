@@ -5,6 +5,12 @@ import { logger } from "../lib/logger.js";
 import { db, marketRegime } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
+// Multi-signal business-cycle regime (expansion/contraction/late_cycle/etc.),
+// DB-persisted with signalScores/confirming/conflicting signals, 24h cache.
+// Distinct from the intraday VIX-band volatility regime served at
+// /volatility/regime (routes/macro-regime.ts) — different taxonomy, feeds
+// home/fundamentals/feed scoring rather than option-strike selection.
+
 const router = Router();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 

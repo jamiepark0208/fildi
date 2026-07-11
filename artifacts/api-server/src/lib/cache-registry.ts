@@ -29,7 +29,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'history-1d':     'Price History (Intraday)',
   options:          'Options Chain',
   'options-expiry': 'Options Calendar',
-  'macro-regime':   'Market Regime (VIX)',
+  'volatility-regime': 'Volatility Regime (VIX)',
   'macro-data':     'Macro Data (FRED + Yahoo)',
   'macro-charts':   'Macro Charts (VIX/Rates/Sentiment)',
   'macro-cot':      'COT Positioning (CFTC)',
@@ -103,8 +103,8 @@ export function getAllCaches(): CacheStats[] {
       return { ...stats, displayName: DISPLAY_NAMES[stats.name] ?? stats.name };
     }),
     {
-      name: 'macro-regime',
-      displayName: DISPLAY_NAMES['macro-regime']!,
+      name: 'volatility-regime',
+      displayName: DISPLAY_NAMES['volatility-regime']!,
       ttlMs: MACRO_REGIME_TTL,
       entryCount: macroRegimeEntry ? 1 : 0,
       hits: null, misses: null, hitRate: '—',

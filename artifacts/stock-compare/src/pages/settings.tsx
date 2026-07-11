@@ -430,7 +430,7 @@ function CacheMonitorTab() {
                         {row.entryCount === 0 ? "—" : `${row.entryCount}`}
                       </td>
                       <td className="text-right">
-                        {row.name !== "macro-regime" && (
+                        {row.name !== "volatility-regime" && (
                           <button
                             onClick={e => handleClear(e, row.name)}
                             disabled={clearMutation.isPending}

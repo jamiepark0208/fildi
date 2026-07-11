@@ -57,13 +57,13 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 20 | P1 | ready | [scorecard-guide-improvements](enhancements/20-scorecard-guide-improvements-070926.md) |
 | 21 | P2 | ready | [settings-trader-preferences-improvements](enhancements/21-settings-trader-preferences-improvements-070926.md) |
 | 22 | P1 | ready | [openapi-coverage-orval-migration](enhancements/22-openapi-coverage-orval-migration-070926.md) |
-| 23 | P2 | ready | [data-freshness-monitoring](enhancements/23-data-freshness-monitoring-070926.md) |
-| 24 | P2 | ready | [polygon-av-backfill-completion](enhancements/24-polygon-av-backfill-completion-070926.md) |
+| 23 | P2 | done | [data-freshness-monitoring](enhancements/23-data-freshness-monitoring-070926.md) — bronze row counts added 2026-07-11 |
+| 24 | P2 | done | [polygon-av-backfill-completion](enhancements/24-polygon-av-backfill-completion-070926.md) — bronze populated + stale comment fixed 2026-07-11, AV rotation not cron'd (expected) |
 | 25 | P2 | ready | [e2e-smoke-playwright](enhancements/25-e2e-smoke-playwright-070926.md) |
-| 26 | P2 | ready | [react-query-fetch-standardization](enhancements/26-react-query-fetch-standardization-070926.md) |
-| 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) |
-| 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) |
-| 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) |
+| 26 | P2 | done | [react-query-fetch-standardization](enhancements/26-react-query-fetch-standardization-070926.md) — rankings key + App staleTime via enh/34 Wave B; regime "duplicate" was N/A (two unrelated products), scanner endpoint renamed to /volatility/regime for clarity 2026-07-11 |
+| 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) — re-confirmed deferred 2026-07-11 |
+| 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) — re-confirmed deferred 2026-07-11 |
+| 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) — re-confirmed deferred 2026-07-11 |
 | 30 | P0 | ready | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) |
 | 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, can run independently of 34 |
 | 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D done 2026-07-11 |

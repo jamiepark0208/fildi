@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   BarChart2, LineChart, BarChart, Bookmark,
   Settings as SettingsIcon, BriefcaseBusiness, BookOpen,
-  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList, Activity,
+  ScanLine, Globe, LogOut, ChevronLeft, ChevronRight, GripVertical, User, LayoutList, Activity, Trophy,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,6 +42,7 @@ const ICONS = {
   User,
   LayoutList,
   Activity,
+  Trophy,
 } as const;
 
 const DEFAULT_GROUPS: NavGroup[] = [
@@ -63,6 +64,7 @@ const DEFAULT_GROUPS: NavGroup[] = [
     id: "analysis",
     label: "Analysis",
     items: [
+      { id: "rankings", href: "/rankings", label: "Rankings", icon: "Trophy" },
       { id: "fundamental", href: "/", label: "Fundamental", icon: "BarChart" },
       { id: "technical", href: "/technical", label: "Technical", icon: "LineChart" },
       { id: "options-scanner", href: "/options-scanner", label: "Options Scanner", icon: "ScanLine" },

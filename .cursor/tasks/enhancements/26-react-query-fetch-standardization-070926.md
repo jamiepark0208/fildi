@@ -189,3 +189,15 @@ export const STALE = {
 
 **Verdict:** APPROVE — ready (narrow)  
 **Was:** ready with thin audit. **Key:** home `fundamentals-rankings` vs scanner `fundamentals/rankings` is the smoking gun; fix keys + App staleTime — leave Orval bulk to enh/22.
+
+## Status update (2026-07-11)
+
+**W1–W3 done via enh/34 Wave B**: `query-keys.ts` created, App default `staleTime` 5m, home + scanner unified on `queryKeys.fundamentalsRankings`.
+
+**W4 investigated and closed as N/A, not fixed as originally scoped.** The two "regime" endpoints are not the same data with mismatched keys — they're two unrelated products that happened to collide on the word "regime":
+- `/regime/macro` (`routes/regime.ts`) — business-cycle regime (expansion/contraction/late_cycle/etc.), DB-persisted to `market_regime` with signalScores as its reasoning trail, 24h cache, feeds home/fundamentals/feed scoring.
+- `/macro/regime` (`routes/macro-regime.ts`) — intraday VIX-band regime (LOW_VOL/BASELINE/ELEVATED/EXTREME), live Yahoo quote, 30min in-memory cache, feeds option-strike scoring on the scanner only.
+
+Unifying their keys would have silently merged two different taxonomies. Instead, renamed the scanner's route to `/volatility/regime` (client key `["volatility","regime"]`, cache-registry name `volatility-regime`) to remove the confusing naming collision, and added clarifying comments on both route files. No DB persistence added for the VIX regime — it's a cheap live computation on a 30-min cache, no need for the audit trail the business-cycle regime has.
+
+Task considered **done**.

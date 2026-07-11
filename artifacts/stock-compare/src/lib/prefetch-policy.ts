@@ -8,6 +8,7 @@ type ChunkLoader = () => Promise<unknown>;
 const ROUTE_CHUNKS: Record<string, ChunkLoader> = {
   watchlist: () => import("@/pages/watchlist"),
   "options-scanner": () => import("@/pages/options-scanner"),
+  rankings: () => import("@/pages/rankings"),
 };
 
 const MAX_IDLE_PREFETCH = 2;

@@ -84,10 +84,10 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 ## Cluster 11 — Tech debt / infra (can batch or do one at a time)
 - enh/22 openapi-coverage-orval-migration (L)
-- enh/23 data-freshness-monitoring (S)
-- enh/24 polygon-av-backfill-completion (M)
+- enh/23 data-freshness-monitoring (S) — DONE 2026-07-11: bronze row counts (polygon/av) added to data-health route + ApiMonitorTab
+- enh/24 polygon-av-backfill-completion (M) — DONE 2026-07-11: bronze populated (polygon 161 rows, av 14 rows), stale FIELD_DEFS comment fixed; AV rotation not on a cron (expected, deferred to enh/28) — re-run `backfill-av.ts` manually to continue the 25/day rotation
 - enh/25 e2e-smoke-playwright (M) — after Cluster 1 CI is green ✅
-- enh/26 react-query-fetch-standardization (M)
+- enh/26 react-query-fetch-standardization (M) — DONE 2026-07-11: query-keys.ts + App staleTime + unified rankings key via enh/34 Wave B; regime "duplicate" (W4) was N/A — renamed scanner's VIX endpoint to /volatility/regime instead of merging two unrelated regime taxonomies
 
 ---
 
@@ -99,4 +99,4 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/12 analyst section requires enh/6 Track 1
 - naf/4–6 require scanner-reasoning.ts extract
 - enh/30 spawns enh/31+32 (do not collide with enh/19 heatmap)
-- enh/27–29 are permanently deferred (goals already met by existing code)
+- enh/27–29 are permanently deferred (goals already met by existing code) — re-confirmed 2026-07-11, no code changes since 2026-07-09 audit bypass this

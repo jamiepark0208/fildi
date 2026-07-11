@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, tickerFundamentals, tickerRegistry, fieldProvenance } from "@workspace/db";
-import { eq, isNull, isNotNull } from "drizzle-orm";
+import { db, tickerFundamentals, tickerRegistry, fieldProvenance, polygonFundamentals, avFundamentals } from "@workspace/db";
+import { eq, isNull, isNotNull, sql } from "drizzle-orm";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { lastEnrichmentRun, enrichmentRunning } from "../lib/scheduler.js";
 import { FIELD_DEFS } from "../scripts/merge-trusted.js";
@@ -12,7 +12,7 @@ const TOP_NULL_FIELDS = 5;
 
 router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {
   try {
-    const [tfRows, regRows, provRows] = await Promise.all([
+    const [tfRows, regRows, provRows, polygonCountRows, avCountRows] = await Promise.all([
       db.select({
         ticker: tickerFundamentals.ticker,
         fundamentalsLastFetched: tickerFundamentals.fundamentalsLastFetched,
@@ -23,6 +23,8 @@ router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {
       db.select({ divergent: fieldProvenance.divergent })
         .from(fieldProvenance)
         .where(eq(fieldProvenance.divergent, true)),
+      db.select({ count: sql<number>`count(*)` }).from(polygonFundamentals),
+      db.select({ count: sql<number>`count(*)` }).from(avFundamentals),
     ]);
 
     const activeSet = new Set(regRows.map(r => r.ticker));
@@ -62,6 +64,10 @@ router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {
       topNullFields,
       lastEnrichmentRun: lastEnrichmentRun?.toISOString() ?? null,
       enrichmentRunning,
+      bronze: {
+        polygonRows: Number(polygonCountRows[0]?.count ?? 0),
+        avRows: Number(avCountRows[0]?.count ?? 0),
+      },
     });
   } catch (err) {
     next(err);
