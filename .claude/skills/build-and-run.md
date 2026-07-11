@@ -1,6 +1,6 @@
 ---
 name: build-and-run
-description: Rebuild the API server and restart it. Use after ANY change to api-server/src/**. Also covers diagnosing 502 errors, duplicate/stray processes, and verifying the stack is healthy.
+description: Rebuild the API server and restart it. Use after ANY change to api-server/src/**. Also covers diagnosing 502 errors and verifying the stack is healthy. Read the PID-24 warning before touching any process that isn't a dist/index.mjs child.
 ---
 
 # TradeDash — Build & Run Reference
@@ -43,22 +43,20 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/daily-brief
 ```
 200 or 401 both mean the server is up (401 = auth required on that route).
 
-## Check for duplicate/stray processes
+## NEVER kill a process whose parent is PID 24 (`pid2`) — even if it looks like a duplicate
 
-Ask "how many servers are running" whenever something behaves inconsistently (stale code, flaky ports) — duplicates have happened before (2026-07-10 incident: a hook auto-spawned an extra api-server supervisor on a transient health-check failure, which then crash-looped forever on EADDRINUSE; separately a stray root-level `pnpm run dev` had fanned out extra stock-compare/mockup-sandbox instances not managed by any supervisor).
+`pid2` (PID 24) is Replit's own platform-level process supervisor, not anything in this repo. It sometimes launches extra processes directly (e.g. `mockup-sandbox`, a second stock-compare instance) outside the two `.replit` workflow tasks — `stock-compare/start.sh` even has a comment acknowledging this ("Replit agent starting mockup-sandbox"). These processes look redundant, but **you cannot tell from inside the container whether Replit's platform depends on them or is tracking their health as part of the workflow.**
+
+**Incident (2026-07-10 → 2026-07-11):** a prior session diagnosed such a process as a "safe stray" and killed it directly. The kill produced `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`, which cascaded and tore down the *entire* Project workflow — both the stock-compare and api-server supervisors — not just the targeted process. Only an orphaned leftover `node dist/index.mjs` kept the API alive by accident; the frontend was fully down until the user restarted the workflow from Replit's UI.
+
+**The only processes safe to `kill` directly are children spawned by our own `start.sh` loops** (i.e. `node dist/index.mjs` under api-server's supervisor — see Step 2 above). Everything else — anything with `ppid 24`, or anything whose supervisor you didn't personally verify is one of the two `start.sh` scripts — do not touch. If you see what looks like a duplicate or stray process at that level, just report it to the user; don't kill it.
+
+If the app is unreachable and `pgrep -af start.sh` shows **fewer than 2** processes (i.e. a supervisor itself is gone, not just its child), you cannot recover this yourself — starting `start.sh` by hand won't have Replit's injected secrets, and you don't know why the supervisor died. Tell the user: **"Please Stop and Run the Replit app"** — this is the one legitimate case for that ask, don't try to route around it with manual process surgery.
 
 ```bash
-pgrep -af "start.sh"                 # expect exactly 2: stock-compare + api-server
+pgrep -af "start.sh"                 # expect exactly 2: stock-compare + api-server. Fewer = need Stop/Run. More = report, don't kill.
 pgrep -af "dist/index.mjs"           # expect exactly 1
-pgrep -af "vite.*stock-compare|stock-compare.*vite"   # expect exactly 1
 ```
-
-If you find more than expected:
-- Prefer the process whose parent chain traces back to the `.replit` workflow (`ps -o pid,ppid,cmd -p <pid>`, walk ppid) — orphans get reparented to `ppid 1`.
-- `mockup-sandbox` running as a dev server is **not** part of the workflow at all (`.replit` only declares stock-compare + api-server) — if you see it, it's a stray, safe to kill.
-- Kill stray/orphaned processes directly with `kill <pid>`; never `pkill -9` broadly since that can catch the legitimate supervisor too — target specific PIDs found via the checks above.
-
-`.claude/scripts/rehydrate.js`'s health-check-triggered auto-spawn now checks `pgrep` before spawning a new supervisor, so it won't recreate this problem on its own — but manual `pnpm run dev` at the workspace root (bypassing the supervised `start.sh` scripts) is still a way to reintroduce strays. Don't run it.
 
 ## Check logs
 
