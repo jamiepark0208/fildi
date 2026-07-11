@@ -1,6 +1,9 @@
 # TradeDash — Claude Code Config
 > Claude Code only. Full project context in .agents/. State restored on every prompt via rehydrate hook.
 
+## RESPONSE STYLE
+Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
+
 ## STARTUP (every session)
 `rehydrate.js` runs automatically via UserPromptSubmit hook on every prompt — do NOT run it manually, it's not a one-time setup step.
 Run once per session: `node .claude/scripts/validate-workflow.js`

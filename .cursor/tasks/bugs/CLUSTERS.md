@@ -18,13 +18,13 @@ Use with [INDEX.md](INDEX.md) wave order and [CLAUDE-IMPLEMENT.md](CLAUDE-IMPLEM
 
 ---
 
-## Cluster B — Fetch overprocessing
+## Cluster B — Fetch overprocessing — DONE 2026-07-11
 
-| # | Slug | Role |
-|---|---|---|
-| 9 | watchlist-peer-flag-cascade | POST watchlist must not bulk-flag peer registry |
-| 11 | options-scanner-fetch-storm | Remove auto `fetchedOnce` for all tickers on mount |
-| 12 | watchlist-quote-n-plus-one | Batch quotes; reuse per-ticker `quoteCache` |
+| # | Slug | Role | Status |
+|---|---|---|---|
+| 9 | watchlist-peer-flag-cascade | POST watchlist must not bulk-flag peer registry | done |
+| 11 | options-scanner-fetch-storm | Replaced with `/api/options/batch` + `optionsCache` | done |
+| 12 | watchlist-quote-n-plus-one | Replaced with `/api/stocks/quotes` + `quoteCache` | done |
 
 **Coupling:** **9** shrinks `fetch_fundamentals` registry → affects **4** startup universe size.
 

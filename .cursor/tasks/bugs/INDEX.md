@@ -26,8 +26,8 @@ Source: production-readiness code audit (plan v2). Each task includes §3 root c
 | 8 | P1 | ready | M | Med | Med | [scheduler-restart-drift](8-scheduler-restart-drift-070926.md) |
 | 9 | P1 | done | S | Med | Med | [watchlist-peer-flag-cascade](9-watchlist-peer-flag-cascade-070926.md) |
 | 10 | P1 | ready | XS | Med | Low | [watchlist-no-max-size](10-watchlist-no-max-size-070926.md) |
-| 11 | P1 | ready | M | High | Med | [options-scanner-fetch-storm](11-options-scanner-fetch-storm-070926.md) |
-| 12 | P1 | ready | M | Med | Low | [watchlist-quote-n-plus-one](12-watchlist-quote-n-plus-one-070926.md) |
+| 11 | P1 | done | M | High | Med | [options-scanner-fetch-storm](11-options-scanner-fetch-storm-070926.md) |
+| 12 | P1 | done | M | Med | Low | [watchlist-quote-n-plus-one](12-watchlist-quote-n-plus-one-070926.md) |
 | 13 | P1 | ready | XS | Med | Low | [react-query-cross-user-bleed](13-react-query-cross-user-bleed-070926.md) |
 | 14 | P1 | ready | L | High | High | [portfolio-localstorage-not-server](14-portfolio-localstorage-not-server-070926.md) |
 | 15 | P2 | ready | S | Med | Low | [catalyst-dual-buildCatalysts](15-catalyst-dual-buildCatalysts-070926.md) |
