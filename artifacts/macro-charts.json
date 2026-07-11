@@ -1,14 +1,6 @@
 {
-  "fetchedAt": "2026-07-09T21:20:06.085Z",
+  "fetchedAt": "2026-07-11T12:54:19.597Z",
   "vixHistory": [
-    {
-      "date": "2024-07-09",
-      "value": 12.510000228881836
-    },
-    {
-      "date": "2024-07-10",
-      "value": 12.850000381469727
-    },
     {
       "date": "2024-07-11",
       "value": 12.920000076293945
@@ -2012,17 +2004,13 @@
     {
       "date": "2026-07-09",
       "value": 15.84000015258789
+    },
+    {
+      "date": "2026-07-10",
+      "value": 15.029999732971191
     }
   ],
   "fedFundsHistory": [
-    {
-      "date": "2024-07-09",
-      "value": 5.224999904632568
-    },
-    {
-      "date": "2024-07-10",
-      "value": 5.224999904632568
-    },
     {
       "date": "2024-07-11",
       "value": 5.197999954223633
@@ -4018,17 +4006,13 @@
     {
       "date": "2026-07-09",
       "value": 3.681999921798706
+    },
+    {
+      "date": "2026-07-10",
+      "value": 3.694999933242798
     }
   ],
   "tenYearHistory": [
-    {
-      "date": "2024-07-09",
-      "value": 4.300000190734863
-    },
-    {
-      "date": "2024-07-10",
-      "value": 4.28000020980835
-    },
     {
       "date": "2024-07-11",
       "value": 4.192999839782715
@@ -6024,6 +6008,10 @@
     {
       "date": "2026-07-09",
       "value": 4.539000034332275
+    },
+    {
+      "date": "2026-07-10",
+      "value": 4.568999767303467
     }
   ],
   "vixCurve": [
@@ -6038,31 +6026,31 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 15.84,
+      "value": 15.03,
       "weekAgo": 16.149999618530273,
-      "monthAgo": 19.8700008392334,
-      "threeMonthAgo": 19.489999771118164
+      "monthAgo": 19.440000534057617,
+      "threeMonthAgo": null
     },
     {
       "tenor": "93D",
       "days": 93,
-      "value": 18.99,
+      "value": 18.57,
       "weekAgo": 19.040000915527344,
-      "monthAgo": 21.309999465942383,
-      "threeMonthAgo": 21.809999465942383
+      "monthAgo": 21.420000076293945,
+      "threeMonthAgo": null
     },
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.32,
+      "value": 21.09,
       "weekAgo": 21.5,
-      "monthAgo": 22.969999313354492,
-      "threeMonthAgo": 23.389999389648438
+      "monthAgo": 23.139999389648438,
+      "threeMonthAgo": null
     },
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.09,
+      "value": 22.97,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6072,72 +6060,68 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.625,
+      "impliedRate": 3.63,
       "weekAgo": 3.632,
-      "monthAgo": 3.63,
-      "threeMonthAgo": 3.635,
+      "monthAgo": 3.625,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.745,
+      "impliedRate": 3.77,
       "weekAgo": 3.725,
-      "monthAgo": 3.695,
-      "threeMonthAgo": 3.625,
+      "monthAgo": 3.675,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.82,
+      "impliedRate": 3.85,
       "weekAgo": 3.79,
-      "monthAgo": 3.735,
-      "threeMonthAgo": 3.615,
+      "monthAgo": 3.71,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.94,
+      "impliedRate": 3.97,
       "weekAgo": 3.91,
-      "monthAgo": 3.85,
-      "threeMonthAgo": 3.575,
+      "monthAgo": 3.795,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 3.975,
+      "impliedRate": 4,
       "weekAgo": 3.94,
-      "monthAgo": 3.88,
-      "threeMonthAgo": 3.565,
+      "monthAgo": 3.82,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.03,
+      "impliedRate": 4.055,
       "weekAgo": 3.99,
-      "monthAgo": 3.95,
-      "threeMonthAgo": 3.54,
+      "monthAgo": 3.885,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     },
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 4.07,
+      "impliedRate": 4.095,
       "weekAgo": 4.02,
-      "monthAgo": 4.015,
-      "threeMonthAgo": 3.525,
+      "monthAgo": 3.945,
+      "threeMonthAgo": null,
       "isTbillProxy": false
     }
   ],
   "hySpreadHistory": [
-    {
-      "date": "2023-07-10",
-      "value": 4.13
-    },
     {
       "date": "2023-07-11",
       "value": 4.05
@@ -9281,13 +9265,13 @@
     {
       "date": "2026-07-08",
       "value": 2.7
+    },
+    {
+      "date": "2026-07-09",
+      "value": 2.7
     }
   ],
   "igSpreadHistory": [
-    {
-      "date": "2023-07-10",
-      "value": 1.29
-    },
     {
       "date": "2023-07-11",
       "value": 1.28
@@ -12427,17 +12411,13 @@
     {
       "date": "2026-07-08",
       "value": 0.76
+    },
+    {
+      "date": "2026-07-09",
+      "value": 0.76
     }
   ],
   "putCallHistory": [
-    {
-      "date": "2024-07-09",
-      "value": 78.58000183105469
-    },
-    {
-      "date": "2024-07-10",
-      "value": 83.41000366210938
-    },
     {
       "date": "2024-07-11",
       "value": 84.47000122070312
@@ -14437,17 +14417,13 @@
     {
       "date": "2026-07-09",
       "value": 88.77999877929688
+    },
+    {
+      "date": "2026-07-10",
+      "value": 87.27999877929688
     }
   ],
   "fearGreedHistory": [
-    {
-      "date": "2025-07-09",
-      "value": 75.9
-    },
-    {
-      "date": "2025-07-10",
-      "value": 77
-    },
     {
       "date": "2025-07-11",
       "value": 75.3
@@ -15450,11 +15426,15 @@
     },
     {
       "date": "2026-07-09",
-      "value": 47.2
+      "value": 46.1
     },
     {
-      "date": "2026-07-09",
-      "value": 47.2
+      "date": "2026-07-10",
+      "value": 49.5
+    },
+    {
+      "date": "2026-07-10",
+      "value": 49.5
     }
   ],
   "putCallRatioHistory": [],
@@ -38090,14 +38070,6 @@
   ],
   "copperGoldHistory": [
     {
-      "date": "2024-07-09",
-      "value": 0.00194
-    },
-    {
-      "date": "2024-07-10",
-      "value": 0.001942
-    },
-    {
       "date": "2024-07-11",
       "value": 0.001867
     },
@@ -40103,18 +40075,14 @@
     },
     {
       "date": "2026-07-09",
-      "value": 0.001512
+      "value": 0.001505
+    },
+    {
+      "date": "2026-07-10",
+      "value": 0.001519
     }
   ],
   "dxyHistory": [
-    {
-      "date": "2024-07-09",
-      "value": 105.12000274658203
-    },
-    {
-      "date": "2024-07-10",
-      "value": 105.05000305175781
-    },
     {
       "date": "2024-07-11",
       "value": 104.44000244140625
@@ -42121,7 +42089,11 @@
     },
     {
       "date": "2026-07-09",
-      "value": 100.93000030517578
+      "value": 100.94000244140625
+    },
+    {
+      "date": "2026-07-10",
+      "value": 100.97000122070312
     }
   ]
 }

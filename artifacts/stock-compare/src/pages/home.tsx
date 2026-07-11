@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, StockMetrics } from "@workspace/api-client-react";
 import { TickerShelf } from "@/components/ticker-shelf";
@@ -11,6 +11,8 @@ import { Sidebar } from "@/components/sidebar";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
 import { useWatchlist } from "@/hooks/use-watchlist";
+import { queryKeys } from "@/lib/query-keys";
+import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
 
 interface HomeProps {
   tickers: string[];
@@ -98,8 +100,8 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   });
   const riskFreeRate = riskFreeRateQuery.data ?? null;
 
-  const { data: serverRankings } = useQuery({
-    queryKey: ["fundamentals-rankings"],
+  const { data: serverRankings, isLoading: rankingsLoading } = useQuery({
+    queryKey: queryKeys.fundamentalsRankings,
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
@@ -108,6 +110,12 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  // Idle-prefetch next-likely route chunks once this page's own data has
+  // settled — never while rankings is still in-flight (launch policy edge case).
+  useEffect(() => {
+    if (!rankingsLoading) idlePrefetchRouteChunks();
+  }, [rankingsLoading]);
 
   const rankings = useMemo((): StockScore[] => {
     if (!serverRankings?.length) return [];

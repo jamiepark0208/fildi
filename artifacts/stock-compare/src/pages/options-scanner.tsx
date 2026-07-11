@@ -17,6 +17,7 @@ import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 import { useAuth } from "@/context/AuthContext";
+import { queryKeys } from "@/lib/query-keys";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -828,13 +829,12 @@ export default function OptionsScanner() {
 
   // ── Fundamental rankings — for Option Scorer stock quality component ──────────
   const { data: fundRankingsData } = useQuery({
-    queryKey: ["fundamentals", "rankings"],
+    queryKey: queryKeys.fundamentalsRankings,
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
       return res.json();
     },
-    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 

@@ -60,10 +60,18 @@ Wave C: use linked bug §9–13 — do not re-spec fixes here.
 
 | Item | Status |
 |---|---|
-| A — route error boundaries | ⬜ |
-| B — lazy routes + skeleton + query-keys + prefetch-policy | ⬜ |
-| C — bugs 4, 5, 11, 12 | ⬜ |
-| D — enh/5 + dev-up.sh | ⬜ |
+| A — route error boundaries | ✅ 2026-07-11 |
+| B — lazy routes + skeleton + query-keys + prefetch-policy | ✅ 2026-07-11 |
+| C — bugs 4, 5, 11, 12 | ✅ already done (see bugs/4,5,11,12 — closed before this session, verified against INDEX.md) |
+| D — enh/5 + dev-up.sh | ✅ 2026-07-11 |
+
+**2026-07-11 session notes:**
+- Wave C was already closed by a prior session (INDEX.md shows bugs 4/5/11/12/13 all `done`) — skipped re-implementation per task's own build order, no double-work.
+- Wave A: `RouteErrorBoundary.tsx` (class component, Sentry.captureException in componentDidCatch) wired into `ProtectedRoute` in App.tsx (single insertion point covers all routes) + `QueryErrorResetBoundary`. **Scope decision:** did not lift `<Sidebar />` out of all 12 page components into a shared layout shell — that's a much larger structural refactor than the crash-isolation goal requires. The fallback card's "Home" link gives equivalent recovery without touching 12 files. Sidebar remains rendered per-page, so it does *not* literally stay mounted through a same-page crash (T-A1's "sidebar visible" is satisfied via the fallback card's nav, not literal persistence).
+- Wave B: `lib/query-keys.ts` unifies the fundamentals-rankings key between `home.tsx` and `options-scanner.tsx` (previously `["fundamentals-rankings"]` vs `["fundamentals", "rankings"]` — two different cache entries, real double-fetch on Home→Scanner nav). `lib/prefetch-policy.ts` does idle-time JS-chunk-only prefetch (max 2, `saveData` aware), gated on home's rankings query no longer being in-flight. Sidebar hover prefetches the hovered route's chunk. All routes except Login are `React.lazy` behind `PageSkeleton` (renders `<Sidebar/>` + pulse placeholders immediately).
+- Wave D: `api-server` gets `tsx watch` as `dev:watch` (now aliased from `dev`); old rebuild flow preserved as `dev:rebuild`. **Verified live**: edited `health.ts`, reflected in ~3s without manual rebuild, then reverted; confirmed prod `build`/`start` untouched. `scripts/dev-up.sh` waits on `/api/healthz` before starting Vite — verified live on alternate ports (8199/8198), both up well under 60s. Confirmed via `start.sh` inspection that the Replit-managed workflow never reads `package.json`'s `dev` script (it always calls `build.mjs` + `dist/index.mjs` directly), so this change doesn't affect the managed process at all.
+- **Not verified in-browser**: Playwright was unavailable this session (per state.json). Wave A/B correctness is based on tsc (clean, both packages except pre-existing unrelated errors in `positions.ts`/`merge-trusted.ts`/`backfill-edgar.ts` from an earlier uncommitted session) + code review, not a live click-through. Recommend a manual pass (T-A1, T-A2, T-B1, T-B4) next session once Playwright is back.
+- **Bundle-size baseline (T-B2) not measured**: `pnpm build` in stock-compare fails on `main` too (confirmed via `git stash` A/B test) — Rollup can't externalize `@sentry/react` imported from `lib/api-client-react/src/custom-fetch.ts`. Pre-existing, unrelated to this work — flagging, not fixing (out of scope for this task).
 
 ---
 

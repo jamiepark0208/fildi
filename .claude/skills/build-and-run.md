@@ -8,7 +8,7 @@ description: Rebuild the API server and restart it. Use after ANY change to api-
 | Process | Port | Restarts on change? |
 |---|---|---|
 | `stock-compare` (Vite) | **8081** | **Yes** — hot-reload |
-| `api-server` (Express ESM) | **8080** | **NO** — must rebuild + restart manually |
+| `api-server` (Express ESM) | **8080** | **NO** under the Replit-managed workflow below — must rebuild + restart manually. Manual local sessions (outside the managed workflow) can use `pnpm --filter @workspace/api-server dev:watch` (tsx watch) for hot-reload instead — see enh/5. |
 
 ## Process topology (the ONLY two processes that should exist)
 
@@ -22,6 +22,17 @@ Optional tuning env vars (unset = safe default, don't need to be secrets): `DATA
 Both loops **auto-relaunch their child within 2s if it exits** — so you never need to (and never should) hand-construct a fresh `node`/`pnpm` invocation with your own env vars. That always fails or drifts from the managed environment.
 
 **Do NOT read `/proc/<pid>/environ` or probe individual secret var names (even just checking presence with `[ -n "$VAR" ]`)** — both leak information about secrets into the conversation. If you need to confirm secrets are available, check the health endpoint instead (below).
+
+## Optional: local hot-reload dev server (does NOT apply to the Replit workflow)
+
+`start.sh` (the process the Replit "Project" workflow runs) always calls `node build.mjs` then `node dist/index.mjs` directly — it never reads `package.json`'s `dev` script, so this doesn't change anything about the managed restart procedure below. It's a separate convenience for a manually-started local session (e.g. a bare terminal outside `.replit`'s supervisors) where you want edits to `src/**` to reload without a manual rebuild:
+
+```bash
+cd /home/runner/workspace/artifacts/api-server
+PORT=<free-port> pnpm run dev:watch   # tsx watch — reflects src/** edits in ~1-3s
+```
+
+Requires the same env as `dev:rebuild` (`SESSION_SECRET`, `DATABASE_URL`, etc.) and a `PORT` not already bound by the managed workflow (8080). `pnpm run dev` now aliases to `dev:watch`; the old rebuild-then-start behavior is preserved as `dev:rebuild`. Production (`build` / `start`) is untouched — still esbuild to `dist/index.mjs`.
 
 ## Quick rebuild + restart (use after every backend change)
 
