@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   BarChart2, Bookmark, BriefcaseBusiness, Trophy, Globe, User, Settings as SettingsIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { prefetchRouteChunk } from "@/lib/prefetch-policy";
@@ -16,7 +18,7 @@ type NavItem = {
   adminOnly?: boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
+const LEFT_NAV_ITEMS: NavItem[] = [
   { id: "watchlist", href: "/watchlist",  label: "Watchlist",  icon: Bookmark },
   // adminOnly is intentional, not a leftover — enh/8 Phase A1 (unlock nav for
   // everyone) is deferred until the regular-user manual-entry experience in
@@ -25,9 +27,93 @@ const NAV_ITEMS: NavItem[] = [
   { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, adminOnly: true },
   { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy },
   { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe },
-  { id: "profile",   href: "/profile/me", label: "My Profile", icon: User },
+];
+
+const RIGHT_NAV_ITEMS: NavItem[] = [
+  { id: "profile",   href: "/profile/me", label: "Profile",    icon: User },
   { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon },
 ];
+
+async function apiFeed(path: string, opts?: RequestInit) {
+  const r = await fetch(`/api/feed${path}`, { credentials: "include", ...opts });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
+  return (
+    <Link href={item.href}>
+      <div
+        onMouseEnter={() => prefetchRouteChunk(item.href.replace(/^\//, ""))}
+        className={cn(
+          "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-md cursor-pointer transition-colors min-w-[64px]",
+          active
+            ? "bg-primary/15 text-primary"
+            : "text-primary/60 hover:text-primary hover:bg-primary/10"
+        )}
+      >
+        <Icon className="w-5 h-5 shrink-0" />
+        <span className="text-xs font-medium leading-none whitespace-nowrap">{item.label}</span>
+      </div>
+    </Link>
+  );
+}
+
+function FindUserSearch() {
+  const { user: me } = useAuth();
+  const [, navigate] = useLocation();
+  const [userSearch, setUserSearch] = useState("");
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  const { data: allUsers = [] } = useQuery<{ username: string; avatarUrl: string | null }[]>({
+    queryKey: ["feed", "users"],
+    queryFn: () => apiFeed("/users"),
+    staleTime: 60000,
+  });
+
+  const filteredUsers = userSearch.trim()
+    ? allUsers.filter(u => u.username.toLowerCase().includes(userSearch.toLowerCase()))
+    : allUsers;
+
+  function goToUser(uname: string) {
+    setUserSearch("");
+    setUserDropdownOpen(false);
+    navigate(`/profile/${uname}`);
+  }
+
+  return (
+    <div className="relative w-full max-w-sm">
+      <input
+        value={userSearch}
+        onChange={e => setUserSearch(e.target.value)}
+        onFocus={() => setUserDropdownOpen(true)}
+        onBlur={() => setTimeout(() => setUserDropdownOpen(false), 150)}
+        placeholder="Find user…"
+        className="w-full bg-white border border-white/20 rounded-full px-4 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+      />
+      {userDropdownOpen && filteredUsers.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+          {filteredUsers.map(u => (
+            <button
+              key={u.username}
+              onMouseDown={() => goToUser(u.username)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left"
+            >
+              <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                {u.avatarUrl
+                  ? <img src={u.avatarUrl} alt={u.username} className="w-5 h-5 rounded-full object-cover" />
+                  : u.username[0]?.toUpperCase()}
+              </div>
+              <span className="font-medium text-foreground">{u.username}</span>
+              {u.username === me?.username && <span className="ml-auto text-[10px] text-muted-foreground">you</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TopNav() {
   const [location] = useLocation();
@@ -36,10 +122,10 @@ export function TopNav() {
   const isActive = (href: string) =>
     href === "/" ? location === "/" || location === "" : location.startsWith(href);
 
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  const visibleLeftItems = LEFT_NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   return (
-    <header className="fixed inset-x-0 top-0 h-14 bg-sidebar border-b border-sidebar-border flex items-center px-4 gap-1 z-50">
+    <header className="fixed inset-x-0 top-0 h-14 bg-gradient-to-b from-[#232427] to-[#0a0a0b] border-b border-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset] flex items-center px-4 gap-1 z-50">
       <Link href="/feed">
         <div
           className="w-8 h-8 rounded-md bg-primary flex items-center justify-center shrink-0 cursor-pointer mr-3"
@@ -51,26 +137,19 @@ export function TopNav() {
       </Link>
 
       <nav className="flex items-center gap-1">
-        {visibleItems.map(item => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          return (
-            <Link key={item.id} href={item.href}>
-              <div
-                onMouseEnter={() => prefetchRouteChunk(item.href.replace(/^\//, ""))}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-md cursor-pointer transition-colors min-w-[64px]",
-                  active
-                    ? "bg-primary/15 text-white"
-                    : "text-white/70 hover:text-white hover:bg-white/8"
-                )}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="text-[10px] font-medium leading-none whitespace-nowrap">{item.label}</span>
-              </div>
-            </Link>
-          );
-        })}
+        {visibleLeftItems.map(item => (
+          <NavLink key={item.id} item={item} active={isActive(item.href)} />
+        ))}
+      </nav>
+
+      <div className="flex-1 flex justify-center">
+        <FindUserSearch />
+      </div>
+
+      <nav className="flex items-center gap-1">
+        {RIGHT_NAV_ITEMS.map(item => (
+          <NavLink key={item.id} item={item} active={isActive(item.href)} />
+        ))}
       </nav>
     </header>
   );

@@ -152,6 +152,53 @@ export const insertPriceSchema = createInsertSchema(pricesHistorical)
 export type InsertPrice = z.infer<typeof insertPriceSchema>
 export type PriceRow = typeof pricesHistorical.$inferSelect
 
+// ── yahoo_analyst_actions (bronze) ────────────────────────────────────────────
+// Raw Yahoo upgradeDowngradeHistory events, one row per distinct event.
+// sourceEventId is a stable hash of (ticker, firm, epochGradeDate, fromGrade,
+// toGrade) so repeated backfills upsert instead of duplicating rows.
+
+export const yahooAnalystActions = pgTable('yahoo_analyst_actions', {
+  ticker:        text('ticker').notNull(),
+  firm:          text('firm').notNull(),
+  action:        text('action').notNull(),        // raw Yahoo action: up | down | main | init | reit
+  fromGrade:     text('from_grade'),
+  toGrade:       text('to_grade'),
+  eventDate:     date('event_date').notNull(),
+  sourceEventId: text('source_event_id').notNull(),
+  raw:           jsonb('raw'),
+  fetchedAt:     timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => ({
+  pk:         primaryKey({ columns: [t.ticker, t.sourceEventId] }),
+  fetchedIdx: index('idx_yahoo_analyst_actions_ticker_fetched').on(t.ticker, t.fetchedAt),
+}))
+
+export const insertYahooAnalystActionSchema = createInsertSchema(yahooAnalystActions)
+export type InsertYahooAnalystAction = z.infer<typeof insertYahooAnalystActionSchema>
+export type YahooAnalystAction = typeof yahooAnalystActions.$inferSelect
+
+// ── analyst_events (gold) ─────────────────────────────────────────────────────
+// Normalized, route-facing analyst rating-change events. Single-source
+// (Yahoo) today — written in the same transaction as the bronze row, no
+// FIELD_DEFS merge needed.
+
+export const analystEvents = pgTable('analyst_events', {
+  ticker:      text('ticker').notNull(),
+  firm:        text('firm').notNull(),
+  source:      text('source').notNull().default('yahoo'),
+  action:      text('action').notNull(),           // upgrade | downgrade | initiate | maintain | reiterate
+  fromGrade:   text('from_grade'),
+  toGrade:     text('to_grade'),
+  eventDate:   date('event_date').notNull(),
+  fetchedAt:   timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => ({
+  pk:         primaryKey({ columns: [t.ticker, t.firm, t.eventDate, t.source] }),
+  fetchedIdx: index('idx_analyst_events_ticker_fetched').on(t.ticker, t.fetchedAt),
+}))
+
+export const insertAnalystEventSchema = createInsertSchema(analystEvents)
+export type InsertAnalystEvent = z.infer<typeof insertAnalystEventSchema>
+export type AnalystEvent = typeof analystEvents.$inferSelect
+
 // ── indicator_cache ───────────────────────────────────────────────────────────
 // One row per (ticker, date). Written by the seed job after market close.
 // Layer 1 — "static daily" data that the Technical tab reads instantly.

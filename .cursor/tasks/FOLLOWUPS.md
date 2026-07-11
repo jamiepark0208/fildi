@@ -56,6 +56,7 @@ Action items from gatekeeper re-audits (bugs 1–19). **Status lives in INDEX/CL
 | enh/26 | React Query fetch standardization (userId in keys, logout cleanup pattern) | cross-app | Absorbs bug/13 + bug/14 query-key debt. |
 | enh/29 | Redis shared rate-limit store when horizontally scaling | `rateLimiter.ts` | bug/7 documented single-instance limit. |
 | enh/34 | Performance/resilience Wave A | enh/34 task | Next build after bug audit. |
+| n/a | IA decision: `/`, `/technical`, `/breakdown`, `/scorecard-explanation`, `/options-scanner`, `/sentiment` routes still exist in `App.tsx` but have no nav link since the 2026-07-11 top-nav swap (Rankings covers the fundamental+technical leaderboards; Settings embeds `ScorecardGuideContent`). Confirmed via grep: no in-app `Link`/`href` reaches them anymore, and `home.tsx`/`technical.tsx` aren't imported by any other page — safe to delete once decided. Cursor's post-redesign review (2026-07-11) flagged this; raised to user rather than deciding unilaterally since it's a route-removal call, not a bug fix. | Pick: (A) add nav links back for `/` and `/feed`, or (B) delete/redirect the orphaned routes now that Rankings/Settings replace them. |
 
 ---
 

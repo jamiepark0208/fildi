@@ -1,8 +1,9 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { useAuth } from "@/context/AuthContext";
+import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
@@ -512,7 +513,7 @@ type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecar
 
 export default function Settings() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useSessionState<Tab>("fildi_settings_tab", "profile");
 
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: "profile",         label: "Profile" },
@@ -522,6 +523,13 @@ export default function Settings() {
     { id: "stockdb",         label: "Stock DB",       adminOnly: true },
     { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
   ];
+
+  // Persisted tab may point at an admin-only tab from a prior admin session —
+  // fall back to Profile rather than rendering a blank pane.
+  useEffect(() => {
+    const current = tabs.find(t => t.id === tab);
+    if (current?.adminOnly && !isAdmin) setTab("profile");
+  }, [isAdmin, tab, setTab]);
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
 

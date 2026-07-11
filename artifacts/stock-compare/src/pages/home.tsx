@@ -6,7 +6,6 @@ import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { MetricsTable } from "@/components/metrics-table";
 import { ScorecardBreakdown } from "@/components/scorecard-breakdown";
 import { type StockScore } from "@/lib/rankings";
-import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { TopNav } from "@/components/top-nav";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
@@ -22,7 +21,6 @@ interface HomeProps {
 export default function Home({ tickers, setTickers }: HomeProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { weights } = useScoringPreferences();
   const { tickers: watchlistTickers } = useWatchlist();
 
   const focusInput = () => {
@@ -63,42 +61,6 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     });
     return stocks;
   }, [queries, tickers]);
-
-  const peerGroupsQuery = useQuery({
-    queryKey: ["peer-groups", watchlistTickers],
-    queryFn: async () => {
-      const res = await fetch(`/api/fundamentals/peer-groups?tickers=${watchlistTickers.join(",")}`);
-      if (!res.ok) return {} as Record<string, { groupId: string; confidence: "mapped" | "auto" | "unmapped"; metricExclusions?: string[] }>;
-      return res.json() as Promise<Record<string, { groupId: string; confidence: "mapped" | "auto" | "unmapped"; metricExclusions?: string[] }>>;
-    },
-    enabled: watchlistTickers.length > 0,
-    staleTime: 24 * 60 * 60 * 1000,
-  });
-  const peerGroupMap = peerGroupsQuery.data ?? {};
-
-  const regimeQuery = useQuery({
-    queryKey: ["macro-regime"],
-    queryFn: async () => {
-      const res = await fetch("/api/regime/macro");
-      if (!res.ok) return null;
-      const json = await res.json() as { regime?: string };
-      return json.regime ?? null;
-    },
-    staleTime: 60 * 60 * 1000,
-  });
-  const regime = regimeQuery.data ?? undefined;
-
-  const riskFreeRateQuery = useQuery({
-    queryKey: ["risk-free-rate"],
-    queryFn: async () => {
-      const res = await fetch("/api/macro/risk-free-rate");
-      if (!res.ok) return null;
-      const json = await res.json() as { riskFreeRate: number | null };
-      return json.riskFreeRate;
-    },
-    staleTime: 4 * 60 * 60 * 1000,
-  });
-  const riskFreeRate = riskFreeRateQuery.data ?? null;
 
   const { data: serverRankings, isLoading: rankingsLoading } = useQuery({
     queryKey: queryKeys.fundamentalsRankings,

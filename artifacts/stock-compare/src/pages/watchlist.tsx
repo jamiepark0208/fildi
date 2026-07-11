@@ -11,6 +11,7 @@ import { StockBreakdown } from "@/components/stock-breakdown";
 import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 // Loader2 used in search dropdown
 import { useDebounce } from "@/hooks/use-debounce";
+import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 
 // ── Tab button ────────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 
 function WatchlistView() {
   const { entries, isLoaded, addEntry, removeEntry, updateColorTag } = useWatchlist();
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useSessionState<string | null>("fildi_watchlist_selected_ticker", null);
   const [filterColor, setFilterColor] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDir, setSortDir] = useState<SortDir>("asc");

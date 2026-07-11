@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-11
 
 ## Active work
-- Working: enh23-data-health-bronze-counts;enh24-av-comment-fix-bronze-verified;enh26-query-key-unify-plus-volatility-regime-rename;enh27-29-reconfirmed-deferred;new-Rankings-tab-with-fundamentals-and-technicals-subtabs;TechnicalLeaderboard-extracted-to-shared-component
-- In progress: session complete - all requested work landed and typechecked
-- Blocked: playwright unavailable - no automated browser verification this session; user manually confirmed Rankings tab renders and works
+- Working: watchlist-ticker-session-persistence-done, settings-macro-tab-session-persistence-done, topnav-redesign-profile-settings-right-search-centered-styling-done, cursor-feedback-review-home-dead-queries-removed-idle-prefetch-fixed, enh6-analyst-persistence-track1-code-scaffolded-schema-not-applied
+- In progress: enh6 track1: schema tables + lib files + route change written and typechecked clean; DB migration not yet applied
+- Blocked: drizzle-kit push failed (non-interactive TTY prompt); drizzle-kit generate produced migration 0011 that also includes 2 unrelated pre-existing tables (explain_cache user_portfolio_names) already in the live DB - do NOT run that full file - must manually extract+apply only the yahoo_analyst_actions and analyst_events CREATE TABLE + 2 index statements via psql
 
 ## Next tasks (priority order)
 
