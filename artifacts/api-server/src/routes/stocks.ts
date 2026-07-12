@@ -517,7 +517,7 @@ export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote', 1000); /
 
 async function fetchQuoteSummary(ticker: string) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
-    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
+    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile"],
   });
 }
 
@@ -531,7 +531,9 @@ async function fetchQuoteMetrics(ticker: string) {
     readFundamentalsRow(key),
     readRegistryRow(key),
   ]);
-  const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics };
+  // assetProfile carries sector/industry — price/summaryDetail/financialData/
+  // defaultKeyStatistics never do, so quote.sector was always undefined without it.
+  const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
   const metrics = buildMetrics(merged, fmpRow, key, regRow);
   quoteCache.set(key, metrics);
   return metrics;

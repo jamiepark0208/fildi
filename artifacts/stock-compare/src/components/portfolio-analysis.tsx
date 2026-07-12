@@ -16,6 +16,10 @@ import { AlertTriangle, Activity, Shield, Zap, TrendingDown, Layers, BarChart2, 
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
+// Dense data-grid look matching RobinhoodPortfolio's Equity Positions table.
+const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-muted-foreground";
+const TTD = "py-2 px-3 text-xs tabular-nums";
+
 const PALETTE = [
   "#38bdf8","#fb923c","#34d399","#a78bfa",
   "#f472b6","#fbbf24","#60a5fa","#f87171",
@@ -83,14 +87,28 @@ function PieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0];
   const displayValue = d.payload.signedValue ?? d.value;
+  const breakdown: { name: string; value: number; pct: number }[] | undefined = d.payload.breakdown;
   return (
-    <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs">
+    <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs max-w-[220px]">
       <div className="flex items-center gap-2">
         <div className="w-2 h-2 rounded-full" style={{ background: d.payload.color }} />
         <span className="text-muted-foreground">{d.name}</span>
       </div>
       <div className="font-mono font-semibold mt-0.5">{formatCurrency(displayValue)}</div>
       <div className="text-muted-foreground">{d.payload.pct?.toFixed(1)}%</div>
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-border/60 space-y-0.5">
+          {breakdown.slice(0, 8).map(b => (
+            <div key={b.name} className="flex items-center justify-between gap-3 font-mono">
+              <span className="text-muted-foreground">{b.name}</span>
+              <span>{formatCurrency(b.value)} <span className="text-muted-foreground">({b.pct.toFixed(1)}%)</span></span>
+            </div>
+          ))}
+          {breakdown.length > 8 && (
+            <div className="text-muted-foreground">+{breakdown.length - 8} more</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -98,7 +116,7 @@ function PieTooltip({ active, payload }: any) {
 // ── Donut chart ───────────────────────────────────────────────────────────────
 
 function DonutChart({ data, total, label }: {
-  data: { name: string; value: number; color: string; pct?: number; signedValue?: number }[];
+  data: { name: string; value: number; color: string; pct?: number; signedValue?: number; breakdown?: { name: string; value: number; pct: number }[] }[];
   total: number; label: string;
 }) {
   if (!data.length) return (
@@ -161,6 +179,7 @@ function RiskStat({ label, value, sub, icon, color }: {
 interface AccountSummary {
   account: string; nickname: string | null; totalValue: string | null;
   equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null;
+  marginUsed: string | null; buyingPower: string | null;
 }
 
 interface RealizedEvent {
@@ -197,53 +216,122 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // ── Covered call detection ──────────────────────────────────────────────────
   const coveredCalls = useMemo(() => detectCoveredCalls(filtered), [filtered]);
 
+  const positionValue = (e: PortfolioEntry) => e.currentValue != null
+    ? e.currentValue
+    : e.positionType === "stock"
+      ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
+      : cashCollateral(e) || e.avgPrice * 100 * e.qty;
+
+  // Ticker-level composition of a slice, for the donut hover tooltip — e.g. "what
+  // makes up this 83.8% Stock Equity wedge". pct is relative to the slice itself,
+  // not the whole-account total, so it always foots to 100% within the tooltip.
+  const tickerBreakdown = (positions: PortfolioEntry[]) => {
+    const byTicker: Record<string, number> = {};
+    positions.forEach(e => { byTicker[e.ticker] = (byTicker[e.ticker] ?? 0) + positionValue(e); });
+    const sliceTotal = Object.values(byTicker).reduce((s, v) => s + v, 0);
+    return Object.entries(byTicker)
+      .map(([name, value]) => ({ name, value, pct: sliceTotal > 0 ? (value / sliceTotal) * 100 : 0 }))
+      .sort((a, b) => b.value - a.value);
+  };
+
   // ── Allocation ──────────────────────────────────────────────────────────────
   // Sourced from Robinhood's own per-account "Account Summary" CSV section (Equity
   // Value / Options Value / Crypto Value / Cash) — these sum exactly to the account's
   // Total Value by construction, so this is the single reconciled source of truth for
   // the donut (previously computed bottom-up from individual positions, which drifted
   // from the Portfolio Value banner by the value of un-modeled short-option liability).
-  const { allocationData, totalValue } = useMemo(() => {
-    let stockVal = 0, optionsVal = 0, cash = 0, crypto = 0, total = 0;
-    accountSummaries.forEach(a => {
-      stockVal  += parseFloat(a.equityValue ?? "0");
-      optionsVal += parseFloat(a.optionsValue ?? "0");
-      cash      += parseFloat(a.cash ?? "0");
-      crypto    += parseFloat(a.cryptoValue ?? "0");
-      total     += parseFloat(a.totalValue ?? "0");
+  const { allocationData, totalValue, marginUsed: allocationMarginUsed } = useMemo(() => {
+    const scopedSummaries = activePortfolio === "All"
+      ? accountSummaries
+      : accountSummaries.filter(a => (a.nickname ?? a.account) === activePortfolio);
+    let stockVal = 0, cash = 0, crypto = 0, total = 0, marginUsed = 0;
+    scopedSummaries.forEach(a => {
+      stockVal   += parseFloat(a.equityValue ?? "0");
+      cash       += parseFloat(a.cash ?? "0");
+      crypto     += parseFloat(a.cryptoValue ?? "0");
+      total      += parseFloat(a.totalValue ?? "0");
+      marginUsed += parseFloat(a.marginUsed ?? "0");
     });
+    const stockPositions = filtered.filter(e => e.positionType === "stock");
+    // Covered calls need no separate wedge — their collateral is the underlying
+    // shares, already counted in Stock Equity. Cash-secured puts are the one type
+    // of option that actually locks up capital outside of Stock Equity, so they get
+    // carved out of Cash below instead of lumping all options into one P&L wedge.
+    const shortPuts     = filtered.filter(e => e.positionType === "short_put");
+    const putCollateral = shortPuts.reduce((s, e) => s + cashCollateral(e), 0);
+    const cashFree       = cash - putCollateral;
+
+    // NOTE: Margin can't be its own wedge here — the borrowed dollars are already
+    // embedded inside Stock Equity/Put Collateral (that's what buying/securing on
+    // margin means), so adding a same-size Margin wedge on top double-counts it
+    // (verified: wedges summed to ~150% of gross total on the FILDI test account).
+    // `total` stays Robinhood's net account value (assets minus the margin loan);
+    // marginUsed is surfaced as a separate stat below, not folded into the pie.
     return {
       totalValue: total,
+      marginUsed,
       allocationData: [
-        { name: "Stock Equity", value: stockVal,        color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0 },
-        { name: "Cash",         value: cash,             color: "#a78bfa", pct: total > 0 ? (cash/total)*100 : 0 },
-        { name: "Crypto",       value: crypto,           color: "#f472b6", pct: total > 0 ? (crypto/total)*100 : 0 },
-        // Options value is typically negative (net short-premium liability still
-        // outstanding) — shown by magnitude with a distinct color; sign kept in tooltip.
-        { name: optionsVal < 0 ? "Options (net short)" : "Options (net long)",
-          value: Math.abs(optionsVal), signedValue: optionsVal, color: "#f87171",
-          pct: total > 0 ? (Math.abs(optionsVal)/total)*100 : 0 },
+        { name: "Stock Equity",   value: stockVal,     color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0,
+          breakdown: tickerBreakdown(stockPositions) },
+        { name: "Cash (Free)",    value: cashFree,      color: "#a78bfa", pct: total > 0 ? (cashFree/total)*100 : 0 },
+        { name: "Put Collateral", value: putCollateral, color: "#fbbf24", pct: total > 0 ? (putCollateral/total)*100 : 0,
+          breakdown: tickerBreakdown(shortPuts) },
+        { name: "Crypto",         value: crypto,        color: "#f472b6", pct: total > 0 ? (crypto/total)*100 : 0 },
       ].filter(d => d.value > 0),
     };
-  }, [accountSummaries]);
+  }, [accountSummaries, activePortfolio, filtered]);
+
+  // ── Margin usage ──────────────────────────────────────────────────────────────
+  // margin_used/buying_power are N/A (null) for cash-only accounts (e.g. the IRA) —
+  // only accounts actually trading on margin (e.g. FILDI) carry a value here.
+  const marginUsage = useMemo(() => {
+    const scopedSummaries = activePortfolio === "All"
+      ? accountSummaries
+      : accountSummaries.filter(a => (a.nickname ?? a.account) === activePortfolio);
+    let marginUsed = 0, buyingPower = 0;
+    scopedSummaries.forEach(a => {
+      marginUsed  += parseFloat(a.marginUsed ?? "0");
+      buyingPower += parseFloat(a.buyingPower ?? "0");
+    });
+    const capacity = marginUsed + buyingPower;
+    return { marginUsed, buyingPower, pctUsed: capacity > 0 ? (marginUsed / capacity) * 100 : 0 };
+  }, [accountSummaries, activePortfolio]);
 
   // ── Sector ──────────────────────────────────────────────────────────────────
   const sectorData = useMemo(() => {
     const bySector: Record<string, number> = {};
+    const positionsBySector: Record<string, PortfolioEntry[]> = {};
     filtered.forEach(e => {
       const sector = stockDataMap[e.ticker]?.sector || "Unknown";
-      const value = e.currentValue != null
-        ? e.currentValue
-        : e.positionType === "stock"
-          ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
-          : cashCollateral(e) || e.avgPrice * 100 * e.qty;
-      bySector[sector] = (bySector[sector] ?? 0) + value;
+      bySector[sector] = (bySector[sector] ?? 0) + positionValue(e);
+      (positionsBySector[sector] ??= []).push(e);
     });
     const total = Object.values(bySector).reduce((s, v) => s + v, 0);
-    return Object.entries(bySector)
-      .map(([name, value], i) => ({ name, value, color: PALETTE[i % PALETTE.length], pct: total > 0 ? (value/total)*100 : 0 }))
-      .sort((a, b) => b.value - a.value);
+    return {
+      total,
+      items: Object.entries(bySector)
+        .map(([name, value], i) => ({
+          name, value, color: PALETTE[i % PALETTE.length], pct: total > 0 ? (value/total)*100 : 0,
+          breakdown: tickerBreakdown(positionsBySector[name]),
+        }))
+        .sort((a, b) => b.value - a.value),
+    };
   }, [filtered, priceMap, stockDataMap]);
+
+  // ── Ticker holdings ──────────────────────────────────────────────────────────
+  const tickerData = useMemo(() => {
+    const byTicker: Record<string, number> = {};
+    filtered.forEach(e => {
+      byTicker[e.ticker] = (byTicker[e.ticker] ?? 0) + positionValue(e);
+    });
+    const total = Object.values(byTicker).reduce((s, v) => s + v, 0);
+    return {
+      total,
+      items: Object.entries(byTicker)
+        .map(([name, value], i) => ({ name, value, color: PALETTE[i % PALETTE.length], pct: total > 0 ? (value/total)*100 : 0 }))
+        .sort((a, b) => b.value - a.value),
+    };
+  }, [filtered, priceMap]);
 
   // ── Beta (covered-call adjusted) ────────────────────────────────────────────
   const betaData = useMemo(() => {
@@ -368,17 +456,33 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // ── P&L: realized (from transaction history) + unrealized (from open positions) ──
   const pnlTotals = useMemo(() => {
     const stockRealized = realizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
-    const optionShortRealized = realizedEvents.filter(e => e.assetType === "option" && e.direction === "short").reduce((s, e) => s + e.pnl, 0);
-    const optionLongRealized = realizedEvents.filter(e => e.assetType === "option" && e.direction === "long").reduce((s, e) => s + e.pnl, 0);
+    const realizedFor = (direction: "short" | "long", optionType: "call" | "put") =>
+      realizedEvents.filter(e => e.assetType === "option" && e.direction === direction && e.optionType === optionType)
+        .reduce((s, e) => s + e.pnl, 0);
+    const shortCallRealized = realizedFor("short", "call");
+    const shortPutRealized  = realizedFor("short", "put");
+    const longCallRealized  = realizedFor("long", "call");
+    const longPutRealized   = realizedFor("long", "put");
 
     const stockUnrealized = filtered.filter(e => e.positionType === "stock").reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
-    const optionShortUnrealized = filtered.filter(e => isShortPosition(e.positionType)).reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
-    const optionLongUnrealized = filtered.filter(e => e.positionType === "long_put" || e.positionType === "long_call").reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+    const unrealizedFor = (positionType: string) =>
+      filtered.filter(e => e.positionType === positionType).reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+    const shortCallUnrealized = unrealizedFor("short_call");
+    const shortPutUnrealized  = unrealizedFor("short_put");
+    const longCallUnrealized  = unrealizedFor("long_call");
+    const longPutUnrealized   = unrealizedFor("long_put");
+
+    const optionShortRealized = shortCallRealized + shortPutRealized;
+    const optionLongRealized  = longCallRealized + longPutRealized;
+    const optionShortUnrealized = shortCallUnrealized + shortPutUnrealized;
+    const optionLongUnrealized  = longCallUnrealized + longPutUnrealized;
 
     const rows = [
-      { label: "Stock",          realized: stockRealized,       unrealized: stockUnrealized },
-      { label: "Options — Short", realized: optionShortRealized, unrealized: optionShortUnrealized },
-      { label: "Options — Long",  realized: optionLongRealized,  unrealized: optionLongUnrealized },
+      { label: "Stock",                  realized: stockRealized,     unrealized: stockUnrealized },
+      { label: "Options — Short Call",   realized: shortCallRealized, unrealized: shortCallUnrealized },
+      { label: "Options — Short Put",    realized: shortPutRealized,  unrealized: shortPutUnrealized },
+      { label: "Options — Long Call",    realized: longCallRealized,  unrealized: longCallUnrealized },
+      { label: "Options — Long Put",     realized: longPutRealized,   unrealized: longPutUnrealized },
     ].map(r => ({ ...r, total: r.realized + r.unrealized }));
 
     const grandTotal = {
@@ -391,22 +495,43 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   }, [realizedEvents, filtered]);
 
   // ── Top tickers by options-sold frequency, net premium YTD (net of buybacks) ──
-  const topSoldTickers = useMemo(() => {
+  const topSoldTickersOptions = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const bySymbol = new Map<string, { count: number; netPremium: number }>();
+    const bySymbol = new Map<string, { puts: number; calls: number; netPremium: number }>();
     realizedEvents.forEach(e => {
       if (e.assetType !== "option" || e.direction !== "short") return;
       if (new Date(e.closedAt).getFullYear() !== currentYear) return;
-      const cur = bySymbol.get(e.symbol) ?? { count: 0, netPremium: 0 };
-      cur.count += 1;
+      const cur = bySymbol.get(e.symbol) ?? { puts: 0, calls: 0, netPremium: 0 };
+      if (e.optionType === "put") cur.puts += 1;
+      else if (e.optionType === "call") cur.calls += 1;
       cur.netPremium += e.pnl;
       bySymbol.set(e.symbol, cur);
     });
     return Array.from(bySymbol.entries())
-      .map(([symbol, v]) => ({ symbol, ...v }))
+      .map(([symbol, v]) => ({ symbol, ...v, count: v.puts + v.calls }))
       .sort((a, b) => b.count - a.count || b.netPremium - a.netPremium)
       .slice(0, 10);
   }, [realizedEvents]);
+
+  // ── Top tickers by stock-sale frequency, net realized P&L YTD ────────────────
+  const topSoldTickersStocks = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const bySymbol = new Map<string, { count: number; netPnl: number }>();
+    realizedEvents.forEach(e => {
+      if (e.assetType !== "stock") return;
+      if (new Date(e.closedAt).getFullYear() !== currentYear) return;
+      const cur = bySymbol.get(e.symbol) ?? { count: 0, netPnl: 0 };
+      cur.count += 1;
+      cur.netPnl += e.pnl;
+      bySymbol.set(e.symbol, cur);
+    });
+    return Array.from(bySymbol.entries())
+      .map(([symbol, v]) => ({ symbol, ...v }))
+      .sort((a, b) => b.count - a.count || b.netPnl - a.netPnl)
+      .slice(0, 10);
+  }, [realizedEvents]);
+
+  const [tickersTab, setTickersTab] = useState<"Options" | "Stocks">("Options");
 
   // ── DTE histogram ───────────────────────────────────────────────────────────
   const dteData = useMemo(() => {
@@ -543,15 +668,21 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </div>
       </div>
 
-      {/* Row 1: Allocation + Sector + Risk */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Row 1: Allocation + Sector + Tickers + Risk */}
+      <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Capital Allocation</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <DonutChart data={allocationData} total={totalValue} label="Total" />
+            <DonutChart data={allocationData} total={totalValue} label="Net Value" />
             <PieLegend data={allocationData} />
+            {allocationMarginUsed > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/40 text-[10px] text-muted-foreground">
+                Net of <span className="font-mono font-semibold text-yellow-400">{formatCurrency(allocationMarginUsed)}</span> margin used —
+                Sector Exposure/Ticker Holdings show gross stock notional, so their totals run higher on this account.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -568,8 +699,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <DonutChart data={sectorData} total={totalValue} label="Notional" />
-            <PieLegend data={sectorData.slice(0, 6)} />
+            <DonutChart data={sectorData.items} total={sectorData.total} label="Notional" />
+            <PieLegend data={sectorData.items.slice(0, 6)} />
             <div className="mt-2 pt-2 border-t border-border/40 grid grid-cols-3 gap-x-2 text-[10px]">
               <div>
                 <div className="text-muted-foreground uppercase tracking-wide">HHI</div>
@@ -586,6 +717,28 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </div>
               </div>
             </div>
+            {marginUsage.marginUsed > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
+                <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-0">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ticker Holdings</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <DonutChart data={tickerData.items} total={tickerData.total} label="Notional" />
+            <PieLegend data={tickerData.items.slice(0, 6)} />
+            {marginUsage.marginUsed > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
+                <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -604,6 +757,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 { label: "Income Yield", value: `${risk.incomeYield.toFixed(1)}%`, color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground" },
                 { label: "Max Assign Risk", value: formatCurrency(risk.maxAssign), color: "text-yellow-400" },
                 { label: "Avg DTE", value: `${risk.avgDTE.toFixed(0)}d`, color: "text-foreground" },
+                ...(marginUsage.marginUsed > 0 ? [{ label: "Margin Usage", value: `${formatCurrency(marginUsage.marginUsed)} (${marginUsage.pctUsed.toFixed(0)}%)`, color: marginUsage.pctUsed >= 75 ? "text-red-400" : marginUsage.pctUsed >= 50 ? "text-yellow-400" : "text-foreground" }] : []),
                 ...(risk.atRiskPositions > 0 ? [{ label: "At-Risk Puts", value: String(risk.atRiskPositions), color: "text-red-400" }] : []),
                 ...(risk.expiringSoon > 0 ? [{ label: "Expiring ≤7d", value: String(risk.expiringSoon), color: "text-orange-400" }] : []),
                 ...(risk.coveredCallCount > 0 ? [{ label: "Covered Calls", value: String(risk.coveredCallCount), color: "text-blue-400" }] : []),
@@ -726,41 +880,89 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </CardContent>
       </Card>
 
-      {/* Row 1.6: Top tickers by options-sold frequency, net premium YTD */}
-      <Card>
+      {/* Row 1.6: Top tickers by trade frequency, net realized P&L YTD */}
+      <Card className="overflow-hidden">
         <CardHeader className="px-4 pt-4 pb-0">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Top Tickers — Options Sold <span className="normal-case font-normal">— by frequency, net premium YTD</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          {topSoldTickers.length === 0 ? (
-            <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground mt-2">
-              No short options closed this year yet
+          <div className="flex items-center justify-between mb-1.5">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Top Tickers <span className="normal-case font-normal">— by frequency, net realized P&amp;L YTD</span>
+            </CardTitle>
+            <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
+              {(["Options", "Stocks"] as const).map(t => (
+                <button key={t} onClick={() => setTickersTab(t)}
+                  className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
+                    tickersTab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  {t}
+                </button>
+              ))}
             </div>
-          ) : (
-            <table className="w-full text-[11px] mt-2">
-              <thead>
-                <tr>
-                  {["#", "Ticker", "Times Sold", "Net Premium YTD"].map(h => (
-                    <th key={h} className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider last:text-right">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {topSoldTickers.map((t, i) => (
-                  <tr key={t.symbol} className="border-t border-border/20 hover:bg-secondary/10">
-                    <td className="py-1 px-2 text-muted-foreground font-mono">{i + 1}</td>
-                    <td className="py-1 px-2 font-mono font-bold">{t.symbol}</td>
-                    <td className="py-1 px-2 font-mono text-muted-foreground">{t.count}</td>
-                    <td className={cn("py-1 px-2 text-right font-mono font-semibold",
-                      t.netPremium > 0 ? "text-green-400" : t.netPremium < 0 ? "text-red-400" : "text-muted-foreground")}>
-                      {t.netPremium >= 0 ? "+" : ""}{formatCurrency(t.netPremium)}
-                    </td>
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          {tickersTab === "Options" ? (
+            topSoldTickersOptions.length === 0 ? (
+              <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
+                No short options closed this year yet
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-y border-border/40 bg-secondary/20">
+                    <th className={TTH}>#</th>
+                    <th className={cn(TTH, "text-left")}>Ticker</th>
+                    <th className={cn(TTH, "text-right")}>Puts Sold</th>
+                    <th className={cn(TTH, "text-right")}>Calls Sold</th>
+                    <th className={cn(TTH, "text-right")}>Times Sold</th>
+                    <th className={cn(TTH, "text-right")}>Net Premium YTD</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {topSoldTickersOptions.map((t, i) => (
+                    <tr key={t.symbol} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
+                      <td className={cn(TTD, "text-muted-foreground")}>{i + 1}</td>
+                      <td className={cn(TTD, "text-left font-bold")}>{t.symbol}</td>
+                      <td className={cn(TTD, "text-right text-muted-foreground")}>{t.puts || "—"}</td>
+                      <td className={cn(TTD, "text-right text-muted-foreground")}>{t.calls || "—"}</td>
+                      <td className={cn(TTD, "text-right text-muted-foreground")}>{t.count}</td>
+                      <td className={cn(TTD, "text-right font-semibold",
+                        t.netPremium > 0 ? "text-green-400" : t.netPremium < 0 ? "text-red-400" : "text-muted-foreground")}>
+                        {t.netPremium >= 0 ? "+" : ""}{formatCurrency(t.netPremium)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : (
+            topSoldTickersStocks.length === 0 ? (
+              <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
+                No stock sales closed this year yet
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-y border-border/40 bg-secondary/20">
+                    <th className={TTH}>#</th>
+                    <th className={cn(TTH, "text-left")}>Ticker</th>
+                    <th className={cn(TTH, "text-right")}>Times Sold</th>
+                    <th className={cn(TTH, "text-right")}>Net Realized P&amp;L YTD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topSoldTickersStocks.map((t, i) => (
+                    <tr key={t.symbol} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
+                      <td className={cn(TTD, "text-muted-foreground")}>{i + 1}</td>
+                      <td className={cn(TTD, "text-left font-bold")}>{t.symbol}</td>
+                      <td className={cn(TTD, "text-right text-muted-foreground")}>{t.count}</td>
+                      <td className={cn(TTD, "text-right font-semibold",
+                        t.netPnl > 0 ? "text-green-400" : t.netPnl < 0 ? "text-red-400" : "text-muted-foreground")}>
+                        {t.netPnl >= 0 ? "+" : ""}{formatCurrency(t.netPnl)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
         </CardContent>
       </Card>

@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-11
+**build** — last updated 2026-07-12
 
 ## Active work
-- Working: one-time-ytd-orders-backfill-1445-new-orders-deduped-into-latest-snapshot, pnl-box-header-renamed-to-P&L, pnl-box-redesigned-as-realized-unrealized-total-grid-stock-options-short-options-long, removed-old-closed-transactions-table-and-its-filter-buttons, added-top-tickers-options-sold-card-frequency-plus-net-premium-ytd
-- In progress: user reported PnL numbers dont tie out to Robinhood IRA plus32609 and FILDI plus6.5k YTD - was mid-investigation querying portfolio_account_summaries and portfolio_orders by account when interrupted; leading theory is dividend or interest cash flows (esp YieldMax NVDY/HOOY monthly distributions) are entirely absent from our order-history-only PnL calc since no CSV export section captures them
-- Blocked: PnL tie-out investigation paused mid-query - need to check portfolio_account_summaries schema for an existing unrealized/total-return column and confirm dividends are the missing piece before proposing a fix
+- Working: fixed-capital-allocation-account-filter-cascade-bug, fixed-sector-exposure-wrong-dollar-total-bug, fixed-sector-Unknown-bug-via-yahoo-assetProfile-module-plus-dist-rebuild, added-Ticker-Holdings-donut-chart, added-Margin-Usage-risk-metric, added-ticker-breakdown-hover-tooltips-to-Capital-Allocation-and-Sector-Exposure, split-PnL-options-rows-into-short-call-short-put-long-call-long-put, added-Put-Collateral-wedge-carved-from-Cash-in-Capital-Allocation
+- In progress: none - all requested portfolio-analysis fixes shipped and verified this session
+- Blocked: PnL-tie-out-investigation-still-paused-dividends-suspected-missing-from-YieldMax-NVDY-HOOY
 
 ## Next tasks (priority order)
 

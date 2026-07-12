@@ -1,10 +1,6 @@
 {
-  "fetchedAt": "2026-07-11T17:09:36.893Z",
+  "fetchedAt": "2026-07-12T01:12:52.437Z",
   "vixHistory": [
-    {
-      "date": "2024-07-11",
-      "value": 12.920000076293945
-    },
     {
       "date": "2024-07-12",
       "value": 12.460000038146973
@@ -2012,10 +2008,6 @@
   ],
   "fedFundsHistory": [
     {
-      "date": "2024-07-11",
-      "value": 5.197999954223633
-    },
-    {
       "date": "2024-07-12",
       "value": 5.197999954223633
     },
@@ -4013,10 +4005,6 @@
     }
   ],
   "tenYearHistory": [
-    {
-      "date": "2024-07-11",
-      "value": 4.192999839782715
-    },
     {
       "date": "2024-07-12",
       "value": 4.189000129699707
@@ -6028,7 +6016,7 @@
       "days": 30,
       "value": 15.03,
       "weekAgo": 16.149999618530273,
-      "monthAgo": 19.440000534057617,
+      "monthAgo": 17.68000030517578,
       "threeMonthAgo": null
     },
     {
@@ -6036,7 +6024,7 @@
       "days": 93,
       "value": 18.57,
       "weekAgo": 19.040000915527344,
-      "monthAgo": 21.420000076293945,
+      "monthAgo": 20.510000228881836,
       "threeMonthAgo": null
     },
     {
@@ -6044,7 +6032,7 @@
       "days": 183,
       "value": 21.09,
       "weekAgo": 21.5,
-      "monthAgo": 23.139999389648438,
+      "monthAgo": 22.59000015258789,
       "threeMonthAgo": null
     },
     {
@@ -6060,7 +6048,7 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": null,
+      "impliedRate": 3.63,
       "weekAgo": 3.632,
       "monthAgo": 3.625,
       "threeMonthAgo": null,
@@ -6071,7 +6059,7 @@
       "meetingDate": "2026-09-17",
       "impliedRate": 3.77,
       "weekAgo": 3.725,
-      "monthAgo": 3.675,
+      "monthAgo": 3.67,
       "threeMonthAgo": null,
       "isTbillProxy": false
     },
@@ -6080,7 +6068,7 @@
       "meetingDate": "2026-10-29",
       "impliedRate": 3.85,
       "weekAgo": 3.79,
-      "monthAgo": 3.71,
+      "monthAgo": 3.7,
       "threeMonthAgo": null,
       "isTbillProxy": false
     },
@@ -6089,7 +6077,7 @@
       "meetingDate": "2026-12-10",
       "impliedRate": 3.97,
       "weekAgo": 3.91,
-      "monthAgo": 3.795,
+      "monthAgo": 3.8,
       "threeMonthAgo": null,
       "isTbillProxy": false
     },
@@ -6098,7 +6086,7 @@
       "meetingDate": "2027-01-28",
       "impliedRate": 4,
       "weekAgo": 3.94,
-      "monthAgo": 3.82,
+      "monthAgo": 3.83,
       "threeMonthAgo": null,
       "isTbillProxy": false
     },
@@ -6107,7 +6095,7 @@
       "meetingDate": "2027-03-19",
       "impliedRate": 4.055,
       "weekAgo": 3.99,
-      "monthAgo": 3.885,
+      "monthAgo": 3.895,
       "threeMonthAgo": null,
       "isTbillProxy": false
     },
@@ -6116,7 +6104,7 @@
       "meetingDate": "2027-05-06",
       "impliedRate": 4.095,
       "weekAgo": 4.02,
-      "monthAgo": 3.945,
+      "monthAgo": 3.96,
       "threeMonthAgo": null,
       "isTbillProxy": false
     }
@@ -12419,10 +12407,6 @@
   ],
   "putCallHistory": [
     {
-      "date": "2024-07-11",
-      "value": 84.47000122070312
-    },
-    {
       "date": "2024-07-12",
       "value": 81.61000061035156
     },
@@ -14424,10 +14408,6 @@
     }
   ],
   "fearGreedHistory": [
-    {
-      "date": "2025-07-11",
-      "value": 75.3
-    },
     {
       "date": "2025-07-14",
       "value": 76.1
@@ -38070,10 +38050,6 @@
   ],
   "copperGoldHistory": [
     {
-      "date": "2024-07-11",
-      "value": 0.001867
-    },
-    {
       "date": "2024-07-12",
       "value": 0.001905
     },
@@ -40083,10 +40059,6 @@
     }
   ],
   "dxyHistory": [
-    {
-      "date": "2024-07-11",
-      "value": 104.44000244140625
-    },
     {
       "date": "2024-07-12",
       "value": 104.08999633789062
