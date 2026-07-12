@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-12
 
 ## Active work
-- Working: restyled-Option-Position-Health-table-to-ag-grid-plus-decimal-strike-fix-plus-Collateral-column, extracted-market-ticker-tape-into-standalone-marquee-banner, fixed-Highlights-box-not-minimizing-without-a-brief, migrated-dividends-assignments-cash-bonus-rows-from-full-YTD-CSV-into-portfolio_orders, wired-dividends-into-realized-pnl-and-PnL-box, replaced-Top-Tickers-Options-Stocks-filter-with-FILDI-IRA-tabs, added-ag-grid-styled-Cumulative-Summary-card-per-ticker-per-account
-- In progress: none - all requested fixes this session shipped and verified
+- Working: split-4-new-portfolio-boxes-into-two-2-col-rows-white-text, sorted-trade-type-and-top-ticker-stacked-bars-highest-to-lowest, explained-cash-bonus-tagged-to-IRA-account-not-FILDI, rebuilt-Options-Expiration-Timeline-into-YTD-biweekly-Options-Income-Timeline-with-year-end-projection
+- In progress: none - all requested chart changes this session shipped and verified
 - Blocked: PnL-tie-out-still-open-verify-Robinhood-totals-now-match-after-dividend-and-assignment-backfill
 
 ## Next tasks (priority order)
