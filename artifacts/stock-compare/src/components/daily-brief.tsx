@@ -331,7 +331,6 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
   const [tab,          setTab]          = useState<"today" | "history">("today");
   const [brief,        setBrief]        = useState<DailyBriefData | null>(null);
   const [noData,       setNoData]       = useState(false);
-  const [marketData,   setMarketData]   = useState<MarketDataPoint[]>([]);
   const [generating,   setGenerating]   = useState(false);
   const [checking,     setChecking]     = useState(true);
   const [error,        setError]        = useState<string | null>(null);
@@ -341,14 +340,6 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const today = new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
-
-  // Fetch live market prices on every mount (cheap — no AI)
-  useEffect(() => {
-    fetch("/api/daily-brief/market")
-      .then(r => r.json())
-      .then(d => setMarketData(d.marketData ?? []))
-      .catch(() => {});
-  }, []);
 
   // Check if today's brief exists in history (no AI call)
   useEffect(() => {
@@ -475,15 +466,8 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
       {/* ── Today tab ── */}
       {tab === "today" && (
         <div>
-          {/* Market chips — always visible */}
-          {marketData.length > 0 && (
-            <div className="px-4 py-2 flex flex-wrap gap-1.5">
-              {marketData.map(pt => <MarketChip key={pt.symbol} point={pt} />)}
-            </div>
-          )}
-
           {/* Checking state */}
-          {checking && (
+          {checking && expanded && (
             <div className="px-4 py-2 text-xs text-muted-foreground/60 flex items-center gap-1.5">
               <RefreshCw className="w-3 h-3 animate-spin" />
               Checking for today's brief…
@@ -491,7 +475,7 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
           )}
 
           {/* Error */}
-          {error && (
+          {error && expanded && (
             <div className="m-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
@@ -502,7 +486,7 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
           )}
 
           {/* No data — generate CTA (admin only) */}
-          {!checking && noData && !generating && (
+          {!checking && noData && !generating && expanded && (
             <div className="px-4 py-6 flex flex-col items-center gap-3 text-center border-t border-border/20">
               <p className="text-sm text-muted-foreground">No brief generated for today yet.</p>
               {isAdmin && (
@@ -521,7 +505,7 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
           )}
 
           {/* Generating spinner */}
-          {generating && !brief && (
+          {generating && !brief && expanded && (
             <div className="px-4 py-8 flex flex-col items-center gap-3 text-center border-t border-border/20">
               <RefreshCw className="w-6 h-6 animate-spin text-primary" />
               <div>

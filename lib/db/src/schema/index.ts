@@ -800,6 +800,12 @@ export const portfolioOrders = pgTable('portfolio_orders', {
   optionSide:         text('option_side'),      // 'call' | 'put'
   legSide:            text('leg_side'),         // option: 'buy' | 'sell'
   legEffect:          text('leg_effect'),       // option: 'open' | 'close' — key for wheel-cycle chaining
+  // Non-order transaction rows (dividends, cash bonuses, assignments missing from the order
+  // API) reuse this table instead of a separate one. orderType tags the row kind: 'assignment'
+  // | 'dividend' | 'cash_bonus' alongside the existing 'market'/'limit'/option-strategy values.
+  amount:             numeric('amount'),         // total cash value for dividend/cash_bonus rows
+  source:             text('source'),            // provenance for non-API rows, e.g. 'get_equity_tax_lots (open lot)'
+  confidence:         text('confidence'),        // free-text confidence note for estimated rows
 }, t => ({
   snapshotIdx: index('portfolio_orders_snapshot_idx').on(t.snapshotId),
 }))

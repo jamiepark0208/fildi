@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
+import { MarketTickerBanner } from "@/components/MarketTickerBanner";
 import { RobinhoodPortfolioHeader, RobinhoodPortfolioTables } from "@/components/RobinhoodPortfolio";
 import { useAuth } from "@/context/AuthContext";
 
@@ -928,6 +929,9 @@ export default function Portfolio() {
                   ))}
                 </div>
               )}
+
+              {/* Market ticker tape — VIX/SPY/QQQ/etc, scrolls as one row at any width */}
+              <MarketTickerBanner />
 
               {/* Daily AI Highlights */}
               <DailyBrief tickers={uniqueTickers} />
