@@ -61,6 +61,20 @@ const BETA_BAR_LEGEND = [
   { color: "#34d399", label: "Contribution < 0.2" },
 ];
 
+const REALIZED_UNREALIZED_LEGEND = [
+  { key: "realized",   color: "#38bdf8", label: "Realized" },
+  { key: "unrealized", color: "#a78bfa", label: "Unrealized" },
+];
+
+const TICKER_PNL_SEGMENTS = [
+  { key: "stocks",   color: "#38bdf8", label: "Stocks" },
+  { key: "dividends", color: "#34d399", label: "Dividends" },
+  { key: "sellPut",  color: "#fbbf24", label: "Sell Put" },
+  { key: "sellCall", color: "#f97316", label: "Sell Call" },
+  { key: "longCall", color: "#60a5fa", label: "Long Call" },
+  { key: "longPut",  color: "#f472b6", label: "Long Put" },
+] as const;
+
 // Blue = low correlation (good diversification), red = high correlation (concentration
 // risk) — fully opaque background fill scaled by magnitude, white text on top for
 // contrast. Alpha-blending this against the dark card background (previous version)
@@ -561,6 +575,19 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     return { rows, grandTotal };
   }, [realizedEvents, filtered]);
 
+  // ── Cumulative P&L per trade type — stacked bar (realized + unrealized = total) ──
+  const TRADE_TYPE_LABELS: Record<string, string> = {
+    "Stock": "Stock", "Options — Short Call": "Sell Call", "Options — Short Put": "Sell Put",
+    "Options — Long Call": "Long Call", "Options — Long Put": "Long Put", "Dividends": "Dividends",
+  };
+  const tradeTypeChartData = useMemo(() =>
+    pnlTotals.rows.map(r => ({
+      category: TRADE_TYPE_LABELS[r.label] ?? r.label,
+      realized: r.realized, unrealized: r.unrealized, total: r.total,
+    })).filter(d => d.total !== 0 || d.realized !== 0 || d.unrealized !== 0)
+      .sort((a, b) => b.total - a.total),
+    [pnlTotals]);
+
   // ── Account key/label pairs shared by the Top Tickers + Cumulative Summary cards.
   // realizedEvents.account is the raw Robinhood account id; accountSummaries carries
   // the id→nickname mapping ("FILDI" / "Traditional IRA") already used by the
@@ -640,27 +667,82 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     return Object.fromEntries(ACCOUNT_TABS.map(t => [t.key, buildFor(t.key)])) as Record<AccountTabKey, ReturnType<typeof buildFor>>;
   }, [realizedEvents, entries, accountNickMap]);
 
+  // ── Cumulative P&L — top tickers, all accounts combined — stacked bar ──
+  const topTickersPnlChartData = useMemo(() => {
+    const byTicker = new Map<string, { stocks: number; dividends: number; sellPut: number; sellCall: number; longCall: number; longPut: number; totalEarned: number }>();
+    ACCOUNT_TABS.forEach(t => {
+      cumulativeSummaryByAccount[t.key].forEach(r => {
+        const cur = byTicker.get(r.ticker) ?? { stocks: 0, dividends: 0, sellPut: 0, sellCall: 0, longCall: 0, longPut: 0, totalEarned: 0 };
+        cur.stocks += r.totalStocks; cur.dividends += r.dividends;
+        cur.sellPut += r.sellPut; cur.sellCall += r.sellCall;
+        cur.longCall += r.longCall; cur.longPut += r.longPut;
+        cur.totalEarned += r.totalEarned;
+        byTicker.set(r.ticker, cur);
+      });
+    });
+    return Array.from(byTicker.entries())
+      .map(([ticker, v]) => ({ ticker, ...v }))
+      .sort((a, b) => b.totalEarned - a.totalEarned)
+      .slice(0, 8);
+  }, [cumulativeSummaryByAccount]);
+
   const [tickersTab, setTickersTab] = useState<AccountTabKey>("FILDI");
   const [summaryTab, setSummaryTab] = useState<AccountTabKey>("FILDI");
 
-  // ── DTE histogram ───────────────────────────────────────────────────────────
-  const dteData = useMemo(() => {
-    const buckets = [
-      { label: "Today",  min: 0,  max: 0,        color: "#ef4444", qty: 0, premium: 0 },
-      { label: "1-7d",   min: 1,  max: 7,        color: "#f97316", qty: 0, premium: 0 },
-      { label: "8-14d",  min: 8,  max: 14,       color: "#eab308", qty: 0, premium: 0 },
-      { label: "15-21d", min: 15, max: 21,       color: "#22c55e", qty: 0, premium: 0 },
-      { label: "22-30d", min: 22, max: 30,       color: "#3b82f6", qty: 0, premium: 0 },
-      { label: "30d+",   min: 31, max: Infinity, color: "#8b5cf6", qty: 0, premium: 0 },
-    ];
-    filtered.forEach(e => {
-      const dte = daysToExpiry(e.expiry);
-      if (dte === null || dte < 0) return;
-      const bucket = buckets.find(b => dte >= b.min && dte <= b.max);
-      if (bucket) { bucket.qty += e.qty; bucket.premium += premiumReceived(e); }
+  // ── Options income timeline — YTD bi-weekly realized P&L (sold calls + sold puts,
+  // expired worthless or closed early) plus a projection to year-end off the YTD run rate ──
+  const optionsIncomeTimeline = useMemo(() => {
+    const year = new Date().getFullYear();
+    const yearStart = new Date(Date.UTC(year, 0, 1));
+    const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+    const now = new Date();
+
+    const shortOptionEvents = realizedEvents.filter(e =>
+      e.assetType === "option" && e.direction === "short" &&
+      (e.optionType === "call" || e.optionType === "put") &&
+      new Date(e.closedAt).getFullYear() === year);
+
+    // 14-day periods spanning the full year; the last period is clamped short.
+    const periods: { start: Date; end: Date; label: string }[] = [];
+    for (let cursor = yearStart.getTime(); cursor <= yearEnd.getTime(); cursor += 14 * 86400000) {
+      const start = new Date(cursor);
+      const end = new Date(Math.min(cursor + 13 * 86400000, yearEnd.getTime()));
+      periods.push({ start, end, label: start.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+    }
+
+    let ytdActual = 0;
+    const actualByPeriod = periods.map(p => {
+      if (p.start > now) return 0;
+      const sum = shortOptionEvents
+        .filter(e => { const d = new Date(e.closedAt); return d >= p.start && d <= p.end; })
+        .reduce((s, e) => s + e.pnl, 0);
+      ytdActual += sum;
+      return sum;
     });
-    return buckets.filter(b => b.qty > 0);
-  }, [filtered]);
+
+    // Run rate: YTD earned divided by months elapsed (fractional), projected across the
+    // months left in the year — this is a simple linear extrapolation, not a forecast model.
+    const daysElapsed = Math.max(1, (now.getTime() - yearStart.getTime()) / 86400000);
+    const monthsElapsed = daysElapsed / (365 / 12);
+    const avgMonthlyEarned = ytdActual / monthsElapsed;
+    const monthsRemaining = Math.max(0, 12 - monthsElapsed);
+    const projectedRemaining = avgMonthlyEarned * monthsRemaining;
+    const remainingPeriods = periods.filter(p => p.start > now);
+    const projectedPerPeriod = remainingPeriods.length > 0 ? projectedRemaining / remainingPeriods.length : 0;
+
+    const chartData = periods.map((p, i) => ({
+      label: p.label,
+      isFuture: p.start > now,
+      actual: p.start > now ? 0 : actualByPeriod[i],
+      projected: p.start > now ? projectedPerPeriod : 0,
+    }));
+
+    return {
+      chartData, ytdActual, avgMonthlyEarned,
+      projectedAnnualTotal: ytdActual + projectedRemaining,
+    };
+  }, [realizedEvents]);
+
 
   // ── Risk metrics ─────────────────────────────────────────────────────────────
   const risk = useMemo(() => {
@@ -887,6 +969,172 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 1.1a: Beta contribution + Cumulative P&L by trade type */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-2">
+            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+              Beta Contribution
+            </CardTitle>
+            <p className="text-[10px] text-white/70">
+              weighted β · covered calls adjusted to δ×0.70
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {topBetaData.length === 0 ? (
+              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 13, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} />
+                  <Tooltip content={(p) => {
+                    const d = p.payload?.[0]?.payload;
+                    if (!p.active || !d) return null;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[140px] text-white">
+                        <div className="font-semibold flex items-center gap-1">
+                          {d.ticker}
+                          {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
+                        </div>
+                        <div className="flex justify-between gap-4"><span className="text-white/70">β Contribution</span><span className="font-mono font-semibold">{d.contribution.toFixed(3)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Beta</span><span className="font-mono">{d.beta}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Weight</span><span className="font-mono">{d.weight}%</span></div>
+                      </div>
+                    );
+                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                  <Bar dataKey="contribution" radius={[3, 3, 0, 0]}>
+                    {topBetaData.map((d, i) => (
+                      <Cell key={i}
+                        fill={d.covered ? "#a78bfa" : d.contribution > 0.4 ? "#f97316" : d.contribution > 0.2 ? "#fbbf24" : "#34d399"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {topBetaData.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+                {BETA_BAR_LEGEND.map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-1.5 text-[10px] text-white">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-2">
+            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+              Cumulative P&amp;L by Trade Type
+            </CardTitle>
+            <p className="text-[10px] text-white/70">realized + unrealized, YTD</p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {tradeTypeChartData.length === 0 ? (
+              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="category" interval={0} tick={{ fontSize: 11, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => formatCurrency(v)} />
+                  <Tooltip content={(p) => {
+                    const d = p.payload?.[0]?.payload;
+                    if (!p.active || !d) return null;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
+                        <div className="font-semibold">{d.category}</div>
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Realized</span><span className="font-mono font-semibold">{formatCurrency(d.realized)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Unrealized</span><span className="font-mono font-semibold">{formatCurrency(d.unrealized)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-border/60"><span className="text-white/70">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
+                      </div>
+                    );
+                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                  <Bar dataKey="realized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[0].color} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="unrealized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[1].color} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {tradeTypeChartData.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+                {REALIZED_UNREALIZED_LEGEND.map(({ key, color, label }) => (
+                  <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 1.1b: Cumulative P&L top tickers + (reserved) */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-2">
+            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+              Cumulative P&amp;L — Top Tickers
+            </CardTitle>
+            <p className="text-[10px] text-white/70">all accounts, YTD</p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {topTickersPnlChartData.length === 0 ? (
+              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => formatCurrency(v)} />
+                  <Tooltip content={(p) => {
+                    const d = p.payload?.[0]?.payload;
+                    if (!p.active || !d) return null;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
+                        <div className="font-semibold">{d.ticker}</div>
+                        {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
+                          <div key={key} className="flex justify-between gap-4"><span className="text-white/70">{label}</span><span className="font-mono">{formatCurrency(d[key])}</span></div>
+                        ))}
+                        <div className="flex justify-between gap-4 pt-1 border-t border-border/60"><span className="text-white/70">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
+                      </div>
+                    );
+                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                  {TICKER_PNL_SEGMENTS.map(({ key, color }, i) => (
+                    <Bar key={key} dataKey={key} stackId="pnl" fill={color} radius={i === TICKER_PNL_SEGMENTS.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {topTickersPnlChartData.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+                {TICKER_PNL_SEGMENTS.map(({ key, color, label }) => (
+                  <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="px-4 pt-4 pb-2">
+            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+              Reserved
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="h-[240px] flex items-center justify-center text-xs text-white/70">Coming soon</div>
           </CardContent>
         </Card>
       </div>
@@ -1143,117 +1391,86 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </CardContent>
       </Card>
 
-      {/* Row 2: Beta bar + DTE histogram */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Beta Contribution
-            </CardTitle>
-            <p className="text-[10px] text-muted-foreground">
-              weighted β · covered calls adjusted to δ×0.70
-            </p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {topBetaData.length === 0 ? (
-              <div className="h-[180px] flex items-center justify-center text-xs text-muted-foreground">No data</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={topBetaData} barSize={26} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "hsl(var(--foreground))" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={36} />
-                  <Tooltip content={(p) => {
-                    const d = p.payload?.[0]?.payload;
-                    if (!p.active || !d) return null;
-                    return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[140px]">
-                        <div className="font-semibold flex items-center gap-1">
-                          {d.ticker}
-                          {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
-                        </div>
-                        <div className="flex justify-between gap-4"><span className="text-muted-foreground">β Contribution</span><span className="font-mono font-semibold">{d.contribution.toFixed(3)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-muted-foreground">Beta</span><span className="font-mono">{d.beta}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-muted-foreground">Weight</span><span className="font-mono">{d.weight}%</span></div>
-                      </div>
-                    );
-                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
-                  <Bar dataKey="contribution" radius={[3, 3, 0, 0]}>
-                    {topBetaData.map((d, i) => (
-                      <Cell key={i}
-                        fill={d.covered ? "#a78bfa" : d.contribution > 0.4 ? "#f97316" : d.contribution > 0.2 ? "#fbbf24" : "#34d399"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {topBetaData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
-                {BETA_BAR_LEGEND.map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                    {label}
-                  </div>
-                ))}
+      {/* Row 2: Options income timeline — YTD actual (bi-weekly) + year-end projection */}
+      <Card>
+        <CardHeader className="px-4 pt-4 pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+                Options Income Timeline
+              </CardTitle>
+              <p className="text-[10px] text-white/70">
+                sold calls + sold puts · net gain/loss (expired worthless or closed early) · bi-weekly since 1/1
+              </p>
+            </div>
+            <div className="flex items-center gap-5">
+              <div className="text-right">
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">YTD Earned</div>
+                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.ytdActual >= 0 ? "text-green-400" : "text-red-400")}>
+                  {optionsIncomeTimeline.ytdActual >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.ytdActual)}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Options Expiration Timeline
-            </CardTitle>
-            <p className="text-[10px] text-muted-foreground">contracts by DTE bucket</p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {dteData.length === 0 ? (
-              <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
-                No open options with expiration dates
+              <div className="text-right">
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">Avg Monthly</div>
+                <div className="text-sm font-bold font-mono tabular-nums text-white">
+                  {formatCurrency(optionsIncomeTimeline.avgMonthlyEarned)}
+                </div>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={dteData} barSize={32} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                  <Tooltip content={(p) => {
-                    const d = p.payload?.[0]?.payload;
-                    if (!p.active || !d) return null;
-                    return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1">
-                        <div className="font-semibold">{d.label}</div>
-                        <div className="flex justify-between gap-4"><span className="text-muted-foreground">Contracts</span><span className="font-mono">{d.qty}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-muted-foreground">Premium</span><span className="font-mono text-green-400">{formatCurrency(d.premium)}</span></div>
-                      </div>
-                    );
-                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
-                  <Bar dataKey="qty" radius={[3, 3, 0, 0]}>
-                    {dteData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {dteData.length > 0 && (
-              <div className="mt-3 border-t border-border/40 pt-3 space-y-1">
-                {dteData.map(d => (
-                  <div key={d.label} className="flex items-center justify-between text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ background: d.color }} />
-                      <span className="text-muted-foreground">{d.label}</span>
+              <div className="text-right">
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">Projected Annual</div>
+                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "text-green-400" : "text-red-400")}>
+                  {optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.projectedAnnualTotal)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {optionsIncomeTimeline.chartData.length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center text-xs text-white/70">No data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={optionsIncomeTimeline.chartData} barSize={12} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                <XAxis dataKey="label" interval={2} tick={{ fontSize: 10, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false} width={44} tickFormatter={(v) => formatCurrency(v)} />
+                <Tooltip content={(p) => {
+                  const d = p.payload?.[0]?.payload;
+                  if (!p.active || !d) return null;
+                  return (
+                    <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 text-white">
+                      <div className="font-semibold">{d.label}{d.isFuture ? " (projected)" : ""}</div>
+                      {d.isFuture ? (
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Projected</span><span className="font-mono font-semibold">{formatCurrency(d.projected)}</span></div>
+                      ) : (
+                        <div className="flex justify-between gap-4"><span className="text-white/70">Earned</span><span className="font-mono font-semibold">{formatCurrency(d.actual)}</span></div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 font-mono">
-                      <span className="text-muted-foreground">{d.qty} ct</span>
-                      <span className="text-green-400">+{formatCurrency(d.premium)}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                <Bar dataKey="actual" stackId="income" radius={[2, 2, 0, 0]}>
+                  {optionsIncomeTimeline.chartData.map((d, i) => (
+                    <Cell key={i} fill={d.actual >= 0 ? "#34d399" : "#f87171"} />
+                  ))}
+                </Bar>
+                <Bar dataKey="projected" stackId="income" radius={[2, 2, 0, 0]} fill="#38bdf8" fillOpacity={0.35} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+            {[
+              { color: "#34d399", label: "Earned (actual)" },
+              { color: "#f87171", label: "Loss (actual)" },
+              { color: "rgba(56,189,248,0.35)", label: "Projected (run-rate)" },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1.5 text-[10px] text-white">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                {label}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Row 3: Option position health */}
       {(risk.putPositions.length > 0 || risk.callPositions.length > 0) && (
