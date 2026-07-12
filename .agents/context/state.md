@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-12
 
 ## Active work
-- Working: fixed-capital-allocation-account-filter-cascade-bug, fixed-sector-exposure-wrong-dollar-total-bug, fixed-sector-Unknown-bug-via-yahoo-assetProfile-module-plus-dist-rebuild, added-Ticker-Holdings-donut-chart, added-Margin-Usage-risk-metric, added-ticker-breakdown-hover-tooltips-to-Capital-Allocation-and-Sector-Exposure, split-PnL-options-rows-into-short-call-short-put-long-call-long-put, added-Put-Collateral-wedge-carved-from-Cash-in-Capital-Allocation
-- In progress: none - all requested portfolio-analysis fixes shipped and verified this session
-- Blocked: PnL-tie-out-investigation-still-paused-dividends-suspected-missing-from-YieldMax-NVDY-HOOY
+- Working: restyled-Option-Position-Health-table-to-ag-grid-plus-decimal-strike-fix-plus-Collateral-column, extracted-market-ticker-tape-into-standalone-marquee-banner, fixed-Highlights-box-not-minimizing-without-a-brief, migrated-dividends-assignments-cash-bonus-rows-from-full-YTD-CSV-into-portfolio_orders, wired-dividends-into-realized-pnl-and-PnL-box, replaced-Top-Tickers-Options-Stocks-filter-with-FILDI-IRA-tabs, added-ag-grid-styled-Cumulative-Summary-card-per-ticker-per-account
+- In progress: none - all requested fixes this session shipped and verified
+- Blocked: PnL-tie-out-still-open-verify-Robinhood-totals-now-match-after-dividend-and-assignment-backfill
 
 ## Next tasks (priority order)
 

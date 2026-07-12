@@ -127,7 +127,7 @@ export interface ParsedOrder {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseCsvLine(line: string): string[] {
+export function parseCsvLine(line: string): string[] {
   const cols: string[] = [];
   let cur = '';
   let inQuote = false;
@@ -176,7 +176,10 @@ type SectionKind =
   | 'option_orders'
   | null;
 
-function detectSection(line: string): { kind: SectionKind; accountId: string } | null {
+function detectSection(rawLine: string): { kind: SectionKind; accountId: string } | null {
+  // Some ad hoc exports wrap the header in a quoted CSV field, e.g.
+  // `"=== DIVIDEND TRANSACTIONS ... ===",,,,,,,` — strip a leading quote first.
+  const line = rawLine.replace(/^"/, '');
   if (!line.startsWith('===')) return null;
   const normalized = line.replace(/^===\s*/, '').replace(/\s*===.*$/, '').trim();
   if (normalized.startsWith('ACCOUNT SUMMARY'))        return { kind: 'account_summary',       accountId: '' };
@@ -185,6 +188,13 @@ function detectSection(line: string): { kind: SectionKind; accountId: string } |
   if (normalized.startsWith('OPTION POSITIONS'))       return { kind: 'option_positions',       accountId: '' };
   if (normalized.startsWith('EQUITY ORDERS'))          return { kind: 'equity_orders',          accountId: accountIdFromSectionHeader(line) };
   if (normalized.startsWith('OPTION ORDERS'))          return { kind: 'option_orders',          accountId: accountIdFromSectionHeader(line) };
+  // Ad hoc "with-estimates" exports append assignment/dividend/cash-bonus/summary
+  // sections that this shared parser doesn't model — recognize the headers just
+  // enough to stop them from being swallowed into the previous section's rows.
+  if (normalized.startsWith('ASSIGNMENT TRANSACTIONS'))return { kind: null, accountId: '' };
+  if (normalized.startsWith('DIVIDEND TRANSACTIONS'))  return { kind: null, accountId: '' };
+  if (normalized.startsWith('CASH EVENTS'))            return { kind: null, accountId: '' };
+  if (normalized.startsWith('SUMMARY'))                return { kind: null, accountId: '' };
   return null;
 }
 

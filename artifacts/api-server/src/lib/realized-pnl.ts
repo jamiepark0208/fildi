@@ -9,8 +9,8 @@ function toDate(v: unknown): Date | null {
 export interface RealizedEvent {
   account: string
   symbol: string
-  assetType: 'stock' | 'option'
-  direction: 'long' | 'short'
+  assetType: 'stock' | 'option' | 'dividend'
+  direction: 'long' | 'short' | null
   optionType: 'call' | 'put' | null
   qty: number
   pnl: number
@@ -23,13 +23,27 @@ export interface RealizedEvent {
 // by contract identity (account+symbol+strike+expiration+side); a group counts as
 // "resolved" once its expiration has passed (covers expired-worthless, which never
 // generates a close order) or once close qty has fully matched open qty (early close).
+// Dividend/cash-bonus rows (orderType 'dividend'/'cash_bonus', from the estimated-data
+// migration) are pure cash income with no cost-basis matching — a cash bonus is treated
+// as a dividend since it isn't tied to a specific holding either.
 export function computeRealizedPnL(orders: PortfolioOrder[]): RealizedEvent[] {
   const events: RealizedEvent[] = []
   const filled = orders.filter(o => o.state === 'filled')
 
+  // ── Dividends + cash bonuses: straight cash income, no lot matching ──────────
+  const dividendRows = filled.filter(o => o.orderType === 'dividend' || o.orderType === 'cash_bonus')
+  for (const d of dividendRows) {
+    events.push({
+      account: d.account, symbol: d.symbol ?? '(cash bonus)', assetType: 'dividend',
+      direction: null, optionType: null, qty: parseFloat(d.quantity ?? '0'),
+      pnl: parseFloat(d.amount ?? '0'), fees: 0,
+      closedAt: (toDate(d.createdAt) ?? new Date()).toISOString(),
+    })
+  }
+
   // ── Stock: FIFO per account+symbol ─────────────────────────────────────────
-  const equity = filled.filter(o => !o.isOption).sort((a, b) =>
-    (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0))
+  const equity = filled.filter(o => !o.isOption && o.orderType !== 'dividend' && o.orderType !== 'cash_bonus')
+    .sort((a, b) => (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0))
 
   const lots = new Map<string, { qty: number; price: number }[]>()
   for (const o of equity) {
