@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — Volatility tab shipped 2026-07-13 (Volatility Regime Read implication card: VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index → overall verdict; new MOVE index fetch/chart; /sentiment redirects to /macro?tab=volatility since ExtremesTable was already redundant with CotSection's inline extremes table) |
 | **Priority** | P1 |
 | **Area** | ui |
 | **Effort** | M |

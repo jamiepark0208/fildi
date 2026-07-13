@@ -51,7 +51,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
 | 15 | P1 | ready | [technical-scorecard-improvements](enhancements/15-technical-scorecard-improvements-070926.md) |
 | 16 | P1 | ready | [watchlist-monitor-improvements](enhancements/16-watchlist-monitor-improvements-070926.md) |
-| 17 | P1 | ready | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) |
+| 17 | P1 | done | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) — Volatility tab shipped 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index), new MOVE index fetch/chart, /sentiment redirects to /macro?tab=volatility |
 | 18 | P2 | ready | [macro-policy-tab-improvements](enhancements/18-macro-policy-tab-improvements-070926.md) |
 | 19 | P2 | ready | [macro-heatmap-tab-improvements](enhancements/19-macro-heatmap-tab-improvements-070926.md) |
 | 20 | P1 | ready | [scorecard-guide-improvements](enhancements/20-scorecard-guide-improvements-070926.md) |

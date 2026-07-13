@@ -36,7 +36,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 ## Cluster 5 — Macro tabs (10+11 together; 17/18/19 can follow)
 - enh/10 macro-regime-tab-improvements (M)
 - enh/11 macro-catalyst-calendar-improvements (M)
-- enh/17 macro-volatility-tab-improvements (M)
+- enh/17 macro-volatility-tab-improvements (M) — done 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index → overall verdict), new MOVE index fetch/chart, /sentiment redirects to /macro?tab=volatility (ExtremesTable was already redundant with CotSection's inline extremes table, so no separate extraction was needed)
 - enh/18 macro-policy-tab-improvements (S)
 - enh/19 macro-heatmap-tab-improvements (S)
 
