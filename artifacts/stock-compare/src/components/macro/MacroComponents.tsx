@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, AreaChart, ReferenceLine, Area, ScatterChart, Scatter,
-  ComposedChart, ReferenceDot, BarChart, Bar,
+  ComposedChart, ReferenceDot, BarChart, Bar, Cell, LabelList,
 } from "recharts";
 import {
   RefreshCw, Loader2, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
@@ -16,7 +16,7 @@ import type {
   MacroData, FedMember, BankResearch, MacroEvent, ChartPoint,
   VixCurvePoint, FedFundsCurvePoint, YieldCurvePoint,
   COTRecord, COTSummary, CurvePeriod, SepMetric, IndicatorHistory, SepActuals,
-  SepData, NewsArticle,
+  SepData, NewsArticle, SectorRotationPoint,
 } from "./macro-page-types";
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
@@ -255,6 +255,253 @@ export function QuickStats({ macroData }: { macroData: MacroData }) {
       />
       <StatCell label="Fed Funds" value={fmtPct(macroData.series.fedFundsRate.value)} />
       <StatCell label="US Debt" value={debtT} />
+    </div>
+  );
+}
+
+// ── Liquidity Plumbing Flow Diagram ─────────────────────────────────────────────
+// Honest flow visual: WALCL/TGA/RRP -> Net Liquidity is real arithmetic
+// (WALCL - TGA - RRP), so a connected strip is accurate here — unlike sector
+// attribution, where no public data traces actual dollars.
+
+function deltaFor(history: ChartPoint[], weeksBack: number): number | null {
+  if (history.length === 0) return null;
+  const latest = history[history.length - 1];
+  const targetIdx = history.length - 1 - weeksBack;
+  if (targetIdx < 0) return null;
+  return latest.value - history[targetIdx].value;
+}
+
+function PlumbingNode({ label, valueB, deltaW, deltaM, sign }: {
+  label: string; valueB: number | null; deltaW: number | null; deltaM: number | null; sign?: "-" | "=" ;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {sign && <span className="text-lg text-muted-foreground font-semibold">{sign}</span>}
+      <div className="border border-border rounded-md p-3 min-w-[130px]">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+        <p className="text-lg font-semibold leading-tight">
+          {valueB != null ? `$${valueB.toFixed(0)}B` : "—"}
+        </p>
+        <p className="text-[10px] mt-0.5 space-x-2">
+          <span className={changeColor(deltaW)}>1w {deltaW != null ? `${deltaW > 0 ? "+" : ""}${deltaW.toFixed(0)}B` : "—"}</span>
+          <span className={changeColor(deltaM)}>1m {deltaM != null ? `${deltaM > 0 ? "+" : ""}${deltaM.toFixed(0)}B` : "—"}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function LiquidityFlowDiagram({
+  fedAssetsHistory, tgaHistory, rrpHistory, netLiquidityHistory, loading,
+}: {
+  fedAssetsHistory: ChartPoint[];
+  tgaHistory: ChartPoint[];
+  rrpHistory: ChartPoint[];
+  netLiquidityHistory: ChartPoint[];
+  loading?: boolean;
+}) {
+  const latestB = (history: ChartPoint[], divisor: number) =>
+    history.length > 0 ? history[history.length - 1].value / divisor : null;
+
+  if (loading) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-32">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Fed Plumbing — Net Liquidity</h2>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <PlumbingNode
+          label="Fed Assets (WALCL)"
+          valueB={latestB(fedAssetsHistory, 1000)}
+          deltaW={deltaFor(fedAssetsHistory, 1) != null ? deltaFor(fedAssetsHistory, 1)! / 1000 : null}
+          deltaM={deltaFor(fedAssetsHistory, 4) != null ? deltaFor(fedAssetsHistory, 4)! / 1000 : null}
+        />
+        <PlumbingNode
+          label="Treasury Gen. Acct"
+          valueB={latestB(tgaHistory, 1000)}
+          deltaW={deltaFor(tgaHistory, 1) != null ? deltaFor(tgaHistory, 1)! / 1000 : null}
+          deltaM={deltaFor(tgaHistory, 4) != null ? deltaFor(tgaHistory, 4)! / 1000 : null}
+          sign="-"
+        />
+        <PlumbingNode
+          label="Overnight RRP"
+          valueB={latestB(rrpHistory, 1)}
+          deltaW={deltaFor(rrpHistory, 7)}
+          deltaM={deltaFor(rrpHistory, 30)}
+          sign="-"
+        />
+        <PlumbingNode
+          label="Net Liquidity"
+          valueB={latestB(netLiquidityHistory, 1)}
+          deltaW={deltaFor(netLiquidityHistory, 1)}
+          deltaM={deltaFor(netLiquidityHistory, 4)}
+          sign="="
+        />
+      </div>
+      <p className="text-[10px] text-muted-foreground italic">
+        Net Liquidity = Fed Assets − Treasury General Account − Overnight RRP. Rising ≈ more dollars
+        available to markets. This is real arithmetic on public Fed data — it does not show which
+        sectors or entities receive the dollars.
+      </p>
+    </div>
+  );
+}
+
+// ── Sector Rotation Bubbles (relative strength vs SPY, proxy only) ─────────────
+
+const QUADRANT_COLOR: Record<string, string> = {
+  leading:   "#22c55e",
+  weakening: "#f59e0b",
+  lagging:   "#ef4444",
+  improving: "#38bdf8",
+};
+
+const QUADRANT_LABEL: Record<string, string> = {
+  leading:   "Leading",
+  weakening: "Weakening",
+  lagging:   "Lagging",
+  improving: "Improving",
+};
+
+const QUADRANT_IMPLICATION: Record<string, string> = {
+  leading:   "Outperforming & rallying — sector leadership",
+  weakening: "Outperforming, losing steam — may be topping / overbought",
+  lagging:   "Underperforming & selling off — may be oversold",
+  improving: "Underperforming, turning up — may be bottoming",
+};
+
+// Corner placement matches the RRG convention: x = rs1m (right = outperforming),
+// y = momentum (up = accelerating). Assumes symmetric axis domains around 0.
+const QUADRANT_CORNER: Record<string, string> = {
+  leading:   "top-2 right-2 text-right",
+  weakening: "bottom-8 right-2 text-right",
+  lagging:   "bottom-8 left-2 text-left",
+  improving: "top-2 left-2 text-left",
+};
+
+export function SectorRotationBubbles({
+  data, loading,
+}: {
+  data: SectorRotationPoint[] | undefined;
+  loading?: boolean;
+}) {
+  if (loading || !data) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-[320px]">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const points = data.filter((d) => d.rs1m != null && d.momentum != null);
+  const leaders = data.filter((d) => d.quadrant === "leading").map((d) => d.ticker);
+
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Sector Rotation — Relative Strength vs SPY</h2>
+      </div>
+      <p className="text-[11px] text-muted-foreground mb-2">
+        Each dot is a sector ETF's 1-month price return vs SPY (x-axis) and whether that edge is
+        accelerating or fading vs its 3-month trend (y-axis) — i.e. which sectors are rallying,
+        topping, selling off, or bottoming right now relative to the broad market.
+      </p>
+      <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-2">
+        {(["leading", "improving", "lagging", "weakening"] as const).map((q) => (
+          <span key={q} className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full inline-block" style={{ background: QUADRANT_COLOR[q] }} />
+            {QUADRANT_LABEL[q]} — {QUADRANT_IMPLICATION[q]}
+          </span>
+        ))}
+      </div>
+      <div className="relative">
+        {(["leading", "weakening", "lagging", "improving"] as const).map((q) => (
+          <div
+            key={q}
+            className={cn("absolute z-10 pointer-events-none text-[10px] font-medium uppercase tracking-wide", QUADRANT_CORNER[q])}
+            style={{ color: QUADRANT_COLOR[q], opacity: 0.55 }}
+          >
+            {QUADRANT_LABEL[q]}
+          </div>
+        ))}
+        <ResponsiveContainer width="100%" height={340}>
+          <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+            <XAxis
+              type="number" dataKey="rs1m" name="1m RS vs SPY"
+              tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}%`}
+              label={{ value: "Relative Strength (1m %) — right = outperforming SPY", position: "insideBottom", offset: -4, fontSize: 10, fill: "#888" }}
+            />
+            <YAxis
+              type="number" dataKey="momentum" name="Momentum"
+              tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}`}
+              label={{ value: "Momentum (1m − 3m RS) — up = accelerating", angle: -90, position: "insideLeft", fontSize: 10, fill: "#888" }}
+            />
+            <ReferenceLine x={0} stroke="#444" />
+            <ReferenceLine y={0} stroke="#444" />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const p = payload[0].payload as SectorRotationPoint;
+                return (
+                  <div className="bg-popover border border-border rounded-md px-2.5 py-2 text-[11px] max-w-[220px]">
+                    <p className="font-semibold">{p.ticker} — {p.label}</p>
+                    <p style={{ color: QUADRANT_COLOR[p.quadrant ?? ""] }} className="capitalize font-medium">
+                      {p.quadrant} — {QUADRANT_IMPLICATION[p.quadrant ?? ""]}
+                    </p>
+                    <p className="mt-1">1m RS vs SPY: {p.rs1m! > 0 ? "+" : ""}{p.rs1m}%</p>
+                    <p>3m RS vs SPY: {p.rs3m! > 0 ? "+" : ""}{p.rs3m}%</p>
+                    {p.topMovers?.length > 0 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-border/50">
+                        <p className="text-muted-foreground mb-0.5">Names to watch (1m vs SPY):</p>
+                        {p.topMovers.map((m) => (
+                          <p key={m.ticker}>
+                            {m.ticker}: {m.rs1m != null ? `${m.rs1m > 0 ? "+" : ""}${m.rs1m}%` : "—"}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            <Scatter data={points} fill="#8884d8">
+              <LabelList
+                dataKey="ticker"
+                position="top"
+                fontSize={10}
+                fill="#ccc"
+                offset={8}
+              />
+              {points.map((p) => (
+                <Cell key={p.ticker} fill={QUADRANT_COLOR[p.quadrant ?? ""] ?? "#888"} />
+              ))}
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      {leaders.length > 0 && (
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-xs">
+          <span className="text-muted-foreground">Leading:</span>
+          <span className="font-medium">{leaders.join(", ")}</span>
+          <span className="text-muted-foreground ml-auto">— open scanner / filter watchlist by these tickers</span>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground italic mt-2">
+        Relative price strength proxy, not measured ETF dollar flow. Leadership can rotate quickly.
+        "Names to watch" are well-known sector bellwethers, not a live top-holdings-by-weight feed.
+      </p>
     </div>
   );
 }

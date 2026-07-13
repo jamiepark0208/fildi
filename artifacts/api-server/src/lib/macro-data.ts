@@ -51,6 +51,21 @@ export interface VixCurvePoint {
   threeMonthAgo: number | null;
 }
 
+export interface SectorMoverPoint {
+  ticker: string;
+  rs1m: number | null;       // 1m return vs SPY, percentage points
+}
+
+export interface SectorRotationPoint {
+  ticker: string;
+  label: string;
+  rs1m: number | null;       // 1m return vs SPY, percentage points
+  rs3m: number | null;       // 3m return vs SPY, percentage points
+  momentum: number | null;   // rs1m - rs3m: is relative strength accelerating
+  quadrant: "leading" | "weakening" | "lagging" | "improving" | null;
+  topMovers: SectorMoverPoint[]; // notable large-cap names in this sector, same rs1m calc
+}
+
 export interface FedFundsCurvePoint {
   label: string;
   meetingDate: string;
@@ -78,6 +93,11 @@ export interface MacroCharts {
   nfciHistory: ChartPoint[];          // Chicago Fed National Financial Conditions Index
   copperGoldHistory: ChartPoint[];    // Copper/Gold ratio (HG=F / GC=F)
   dxyHistory: ChartPoint[];           // US Dollar Index (DX-Y.NYB)
+  fedAssetsHistory: ChartPoint[];     // Fed total assets (FRED WALCL, weekly $M)
+  tgaHistory: ChartPoint[];           // Treasury General Account (FRED WTREGEN, weekly $B)
+  rrpHistory: ChartPoint[];           // Overnight reverse repo (FRED RRPONTSYD, daily $B)
+  reservesHistory: ChartPoint[];      // Bank reserve balances (FRED WRESBAL, weekly $B)
+  netLiquidityHistory: ChartPoint[];  // Derived: WALCL - TGA - RRP, weekly-aligned, $B
 }
 
 export interface FedMember {
@@ -422,6 +442,91 @@ export async function fetchVixCurve(): Promise<VixCurvePoint[]> {
       ? r.value
       : { tenor: VIX_TENORS[i].label, days: VIX_TENORS[i].days, value: null, weekAgo: null, monthAgo: null, threeMonthAgo: null }
   );
+}
+
+// ── Sector Rotation (relative strength vs SPY) ────────────────────────────────
+// Proxy only — price-based relative strength, NOT measured dollar flow between
+// sectors. Quadrant = RRG-style: rs1m (level) x momentum (rs1m - rs3m, trend).
+
+// Notable large-cap names per sector for the tooltip — not a precise/live
+// top-3-by-weight list (SPDR weights drift and aren't cheaply fetchable),
+// just well-known bellwethers so a CSP trader knows where to look.
+const SECTOR_ETFS = [
+  { ticker: "XLK",  label: "Technology",       movers: ["NVDA", "AAPL", "MSFT"] },
+  { ticker: "XLC",  label: "Communications",   movers: ["META", "GOOGL", "NFLX"] },
+  { ticker: "XLY",  label: "Consumer Disc.",   movers: ["AMZN", "TSLA", "HD"] },
+  { ticker: "XLP",  label: "Consumer Staples", movers: ["COST", "PG", "WMT"] },
+  { ticker: "XLE",  label: "Energy",           movers: ["XOM", "CVX", "COP"] },
+  { ticker: "XLF",  label: "Financials",       movers: ["JPM", "V", "MA"] },
+  { ticker: "XLV",  label: "Health Care",      movers: ["LLY", "UNH", "JNJ"] },
+  { ticker: "XLI",  label: "Industrials",      movers: ["GE", "CAT", "RTX"] },
+  { ticker: "XLB",  label: "Materials",        movers: ["LIN", "SHW", "FCX"] },
+  { ticker: "XLRE", label: "Real Estate",      movers: ["PLD", "AMT", "EQIX"] },
+  { ticker: "XLU",  label: "Utilities",        movers: ["NEE", "SO", "DUK"] },
+  { ticker: "SMH",  label: "Semiconductors",   movers: ["NVDA", "TSM", "AVGO"] },
+];
+
+export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
+  const now = new Date();
+  const period1 = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000);
+
+  const findClose = (quotes: Array<{ date: unknown; close: number | null }>, daysAgo: number): number | null => {
+    const targetStr = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let best: number | null = null;
+    for (const q of quotes) {
+      if (q.close == null) continue;
+      const d = (q.date instanceof Date ? q.date : new Date(q.date as string)).toISOString().slice(0, 10);
+      if (d <= targetStr) best = q.close;
+    }
+    return best;
+  };
+
+  const fetchReturns = async (ticker: string): Promise<{ ret1m: number | null; ret3m: number | null }> => {
+    const r = await Promise.allSettled([
+      yahooFinance.chart(ticker, { period1, interval: "1d" }, { validateResult: false }),
+    ]);
+    if (r[0].status !== "fulfilled") return { ret1m: null, ret3m: null };
+    const quotes = ((r[0].value as Record<string, unknown>)?.["quotes"] as Array<{ date: unknown; close: number | null }>) ?? [];
+    const current  = findClose(quotes, 0);
+    const monthAgo = findClose(quotes, 30);
+    const threeMonthAgo = findClose(quotes, 91);
+    return {
+      ret1m: current != null && monthAgo != null && monthAgo !== 0 ? ((current / monthAgo) - 1) * 100 : null,
+      ret3m: current != null && threeMonthAgo != null && threeMonthAgo !== 0 ? ((current / threeMonthAgo) - 1) * 100 : null,
+    };
+  };
+
+  const moverTickers = SECTOR_ETFS.flatMap((s) => s.movers);
+  const allTickers = ["SPY", ...SECTOR_ETFS.map((s) => s.ticker), ...moverTickers];
+  const results = await allSettledLimited(allTickers.map((t) => () => fetchReturns(t)), 6);
+  const returnsByTicker = new Map(allTickers.map((t, i) => [t, results[i].status === "fulfilled" ? results[i].value : { ret1m: null, ret3m: null }]));
+
+  const spyReturns = returnsByTicker.get("SPY")!;
+  const rsVsSpy = (ticker: string): number | null => {
+    const r = returnsByTicker.get(ticker);
+    return r?.ret1m != null && spyReturns.ret1m != null ? parseFloat((r.ret1m - spyReturns.ret1m).toFixed(2)) : null;
+  };
+
+  return SECTOR_ETFS.map((s) => {
+    const { ret1m, ret3m } = returnsByTicker.get(s.ticker)!;
+    const rs1m = ret1m != null && spyReturns.ret1m != null ? ret1m - spyReturns.ret1m : null;
+    const rs3m = ret3m != null && spyReturns.ret3m != null ? ret3m - spyReturns.ret3m : null;
+    const momentum = rs1m != null && rs3m != null ? rs1m - rs3m : null;
+    let quadrant: SectorRotationPoint["quadrant"] = null;
+    if (rs1m != null && momentum != null) {
+      quadrant = rs1m >= 0
+        ? (momentum >= 0 ? "leading" : "weakening")
+        : (momentum >= 0 ? "improving" : "lagging");
+    }
+    return {
+      ticker: s.ticker, label: s.label,
+      rs1m: rs1m != null ? parseFloat(rs1m.toFixed(2)) : null,
+      rs3m: rs3m != null ? parseFloat(rs3m.toFixed(2)) : null,
+      momentum: momentum != null ? parseFloat(momentum.toFixed(2)) : null,
+      quadrant,
+      topMovers: s.movers.map((m) => ({ ticker: m, rs1m: rsVsSpy(m) })),
+    };
+  });
 }
 
 // ── Fed Funds Curve (CME 30-Day Fed Funds Futures) ────────────────────────────
@@ -789,6 +894,29 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     }
   };
 
+  // Net Liquidity = WALCL - TGA - RRP, all normalized to $B.
+  // WALCL/WTREGEN are weekly (Wed); RRPONTSYD is daily — resample RRP to the
+  // same-week last observation on/before each WALCL date before subtracting.
+  const deriveNetLiquidity = (
+    walcl: ChartPoint[], tga: ChartPoint[], rrp: ChartPoint[],
+  ): ChartPoint[] => {
+    const tgaMap = new Map(tga.map(p => [p.date, p.value]));
+    const rrpSorted = [...rrp].sort((a, b) => a.date.localeCompare(b.date));
+    return walcl.flatMap(w => {
+      const tgaVal = tgaMap.get(w.date);
+      if (tgaVal === undefined) return [];
+      // last RRP obs on/before this WALCL date (same-week alignment)
+      let rrpVal: number | undefined;
+      for (const p of rrpSorted) {
+        if (p.date > w.date) break;
+        rrpVal = p.value;
+      }
+      if (rrpVal === undefined) return [];
+      const netLiqB = (w.value / 1000) - (tgaVal / 1000) - rrpVal; // $M -> $B for WALCL/TGA
+      return [{ date: w.date, value: parseFloat(netLiqB.toFixed(2)) }];
+    });
+  };
+
   const fetchCopperGold = async (): Promise<ChartPoint[]> => {
     const [cuResult, gcResult] = await Promise.allSettled([
       yahooFinance.chart("HG=F", { period1, interval: "1d" }, { validateResult: false }),
@@ -805,7 +933,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
          hyResult, igResult, vvixResult, fearGreedResult,
          putCallResult, gscpiResult, moneyMarketResult,
-         nfciResult, copperGoldResult, dxyResult] = await allSettledLimited([
+         nfciResult, copperGoldResult, dxyResult,
+         walclResult, tgaResult, rrpResult, reservesResult] = await allSettledLimited([
     () => yahooFinance.chart("^VIX",    { period1, interval: "1d" }, { validateResult: false }),
     () => yahooFinance.chart("^IRX",    { period1, interval: "1d" }, { validateResult: false }),
     () => yahooFinance.chart("^TNX",    { period1, interval: "1d" }, { validateResult: false }),
@@ -821,7 +950,17 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     () => fetchFredCSV("NFCI"),
     () => fetchCopperGold(),
     () => yahooFinance.chart("DX-Y.NYB", { period1, interval: "1d" }, { validateResult: false }),
+    () => fetchFredCSV("WALCL"),      // Fed total assets (weekly, $M)
+    () => fetchFredCSV("WTREGEN"),    // Treasury General Account (weekly, $M)
+    () => fetchFredCSV("RRPONTSYD"),  // Overnight reverse repo (daily, $B)
+    () => fetchFredCSV("WRESBAL"),    // Bank reserve balances (weekly, $M)
   ], 5);
+
+  const fedAssetsHistory = walclResult.status === "fulfilled" ? (walclResult.value as ChartPoint[]) : [];
+  const tgaHistory       = tgaResult.status   === "fulfilled" ? (tgaResult.value   as ChartPoint[]) : [];
+  const rrpHistory       = rrpResult.status   === "fulfilled" ? (rrpResult.value   as ChartPoint[]) : [];
+  const reservesHistory  = reservesResult.status === "fulfilled" ? (reservesResult.value as ChartPoint[]) : [];
+  const netLiquidityHistory = deriveNetLiquidity(fedAssetsHistory, tgaHistory, rrpHistory);
 
   return {
     fetchedAt:             new Date().toISOString(),
@@ -840,6 +979,11 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     nfciHistory:           nfciResult.status       === "fulfilled" ? (nfciResult.value    as ChartPoint[]) : [],
     copperGoldHistory:     copperGoldResult.status === "fulfilled" ? (copperGoldResult.value as ChartPoint[]) : [],
     dxyHistory:            chartToPoints(dxyResult),
+    fedAssetsHistory,
+    tgaHistory,
+    rrpHistory,
+    reservesHistory,
+    netLiquidityHistory,
   };
 }
 
@@ -881,6 +1025,7 @@ export function loadChartsCache(): MacroCharts | null {
     if (!data.hySpreadHistory || !data.putCallHistory || !data.fearGreedHistory) return null;
     if (!("putCallRatioHistory" in data) || !("gscpiHistory" in data) || !("moneyMarketHistory" in data)) return null;
     if (!("igSpreadHistory" in data) || !("nfciHistory" in data) || !("copperGoldHistory" in data) || !("dxyHistory" in data)) return null;
+    if (!("netLiquidityHistory" in data) || !("fedAssetsHistory" in data) || !("tgaHistory" in data) || !("rrpHistory" in data) || !("reservesHistory" in data)) return null;
     return data;
   } catch {
     return null;

@@ -94,6 +94,26 @@ export interface MacroCharts {
   nfciHistory: ChartPoint[];
   copperGoldHistory: ChartPoint[];
   dxyHistory: ChartPoint[];
+  fedAssetsHistory: ChartPoint[];     // Fed total assets (FRED WALCL, weekly $M)
+  tgaHistory: ChartPoint[];           // Treasury General Account (FRED WTREGEN, weekly $M)
+  rrpHistory: ChartPoint[];           // Overnight reverse repo (FRED RRPONTSYD, daily $B)
+  reservesHistory: ChartPoint[];      // Bank reserve balances (FRED WRESBAL, weekly $M)
+  netLiquidityHistory: ChartPoint[];  // Derived: WALCL - TGA - RRP, weekly-aligned, $B
+}
+
+export interface SectorMoverPoint {
+  ticker: string;
+  rs1m: number | null;
+}
+
+export interface SectorRotationPoint {
+  ticker: string;
+  label: string;
+  rs1m: number | null;
+  rs3m: number | null;
+  momentum: number | null;
+  quadrant: "leading" | "weakening" | "lagging" | "improving" | null;
+  topMovers: SectorMoverPoint[];
 }
 
 export interface FedMember {
@@ -151,7 +171,7 @@ export interface SepActuals {
 
 export type CurvePeriod = "current" | "1wk" | "1mo" | "3mo";
 export type SepMetric = "fedRate" | "gdp" | "unemployment" | "corePce";
-export type MacroTab = "regime" | "volatility" | "policy" | "heatmap" | "catalyst";
+export type MacroTab = "regime" | "liquidity" | "volatility" | "policy" | "heatmap" | "catalyst";
 
 const MACRO_TABS: { id: MacroTab; label: string }[] = [
   { id: "regime",     label: "Macro & Regime Health" },

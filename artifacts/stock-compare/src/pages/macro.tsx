@@ -49,7 +49,7 @@ import type {
   FredSeries, MarketQuote, YieldCurvePoint, VixCurvePoint, FedFundsCurvePoint,
   ChartPoint, MacroData, MacroCharts, FedMember, MacroEvent, BankResearch,
   SepData, NewsArticle, IndicatorHistory, SepActuals, CurvePeriod, SepMetric,
-  MacroTab, COTRecord, COTSummary,
+  MacroTab, COTRecord, COTSummary, SectorRotationPoint,
 } from "@/components/macro/macro-page-types";
 import {
   fmt, fmtPct, fmtK, fmtB, fmtDate, fmtTs, fmtMonthYear,
@@ -57,6 +57,7 @@ import {
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
   RegimeChips, StatCell, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
+  LiquidityFlowDiagram, SectorRotationBubbles,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
   TradingViewMarketOverview, TradingViewForexCrossRates,
@@ -64,6 +65,7 @@ import {
 
 const MACRO_TABS: { id: MacroTab; label: string }[] = [
   { id: "regime",     label: "Macro & Regime Health" },
+  { id: "liquidity",  label: "Liquidity" },
   { id: "volatility", label: "Volatility & Sentiment" },
   { id: "policy",     label: "Policy & Forward Guidance" },
   { id: "heatmap",    label: "Heatmap" },
@@ -105,6 +107,14 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/charts").then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+  });
+
+  const { data: sectorRotation } = useQuery<SectorRotationPoint[]>({
+    queryKey: ["macro-sector-rotation"],
+    queryFn: () => fetch("/api/macro/sector-rotation").then((r) => r.json()),
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: activeTab === "liquidity",
   });
 
   const { data: fedMembers } = useQuery<FedMember[]>({
@@ -463,6 +473,71 @@ export default function MacroDashboard() {
                   onSelectInstrument={setSelectedMacroCotId}
                 />
               )}
+            </>
+          )}
+
+          {/* ── Tab: Liquidity ───────────────────────────────────────────────── */}
+          {activeTab === "liquidity" && (
+            <>
+              <LiquidityFlowDiagram
+                fedAssetsHistory={macroCharts?.fedAssetsHistory ?? []}
+                tgaHistory={macroCharts?.tgaHistory ?? []}
+                rrpHistory={macroCharts?.rrpHistory ?? []}
+                netLiquidityHistory={macroCharts?.netLiquidityHistory ?? []}
+                loading={!macroCharts}
+              />
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart
+                  title="Net Liquidity ($B)"
+                  data={macroCharts?.netLiquidityHistory ?? []}
+                  color="#22c55e" loading={!macroCharts}
+                  yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
+                  tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
+                />
+                <RateHistoryChart
+                  title="Overnight RRP ($B)"
+                  data={macroCharts?.rrpHistory ?? []}
+                  color="#fb923c" loading={!macroCharts}
+                  yFormatter={(v: number) => `$${v.toFixed(0)}B`}
+                  tooltipFormatter={(v: number) => [`$${v.toFixed(1)}B`]}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart
+                  title="Money Market Fund AUM ($B)"
+                  data={macroCharts?.moneyMarketHistory ?? []}
+                  color="#60a5fa" loading={!macroCharts}
+                  yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
+                  tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
+                />
+                <RateHistoryChart
+                  title="Chicago Fed NFCI — Financial Conditions"
+                  data={macroCharts?.nfciHistory ?? []}
+                  color="#c084fc" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(2)}
+                  tooltipFormatter={(v: number) => [v.toFixed(3)]}
+                  referenceLines={[
+                    { y: 0,    label: "Avg (0)",  color: "#94a3b8" },
+                    { y: 0.5,  label: "Tight",    color: "#ef4444" },
+                    { y: -0.5, label: "Easy",     color: "#22c55e" },
+                  ]}
+                />
+              </div>
+
+              <div className="flex items-center gap-3 py-2 border-t border-b border-border/50 text-[11px] text-muted-foreground">
+                <span className="flex-1 border-t border-dashed border-border" />
+                <span>Liquidity conditions → sector risk appetite (directional proxy, not measured cash flow)</span>
+                <span className="flex-1 border-t border-dashed border-border" />
+              </div>
+
+              <SectorRotationBubbles data={sectorRotation} loading={!sectorRotation} />
+
+              <p className="text-[10px] text-muted-foreground italic">
+                Proxies only — not a measured cash ledger. No public data traces actual dollars from
+                government to specific sectors or companies.
+              </p>
             </>
           )}
 
