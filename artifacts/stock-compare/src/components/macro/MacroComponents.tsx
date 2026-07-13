@@ -17,6 +17,7 @@ import type {
   VixCurvePoint, FedFundsCurvePoint, YieldCurvePoint,
   COTRecord, COTSummary, CurvePeriod, SepMetric, IndicatorHistory, SepActuals,
   SepData, NewsArticle, SectorRotationPoint, LiquidityImplications, LiquiditySignal,
+  VolatilityImplications, VolatilitySignal,
 } from "./macro-page-types";
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
@@ -339,6 +340,74 @@ export function LiquidityImplicationsCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {data.signals.map(sg => {
           const style = LIQUIDITY_LEVEL_STYLE[sg.level];
+          return (
+            <div key={sg.label} className="rounded-md bg-muted/30 p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                  <span className={cn("w-1.5 h-1.5 rounded-full inline-block", style.dot)} />
+                  {sg.label}
+                </span>
+                <span className={cn("text-xs font-mono font-semibold", style.text)}>{sg.readout}</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-snug">{sg.implication}</p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-slate-500 mt-3">
+        Directional heuristic, not a precise model or trading signal.
+      </p>
+    </div>
+  );
+}
+
+const VOLATILITY_LEVEL_STYLE: Record<VolatilitySignal["level"], { dot: string; text: string; badge: string }> = {
+  calm:     { dot: "bg-green-400",  text: "text-green-400",  badge: "border-green-500/40 bg-green-500/10 text-green-400" },
+  normal:   { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
+  elevated: { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-500/40 bg-orange-500/10 text-orange-400" },
+  stress:   { dot: "bg-red-400",    text: "text-red-400",    badge: "border-red-500/40 bg-red-500/10 text-red-400" },
+  unknown:  { dot: "bg-slate-500",  text: "text-muted-foreground", badge: "border-border text-muted-foreground" },
+};
+
+const VOLATILITY_LEVEL_LABEL: Record<VolatilitySignal["level"], string> = {
+  calm: "Calm",
+  normal: "Normal",
+  elevated: "Elevated",
+  stress: "Stress",
+  unknown: "Unknown",
+};
+
+export function VolatilityImplicationsCard({
+  data, loading,
+}: {
+  data: VolatilityImplications | undefined;
+  loading?: boolean;
+}) {
+  if (loading || !data) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-32">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const overallStyle = VOLATILITY_LEVEL_STYLE[data.overall.level];
+
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Volatility Regime Read</h2>
+        </div>
+        <Badge variant="outline" className={cn("text-xs", overallStyle.badge)}>
+          {VOLATILITY_LEVEL_LABEL[data.overall.level]}
+        </Badge>
+      </div>
+      <p className={cn("text-sm font-medium mb-3", overallStyle.text)}>{data.overall.summary}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {data.signals.map(sg => {
+          const style = VOLATILITY_LEVEL_STYLE[sg.level];
           return (
             <div key={sg.label} className="rounded-md bg-muted/30 p-2.5">
               <div className="flex items-center justify-between gap-2 mb-1">

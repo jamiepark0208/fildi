@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: liquidity-tab-2x2-grid-netliq-rrp-mmf-nfci, sofr-iorb-spread-fetch-and-derive, liquidity-implication-layer-5-signals-plus-overall-verdict, liquidity-implications-card-ui, bank-reserves-chart-added, sofr-iorb-spread-chart-added, sector-rotation-redesign-1d-movers-strip, sector-rotation-sector-names-not-tickers, sector-rotation-bubble-size-by-1m-move-magnitude, liquidity-tab-caption-readability-pass, enh30-marked-done-in-INDEX-CLUSTERS-and-task-file
-- In progress: none - all enh30 liquidity tab work complete and verified live against real data
+- Working: enh17-volatility-implications-card-6-signals, enh17-move-index-fetch-and-chart, enh17-sentiment-page-redirect-to-macro-volatility, enh17-macro-tab-query-param-parsing, enh17-marked-done-in-task-file
+- In progress: none - enh17 volatility tab work complete and verified live against real data
 - Blocked: none
 
 ## Next tasks (priority order)
