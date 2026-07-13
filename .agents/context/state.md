@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-12
+**build** — last updated 2026-07-13
 
 ## Active work
-- Working: split-4-new-portfolio-boxes-into-two-2-col-rows-white-text, sorted-trade-type-and-top-ticker-stacked-bars-highest-to-lowest, explained-cash-bonus-tagged-to-IRA-account-not-FILDI, rebuilt-Options-Expiration-Timeline-into-YTD-biweekly-Options-Income-Timeline-with-year-end-projection
-- In progress: none - all requested chart changes this session shipped and verified
+- Working: site-wide-neutral-dark-theme-nav-bg-vs-card-contrast, bold-topnav-icons-and-labels, portfolio-header-inline-subtitle-plus-last-import-timestamp, compact-Import-CSV-button-replacing-Robinhood-header-dropzone, summary-strip-rebuilt-as-marquee-banner-matching-ticker-tape, renamed-Locked-Collateral-and-Premium-Expected-This-Wk-labels, unbounded-scrolling-Top-Movers-chips, reduced-header-to-banner-vertical-spacing
+- In progress: none - all requested portfolio UI polish this session shipped and typechecked clean
 - Blocked: PnL-tie-out-still-open-verify-Robinhood-totals-now-match-after-dividend-and-assignment-backfill
 
 ## Next tasks (priority order)

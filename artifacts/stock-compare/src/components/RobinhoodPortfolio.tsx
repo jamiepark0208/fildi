@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { PortfolioUpload } from './PortfolioUpload'
 
 // ── API types ─────────────────────────────────────────────────────────────────
 
@@ -320,29 +319,6 @@ function useSnapshotQuery() {
       return res.json()
     },
   })
-}
-
-// Header + CSV upload — rendered above Portfolio Analysis.
-export function RobinhoodPortfolioHeader() {
-  const { data, refetch } = useSnapshotQuery()
-  const snapshot = data?.snapshot ?? null
-  const importedAt = snapshot?.importedAt
-    ? new Date(snapshot.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null
-
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <h2 className="text-sm font-semibold text-white">Robinhood Portfolio</h2>
-        {importedAt && (
-          <p className="text-[11px] text-white/35 mt-0.5">Last import: {importedAt}</p>
-        )}
-      </div>
-      <div className="w-72">
-        <PortfolioUpload onSuccess={() => refetch()} />
-      </div>
-    </div>
-  )
 }
 
 // Equity + option holdings tables — rendered below Portfolio Analysis.

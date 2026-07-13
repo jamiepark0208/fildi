@@ -44,7 +44,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 ## Cluster 6 — Portfolio risk + daily brief + journal
 - bug/14 portfolio-localstorage-not-server — done (conditional); two P0 follow-ups still open, see `FOLLOWUPS.md`
-- enh/8 portfolio-analysis-improvements (L) — ship first. Phase A1 (unlock nav) deferred 2026-07-11, see task file rescope note; A2–A4 still open
+- enh/8 portfolio-analysis-improvements (L) — done 2026-07-13: UI overhaul shipped (theme/nav contrast, compact marquee summary strip, compact CSV import button, Robinhood-header row removed). Phase A1 (unlock nav) still deferred 2026-07-11, see task file rescope note; Phase B (wheel-cycle/journal) still design-gated backlog
 - enh/9 portfolio-daily-brief-improvements (M)
 - ai/13 product-ai-trade-journal-loop (L) — shares journal schema with enh/8
 

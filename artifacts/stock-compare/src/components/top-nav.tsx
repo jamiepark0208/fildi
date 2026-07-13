@@ -53,8 +53,8 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
             : "text-primary/60 hover:text-primary hover:bg-primary/10"
         )}
       >
-        <Icon className="w-5 h-5 shrink-0" />
-        <span className="text-xs font-medium leading-none whitespace-nowrap">{item.label}</span>
+        <Icon className="w-5 h-5 shrink-0" strokeWidth={2.5} />
+        <span className="text-xs font-bold leading-none whitespace-nowrap">{item.label}</span>
       </div>
     </Link>
   );
