@@ -55,7 +55,7 @@ import {
   fmt, fmtPct, fmtK, fmtB, fmtDate, fmtTs, fmtMonthYear,
   changeColor, inflColor, VIX_LEVEL_LABELS, vixBadgeClass,
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
-  RegimeChips, StatCell, QuickStats, VixCurveChart, YieldCurveChart,
+  RegimeChips, StatCell, VolStrip, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
   LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard, VolatilityImplicationsCard,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
@@ -307,10 +307,10 @@ export default function MacroDashboard() {
               key={t.id}
               onClick={() => setActiveTab(t.id)}
               className={cn(
-                "text-xs font-medium px-4 py-2.5 border-b-2 transition-colors -mb-px whitespace-nowrap",
+                "text-xs font-medium px-4 py-2.5 border-b-2 transition-colors -mb-px whitespace-nowrap rounded-t-md",
                 activeTab === t.id
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "border-primary text-foreground bg-primary/10"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
               )}
             >
               {t.label}
@@ -566,48 +566,30 @@ export default function MacroDashboard() {
                 loading={!macroCharts}
               />
 
-              {/* Vol stats */}
-              <div className="flex flex-wrap gap-2">
-                <StatCell label="VIX" value={fmt(macroData!.vix.value, 1)}
-                  sub={macroData!.vix.change != null ? `${macroData!.vix.change > 0 ? "+" : ""}${fmt(macroData!.vix.change, 2)}` : undefined}
-                  subColor={changeColor(macroData!.vix.change ?? null)} />
-                <StatCell label="SKEW" value={fmt(macroData!.skew.value, 1)}
-                  sub={macroData!.skew.change != null ? `${macroData!.skew.change > 0 ? "+" : ""}${fmt(macroData!.skew.change, 2)}` : undefined}
-                  subColor={changeColor(macroData!.skew.change ?? null)} />
-                <StatCell label="VXN (NDX)" value={fmt(macroData!.vxn.value, 1)}
-                  sub={macroData!.vxn.change != null ? `${macroData!.vxn.change > 0 ? "+" : ""}${fmt(macroData!.vxn.change, 2)}` : undefined}
-                  subColor={changeColor(macroData!.vxn.change ?? null)} />
-              </div>
+              {/* Vol stats — compact single-line strip */}
+              <VolStrip macroData={macroData!} macroCharts={macroCharts} />
 
-              {/* VIX Curve + VIX History */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* 6 charts, 2 rows x 3 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <VixCurveChart vixCurve={macroCharts?.vixCurve ?? []} loading={!macroCharts} period={vixPeriod} onPeriodChange={setVixPeriod} />
                 <RateHistoryChart title="VIX History" data={macroCharts?.vixHistory ?? []} color="#facc15" loading={!macroCharts}
                   yFormatter={(v: number) => v.toFixed(1)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
                   referenceLines={[{ y: 20, label: "Elevated", color: "#f59e0b" }, { y: 30, label: "Fear", color: "#ef4444" }]} />
-              </div>
-
-              {/* Fear & Greed + VVIX */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RateHistoryChart title="Fear & Greed Index" data={macroCharts?.fearGreedHistory ?? []} color="#f472b6" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
-                  referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]} />
                 <RateHistoryChart title="CBOE VVIX (Vol of VIX)" data={macroCharts?.putCallHistory ?? []} color="#38bdf8" loading={!macroCharts}
                   yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
                   referenceLines={[{ y: 100, label: "Elevated", color: "#f59e0b" }, { y: 120, label: "Panic", color: "#ef4444" }]} />
-              </div>
-
-              {/* CBOE Equity Put/Call Ratio + MOVE Index */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart title="Fear & Greed Index" data={macroCharts?.fearGreedHistory ?? []} color="#f472b6" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
+                  referenceLines={[{ y: 25, label: "Fear", color: "#ef4444" }, { y: 75, label: "Greed", color: "#22c55e" }]} />
                 <RateHistoryChart title="CBOE Equity Put/Call Ratio" data={macroCharts?.putCallRatioHistory ?? []} color="#a78bfa" loading={!macroCharts}
                   yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
                   referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.0, label: "Bearish", color: "#ef4444" }]} />
-                <RateHistoryChart title="MOVE Index (Bond Market Vol)" data={macroCharts?.moveHistory ?? []} color="#fb7185" loading={!macroCharts}
+                <RateHistoryChart title="MOVE Index (Bond Vol)" data={macroCharts?.moveHistory ?? []} color="#fb7185" loading={!macroCharts}
                   yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
                   referenceLines={[{ y: 90, label: "Calm", color: "#22c55e" }, { y: 140, label: "Stress", color: "#ef4444" }]} />
               </div>
-              <p className="text-[10px] text-muted-foreground/60 -mt-2">
-                MOVE tracks bond-market (rates) implied volatility, not equity vol — it often leads VIX during rate-shock-driven stress.
+              <p className="text-[10px] text-muted-foreground/60 -mt-2" title="MOVE tracks bond-market (rates) implied volatility, not equity vol">
+                MOVE = bond-market vol, not equity vol — it often leads VIX during rate-shock-driven stress.
               </p>
 
               {/* COT — Commodities, Crypto & FX */}

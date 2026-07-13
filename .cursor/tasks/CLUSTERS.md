@@ -75,6 +75,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/16 watchlist-monitor-improvements (M)
 - enh/20 scorecard-guide-improvements (S)
 - enh/21 settings-trader-preferences-improvements (M)
+- enh/35 ai-explanation-quality-improvements (M) — backlog, filed 2026-07-13: cross-cutting pass on every implication/brief/note-generating section (volatility, liquidity, regime, COT, daily brief, scorecard) — the COT `CotPositioningRead` narrative added this session is a first draft of the pattern, not the final bar
 - naf/2 onboarding-product-tour (M)
 - naf/8 command-palette-navigation (M) — **CLAUDE NEXT (P2)** — cmdk already installed
 - naf/9 social-sentiment-polish (M–L)

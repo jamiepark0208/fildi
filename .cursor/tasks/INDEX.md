@@ -51,7 +51,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
 | 15 | P1 | ready | [technical-scorecard-improvements](enhancements/15-technical-scorecard-improvements-070926.md) |
 | 16 | P1 | ready | [watchlist-monitor-improvements](enhancements/16-watchlist-monitor-improvements-070926.md) |
-| 17 | P1 | done | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) — Volatility tab shipped 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index), new MOVE index fetch/chart, /sentiment redirects to /macro?tab=volatility |
+| 17 | P1 | done | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) — Volatility tab shipped 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index) now in a single row; fixed dead CBOE put/call data source (was dead Yahoo ^PCCE ticker, now sourced from CNN's fear&greed response); 6 vol charts compacted to 2x3; new compact VolStrip stat banner; COT section compacted with marquee-scrolling instrument selector + CotPositioningRead plain-English synthesis paragraph + expanded Positioning Extremes columns; sub-tab active-state clarity fix |
 | 18 | P2 | ready | [macro-policy-tab-improvements](enhancements/18-macro-policy-tab-improvements-070926.md) |
 | 19 | P2 | ready | [macro-heatmap-tab-improvements](enhancements/19-macro-heatmap-tab-improvements-070926.md) |
 | 20 | P1 | ready | [scorecard-guide-improvements](enhancements/20-scorecard-guide-improvements-070926.md) |
@@ -67,8 +67,9 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 30 | P0 | done | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) — Liquidity tab shipped 2026-07-13: plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign (1d movers strip, sector names, bubble sizing) |
 | 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, can run independently of 34 |
 | 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D done 2026-07-11 |
+| 35 | P2 | backlog | [ai-explanation-quality-improvements](enhancements/35-ai-explanation-quality-improvements-071326.md) — filed 2026-07-13, cross-cutting pass on every implication/brief/note section (volatility, liquidity, regime, COT, daily brief, scorecard) |
 
-Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup, not assumed to be 34/35 (34 is now performance-resilience-optimization, unrelated); feeds **ai/14**.
+Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup, not assumed to be 34/35 (34 is performance-resilience-optimization, **35 is now taken by ai-explanation-quality-improvements** — use 36+ for any enh/33 spawns); feeds **ai/14**.
 
 ---
 
