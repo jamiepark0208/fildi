@@ -64,7 +64,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) — re-confirmed deferred 2026-07-11 |
 | 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) — re-confirmed deferred 2026-07-11 |
 | 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) — re-confirmed deferred 2026-07-11 |
-| 30 | P0 | ready | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) |
+| 30 | P0 | done | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) — Liquidity tab shipped 2026-07-13: plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign (1d movers strip, sector names, bubble sizing) |
 | 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, can run independently of 34 |
 | 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D done 2026-07-11 |
 

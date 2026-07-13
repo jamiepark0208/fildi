@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done — Liquidity tab shipped 2026-07-13 (plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign) |
 | **Priority** | P0 |
 | **Area** | research → macro ui/data |
 | **Effort** | M (research); build phases spawn after |

@@ -59,6 +59,7 @@ export interface SectorMoverPoint {
 export interface SectorRotationPoint {
   ticker: string;
   label: string;
+  rs1d: number | null;       // 1-day return vs SPY, percentage points — catches same-day news moves
   rs1m: number | null;       // 1m return vs SPY, percentage points
   rs3m: number | null;       // 3m return vs SPY, percentage points
   momentum: number | null;   // rs1m - rs3m: is relative strength accelerating
@@ -74,6 +75,22 @@ export interface FedFundsCurvePoint {
   monthAgo: number | null;
   threeMonthAgo: number | null;
   isTbillProxy?: boolean;
+}
+
+export interface LiquiditySignal {
+  label: string;                                    // e.g. "Net Liquidity"
+  level: "supportive" | "neutral" | "draining" | "stress" | "unknown";
+  readout: string;                                   // e.g. "+$180B over 3mo"
+  implication: string;                               // plain-language, what it means for risk assets
+}
+
+export interface LiquidityImplications {
+  asOf: string;
+  signals: LiquiditySignal[];
+  overall: {
+    level: "supportive" | "neutral" | "draining" | "stress" | "unknown";
+    summary: string;
+  };
 }
 
 export interface MacroCharts {
@@ -98,6 +115,8 @@ export interface MacroCharts {
   rrpHistory: ChartPoint[];           // Overnight reverse repo (FRED RRPONTSYD, daily $B)
   reservesHistory: ChartPoint[];      // Bank reserve balances (FRED WRESBAL, weekly $B)
   netLiquidityHistory: ChartPoint[];  // Derived: WALCL - TGA - RRP, weekly-aligned, $B
+  sofrIorbSpreadHistory: ChartPoint[]; // Derived: SOFR - IORB, daily, bps — reserve scarcity / repo stress
+  liquidityImplications: LiquidityImplications; // Synthesized regime read across the liquidity series above
 }
 
 export interface FedMember {
@@ -481,16 +500,18 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
     return best;
   };
 
-  const fetchReturns = async (ticker: string): Promise<{ ret1m: number | null; ret3m: number | null }> => {
+  const fetchReturns = async (ticker: string): Promise<{ ret1d: number | null; ret1m: number | null; ret3m: number | null }> => {
     const r = await Promise.allSettled([
       yahooFinance.chart(ticker, { period1, interval: "1d" }, { validateResult: false }),
     ]);
-    if (r[0].status !== "fulfilled") return { ret1m: null, ret3m: null };
+    if (r[0].status !== "fulfilled") return { ret1d: null, ret1m: null, ret3m: null };
     const quotes = ((r[0].value as Record<string, unknown>)?.["quotes"] as Array<{ date: unknown; close: number | null }>) ?? [];
     const current  = findClose(quotes, 0);
+    const dayAgo   = quotes.length >= 2 ? quotes[quotes.length - 2].close : null;
     const monthAgo = findClose(quotes, 30);
     const threeMonthAgo = findClose(quotes, 91);
     return {
+      ret1d: current != null && dayAgo != null && dayAgo !== 0 ? ((current / dayAgo) - 1) * 100 : null,
       ret1m: current != null && monthAgo != null && monthAgo !== 0 ? ((current / monthAgo) - 1) * 100 : null,
       ret3m: current != null && threeMonthAgo != null && threeMonthAgo !== 0 ? ((current / threeMonthAgo) - 1) * 100 : null,
     };
@@ -499,7 +520,7 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
   const moverTickers = SECTOR_ETFS.flatMap((s) => s.movers);
   const allTickers = ["SPY", ...SECTOR_ETFS.map((s) => s.ticker), ...moverTickers];
   const results = await allSettledLimited(allTickers.map((t) => () => fetchReturns(t)), 6);
-  const returnsByTicker = new Map(allTickers.map((t, i) => [t, results[i].status === "fulfilled" ? results[i].value : { ret1m: null, ret3m: null }]));
+  const returnsByTicker = new Map(allTickers.map((t, i) => [t, results[i].status === "fulfilled" ? results[i].value : { ret1d: null, ret1m: null, ret3m: null }]));
 
   const spyReturns = returnsByTicker.get("SPY")!;
   const rsVsSpy = (ticker: string): number | null => {
@@ -508,7 +529,8 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
   };
 
   return SECTOR_ETFS.map((s) => {
-    const { ret1m, ret3m } = returnsByTicker.get(s.ticker)!;
+    const { ret1d, ret1m, ret3m } = returnsByTicker.get(s.ticker)!;
+    const rs1d = ret1d != null && spyReturns.ret1d != null ? ret1d - spyReturns.ret1d : null;
     const rs1m = ret1m != null && spyReturns.ret1m != null ? ret1m - spyReturns.ret1m : null;
     const rs3m = ret3m != null && spyReturns.ret3m != null ? ret3m - spyReturns.ret3m : null;
     const momentum = rs1m != null && rs3m != null ? rs1m - rs3m : null;
@@ -520,6 +542,7 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
     }
     return {
       ticker: s.ticker, label: s.label,
+      rs1d: rs1d != null ? parseFloat(rs1d.toFixed(2)) : null,
       rs1m: rs1m != null ? parseFloat(rs1m.toFixed(2)) : null,
       rs3m: rs3m != null ? parseFloat(rs3m.toFixed(2)) : null,
       momentum: momentum != null ? parseFloat(momentum.toFixed(2)) : null,
@@ -794,6 +817,185 @@ async function allSettledLimited<T>(
   return results;
 }
 
+// ── Liquidity implications ──────────────────────────────────────────────────
+// Turns the raw plumbing series into a plain-language regime read, the way
+// dealer/Fed liquidity notes do: net liquidity trend, whether the RRP buffer
+// still cushions QT, reserve scarcity (SOFR-IORB), financial conditions (NFCI),
+// and credit stress (HY OAS). Thresholds are directional heuristics, not
+// precise research citations — the point is a repeatable qualitative read.
+
+function sortedByDate(points: ChartPoint[]): ChartPoint[] {
+  return [...points].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function valueDaysAgo(sorted: ChartPoint[], daysAgo: number): number | null {
+  if (sorted.length === 0) return null;
+  const targetDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+  const targetStr = targetDate.toISOString().slice(0, 10);
+  let val: number | null = null;
+  for (const p of sorted) {
+    if (p.date > targetStr) break;
+    val = p.value;
+  }
+  return val ?? sorted[0].value;
+}
+
+const LEVEL_SCORE: Record<LiquiditySignal["level"], number> = {
+  supportive: 1, neutral: 0, draining: -1, stress: -2, unknown: 0,
+};
+
+function computeLiquidityImplications(
+  netLiquidityHistory: ChartPoint[],
+  rrpHistory: ChartPoint[],
+  nfciHistory: ChartPoint[],
+  hySpreadHistory: ChartPoint[],
+  sofrIorbSpreadHistory: ChartPoint[],
+): LiquidityImplications {
+  const signals: LiquiditySignal[] = [];
+
+  // 1. Net liquidity trend (~3mo rate of change)
+  {
+    const s = sortedByDate(netLiquidityHistory);
+    const latest = s.length ? s[s.length - 1].value : null;
+    const past = valueDaysAgo(s, 91);
+    if (latest != null && past != null && past !== 0) {
+      const deltaB = latest - past;
+      const pct = (deltaB / Math.abs(past)) * 100;
+      const level: LiquiditySignal["level"] = pct > 2 ? "supportive" : pct < -2 ? "draining" : "neutral";
+      signals.push({
+        label: "Net Liquidity",
+        level,
+        readout: `${deltaB >= 0 ? "+" : ""}$${deltaB.toFixed(0)}B over 3mo (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`,
+        implication: level === "supportive"
+          ? "Fed assets minus TGA/RRP drains are net expanding — a tailwind for risk-asset valuations."
+          : level === "draining"
+          ? "Net liquidity is contracting — a headwind that has historically coincided with equity multiple compression."
+          : "Net liquidity is roughly flat — no strong directional pull from the plumbing right now.",
+      });
+    }
+  }
+
+  // 2. RRP buffer — does it still cushion QT, or is it exhausted?
+  {
+    const s = sortedByDate(rrpHistory);
+    const latest = s.length ? s[s.length - 1].value : null;
+    const past = valueDaysAgo(s, 91);
+    if (latest != null) {
+      const trendDown = past != null && latest < past;
+      const level: LiquiditySignal["level"] =
+        latest > 300 && trendDown ? "supportive" :
+        latest < 75 ? "draining" :
+        "neutral";
+      signals.push({
+        label: "RRP Buffer",
+        level,
+        readout: `$${latest.toFixed(0)}B outstanding`,
+        implication: level === "supportive"
+          ? "RRP is still draining into the system, offsetting QT — the cushion has more room to absorb balance-sheet runoff."
+          : level === "draining"
+          ? "RRP buffer is nearly exhausted — further QT will start hitting bank reserves directly instead of being cushioned."
+          : "RRP buffer is at a moderate level — partial cushion left against further balance-sheet runoff.",
+      });
+    }
+  }
+
+  // 3. Reserve scarcity — SOFR vs IORB spread (bps)
+  {
+    const s = sortedByDate(sofrIorbSpreadHistory);
+    const latest = s.length ? s[s.length - 1].value : null;
+    if (latest != null) {
+      const level: LiquiditySignal["level"] =
+        latest <= 0 ? "supportive" :
+        latest <= 5 ? "neutral" :
+        latest <= 15 ? "draining" :
+        "stress";
+      signals.push({
+        label: "Reserve Scarcity (SOFR-IORB)",
+        level,
+        readout: `${latest >= 0 ? "+" : ""}${latest.toFixed(1)}bps`,
+        implication: level === "stress"
+          ? "SOFR printing well above IORB — a classic reserve-scarcity signal seen before repo funding stress (e.g. Sep 2019)."
+          : level === "draining"
+          ? "SOFR is drifting above IORB — reserves are getting less abundant, worth watching for repo-market pressure."
+          : "SOFR is trading at or below IORB — reserves remain ample and repo funding is orderly.",
+      });
+    }
+  }
+
+  // 4. Financial conditions — Chicago Fed NFCI level
+  {
+    const s = sortedByDate(nfciHistory);
+    const latest = s.length ? s[s.length - 1].value : null;
+    if (latest != null) {
+      const level: LiquiditySignal["level"] =
+        latest < -0.1 ? "supportive" :
+        latest <= 0.1 ? "neutral" :
+        latest <= 0.5 ? "draining" :
+        "stress";
+      signals.push({
+        label: "Financial Conditions (NFCI)",
+        level,
+        readout: `${latest >= 0 ? "+" : ""}${latest.toFixed(2)}`,
+        implication: level === "stress"
+          ? "Financial conditions are tight relative to history — this level has historically preceded risk-asset drawdowns."
+          : level === "draining"
+          ? "Financial conditions are tightening above trend — a mild headwind for risk appetite."
+          : level === "supportive"
+          ? "Financial conditions are looser than average — supportive of risk-taking."
+          : "Financial conditions are near their historical average — a neutral backdrop.",
+      });
+    }
+  }
+
+  // 5. Credit stress — HY OAS level (series is in percent, e.g. 3.03 = 3.03% = 303bps)
+  {
+    const s = sortedByDate(hySpreadHistory);
+    const latestPct = s.length ? s[s.length - 1].value : null;
+    const pastPct = valueDaysAgo(s, 91);
+    if (latestPct != null) {
+      const latest = latestPct * 100; // bps
+      const past = pastPct != null ? pastPct * 100 : null;
+      const rising50bp = past != null && (latest - past) > 50;
+      const level: LiquiditySignal["level"] =
+        latest > 500 || rising50bp ? "stress" :
+        latest > 400 ? "draining" :
+        latest < 350 ? "supportive" :
+        "neutral";
+      signals.push({
+        label: "Credit Stress (HY OAS)",
+        level,
+        readout: `${latest.toFixed(0)}bps`,
+        implication: level === "stress"
+          ? "High-yield spreads are wide or widening sharply — credit markets are pricing in real liquidity/default stress."
+          : level === "supportive"
+          ? "High-yield spreads are tight — credit markets see ample liquidity and low near-term default risk."
+          : "High-yield spreads are in a middling range — credit isn't signaling stress, but isn't complacent either.",
+      });
+    }
+  }
+
+  const known = signals.filter(sg => sg.level !== "unknown");
+  const avgScore = known.length
+    ? known.reduce((sum, sg) => sum + LEVEL_SCORE[sg.level], 0) / known.length
+    : 0;
+  const overallLevel: LiquidityImplications["overall"]["level"] =
+    avgScore >= 0.5 ? "supportive" :
+    avgScore >= -0.4 ? "neutral" :
+    avgScore >= -1.2 ? "draining" :
+    "stress";
+  const overallSummary =
+    overallLevel === "supportive" ? "Liquidity conditions are net supportive for risk assets — plumbing, reserves, and credit are all in benign territory." :
+    overallLevel === "stress" ? "Liquidity conditions are showing real stress across multiple channels — a regime that has historically warranted defensive positioning." :
+    overallLevel === "draining" ? "Liquidity conditions are net draining — several channels are tightening, a headwind worth monitoring closely." :
+    "Liquidity conditions are mixed/neutral — no single channel is dominating the picture right now.";
+
+  return {
+    asOf: new Date().toISOString(),
+    signals,
+    overall: { level: overallLevel, summary: overallSummary },
+  };
+}
+
 // ── Charts data ───────────────────────────────────────────────────────────────
 
 export async function fetchMacroCharts(): Promise<MacroCharts> {
@@ -917,6 +1119,25 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     });
   };
 
+  // SOFR - IORB spread (bps) — the reserve-scarcity / repo-stress signal the Fed's
+  // own repo-market working papers key off (SOFR printing meaningfully above IORB
+  // means reserves are getting scarce and repo funding is tightening).
+  const deriveSofrIorbSpread = (sofr: ChartPoint[], iorb: ChartPoint[]): ChartPoint[] => {
+    const iorbMap = new Map(iorb.map(p => [p.date, p.value]));
+    const iorbSorted = [...iorb].sort((a, b) => a.date.localeCompare(b.date));
+    return sofr.flatMap(s => {
+      let iorbVal = iorbMap.get(s.date);
+      if (iorbVal === undefined) {
+        for (const p of iorbSorted) {
+          if (p.date > s.date) break;
+          iorbVal = p.value;
+        }
+      }
+      if (iorbVal === undefined) return [];
+      return [{ date: s.date, value: parseFloat(((s.value - iorbVal) * 100).toFixed(1)) }];
+    });
+  };
+
   const fetchCopperGold = async (): Promise<ChartPoint[]> => {
     const [cuResult, gcResult] = await Promise.allSettled([
       yahooFinance.chart("HG=F", { period1, interval: "1d" }, { validateResult: false }),
@@ -934,7 +1155,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
          hyResult, igResult, vvixResult, fearGreedResult,
          putCallResult, gscpiResult, moneyMarketResult,
          nfciResult, copperGoldResult, dxyResult,
-         walclResult, tgaResult, rrpResult, reservesResult] = await allSettledLimited([
+         walclResult, tgaResult, rrpResult, reservesResult,
+         sofrResult, iorbResult] = await allSettledLimited([
     () => yahooFinance.chart("^VIX",    { period1, interval: "1d" }, { validateResult: false }),
     () => yahooFinance.chart("^IRX",    { period1, interval: "1d" }, { validateResult: false }),
     () => yahooFinance.chart("^TNX",    { period1, interval: "1d" }, { validateResult: false }),
@@ -954,6 +1176,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     () => fetchFredCSV("WTREGEN"),    // Treasury General Account (weekly, $M)
     () => fetchFredCSV("RRPONTSYD"),  // Overnight reverse repo (daily, $B)
     () => fetchFredCSV("WRESBAL"),    // Bank reserve balances (weekly, $M)
+    () => fetchFredCSV("SOFR"),       // Secured Overnight Financing Rate (daily, %)
+    () => fetchFredCSV("IORB"),       // Interest on Reserve Balances (daily, %)
   ], 5);
 
   const fedAssetsHistory = walclResult.status === "fulfilled" ? (walclResult.value as ChartPoint[]) : [];
@@ -961,6 +1185,14 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   const rrpHistory       = rrpResult.status   === "fulfilled" ? (rrpResult.value   as ChartPoint[]) : [];
   const reservesHistory  = reservesResult.status === "fulfilled" ? (reservesResult.value as ChartPoint[]) : [];
   const netLiquidityHistory = deriveNetLiquidity(fedAssetsHistory, tgaHistory, rrpHistory);
+  const sofrHistory = sofrResult.status === "fulfilled" ? (sofrResult.value as ChartPoint[]) : [];
+  const iorbHistory = iorbResult.status === "fulfilled" ? (iorbResult.value as ChartPoint[]) : [];
+  const sofrIorbSpreadHistory = deriveSofrIorbSpread(sofrHistory, iorbHistory);
+  const hySpreadHistoryForImplications = hyResult.status === "fulfilled" ? (hyResult.value as ChartPoint[]) : [];
+  const nfciHistoryForImplications = nfciResult.status === "fulfilled" ? (nfciResult.value as ChartPoint[]) : [];
+  const liquidityImplications = computeLiquidityImplications(
+    netLiquidityHistory, rrpHistory, nfciHistoryForImplications, hySpreadHistoryForImplications, sofrIorbSpreadHistory,
+  );
 
   return {
     fetchedAt:             new Date().toISOString(),
@@ -984,6 +1216,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     rrpHistory,
     reservesHistory,
     netLiquidityHistory,
+    sofrIorbSpreadHistory,
+    liquidityImplications,
   };
 }
 
@@ -1026,6 +1260,7 @@ export function loadChartsCache(): MacroCharts | null {
     if (!("putCallRatioHistory" in data) || !("gscpiHistory" in data) || !("moneyMarketHistory" in data)) return null;
     if (!("igSpreadHistory" in data) || !("nfciHistory" in data) || !("copperGoldHistory" in data) || !("dxyHistory" in data)) return null;
     if (!("netLiquidityHistory" in data) || !("fedAssetsHistory" in data) || !("tgaHistory" in data) || !("rrpHistory" in data) || !("reservesHistory" in data)) return null;
+    if (!("sofrIorbSpreadHistory" in data) || !("liquidityImplications" in data)) return null;
     return data;
   } catch {
     return null;
