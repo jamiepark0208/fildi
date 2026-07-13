@@ -49,24 +49,24 @@
 }
 
 :root {
-  --background: 218 20% 8%;
+  --background: 220 6% 13%;
   --foreground: 210 40% 98%;
 
-  --card: 216 21% 12%;
+  --card: 220 6% 6%;
   --card-foreground: 210 40% 98%;
-  --card-border: 216 21% 18%;
+  --card-border: 220 6% 18%;
 
-  --popover: 216 21% 12%;
+  --popover: 220 6% 6%;
   --popover-foreground: 210 40% 98%;
-  --popover-border: 216 21% 18%;
+  --popover-border: 220 6% 18%;
 
   --primary: 199 89% 48%;
   --primary-foreground: 210 40% 98%;
 
-  --secondary: 216 21% 18%;
+  --secondary: 220 6% 18%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 216 21% 18%;
+  --muted: 220 6% 18%;
   --muted-foreground: 215 18% 82%;
 
   --accent: 199 89% 48%;
@@ -75,13 +75,13 @@
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 216 21% 18%;
-  --input: 216 21% 18%;
+  --border: 220 6% 18%;
+  --input: 220 6% 18%;
   --ring: 199 89% 48%;
 
-  --sidebar: 218 24% 5%;
+  --sidebar: 220 8% 4%;
   --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 216 21% 12%;
+  --sidebar-border: 220 6% 6%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'Space Mono', monospace;
@@ -89,24 +89,24 @@
 }
 
 .dark {
-  --background: 218 20% 8%;
+  --background: 220 6% 13%;
   --foreground: 210 40% 98%;
 
-  --card: 216 21% 12%;
+  --card: 220 6% 6%;
   --card-foreground: 210 40% 98%;
-  --card-border: 216 21% 18%;
+  --card-border: 220 6% 18%;
 
-  --popover: 216 21% 12%;
+  --popover: 220 6% 6%;
   --popover-foreground: 210 40% 98%;
-  --popover-border: 216 21% 18%;
+  --popover-border: 220 6% 18%;
 
   --primary: 199 89% 48%;
   --primary-foreground: 210 40% 98%;
 
-  --secondary: 216 21% 18%;
+  --secondary: 220 6% 18%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 216 21% 18%;
+  --muted: 220 6% 18%;
   --muted-foreground: 215 18% 82%;
 
   --accent: 199 89% 48%;
@@ -115,13 +115,13 @@
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 216 21% 18%;
-  --input: 216 21% 18%;
+  --border: 220 6% 18%;
+  --input: 220 6% 18%;
   --ring: 199 89% 48%;
 
-  --sidebar: 218 24% 5%;
+  --sidebar: 220 8% 4%;
   --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 216 21% 12%;
+  --sidebar-border: 220 6% 6%;
 }
 
 @layer base {

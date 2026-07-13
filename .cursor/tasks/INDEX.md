@@ -42,7 +42,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 5 | P1 | done | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) — folded into enh/34 Wave D 2026-07-11 |
 | 6 | P1 | done | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) — Track 1 done 2026-07-11 (schema applied, NVDA verified, 2 bugs fixed, UI wired); Track 2 (Finviz PT) still pending spike |
 | 7 | P1 | done | [observability-error-tracking](enhancements/7-observability-error-tracking-070926.md) |
-| 8 | P0 | ready | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) |
+| 8 | P0 | done | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) — UI overhaul done 2026-07-13 (nav/theme contrast, summary strip → marquee banner, compact CSV import button, Robinhood-header row removed); A1 nav-unlock still deferred, Phase B (wheel-cycle/journal) still design-gated backlog |
 | 9 | P1 | ready | [portfolio-daily-brief-improvements](enhancements/9-portfolio-daily-brief-improvements-070926.md) |
 | 10 | P0 | ready | [macro-regime-tab-improvements](enhancements/10-macro-regime-tab-improvements-070926.md) |
 | 11 | P1 | ready | [macro-catalyst-calendar-improvements](enhancements/11-macro-catalyst-calendar-improvements-070926.md) |

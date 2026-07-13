@@ -21,7 +21,8 @@ import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
 import { MarketTickerBanner } from "@/components/MarketTickerBanner";
-import { RobinhoodPortfolioHeader, RobinhoodPortfolioTables } from "@/components/RobinhoodPortfolio";
+import { RobinhoodPortfolioTables } from "@/components/RobinhoodPortfolio";
+import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { useAuth } from "@/context/AuthContext";
 
 // ── Position types ────────────────────────────────────────────────────────────
@@ -748,7 +749,7 @@ export default function Portfolio() {
 
   // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request).
   // Admin-only data source — disabled for regular users, who use manualEntries instead.
-  const { data: rhData } = useQuery<{
+  const { data: rhData, refetch: refetchRh } = useQuery<{
     snapshot: { id: number; importedAt: string; accountIds: string[]; totalValue: string | null; cashBalance: string | null; cryptoValue: string | null } | null;
     positions: Array<{ id: number; symbol: string; quantity: string | null; avgCost: string | null; accountNickname: string | null; account: string; marketValue: string | null; unrealizedPnL: string | null }>;
     options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null; gamma: string | null; vega: string | null }>;
@@ -812,21 +813,44 @@ export default function Portfolio() {
 
   // Aggregate stats
   const agg = useMemo(() => {
-    let totalCollateral = 0, totalPremium = 0, totalStockValue = 0, openOptions = 0, expiringThisWeek = 0;
+    let totalCollateral = 0, totalPremium = 0, totalStockValue = 0, openOptions = 0, premiumThisWeek = 0;
     entries.forEach(e => {
       if (e.positionType === "short_put") {
         totalCollateral += cashCollateral(e); totalPremium += premiumReceived(e); openOptions++;
-        if ((daysToExpiry(e.expiry) ?? 99) <= 7) expiringThisWeek++;
+        if ((daysToExpiry(e.expiry) ?? 99) <= 7) premiumThisWeek += premiumReceived(e);
       } else if (e.positionType === "short_call") {
         totalPremium += premiumReceived(e); openOptions++;
-        if ((daysToExpiry(e.expiry) ?? 99) <= 7) expiringThisWeek++;
+        if ((daysToExpiry(e.expiry) ?? 99) <= 7) premiumThisWeek += premiumReceived(e);
       } else if (e.positionType === "stock") {
         totalStockValue += (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
       } else { openOptions++; }
     });
-    return { totalCollateral, totalPremium, totalStockValue, openOptions, expiringThisWeek,
+    return { totalCollateral, totalPremium, totalStockValue, openOptions, premiumThisWeek,
       totalValue: totalCollateral + totalPremium + totalStockValue };
   }, [entries, priceMap]);
+
+  // Portfolio-level day-over-day change — derived from live quotes on stock holdings
+  // (options/collateral have no live day-change feed, so this approximates using equity only).
+  const dodChange = useMemo(() => {
+    let dollarChange = 0, marketValue = 0;
+    entries.forEach(e => {
+      if (e.positionType !== "stock") return;
+      const px = priceMap[e.ticker] ?? e.avgPrice;
+      const chg = stockDataMap[e.ticker]?.dayChange ?? 0;
+      dollarChange += chg * e.qty;
+      marketValue += px * e.qty;
+    });
+    if (marketValue === 0) return null;
+    return { dollarChange, pct: (dollarChange / (marketValue - dollarChange)) * 100 };
+  }, [entries, priceMap, stockDataMap]);
+
+  // Top movers by |day change %| — concise ticker + DoD change chips
+  const topMovers = useMemo(() => {
+    return uniqueTickers
+      .map(t => ({ ticker: t, pct: stockDataMap[t]?.dayChangePercent != null ? stockDataMap[t].dayChangePercent! * 100 : null }))
+      .filter((m): m is { ticker: string; pct: number } => m.pct !== null)
+      .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+  }, [uniqueTickers, stockDataMap]);
 
   // "Unassigned" entries — those not in any named portfolio
   const unassignedEntries = useMemo(() =>
@@ -851,26 +875,34 @@ export default function Portfolio() {
 
       <main className="pt-14 min-w-0">
         {/* Header */}
-        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
-          <div>
-            <h1 className="text-lg font-bold tracking-tight leading-none">Portfolio</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+        <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
+          <div className="flex items-baseline gap-2.5 min-w-0">
+            <h1 className="text-lg font-bold tracking-tight leading-none shrink-0">Portfolio</h1>
+            <p className="text-xs text-muted-foreground truncate">
               {entries.length === 0
                 ? "No positions yet"
                 : `${entries.length} position${entries.length !== 1 ? "s" : ""} across ${uniqueTickers.length} ticker${uniqueTickers.length !== 1 ? "s" : ""} · ${portfolioNames.length} portfolio${portfolioNames.length !== 1 ? "s" : ""}`}
+              {isAdmin && rhData?.snapshot?.importedAt && (
+                <span className="text-muted-foreground/60">
+                  {" "}· Last import: {new Date(rhData.snapshot.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Manual-entry portfolios are a non-admin concept — admins get theirs from the RH CSV import */}
             {!isAdmin && (
               <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
                 <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
               </Button>
             )}
+            {isAdmin && (
+              <PortfolioUpload onSuccess={() => refetchRh()} />
+            )}
           </div>
         </div>
 
-        <div className="p-5 space-y-5">
+        <div className="px-5 pb-5 pt-3 space-y-5">
           {entries.length === 0 && portfolioNames.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 gap-5 text-center">
               <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
@@ -892,43 +924,56 @@ export default function Portfolio() {
             </div>
           ) : (
             <>
-              {/* Compact summary strip — live from Robinhood snapshot */}
-              {rhData?.snapshot && (
-                <div className="flex items-center gap-px bg-card border border-border rounded-xl overflow-hidden">
-                  {[
-                    {
-                      label: 'Portfolio Value',
-                      value: rhData.snapshot.totalValue ? formatCurrency(parseFloat(rhData.snapshot.totalValue)) : '—',
-                      color: 'text-white',
-                      accent: true,
-                    },
-                    {
-                      label: 'Collateral Tied Up',
-                      value: formatCurrency(agg.totalCollateral),
-                      color: 'text-yellow-400',
-                    },
-                    {
-                      label: 'Premium Collected',
-                      value: formatCurrency(agg.totalPremium),
-                      color: 'text-green-400',
-                    },
-                    {
-                      label: 'Expiring This Week',
-                      value: String(agg.expiringThisWeek),
-                      color: agg.expiringThisWeek > 0 ? 'text-orange-400' : 'text-white',
-                    },
-                  ].map(({ label, value, color, accent }) => (
-                    <div key={label} className={cn(
-                      'flex-1 px-4 py-3 flex flex-col gap-0.5',
-                      accent ? 'bg-primary/8' : 'bg-transparent',
-                      'border-r border-border last:border-r-0'
-                    )}>
-                      <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest">{label}</span>
-                      <span className={cn('text-base font-bold font-mono tabular-nums leading-tight', color)}>{value}</span>
+              {/* Compact summary strip — styled to match the market ticker banner below */}
+              {rhData?.snapshot && (() => { const snapshot = rhData.snapshot!; return (
+                <div className="rounded-xl border border-border bg-card overflow-hidden group">
+                  <div className="flex overflow-hidden">
+                    <div className="flex animate-marquee group-hover:animate-marquee-paused py-2">
+                      {['a', 'b'].map(prefix => (
+                        <div key={prefix} className="flex items-center shrink-0">
+                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
+                            <span className="text-[10px] text-white font-bold tracking-wide">Portfolio Value</span>
+                            <span className="text-xs font-bold font-mono tabular-nums text-white">
+                              {snapshot.totalValue ? formatCurrency(parseFloat(snapshot.totalValue)) : '—'}
+                            </span>
+                            {dodChange && (
+                              <span className={cn('text-[10px] font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                                ({dodChange.pct >= 0 ? '+' : ''}{dodChange.pct.toFixed(2)}%)
+                              </span>
+                            )}
+                            <span className="text-border/60 ml-1">·</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
+                            <span className="text-[10px] text-white font-bold tracking-wide">Locked Collateral</span>
+                            <span className="text-xs font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
+                            <span className="text-border/60 ml-1">·</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
+                            <span className="text-[10px] text-white font-bold tracking-wide">Premium Expected This Wk</span>
+                            <span className="text-xs font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
+                            <span className="text-border/60 ml-1">·</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
+                            <span className="text-[10px] text-white font-bold tracking-wide">Top Movers</span>
+                            {topMovers.length === 0 && <span className="text-xs font-mono text-white/50">—</span>}
+                          </div>
+                          {topMovers.map(m => (
+                            <div key={m.ticker} className="flex items-center gap-1.5 px-3 whitespace-nowrap shrink-0">
+                              <span className={cn('text-xs font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                                {m.ticker} {m.pct >= 0 ? '+' : ''}{m.pct.toFixed(1)}%
+                              </span>
+                              <span className="text-border/60">·</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
+              ); })()}
 
               {/* Market ticker tape — VIX/SPY/QQQ/etc, scrolls as one row at any width */}
               <MarketTickerBanner />
@@ -938,9 +983,6 @@ export default function Portfolio() {
 
               {isAdmin ? (
                 <>
-                  {/* Header + CSV upload — admin-only, gated here */}
-                  <RobinhoodPortfolioHeader />
-
                   {/* Portfolio Analysis — driven by Robinhood snapshot, above the holdings tables */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis

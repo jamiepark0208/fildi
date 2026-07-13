@@ -22,17 +22,16 @@ function extractDateFromFilename(name: string): string | null {
   return m ? m[1] : null
 }
 
+// Compact "Import CSV" button — styled like the Generate Today's Brief CTA, scaled down.
 export function PortfolioUpload({ onSuccess }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>('idle')
-  const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
 
   async function upload(file: File) {
     setStatus('uploading')
     setError(null)
-    setResult(null)
 
     try {
       const text = await file.text()
@@ -58,9 +57,10 @@ export function PortfolioUpload({ onSuccess }: Props) {
         orderCount:    data.orderCount,
         lastUpdated:   extractDateFromFilename(file.name),
       }
-      setResult(uploadResult)
       setStatus('success')
       onSuccess?.(uploadResult)
+      if (inputRef.current) inputRef.current.value = ''
+      setTimeout(() => setStatus(s => (s === 'success' ? 'idle' : s)), 3000)
     } catch {
       setError('Network error — could not reach server.')
       setStatus('error')
@@ -79,25 +79,18 @@ export function PortfolioUpload({ onSuccess }: Props) {
     handleFiles(e.dataTransfer.files)
   }
 
-  function reset() {
-    setStatus('idle')
-    setResult(null)
-    setError(null)
-    if (inputRef.current) inputRef.current.value = ''
-  }
+  const label = status === 'uploading' ? 'Importing…'
+    : status === 'success' ? 'Imported'
+    : status === 'error' ? 'Retry'
+    : 'Import CSV'
+
+  const Icon = status === 'uploading' ? Loader2
+    : status === 'success' ? CheckCircle2
+    : status === 'error' ? AlertCircle
+    : Upload
 
   return (
-    <div
-      className={cn(
-        'relative flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors',
-        dragging
-          ? 'border-primary/60 bg-primary/5'
-          : 'border-border bg-card',
-      )}
-      onDragOver={e => { e.preventDefault(); setDragging(true) }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={handleDrop}
-    >
+    <div className="relative">
       <input
         ref={inputRef}
         type="file"
@@ -105,56 +98,26 @@ export function PortfolioUpload({ onSuccess }: Props) {
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
       />
-
-      {/* Icon */}
-      <div className="shrink-0">
-        {status === 'uploading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-        {status === 'success'   && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-        {status === 'error'     && <AlertCircle className="h-4 w-4 text-destructive" />}
-        {status === 'idle'      && <Upload className="h-4 w-4 text-muted-foreground" />}
-      </div>
-
-      {/* Text */}
-      <div className="flex-1 min-w-0">
-        {status === 'idle' && (
-          <p className="text-xs text-muted-foreground">
-            Drop a Robinhood CSV or{' '}
-            <button
-              className="text-primary underline-offset-2 hover:underline"
-              onClick={() => inputRef.current?.click()}
-            >
-              browse
-            </button>
-          </p>
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={status === 'uploading'}
+        onDragOver={e => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        title="Drop a Robinhood CSV or click to browse"
+        className={cn(
+          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60',
+          status === 'error'
+            ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            : 'bg-primary text-primary-foreground hover:bg-primary/90',
+          dragging && 'ring-2 ring-primary/60',
         )}
-        {status === 'uploading' && (
-          <p className="text-xs text-muted-foreground animate-pulse">Importing…</p>
-        )}
-        {status === 'success' && result && (
-          <div>
-            <p className="text-xs text-green-500 font-medium">
-              Imported — {result.positionCount} positions, {result.optionCount} options
-            </p>
-            {result.lastUpdated && (
-              <p className="text-xs text-muted-foreground/70">
-                Last updated: {result.lastUpdated}
-              </p>
-            )}
-          </div>
-        )}
-        {status === 'error' && (
-          <p className="text-xs text-destructive truncate">{error}</p>
-        )}
-      </div>
-
-      {/* Reset after done */}
-      {(status === 'success' || status === 'error') && (
-        <button
-          onClick={reset}
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {status === 'success' ? 'Upload another' : 'Retry'}
-        </button>
+      >
+        <Icon className={cn('w-3.5 h-3.5', status === 'uploading' && 'animate-spin')} />
+        {label}
+      </button>
+      {status === 'error' && error && (
+        <p className="absolute right-0 top-full mt-1 text-[11px] text-destructive whitespace-nowrap z-10">{error}</p>
       )}
     </div>
   )

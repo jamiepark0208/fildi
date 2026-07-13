@@ -35,7 +35,7 @@ function TickerChip({ point }: { point: MarketDataPoint }) {
 
   return (
     <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
-      <span className="text-[10px] text-white/40 font-medium tracking-wide">{point.label}</span>
+      <span className="text-[10px] text-white font-bold tracking-wide">{point.label}</span>
       <span className={cn("text-xs font-bold font-mono tabular-nums", chipColor)}>{priceStr}</span>
       {pctStr && (
         <span className={cn("text-[10px] font-mono flex items-center gap-0.5", chipColor)}>
