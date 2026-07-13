@@ -58,7 +58,9 @@ import {
   RegimeChips, StatCell, VolStrip, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
   LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard, VolatilityImplicationsCard,
-  SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
+  BalanceSheetCard,
+  PolicyCspSummary,
+  SepDotsChart, FedScaleStrip, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
   TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/MacroComponents";
@@ -74,13 +76,15 @@ const MACRO_TABS: { id: MacroTab; label: string }[] = [
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 
+const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-muted-foreground";
+const TTD = "py-2 px-3 text-xs tabular-nums";
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function MacroDashboard() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useSessionState<MacroTab>("fildi_macro_tab", "regime");
-  const [fedSection, setFedSection] = useState<"voting" | "all">("voting");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
   const [treasuryPeriod, setTreasuryPeriod] = useState<CurvePeriod>("current");
   const [ffPeriod, setFfPeriod] = useState<CurvePeriod>("current");
@@ -224,15 +228,14 @@ export default function MacroDashboard() {
   const sortByPriority = (arr: FedMember[]) =>
     [...arr].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
-  const votingByStance = {
-    hawkish: sortByPriority(fedMembers?.filter((m) => m.voting && m.stance === "hawkish") ?? []),
-    neutral: sortByPriority(fedMembers?.filter((m) => m.voting && m.stance === "neutral") ?? []),
-    dovish:  sortByPriority(fedMembers?.filter((m) => m.voting && m.stance === "dovish")  ?? []),
+  const byStanceVotingFirst = (stance: FedMember["stance"]) => {
+    const members = fedMembers?.filter((m) => m.stance === stance) ?? [];
+    return [...sortByPriority(members.filter((m) => m.voting)), ...sortByPriority(members.filter((m) => !m.voting))];
   };
-  const nonVotingByStance = {
-    hawkish: sortByPriority(fedMembers?.filter((m) => !m.voting && m.stance === "hawkish") ?? []),
-    neutral: sortByPriority(fedMembers?.filter((m) => !m.voting && m.stance === "neutral") ?? []),
-    dovish:  sortByPriority(fedMembers?.filter((m) => !m.voting && m.stance === "dovish")  ?? []),
+  const fedByStance = {
+    hawkish: byStanceVotingFirst("hawkish"),
+    neutral: byStanceVotingFirst("neutral"),
+    dovish:  byStanceVotingFirst("dovish"),
   };
 
   // ── Loading / Error ───────────────────────────────────────────────────────────
@@ -608,14 +611,53 @@ export default function MacroDashboard() {
           {/* ── Tab 3: Policy & Forward Guidance ─────────────────────────────── */}
           {activeTab === "policy" && (
             <>
-              {/* Fed Funds Curve + history */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <FedFundsCurveChart data={macroCharts?.fedFundsCurve ?? []} loading={!macroCharts} period={ffPeriod} onPeriodChange={setFfPeriod} />
+              <PolicyCspSummary
+                fedFundsCurve={macroCharts?.fedFundsCurve ?? []}
+                sepData={sepData}
+                events={events}
+                volatilityImplications={macroCharts?.volatilityImplications}
+                todayStr={todayStr}
+                onViewRegime={() => setActiveTab("regime")}
+                loading={!macroCharts}
+              />
+
+              {/* Fed Funds Curve + history + SEP dots + Balance Sheet — compact one-line row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <FedFundsCurveChart data={macroCharts?.fedFundsCurve ?? []} loading={!macroCharts} period={ffPeriod} onPeriodChange={setFfPeriod} compact />
                 <RateHistoryChart title="Fed Funds Rate (History)" data={macroCharts?.fedFundsHistory ?? []} color="#4ade80" loading={!macroCharts}
-                  yFormatter={(v: number) => `${v.toFixed(2)}%`} tooltipFormatter={(v: number) => [`${v.toFixed(3)}%`]} />
+                  yFormatter={(v: number) => `${v.toFixed(2)}%`} tooltipFormatter={(v: number) => [`${v.toFixed(3)}%`]} compact />
+                <div className="border border-border rounded-lg p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
+                      SEP Projections
+                    </h3>
+                    <div className="flex rounded-md border border-border overflow-hidden text-[9px]">
+                      {(["fedRate", "gdp", "unemployment", "corePce"] as SepMetric[]).map((m) => (
+                        <button key={m} onClick={() => setSelectedSepMetric(m)}
+                          className={cn("px-1.5 py-0.5 transition-colors", selectedSepMetric === m ? "bg-purple-600 text-white" : "hover:bg-secondary")}>
+                          {m === "fedRate" ? "Rate" : m === "gdp" ? "GDP" : m === "unemployment" ? "Unemp." : "PCE"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {sepData ? (
+                    <SepDotsChart sepData={sepData} actuals={sepActuals} metric={selectedSepMetric} compact />
+                  ) : (
+                    <div style={{ height: 120 }} className="flex items-center justify-center text-xs text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <BalanceSheetCard
+                  fedAssetsHistory={macroCharts?.fedAssetsHistory ?? []}
+                  rrpSignal={macroCharts?.liquidityImplications?.signals.find((s) => s.label === "RRP Buffer")}
+                  loading={!macroCharts}
+                  compact
+                />
               </div>
 
-              {/* SEP Projections + Dots */}
+              {/* SEP Projections table — ag-grid styled */}
               {sepData && (
                 <div className="border border-border rounded-lg overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/20">
@@ -626,51 +668,34 @@ export default function MacroDashboard() {
                     <span className="text-[10px] text-muted-foreground italic">FOMC SEP {sepData.asOf} — updated after each SEP release</span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                    <table className="w-full">
                       <thead>
-                        <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
-                          <th className="text-left px-4 py-2 font-medium">Metric</th>
-                          {sepData.projections.map((p) => <th key={p.year} className="text-right px-4 py-2 font-medium">{p.year}</th>)}
+                        <tr className="border-y border-border/40 bg-secondary/20">
+                          <th className={cn(TTH, "text-left")}>Metric</th>
+                          {sepData.projections.map((p) => <th key={p.year} className={cn(TTH, "text-right")}>{p.year}</th>)}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border/50">
-                        <tr>
-                          <td className="px-4 py-2 text-muted-foreground">Fed Rate (median dot)</td>
-                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right font-medium">{fmtPct(p.fedRate, 3)}</td>)}
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 text-muted-foreground">GDP Growth</td>
-                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.gdp, 1)}</td>)}
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 text-muted-foreground">Unemployment</td>
-                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.unemployment, 1)}</td>)}
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 text-muted-foreground">Core PCE</td>
-                          {sepData.projections.map((p) => <td key={p.year} className="px-4 py-2 text-right">{fmtPct(p.corePce, 1)}</td>)}
-                        </tr>
+                      <tbody>
+                        {([
+                          { label: "Fed Rate (median dot)", get: (p: typeof sepData.projections[number]) => fmtPct(p.fedRate, 3), bold: true },
+                          { label: "GDP Growth", get: (p: typeof sepData.projections[number]) => fmtPct(p.gdp, 1) },
+                          { label: "Unemployment", get: (p: typeof sepData.projections[number]) => fmtPct(p.unemployment, 1) },
+                          { label: "Core PCE", get: (p: typeof sepData.projections[number]) => fmtPct(p.corePce, 1) },
+                        ]).map((row, i) => (
+                          <tr key={row.label} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
+                            <td className={cn(TTD, "text-left text-muted-foreground")}>{row.label}</td>
+                            {sepData.projections.map((p) => (
+                              <td key={p.year} className={cn(TTD, "text-right", row.bold && "font-semibold")}>{row.get(p)}</td>
+                            ))}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
-                  </div>
-                  <div className="border-t border-border p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-muted-foreground">Actuals vs SEP Projections</p>
-                      <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
-                        {(["fedRate", "gdp", "unemployment", "corePce"] as SepMetric[]).map((m) => (
-                          <button key={m} onClick={() => setSelectedSepMetric(m)}
-                            className={cn("px-2 py-0.5 transition-colors", selectedSepMetric === m ? "bg-purple-600 text-white" : "hover:bg-secondary")}>
-                            {m === "fedRate" ? "Fed Rate" : m === "gdp" ? "GDP" : m === "unemployment" ? "Unemp." : "Core PCE"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <SepDotsChart sepData={sepData} actuals={sepActuals} metric={selectedSepMetric} />
                   </div>
                 </div>
               )}
 
-              {/* Bank Research */}
+              {/* Bank Research — 2 rows of 4 */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
@@ -691,31 +716,16 @@ export default function MacroDashboard() {
                   </div>
                 )}
                 {bankResearch && !generateBankMutation.isPending && (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {bankResearch.map((bank) => <BankCard key={bank.name} bank={bank} />)}
                   </div>
                 )}
               </div>
 
-              {/* Fed Members */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-sm font-semibold">Fed Members</h2>
-                  <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
-                    {(["voting", "all"] as const).map((t) => (
-                      <button key={t} onClick={() => setFedSection(t)}
-                        className={cn("px-2.5 py-1 transition-colors", fedSection === t ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
-                        {t === "voting" ? "Voting" : "All"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FedStanceGroup title="Voting" hawkish={votingByStance.hawkish} neutral={votingByStance.neutral} dovish={votingByStance.dovish} />
-                  {fedSection === "all" && (
-                    <FedStanceGroup title="Non-Voting (Influential)" hawkish={nonVotingByStance.hawkish} neutral={nonVotingByStance.neutral} dovish={nonVotingByStance.dovish} />
-                  )}
-                </div>
+              {/* Fed Members — compact hawkish↔dovish scale */}
+              <div className="border border-border rounded-lg p-4 space-y-3">
+                <h2 className="text-sm font-semibold">Fed Members</h2>
+                <FedScaleStrip hawkish={fedByStance.hawkish} neutral={fedByStance.neutral} dovish={fedByStance.dovish} />
               </div>
             </>
           )}
