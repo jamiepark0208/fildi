@@ -1,0 +1,240 @@
+{
+  "fetchedAt": "2026-07-13T15:09:04.564Z",
+  "vix": {
+    "value": 16.36,
+    "change": 1.3300009,
+    "changePct": 8.843091,
+    "level": "low-mid"
+  },
+  "yield10y": {
+    "value": 4.598,
+    "change": 0.029000282,
+    "changePct": 0.6347184
+  },
+  "yield2y": {
+    "value": 3.47,
+    "change": null,
+    "changePct": null
+  },
+  "yieldSpread": 112.79999999999997,
+  "yieldCurve": [
+    {
+      "maturity": "1M",
+      "months": 1,
+      "current": 3.72,
+      "weekAgo": 3.7,
+      "monthAgo": 3.72,
+      "threeMonthAgo": 3.72
+    },
+    {
+      "maturity": "3M",
+      "months": 3,
+      "current": 3.65,
+      "weekAgo": 3.62,
+      "monthAgo": 3.65,
+      "threeMonthAgo": 3.65
+    },
+    {
+      "maturity": "6M",
+      "months": 6,
+      "current": 3.58,
+      "weekAgo": 3.57,
+      "monthAgo": 3.58,
+      "threeMonthAgo": 3.58
+    },
+    {
+      "maturity": "1Y",
+      "months": 12,
+      "current": 3.47,
+      "weekAgo": 3.52,
+      "monthAgo": 3.47,
+      "threeMonthAgo": 3.47
+    },
+    {
+      "maturity": "2Y",
+      "months": 24,
+      "current": 3.47,
+      "weekAgo": 3.54,
+      "monthAgo": 3.47,
+      "threeMonthAgo": 3.47
+    },
+    {
+      "maturity": "3Y",
+      "months": 36,
+      "current": 3.55,
+      "weekAgo": 3.59,
+      "monthAgo": 3.55,
+      "threeMonthAgo": 3.55
+    },
+    {
+      "maturity": "5Y",
+      "months": 60,
+      "current": 3.74,
+      "weekAgo": 3.75,
+      "monthAgo": 3.74,
+      "threeMonthAgo": 3.74
+    },
+    {
+      "maturity": "7Y",
+      "months": 84,
+      "current": 3.95,
+      "weekAgo": 3.95,
+      "monthAgo": 3.95,
+      "threeMonthAgo": 3.95
+    },
+    {
+      "maturity": "10Y",
+      "months": 120,
+      "current": 4.19,
+      "weekAgo": 4.18,
+      "monthAgo": 4.19,
+      "threeMonthAgo": 4.19
+    },
+    {
+      "maturity": "20Y",
+      "months": 240,
+      "current": 4.81,
+      "weekAgo": 4.76,
+      "monthAgo": 4.81,
+      "threeMonthAgo": 4.81
+    },
+    {
+      "maturity": "30Y",
+      "months": 360,
+      "current": 4.86,
+      "weekAgo": 4.82,
+      "monthAgo": 4.86,
+      "threeMonthAgo": 4.86
+    }
+  ],
+  "usDebt": 39065421,
+  "skew": {
+    "value": 144.27,
+    "change": 0,
+    "changePct": 0
+  },
+  "vxn": {
+    "value": 26.27,
+    "change": 1.3800011,
+    "changePct": 5.542173
+  },
+  "series": {
+    "cpi": {
+      "value": 333.979,
+      "prev": 332.407,
+      "change": 1.5720000000000027,
+      "changePct": 0.47291422864139526,
+      "yoy": 4.270032656680247,
+      "date": "2026-05-01",
+      "unit": "%"
+    },
+    "coreCpi": {
+      "value": 336.121,
+      "prev": 335.423,
+      "change": 0.6979999999999791,
+      "changePct": 0.20809544962628654,
+      "yoy": 2.9571135826898267,
+      "date": "2026-05-01",
+      "unit": "%"
+    },
+    "corePce": {
+      "value": 130.082,
+      "prev": 129.667,
+      "change": 0.41499999999999204,
+      "changePct": 0.3200505911295796,
+      "yoy": 3.412035932904036,
+      "date": "2026-05-01",
+      "unit": "%"
+    },
+    "unemployment": {
+      "value": 4.2,
+      "prev": 4.3,
+      "change": -0.09999999999999964,
+      "changePct": -2.3255813953488293,
+      "yoy": null,
+      "date": "2026-06-01",
+      "unit": "%"
+    },
+    "nonfarmPayrolls": {
+      "value": 158984,
+      "prev": 158927,
+      "change": 57,
+      "changePct": 0.035865523164723426,
+      "yoy": null,
+      "date": "2026-06-01",
+      "unit": "thousands"
+    },
+    "jolts": {
+      "value": 7594,
+      "prev": 7585,
+      "change": 9,
+      "changePct": 0.11865524060646013,
+      "yoy": null,
+      "date": "2026-05-01",
+      "unit": "thousands"
+    },
+    "gdp": {
+      "value": 2.1,
+      "prev": 0.5,
+      "change": 1.6,
+      "changePct": 320,
+      "yoy": null,
+      "date": "2026-01-01",
+      "unit": "%"
+    },
+    "ppi": {
+      "value": 292.504,
+      "prev": 282.7,
+      "change": 9.80400000000003,
+      "changePct": 3.4679872656526465,
+      "yoy": 13.076488916722727,
+      "date": "2026-05-01",
+      "unit": "%"
+    },
+    "retailSales": {
+      "value": 662752,
+      "prev": 655933,
+      "change": 6819,
+      "changePct": 1.0395878847382278,
+      "yoy": 7.549279409831702,
+      "date": "2026-05-01",
+      "unit": "$ billions"
+    },
+    "consumerSentiment": {
+      "value": 44.8,
+      "prev": 49.8,
+      "change": -5,
+      "changePct": -10.040160642570282,
+      "yoy": -14.17624521072798,
+      "date": "2026-05-01",
+      "unit": "index"
+    },
+    "fedFundsRate": {
+      "value": 3.62,
+      "prev": 3.62,
+      "change": 0,
+      "changePct": 0,
+      "yoy": null,
+      "date": "2026-07-09",
+      "unit": "%"
+    },
+    "sofr": {
+      "value": 3.55,
+      "prev": 3.53,
+      "change": 0.020000000000000018,
+      "changePct": 0.5665722379603405,
+      "yoy": null,
+      "date": "2026-07-10",
+      "unit": "%"
+    },
+    "ismManufacturing": {
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
+      "unit": "index"
+    }
+  }
+}

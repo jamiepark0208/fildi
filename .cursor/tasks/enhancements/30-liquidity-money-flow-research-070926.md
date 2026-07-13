@@ -93,10 +93,10 @@ flowchart LR
 |---|---|---|---|
 | Money market fund assets | FRED **`WRMFNS`** (code comment historically said MMMFNS — **use WRMFNS**) | Weekly | **Yes** — `moneyMarketHistory` |
 | Financial conditions | FRED **`NFCI`** | Weekly | **Yes** — `nfciHistory` |
-| Reserve balances | e.g. `WRESBAL` or `TOTRESNS` — **confirm ID in research execution** | Weekly/monthly | No |
+| Reserve balances | **`WRESBAL`** (locked — weekly, aligns with WALCL/WTREGEN cadence; TOTRESNS rejected as monthly-only, too coarse against weekly plumbing series) | Weekly | No |
 | Federal deficit | `MTSDS133FMS` (Monthly Treasury Statement) | Monthly | No |
 | Defense consumption | `FDEFX` | Quarterly | No |
-| Foreign official holdings | TIC / FRED foreign official long-term — **confirm best series** | Monthly lagged | No |
+| Foreign official holdings | **`BOGZ1FL263061130Q`** (locked — Fed Z.1 "Treasury Securities Held by Foreign Official Institutions"; best FRED-native broad foreign-official series, raw TIC MFHHIS monthly data isn't FRED/CSV-fetchable) | Quarterly lagged | No |
 | FiscalData MTS | treasury.gov FiscalData API | Monthly | Optional alt to FRED deficit |
 
 ### 3.3 Layer 3 — Sector rotation (phase B)
@@ -194,23 +194,32 @@ Morning: plumbing OK? → which sectors lead? → point scanner at those names (
 
 ## 8. Research execution checklist (this task’s “done”)
 
-- [ ] Confirm FRED pages for `WALCL`, `WTREGEN`, `RRPONTSYD` (units $B alignment)
-- [ ] Pick reserve series ID (`WRESBAL` vs `TOTRESNS`) and one TIC foreign-official series
-- [ ] Document date-alignment rule for Net Liq (daily RRP vs weekly WALCL/TGA)
-- [ ] Confirm `WRMFNS` is the intended MMF series (vs any MMMF* alias) — code already uses WRMFNS
-- [ ] Choose bubble vs classic RRG for phase B (recommend **bubbles + quadrant legend** for modern UI)
-- [ ] Mark phase A/B stub filenames in INDEX when spawning 31/32
-- [ ] No app code in this research task
+- [x] Confirm FRED pages for `WALCL`, `WTREGEN`, `RRPONTSYD` (units $B alignment) — confirmed via StreetStats/QuantWave/MacroMicro cross-reference (2026-07-13)
+- [x] Pick reserve series ID (`WRESBAL` vs `TOTRESNS`) and one TIC foreign-official series — locked `WRESBAL` + `BOGZ1FL263061130Q` (see §3.2)
+- [x] Document date-alignment rule for Net Liq (daily RRP vs weekly WALCL/TGA) — resample `RRPONTSYD` to weekly (Wed close / same-week last obs) before subtracting; implemented in `deriveNetLiquidity()` in `macro-data.ts`
+- [x] Confirm `WRMFNS` is the intended MMF series (vs any MMMF* alias) — code already uses WRMFNS
+- [x] Choose bubble vs classic RRG for phase B — **bubbles + quadrant legend** confirmed (no RRG-tail component exists in repo; recharts `ScatterChart` supports bubbles natively, not RRG tails)
+- [x] Web-search confirmed no public tool traces literal inter-entity dollar flows (2026-07-13) — StreetStats/NetLiquidity.org/QuantWave/MacroMicro all show plumbing arithmetic only; StockCharts RRG/TradingView money-flow scripts show relative-strength proxies only. Reinforces §6 "no literal Sankey" ban.
+- [~] Mark phase A/B stub filenames in INDEX when spawning 31/32 — **built directly instead of spawned as separate stub tasks**, per user request to see a working tab; see session plan for Phase A/B scope
+- [x] No app code in this research task — **superseded**: user explicitly asked to proceed to build Phase A/B in this session (see Purpose note below)
 
 ---
 
 ## 9. Success criteria
 
-- Locked FRED ID list for Net Liquidity + 5–10 reservoir/fiscal candidates  
-- Explicit **no** on literal cash Sankey; **yes** on RRG/bubble rotation proxy  
-- Macro **Liquidity** tab placement + wireframe above  
-- Deps: extend `fetchFredCSV` / macro-charts TTL — no parallel FRED client  
-- Follow-ons named: **31 plumbing UI**, **32 sector rotation viz** (stubs only until research checklist complete)
+- [x] Locked FRED ID list for Net Liquidity + 5–10 reservoir/fiscal candidates — `WALCL`, `WTREGEN`, `RRPONTSYD`, `WRESBAL`, `BOGZ1FL263061130Q` (see §3.2)
+- [x] Explicit **no** on literal cash Sankey; **yes** on RRG/bubble rotation proxy — implemented as quadrant-colored bubble scatter (leading/weakening/lagging/improving), not RRG tails
+- [x] Macro **Liquidity** tab placement + wireframe above — shipped between Regime and Volatility tabs
+- [x] Deps: extend `fetchFredCSV` / macro-charts TTL — no parallel FRED client — reused existing `fetchFredCSV`/`Promise.allSettled` pattern in `macro-data.ts`, same 4h TTL
+- [~] Follow-ons named: **31 plumbing UI**, **32 sector rotation viz** — **built directly in this session instead of spawned as separate stub tasks**, per explicit user request (2026-07-13) to see a working Liquidity tab rather than gate further on stub PRDs. See §11 below for what shipped.
+
+## 11. Build note (2026-07-13) — Phase A/B shipped in this session
+
+Despite this task's original "no app code" gate, the user explicitly asked to proceed straight to a working tab after the research findings above were locked. What shipped:
+
+- **Backend** (`artifacts/api-server/src/lib/macro-data.ts`, `artifacts/api-server/src/routes/macro.ts`): `fetchFredCSV` fetchers for `WALCL`/`WTREGEN`/`RRPONTSYD`/`WRESBAL`, `deriveNetLiquidity()` with weekly-alignment rule (RRP resampled to WALCL's Wednesday cadence), extended `MacroCharts` + cache guard; new `fetchSectorRotation()` (SPY + 11 SPDRs + SMH, price-based relative strength vs SPY) behind `GET /api/macro/sector-rotation` with its own 30min `TTLCache`.
+- **Frontend** (`macro.tsx`, `MacroComponents.tsx`, `macro-page-types.ts`): new `"liquidity"` tab — `LiquidityFlowDiagram` (plumbing cards with real $ + 1w/1m deltas, honest since it's real subtraction) → conceptual directional divider (explicitly labeled proxy, not measured flow) → `SectorRotationBubbles` (recharts `ScatterChart`, quadrant-colored, CSP "Leading: X, Y" strip).
+- Verified: both `tsc` passes clean; both new endpoints hit live and returned sane data — Net Liquidity computed to $5,958.2B, matching an independently-sourced $5,959B figure from research; sector rotation returned plausible July-2026 quadrants (XLF/XLV/XLI/XLU leading, XLK/SMH cooling into lagging after a 3m rally). Manual browser check was not possible — Playwright's Chromium isn't installed in this environment.
 
 ---
 

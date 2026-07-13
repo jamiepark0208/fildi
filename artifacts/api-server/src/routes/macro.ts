@@ -10,6 +10,7 @@ import {
   fetchMacroData,
   fetchMacroCharts,
   fetchIndicatorHistory,
+  fetchSectorRotation,
   loadMacroCache,
   saveMacroCache,
   isCacheStale,
@@ -44,6 +45,7 @@ const BANK_RESEARCH_FILE = join(ROOT, "macro-bank-research.json");
 // Caches for routes that previously had no backend caching
 const indicatorHistoryCache = new TTLCache<object>(30 * 60 * 1000, "macro-indicator-history");
 const sepActualsCache       = new TTLCache<object>(60 * 60 * 1000, "macro-sep-actuals");
+const sectorRotationCache   = new TTLCache<object>(30 * 60 * 1000, "macro-sector-rotation");
 
 const router = Router();
 
@@ -87,6 +89,21 @@ router.get("/charts", async (_req: Request, res: Response) => {
     console.error("[macro] fetchMacroCharts failed:", err);
     if (cached) return res.json(cached);
     return res.status(500).json({ error: "Failed to fetch macro charts" });
+  }
+});
+
+// ── Sector rotation (relative strength vs SPY, proxy only) ────────────────────
+
+router.get("/sector-rotation", async (_req: Request, res: Response) => {
+  const cached = sectorRotationCache.get("sector-rotation");
+  if (cached) return res.json(cached);
+  try {
+    const data = await fetchSectorRotation();
+    sectorRotationCache.set("sector-rotation", data);
+    return res.json(data);
+  } catch (err) {
+    console.error("[macro] sector-rotation failed:", err);
+    return res.status(500).json({ error: "Failed to fetch sector rotation" });
   }
 });
 

@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: site-wide-neutral-dark-theme-nav-bg-vs-card-contrast, bold-topnav-icons-and-labels, portfolio-header-inline-subtitle-plus-last-import-timestamp, compact-Import-CSV-button-replacing-Robinhood-header-dropzone, summary-strip-rebuilt-as-marquee-banner-matching-ticker-tape, renamed-Locked-Collateral-and-Premium-Expected-This-Wk-labels, unbounded-scrolling-Top-Movers-chips, reduced-header-to-banner-vertical-spacing, PnL-tie-out-to-Robinhood-totals-accepted-as-reasonably-complete
-- In progress: none - all requested portfolio UI polish this session shipped and typechecked clean
-- Blocked: none
+- Working: liquidity-macro-tab-research-doc-30-locked-WRESBAL-BOGZ1FL263061130Q-series, net-liquidity-plumbing-diagram-WALCL-TGA-RRP-derive, sector-rotation-bubble-chart-vs-SPY-with-quadrants, sector-rotation-tooltip-topMovers-per-sector, sector-rotation-quadrant-corner-labels-and-implications, liquidity-tab-chart-grid-netliq-rrp-row-mmf-nfci-row
+- In progress: none - all requested liquidity tab work this session shipped and typechecked clean
+- Blocked: none - Playwright Chromium not installed so manual browser check of Liquidity tab still pending next session
 
 ## Next tasks (priority order)
 
