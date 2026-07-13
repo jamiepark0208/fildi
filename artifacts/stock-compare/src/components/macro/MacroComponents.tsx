@@ -211,6 +211,60 @@ export function StatCell({ label, value, sub, subColor }: { label: string; value
   );
 }
 
+// Last value + change vs prior observation from a history series.
+const lastPointDelta = (data: ChartPoint[] | undefined): { value: number; change: number | null } | null => {
+  if (!data || data.length === 0) return null;
+  const last = data[data.length - 1].value;
+  const prev = data.length > 1 ? data[data.length - 2].value : null;
+  return { value: last, change: prev != null ? last - prev : null };
+};
+
+function StatChip({ label, value, change, decimals = 1, invert = false, title }: {
+  label: string; value: number | null; change: number | null; decimals?: number; invert?: boolean; title?: string;
+}) {
+  const color = change == null ? "" : (invert ? -change : change) > 0 ? "text-green-400" : (invert ? -change : change) < 0 ? "text-red-400" : "text-muted-foreground";
+  return (
+    <div className="flex items-baseline gap-1.5 px-2.5 py-1" title={title}>
+      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
+      <span className="text-sm font-semibold">{value != null ? value.toFixed(decimals) : "—"}</span>
+      {change != null && (
+        <span className={cn("text-[10px]", color)}>
+          {change > 0 ? "+" : ""}{change.toFixed(decimals)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function VolStrip({ macroData, macroCharts }: {
+  macroData: MacroData;
+  macroCharts: { putCallHistory?: ChartPoint[]; putCallRatioHistory?: ChartPoint[]; moveHistory?: ChartPoint[]; fearGreedHistory?: ChartPoint[] } | undefined;
+}) {
+  const vvix = lastPointDelta(macroCharts?.putCallHistory);
+  const pc = lastPointDelta(macroCharts?.putCallRatioHistory);
+  const move = lastPointDelta(macroCharts?.moveHistory);
+  const fg = lastPointDelta(macroCharts?.fearGreedHistory);
+
+  return (
+    <div className="border border-border rounded-md flex flex-wrap items-center divide-x divide-border/60">
+      <StatChip label="VIX" value={macroData.vix.value} change={macroData.vix.change ?? null}
+        title="S&P 500 30-day implied volatility — the market's headline fear gauge" />
+      <StatChip label="SKEW" value={macroData.skew.value} change={macroData.skew.change ?? null}
+        title="Tail-risk pricing — rising SKEW means options markets are paying up for a sharp downside surprise" />
+      <StatChip label="VXN" value={macroData.vxn.value} change={macroData.vxn.change ?? null}
+        title="Nasdaq-100 implied volatility — the tech/growth-stock equivalent of VIX" />
+      {vvix && <StatChip label="VVIX" value={vvix.value} change={vvix.change} decimals={0}
+        title="Volatility of VIX itself — spikes here signal vol-of-vol stress, often preceding VIX blowouts" />}
+      {pc && <StatChip label="PUT/CALL" value={pc.value} change={pc.change} decimals={2}
+        title="CBOE equity put/call ratio — above ~1.0 is bearish/hedging-heavy positioning, below ~0.7 is bullish complacency" />}
+      {move && <StatChip label="MOVE" value={move.value} change={move.change} decimals={0}
+        title="Bond-market implied volatility — often leads VIX during rate-shock-driven stress" />}
+      {fg && <StatChip label="FEAR/GREED" value={fg.value} change={fg.change} decimals={0}
+        title="CNN's composite sentiment gauge (0=extreme fear, 100=extreme greed) across 7 market indicators" />}
+    </div>
+  );
+}
+
 export function QuickStats({ macroData }: { macroData: MacroData }) {
   const debtT = macroData.usDebt != null
     ? `$${(macroData.usDebt / 1_000_000).toFixed(1)}T`
@@ -405,19 +459,17 @@ export function VolatilityImplicationsCard({
         </Badge>
       </div>
       <p className={cn("text-sm font-medium mb-3", overallStyle.text)}>{data.overall.summary}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {data.signals.map(sg => {
           const style = VOLATILITY_LEVEL_STYLE[sg.level];
           return (
-            <div key={sg.label} className="rounded-md bg-muted/30 p-2.5">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
-                  <span className={cn("w-1.5 h-1.5 rounded-full inline-block", style.dot)} />
-                  {sg.label}
-                </span>
-                <span className={cn("text-xs font-mono font-semibold", style.text)}>{sg.readout}</span>
+            <div key={sg.label} className="rounded-md bg-muted/30 p-2.5 min-w-0" title={sg.implication}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={cn("w-1.5 h-1.5 rounded-full inline-block shrink-0", style.dot)} />
+                <span className="text-xs font-medium text-slate-200 truncate">{sg.label}</span>
               </div>
-              <p className="text-xs text-slate-400 leading-snug">{sg.implication}</p>
+              <p className={cn("text-xs font-mono font-semibold mb-1", style.text)}>{sg.readout}</p>
+              <p className="text-[11px] text-slate-400 leading-snug line-clamp-2">{sg.implication}</p>
             </div>
           );
         })}
@@ -1620,6 +1672,47 @@ export function fmtCot(n: number): string {
   return String(n);
 }
 
+// Plain-English synthesis of what the raw HF Net / WoW / Z-Score / Open Interest
+// figures below actually mean for the selected instrument, so the numbers aren't
+// presented without context.
+function CotPositioningRead({ selected }: { selected: COTSummary }) {
+  const net = selected.latest.levMoneyNet;
+  const chg = selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg;
+  const oi = selected.latest.openInterest;
+  const z = selected.zScore;
+  const absZ = Math.abs(z);
+  const pctOfOI = oi > 0 ? (Math.abs(net) / oi) * 100 : null;
+
+  const direction = net >= 0 ? "long" : "short";
+  const flowVerb = net === 0 || chg === 0 ? null
+    : Math.sign(chg) === Math.sign(net) ? "adding to" : "trimming";
+
+  const crowding = absZ > 1.5 ? "historically stretched" : absZ > 1 ? "moderately elevated" : "within a typical range";
+
+  const implication = absZ > 1.5
+    ? (net >= 0
+        ? "That's a crowded long — a level from which hedge funds have historically been forced to unwind quickly, which can accelerate a selloff if sentiment turns."
+        : "That's a crowded short — a level from which short-covering has historically sparked sharp rallies if the market turns higher.")
+    : absZ > 1
+      ? "Positioning is building in one direction but hasn't reached a historically crowded extreme yet."
+      : "No unusual crowding either direction right now — positioning alone isn't a strong signal here.";
+
+  return (
+    <div className="rounded-lg bg-muted/20 border border-border p-3">
+      <p className="text-xs leading-relaxed">
+        <span className="font-semibold">{selected.displayName}: </span>
+        Hedge funds (leveraged money — the fast-moving speculative crowd tracked by the CFTC) are net{" "}
+        <span className={cn("font-semibold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+          {direction} {fmtCot(Math.abs(net))} contracts
+        </span>
+        {pctOfOI != null && <> (~{pctOfOI.toFixed(0)}% of {fmtCot(oi)} total open interest)</>} as of {selected.latest.date}
+        {flowVerb && <>, {flowVerb} the position by {fmtCot(Math.abs(chg))} over the past week</>}.{" "}
+        That's <span className="font-semibold">{crowding}</span> versus its 1-year range (Z = {z >= 0 ? "+" : ""}{z.toFixed(2)}σ). {implication}
+      </p>
+    </div>
+  );
+}
+
 export function CotSection({
   title, summaries, history, selectedInstrument, onSelectInstrument,
 }: {
@@ -1644,46 +1737,53 @@ export function CotSection({
       </div>
       <div className="p-4 space-y-4">
 
-        {/* Instrument selector cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {summaries.map((s) => {
-            const net = s.latest.levMoneyNet;
-            const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
-            const isSelected = s.instrument === selectedInstrument;
-            const absZ = Math.abs(s.zScore);
-            return (
-              <button
-                key={s.instrument}
-                onClick={() => onSelectInstrument(s.instrument)}
-                className={cn(
-                  "text-left rounded-lg border p-2.5 transition-all",
-                  isSelected ? "border-primary/60 bg-primary/10" : "border-border hover:border-border/80 hover:bg-card/80"
-                )}
-              >
-                <div className="text-xs font-semibold truncate mb-1">{s.displayName}</div>
-                <div className={cn("text-sm font-bold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
-                  {net >= 0 ? "+" : ""}{fmtCot(net)}
-                </div>
-                <div className={cn("text-[10px]", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
-                  {chg >= 0 ? "+" : ""}{fmtCot(chg)} WoW
-                </div>
-                {absZ >= 1 && (
-                  <span className={cn(
-                    "text-[9px] px-1 py-0.5 rounded border font-semibold mt-1 inline-block",
-                    absZ > 1.5
-                      ? s.zScore > 0 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"
-                      : "bg-yellow-500/15 text-yellow-300 border-yellow-500/20"
-                  )}>
-                    {s.zScore > 0 ? "Extreme Long" : "Extreme Short"}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Instrument selector — continuously scrolling one-row ticker, pauses on hover so chips stay clickable */}
+        <div className="rounded-md border border-border overflow-hidden group">
+          <div className="flex overflow-hidden">
+            <div className="flex animate-marquee group-hover:animate-marquee-paused py-1.5">
+              {[...summaries, ...summaries].map((s, i) => {
+                const net = s.latest.levMoneyNet;
+                const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
+                const isSelected = s.instrument === selectedInstrument;
+                const absZ = Math.abs(s.zScore);
+                return (
+                  <button
+                    key={`${i < summaries.length ? "a" : "b"}-${s.instrument}`}
+                    onClick={() => onSelectInstrument(s.instrument)}
+                    title="Hedge fund (leveraged money) net position and week-over-week change — click to see full detail below"
+                    className={cn(
+                      "flex items-center gap-2 text-left rounded-md border px-2.5 py-1 mx-0.5 whitespace-nowrap shrink-0 transition-all",
+                      isSelected ? "border-primary/60 bg-primary/10" : "border-border hover:border-border/80 hover:bg-card/80"
+                    )}
+                  >
+                    <span className="text-[11px] font-semibold">{s.displayName}</span>
+                    <span className={cn("text-xs font-bold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {net >= 0 ? "+" : ""}{fmtCot(net)}
+                    </span>
+                    <span className={cn("text-[10px]", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
+                      {chg >= 0 ? "+" : ""}{fmtCot(chg)} WoW
+                    </span>
+                    {absZ >= 1 && (
+                      <span className={cn(
+                        "text-[9px] px-1 rounded font-semibold shrink-0",
+                        absZ > 1.5
+                          ? s.zScore > 0 ? "text-emerald-300" : "text-red-300"
+                          : "text-yellow-300"
+                      )}>
+                        {s.zScore > 0 ? "X-LONG" : "X-SHORT"}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Selected instrument detail */}
         {selected && (
+          <>
+          <CotPositioningRead selected={selected} />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* History chart */}
@@ -1705,7 +1805,7 @@ export function CotSection({
               </div>
               {historyForSelected ? (
                 <>
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer width="100%" height={160}>
                     <LineChart
                       data={historyForSelected.slice(-cotWeeks).map((r) => ({
                         date: r.date.slice(5),
@@ -1716,8 +1816,8 @@ export function CotSection({
                       margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#cbd5e1" }} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 10, fill: "#cbd5e1" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
                       <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
                         formatter={(v: number, name: string) => [fmtCot(v), name]} />
                       <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
@@ -1727,14 +1827,14 @@ export function CotSection({
                       <Line type="monotone" dataKey="Dealer"     stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-[9px] text-muted-foreground">
-                    <div><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds</div>
-                    <div><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions</div>
-                    <div><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers</div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
+                    <div title="Hedge funds and other leveraged speculators — the fastest-moving, most trend-following positioning"><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds</div>
+                    <div title="Pensions, mutual funds, and other institutional managers — typically slower, more structural positioning"><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions</div>
+                    <div title="Banks and market makers hedging client flow — usually the mirror image of speculative positioning"><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers</div>
                   </div>
                 </>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+                <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin mr-2" />Loading history…
                 </div>
               )}
@@ -1742,25 +1842,32 @@ export function CotSection({
 
             {/* Category breakdown + quick stats */}
             <div className="space-y-3">
-              {/* Quick stats */}
-              <div className="border border-border rounded-lg p-3 grid grid-cols-2 gap-3">
+              {/* Quick stats — the numbers behind the read-out above, for this instrument */}
+              <div className="border border-border rounded-lg p-3">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">{selected.displayName} — Raw Figures</p>
+                <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "Open Interest", val: fmtCot(selected.latest.openInterest) },
-                  { label: "HF Net",        val: `${selected.latest.levMoneyNet >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyNet)}` },
-                  { label: "HF WoW",        val: `${(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg) >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg)}` },
-                  { label: "Z-Score",       val: `${selected.zScore >= 0 ? "+" : ""}${selected.zScore.toFixed(2)}σ` },
-                ].map(({ label, val }) => (
-                  <div key={label}>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
-                    <div className="text-xs font-semibold">{val}</div>
+                  { label: "Open Interest", val: fmtCot(selected.latest.openInterest),
+                    title: `Total open ${selected.displayName} futures contracts across all trader types — the size of this market. Rising OI alongside a price move confirms new money is driving it; falling OI suggests a move is just positions closing out` },
+                  { label: "HF Net",        val: `${selected.latest.levMoneyNet >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyNet)}`,
+                    title: `Hedge fund (leveraged money) net position in ${selected.displayName} — positive means net long, negative means net short. This is the fast-money crowd, most likely to chase and most likely to reverse` },
+                  { label: "HF WoW",        val: `${(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg) >= 0 ? "+" : ""}${fmtCot(selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg)}`,
+                    title: "Week-over-week change in hedge fund net positioning — shows whether the fast-money crowd is adding to or trimming its bet right now" },
+                  { label: "Z-Score",       val: `${selected.zScore >= 0 ? "+" : ""}${selected.zScore.toFixed(2)}σ`,
+                    title: "How extreme current hedge fund positioning is vs. its 1-year range. |Z| > 1.5 = crowded trade, prone to a sharp reversal if it unwinds" },
+                ].map(({ label, val, title }) => (
+                  <div key={label} title={title}>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                    <div className="text-sm font-semibold">{val}</div>
                   </div>
                 ))}
+                </div>
               </div>
 
               {/* Position breakdown bar chart */}
               <div className="border border-border rounded-lg p-3">
                 <p className="text-xs font-semibold mb-0.5">Position Breakdown</p>
-                <p className="text-[10px] text-muted-foreground mb-2">Long vs short by category</p>
+                <p className="text-[11px] text-muted-foreground mb-2">Long vs short by category</p>
                 <ResponsiveContainer width="100%" height={130}>
                   <BarChart
                     data={[
@@ -1782,21 +1889,26 @@ export function CotSection({
               </div>
             </div>
           </div>
+          </>
         )}
 
         {/* Positioning extremes table */}
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="px-4 py-2.5 border-b border-border bg-secondary/10">
             <p className="text-xs font-semibold">Positioning Extremes</p>
-            <p className="text-[10px] text-muted-foreground">Ranked by Z-score vs 52-week range (hedge fund positioning)</p>
+            <p className="text-[11px] text-muted-foreground">Ranked by Z-score vs 52-week range · hedge fund (leveraged money) positioning, with institutional and dealer net shown for context</p>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider">
+              <tr className="border-b border-border text-[11px] text-muted-foreground uppercase tracking-wider">
                 <th className="text-left px-4 py-2">Instrument</th>
-                <th className="text-right px-3 py-2">Net</th>
-                <th className="text-right px-3 py-2">WoW Chg</th>
-                <th className="text-right px-4 py-2">Z-Score</th>
+                <th className="text-right px-3 py-2" title="Total open futures contracts — market participation/liquidity">Open Int.</th>
+                <th className="text-right px-3 py-2" title="Hedge fund (leveraged money) net position">HF Net</th>
+                <th className="text-right px-3 py-2" title="Week-over-week change in hedge fund net positioning">WoW Chg</th>
+                <th className="text-right px-3 py-2" title="Institutional (asset manager) net position — typically slower, more structural money">Asset Mgr Net</th>
+                <th className="text-right px-3 py-2" title="Dealer/market-maker net position — usually the mirror image of speculative flow">Dealer Net</th>
+                <th className="text-right px-4 py-2" title="How extreme hedge fund positioning is vs. its 1-year range. |Z| > 1.5 = crowded trade">Z-Score</th>
               </tr>
             </thead>
             <tbody>
@@ -1810,7 +1922,7 @@ export function CotSection({
                       <div className="flex items-center gap-2">
                         {s.displayName}
                         {Math.abs(s.zScore) >= 1 && (
-                          <span className={cn("text-[9px] px-1 py-0.5 rounded border font-semibold",
+                          <span className={cn("text-[10px] px-1 py-0.5 rounded border font-semibold",
                             Math.abs(s.zScore) > 1.5
                               ? s.zScore > 0 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"
                               : "bg-yellow-500/15 text-yellow-300 border-yellow-500/20")}>
@@ -1819,11 +1931,20 @@ export function CotSection({
                         )}
                       </div>
                     </td>
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {fmtCot(s.latest.openInterest)}
+                    </td>
                     <td className={cn("px-3 py-2 text-right font-mono", net >= 0 ? "text-emerald-400" : "text-red-400")}>
                       {net >= 0 ? "+" : ""}{fmtCot(net)}
                     </td>
                     <td className={cn("px-3 py-2 text-right font-mono", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
                       {chg >= 0 ? "+" : ""}{fmtCot(chg)}
+                    </td>
+                    <td className={cn("px-3 py-2 text-right font-mono", s.latest.assetMgrNet >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {s.latest.assetMgrNet >= 0 ? "+" : ""}{fmtCot(s.latest.assetMgrNet)}
+                    </td>
+                    <td className={cn("px-3 py-2 text-right font-mono", s.latest.dealerNet >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {s.latest.dealerNet >= 0 ? "+" : ""}{fmtCot(s.latest.dealerNet)}
                     </td>
                     <td className="px-4 py-2 text-right">
                       <span className={cn("font-mono font-semibold",
@@ -1837,6 +1958,7 @@ export function CotSection({
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
       </div>

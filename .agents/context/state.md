@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: enh17-volatility-implications-card-6-signals, enh17-move-index-fetch-and-chart, enh17-sentiment-page-redirect-to-macro-volatility, enh17-macro-tab-query-param-parsing, enh17-marked-done-in-task-file
-- In progress: none - enh17 volatility tab work complete and verified live against real data
+- Working: enh17-put-call-source-fix, enh17-volstrip-compact-banner, enh17-6-charts-2x3-grid, enh17-cot-marquee-selector, enh17-cot-positioning-read-narrative, enh17-extremes-table-columns, enh17-subtab-active-state
+- In progress: none - this session's volatility tab follow-up work complete and verified live
 - Blocked: none
 
 ## Next tasks (priority order)

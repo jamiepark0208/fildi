@@ -1203,7 +1203,10 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     });
   };
 
-  const fetchFearGreed = async (): Promise<ChartPoint[]> => {
+  // CNN's fear & greed endpoint bundles its sub-indicators in one response, including
+  // a CBOE-sourced put/call ratio series (put_call_options) — reuse the single fetch
+  // for both rather than hitting a second (dead) source for put/call.
+  const fetchCnnFearGreedAndPutCall = async (): Promise<{ fearGreed: ChartPoint[]; putCall: ChartPoint[] }> => {
     try {
       const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
         headers: {
@@ -1212,26 +1215,22 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
           "Accept": "application/json",
         },
       });
-      const json = await res.json() as { fear_and_greed_historical?: { data?: { x: number; y: number }[] } };
-      const raw = json.fear_and_greed_historical?.data ?? [];
-      const result = raw.map(p => ({
+      const json = await res.json() as {
+        fear_and_greed_historical?: { data?: { x: number; y: number }[] };
+        put_call_options?: { data?: { x: number; y: number }[] };
+      };
+      const toPoints = (raw: { x: number; y: number }[], decimals: number) => raw.map(p => ({
         date:  new Date(p.x).toISOString().slice(0, 10),
-        value: parseFloat(p.y.toFixed(1)),
+        value: parseFloat(p.y.toFixed(decimals)),
       }));
-      logApiCall({ source: "cnn", fn: "fetchFearGreed", trigger: "macro chart refresh", outcome: "success", fieldsReturned: result.length });
-      return result;
+      const fearGreed = toPoints(json.fear_and_greed_historical?.data ?? [], 1);
+      const putCall = toPoints(json.put_call_options?.data ?? [], 3);
+      logApiCall({ source: "cnn", fn: "fetchCnnFearGreedAndPutCall", trigger: "macro chart refresh", outcome: "success", fieldsReturned: fearGreed.length + putCall.length });
+      return { fearGreed, putCall };
     } catch (err: any) {
-      logApiCall({ source: "cnn", fn: "fetchFearGreed", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "fear_and_greed/graphdata" });
-      return [];
+      logApiCall({ source: "cnn", fn: "fetchCnnFearGreedAndPutCall", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "fear_and_greed/graphdata" });
+      return { fearGreed: [], putCall: [] };
     }
-  };
-
-  // CBOE equity put/call ratio via Yahoo Finance ^PCCE (more reliable than CBOE CDN)
-  const fetchCboePutCall = async (): Promise<ChartPoint[]> => {
-    const r = await Promise.allSettled([
-      yahooFinance.chart("^PCCE", { period1, interval: "1d" }, { validateResult: false }),
-    ]);
-    return chartToPoints(r[0]);
   };
 
   // NY Fed GSCPI — downloaded directly from NY Fed as xlsx (FRED blocks server IPs)
@@ -1328,8 +1327,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   };
 
   const [vixResult, irxResult, tnxResult, vixCurveResult, ffCurveResult,
-         hyResult, igResult, vvixResult, fearGreedResult,
-         putCallResult, gscpiResult, moneyMarketResult,
+         hyResult, igResult, vvixResult, cnnResult,
+         gscpiResult, moneyMarketResult,
          nfciResult, copperGoldResult, dxyResult,
          walclResult, tgaResult, rrpResult, reservesResult,
          sofrResult, iorbResult, moveResult] = await allSettledLimited([
@@ -1341,8 +1340,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     () => fetchFredCSV("BAMLH0A0HYM2"), // ICE BofA HY OAS spread
     () => fetchFredCSV("BAMLC0A0CM"),   // ICE BofA IG OAS spread
     () => yahooFinance.chart("^VVIX",   { period1, interval: "1d" }, { validateResult: false }),
-    () => fetchFearGreed(),
-    () => fetchCboePutCall(),
+    () => fetchCnnFearGreedAndPutCall(),
     () => fetchGSCPI(),
     () => fetchFredCSV("WRMFNS"), // All Money Market Funds total assets (weekly, $B)
     () => fetchFredCSV("NFCI"),
@@ -1371,10 +1369,12 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     netLiquidityHistory, rrpHistory, nfciHistoryForImplications, hySpreadHistoryForImplications, sofrIorbSpreadHistory,
   );
 
+  const cnnData = cnnResult.status === "fulfilled" ? (cnnResult.value as { fearGreed: ChartPoint[]; putCall: ChartPoint[] }) : { fearGreed: [], putCall: [] };
+
   const vixHistoryForImplications = chartToPoints(vixResult);
   const vixCurveForImplications = vixCurveResult.status === "fulfilled" ? (vixCurveResult.value as VixCurvePoint[]) : [];
   const vvixHistoryForImplications = chartToPoints(vvixResult);
-  const putCallRatioHistoryForImplications = putCallResult.status === "fulfilled" ? (putCallResult.value as ChartPoint[]) : [];
+  const putCallRatioHistoryForImplications = cnnData.putCall;
   const moveHistory = chartToPoints(moveResult);
   const volatilityImplications = computeVolatilityImplications(
     vixHistoryForImplications, vixCurveForImplications, vvixHistoryForImplications,
@@ -1391,8 +1391,8 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     hySpreadHistory:       hyResult.status        === "fulfilled" ? (hyResult.value       as ChartPoint[]) : [],
     igSpreadHistory:       igResult.status        === "fulfilled" ? (igResult.value       as ChartPoint[]) : [],
     putCallHistory:        chartToPoints(vvixResult),
-    fearGreedHistory:      fearGreedResult.status === "fulfilled" ? (fearGreedResult.value as ChartPoint[]) : [],
-    putCallRatioHistory:   putCallResult.status   === "fulfilled" ? (putCallResult.value  as ChartPoint[]) : [],
+    fearGreedHistory:      cnnData.fearGreed,
+    putCallRatioHistory:   cnnData.putCall,
     gscpiHistory:          gscpiResult.status     === "fulfilled" ? (gscpiResult.value    as ChartPoint[]) : [],
     moneyMarketHistory:    moneyMarketResult.status === "fulfilled" ? (moneyMarketResult.value as ChartPoint[]) : [],
     nfciHistory:           nfciResult.status       === "fulfilled" ? (nfciResult.value    as ChartPoint[]) : [],
