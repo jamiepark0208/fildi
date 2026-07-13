@@ -77,6 +77,22 @@ export interface MacroData {
   };
 }
 
+export interface LiquiditySignal {
+  label: string;
+  level: "supportive" | "neutral" | "draining" | "stress" | "unknown";
+  readout: string;
+  implication: string;
+}
+
+export interface LiquidityImplications {
+  asOf: string;
+  signals: LiquiditySignal[];
+  overall: {
+    level: "supportive" | "neutral" | "draining" | "stress" | "unknown";
+    summary: string;
+  };
+}
+
 export interface MacroCharts {
   fetchedAt: string;
   vixHistory: ChartPoint[];
@@ -99,6 +115,8 @@ export interface MacroCharts {
   rrpHistory: ChartPoint[];           // Overnight reverse repo (FRED RRPONTSYD, daily $B)
   reservesHistory: ChartPoint[];      // Bank reserve balances (FRED WRESBAL, weekly $M)
   netLiquidityHistory: ChartPoint[];  // Derived: WALCL - TGA - RRP, weekly-aligned, $B
+  sofrIorbSpreadHistory: ChartPoint[]; // Derived: SOFR - IORB, daily, bps — reserve scarcity / repo stress
+  liquidityImplications: LiquidityImplications; // Synthesized regime read across the liquidity series above
 }
 
 export interface SectorMoverPoint {
@@ -109,6 +127,7 @@ export interface SectorMoverPoint {
 export interface SectorRotationPoint {
   ticker: string;
   label: string;
+  rs1d: number | null;
   rs1m: number | null;
   rs3m: number | null;
   momentum: number | null;

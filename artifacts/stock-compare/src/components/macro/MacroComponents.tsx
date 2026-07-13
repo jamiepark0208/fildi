@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, AreaChart, ReferenceLine, Area, ScatterChart, Scatter,
-  ComposedChart, ReferenceDot, BarChart, Bar, Cell, LabelList,
+  ComposedChart, ReferenceDot, BarChart, Bar, Cell, LabelList, ZAxis,
 } from "recharts";
 import {
   RefreshCw, Loader2, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
@@ -16,7 +16,7 @@ import type {
   MacroData, FedMember, BankResearch, MacroEvent, ChartPoint,
   VixCurvePoint, FedFundsCurvePoint, YieldCurvePoint,
   COTRecord, COTSummary, CurvePeriod, SepMetric, IndicatorHistory, SepActuals,
-  SepData, NewsArticle, SectorRotationPoint,
+  SepData, NewsArticle, SectorRotationPoint, LiquidityImplications, LiquiditySignal,
 } from "./macro-page-types";
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
@@ -279,15 +279,83 @@ function PlumbingNode({ label, valueB, deltaW, deltaM, sign }: {
     <div className="flex items-center gap-2">
       {sign && <span className="text-lg text-muted-foreground font-semibold">{sign}</span>}
       <div className="border border-border rounded-md p-3 min-w-[130px]">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+        <p className="text-xs text-slate-300 uppercase tracking-wide mb-1">{label}</p>
         <p className="text-lg font-semibold leading-tight">
           {valueB != null ? `$${valueB.toFixed(0)}B` : "—"}
         </p>
-        <p className="text-[10px] mt-0.5 space-x-2">
+        <p className="text-xs mt-0.5 space-x-2">
           <span className={changeColor(deltaW)}>1w {deltaW != null ? `${deltaW > 0 ? "+" : ""}${deltaW.toFixed(0)}B` : "—"}</span>
           <span className={changeColor(deltaM)}>1m {deltaM != null ? `${deltaM > 0 ? "+" : ""}${deltaM.toFixed(0)}B` : "—"}</span>
         </p>
       </div>
+    </div>
+  );
+}
+
+const LIQUIDITY_LEVEL_STYLE: Record<LiquiditySignal["level"], { dot: string; text: string; badge: string }> = {
+  supportive: { dot: "bg-green-400",  text: "text-green-400",  badge: "border-green-500/40 bg-green-500/10 text-green-400" },
+  neutral:    { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
+  draining:   { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-500/40 bg-orange-500/10 text-orange-400" },
+  stress:     { dot: "bg-red-400",    text: "text-red-400",    badge: "border-red-500/40 bg-red-500/10 text-red-400" },
+  unknown:    { dot: "bg-slate-500",  text: "text-muted-foreground", badge: "border-border text-muted-foreground" },
+};
+
+const LIQUIDITY_LEVEL_LABEL: Record<LiquiditySignal["level"], string> = {
+  supportive: "Supportive",
+  neutral: "Neutral",
+  draining: "Draining",
+  stress: "Stress",
+  unknown: "Unknown",
+};
+
+export function LiquidityImplicationsCard({
+  data, loading,
+}: {
+  data: LiquidityImplications | undefined;
+  loading?: boolean;
+}) {
+  if (loading || !data) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-32">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const overallStyle = LIQUIDITY_LEVEL_STYLE[data.overall.level];
+
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Liquidity Regime Read</h2>
+        </div>
+        <Badge variant="outline" className={cn("text-xs", overallStyle.badge)}>
+          {LIQUIDITY_LEVEL_LABEL[data.overall.level]}
+        </Badge>
+      </div>
+      <p className={cn("text-sm font-medium mb-3", overallStyle.text)}>{data.overall.summary}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {data.signals.map(sg => {
+          const style = LIQUIDITY_LEVEL_STYLE[sg.level];
+          return (
+            <div key={sg.label} className="rounded-md bg-muted/30 p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                  <span className={cn("w-1.5 h-1.5 rounded-full inline-block", style.dot)} />
+                  {sg.label}
+                </span>
+                <span className={cn("text-xs font-mono font-semibold", style.text)}>{sg.readout}</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-snug">{sg.implication}</p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-slate-500 mt-3">
+        Directional heuristic, not a precise model or trading signal.
+      </p>
     </div>
   );
 }
@@ -347,10 +415,8 @@ export function LiquidityFlowDiagram({
           sign="="
         />
       </div>
-      <p className="text-[10px] text-muted-foreground italic">
-        Net Liquidity = Fed Assets − Treasury General Account − Overnight RRP. Rising ≈ more dollars
-        available to markets. This is real arithmetic on public Fed data — it does not show which
-        sectors or entities receive the dollars.
+      <p className="text-xs text-slate-500">
+        Net Liquidity = Fed Assets − TGA − RRP. Rising ≈ more dollars available to markets.
       </p>
     </div>
   );
@@ -388,6 +454,44 @@ const QUADRANT_CORNER: Record<string, string> = {
   improving: "top-2 left-2 text-left",
 };
 
+function SectorMoversStrip({ data }: { data: SectorRotationPoint[] }) {
+  const sorted = [...data]
+    .filter((d) => d.rs1d != null)
+    .sort((a, b) => b.rs1d! - a.rs1d!);
+  if (sorted.length === 0) return null;
+  const maxAbs = Math.max(1, ...sorted.map((d) => Math.abs(d.rs1d!)));
+
+  return (
+    <div className="mb-3">
+      <p className="text-xs font-medium text-slate-300 mb-1.5">Today's movers vs SPY</p>
+      <div className="flex flex-wrap gap-1.5">
+        {sorted.map((d) => {
+          const up = d.rs1d! >= 0;
+          const widthPct = Math.max(10, (Math.abs(d.rs1d!) / maxAbs) * 100);
+          return (
+            <div
+              key={d.ticker}
+              className="relative overflow-hidden rounded-md px-2.5 py-1.5 min-w-[92px] bg-muted/30"
+              title={`${d.label}: ${up ? "+" : ""}${d.rs1d!.toFixed(1)}% vs SPY today`}
+            >
+              <div
+                className="absolute inset-y-0 left-0 opacity-25"
+                style={{ width: `${widthPct}%`, background: up ? "#22c55e" : "#ef4444" }}
+              />
+              <div className="relative flex items-center justify-between gap-2">
+                <span className="text-xs font-medium">{d.label}</span>
+                <span className={cn("text-xs font-mono font-semibold", up ? "text-green-400" : "text-red-400")}>
+                  {up ? "+" : ""}{d.rs1d!.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function SectorRotationBubbles({
   data, loading,
 }: {
@@ -402,34 +506,36 @@ export function SectorRotationBubbles({
     );
   }
 
-  const points = data.filter((d) => d.rs1m != null && d.momentum != null);
-  const leaders = data.filter((d) => d.quadrant === "leading").map((d) => d.ticker);
+  const points = data
+    .filter((d) => d.rs1m != null && d.momentum != null)
+    .map((d) => ({ ...d, z: Math.abs(d.rs1m!) + 0.5 }));
+  const leaders = data.filter((d) => d.quadrant === "leading").map((d) => d.label);
 
   return (
     <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-1">
-        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Sector Rotation — Relative Strength vs SPY</h2>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Sector Rotation vs SPY</h2>
+        </div>
+        <div className="flex items-center gap-2.5 text-xs text-slate-300">
+          {(["leading", "improving", "lagging", "weakening"] as const).map((q) => (
+            <span key={q} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ background: QUADRANT_COLOR[q] }} />
+              {QUADRANT_LABEL[q]}
+            </span>
+          ))}
+        </div>
       </div>
-      <p className="text-[11px] text-muted-foreground mb-2">
-        Each dot is a sector ETF's 1-month price return vs SPY (x-axis) and whether that edge is
-        accelerating or fading vs its 3-month trend (y-axis) — i.e. which sectors are rallying,
-        topping, selling off, or bottoming right now relative to the broad market.
-      </p>
-      <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-2">
-        {(["leading", "improving", "lagging", "weakening"] as const).map((q) => (
-          <span key={q} className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full inline-block" style={{ background: QUADRANT_COLOR[q] }} />
-            {QUADRANT_LABEL[q]} — {QUADRANT_IMPLICATION[q]}
-          </span>
-        ))}
-      </div>
+
+      <SectorMoversStrip data={data} />
+
       <div className="relative">
         {(["leading", "weakening", "lagging", "improving"] as const).map((q) => (
           <div
             key={q}
-            className={cn("absolute z-10 pointer-events-none text-[10px] font-medium uppercase tracking-wide", QUADRANT_CORNER[q])}
-            style={{ color: QUADRANT_COLOR[q], opacity: 0.55 }}
+            className={cn("absolute z-10 pointer-events-none text-[10px] font-semibold uppercase tracking-wide", QUADRANT_CORNER[q])}
+            style={{ color: QUADRANT_COLOR[q], opacity: 0.6 }}
           >
             {QUADRANT_LABEL[q]}
           </div>
@@ -439,14 +545,15 @@ export function SectorRotationBubbles({
             <CartesianGrid strokeDasharray="3 3" stroke="#222" />
             <XAxis
               type="number" dataKey="rs1m" name="1m RS vs SPY"
-              tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}%`}
-              label={{ value: "Relative Strength (1m %) — right = outperforming SPY", position: "insideBottom", offset: -4, fontSize: 10, fill: "#888" }}
+              tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}%`}
+              label={{ value: "1m return vs SPY →", position: "insideBottom", offset: -4, fontSize: 11, fill: "#aaa" }}
             />
             <YAxis
               type="number" dataKey="momentum" name="Momentum"
-              tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}`}
-              label={{ value: "Momentum (1m − 3m RS) — up = accelerating", angle: -90, position: "insideLeft", fontSize: 10, fill: "#888" }}
+              tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}`}
+              label={{ value: "Accelerating ↑", angle: -90, position: "insideLeft", fontSize: 11, fill: "#aaa" }}
             />
+            <ZAxis dataKey="z" range={[80, 500]} />
             <ReferenceLine x={0} stroke="#444" />
             <ReferenceLine y={0} stroke="#444" />
             <Tooltip
@@ -455,20 +562,19 @@ export function SectorRotationBubbles({
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as SectorRotationPoint;
                 return (
-                  <div className="bg-popover border border-border rounded-md px-2.5 py-2 text-[11px] max-w-[220px]">
-                    <p className="font-semibold">{p.ticker} — {p.label}</p>
-                    <p style={{ color: QUADRANT_COLOR[p.quadrant ?? ""] }} className="capitalize font-medium">
-                      {p.quadrant} — {QUADRANT_IMPLICATION[p.quadrant ?? ""]}
+                  <div className="bg-popover border border-border rounded-md px-2.5 py-2 text-xs max-w-[230px]">
+                    <p className="font-semibold text-sm">{p.label}</p>
+                    <p style={{ color: QUADRANT_COLOR[p.quadrant ?? ""] }} className="font-medium">
+                      {QUADRANT_LABEL[p.quadrant ?? ""]} — {QUADRANT_IMPLICATION[p.quadrant ?? ""]}
                     </p>
-                    <p className="mt-1">1m RS vs SPY: {p.rs1m! > 0 ? "+" : ""}{p.rs1m}%</p>
-                    <p>3m RS vs SPY: {p.rs3m! > 0 ? "+" : ""}{p.rs3m}%</p>
+                    <p className="mt-1.5">Today: {p.rs1d != null ? `${p.rs1d > 0 ? "+" : ""}${p.rs1d}%` : "—"} · 1m: {p.rs1m! > 0 ? "+" : ""}{p.rs1m}% · 3m: {p.rs3m! > 0 ? "+" : ""}{p.rs3m}%</p>
                     {p.topMovers?.length > 0 && (
                       <div className="mt-1.5 pt-1.5 border-t border-border/50">
-                        <p className="text-muted-foreground mb-0.5">Names to watch (1m vs SPY):</p>
+                        <p className="text-slate-400 mb-0.5">Bellwethers (1m vs SPY):</p>
                         {p.topMovers.map((m) => (
-                          <p key={m.ticker}>
-                            {m.ticker}: {m.rs1m != null ? `${m.rs1m > 0 ? "+" : ""}${m.rs1m}%` : "—"}
-                          </p>
+                          <span key={m.ticker} className="inline-block mr-2">
+                            {m.ticker} {m.rs1m != null ? `${m.rs1m > 0 ? "+" : ""}${m.rs1m}%` : "—"}
+                          </span>
                         ))}
                       </div>
                     )}
@@ -478,10 +584,10 @@ export function SectorRotationBubbles({
             />
             <Scatter data={points} fill="#8884d8">
               <LabelList
-                dataKey="ticker"
+                dataKey="label"
                 position="top"
-                fontSize={10}
-                fill="#ccc"
+                fontSize={11}
+                fill="#ddd"
                 offset={8}
               />
               {points.map((p) => (
@@ -493,14 +599,12 @@ export function SectorRotationBubbles({
       </div>
       {leaders.length > 0 && (
         <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-xs">
-          <span className="text-muted-foreground">Leading:</span>
-          <span className="font-medium">{leaders.join(", ")}</span>
-          <span className="text-muted-foreground ml-auto">— open scanner / filter watchlist by these tickers</span>
+          <span className="text-slate-400">Leading:</span>
+          <span className="font-medium text-slate-200">{leaders.join(", ")}</span>
         </div>
       )}
-      <p className="text-[10px] text-muted-foreground italic mt-2">
-        Relative price strength proxy, not measured ETF dollar flow. Leadership can rotate quickly.
-        "Names to watch" are well-known sector bellwethers, not a live top-holdings-by-weight feed.
+      <p className="text-xs text-slate-500 mt-2">
+        Dot size = size of 1m move vs SPY. Price-based proxy, not measured fund flow.
       </p>
     </div>
   );

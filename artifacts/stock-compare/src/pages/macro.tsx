@@ -57,7 +57,7 @@ import {
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
   RegimeChips, StatCell, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
-  LiquidityFlowDiagram, SectorRotationBubbles,
+  LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
   TradingViewMarketOverview, TradingViewForexCrossRates,
@@ -479,6 +479,11 @@ export default function MacroDashboard() {
           {/* ── Tab: Liquidity ───────────────────────────────────────────────── */}
           {activeTab === "liquidity" && (
             <>
+              <LiquidityImplicationsCard
+                data={macroCharts?.liquidityImplications}
+                loading={!macroCharts}
+              />
+
               <LiquidityFlowDiagram
                 fedAssetsHistory={macroCharts?.fedAssetsHistory ?? []}
                 tgaHistory={macroCharts?.tgaHistory ?? []}
@@ -487,7 +492,7 @@ export default function MacroDashboard() {
                 loading={!macroCharts}
               />
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <RateHistoryChart
                   title="Net Liquidity ($B)"
                   data={macroCharts?.netLiquidityHistory ?? []}
@@ -502,9 +507,6 @@ export default function MacroDashboard() {
                   yFormatter={(v: number) => `$${v.toFixed(0)}B`}
                   tooltipFormatter={(v: number) => [`$${v.toFixed(1)}B`]}
                 />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <RateHistoryChart
                   title="Money Market Fund AUM ($B)"
                   data={macroCharts?.moneyMarketHistory ?? []}
@@ -524,20 +526,27 @@ export default function MacroDashboard() {
                     { y: -0.5, label: "Easy",     color: "#22c55e" },
                   ]}
                 />
-              </div>
-
-              <div className="flex items-center gap-3 py-2 border-t border-b border-border/50 text-[11px] text-muted-foreground">
-                <span className="flex-1 border-t border-dashed border-border" />
-                <span>Liquidity conditions → sector risk appetite (directional proxy, not measured cash flow)</span>
-                <span className="flex-1 border-t border-dashed border-border" />
+                <RateHistoryChart
+                  title="Bank Reserves ($T)"
+                  data={macroCharts?.reservesHistory ?? []}
+                  color="#2dd4bf" loading={!macroCharts}
+                  yFormatter={(v: number) => `$${(v / 1_000_000).toFixed(1)}T`}
+                  tooltipFormatter={(v: number) => [`$${(v / 1000).toFixed(0)}B`]}
+                />
+                <RateHistoryChart
+                  title="SOFR − IORB (bps) — reserve scarcity"
+                  data={macroCharts?.sofrIorbSpreadHistory ?? []}
+                  color="#f472b6" loading={!macroCharts}
+                  yFormatter={(v: number) => `${v.toFixed(0)}bp`}
+                  tooltipFormatter={(v: number) => [`${v.toFixed(1)}bp`]}
+                  referenceLines={[
+                    { y: 0,  label: "Ample (0)",  color: "#22c55e" },
+                    { y: 15, label: "Scarce",     color: "#ef4444" },
+                  ]}
+                />
               </div>
 
               <SectorRotationBubbles data={sectorRotation} loading={!sectorRotation} />
-
-              <p className="text-[10px] text-muted-foreground italic">
-                Proxies only — not a measured cash ledger. No public data traces actual dollars from
-                government to specific sectors or companies.
-              </p>
             </>
           )}
 

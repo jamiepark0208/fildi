@@ -64,7 +64,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 ---
 
 ## Cluster 9 — Research sprints (each spawns follow-ons)
-- enh/30 liquidity-money-flow-research (M) → spawns enh/31 + enh/32
+- enh/30 liquidity-money-flow-research (M) — done 2026-07-13: Liquidity tab built end to end (plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign with 1d-movers strip + sector names + magnitude-sized bubbles). Superseded the planned enh/31+32 split — both folded into this single build.
 - enh/33 csp-momentum-backtest-learning-research (M) — standalone, can run independently of enh/34 (confirmed by user 2026-07-11). Spawns its own follow-on research tasks on pickup, feeds ai/14; don't assume those spawns are numbered 34/35 — enh/34 is already performance-resilience-optimization.
 - ai/14 product-ai-trader-account-research (M) → spawns ai/15–17
 
@@ -98,5 +98,5 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/9 requires enh/8
 - enh/12 analyst section requires enh/6 Track 1
 - naf/4–6 require scanner-reasoning.ts extract
-- enh/30 spawns enh/31+32 (do not collide with enh/19 heatmap)
+- enh/30 done 2026-07-13, no longer spawns enh/31+32 separately (folded in) — enh/19 heatmap still untouched, no collision
 - enh/27–29 are permanently deferred (goals already met by existing code) — re-confirmed 2026-07-11, no code changes since 2026-07-09 audit bypass this
