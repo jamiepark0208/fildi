@@ -93,6 +93,22 @@ export interface LiquidityImplications {
   };
 }
 
+export interface VolatilitySignal {
+  label: string;
+  level: "calm" | "normal" | "elevated" | "stress" | "unknown";
+  readout: string;
+  implication: string;
+}
+
+export interface VolatilityImplications {
+  asOf: string;
+  signals: VolatilitySignal[];
+  overall: {
+    level: "calm" | "normal" | "elevated" | "stress" | "unknown";
+    summary: string;
+  };
+}
+
 export interface MacroCharts {
   fetchedAt: string;
   vixHistory: ChartPoint[];
@@ -117,6 +133,8 @@ export interface MacroCharts {
   netLiquidityHistory: ChartPoint[];  // Derived: WALCL - TGA - RRP, weekly-aligned, $B
   sofrIorbSpreadHistory: ChartPoint[]; // Derived: SOFR - IORB, daily, bps — reserve scarcity / repo stress
   liquidityImplications: LiquidityImplications; // Synthesized regime read across the liquidity series above
+  moveHistory: ChartPoint[];          // ICE BofA MOVE Index — bond market (rates) implied volatility
+  volatilityImplications: VolatilityImplications; // Synthesized vol regime read across VIX/term structure/VVIX/put-call/credit/MOVE
 }
 
 export interface SectorMoverPoint {

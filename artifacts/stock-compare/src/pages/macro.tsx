@@ -57,7 +57,7 @@ import {
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
   RegimeChips, StatCell, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
-  LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard,
+  LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard, VolatilityImplicationsCard,
   SepDotsChart, FedStanceGroup, FedMemberCard, BankCard, EventRow,
   CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
   TradingViewMarketOverview, TradingViewForexCrossRates,
@@ -88,6 +88,14 @@ export default function MacroDashboard() {
   const [selectedSepMetric, setSelectedSepMetric] = useState<SepMetric>("fedRate");
   const [selectedMacroCotId, setSelectedMacroCotId] = useState("sp500");
   const [selectedSentCotId, setSelectedSentCotId] = useState("gold");
+
+  // ?tab= query param overrides the session-persisted tab on load (e.g. /macro?tab=volatility)
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && MACRO_TABS.some((t) => t.id === tab)) {
+      setActiveTab(tab as MacroTab);
+    }
+  }, []);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -553,6 +561,11 @@ export default function MacroDashboard() {
           {/* ── Tab 2: Volatility & Sentiment ────────────────────────────────── */}
           {activeTab === "volatility" && (
             <>
+              <VolatilityImplicationsCard
+                data={macroCharts?.volatilityImplications}
+                loading={!macroCharts}
+              />
+
               {/* Vol stats */}
               <div className="flex flex-wrap gap-2">
                 <StatCell label="VIX" value={fmt(macroData!.vix.value, 1)}
@@ -584,10 +597,18 @@ export default function MacroDashboard() {
                   referenceLines={[{ y: 100, label: "Elevated", color: "#f59e0b" }, { y: 120, label: "Panic", color: "#ef4444" }]} />
               </div>
 
-              {/* CBOE Equity Put/Call Ratio */}
-              <RateHistoryChart title="CBOE Equity Put/Call Ratio" data={macroCharts?.putCallRatioHistory ?? []} color="#a78bfa" loading={!macroCharts}
-                yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
-                referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.0, label: "Bearish", color: "#ef4444" }]} />
+              {/* CBOE Equity Put/Call Ratio + MOVE Index */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RateHistoryChart title="CBOE Equity Put/Call Ratio" data={macroCharts?.putCallRatioHistory ?? []} color="#a78bfa" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(2)} tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                  referenceLines={[{ y: 0.7, label: "Bullish", color: "#22c55e" }, { y: 1.0, label: "Bearish", color: "#ef4444" }]} />
+                <RateHistoryChart title="MOVE Index (Bond Market Vol)" data={macroCharts?.moveHistory ?? []} color="#fb7185" loading={!macroCharts}
+                  yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
+                  referenceLines={[{ y: 90, label: "Calm", color: "#22c55e" }, { y: 140, label: "Stress", color: "#ef4444" }]} />
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 -mt-2">
+                MOVE tracks bond-market (rates) implied volatility, not equity vol — it often leads VIX during rate-shock-driven stress.
+              </p>
 
               {/* COT — Commodities, Crypto & FX */}
               {sentCoTs.length > 0 && (
