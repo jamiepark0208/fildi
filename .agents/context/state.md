@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: site-wide-neutral-dark-theme-nav-bg-vs-card-contrast, bold-topnav-icons-and-labels, portfolio-header-inline-subtitle-plus-last-import-timestamp, compact-Import-CSV-button-replacing-Robinhood-header-dropzone, summary-strip-rebuilt-as-marquee-banner-matching-ticker-tape, renamed-Locked-Collateral-and-Premium-Expected-This-Wk-labels, unbounded-scrolling-Top-Movers-chips, reduced-header-to-banner-vertical-spacing
+- Working: site-wide-neutral-dark-theme-nav-bg-vs-card-contrast, bold-topnav-icons-and-labels, portfolio-header-inline-subtitle-plus-last-import-timestamp, compact-Import-CSV-button-replacing-Robinhood-header-dropzone, summary-strip-rebuilt-as-marquee-banner-matching-ticker-tape, renamed-Locked-Collateral-and-Premium-Expected-This-Wk-labels, unbounded-scrolling-Top-Movers-chips, reduced-header-to-banner-vertical-spacing, PnL-tie-out-to-Robinhood-totals-accepted-as-reasonably-complete
 - In progress: none - all requested portfolio UI polish this session shipped and typechecked clean
-- Blocked: PnL-tie-out-still-open-verify-Robinhood-totals-now-match-after-dividend-and-assignment-backfill
+- Blocked: none
 
 ## Next tasks (priority order)
 
