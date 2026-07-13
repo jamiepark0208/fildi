@@ -6,11 +6,13 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: policy-tab-grid-responsive-fix policy-tab-balance-sheet-4th-chart enh36-historical-analogy-note enh37-cache-admin-gap-filed
+- Working: enh10-crosstab-regime-verdict-row, enh37-cache-monitor-per-field-visibility, fundamentals-pipeline-refresh, tasks-dir-token-cleanup
 - In progress: none
 - Blocked: none
 
 ## Next tasks (priority order)
+
+0. **macro-synthesis-card-unit-tests** — `computeVolatilityImplications()` and `computeLiquidityImplications()` in `api-server/src/lib/macro-data.ts` (both currently module-private, not exported) and `derivePolicySignals()` in `stock-compare/src/components/macro/MacroComponents.tsx` (also private) have hardcoded regime thresholds driving user-facing trading verdicts, with zero test coverage — unlike the rest of the codebase (308 passing tests elsewhere). Scoped but deferred this session for context budget. To pick up: export the three functions, add boundary tests per threshold transition (see exact threshold values already read out in this session's transcript — VIX 15/20/30, VVIX 90/100/120, put/call 0.7/1.0/1.3, MOVE 90/110/140, HY OAS 350/400/500, RRP 75/300, SOFR-IORB 0/5/15, NFCI -0.1/0.1/0.5) plus one compound-condition case per card.
 
 1. **stock-db-ui-redesign** — The current StockDBTab grouping implementation is hard to read. Redesign from scratch: collapsible accordion sections per sector → peer group, groups ordered by descending coverage % (most data-complete groups first), clear visual hierarchy between sector/group/ticker rows, representative tickers (watchlist) visually distinct within their group. Do NOT patch the existing grouping render — plan the layout first, then implement.
 
@@ -40,11 +42,11 @@
 ## RSI / MFI thresholds
 Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI threshold: 25 (all tickers).
 
-## Fundamentals pipeline state (2026-07-07)
+## Fundamentals pipeline state (2026-07-13)
 - Universe: ticker_registry WHERE fetch_fundamentals=true (257 tickers) — golden source for all scripts
-- Bronze tables: fmp(257), yahoo(281), finnhub(158), edgar(158), polygon(0 — backfill pending), av(0 — backfill pending)
-- Silver: source_fundamentals ~15,809 rows (stale — needs populate-source-fundamentals re-run after backfills)
-- Gold: ticker_fundamentals 257 rows, field_provenance 6,726 rows (stale — needs merge-trusted re-run)
+- Bronze tables: fmp(257), yahoo(280), finnhub(280), edgar(280), polygon(162), av(14)
+- Silver: source_fundamentals 23,158 rows (fresh — re-ran 2026-07-13, 118 rejected)
+- Gold: ticker_fundamentals 269 tickers merged, field_provenance 9,259 rows (fresh — re-ran 2026-07-13). Fields null >20% of tickers: peRatio (64/283), pegRatio (59/283) — worth investigating if these matter for scoring.
 - All 7 backfill scripts now read from ticker_registry WHERE fetch_fundamentals=true
 - populate-source-fundamentals.ts now handles all 6 sources including Polygon (source='polygon') and AV (source='alpha_vantage')
 - merge-trusted.ts FIELD_DEFS: Polygon + AV added as lowest-priority fallbacks across applicable fields

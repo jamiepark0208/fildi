@@ -2,22 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | backlog |
+| **Status** | done |
 | **Priority** | P2 |
 | **Area** | admin / observability |
 | **Effort** | S |
 | **Created** | 2026-07-13 |
 | **Source** | user observation during macro-tab session wrap |
-| **Related** | enh/17, enh/30, enh/36 (macro tab work these gaps trail behind) |
-| **Type** | ENHANCE |
+| **Related** | enh/17, enh/30, enh/36 |
 
-### Purpose
-Over several sessions the Macro tab gained a lot of new sub-data (Liquidity tab plumbing/sector rotation, Volatility tab 2x3 grid + COT marquee + fixed put/call source, Policy tab Balance Sheet/QT card). The Settings admin tabs — **Cache Monitor**, **Stock DB**, **API Monitor** — were not updated alongside this work:
-
-- `cache-registry.ts` only tracks three coarse buckets (`macro-data`, `macro-charts`, `macro-cot`) as single blobs. It has no per-field visibility — e.g. if `fedAssetsHistory`, `volatilityImplications`, or the CNN fear-greed-derived put/call source silently starts returning empty/stale data, the Cache Monitor tab still shows the parent `macro-charts` bucket as fresh.
-- `StockDBTab.tsx` and `ApiMonitorTab.tsx` have zero references to macro (grepped clean) — they're scoped to fundamentals/tickers, not macro series. Not necessarily wrong, but means there's currently no admin-side health check for any macro data source at the field level.
-
-### Scope (to define at pickup)
-- Decide whether this needs per-field cache entries (heavier: restructure `macro-charts` cache bucket) or just a lighter per-field "last non-null value seen" staleness check surfaced in Cache Monitor.
-- Audit which macro sub-fields have silently gone stale/dead before (put-call source in enh/17 was found by manual inspection, not by any monitor) — that's the concrete motivating incident.
-- Out of scope: don't rebuild Stock DB/API Monitor around macro — just close the visibility gap for macro-charts sub-fields in Cache Monitor.
+### Resolution (2026-07-13)
+Shipped the lighter of two options considered: `cache-registry.ts` now expands the `macro-charts` cache bucket into one entry per chart field (21 `MacroCharts` fields) instead of a single blob, so an empty/dead field renders as `EMPTY`/`SOURCE DEAD` in the Cache Monitor UI immediately, regardless of the parent bucket's freshness — directly addressing the motivating incident (a dead put/call source found only by manual inspection in enh/17). The API Monitor gap flagged in scope turned out to be a non-issue on closer trace — FRED/CNN/NY Fed calls were already metered and displayed correctly — so no change was needed there. Stock DB tab confirmed correctly out of scope (ticker-only by design).

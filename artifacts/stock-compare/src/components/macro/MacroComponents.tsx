@@ -18,7 +18,7 @@ import type {
   VixCurvePoint, FedFundsCurvePoint, YieldCurvePoint,
   COTRecord, COTSummary, CurvePeriod, SepMetric, IndicatorHistory, SepActuals,
   SepData, NewsArticle, SectorRotationPoint, LiquidityImplications, LiquiditySignal,
-  VolatilityImplications, VolatilitySignal,
+  VolatilityImplications, VolatilitySignal, MacroTab,
 } from "./macro-page-types";
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
@@ -196,6 +196,69 @@ export function RegimeChips({ macroData }: { macroData: MacroData }) {
       <span className="text-xs px-3 py-1 rounded-full border font-medium bg-yellow-900/50 text-yellow-300 border-yellow-700">
         Fed On Hold
       </span>
+    </div>
+  );
+}
+
+// Cross-tab "at a glance" verdict row for the Regime tab — reuses the same
+// implication data already computed for the Volatility/Liquidity/Policy tabs
+// and the COT cards, so this is pure aggregation, no new fetches or logic.
+export function CrossTabReadRow({
+  volatilityImplications, liquidityImplications, fedFundsCurve, sepData, events, cotSummaries, onJump,
+}: {
+  volatilityImplications: VolatilityImplications | undefined;
+  liquidityImplications: LiquidityImplications | undefined;
+  fedFundsCurve: FedFundsCurvePoint[];
+  sepData: SepData | undefined;
+  events: MacroEvent[] | undefined;
+  cotSummaries: COTSummary[];
+  onJump: (tab: MacroTab) => void;
+}) {
+  const policy = derivePolicySignals(fedFundsCurve, sepData, events, volatilityImplications);
+  const mostExtremeCot = cotSummaries.length
+    ? [...cotSummaries].sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore))[0]
+    : undefined;
+  const cot = mostExtremeCot ? getCotCrowding(mostExtremeCot) : undefined;
+
+  const badges: { label: string; readout: string; style: { badge: string; dot: string }; tab: MacroTab }[] = [
+    volatilityImplications && {
+      label: "Volatility",
+      readout: VOLATILITY_LEVEL_LABEL[volatilityImplications.overall.level],
+      style: VOLATILITY_LEVEL_STYLE[volatilityImplications.overall.level], tab: "volatility" as const,
+    },
+    liquidityImplications && {
+      label: "Liquidity",
+      readout: LIQUIDITY_LEVEL_LABEL[liquidityImplications.overall.level],
+      style: LIQUIDITY_LEVEL_STYLE[liquidityImplications.overall.level], tab: "liquidity" as const,
+    },
+    {
+      label: "Policy", readout: VOLATILITY_LEVEL_LABEL[policy.overall.level],
+      style: VOLATILITY_LEVEL_STYLE[policy.overall.level], tab: "policy" as const,
+    },
+    cot && mostExtremeCot && {
+      label: "COT", readout: `${mostExtremeCot.displayName}: ${cot.label}`,
+      style: VOLATILITY_LEVEL_STYLE[cot.level], tab: "volatility" as const,
+    },
+  ].filter((b): b is NonNullable<typeof b> => Boolean(b));
+
+  if (!badges.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {badges.map((b) => (
+        <button
+          key={b.label}
+          onClick={() => onJump(b.tab)}
+          className={cn(
+            "flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-medium transition-colors hover:brightness-125",
+            b.style.badge,
+          )}
+          title={`Jump to ${b.tab}`}
+        >
+          <span className={cn("w-1.5 h-1.5 rounded-full inline-block", b.style.dot)} />
+          {b.label}: {b.readout}
+        </button>
+      ))}
     </div>
   );
 }
@@ -2012,6 +2075,16 @@ export function fmtCot(n: number): string {
 // Plain-English synthesis of what the raw HF Net / WoW / Z-Score / Open Interest
 // figures below actually mean for the selected instrument, so the numbers aren't
 // presented without context.
+// Shared with CrossTabReadRow so the Regime tab badge and this prose stay in sync.
+function getCotCrowding(selected: COTSummary): { level: VolatilitySignal["level"]; label: string; direction: "long" | "short" } {
+  const net = selected.latest.levMoneyNet;
+  const absZ = Math.abs(selected.zScore);
+  const direction = net >= 0 ? "long" : "short";
+  const level: VolatilitySignal["level"] = absZ > 1.5 ? "stress" : absZ > 1 ? "elevated" : "calm";
+  const label = absZ > 1.5 ? `Crowded ${direction}` : absZ > 1 ? `Building ${direction}` : "Typical range";
+  return { level, label, direction };
+}
+
 function CotPositioningRead({ selected }: { selected: COTSummary }) {
   const net = selected.latest.levMoneyNet;
   const chg = selected.latest.levMoneyLongChg - selected.latest.levMoneyShortChg;
@@ -2020,7 +2093,7 @@ function CotPositioningRead({ selected }: { selected: COTSummary }) {
   const absZ = Math.abs(z);
   const pctOfOI = oi > 0 ? (Math.abs(net) / oi) * 100 : null;
 
-  const direction = net >= 0 ? "long" : "short";
+  const { direction } = getCotCrowding(selected);
   const flowVerb = net === 0 || chg === 0 ? null
     : Math.sign(chg) === Math.sign(net) ? "adding to" : "trimming";
 

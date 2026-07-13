@@ -39,36 +39,37 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 2 | P0 | done | [competitive-tech-research](enhancements/2-competitive-tech-research-070926.md) |
 | 3 | P0 | done | [ci-pipeline-typecheck-tests](enhancements/3-ci-pipeline-typecheck-tests-070926.md) |
 | 4 | P0 | done | [api-integration-test-harness](enhancements/4-api-integration-test-harness-070926.md) |
-| 5 | P1 | done | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) — folded into enh/34 Wave D 2026-07-11 |
-| 6 | P1 | done | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) — Track 1 done 2026-07-11 (schema applied, NVDA verified, 2 bugs fixed, UI wired); Track 2 (Finviz PT) still pending spike |
+| 5 | P1 | done | [api-dev-hot-reload](enhancements/5-api-dev-hot-reload-070926.md) — folded into enh/34 |
+| 6 | P1 | done* | [analyst-data-persistence](enhancements/6-analyst-data-persistence-070926.md) — Track 1 done, Track 2 pending |
 | 7 | P1 | done | [observability-error-tracking](enhancements/7-observability-error-tracking-070926.md) |
-| 8 | P0 | done | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) — UI overhaul done 2026-07-13 (nav/theme contrast, summary strip → marquee banner, compact CSV import button, Robinhood-header row removed); A1 nav-unlock still deferred, Phase B (wheel-cycle/journal) still design-gated backlog |
+| 8 | P0 | done* | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) — UI overhaul done; A1/Phase B still open |
 | 9 | P1 | ready | [portfolio-daily-brief-improvements](enhancements/9-portfolio-daily-brief-improvements-070926.md) |
-| 10 | P0 | ready | [macro-regime-tab-improvements](enhancements/10-macro-regime-tab-improvements-070926.md) |
+| 10 | P0 | done | [macro-regime-tab-improvements](enhancements/10-macro-regime-tab-improvements-070926.md) — shipped as cross-tab verdict row |
 | 11 | P1 | ready | [macro-catalyst-calendar-improvements](enhancements/11-macro-catalyst-calendar-improvements-070926.md) |
 | 12 | P1 | ready | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) |
 | 13 | P1 | ready | [feed-improvements](enhancements/13-feed-improvements-070926.md) |
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
 | 15 | P1 | ready | [technical-scorecard-improvements](enhancements/15-technical-scorecard-improvements-070926.md) |
 | 16 | P1 | ready | [watchlist-monitor-improvements](enhancements/16-watchlist-monitor-improvements-070926.md) |
-| 17 | P1 | done | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) — Volatility tab shipped 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index) now in a single row; fixed dead CBOE put/call data source (was dead Yahoo ^PCCE ticker, now sourced from CNN's fear&greed response); 6 vol charts compacted to 2x3; new compact VolStrip stat banner; COT section compacted with marquee-scrolling instrument selector + CotPositioningRead plain-English synthesis paragraph + expanded Positioning Extremes columns; sub-tab active-state clarity fix |
-| 18 | P2 | done | [macro-policy-tab-improvements](enhancements/18-macro-policy-tab-improvements-070926.md) — shipped 2026-07-13: PolicyCspSummary strip + denser BankCard (W1-W3 from spec), plus follow-on compaction pass — Fed Funds Curve/History/SEP dots into one compact row, ag-grid-styled SEP table, Bank Research grid fixed to 2x4, Fed Members replaced with hawkish↔dovish scale strip (hover popups, no voting/all filter), and new Balance Sheet (WALCL/QT) card reusing Liquidity tab's RRP Buffer signal |
+| 17 | P1 | done | [macro-volatility-tab-improvements](enhancements/17-macro-volatility-tab-improvements-070926.md) — Volatility Regime Read card + chart compaction |
+| 18 | P2 | done | [macro-policy-tab-improvements](enhancements/18-macro-policy-tab-improvements-070926.md) — PolicyCspSummary + Fed/Bank compaction |
 | 19 | P2 | ready | [macro-heatmap-tab-improvements](enhancements/19-macro-heatmap-tab-improvements-070926.md) |
 | 20 | P1 | ready | [scorecard-guide-improvements](enhancements/20-scorecard-guide-improvements-070926.md) |
 | 21 | P2 | ready | [settings-trader-preferences-improvements](enhancements/21-settings-trader-preferences-improvements-070926.md) |
 | 22 | P1 | ready | [openapi-coverage-orval-migration](enhancements/22-openapi-coverage-orval-migration-070926.md) |
-| 23 | P2 | done | [data-freshness-monitoring](enhancements/23-data-freshness-monitoring-070926.md) — bronze row counts added 2026-07-11 |
-| 24 | P2 | done | [polygon-av-backfill-completion](enhancements/24-polygon-av-backfill-completion-070926.md) — bronze populated + stale comment fixed 2026-07-11, AV rotation not cron'd (expected) |
+| 23 | P2 | done | [data-freshness-monitoring](enhancements/23-data-freshness-monitoring-070926.md) — bronze row counts in data-health |
+| 24 | P2 | done | [polygon-av-backfill-completion](enhancements/24-polygon-av-backfill-completion-070926.md) — bronze populated |
 | 25 | P2 | ready | [e2e-smoke-playwright](enhancements/25-e2e-smoke-playwright-070926.md) |
-| 26 | P2 | done | [react-query-fetch-standardization](enhancements/26-react-query-fetch-standardization-070926.md) — rankings key + App staleTime via enh/34 Wave B; regime "duplicate" was N/A (two unrelated products), scanner endpoint renamed to /volatility/regime for clarity 2026-07-11 |
-| 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) — re-confirmed deferred 2026-07-11 |
-| 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) — re-confirmed deferred 2026-07-11 |
-| 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) — re-confirmed deferred 2026-07-11 |
-| 30 | P0 | done | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) — Liquidity tab shipped 2026-07-13: plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign (1d movers strip, sector names, bubble sizing) |
-| 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, can run independently of 34 |
-| 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D done 2026-07-11 |
+| 26 | P2 | done | [react-query-fetch-standardization](enhancements/26-react-query-fetch-standardization-070926.md) — query-keys + staleTime unified |
+| 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) — deferred, re-confirmed |
+| 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) — deferred, re-confirmed |
+| 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) — deferred, re-confirmed |
+| 30 | P0 | done | [liquidity-money-flow-research](enhancements/30-liquidity-money-flow-research-070926.md) — Liquidity tab shipped end-to-end |
+| 33 | P0 | ready | [csp-momentum-backtest-learning-research](enhancements/33-csp-momentum-backtest-learning-research-070926.md) — standalone, independent of 34 |
+| 34 | P0 | done | [performance-resilience-optimization](enhancements/34-performance-resilience-optimization-070926.md) — Waves A–D |
 | 35 | P2 | backlog | [ai-explanation-quality-improvements](enhancements/35-ai-explanation-quality-improvements-071326.md) — filed 2026-07-13, cross-cutting pass on every implication/brief/note section (volatility, liquidity, regime, COT, daily brief, scorecard) |
 | 36 | P2 | backlog | [macro-policy-forward-guidance-depth](enhancements/36-macro-policy-forward-guidance-depth-071326.md) — filed 2026-07-13, needs new data sourcing: FOMC dissent counts/vote splits, statement lexical-shift tracking, press-conference Q&A nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks (ECB/BOJ/BOE), CME FedWatch-style cut/hike probabilities |
+| 37 | P2 | done | [macro-cache-admin-visibility-gap](enhancements/37-macro-cache-admin-visibility-gap-071326.md) — per-field Cache Monitor visibility for macro-charts |
 
 Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup, not assumed to be 34/35 (34 is performance-resilience-optimization, **35 is now taken by ai-explanation-quality-improvements** — use 36+ for any enh/33 spawns); feeds **ai/14**.
 
@@ -100,15 +101,15 @@ Merged from the former `bugs/INDEX.md` (deleted 2026-07-11 — was a duplicate s
 | 18 | C | P2 | done | S | Med | Low | [session-table-growth](bugs/18-session-table-growth-070926.md) |
 | 19 | A | P1 | rejected | S | High | Low | [register-empty-watchlist](bugs/19-register-empty-watchlist-070926.md) |
 
-**Clusters** (read together, implement in order):
-- **A — Watchlist SSOT (multi-user)** — 19, 2, 3, 10, 13 — DONE 2026-07-10 except 19 (rejected, product decision — see task DONE note). **Coupling:** fix 2 without `indicators.ts` → scanner 404 on user-added tickers.
-- **B — Fetch overprocessing** — 9, 11, 12 — DONE 2026-07-11. **Coupling:** 9 shrinks `fetch_fundamentals` registry → affects 4's startup universe size.
-- **C — Continuous-run health** — 5, 6, 8, 18. ALL DONE 2026-07-11: 5 (prune + maxEntries LRU, TTLs unchanged), 6 (pool max/idleTimeout env-tunable), 8 (last-run persisted to `app_config`, not `scoring_config`), 18 (`pruneSessionInterval: 900` on PgSession).
-- **D — Security** — 1, 7, 17. ALL DONE: 1 (2026-07-10, router-level `requireAuth`, live curl-verified), 7 (2026-07-11, `trust proxy` prod-only), 17 (2026-07-11, admin GETs now `requireAdmin`, live curl-verified 401).
-- **E — Correctness (small)** — 15, 16. DONE 2026-07-11 both: 15 (deleted duplicate FE `buildCatalysts`, server is now sole source), 16 (server winRate SQL now matches client resolved-status set).
-- **F — Portfolio (large)** — 14 DONE 2026-07-11: `use-portfolio.ts` rewritten server-backed (`/api/positions` + `/api/portfolio-names`, previously unmounted router — now mounted), one-time localStorage migration shim, admin/regular-user split in `portfolio.tsx` (admin keeps RH-CSV view, regular users get revived manual-entry `PortfolioBox`). Done together with [enh/8](enhancements/8-portfolio-analysis-improvements-070926.md) Phase A1, which is **deferred** (nav stays `adminOnly: true`) — see enh/8 rescope note. A2–A4 still open.
+**Clusters** (grouping only — full resolution detail in each task file):
+- **A — Watchlist SSOT** — 19, 2, 3, 10, 13 — done except 19 (rejected, product decision).
+- **B — Fetch overprocessing** — 9, 11, 12 — done. Coupling: 9 shrinks `fetch_fundamentals` registry, affects bug/4's startup universe size.
+- **C — Continuous-run health** — 5, 6, 8, 18 — done.
+- **D — Security** — 1, 7, 17 — done.
+- **E — Correctness (small)** — 15, 16 — done.
+- **F — Portfolio (large)** — 14 done*, tied to [enh/8](enhancements/8-portfolio-analysis-improvements-070926.md) Phase A1 (deferred, nav stays adminOnly). A2–A4 still open.
 
-Bug 4 isn't part of a lettered cluster but is coupled to cluster B. Block prod hardening until bug/1 (done). Tie prevention to **enh/3** + **enh/4** when landing fixes.
+Bug 4 not in a lettered cluster but coupled to B.
 
 ---
 

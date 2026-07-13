@@ -55,7 +55,7 @@ import {
   fmt, fmtPct, fmtK, fmtB, fmtDate, fmtTs, fmtMonthYear,
   changeColor, inflColor, VIX_LEVEL_LABELS, vixBadgeClass,
   stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
-  RegimeChips, StatCell, VolStrip, QuickStats, VixCurveChart, YieldCurveChart,
+  RegimeChips, CrossTabReadRow, StatCell, VolStrip, QuickStats, VixCurveChart, YieldCurveChart,
   FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
   LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard, VolatilityImplicationsCard,
   BalanceSheetCard,
@@ -330,6 +330,15 @@ export default function MacroDashboard() {
               <RegimeBanner />
               <MacroHighlightsPanel />
               <RegimeChips macroData={macroData!} />
+              <CrossTabReadRow
+                volatilityImplications={macroCharts?.volatilityImplications}
+                liquidityImplications={macroCharts?.liquidityImplications}
+                fedFundsCurve={macroCharts?.fedFundsCurve ?? []}
+                sepData={sepData}
+                events={events}
+                cotSummaries={macroCoTs}
+                onJump={setActiveTab}
+              />
 
               {/* Yield & credit stats */}
               <div className="flex flex-wrap gap-2">

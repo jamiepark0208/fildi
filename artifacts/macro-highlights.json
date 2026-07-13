@@ -1,73 +1,83 @@
 {
-  "generatedAt": "2026-06-24T22:39:30.149Z",
-  "marketDate": "2026-06-24",
-  "headline": "Tech weakness, rate hike fears weigh as VIX drops and yields fall sharply",
+  "generatedAt": "2026-07-13T23:20:51.465Z",
+  "marketDate": "2026-07-13",
+  "headline": "Geopolitical tensions spike VIX; Fed rate hike odds rising amid inflation persistence",
   "eventsToday": [
     {
-      "date": "2026-06-27",
-      "event": "PCE Price Index (May) + Personal Income/Spending",
+      "date": "2026-07-13",
+      "event": "US-Iran military exchange; oil prices jump",
+      "importance": "high"
+    },
+    {
+      "date": "2026-07-13",
+      "event": "Semiconductor sector selloff led by SK Hynix",
       "importance": "high"
     }
   ],
   "bullets": [
     {
       "id": "b1",
-      "category": "macro",
-      "title": "Fed Rate Hikes Expected in 2026",
-      "body": "BofA and Deutsche Bank signal September hikes; Kevin Warsh's hawkish stance fueling rate expectations."
+      "category": "geopolitical",
+      "title": "Iran tensions spike equity selling, VIX jumps",
+      "body": "US-Iran military exchange drove broad risk-off; VIX +14.17% to 17.16 despite measured level."
     },
     {
       "id": "b2",
-      "category": "tape",
-      "title": "Tech Under Pressure Despite Market Flatness",
-      "body": "QQQ -0.42%, MSFT -2.27%, NVDA -0.50%; growth concerns outweigh broad stability."
+      "category": "macro",
+      "title": "Fed pivoting toward July rate hike probability",
+      "body": "CNBC reports odds rising; Warsh/Williams signal hawkish tilt amid 4.3% CPI, 3.4% Core PCE."
     },
     {
       "id": "b3",
-      "category": "tape",
-      "title": "VIX Compression Amid Rate Uncertainty",
-      "body": "VIX dropped 4.41% to 18.63; 10Y yield fell 2.03bps to 4.40%. Conflicting signals."
+      "category": "sector",
+      "title": "Semiconductor bloodbath: SK Hynix -15%, semis lead",
+      "body": "SK Hynix collapse dragged NVDA (-3.52%), INTC (-6.12%); chip cycle concerns resurface."
     },
     {
       "id": "b4",
-      "category": "sector",
-      "title": "Small Cap Outperform as Rates Fall",
-      "body": "IWM +0.46% while SPY flat; lower yields benefit rate-sensitive smaller equities."
+      "category": "tape",
+      "title": "Tech weakness: QQQ -1.90% vs SPY -0.77%",
+      "body": "Nasdaq underperformance; growth names NVDA, TSLA, META sold; MSFT (+1.53%) sole mega-cap strength."
     },
     {
       "id": "b5",
-      "category": "watchlist",
-      "title": "Quantum & Space Stocks Crushed",
-      "body": "IONQ -7.35%, RKLB -10.21%, ONDS -9.96%; sector-wide weakness signals broader growth repricing."
+      "category": "macro",
+      "title": "10Y yield jumps 88bp; yield curve steepens",
+      "body": "10Y at 4.61%; 2Y-10Y spread widening on Fed hike expectations; puts pressure on growth valuations."
     },
     {
       "id": "b6",
-      "category": "event",
-      "title": "PCE Data Due This Weekend",
-      "body": "May inflation data (May 1 Core PCE: 3.3%) critical for Fed rate-path confirmation."
+      "category": "watchlist",
+      "title": "Quantum computing collapse: IONQ -9.29% today",
+      "body": "IONQ leads declines; speculative tech sectors hit hardest in risk-off environment."
     },
     {
       "id": "b7",
       "category": "macro",
-      "title": "Growth Concerns Resurface",
-      "body": "Real GDP 1.6% (Q1); unemployment 4.3%. Market pricing slower growth + higher rates."
+      "title": "Labor market stable; 4.2% unemployment supports hike",
+      "body": "June jobless rate 4.2%, payrolls 159M+; no recession signals supporting Fed confidence on rates."
     }
   ],
   "watchlistMovers": [
     {
-      "ticker": "RKLB",
-      "changePct": -10.21,
-      "blurb": "Space sector selloff continues; growth repricing pressure."
+      "ticker": "IONQ",
+      "changePct": -9.29,
+      "blurb": "Quantum play crushed in tech selloff."
+    },
+    {
+      "ticker": "INTC",
+      "changePct": -6.12,
+      "blurb": "Semiconductor weakness amid memory chip fears."
+    },
+    {
+      "ticker": "NVDA",
+      "changePct": -3.52,
+      "blurb": "Chip sector contagion from SK Hynix collapse."
     },
     {
       "ticker": "MSFT",
-      "changePct": -2.27,
-      "blurb": "Mega-cap tech struggles amid rate expectations."
-    },
-    {
-      "ticker": "IWM",
-      "changePct": 0.46,
-      "blurb": "Small caps resilient as yield compression supports valuations."
+      "changePct": 1.53,
+      "blurb": "Outperformer; AI resilience story supported."
     }
   ]
 }

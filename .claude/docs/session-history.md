@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-06-08 through 2026-06-26 (condensed, full transcripts deleted 2026-07-13 for context budget)
+- **2026-06-26**: Finnhub/Edgar/Yahoo backfill scripts, source staging tables, SDM waterfall wiring
+- **2026-06-25**: Stock DB tab enhancements
+- **2026-06-24**: DB migrations, macro tab, file splits
+- **2026-06-22**: FILDI feed Phase 5, chart zones, profile page
+- **2026-06-21**: FILDI Phase 5 continued
+- **2026-06-19**: Portfolio import route, FILDI Phase 5
+- **2026-06-18**: Security middleware, cache naming, admin cache dashboard, auth Zod validators
+- **2026-06-18 (cursor)**: Competitors 50/50 tech+fund, catalysts, DB-first peers
+- **2026-06-17**: Scorecard guide UI, chart EMA/zone labels
+- **2026-06-16**: Options scanner enhancements: new scorer, ivRank fix, StrikeCard, MacroBanner
+- **2026-06-16 (cursor)**: Options scanner UX
+- **2026-06-15**: Options scanner Q&A + fixes
+- **2026-06-14**: FactSet proxy activation (OCI VM live), options scanner persistence
+- **2026-06-12, 06-11, 06-10**: Technical scorer V2, FMP data layer, context consolidation, AI score explanations
+- **2026-06-09**: Technical scorer V2 (all 5 phases), FMP WACC/safety metrics
+- **2026-06-08**: Fundamental scorer V2 (4 families, 13 metrics)
+
+---
+
 ## Macro tab charts fix (2026-06-03)
 - **Treasury Yield Curve** — replaced 4-ticker Yahoo Finance fetch with US Treasury CSV API (`home.treasury.gov`); now returns 11 maturities (1M→30Y) with current + month-ago rates
 - **VIX / rate history charts** — `yahooFinance.historical()` deprecated by Yahoo; replaced with `yahooFinance.chart()` across all three series (VIX, 3M T-bill as Fed Funds proxy, 10Y TNX); each returns 500+ data points

@@ -9,6 +9,7 @@ import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
 } from './macro-data.js';
+import type { MacroCharts } from './macro-data.js';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -70,6 +71,37 @@ function fileEntry(fetchedAt: number | null, ttlMs: number, key: string, now: nu
   return [{ key, expiresAt, expiresInSec: Math.round(Math.max(0, expiresAt - now) / 1000) }];
 }
 
+// Chart-array fields inside MacroCharts — each fetched independently upstream, so
+// each can silently die (empty array) while the parent bucket's single fetchedAt
+// still reads "fresh". Surfaced as sub-entries so a dead source (e.g. put/call in
+// enh/17) shows up immediately instead of requiring manual inspection. See enh/37.
+const MACRO_CHARTS_FIELDS: (keyof MacroCharts)[] = [
+  'vixHistory', 'fedFundsHistory', 'tenYearHistory', 'vixCurve', 'fedFundsCurve',
+  'fearGreedHistory', 'hySpreadHistory', 'igSpreadHistory', 'putCallHistory',
+  'putCallRatioHistory', 'gscpiHistory', 'moneyMarketHistory', 'nfciHistory',
+  'copperGoldHistory', 'dxyHistory', 'fedAssetsHistory', 'tgaHistory', 'rrpHistory',
+  'reservesHistory', 'netLiquidityHistory', 'sofrIorbSpreadHistory', 'moveHistory',
+];
+
+function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now: number) {
+  if (!charts) return [];
+  const fetchedAt = new Date(charts.fetchedAt).getTime();
+  const expiresAt = fetchedAt + ttlMs;
+  const expiresInSec = Math.round(Math.max(0, expiresAt - now) / 1000);
+  return MACRO_CHARTS_FIELDS.map(key => {
+    const points = charts[key] as unknown as Array<unknown> | undefined;
+    const count = Array.isArray(points) ? points.length : 0;
+    const stale = count === 0;
+    return {
+      key,
+      expiresAt: stale ? now : expiresAt,
+      expiresInSec: stale ? 0 : expiresInSec,
+      label: stale ? 'EMPTY' : `${count} pts`,
+      stale,
+    };
+  });
+}
+
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
 const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache];
@@ -124,7 +156,7 @@ export function getAllCaches(): CacheStats[] {
       ttlMs: MACRO_CHARTS_TTL_MS,
       entryCount: macroChartsEntry ? 1 : 0,
       hits: null, misses: null, hitRate: '—',
-      entries: fileEntry(macroChartsEntry ? new Date(macroChartsEntry.fetchedAt).getTime() : null, MACRO_CHARTS_TTL_MS, 'macro-charts', now),
+      entries: macroChartsFieldEntries(macroChartsEntry, MACRO_CHARTS_TTL_MS, now),
     },
     {
       name: 'macro-cot',
