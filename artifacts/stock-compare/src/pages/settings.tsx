@@ -30,7 +30,7 @@ interface AdminUser {
   lastLoginAt: string | null;
 }
 
-interface CacheEntry { key: string; expiresAt: number; expiresInSec: number }
+interface CacheEntry { key: string; expiresAt: number; expiresInSec: number; label?: string; stale?: boolean }
 interface CacheRow {
   name: string; displayName?: string; ttlMs: number; entryCount: number;
   hits: number | null; misses: number | null; hitRate: string;
@@ -478,13 +478,22 @@ function CacheMonitorTab() {
                           return (
                             <tr key={`${row.name}-${entry.key}`} className="bg-muted/10 border-b border-border/20">
                               <td />
-                              <td colSpan={2} className="py-1.5 pl-3 font-mono text-[10px] text-foreground/70 uppercase tracking-wide">{entry.key}</td>
-                              <td colSpan={2} className="py-1.5 text-[10px] text-muted-foreground">{formatDuration(ageMs)} ago</td>
+                              <td colSpan={2} className="py-1.5 pl-3 font-mono text-[10px] text-foreground/70 uppercase tracking-wide">
+                                {entry.key}
+                                {entry.label && (
+                                  <span className={cn("ml-2 normal-case font-sans", entry.stale ? "text-red-400 font-semibold" : "text-muted-foreground")}>
+                                    {entry.label}
+                                  </span>
+                                )}
+                              </td>
+                              <td colSpan={2} className="py-1.5 text-[10px] text-muted-foreground">
+                                {entry.stale ? "no data" : `${formatDuration(ageMs)} ago`}
+                              </td>
                               <td colSpan={3} className={cn(
                                 "py-1.5 pr-1 text-right text-[10px] tabular-nums",
-                                isExpiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"
+                                entry.stale || isExpiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"
                               )}>
-                                expires in {formatDuration(expiresMs)}
+                                {entry.stale ? "SOURCE DEAD" : `expires in ${formatDuration(expiresMs)}`}
                               </td>
                             </tr>
                           );

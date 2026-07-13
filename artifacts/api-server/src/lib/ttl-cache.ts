@@ -12,7 +12,7 @@ export interface CacheStats {
   hits: number | null;
   misses: number | null;
   hitRate: string;
-  entries: Array<{ key: string; expiresAt: number; expiresInSec: number }>;
+  entries: Array<{ key: string; expiresAt: number; expiresInSec: number; label?: string; stale?: boolean }>;
 }
 
 export class TTLCache<T> {

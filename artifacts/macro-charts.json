@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-13T18:39:18.751Z",
+  "fetchedAt": "2026-07-13T22:56:54.895Z",
   "vixHistory": [
     {
       "date": "2024-07-15",
@@ -2003,7 +2003,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 17.200000762939453
+      "value": 17.15999984741211
     }
   ],
   "fedFundsHistory": [
@@ -6007,7 +6007,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 4.618000030517578
+      "value": 4.609000205993652
     }
   ],
   "vixCurve": [
@@ -6022,7 +6022,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 17.2,
+      "value": 17.16,
       "weekAgo": 15.569999694824219,
       "monthAgo": 17.68000030517578,
       "threeMonthAgo": 19.1200008392334
@@ -6030,7 +6030,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 19.67,
+      "value": 19.64,
       "weekAgo": 18.780000686645508,
       "monthAgo": 20.510000228881836,
       "threeMonthAgo": 21.34000015258789
@@ -6038,7 +6038,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.68,
+      "value": 21.69,
       "weekAgo": 21.239999771118164,
       "monthAgo": 22.59000015258789,
       "threeMonthAgo": 23
@@ -6046,7 +6046,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.38,
+      "value": 23.42,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6056,7 +6056,7 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.63,
+      "impliedRate": 3.632,
       "weekAgo": 3.635,
       "monthAgo": 3.625,
       "threeMonthAgo": 3.64,
@@ -6065,7 +6065,7 @@
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.795,
+      "impliedRate": 3.8,
       "weekAgo": 3.745,
       "monthAgo": 3.67,
       "threeMonthAgo": 3.615,
@@ -14396,7 +14396,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 94.66999816894531
+      "value": 95.27999877929688
     }
   ],
   "fearGreedHistory": [
@@ -15406,11 +15406,11 @@
     },
     {
       "date": "2026-07-13",
-      "value": 43.3
+      "value": 43.7
     },
     {
       "date": "2026-07-13",
-      "value": 43.4
+      "value": 43.7
     }
   ],
   "putCallRatioHistory": [
@@ -16412,7 +16412,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 0.749
+      "value": 0.751
     }
   ],
   "gscpiHistory": [
@@ -41052,7 +41052,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 0.001569
+      "value": 0.001565
     }
   ],
   "dxyHistory": [
@@ -43062,7 +43062,7 @@
     },
     {
       "date": "2026-07-13",
-      "value": 101.24800109863281
+      "value": 101.2770004272461
     }
   ],
   "fedAssetsHistory": [
@@ -80786,7 +80786,7 @@
     }
   ],
   "liquidityImplications": {
-    "asOf": "2026-07-13T18:39:18.750Z",
+    "asOf": "2026-07-13T22:56:54.894Z",
     "signals": [
       {
         "label": "Net Liquidity",
@@ -82804,10 +82804,14 @@
     {
       "date": "2026-07-10",
       "value": 69.55000305175781
+    },
+    {
+      "date": "2026-07-13",
+      "value": 77.77459716796875
     }
   ],
   "volatilityImplications": {
-    "asOf": "2026-07-13T18:39:18.751Z",
+    "asOf": "2026-07-13T22:56:54.895Z",
     "signals": [
       {
         "label": "VIX Level",
@@ -82842,7 +82846,7 @@
       {
         "label": "MOVE Index (Bond Vol)",
         "level": "calm",
-        "readout": "70",
+        "readout": "78",
         "implication": "Rates volatility is contained — no cross-asset warning from the bond market right now."
       }
     ],

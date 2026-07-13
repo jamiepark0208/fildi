@@ -6,18 +6,13 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 ## Completed
 
-**Bugs (bugs/1–19)** — all done or intentionally rejected. Per-task detail in `INDEX.md`'s bugs table, not duplicated here. Note: bug/19 was implemented, verified, then reverted at explicit user direction (no shared-watchlist seeding on register) — don't re-file as-is, see the task file's DONE note.
+All done tasks — detail lives in each task's own (now-condensed) .md file and in `INDEX.md`, not duplicated here:
+- **Bugs 1–18** — done (19 rejected, product decision).
+- **enh/1, 2, 3, 4, 5, 6 (Track 1), 7, 8 (main), 10, 17, 18, 23, 24, 26, 30, 34, 37**
+- **naf/1, naf/3**
+- **ai/1**
 
-**enh/34 performance-resilience-optimization** — done 2026-07-11 (Waves A–D): route error boundaries, lazy routes + `PageSkeleton` + unified query-keys + idle chunk-prefetch, `tsx watch` dev server, `scripts/dev-up.sh`. Wave C was already covered by bugs 4/5/11/12 (skipped, not double-implemented). Full notes in the task file.
-
-**enh/5 api-dev-hot-reload** — done 2026-07-11, folded into enh/34 Wave D (same `tsx watch` change). Don't re-file separately.
-
-**Cluster 1 — CI / Test + Observability**
-- enh/3 ci-pipeline, enh/4 api-integration-test-harness, enh/7 observability-error-tracking — all done.
-
-**Cluster 3 — Score explanations + AI narration**
-- naf/3 contextual-score-explanations — done 2026-07-10 (ExplainableScore, useScoreExplanation, explain_cache table, both leaderboards refactored).
-- ai/11 product-ai-explain-csp — unblocked by naf/3, **CURSOR NEXT (P0)**.
+Cluster 3 note: ai/11 product-ai-explain-csp was unblocked by naf/3 — **CURSOR NEXT (P0)**.
 
 ---
 
@@ -33,25 +28,23 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 ---
 
-## Cluster 5 — Macro tabs (10+11 together; 17/18/19 can follow)
-- enh/10 macro-regime-tab-improvements (M)
+## Cluster 5 — Macro tabs (11 next; 17/18/10 done; 19 open)
+- enh/10, 17, 18 — done, see INDEX.md
 - enh/11 macro-catalyst-calendar-improvements (M)
-- enh/17 macro-volatility-tab-improvements (M) — done 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index → overall verdict), new MOVE index fetch/chart, /sentiment redirects to /macro?tab=volatility (ExtremesTable was already redundant with CotSection's inline extremes table, so no separate extraction was needed)
-- enh/18 macro-policy-tab-improvements (S) — done 2026-07-13: PolicyCspSummary strip + denser BankCard, plus compaction pass (Fed Funds Curve/History/SEP dots one-line row, ag-grid SEP table, Bank Research fixed to 2x4, Fed Members hawkish↔dovish scale strip w/ hover popups replacing voting/all filter, new Balance Sheet/QT card)
 - enh/19 macro-heatmap-tab-improvements (S)
 
 ---
 
 ## Cluster 6 — Portfolio risk + daily brief + journal
-- bug/14 portfolio-localstorage-not-server — done (conditional); two P0 follow-ups still open, see `FOLLOWUPS.md`
-- enh/8 portfolio-analysis-improvements (L) — done 2026-07-13: UI overhaul shipped (theme/nav contrast, compact marquee summary strip, compact CSV import button, Robinhood-header row removed). Phase A1 (unlock nav) still deferred 2026-07-11, see task file rescope note; Phase B (wheel-cycle/journal) still design-gated backlog
+- bug/14 — done (conditional), two P0 follow-ups open, see `FOLLOWUPS.md`
+- enh/8 portfolio-analysis-improvements (L) — main UI overhaul done, A1 nav-unlock + Phase B journal still open, see task file
 - enh/9 portfolio-daily-brief-improvements (M)
 - ai/13 product-ai-trade-journal-loop (L) — shares journal schema with enh/8
 
 ---
 
 ## Cluster 7 — Analyst data + breakdown
-- enh/6 analyst-data-persistence (L) — Track 1 DONE 2026-07-11: schema applied (yahoo_analyst_actions + analyst_events), NVDA backfilled+verified, fixed inArray staleness-check bug + missing API Monitor success logging, wired analystActions into a compact color-coded "Analyst Rating Changes" table in stock-breakdown.tsx. Track 2 (Finviz per-firm PT) still pending spike.
+- enh/6 analyst-data-persistence (L) — Track 1 done, Track 2 (Finviz per-firm PT) still pending spike
 - enh/12 stock-breakdown-sections-improvements (L)
 
 ---
@@ -64,8 +57,8 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 ---
 
 ## Cluster 9 — Research sprints (each spawns follow-ons)
-- enh/30 liquidity-money-flow-research (M) — done 2026-07-13: Liquidity tab built end to end (plumbing diagram, net liq/RRP/MMF/NFCI/reserves/SOFR-IORB charts, liquidity regime implication card, sector rotation redesign with 1d-movers strip + sector names + magnitude-sized bubbles). Superseded the planned enh/31+32 split — both folded into this single build.
-- enh/33 csp-momentum-backtest-learning-research (M) — standalone, can run independently of enh/34 (confirmed by user 2026-07-11). Spawns its own follow-on research tasks on pickup, feeds ai/14; don't assume those spawns are numbered 34/35 — enh/34 is already performance-resilience-optimization.
+- enh/30 liquidity-money-flow-research (M) — done, Liquidity tab shipped end-to-end; folded planned enh/31+32 into this single build
+- enh/33 csp-momentum-backtest-learning-research (M) — standalone, independent of enh/34. Spawns own follow-on tasks on pickup (don't assume 34/35 — those numbers are taken), feeds ai/14
 - ai/14 product-ai-trader-account-research (M) → spawns ai/15–17
 
 ---
@@ -77,7 +70,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/21 settings-trader-preferences-improvements (M)
 - enh/35 ai-explanation-quality-improvements (M) — backlog, filed 2026-07-13: cross-cutting pass on every implication/brief/note-generating section (volatility, liquidity, regime, COT, daily brief, scorecard) — the COT `CotPositioningRead` narrative added this session is a first draft of the pattern, not the final bar
 - enh/36 macro-policy-forward-guidance-depth (M) — backlog, filed 2026-07-13: Policy tab covers rate path/dots/SEP/Fed stances/bank views but not FOMC dissent counts, statement lexical shifts ("elevated"→"transitory"), press-conference nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks, or FedWatch-style probabilities — needs new data sourcing (FOMC statement/minutes text, Treasury refunding calendar, IMF/ECB/BOJ/BOE feeds), bigger lift than enh/18's compaction pass; also now carries user's historical-analogy/pattern-matching request (tagged event history + market-reaction windows, e.g. "last time X, market did Y")
-- enh/37 macro-cache-admin-visibility-gap (S) — backlog, filed 2026-07-13: Settings admin tabs (Cache Monitor, Stock DB, API Monitor) trail behind several sessions of Macro tab work — cache-registry.ts only tracks 3 coarse macro buckets with no per-field staleness visibility, and StockDB/API Monitor tabs have zero macro awareness; motivating incident is enh/17's dead put/call source, which was found manually, not by any monitor
+- enh/37 — done, see INDEX.md
 - naf/2 onboarding-product-tour (M)
 - naf/8 command-palette-navigation (M) — **CLAUDE NEXT (P2)** — cmdk already installed
 - naf/9 social-sentiment-polish (M–L)
@@ -87,10 +80,8 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 ## Cluster 11 — Tech debt / infra (can batch or do one at a time)
 - enh/22 openapi-coverage-orval-migration (L)
-- enh/23 data-freshness-monitoring (S) — DONE 2026-07-11: bronze row counts (polygon/av) added to data-health route + ApiMonitorTab
-- enh/24 polygon-av-backfill-completion (M) — DONE 2026-07-11: bronze populated (polygon 161 rows, av 14 rows), stale FIELD_DEFS comment fixed; AV rotation not on a cron (expected, deferred to enh/28) — re-run `backfill-av.ts` manually to continue the 25/day rotation
+- enh/23, 24, 26 — done, see INDEX.md
 - enh/25 e2e-smoke-playwright (M) — after Cluster 1 CI is green ✅
-- enh/26 react-query-fetch-standardization (M) — DONE 2026-07-11: query-keys.ts + App staleTime + unified rankings key via enh/34 Wave B; regime "duplicate" (W4) was N/A — renamed scanner's VIX endpoint to /volatility/regime instead of merging two unrelated regime taxonomies
 
 ---
 
