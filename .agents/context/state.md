@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-13
 
 ## Active work
-- Working: enh17-put-call-source-fix, enh17-volstrip-compact-banner, enh17-6-charts-2x3-grid, enh17-cot-marquee-selector, enh17-cot-positioning-read-narrative, enh17-extremes-table-columns, enh17-subtab-active-state
-- In progress: none - this session's volatility tab follow-up work complete and verified live
+- Working: policy-tab-grid-responsive-fix policy-tab-balance-sheet-4th-chart enh36-historical-analogy-note enh37-cache-admin-gap-filed
+- In progress: none
 - Blocked: none
 
 ## Next tasks (priority order)

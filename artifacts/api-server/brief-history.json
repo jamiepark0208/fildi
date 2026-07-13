@@ -1,0 +1,88 @@
+[
+  {
+    "date": "7/13/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 17.41,
+        "change": 2.38,
+        "changePct": 15.834998
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 749.36,
+        "change": -5.590027,
+        "changePct": -0.7404499
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 712.12,
+        "change": -13.390015,
+        "changePct": -1.8456002
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.609,
+        "change": 0.04000044,
+        "changePct": 0.87547475
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7560.5,
+        "change": -59.75,
+        "changePct": -0.784095
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29449.5,
+        "change": -582.75,
+        "changePct": -1.9404141
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 367.07,
+        "change": -9.940002,
+        "changePct": -2.6363957
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.485,
+        "change": 0.09500122,
+        "changePct": 0.33462918
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 83.99,
+        "change": -0.48000336,
+        "changePct": -0.56825304
+      }
+    ],
+    "content": "# 📋 Daily Portfolio Briefing | 7/13/2026\n\n## 🌍 Macro Environment\n\n- **10Y Yield at 4.61% (+88 bps today) — entering red zone.** This is now 11 bps above your 4.5% pressure threshold. Combined with a +0.88% single-day move, this signals either hawkish Fed repricing or flight-to-safety bidding on duration. Either way, high-PE tech (your core watchlist) faces multiple compression headwinds. Monitor CME FedWatch for any shift toward rate-hold or hikes in the coming 48 hours.\n- **VIX 17.41 (+15.83% intraday) — elevated but not crisis.** You're in the 15–25 \"normal\" band, moving toward the upper end. This is *good* for premium collection on new puts (IV expansion = higher theta captured), but the +15.83% spike suggests volatility is *accelerating*. Watch for a breach above 20 by tomorrow close; if VIX sustains >20, consider modest sizing reduction on T2/T3 tickers.\n- **Dollar +0.33% — minor headwind forming.** UUP strength is cumulative; watch for >105 handle (current context: 28.48 suggests strong USD environment). This pressures BABA and any export-heavy semiconductor plays. Not yet a showstopper, but note it as a secondary drag on multi-national tech.\n\n## 📊 Market Pulse\n\n- **QQQ (-1.85%) significantly underperforming SPY (-0.74%) — tech rotation underway.** NQ futures (-1.94%) confirm Nasdaq weakness. Your growth/AI-heavy watchlist is taking relative heat. This is *risk-off* in the equity complex, which typically means elevated IV and better put premiums *but* lower conviction on entry timing.\n- **Futures -0.78% to -1.94% divergence suggests sector-specific pain, not broad liquidation.** S&P 500 futures only down 78 bps while Nasdaq down 194 bps — classic \"mega-cap tech is the culprit\" scenario. Your NVDA, PLTR, HOOD, ONDS (all mega-cap or high-beta) are under pressure. This *is* a setup for selling puts on dips, but only if RSI/MFI signals align.\n- **Gold (-2.64%) selling off alongside equities = no safe-haven bid yet.** The 10Y spike is driving real yield higher, not panic. This is *not* a systemic fear event (yet). Implications: premium decay is *not* being offset by vol crush—you're seeing pure directional pressure on growth. Good environment to sell puts *below* today's lows if stocks recapture momentum by Monday.\n\n## 🏭 Sector & Stock Catalysts\n\n- **NVDA: Chip-smuggling headline noise + Blackwell ramp sentiment.** The $2.5B smuggling scheme disclosure at shareholders' meeting is theater, but it re-raises China export restriction concerns. No new material catalyst here, but watch for any SEC/Commerce Dept. commentary this week. Blackwell cycle still intact; no earnings until Oct. *Status:* Hold watchlist, avoid new puts until RSI/MFI confirm dip.\n\n- **HOOD: Redburn downgrade (PT $76 from $70) + Robinhood Chain meme-coin skew.** The rating cut is marginal, but the narrative about tokenized-stock adoption being weaker than meme-coin hype is *structural* pushback on the bull thesis. Options product launches and international expansion are still live catalysts for Q3. *Status:* Tier-2 candidate if it dips 5–7% into RSI <40 territory; avoid here until clarity on meme-coin headwind.\n\n- **RDW: Circle8 contract wins ($20M annually × 2) + post-61% crash recovery setup.** This is *positive* news—solid commercial momentum in Dutch public sector. The stock crashed 61%, so you're likely near capitulation lows. This is a *textbook* put-selling setup IF RSI bounces into oversold (<25) confirmation range. *Status:* Monitor for RSI 20–30 entry; aggressive buy-the-dip signal. Good for FILDI/MOM.\n\n- **PLTR: Meme-stock Cramer controversy + AI platform narrative.** The \"satanic video\" distraction is noise, but it signals PLTR is trading on sentiment, not fundamentals. Palantir vs. Snowflake comparison articles suggest AI-platform competition is picking up. Government contract wins remain the key driver. *Status:* T1 ticker, hold for IRA. Skip new puts this week unless RSI <35 + MFI <25 both trigger.\n\n- **ONDS: Six-week slide + \"rare opportunity\" retail chatter.** Investors are \"dashing for AI bottlenecks,\" but ONDS has been hit hard. This is a *capitulation* setup if MFI <25 + RSI <30 confirm.",
+    "generatedAt": "2026-07-13T19:54:54.566Z",
+    "tickers": [
+      "HOOY",
+      "OPEN",
+      "POET",
+      "REBN",
+      "RUM",
+      "RDW",
+      "NVDY",
+      "HOOD",
+      "PLTR",
+      "ONDS",
+      "NVDA",
+      "PLTU",
+      "AAOI"
+    ],
+    "fromCache": false
+  }
+]

@@ -8,9 +8,10 @@ import {
 import {
   RefreshCw, Loader2, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
   Sparkles, Calendar, AlertTriangle, Activity, DollarSign, Building2,
-  Newspaper, ExternalLink,
+  Newspaper, ExternalLink, Landmark,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type {
   MacroData, FedMember, BankResearch, MacroEvent, ChartPoint,
@@ -481,6 +482,171 @@ export function VolatilityImplicationsCard({
   );
 }
 
+type PolicySignal = { label: string; level: VolatilitySignal["level"]; readout: string; implication: string };
+
+const CSP_LEVEL_SCORE: Record<VolatilitySignal["level"], number> = {
+  calm: 1, normal: 0, elevated: -1, stress: -2, unknown: 0,
+};
+
+function derivePolicySignals(
+  fedFundsCurve: FedFundsCurvePoint[],
+  sepData: SepData | undefined,
+  events: MacroEvent[] | undefined,
+  volatilityImplications: VolatilityImplications | undefined,
+): { signals: PolicySignal[]; overall: { level: VolatilitySignal["level"]; summary: string }; nextEvent: MacroEvent | null } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 1. Fed dots vs. market-implied rate path (falls back to WoW curve drift if SEP not loaded)
+  const dotsSignal: PolicySignal = (() => {
+    const curvePts = fedFundsCurve.filter((p) => p.impliedRate != null);
+    const farthest = curvePts[curvePts.length - 1];
+    if (sepData?.projections?.length && farthest) {
+      const farYear = new Date(farthest.meetingDate + "T12:00:00").getFullYear();
+      const proj = sepData.projections.find((p) => p.year === farYear) ?? sepData.projections[sepData.projections.length - 1];
+      if (proj?.fedRate != null && farthest.impliedRate != null) {
+        const diff = farthest.impliedRate - proj.fedRate;
+        const level: VolatilitySignal["level"] =
+          Math.abs(diff) < 0.125 ? "calm" : Math.abs(diff) < 0.375 ? "normal" : Math.abs(diff) < 0.75 ? "elevated" : "stress";
+        return {
+          label: "Fed Dots vs. Market",
+          level,
+          readout: `${proj.year} dots ${proj.fedRate.toFixed(2)}% · mkt ${farthest.impliedRate.toFixed(2)}%`,
+          implication: diff < -0.05
+            ? `Market is pricing looser policy than the Fed's own ${proj.year} dot — a hawkish surprise (fewer/later cuts) is the bigger tail risk for short premium.`
+            : diff > 0.05
+            ? `Market is pricing tighter/higher rates than the Fed's own ${proj.year} dot — a dovish surprise (faster cuts) is the bigger tail risk.`
+            : "Market pricing is closely aligned with the Fed's own dot plot — low event risk from a dots/market gap alone.",
+        };
+      }
+    }
+    const front = curvePts[0];
+    if (front?.impliedRate != null && front.weekAgo != null) {
+      const diff = front.impliedRate - front.weekAgo;
+      const level: VolatilitySignal["level"] =
+        Math.abs(diff) < 0.03 ? "calm" : Math.abs(diff) < 0.08 ? "normal" : Math.abs(diff) < 0.15 ? "elevated" : "stress";
+      return {
+        label: "Rate Path (WoW)",
+        level,
+        readout: `${front.label} ${front.impliedRate.toFixed(2)}% (${diff >= 0 ? "+" : ""}${diff.toFixed(2)} wk)`,
+        implication: diff < 0
+          ? "Markets added rate-cut pricing this week — front-end yields easing."
+          : diff > 0
+          ? "Markets pared rate-cut pricing this week — front-end yields firming."
+          : "Front-end rate pricing was flat week-over-week.",
+      };
+    }
+    return { label: "Rate Path", level: "unknown", readout: "—", implication: "Fed funds curve data not yet available." };
+  })();
+
+  // 2. Next high-importance catalyst (FOMC / CPI / NFP or importance="high")
+  const nextEvent = (events ?? [])
+    .filter((e) => {
+      const d = new Date(e.date + "T12:00:00");
+      return d >= today && (e.importance === "high" || /FOMC|CPI|NFP/i.test(e.event));
+    })
+    .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+
+  const eventSignal: PolicySignal = (() => {
+    if (!nextEvent) {
+      return { label: "Next Catalyst", level: "unknown", readout: "—", implication: "No high-importance events on the calendar right now." };
+    }
+    const days = Math.round((new Date(nextEvent.date + "T12:00:00").getTime() - today.getTime()) / 86_400_000);
+    const level: VolatilitySignal["level"] = days <= 0 ? "stress" : days <= 2 ? "elevated" : days <= 7 ? "normal" : "calm";
+    return {
+      label: "Next Catalyst",
+      level,
+      readout: `${nextEvent.event} · ${days <= 0 ? "today" : days === 1 ? "tomorrow" : `${days}d`}`,
+      implication: days <= 2
+        ? "High-importance print imminent — vol/skew often builds into it; weigh timing new CSP entries around the release."
+        : "On the radar but not immediate — routine sizing until closer to the date.",
+    };
+  })();
+
+  // 3. Vol backdrop / CSP sizing — reuse the Volatility tab's already-computed verdict, no new classifier
+  const volSignal: PolicySignal = volatilityImplications
+    ? {
+        label: "Vol / CSP Sizing",
+        level: volatilityImplications.overall.level,
+        readout: VOLATILITY_LEVEL_LABEL[volatilityImplications.overall.level],
+        implication: volatilityImplications.overall.summary,
+      }
+    : { label: "Vol / CSP Sizing", level: "unknown", readout: "—", implication: "Volatility data not yet loaded." };
+
+  const signals = [dotsSignal, eventSignal, volSignal];
+  const known = signals.filter((s) => s.level !== "unknown");
+  const avg = known.length ? known.reduce((sum, s) => sum + CSP_LEVEL_SCORE[s.level], 0) / known.length : 0;
+  const overallLevel: VolatilitySignal["level"] =
+    avg >= 0.5 ? "calm" : avg >= -0.4 ? "normal" : avg >= -1.2 ? "elevated" : "stress";
+  const overallSummary =
+    overallLevel === "calm" ? "Policy path, catalysts, and vol backdrop all look routine — no reason to size down from a policy-risk lens alone." :
+    overallLevel === "stress" ? "Multiple policy signals are flashing at once — dots/market divergence, an imminent catalyst, or elevated vol. Worth sizing down or favoring defined-risk into it." :
+    overallLevel === "elevated" ? "At least one policy signal is running hot — not alarm-bell territory, but a reasonable prompt to trim size or tighten strikes." :
+    "Policy signals are mixed — no single channel dominates the picture right now.";
+
+  return { signals, overall: { level: overallLevel, summary: overallSummary }, nextEvent };
+}
+
+export function PolicyCspSummary({
+  fedFundsCurve, sepData, events, volatilityImplications, todayStr, onViewRegime, loading,
+}: {
+  fedFundsCurve: FedFundsCurvePoint[];
+  sepData: SepData | undefined;
+  events: MacroEvent[] | undefined;
+  volatilityImplications: VolatilityImplications | undefined;
+  todayStr: string;
+  onViewRegime: () => void;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-32">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const { signals, overall, nextEvent } = derivePolicySignals(fedFundsCurve, sepData, events, volatilityImplications);
+  const overallStyle = VOLATILITY_LEVEL_STYLE[overall.level];
+
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Landmark className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Policy CSP Read</h2>
+        </div>
+        <Badge variant="outline" className={cn("text-xs", overallStyle.badge)}>
+          {VOLATILITY_LEVEL_LABEL[overall.level]}
+        </Badge>
+      </div>
+      <p className={cn("text-sm font-medium mb-3", overallStyle.text)}>{overall.summary}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+        {signals.map((sg) => {
+          const style = VOLATILITY_LEVEL_STYLE[sg.level];
+          return (
+            <div key={sg.label} className="rounded-md bg-muted/30 p-2.5 min-w-0" title={sg.implication}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={cn("w-1.5 h-1.5 rounded-full inline-block shrink-0", style.dot)} />
+                <span className="text-xs font-medium text-slate-200 truncate">{sg.label}</span>
+              </div>
+              <p className={cn("text-xs font-mono font-semibold mb-1", style.text)}>{sg.readout}</p>
+              <p className="text-[11px] text-slate-400 leading-snug line-clamp-2">{sg.implication}</p>
+            </div>
+          );
+        })}
+      </div>
+      {nextEvent && <EventRow event={nextEvent} todayStr={todayStr} />}
+      <div className="flex items-center justify-between mt-3 gap-2">
+        <p className="text-xs text-slate-500">Directional heuristic, not a precise model or trading signal.</p>
+        <button onClick={onViewRegime} className="text-xs text-primary hover:underline shrink-0 whitespace-nowrap">
+          See regime implications →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function LiquidityFlowDiagram({
   fedAssetsHistory, tgaHistory, rrpHistory, netLiquidityHistory, loading,
 }: {
@@ -925,43 +1091,44 @@ export function FedFundsCurveChart({
   loading,
   period,
   onPeriodChange,
+  compact,
 }: {
   data: FedFundsCurvePoint[];
   loading: boolean;
   period: CurvePeriod;
   onPeriodChange: (p: CurvePeriod) => void;
+  compact?: boolean;
 }) {
   const hasData = data.some((p) => p.impliedRate != null);
   const isProxy = data.some((p) => p.isTbillProxy);
-  const periodLabel =
-    period === "1wk" ? "1 Wk Ago" : period === "1mo" ? "1 Mo Ago" : period === "3mo" ? "3 Mo Ago" : "";
+  const height = compact ? 120 : 160;
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
+    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-2")}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-400" />
+          <h3 className={cn("font-semibold flex items-center gap-1.5", compact ? "text-xs" : "text-sm gap-2")}>
+            <DollarSign className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-green-400")} />
             Fed Funds Curve
           </h3>
-          {isProxy && (
+          {isProxy && !compact && (
             <p className="text-[9px] text-muted-foreground/60 italic">T-bill proxy (ZQ futures unavailable)</p>
           )}
         </div>
         <CurvePeriodButtons period={period} onChange={onPeriodChange} />
       </div>
       {loading ? (
-        <div className="h-[160px] flex items-center justify-center">
+        <div style={{ height }} className="flex items-center justify-center">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : !hasData ? (
-        <div className="h-[160px] flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
+        <div style={{ height }} className="flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
           <span>Fed Funds futures data unavailable</span>
-          <span className="text-[10px]">ZQ futures not found on this feed</span>
+          {!compact && <span className="text-[10px]">ZQ futures not found on this feed</span>}
         </div>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={height}>
             <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#cbd5e1" }} />
@@ -989,7 +1156,7 @@ export function FedFundsCurveChart({
               )}
             </LineChart>
           </ResponsiveContainer>
-          {period !== "current" && (
+          {period !== "current" && !compact && (
             <div className="flex gap-1 flex-wrap">
               {data.map((pt) => {
                 const comp =
@@ -1028,6 +1195,7 @@ export function RateHistoryChart({
   yFormatter = (v: number) => `${v.toFixed(2)}%`,
   tooltipFormatter = (v: number) => [`${v.toFixed(2)}%`],
   referenceLines,
+  compact,
 }: {
   title: string;
   data: ChartPoint[];
@@ -1036,14 +1204,16 @@ export function RateHistoryChart({
   yFormatter?: (v: number) => string;
   tooltipFormatter?: (v: number) => [string];
   referenceLines?: { y: number; label: string; color: string }[];
+  compact?: boolean;
 }) {
   const [period, setPeriod] = useState<HistoryPeriod>("3m");
   const filtered = filterByPeriod(data, period);
+  const height = compact ? 120 : 160;
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
+    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-2")}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className={cn("font-semibold", compact ? "text-xs" : "text-sm")}>{title}</h3>
         <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
           {(["1m", "3m", "6m", "1y"] as HistoryPeriod[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
@@ -1054,11 +1224,11 @@ export function RateHistoryChart({
         </div>
       </div>
       {loading ? (
-        <div className="h-[160px] flex items-center justify-center">
+        <div style={{ height }} className="flex items-center justify-center">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : filtered.length > 0 ? (
-        <ResponsiveContainer width="100%" height={160}>
+        <ResponsiveContainer width="100%" height={height}>
           <AreaChart data={filtered} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id={`grad-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
@@ -1095,8 +1265,81 @@ export function RateHistoryChart({
           </AreaChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
+        <div style={{ height }} className="flex items-center justify-center text-xs text-muted-foreground">
           No data
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Balance Sheet / QT card ───────────────────────────────────────────────────────
+
+function deriveBalanceSheetStats(fedAssetsHistory: ChartPoint[]) {
+  const sorted = [...fedAssetsHistory].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return null;
+  const latest = sorted[sorted.length - 1];
+  const cutoffTime = new Date(latest.date).getTime() - 91 * 86_400_000;
+  const past = [...sorted].reverse().find((p) => new Date(p.date).getTime() <= cutoffTime) ?? sorted[0];
+  const deltaM = latest.value - past.value; // $M
+  const pctChange = past.value !== 0 ? (deltaM / Math.abs(past.value)) * 100 : null;
+  return {
+    latestT: latest.value / 1e6,
+    deltaT: deltaM / 1e6,
+    pctChange,
+    isShrinking: deltaM < 0,
+  };
+}
+
+export function BalanceSheetCard({
+  fedAssetsHistory,
+  rrpSignal,
+  loading,
+  compact,
+}: {
+  fedAssetsHistory: ChartPoint[];
+  rrpSignal: LiquiditySignal | undefined;
+  loading: boolean;
+  compact?: boolean;
+}) {
+  const stats = deriveBalanceSheetStats(fedAssetsHistory);
+  const style = rrpSignal ? LIQUIDITY_LEVEL_STYLE[rrpSignal.level] : LIQUIDITY_LEVEL_STYLE.unknown;
+
+  return (
+    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-3")}>
+      <div className="flex items-center justify-between flex-wrap gap-1">
+        <h2 className={cn("font-semibold flex items-center gap-1.5", compact ? "text-xs" : "text-sm gap-2")}>
+          <Landmark className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-amber-400")} />
+          Balance Sheet (QT/QE)
+        </h2>
+        {stats && !compact && (
+          <span className="text-[10px] text-muted-foreground">
+            ${stats.latestT.toFixed(2)}T total assets · {stats.isShrinking ? "" : "+"}{stats.deltaT.toFixed(2)}T over 3mo
+            {stats.pctChange != null && ` (${stats.pctChange >= 0 ? "+" : ""}${stats.pctChange.toFixed(1)}%)`}
+          </span>
+        )}
+      </div>
+      <RateHistoryChart
+        title="Fed Total Assets (WALCL)"
+        data={fedAssetsHistory}
+        color="#f59e0b"
+        loading={loading}
+        yFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}T`}
+        tooltipFormatter={(v: number) => [`$${(v / 1e6).toFixed(2)}T`]}
+        compact
+      />
+      {stats && compact && (
+        <p className="text-[10px] text-muted-foreground">
+          ${stats.latestT.toFixed(2)}T · {stats.isShrinking ? "" : "+"}{stats.deltaT.toFixed(2)}T /3mo
+        </p>
+      )}
+      {rrpSignal && (
+        <div className={cn("rounded-md bg-muted/30 flex items-start gap-2", compact ? "p-1.5" : "p-2.5")}>
+          <span className={cn("w-1.5 h-1.5 rounded-full inline-block shrink-0 mt-1", style.dot)} />
+          <div>
+            <p className={cn("font-semibold mb-0.5", style.text, compact ? "text-[11px]" : "text-xs")}>{rrpSignal.label}: {rrpSignal.readout}</p>
+            {!compact && <p className="text-[11px] text-muted-foreground leading-snug">{rrpSignal.implication}</p>}
+          </div>
         </div>
       )}
     </div>
@@ -1342,10 +1585,12 @@ export function SepDotsChart({
   sepData,
   actuals,
   metric,
+  compact,
 }: {
   sepData: SepData;
   actuals: SepActuals | undefined;
   metric: SepMetric;
+  compact?: boolean;
 }) {
   const actualsData: ChartPoint[] =
     metric === "fedRate"    ? (actuals?.fedFunds ?? []) :
@@ -1377,9 +1622,11 @@ export function SepDotsChart({
     metric === "corePce"    ? "% YoY" :
                                "%";
 
+  const height = compact ? 120 : 180;
+
   if (!actuals) {
     return (
-      <div className="h-[180px] flex items-center justify-center">
+      <div style={{ height }} className="flex items-center justify-center">
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
       </div>
     );
@@ -1387,14 +1634,16 @@ export function SepDotsChart({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" /> Actual</span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full bg-orange-400 inline-block" style={{ width: 8, height: 8 }} />
-          SEP Projection (median)
-        </span>
-      </div>
-      <ResponsiveContainer width="100%" height={180}>
+      {!compact && (
+        <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" /> Actual</span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full bg-orange-400 inline-block" style={{ width: 8, height: 8 }} />
+            SEP Projection (median)
+          </span>
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={combined} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#222" />
           <XAxis
@@ -1465,6 +1714,94 @@ export function FedStanceGroup({
           {dovish.map((m) => <FedMemberCard key={m.name} member={m} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Fed member scale strip (hawkish ↔ neutral ↔ dovish) ───────────────────────────
+
+const STANCE_DOT_COLOR: Record<FedMember["stance"], string> = {
+  hawkish: "bg-red-500 border-red-300",
+  neutral: "bg-yellow-500 border-yellow-300",
+  dovish: "bg-green-500 border-green-300",
+};
+
+const STANCE_DOT_COLOR_NONVOTING: Record<FedMember["stance"], string> = {
+  hawkish: "bg-red-950/40 border-red-500/70",
+  neutral: "bg-yellow-950/40 border-yellow-500/70",
+  dovish: "bg-green-950/40 border-green-500/70",
+};
+
+function FedMemberDot({ member }: { member: FedMember }) {
+  const colorCls = member.voting ? STANCE_DOT_COLOR[member.stance] : STANCE_DOT_COLOR_NONVOTING[member.stance];
+  return (
+    <UiTooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-transform hover:scale-125 cursor-pointer",
+            colorCls,
+          )}
+        />
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="bg-popover text-popover-foreground border border-border rounded-md p-2.5 max-w-[220px] space-y-1"
+      >
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-xs font-bold">{member.name}</p>
+          <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium capitalize",
+            member.stance === "hawkish" ? "bg-red-500/15 text-red-400" :
+            member.stance === "dovish" ? "bg-green-500/15 text-green-400" :
+            "bg-yellow-500/15 text-yellow-400")}>
+            {member.stance}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{member.title} · {member.voting ? "Voting" : "Non-voting"}</p>
+        {member.notes && <p className="text-[10px] text-muted-foreground/90 italic leading-snug">{member.notes}</p>}
+        {member.recentChange && <p className="text-[10px] text-blue-300/90 leading-snug">↳ {member.recentChange}</p>}
+      </TooltipContent>
+    </UiTooltip>
+  );
+}
+
+export function FedScaleStrip({
+  hawkish,
+  neutral,
+  dovish,
+}: {
+  hawkish: FedMember[];
+  neutral: FedMember[];
+  dovish: FedMember[];
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-3 gap-2 min-h-[28px] items-end">
+        <div className="flex flex-wrap gap-1.5 justify-start">
+          {hawkish.map((m) => <FedMemberDot key={m.name} member={m} />)}
+        </div>
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {neutral.map((m) => <FedMemberDot key={m.name} member={m} />)}
+        </div>
+        <div className="flex flex-wrap gap-1.5 justify-end">
+          {dovish.map((m) => <FedMemberDot key={m.name} member={m} />)}
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" />
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+        <span className="text-red-400">Hawkish ({hawkish.length})</span>
+        <span className="text-yellow-400">Neutral ({neutral.length})</span>
+        <span className="text-green-400">Dovish ({dovish.length})</span>
+      </div>
+      <div className="flex items-center gap-3 text-[9px] text-muted-foreground/70">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-slate-400 border-2 border-slate-200 inline-block" /> Voting
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-slate-950/40 border-2 border-slate-500/70 inline-block" /> Non-voting
+        </span>
+      </div>
     </div>
   );
 }
@@ -1576,7 +1913,6 @@ export function BankCard({ bank }: { bank: BankResearch }) {
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground font-medium">{bank.rateView}</p>
-        <p className="text-[11px] text-muted-foreground/80 leading-relaxed line-clamp-3">{bank.summary}</p>
         <p className="text-[9px] text-muted-foreground/50">
           {new Date(bank.lastUpdated + "T12:00:00").toLocaleDateString("en-US", {
             month: "short", day: "numeric", year: "numeric",
@@ -1584,10 +1920,11 @@ export function BankCard({ bank }: { bank: BankResearch }) {
         </p>
       </div>
 
-      {/* News articles panel */}
+      {/* Summary + news panel */}
       {isExpanded && (
         <div className="border-t border-border px-3 py-2 space-y-2 bg-secondary/10">
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+          <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{bank.summary}</p>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium uppercase tracking-wide pt-1">
             <Newspaper className="h-3 w-3" />
             Recent News
           </div>

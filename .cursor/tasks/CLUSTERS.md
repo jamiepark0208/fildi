@@ -37,7 +37,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/10 macro-regime-tab-improvements (M)
 - enh/11 macro-catalyst-calendar-improvements (M)
 - enh/17 macro-volatility-tab-improvements (M) — done 2026-07-13: Volatility Regime Read implication card (VIX level, term structure, VVIX, put/call, HY credit cross-check, MOVE index → overall verdict), new MOVE index fetch/chart, /sentiment redirects to /macro?tab=volatility (ExtremesTable was already redundant with CotSection's inline extremes table, so no separate extraction was needed)
-- enh/18 macro-policy-tab-improvements (S)
+- enh/18 macro-policy-tab-improvements (S) — done 2026-07-13: PolicyCspSummary strip + denser BankCard, plus compaction pass (Fed Funds Curve/History/SEP dots one-line row, ag-grid SEP table, Bank Research fixed to 2x4, Fed Members hawkish↔dovish scale strip w/ hover popups replacing voting/all filter, new Balance Sheet/QT card)
 - enh/19 macro-heatmap-tab-improvements (S)
 
 ---
@@ -76,6 +76,8 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 - enh/20 scorecard-guide-improvements (S)
 - enh/21 settings-trader-preferences-improvements (M)
 - enh/35 ai-explanation-quality-improvements (M) — backlog, filed 2026-07-13: cross-cutting pass on every implication/brief/note-generating section (volatility, liquidity, regime, COT, daily brief, scorecard) — the COT `CotPositioningRead` narrative added this session is a first draft of the pattern, not the final bar
+- enh/36 macro-policy-forward-guidance-depth (M) — backlog, filed 2026-07-13: Policy tab covers rate path/dots/SEP/Fed stances/bank views but not FOMC dissent counts, statement lexical shifts ("elevated"→"transitory"), press-conference nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks, or FedWatch-style probabilities — needs new data sourcing (FOMC statement/minutes text, Treasury refunding calendar, IMF/ECB/BOJ/BOE feeds), bigger lift than enh/18's compaction pass; also now carries user's historical-analogy/pattern-matching request (tagged event history + market-reaction windows, e.g. "last time X, market did Y")
+- enh/37 macro-cache-admin-visibility-gap (S) — backlog, filed 2026-07-13: Settings admin tabs (Cache Monitor, Stock DB, API Monitor) trail behind several sessions of Macro tab work — cache-registry.ts only tracks 3 coarse macro buckets with no per-field staleness visibility, and StockDB/API Monitor tabs have zero macro awareness; motivating incident is enh/17's dead put/call source, which was found manually, not by any monitor
 - naf/2 onboarding-product-tour (M)
 - naf/8 command-palette-navigation (M) — **CLAUDE NEXT (P2)** — cmdk already installed
 - naf/9 social-sentiment-polish (M–L)

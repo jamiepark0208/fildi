@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-07-13T15:09:04.564Z",
+  "fetchedAt": "2026-07-13T19:15:34.276Z",
   "vix": {
-    "value": 16.36,
-    "change": 1.3300009,
-    "changePct": 8.843091,
+    "value": 17.07,
+    "change": 2.04,
+    "changePct": 13.609072,
     "level": "low-mid"
   },
   "yield10y": {
-    "value": 4.598,
-    "change": 0.029000282,
-    "changePct": 0.6347184
+    "value": 4.609,
+    "change": 0.04000044,
+    "changePct": 0.87490034
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 112.79999999999997,
+  "yieldSpread": 113.89999999999998,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -114,9 +114,9 @@
     "changePct": 0
   },
   "vxn": {
-    "value": 26.27,
-    "change": 1.3800011,
-    "changePct": 5.542173
+    "value": 27.16,
+    "change": 2.2700005,
+    "changePct": 9.127465
   },
   "series": {
     "cpi": {
