@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: token-bloat fix (commit-subject/last_session truncation + rehydrate.js unstaged-diff bug fix) and cache-registry gap fix (3 unregistered macro caches wired up) and admin/regular-user visibility gating (Stock DB opened up, Portfolio backend locked to requireAdmin) done
+- Working: rewrote db-patterns.md/data-agent.md/data-architecture.md to match current schema/pipeline (was previously fixed)
 - In progress: none active
 - Blocked: none
 

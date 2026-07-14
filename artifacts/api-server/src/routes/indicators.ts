@@ -5,7 +5,7 @@ import { getUserWatchlistTickers, isTickerOnUserWatchlist } from "../lib/watchli
 const router = Router();
 
 // GET /api/indicators/:ticker
-// ?refresh=true  forces recompute for this ticker only, overwrites scorecard_cache
+// ?refresh=true  forces recompute for this ticker only, overwrites indicator_cache
 router.get("/indicators/:ticker", async (req, res) => {
   const ticker  = req.params.ticker.toUpperCase();
   const refresh = req.query.refresh === "true";
