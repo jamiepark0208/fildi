@@ -130,6 +130,29 @@ async function fetchMetricExclusions(groupId: string): Promise<string[]> {
   return rows[0]?.metricExclusions ?? [];
 }
 
+export interface TaxonomyPeers {
+  groupId: string;
+  groupName: string | null;
+  confidence: PeerGroupClassification["confidence"];
+  peers: string[];
+}
+
+/** Peer group members for a ticker's classified taxonomy group (peer_groups/peer_group_members tables).
+ *  Returns null when the ticker can't be classified (confidence "unmapped"). */
+export async function getTaxonomyPeers(ticker: string, limit = 15): Promise<TaxonomyPeers | null> {
+  const key = ticker.toUpperCase();
+  const classification = await classifyTicker(key);
+  if (classification.confidence === "unmapped") return null;
+
+  const [groupRow, memberRows] = await Promise.all([
+    db.select({ name: peerGroups.name }).from(peerGroups).where(eq(peerGroups.id, classification.groupId)).limit(1),
+    db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers).where(eq(peerGroupMembers.groupId, classification.groupId)),
+  ]);
+
+  const peers = memberRows.map(r => r.ticker.toUpperCase()).filter(t => t !== key).slice(0, limit);
+  return { groupId: classification.groupId, groupName: groupRow[0]?.name ?? null, confidence: classification.confidence, peers };
+}
+
 // Classification is DB-backed and effectively static (sector/industry rarely
 // changes) — cache per ticker so repeat /fundamentals/peer-groups calls for
 // the same watchlist don't re-run the registry lookup (or the full peer

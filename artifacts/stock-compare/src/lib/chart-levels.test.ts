@@ -13,7 +13,7 @@ function bars(closes: number[], spread = 1): { date: string; close: number; high
 
 describe("swingHighLow", () => {
   it("returns null when insufficient data", () => {
-    assert.deepEqual(swingHighLow([1, 2, 3], 20), { high: null, low: null });
+    assert.deepEqual(swingHighLow([1, 2, 3], 20), { high: null, low: null, highIndex: null, lowIndex: null });
   });
 
   it("finds pivot high and low in synthetic series", () => {
@@ -21,6 +21,8 @@ describe("swingHighLow", () => {
     const r = swingHighLow(closes, 10);
     assert.ok(r.high !== null);
     assert.ok(r.low !== null);
+    assert.equal(closes[r.highIndex!], r.high);
+    assert.equal(closes[r.lowIndex!], r.low);
   });
 });
 
@@ -29,11 +31,14 @@ describe("computeChartZones", () => {
     assert.deepEqual(computeChartZones([], "3M", null), []);
   });
 
-  it("includes period extrema on 1D", () => {
-    const data = bars([100, 101, 99, 102, 98, 103]);
+  it("finds swing high/low as exact-bar markers on 1D", () => {
+    const closes = [10, 11, 12, 15, 14, 13, 12, 11, 10, 9, 8, 9, 10, 11, 12];
+    const data = bars(closes);
     const zones = computeChartZones(data, "1D", null);
-    assert.ok(zones.some(z => z.label === "Period low" && z.kind === "support"));
-    assert.ok(zones.some(z => z.label === "Period high" && z.kind === "resistance"));
+    const low = zones.find(z => z.label === "Swing low" && z.kind === "support");
+    const high = zones.find(z => z.label === "Swing high" && z.kind === "resistance");
+    assert.ok(low && low.renderAs === "marker" && low.date);
+    assert.ok(high && high.renderAs === "marker" && high.date);
   });
 
   it("caps at 2 support + 2 resistance", () => {

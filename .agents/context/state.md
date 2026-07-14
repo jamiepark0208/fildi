@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh12-stock-breakdown-A2-A6-shipped, stock-breakdown-aesthetic-pass
-- In progress: investment profile score label placement fix pending plus competitors sector-taxonomy peer scoring feature
+- Working: price-chart-lightweight-charts-migration, chart-levels-marker-vs-line-refactor, tasks-dir-staleness-fix
+- In progress: none - price chart swap shipped and typechecked; visual browser verify blocked (no chrome installed for playwright)
 - Blocked: none
 
 ## Next tasks (priority order)

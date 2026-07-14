@@ -1,14 +1,14 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGetStockHistoryQueryOptions, getGetStockHistoryQueryKey, StockMetrics } from "@workspace/api-client-react";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { STOCK_COLORS } from "./stock-cards";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, ReferenceArea,
-} from "recharts";
+  createChart, createSeriesMarkers, LineSeries, ColorType, LineStyle, CrosshairMode,
+  type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type IPriceLine, type UTCTimestamp, type Time,
+} from "lightweight-charts";
 import { cn } from "@/lib/utils";
-import { computeChartZones, zoneYBounds, type DbTechnicalLevels } from "@/lib/chart-levels";
+import { computeChartZones, type DbTechnicalLevels } from "@/lib/chart-levels";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 
@@ -34,25 +34,11 @@ function assignYAxes(stocks: StockMetrics[]): Record<string, "left" | "right"> {
 
 type HistoryBar = { date: string; close: number; high?: number | null; low?: number | null };
 
-function mergeHistoryData(
-  tickers: string[],
-  historyByTicker: Record<string, HistoryBar[]>,
-): Record<string, number | string>[] {
-  const allDates = Array.from(
-    new Set(tickers.flatMap(t => (historyByTicker[t] ?? []).map(p => p.date))),
-  ).sort();
-
-  return allDates.map(date => {
-    const row: Record<string, number | string> = { date };
-    for (const ticker of tickers) {
-      const point = (historyByTicker[ticker] ?? []).find(p => p.date === date);
-      if (point) row[ticker] = point.close;
-    }
-    return row;
-  });
-}
-
 const PERIODS: Period[] = ["1D", "1W", "1M", "3M", "1Y"];
+
+function toUnixTime(dateStr: string): UTCTimestamp {
+  return Math.floor(new Date(dateStr).getTime() / 1000) as UTCTimestamp;
+}
 
 function computeEMA(values: number[], period: number): (number | null)[] {
   const result: (number | null)[] = new Array(values.length).fill(null);
@@ -72,6 +58,230 @@ async function fetchTechnicals(ticker: string): Promise<DbTechnicalLevels | null
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Failed to load technical levels");
   return res.json();
+}
+
+type LWPoint = { time: UTCTimestamp; value: number };
+
+interface LWSeriesSpec {
+  ticker: string;
+  color: string;
+  scaleId: "left" | "right";
+  data: LWPoint[];
+}
+
+interface LWMarker {
+  time: UTCTimestamp;
+  price: number;
+  color: string;
+  text?: string;
+}
+
+interface LWPriceLine {
+  price: number;
+  color: string;
+  title: string;
+  dashed?: boolean;
+}
+
+interface LightweightPriceChartProps {
+  series: LWSeriesSpec[];
+  hasRightAxis: boolean;
+  period: Period;
+  emaSeries?: { ema50: LWPoint[]; ema200: LWPoint[] } | null;
+  markers?: LWMarker[];
+  priceLines?: LWPriceLine[];
+}
+
+function formatTickTime(time: Time, period: Period): string {
+  const ms = (time as number) * 1000;
+  const d = new Date(ms);
+  if (period === "1D") return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (period === "1W") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(2);
+  return `${mm}/${yy}`;
+}
+
+function formatTooltipTime(time: Time, period: Period): string {
+  const ms = (time as number) * 1000;
+  const d = new Date(ms);
+  if (period === "1D") return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Imperative lightweight-charts canvas — created once and updated in place, rather than re-mounted on every render. */
+function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines }: LightweightPriceChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const emaSeriesRef = useRef<{ ema50: ISeriesApi<"Line"> | null; ema200: ISeriesApi<"Line"> | null }>({ ema50: null, ema200: null });
+  const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const priceLineHandlesRef = useRef<IPriceLine[]>([]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const chart = createChart(container, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "rgba(255,255,255,0.8)",
+        fontSize: 11,
+        fontFamily: "monospace",
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { color: "rgba(255,255,255,0.06)" },
+      },
+      crosshair: { mode: CrosshairMode.Normal },
+      rightPriceScale: { visible: false, borderVisible: false },
+      leftPriceScale: { visible: true, borderVisible: false },
+      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+    });
+    chartRef.current = chart;
+
+    chart.subscribeCrosshairMove(param => {
+      const tooltip = tooltipRef.current;
+      if (!tooltip) return;
+      if (!param.time || !param.point) {
+        tooltip.style.opacity = "0";
+        return;
+      }
+      const lines: string[] = [`<div class="font-bold mb-1">${formatTooltipTime(param.time, period)}</div>`];
+      seriesMapRef.current.forEach((s, ticker) => {
+        const d = param.seriesData.get(s) as LWPoint | undefined;
+        if (d?.value != null) {
+          lines.push(`<div style="color:${s.options().color}">${ticker}: $${d.value.toFixed(2)}</div>`);
+        }
+      });
+      if (lines.length <= 1) {
+        tooltip.style.opacity = "0";
+        return;
+      }
+      tooltip.innerHTML = lines.join("");
+      tooltip.style.opacity = "1";
+      tooltip.style.left = `${Math.min(param.point.x + 12, container.clientWidth - 140)}px`;
+      tooltip.style.top = "8px";
+    });
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      seriesMapRef.current.clear();
+      emaSeriesRef.current = { ema50: null, ema200: null };
+      markersApiRef.current = null;
+      priceLineHandlesRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      rightPriceScale: { visible: hasRightAxis },
+      timeScale: { tickMarkFormatter: (time: Time) => formatTickTime(time, period) },
+    });
+  }, [hasRightAxis, period]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const seen = new Set(series.map(s => s.ticker));
+    seriesMapRef.current.forEach((s, ticker) => {
+      if (!seen.has(ticker)) {
+        chart.removeSeries(s);
+        seriesMapRef.current.delete(ticker);
+      }
+    });
+    series.forEach(spec => {
+      let s = seriesMapRef.current.get(spec.ticker);
+      if (!s) {
+        s = chart.addSeries(LineSeries, {
+          color: spec.color,
+          lineWidth: 2,
+          priceScaleId: spec.scaleId === "left" ? "left" : "right",
+          lastValueVisible: series.length === 1,
+          priceLineVisible: series.length === 1,
+        });
+        seriesMapRef.current.set(spec.ticker, s);
+      } else {
+        s.applyOptions({ priceScaleId: spec.scaleId === "left" ? "left" : "right" });
+      }
+      s.setData(spec.data);
+    });
+    chart.timeScale().fitContent();
+  }, [series]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const { ema50, ema200 } = emaSeriesRef.current;
+    if (!emaSeries) {
+      if (ema50) { chart.removeSeries(ema50); emaSeriesRef.current.ema50 = null; }
+      if (ema200) { chart.removeSeries(ema200); emaSeriesRef.current.ema200 = null; }
+      return;
+    }
+    if (!ema50) {
+      emaSeriesRef.current.ema50 = chart.addSeries(LineSeries, {
+        color: "#eab308", lineWidth: 1, lineStyle: LineStyle.Dashed,
+        lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      });
+    }
+    if (!ema200) {
+      emaSeriesRef.current.ema200 = chart.addSeries(LineSeries, {
+        color: "#f59e0b", lineWidth: 2,
+        lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      });
+    }
+    emaSeriesRef.current.ema50!.setData(emaSeries.ema50);
+    emaSeriesRef.current.ema200!.setData(emaSeries.ema200);
+  }, [emaSeries]);
+
+  useEffect(() => {
+    const primary = seriesMapRef.current.get(series[0]?.ticker ?? "");
+    if (!primary) return;
+    const marks = (markers ?? []).map(m => ({
+      time: m.time,
+      position: "atPriceMiddle" as const,
+      price: m.price,
+      color: m.color,
+      shape: "circle" as const,
+      size: 1,
+      text: m.text,
+    }));
+    if (!markersApiRef.current) {
+      markersApiRef.current = createSeriesMarkers(primary, marks);
+    } else {
+      markersApiRef.current.setMarkers(marks);
+    }
+  }, [markers, series]);
+
+  useEffect(() => {
+    const primary = seriesMapRef.current.get(series[0]?.ticker ?? "");
+    priceLineHandlesRef.current.forEach(h => primary?.removePriceLine(h));
+    priceLineHandlesRef.current = [];
+    if (!primary || !priceLines) return;
+    priceLineHandlesRef.current = priceLines.map(pl => primary.createPriceLine({
+      price: pl.price,
+      color: pl.color,
+      lineWidth: 1,
+      lineStyle: pl.dashed ? LineStyle.Dashed : LineStyle.Solid,
+      axisLabelVisible: true,
+      title: pl.title,
+    }));
+  }, [priceLines, series]);
+
+  return (
+    <div className="relative w-full h-full">
+      <div ref={containerRef} className="w-full h-full" />
+      <div
+        ref={tooltipRef}
+        className="pointer-events-none absolute z-10 rounded-md border border-border/50 bg-card/95 px-2.5 py-1.5 text-xs shadow-lg transition-opacity"
+        style={{ opacity: 0 }}
+      />
+    </div>
+  );
 }
 
 export function PriceChart({
@@ -106,7 +316,7 @@ export function PriceChart({
   const isLoading = queries.some(q => q.isLoading);
   const isError = queries.some(q => q.isError);
 
-  const { data, historyByTicker, yAxes, hasRightAxis } = useMemo(() => {
+  const { historyByTicker, yAxes, hasRightAxis, hasAnyData } = useMemo(() => {
     const historyByTicker: Record<string, HistoryBar[]> = {};
     tickers.forEach((ticker, i) => {
       const qData = queries[i]?.data;
@@ -120,12 +330,12 @@ export function PriceChart({
       }
     });
 
-    const merged = mergeHistoryData(tickers, historyByTicker);
     const validStocks = loadedStocks.filter(s => tickers.includes(s.ticker) && s.currentPrice !== undefined);
     const axes = assignYAxes(validStocks);
     const hasRight = Object.values(axes).includes("right");
+    const hasAny = tickers.some(t => (historyByTicker[t]?.length ?? 0) > 0);
 
-    return { data: merged, historyByTicker, yAxes: axes, hasRightAxis: hasRight };
+    return { historyByTicker, yAxes: axes, hasRightAxis: hasRight, hasAnyData: hasAny };
   }, [tickers, queries, loadedStocks]);
 
   const zones = useMemo(() => {
@@ -134,25 +344,67 @@ export function PriceChart({
     return computeChartZones(bars, selectedPeriod, technicalsQuery.data ?? null);
   }, [showTechnicalZones, techTicker, historyByTicker, tickers, selectedPeriod, technicalsQuery.data]);
 
-  const zoneAxisId = techTicker ? (yAxes[techTicker] ?? yAxes[tickers[0]] ?? "left") : "left";
+  /** Exact period low/high bar — always shown for the single-ticker view, independent of the technical-zones overlay. */
+  const periodExtremaMarkers = useMemo((): LWMarker[] => {
+    if (tickers.length !== 1) return [];
+    const bars = historyByTicker[tickers[0]] ?? [];
+    if (bars.length === 0) return [];
+    let lowBar = bars[0];
+    let highBar = bars[0];
+    for (const b of bars) {
+      if ((b.low ?? b.close) < (lowBar.low ?? lowBar.close)) lowBar = b;
+      if ((b.high ?? b.close) > (highBar.high ?? highBar.close)) highBar = b;
+    }
+    return [
+      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: "L" },
+      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: "H" },
+    ];
+  }, [tickers, historyByTicker]);
 
-  const chartData = useMemo(() => {
-    if (!showTechnicalZones || tickers.length !== 1) return data;
+  const zoneMarkers = useMemo((): LWMarker[] => zones
+    .filter(z => z.renderAs === "marker" && z.date)
+    .map(z => ({
+      time: toUnixTime(z.date!),
+      price: z.price,
+      color: z.kind === "support" ? "#f59e0b" : "#a78bfa",
+      text: z.kind === "support" ? "SL" : "SH",
+    })), [zones]);
+
+  const zonePriceLines = useMemo((): LWPriceLine[] => zones
+    .filter(z => z.renderAs === "line")
+    .map(z => ({
+      price: z.price,
+      color: z.kind === "support" ? "#22c55e" : "#ef4444",
+      title: z.label,
+      dashed: z.label.startsWith("MA") || z.label.startsWith("BB"),
+    })), [zones]);
+
+  const allMarkers = useMemo(
+    () => [...periodExtremaMarkers, ...zoneMarkers].sort((a, b) => a.time - b.time),
+    [periodExtremaMarkers, zoneMarkers],
+  );
+
+  const emaSeries = useMemo(() => {
+    if (!showTechnicalZones || tickers.length !== 1) return null;
     const bars = historyByTicker[tickers[0]] ?? [];
     const closes = bars.map(b => b.close);
-    const dates = bars.map(b => b.date);
     const ema50 = computeEMA(closes, 50);
     const ema200 = computeEMA(closes, 200);
-    const dateIndex = new Map(dates.map((d, i) => [d, i]));
-    return data.map(row => {
-      const idx = dateIndex.get(row.date as string);
-      if (idx == null) return row;
-      const out: typeof row = { ...row };
-      if (ema50[idx] != null) out.__EMA50 = ema50[idx]!;
-      if (ema200[idx] != null) out.__EMA200 = ema200[idx]!;
-      return out;
-    });
-  }, [data, showTechnicalZones, tickers, historyByTicker]);
+    const toPoints = (values: (number | null)[]): LWPoint[] => values
+      .map((v, i) => (v != null ? { time: toUnixTime(bars[i].date), value: v } : null))
+      .filter((p): p is LWPoint => p !== null);
+    const e50 = toPoints(ema50);
+    const e200 = toPoints(ema200);
+    if (e50.length === 0 && e200.length === 0) return null;
+    return { ema50: e50, ema200: e200 };
+  }, [showTechnicalZones, tickers, historyByTicker]);
+
+  const chartSeries = useMemo((): LWSeriesSpec[] => tickers.map((ticker, i) => ({
+    ticker,
+    color: STOCK_COLORS[i % STOCK_COLORS.length],
+    scaleId: yAxes[ticker] || "left",
+    data: (historyByTicker[ticker] ?? []).map(b => ({ time: toUnixTime(b.date), value: b.close })),
+  })).filter(s => s.data.length > 0), [tickers, historyByTicker, yAxes]);
 
   const handleRefresh = useCallback(async () => {
     if (!techTicker) return;
@@ -226,146 +478,64 @@ export function PriceChart({
         </div>
       </div>
 
+      <div className="flex items-center gap-4 mb-3 flex-wrap">
+        {tickers.length > 1 ? (
+          chartSeries.map(s => (
+            <div key={s.ticker} className="flex items-center gap-1.5 text-xs font-medium">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+              {s.ticker}
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Period low
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-[#22c55e]" /> Period high
+            </div>
+            {showTechnicalZones && zoneMarkers.length > 0 && (
+              <>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> Swing low
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full bg-[#a78bfa]" /> Swing high
+                </div>
+              </>
+            )}
+            {emaSeries && (
+              <>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2.5 h-0.5 bg-[#eab308]" /> EMA 50
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2.5 h-0.5 bg-[#f59e0b]" /> EMA 200
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="h-[320px] w-full relative">
-        {isLoading && data.length === 0 ? (
+        {isLoading && !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center bg-card/50 backdrop-blur-sm z-10 rounded-lg border border-border/50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        ) : data.length === 0 ? (
+        ) : !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground border border-dashed border-border rounded-lg">
             No data available for this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: hasRightAxis ? 5 : 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
-              {showTechnicalZones && zones.map(z => {
-                const { y1, y2 } = zoneYBounds(z);
-                const fillAlpha = (0.15 + z.strength * 0.22).toFixed(2);
-                const strokeAlpha = (0.45 + z.strength * 0.35).toFixed(2);
-                const color = z.kind === "support" ? "34, 197, 94" : "239, 68, 68";
-                const labelFill = z.kind === "support" ? "rgba(74,222,128,0.95)" : "rgba(248,113,113,0.95)";
-                return (
-                  <ReferenceArea
-                    key={`${z.kind}-${z.label}-${z.price}`}
-                    yAxisId={zoneAxisId}
-                    y1={y1}
-                    y2={y2}
-                    fill={`rgba(${color}, ${fillAlpha})`}
-                    stroke={`rgba(${color}, ${strokeAlpha})`}
-                    strokeOpacity={1}
-                    ifOverflow="hidden"
-                    label={{
-                      value: `${z.label} $${z.price.toFixed(0)}`,
-                      position: "insideTopLeft",
-                      fontSize: 9,
-                      fill: labelFill,
-                      fontFamily: "monospace",
-                    }}
-                  />
-                );
-              })}
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: "rgba(255,255,255,0.8)" }}
-                tickMargin={12}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(val) => {
-                  const d = new Date(val);
-                  if (selectedPeriod === "1D") return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-                  if (selectedPeriod === "1W") return d.toLocaleDateString([], { month: "short", day: "numeric" });
-                  const mm = String(d.getMonth() + 1).padStart(2, "0");
-                  const yy = String(d.getFullYear()).slice(2);
-                  return `${mm}/${yy}`;
-                }}
-              />
-              <YAxis
-                yAxisId="left"
-                orientation="left"
-                tick={{ fontSize: 12, fill: "rgba(255,255,255,0.8)", fontFamily: "monospace" }}
-                domain={["auto", "auto"]}
-                tickFormatter={(val) => `$${val}`}
-                width={60}
-                axisLine={false}
-                tickLine={false}
-              />
-              {hasRightAxis && (
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 12, fill: "rgba(255,255,255,0.8)", fontFamily: "monospace" }}
-                  domain={["auto", "auto"]}
-                  tickFormatter={(val) => `$${val}`}
-                  width={60}
-                  axisLine={false}
-                  tickLine={false}
-                />
-              )}
-              <Tooltip
-                contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)" }}
-                itemStyle={{ fontWeight: "bold", fontFamily: "monospace" }}
-                labelStyle={{ color: "hsl(var(--foreground))", marginBottom: 6, fontSize: "13px" }}
-                formatter={(val: number, name: string) => {
-                  if (name === "__EMA50") return [`$${val.toFixed(2)}`, "EMA 50"];
-                  if (name === "__EMA200") return [`$${val.toFixed(2)}`, "EMA 200"];
-                  return [`$${val.toFixed(2)}`, name];
-                }}
-                labelFormatter={(label) => {
-                  const d = new Date(label as string);
-                  if (selectedPeriod === "1D") return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-                  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-                }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: 12, paddingTop: 20, fontWeight: 500 }}
-                iconType="circle"
-                iconSize={8}
-                formatter={(value) => {
-                  if (value === "__EMA50") return "EMA 50";
-                  if (value === "__EMA200") return "EMA 200";
-                  return value;
-                }}
-              />
-              {tickers.map((ticker, i) => (
-                <Line
-                  key={ticker}
-                  yAxisId={yAxes[ticker] || "left"}
-                  type="monotone"
-                  dataKey={ticker}
-                  stroke={STOCK_COLORS[i % STOCK_COLORS.length]}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 0, fill: STOCK_COLORS[i % STOCK_COLORS.length] }}
-                />
-              ))}
-              {showTechnicalZones && (
-                <>
-                  <Line
-                    yAxisId={zoneAxisId}
-                    type="monotone"
-                    dataKey="__EMA50"
-                    stroke="#eab308"
-                    strokeWidth={1.2}
-                    dot={false}
-                    activeDot={false}
-                    connectNulls={false}
-                    strokeDasharray="5 2"
-                  />
-                  <Line
-                    yAxisId={zoneAxisId}
-                    type="monotone"
-                    dataKey="__EMA200"
-                    stroke="#f59e0b"
-                    strokeWidth={1.5}
-                    dot={false}
-                    activeDot={false}
-                    connectNulls={false}
-                  />
-                </>
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+          <LightweightPriceChart
+            series={chartSeries}
+            hasRightAxis={hasRightAxis}
+            period={selectedPeriod}
+            emaSeries={emaSeries}
+            markers={tickers.length === 1 ? allMarkers : undefined}
+            priceLines={tickers.length === 1 && showTechnicalZones ? zonePriceLines : undefined}
+          />
         )}
       </div>
     </div>

@@ -23,12 +23,21 @@ export type DbTechnicalLevels = {
   vwap20d?: string | number | null;
 };
 
+/**
+ * A chart level is either a `marker` (exact bar/date where a period or swing
+ * extreme occurred — rendered as a dot) or a `line` (a price level with no
+ * single associated bar, e.g. a pivot/MA/BB value — rendered as a horizontal
+ * price line). Levels fall back to `line` whenever no bar date is known,
+ * which happens when a swing value comes from precomputed DB technicals
+ * rather than the currently-loaded bars.
+ */
 export type ChartZone = {
   price: number;
   label: string;
   kind: "support" | "resistance";
-  bandPct: number;
-  strength: number; // 0–1; higher = wider band and darker shade
+  strength: number; // 0–1; higher = more significant level
+  renderAs: "line" | "marker";
+  date?: string;
 };
 
 const MERGE_PCT = 0.005;
@@ -44,7 +53,7 @@ function strengthForLabel(label: string): number {
   return 0.55; // Period high/low
 }
 
-type Candidate = { price: number; label: string; kind: "support" | "resistance" };
+type Candidate = { price: number; label: string; kind: "support" | "resistance"; date?: string };
 
 export function pfNum(v: string | number | null | undefined): number | null {
   if (v == null) return null;
@@ -52,35 +61,33 @@ export function pfNum(v: string | number | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Local swing pivots on closes (±2-bar neighbors), same logic as technicals-db */
-export function swingHighLow(closes: number[], lookback: number): { high: number | null; low: number | null } {
-  if (closes.length < lookback + 4) return { high: null, low: null };
-  const slice = closes.slice(-(lookback + 4));
+/** Local swing pivots on closes (±2-bar neighbors), same logic as technicals-db. Indices are absolute into `closes`. */
+export function swingHighLow(
+  closes: number[],
+  lookback: number,
+): { high: number | null; low: number | null; highIndex: number | null; lowIndex: number | null } {
+  if (closes.length < lookback + 4) return { high: null, low: null, highIndex: null, lowIndex: null };
+  const offset = closes.length - (lookback + 4);
+  const slice = closes.slice(offset);
   let high: number | null = null;
   let low: number | null = null;
+  let highIndex: number | null = null;
+  let lowIndex: number | null = null;
   for (let i = 2; i < slice.length - 2; i++) {
     const c = slice[i];
     if (c > slice[i - 2] && c > slice[i + 2]) {
-      if (high === null || c > high) high = c;
+      if (high === null || c > high) { high = c; highIndex = offset + i; }
     }
     if (c < slice[i - 2] && c < slice[i + 2]) {
-      if (low === null || c < low) low = c;
+      if (low === null || c < low) { low = c; lowIndex = offset + i; }
     }
   }
-  return { high, low };
+  return { high, low, highIndex, lowIndex };
 }
 
-function periodExtrema(bars: OhlcBar[]): { high: number | null; low: number | null } {
-  if (!bars.length) return { high: null, low: null };
-  const highs = bars.map(b => b.high ?? b.close).filter(v => Number.isFinite(v));
-  const lows = bars.map(b => b.low ?? b.close).filter(v => Number.isFinite(v));
-  if (!highs.length || !lows.length) return { high: null, low: null };
-  return { high: Math.max(...highs), low: Math.min(...lows) };
-}
-
-function addCandidate(list: Candidate[], price: number | null, label: string, kind: "support" | "resistance") {
+function addCandidate(list: Candidate[], price: number | null, label: string, kind: "support" | "resistance", date?: string) {
   if (price == null || !Number.isFinite(price)) return;
-  list.push({ price, label, kind });
+  list.push({ price, label, kind, date });
 }
 
 function maKind(price: number, current: number): "support" | "resistance" {
@@ -94,6 +101,12 @@ function mergeClose(candidates: Candidate[]): Candidate[] {
     if (!dup) out.push(c);
   }
   return out;
+}
+
+/** Marker-eligible labels render as an exact-bar dot only when a bar date is known; otherwise they fall back to a price line. */
+function renderAsFor(c: Candidate): "line" | "marker" {
+  if (c.date && (c.label.startsWith("Period") || c.label.startsWith("Swing"))) return "marker";
+  return "line";
 }
 
 function pickZones(
@@ -114,16 +127,14 @@ function pickZones(
     .sort((a, b) => Math.abs(currentPrice - a.price) - Math.abs(currentPrice - b.price))
     .slice(0, MAX_EACH);
 
-  return [...supports, ...resistances].map(c => {
-    const strength = strengthForLabel(c.label);
-    return {
-      price: c.price,
-      label: c.label,
-      kind: c.kind,
-      bandPct: 0.003 + strength * 0.007,
-      strength,
-    };
-  });
+  return [...supports, ...resistances].map(c => ({
+    price: c.price,
+    label: c.label,
+    kind: c.kind,
+    strength: strengthForLabel(c.label),
+    renderAs: renderAsFor(c),
+    date: c.date,
+  }));
 }
 
 export function computeChartZones(
@@ -135,7 +146,6 @@ export function computeChartZones(
 
   const closes = bars.map(b => b.close);
   const currentPrice = closes[closes.length - 1];
-  const { high: periodHigh, low: periodLow } = periodExtrema(bars);
   const yMin = Math.min(...closes) * 0.97;
   const yMax = Math.max(...closes) * 1.03;
 
@@ -155,43 +165,38 @@ export function computeChartZones(
 
   const candidates: Candidate[] = [];
   const lb = (n: number) => Math.min(n, Math.max(4, closes.length - 5));
+  const dateAt = (index: number | null) => (index != null ? bars[index]?.date : undefined);
 
   switch (period) {
     case "1D":
-      addCandidate(candidates, periodLow, "Period low", "support");
-      addCandidate(candidates, periodHigh, "Period high", "resistance");
       addCandidate(candidates, d.pivotS1, "Pivot S1", "support");
       addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance");
       if (closes.length >= 10) {
         const s = swingHighLow(closes, lb(20));
-        addCandidate(candidates, s.low, "Swing low", "support");
-        addCandidate(candidates, s.high, "Swing high", "resistance");
+        addCandidate(candidates, s.low, "Swing low", "support", dateAt(s.lowIndex));
+        addCandidate(candidates, s.high, "Swing high", "resistance", dateAt(s.highIndex));
       }
       break;
 
     case "1W": {
-      addCandidate(candidates, periodLow, "Period low", "support");
-      addCandidate(candidates, periodHigh, "Period high", "resistance");
       const s = swingHighLow(closes, lb(7));
-      addCandidate(candidates, s.low, "Swing low", "support");
-      addCandidate(candidates, s.high, "Swing high", "resistance");
+      addCandidate(candidates, s.low, "Swing low", "support", dateAt(s.lowIndex));
+      addCandidate(candidates, s.high, "Swing high", "resistance", dateAt(s.highIndex));
       break;
     }
 
     case "1M": {
-      addCandidate(candidates, periodLow, "Period low", "support");
-      addCandidate(candidates, periodHigh, "Period high", "resistance");
       const s = swingHighLow(closes, lb(20));
-      addCandidate(candidates, s.low, "Swing low 20d", "support");
-      addCandidate(candidates, s.high, "Swing high 20d", "resistance");
+      addCandidate(candidates, s.low, "Swing low 20d", "support", dateAt(s.lowIndex));
+      addCandidate(candidates, s.high, "Swing high 20d", "resistance", dateAt(s.highIndex));
       break;
     }
 
     case "3M": {
       const s = swingHighLow(closes, lb(20));
-      // Prefer DB-computed values; fall back to live calculation if DB is absent
-      addCandidate(candidates, d.swingLow20d ?? s.low, "Swing low 20d", "support");
-      addCandidate(candidates, d.swingHigh20d ?? s.high, "Swing high 20d", "resistance");
+      // Prefer DB-computed values; fall back to live calculation (with an exact bar date) if DB is absent
+      addCandidate(candidates, d.swingLow20d ?? s.low, "Swing low 20d", "support", d.swingLow20d != null ? undefined : dateAt(s.lowIndex));
+      addCandidate(candidates, d.swingHigh20d ?? s.high, "Swing high 20d", "resistance", d.swingHigh20d != null ? undefined : dateAt(s.highIndex));
       if (d.ma50 != null) addCandidate(candidates, d.ma50, "MA50", maKind(d.ma50, currentPrice));
       break;
     }
@@ -199,11 +204,11 @@ export function computeChartZones(
     case "1Y": {
       const s20 = swingHighLow(closes, lb(20));
       const s50 = swingHighLow(closes, lb(50));
-      // Prefer DB-computed values; fall back to live calculation if DB is absent
-      addCandidate(candidates, d.swingLow20d ?? s20.low, "Swing low 20d", "support");
-      addCandidate(candidates, d.swingHigh20d ?? s20.high, "Swing high 20d", "resistance");
-      addCandidate(candidates, d.swingLow50d ?? s50.low, "Swing low 50d", "support");
-      addCandidate(candidates, d.swingHigh50d ?? s50.high, "Swing high 50d", "resistance");
+      // Prefer DB-computed values; fall back to live calculation (with an exact bar date) if DB is absent
+      addCandidate(candidates, d.swingLow20d ?? s20.low, "Swing low 20d", "support", d.swingLow20d != null ? undefined : dateAt(s20.lowIndex));
+      addCandidate(candidates, d.swingHigh20d ?? s20.high, "Swing high 20d", "resistance", d.swingHigh20d != null ? undefined : dateAt(s20.highIndex));
+      addCandidate(candidates, d.swingLow50d ?? s50.low, "Swing low 50d", "support", d.swingLow50d != null ? undefined : dateAt(s50.lowIndex));
+      addCandidate(candidates, d.swingHigh50d ?? s50.high, "Swing high 50d", "resistance", d.swingHigh50d != null ? undefined : dateAt(s50.highIndex));
       addCandidate(candidates, d.pivotS1, "Pivot S1", "support");
       addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance");
       addCandidate(candidates, d.bbLower, "BB lower", "support");
@@ -215,11 +220,4 @@ export function computeChartZones(
   }
 
   return pickZones(candidates, currentPrice, yMin, yMax);
-}
-
-export function zoneYBounds(zone: ChartZone): { y1: number; y2: number } {
-  return {
-    y1: zone.price * (1 - zone.bandPct),
-    y2: zone.price * (1 + zone.bandPct),
-  };
 }

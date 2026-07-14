@@ -1,7 +1,7 @@
 import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
@@ -10,11 +10,15 @@ import {
   type TickerFundamentalsRow,
   db,
   indicatorCache,
+  tickerFundamentals,
+  tickerTechnicals,
 } from "@workspace/db";
 import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { buildCatalysts, parseEarningsDate } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
+import { getTaxonomyPeers } from "../lib/peer-classifier.js";
+import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
 import { logger } from "../lib/logger.js";
 
@@ -819,20 +823,49 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
 });
 
-// GET /stocks/competitors/:ticker — DB-first peer tickers (no scoring)
+// GET /stocks/competitors/:ticker — taxonomy peer group first (curated, same
+// classification used for fundamental peer-group scoring), DB/Finnhub/FMP chain
+// as fallback for tickers with no/thin taxonomy group. Returns fund/tech-ranked peers.
 router.get("/stocks/competitors/:ticker", async (req, res) => {
   const key = String(req.params["ticker"] ?? "").toUpperCase();
   if (!key) return res.status(400).json({ error: "ticker required" });
 
   try {
-    const hadCache = peersCache.get(key) != null;
-    const { sector, industry, peers } = await resolvePeers(key);
+    const taxonomy = await getTaxonomyPeers(key);
+    let peers = taxonomy?.peers ?? [];
+    let sector: string | null = null;
+    let industry: string | null = null;
+    let groupName: string | null = taxonomy?.groupName ?? null;
+    let source: "taxonomy" | "legacy" = "taxonomy";
+
+    if (peers.length < 5) {
+      const legacy = await resolvePeers(key);
+      sector = legacy.sector;
+      industry = legacy.industry;
+      if (peers.length === 0) {
+        peers = legacy.peers;
+        groupName = null;
+        source = "legacy";
+      }
+    }
+    peers = peers.slice(0, 15);
+
+    const allTickers = [key, ...peers];
+    const [techRows, fundRows] = await Promise.all([
+      db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, allTickers)),
+      db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, allTickers)),
+    ]);
+
+    const ranked = rankCompetitors(key, peers, techRows, fundRows);
+
     return res.json({
       ticker: key,
+      groupId: taxonomy?.groupId ?? null,
+      groupName,
       sector,
       industry,
-      peers: peers.slice(0, 8),
-      source: hadCache ? "cache" : "db",
+      source,
+      ranked,
     });
   } catch (err: any) {
     logger.error({ ticker: key, err }, "GET /stocks/competitors failed");

@@ -8,7 +8,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current bug
 
 All done tasks — detail lives in each task's own (now-condensed) .md file and in `INDEX.md`, not duplicated here:
 - **Bugs 1–18** — done (19 rejected, product decision).
-- **enh/1, 2, 3, 4, 5, 6 (Track 1), 7, 8 (main), 10, 17, 18, 23, 24, 26, 30, 34, 37**
+- **enh/1, 2, 3, 4, 5, 6 (Track 1), 7, 8 (main), 10, 11, 12 (A1-A3,A5,A6), 17, 18, 23, 24, 26, 30, 34, 37**
 - **naf/1, naf/3**
 - **ai/1**
 
@@ -28,9 +28,8 @@ Cluster 3 note: ai/11 product-ai-explain-csp was unblocked by naf/3 — **CURSOR
 
 ---
 
-## Cluster 5 — Macro tabs (11 next; 17/18/10 done; 19 open)
-- enh/10, 17, 18 — done, see INDEX.md
-- enh/11 macro-catalyst-calendar-improvements (M)
+## Cluster 5 — Macro tabs (10/11/17/18 done; 19 open)
+- enh/10, 11, 17, 18 — done, see INDEX.md
 - enh/19 macro-heatmap-tab-improvements (S)
 
 ---
@@ -45,7 +44,7 @@ Cluster 3 note: ai/11 product-ai-explain-csp was unblocked by naf/3 — **CURSOR
 
 ## Cluster 7 — Analyst data + breakdown
 - enh/6 analyst-data-persistence (L) — Track 1 done, Track 2 (Finviz per-firm PT) still pending spike
-- enh/12 stock-breakdown-sections-improvements (L)
+- enh/12 stock-breakdown-sections-improvements (L) — done except A4 (clickable competitors), which the in-progress Competitors v2 rework (uncommitted) currently regresses — re-verify once that lands
 
 ---
 
@@ -82,6 +81,7 @@ Cluster 3 note: ai/11 product-ai-explain-csp was unblocked by naf/3 — **CURSOR
 - enh/22 openapi-coverage-orval-migration (L)
 - enh/23, 24, 26 — done, see INDEX.md
 - enh/25 e2e-smoke-playwright (M) — after Cluster 1 CI is green ✅
+- enh/38 large-component-token-cost (M, per file) — split MacroComponents.tsx / stock-breakdown.tsx / portfolio-analysis.tsx etc; one file per session
 
 ---
 

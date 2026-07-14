@@ -101,6 +101,38 @@ export function computeFundScoresForRows(rows: TickerFundamentalsRow[]): Map<str
   return out;
 }
 
+const METRIC_LABELS: Record<string, string> = {
+  grossMargin: "Gross Margin", operatingMargin: "Operating Margin", netMargin: "Net Margin",
+  roe: "ROE", roicWacc: "ROIC - WACC", revGrowth: "Revenue Growth", epsGrowth: "EPS Growth",
+  currentRatio: "Current Ratio", debtToEquity: "Debt/Equity",
+  intCoverage: "Interest Coverage", cashRunway: "Cash Runway (yrs)",
+};
+
+export interface FundMetricBreakdown {
+  label: string;
+  value: number;
+  zScore: number;
+}
+
+/** Top metrics (by |z-score| vs the peer group) for a ticker's fundamentals — used for hover tooltips. */
+export function computeFundMetricBreakdown(rows: TickerFundamentalsRow[], ticker: string): FundMetricBreakdown[] {
+  const row = rows.find(r => r.ticker.toUpperCase() === ticker.toUpperCase());
+  if (!row) return [];
+
+  return FUND_METRICS.map((m): FundMetricBreakdown | null => {
+    const vals = rows.map(r => m.getValue(r)).filter((v): v is number => v !== null);
+    const val = m.getValue(row);
+    if (val === null || vals.length < 2) return null;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+    const z = std > 0 ? (val - mean) / std : 0;
+    return { label: METRIC_LABELS[m.key] ?? m.key, value: val, zScore: m.higherBetter ? z : -z };
+  })
+    .filter((x): x is FundMetricBreakdown => x !== null)
+    .sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore))
+    .slice(0, 4);
+}
+
 export interface CompetitorRanked {
   rank: number;
   ticker: string;
@@ -108,6 +140,7 @@ export interface CompetitorRanked {
   techScore: number | null;
   fundScore: number | null;
   pendingBackfill: boolean;
+  breakdown: FundMetricBreakdown[];
 }
 
 export function rankCompetitors(
@@ -147,6 +180,7 @@ export function rankCompetitors(
         techScore,
         fundScore,
         pendingBackfill,
+        breakdown: computeFundMetricBreakdown(fundRows, u),
       };
     })
     .sort((a, b) => {
