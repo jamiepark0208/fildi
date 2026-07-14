@@ -454,6 +454,7 @@ type BucketKey = "BULLISH" | "NEUTRAL" | "BEARISH"
 
 function BucketsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileUsername: string }) {
   const qc = useQueryClient()
+  const [, navigate] = useLocation()
   const [adding, setAdding] = useState<Record<BucketKey, boolean>>({ BULLISH: false, NEUTRAL: false, BEARISH: false })
 
   const { data: allBuckets = [], isLoading } = useQuery<{ ticker: string; bucket: BucketKey; addedAt: string }[]>({
@@ -508,6 +509,18 @@ function BucketsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileU
                 {label}
                 <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{tickers.length}</span>
               </div>
+
+              {tickers.length > 0 && (
+                <button
+                  onClick={() => {
+                    tickers.forEach(({ ticker }) => addToScannerShelf(ticker))
+                    navigate("/options-scanner")
+                  }}
+                  className="w-full text-[10px] font-medium text-muted-foreground/70 hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1 transition-colors"
+                >
+                  Open in scanner →
+                </button>
+              )}
 
               <div className="space-y-1 min-h-[40px]">
                 {isLoading ? (
@@ -580,6 +593,52 @@ function StatsBar({ stats }: { stats: ProfileData["stats"] }) {
       </div>
       <div className="text-[10px] text-muted-foreground/50 text-center py-1 border-t border-border">
         based on {stats.closed} closed{lowSample && stats.closed > 0 ? " · low sample" : ""}
+      </div>
+    </div>
+  )
+}
+
+// ── Monthly summary (own profile) ───────────────────────────────────────────────
+
+function MonthlySummary({ posts }: { posts: TradePost[] }) {
+  const months = new Map<string, { wins: number; losses: number; pnl: number }>()
+
+  for (const post of posts) {
+    if (post.status === "OPEN") continue
+    const d = new Date(post.createdAt)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const entry = months.get(key) ?? { wins: 0, losses: 0, pnl: 0 }
+    const pnl = post.resolvedPnl ?? 0
+    if (pnl >= 0) entry.wins++
+    else entry.losses++
+    entry.pnl += pnl
+    months.set(key, entry)
+  }
+
+  const rows = [...months.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6)
+  if (rows.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monthly Summary</div>
+      <div className="bg-card border border-border rounded-xl divide-y divide-border">
+        {rows.map(([key, { wins, losses, pnl }]) => {
+          const [y, m] = key.split("-")
+          const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+          const n = wins + losses
+          return (
+            <div key={key} className="flex items-center justify-between px-3 py-2 text-xs">
+              <span className="text-foreground font-medium">{label}</span>
+              <div className="flex items-center gap-3 text-muted-foreground/70">
+                <span>{wins}W / {losses}L</span>
+                <span className={cn("font-semibold", pnl >= 0 ? "text-green-400" : "text-red-400")}>
+                  {pnl >= 0 ? "+" : ""}${pnl.toFixed(0)}
+                </span>
+                <span className="text-muted-foreground/40">({n})</span>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -680,6 +739,9 @@ export default function Profile() {
 
             {/* ── Stats bar ── */}
             <StatsBar stats={data.stats} />
+
+            {/* ── Monthly summary (own profile only) ── */}
+            {isOwnerProfile && <MonthlySummary posts={data.posts} />}
 
             {/* ── Stock Views Buckets ── */}
             <BucketsPanel isOwner={isOwnerProfile} profileUsername={username} />

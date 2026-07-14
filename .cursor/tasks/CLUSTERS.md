@@ -37,8 +37,8 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 
 ## Cluster 8 — Feed + leaderboard (shared sample-size rules)
 - naf/7 analyst-leaderboard-track-record (L)
-- enh/13 feed-improvements (M)
-- enh/14 profile-track-record-improvements (M)
+- enh/13 feed-improvements (M) — done*, W1-W3/W5-W7 shipped, W4 trending strip still open
+- enh/14 profile-track-record-improvements (M) — done*, Phase A shipped, Phase B tags design-gated with ai/13
 
 ---
 
@@ -50,7 +50,6 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 ---
 
 ## Cluster 10 — Standalone polish (any order)
-- enh/21 settings-trader-preferences-improvements (M)
 - enh/35 ai-explanation-quality-improvements (M) — backlog, filed 2026-07-13: cross-cutting pass on every implication/brief/note-generating section (volatility, liquidity, regime, COT, daily brief, scorecard) — the COT `CotPositioningRead` narrative is a first draft of the pattern, not the final bar
 - enh/36 macro-policy-forward-guidance-depth (M) — backlog, filed 2026-07-13: Policy tab covers rate path/dots/SEP/Fed stances/bank views but not FOMC dissent counts, statement lexical shifts, press-conference nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks, or FedWatch-style probabilities — needs new data sourcing, bigger lift than enh/18's compaction pass; also carries the historical-analogy/pattern-matching request (tagged event history + market-reaction windows)
 - naf/2 onboarding-product-tour (M)

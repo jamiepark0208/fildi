@@ -140,8 +140,17 @@ const next = coerce({
   blocked:     args.blocked    !== undefined ? list(args.blocked)    : ex.blocked,
   next:        args.next       !== undefined ? list(args.next)       : ex.next,
   last_session: now + (args.note ? ` — ${args.note}` : ''),
-  instincts:   ex.instincts,
+  instincts:   args.instincts  !== undefined ? list(args.instincts)  : ex.instincts,
 });
+
+// instincts get re-sent in full on EVERY prompt via rehydrate.js's UserPromptSubmit
+// hook — unbounded growth here is a direct, compounding per-turn token cost, not a
+// one-time doc-size issue. Cap hard instead of letting it silently creep (grew to
+// 8 entries / ~1850 chars before a 2026-07-15 trim brought it back to 3 / ~1100).
+const INSTINCT_CAP = 5;
+if (next.instincts.length > INSTINCT_CAP) {
+  process.stderr.write(`\n[STATE] instincts has ${next.instincts.length} entries (cap ${INSTINCT_CAP}) — consolidate/drop stale ones before wrapping, not just append.\n`);
+}
 
 // Final validation before write — hard stop if coerce still fails
 const finalErrs = validate(next);

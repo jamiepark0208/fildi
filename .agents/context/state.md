@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh13-feed-redesign done* feed.tsx TradeCard.tsx trade-post-expiry.ts docs-verbosity-cleanup
-- In progress: enh13 shipped: instagram-style compact color-coded cards infinite-query race fix backend auto-expiry resolver; user verified UI live
+- Working: enh14-profile-phase-a done enh21-trader-prefs done token-usage-audit
+- In progress: none active
 - Blocked: none
 
 ## Next tasks (priority order)
