@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh10-crosstab-regime-verdict-row, enh37-cache-monitor-per-field-visibility, fundamentals-pipeline-refresh, tasks-dir-token-cleanup
+- Working: enh11-catalyst-calendar-your-week-plus-regime-jump, portfolio-earnings-badge, tasks-dir-cleanup-pass2
 - In progress: none
 - Blocked: none
 
