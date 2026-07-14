@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-07-13T22:56:53.685Z",
+  "fetchedAt": "2026-07-14T17:52:51.073Z",
   "vix": {
-    "value": 17.16,
-    "change": 2.13,
-    "changePct": 14.171658,
+    "value": 16.47,
+    "change": -0.69000053,
+    "changePct": -4.0209823,
     "level": "low-mid"
   },
   "yield10y": {
-    "value": 4.609,
-    "change": 0.04000044,
-    "changePct": 0.87547475
+    "value": 4.583,
+    "change": -0.026000023,
+    "changePct": -0.56411415
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 113.89999999999998,
+  "yieldSpread": 111.3,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -110,31 +110,31 @@
   "usDebt": 39065421,
   "skew": {
     "value": 145.69,
-    "change": 1.4199982,
-    "changePct": 0.9842643
+    "change": 0,
+    "changePct": 0
   },
   "vxn": {
-    "value": 27.3,
-    "change": 2.4099998,
-    "changePct": 9.682603
+    "value": 26.03,
+    "change": -1.2699986,
+    "changePct": -4.6520095
   },
   "series": {
     "cpi": {
-      "value": 333.979,
-      "prev": 332.407,
-      "change": 1.5720000000000027,
-      "changePct": 0.47291422864139526,
-      "yoy": 4.270032656680247,
-      "date": "2026-05-01",
+      "value": 332.568,
+      "prev": 333.979,
+      "change": -1.4110000000000014,
+      "changePct": -0.42248165303806573,
+      "yoy": 3.7265298484186826,
+      "date": "2026-06-01",
       "unit": "%"
     },
     "coreCpi": {
-      "value": 336.121,
-      "prev": 335.423,
-      "change": 0.6979999999999791,
-      "changePct": 0.20809544962628654,
-      "yoy": 2.9571135826898267,
-      "date": "2026-05-01",
+      "value": 336.065,
+      "prev": 336.121,
+      "change": -0.055999999999983174,
+      "changePct": -0.016660666843185394,
+      "yoy": 2.805811075795452,
+      "date": "2026-06-01",
       "unit": "%"
     },
     "corePce": {
@@ -219,12 +219,12 @@
       "unit": "%"
     },
     "sofr": {
-      "value": 3.55,
-      "prev": 3.53,
-      "change": 0.020000000000000018,
-      "changePct": 0.5665722379603405,
+      "value": 3.6,
+      "prev": 3.55,
+      "change": 0.050000000000000266,
+      "changePct": 1.4084507042253596,
       "yoy": null,
-      "date": "2026-07-10",
+      "date": "2026-07-13",
       "unit": "%"
     },
     "ismManufacturing": {

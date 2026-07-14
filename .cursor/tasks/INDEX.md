@@ -44,11 +44,9 @@ Deps: 2 before heavy UI; extract `lib/scanner-reasoning.ts` before/with 4–6; 8
 | 12 | P1 | done* | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) — A1-A3,A5,A6 shipped; A4 (clickable competitors) regressed by in-progress Competitors v2 rework, re-verify on landing |
 | 13 | P1 | ready | [feed-improvements](enhancements/13-feed-improvements-070926.md) |
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
-| 19 | P2 | ready | [macro-heatmap-tab-improvements](enhancements/19-macro-heatmap-tab-improvements-070926.md) |
-| 20 | P1 | ready | [scorecard-guide-improvements](enhancements/20-scorecard-guide-improvements-070926.md) |
 | 21 | P2 | ready | [settings-trader-preferences-improvements](enhancements/21-settings-trader-preferences-improvements-070926.md) |
-| 22 | P1 | ready | [openapi-coverage-orval-migration](enhancements/22-openapi-coverage-orval-migration-070926.md) |
-| 25 | P2 | ready | [e2e-smoke-playwright](enhancements/25-e2e-smoke-playwright-070926.md) |
+| 22 | P1 | backlog | [openapi-coverage-orval-migration](enhancements/22-openapi-coverage-orval-migration-070926.md) — deferred 2026-07-14: codegen/type-safety infra pays off with multiple contributors; solo prototype, tsc already catches drift |
+| 25 | P2 | backlog | [e2e-smoke-playwright](enhancements/25-e2e-smoke-playwright-070926.md) — deferred 2026-07-14: regression safety net for CI/multi-dev/live users; solo prototype with weekly file restructuring means selectors would need constant upkeep, Replit Preview covers manual checks for now |
 | 27 | P3 | backlog | [precomputed-rankings-materialization](enhancements/27-precomputed-rankings-materialization-070926.md) — deferred, re-confirmed |
 | 28 | P3 | backlog | [job-queue-background-workers](enhancements/28-job-queue-background-workers-070926.md) — deferred, re-confirmed |
 | 29 | P3 | backlog | [redis-optional-shared-cache](enhancements/29-redis-optional-shared-cache-070926.md) — deferred, re-confirmed |
@@ -57,7 +55,7 @@ Deps: 2 before heavy UI; extract `lib/scanner-reasoning.ts` before/with 4–6; 8
 | 36 | P2 | backlog | [macro-policy-forward-guidance-depth](enhancements/36-macro-policy-forward-guidance-depth-071326.md) — filed 2026-07-13, needs new data sourcing: FOMC dissent counts/vote splits, statement lexical-shift tracking, press-conference Q&A nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks (ECB/BOJ/BOE), CME FedWatch-style cut/hike probabilities |
 | 38 | P2 | backlog | [large-component-token-cost](enhancements/38-large-component-token-cost-071426.md) — filed 2026-07-14, split oversized files into section subcomponents; one file per session, not a big-bang pass |
 
-Fully-done, files deleted 2026-07-14 (see git log): enh/3 ci-pipeline, enh/4 api-integration-test-harness, enh/5 api-dev-hot-reload (folded into enh/34), enh/7 observability, enh/10 macro-regime-tab, enh/11 macro-catalyst-calendar, enh/15 technical-scorecard, enh/16 watchlist-monitor, enh/17 macro-volatility-tab, enh/18 macro-policy-tab, enh/23 data-freshness-monitoring, enh/24 polygon-av-backfill, enh/26 react-query-standardization, enh/30 liquidity-money-flow (shipped as Liquidity tab; no longer spawns 31/32), enh/34 performance-resilience (Waves A-D), enh/37 macro-cache-admin-visibility-gap.
+Fully-done, files deleted 2026-07-14 (see git log): enh/3 ci-pipeline, enh/4 api-integration-test-harness, enh/5 api-dev-hot-reload (folded into enh/34), enh/7 observability, enh/10 macro-regime-tab, enh/11 macro-catalyst-calendar, enh/15 technical-scorecard, enh/16 watchlist-monitor, enh/17 macro-volatility-tab, enh/18 macro-policy-tab, enh/19 macro-heatmap-tab (watchlist-by-sector panel + scanner CTA), enh/20 scorecard-guide (presets + hash anchors + scanner footer link), enh/23 data-freshness-monitoring, enh/24 polygon-av-backfill, enh/26 react-query-standardization, enh/30 liquidity-money-flow (shipped as Liquidity tab; no longer spawns 31/32), enh/34 performance-resilience (Waves A-D), enh/37 macro-cache-admin-visibility-gap.
 
 Deps: 6 Track 1 before 12 analyst section; 8 before 9; 27–29 need explicit approval. enh/33 = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup (use 39+, not 34/35/36 — those are taken); feeds `ai/14`.
 
@@ -83,15 +81,15 @@ Bug 4 (startup-universe-refresh-storm) done, file deleted; coupled to Cluster B 
 | # | P | Status | File |
 |---|---|---|---|
 | 1 | P0 | done (reference) | [agentic-workflow-research](ai/1-agentic-workflow-research-070926.md) — kept: floors R1–R10 cited by every agentic/product-AI PRD |
-| 2 | P0 | ready | [agentic-safety-context-isolation](ai/2-agentic-safety-context-isolation-070926.md) |
-| 3 | P0 | ready | [agentic-lesson-memory-hygiene](ai/3-agentic-lesson-memory-hygiene-070926.md) |
-| 4 | P0 | ready | [agentic-scoped-rules-trim](ai/4-agentic-scoped-rules-trim-070926.md) |
-| 5 | P0 | ready | [agentic-mcp-selective](ai/5-agentic-mcp-selective-070926.md) |
-| 6 | P0 | ready | [agentic-cursor-hooks-parity](ai/6-agentic-cursor-hooks-parity-070926.md) |
-| 7 | P1 | ready | [agentic-verifier-gate](ai/7-agentic-verifier-gate-070926.md) |
-| 8 | P1 | ready | [agentic-skills-discovery](ai/8-agentic-skills-discovery-070926.md) |
-| 9 | P1 | ready | [agentic-commands-playbooks](ai/9-agentic-commands-playbooks-070926.md) |
-| 10 | P2 | ready | [agentic-agents-md-bridge](ai/10-agentic-agents-md-bridge-070926.md) |
+| 2 | P0 | cursor-owned | [agentic-safety-context-isolation](ai/2-agentic-safety-context-isolation-070926.md) — not for Claude, see Cluster 2 |
+| 3 | P0 | cursor-owned | [agentic-lesson-memory-hygiene](ai/3-agentic-lesson-memory-hygiene-070926.md) — not for Claude, see Cluster 2 |
+| 4 | P0 | cursor-owned | [agentic-scoped-rules-trim](ai/4-agentic-scoped-rules-trim-070926.md) — not for Claude, see Cluster 2 |
+| 5 | P0 | cursor-owned | [agentic-mcp-selective](ai/5-agentic-mcp-selective-070926.md) — not for Claude, see Cluster 2 |
+| 6 | P0 | cursor-owned | [agentic-cursor-hooks-parity](ai/6-agentic-cursor-hooks-parity-070926.md) — not for Claude, see Cluster 2 |
+| 7 | P1 | cursor-owned | [agentic-verifier-gate](ai/7-agentic-verifier-gate-070926.md) — not for Claude, see Cluster 2 |
+| 8 | P1 | cursor-owned | [agentic-skills-discovery](ai/8-agentic-skills-discovery-070926.md) — not for Claude, see Cluster 2 |
+| 9 | P1 | cursor-owned | [agentic-commands-playbooks](ai/9-agentic-commands-playbooks-070926.md) — not for Claude, see Cluster 2 |
+| 10 | P2 | cursor-owned | [agentic-agents-md-bridge](ai/10-agentic-agents-md-bridge-070926.md) — not for Claude, see Cluster 2 |
 | 11 | P0 | ready | [product-ai-explain-csp](ai/11-product-ai-explain-csp-070926.md) |
 | 12 | P1 | ready | [product-ai-data-quality-chat](ai/12-product-ai-data-quality-chat-070926.md) |
 | 13 | P1 | ready | [product-ai-trade-journal-loop](ai/13-product-ai-trade-journal-loop-070926.md) |

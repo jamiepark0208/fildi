@@ -53,13 +53,20 @@ export interface VixCurvePoint {
 
 export interface SectorMoverPoint {
   ticker: string;
+  ret1d: number | null;      // raw 1-day price return, percent
+  ret1w: number | null;      // raw 1-week price return, percent
+  ret1m: number | null;      // raw 1-month price return, percent
   rs1m: number | null;       // 1m return vs SPY, percentage points
 }
 
 export interface SectorRotationPoint {
   ticker: string;
   label: string;
+  ret1d: number | null;      // raw sector (ETF) 1-day price return, percent — heatmap tile color
+  ret1w: number | null;      // raw sector 1-week price return, percent — heatmap tile color
+  ret1m: number | null;      // raw sector 1-month price return, percent — heatmap tile color
   rs1d: number | null;       // 1-day return vs SPY, percentage points — catches same-day news moves
+  rs1w: number | null;       // 1-week return vs SPY, percentage points
   rs1m: number | null;       // 1m return vs SPY, percentage points
   rs3m: number | null;       // 3m return vs SPY, percentage points
   momentum: number | null;   // rs1m - rs3m: is relative strength accelerating
@@ -518,18 +525,23 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
     return best;
   };
 
-  const fetchReturns = async (ticker: string): Promise<{ ret1d: number | null; ret1m: number | null; ret3m: number | null }> => {
+  type Returns = { ret1d: number | null; ret1w: number | null; ret1m: number | null; ret3m: number | null };
+  const NULL_RETURNS: Returns = { ret1d: null, ret1w: null, ret1m: null, ret3m: null };
+
+  const fetchReturns = async (ticker: string): Promise<Returns> => {
     const r = await Promise.allSettled([
       yahooFinance.chart(ticker, { period1, interval: "1d" }, { validateResult: false }),
     ]);
-    if (r[0].status !== "fulfilled") return { ret1d: null, ret1m: null, ret3m: null };
+    if (r[0].status !== "fulfilled") return NULL_RETURNS;
     const quotes = ((r[0].value as Record<string, unknown>)?.["quotes"] as Array<{ date: unknown; close: number | null }>) ?? [];
     const current  = findClose(quotes, 0);
     const dayAgo   = quotes.length >= 2 ? quotes[quotes.length - 2].close : null;
+    const weekAgo  = findClose(quotes, 7);
     const monthAgo = findClose(quotes, 30);
     const threeMonthAgo = findClose(quotes, 91);
     return {
       ret1d: current != null && dayAgo != null && dayAgo !== 0 ? ((current / dayAgo) - 1) * 100 : null,
+      ret1w: current != null && weekAgo != null && weekAgo !== 0 ? ((current / weekAgo) - 1) * 100 : null,
       ret1m: current != null && monthAgo != null && monthAgo !== 0 ? ((current / monthAgo) - 1) * 100 : null,
       ret3m: current != null && threeMonthAgo != null && threeMonthAgo !== 0 ? ((current / threeMonthAgo) - 1) * 100 : null,
     };
@@ -538,17 +550,18 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
   const moverTickers = SECTOR_ETFS.flatMap((s) => s.movers);
   const allTickers = ["SPY", ...SECTOR_ETFS.map((s) => s.ticker), ...moverTickers];
   const results = await allSettledLimited(allTickers.map((t) => () => fetchReturns(t)), 6);
-  const returnsByTicker = new Map(allTickers.map((t, i) => [t, results[i].status === "fulfilled" ? results[i].value : { ret1d: null, ret1m: null, ret3m: null }]));
+  const returnsByTicker = new Map(allTickers.map((t, i) => [t, results[i].status === "fulfilled" ? results[i].value : NULL_RETURNS]));
 
   const spyReturns = returnsByTicker.get("SPY")!;
-  const rsVsSpy = (ticker: string): number | null => {
-    const r = returnsByTicker.get(ticker);
-    return r?.ret1m != null && spyReturns.ret1m != null ? parseFloat((r.ret1m - spyReturns.ret1m).toFixed(2)) : null;
-  };
+  const rsVsSpy = (r: Returns): number | null =>
+    r.ret1m != null && spyReturns.ret1m != null ? parseFloat((r.ret1m - spyReturns.ret1m).toFixed(2)) : null;
+  const round2 = (n: number | null) => n != null ? parseFloat(n.toFixed(2)) : null;
 
   return SECTOR_ETFS.map((s) => {
-    const { ret1d, ret1m, ret3m } = returnsByTicker.get(s.ticker)!;
+    const sr = returnsByTicker.get(s.ticker)!;
+    const { ret1d, ret1m, ret3m } = sr;
     const rs1d = ret1d != null && spyReturns.ret1d != null ? ret1d - spyReturns.ret1d : null;
+    const rs1w = sr.ret1w != null && spyReturns.ret1w != null ? sr.ret1w - spyReturns.ret1w : null;
     const rs1m = ret1m != null && spyReturns.ret1m != null ? ret1m - spyReturns.ret1m : null;
     const rs3m = ret3m != null && spyReturns.ret3m != null ? ret3m - spyReturns.ret3m : null;
     const momentum = rs1m != null && rs3m != null ? rs1m - rs3m : null;
@@ -560,12 +573,14 @@ export async function fetchSectorRotation(): Promise<SectorRotationPoint[]> {
     }
     return {
       ticker: s.ticker, label: s.label,
-      rs1d: rs1d != null ? parseFloat(rs1d.toFixed(2)) : null,
-      rs1m: rs1m != null ? parseFloat(rs1m.toFixed(2)) : null,
-      rs3m: rs3m != null ? parseFloat(rs3m.toFixed(2)) : null,
-      momentum: momentum != null ? parseFloat(momentum.toFixed(2)) : null,
+      ret1d: round2(sr.ret1d), ret1w: round2(sr.ret1w), ret1m: round2(sr.ret1m),
+      rs1d: round2(rs1d), rs1w: round2(rs1w), rs1m: round2(rs1m), rs3m: round2(rs3m),
+      momentum: round2(momentum),
       quadrant,
-      topMovers: s.movers.map((m) => ({ ticker: m, rs1m: rsVsSpy(m) })),
+      topMovers: s.movers.map((m) => {
+        const mr = returnsByTicker.get(m)!;
+        return { ticker: m, ret1d: round2(mr.ret1d), ret1w: round2(mr.ret1w), ret1m: round2(mr.ret1m), rs1m: rsVsSpy(mr) };
+      }),
     };
   });
 }

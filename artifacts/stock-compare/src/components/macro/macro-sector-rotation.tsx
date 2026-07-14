@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ResponsiveContainer, ScatterChart, XAxis, YAxis, CartesianGrid, ZAxis,
   ReferenceLine, Tooltip, Scatter, LabelList, Cell,
@@ -5,6 +6,130 @@ import {
 import { Loader2, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SectorRotationPoint } from "./macro-page-types";
+
+// Discrete red→green intensity bands — same visual language as TradingView/Finviz
+// heatmaps (a handful of solid, saturated steps reads far better at a glance than
+// a continuous gradient, which washes out to grey for realistic sub-1% moves).
+const GREEN_STEPS = ["#0f3d22", "#146632", "#189042", "#1fb854", "#2ecc66"]; // dim → bright
+const RED_STEPS   = ["#4a1414", "#7a1c1c", "#a32424", "#cc2e2e", "#f0413f"]; // dim → bright
+const FLAT_COLOR = "#3f3f46"; // zinc-700 — effectively unchanged
+const NULL_COLOR = "#27272a"; // zinc-800 — no data
+
+// scaleMax = the |%| at which color hits full intensity — wider bands for longer
+// timeframes so a +4% week doesn't look identical to a +4% day.
+function heatColor(pct: number | null, scaleMax: number): string {
+  if (pct == null) return NULL_COLOR;
+  if (Math.abs(pct) < 0.03) return FLAT_COLOR;
+  const steps = pct > 0 ? GREEN_STEPS : RED_STEPS;
+  const t = Math.min(1, Math.abs(pct) / scaleMax);
+  const idx = Math.min(steps.length - 1, Math.floor(t * steps.length));
+  return steps[idx];
+}
+
+function fmtPct(pct: number | null): string {
+  return pct != null ? `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : "—";
+}
+
+const HEATMAP_TIMEFRAMES = [
+  { id: "1d", label: "1D", key: "ret1d" as const, scaleMax: 2.5 },
+  { id: "1w", label: "1W", key: "ret1w" as const, scaleMax: 5 },
+  { id: "1m", label: "1M", key: "ret1m" as const, scaleMax: 10 },
+];
+
+export function SectorHeatmapGrid({
+  data, loading,
+}: {
+  data: SectorRotationPoint[] | undefined;
+  loading?: boolean;
+}) {
+  const [timeframe, setTimeframe] = useState<typeof HEATMAP_TIMEFRAMES[number]>(HEATMAP_TIMEFRAMES[0]);
+
+  if (loading || !data) {
+    return (
+      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-[280px]">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Tile "footprint" scales with |% move| for this timeframe — a true treemap-style
+  // weight (bigger box = bigger flow), not a uniform grid. flex-grow does the sizing;
+  // flex-wrap packs rows so bigger movers naturally claim more space per row.
+  const weightOf = (s: SectorRotationPoint) => Math.max(0.35, Math.abs(s[timeframe.key] ?? 0));
+
+  return (
+    <div className="border border-border rounded-lg p-3">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sector Performance</h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: RED_STEPS[4] }} />
+            down
+            <span className="w-2.5 h-2.5 rounded-sm ml-2" style={{ background: FLAT_COLOR }} />
+            flat
+            <span className="w-2.5 h-2.5 rounded-sm ml-2" style={{ background: GREEN_STEPS[4] }} />
+            up
+          </div>
+          <div className="flex gap-1">
+            {HEATMAP_TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.id}
+                onClick={() => setTimeframe(tf)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
+                  timeframe.id === tf.id ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/70",
+                )}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {data.map((s) => {
+          const val = s[timeframe.key];
+          return (
+            <div
+              key={s.ticker}
+              className="rounded-md p-2.5 flex flex-col justify-between min-h-[100px]"
+              style={{ background: heatColor(val, timeframe.scaleMax), flex: `${weightOf(s)} 1 170px` }}
+              title={`${s.label} (${s.ticker}) ${timeframe.label}: ${fmtPct(val)}`}
+            >
+              <div>
+                <p className="text-xs font-semibold text-white leading-tight drop-shadow-sm">{s.label}</p>
+                <p className="text-[10px] text-white/70 font-mono">{s.ticker}</p>
+              </div>
+              <p className="text-xl font-bold text-white tabular-nums drop-shadow-sm">
+                {fmtPct(val)}
+              </p>
+              {s.topMovers?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {s.topMovers.map((m) => {
+                    const mv = m[timeframe.key];
+                    return (
+                      <span
+                        key={m.ticker}
+                        className="text-[9px] font-mono px-1 py-0.5 rounded text-white leading-tight"
+                        style={{ background: heatColor(mv, timeframe.scaleMax * 1.4) }}
+                      >
+                        {m.ticker} {fmtPct(mv)}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-slate-500 mt-2">
+        Price-based sector ETF performance (XLK, XLF, etc.) — a proxy, not measured fund flow. Box size = magnitude of move.
+      </p>
+    </div>
+  );
+}
 
 const QUADRANT_COLOR: Record<string, string> = {
   leading:   "#22c55e",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { TopNav } from "@/components/top-nav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -12,22 +13,50 @@ import {
 import { useGuideStatus } from "@/hooks/use-guide-status";
 import { useAuth } from "@/context/AuthContext";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
-import { validateScoringWeights, type ScoringWeightsConfig } from "@/lib/scoring-weights";
+import { validateScoringWeights, SCORING_PRESETS, type ScoringWeightsConfig } from "@/lib/scoring-weights";
 import { BookOpen } from "lucide-react";
 
 export function ScorecardGuideContent({ showHeader = true }: { showHeader?: boolean }) {
   const status = useGuideStatus();
   const { isAdmin } = useAuth();
+  const [, navigate] = useLocation();
   const { weights, saveConfig, resetDefaults, isSaving } = useScoringPreferences();
   const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "fundamental";
   const [tab, setTab] = useState(initialTab);
   const [draft, setDraft] = useState<ScoringWeightsConfig>(weights);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [preset, setPreset] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dirty) setDraft(weights);
   }, [weights, dirty]);
+
+  // Keep ?tab= in the URL in sync so the current tab is shareable, and scroll
+  // to a #metric-<key> anchor (e.g. deep-linked from a score badge) once the
+  // tab content has painted.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState(null, "", url.toString().replace(window.location.origin, ""));
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const t = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [tab]);
+
+  const applyPreset = (key: string) => {
+    const p = SCORING_PRESETS[key];
+    if (!p) return;
+    const err = validateScoringWeights(p.config);
+    if (err) { setError(err); return; }
+    setPreset(key);
+    setDraft(p.config);
+    setDirty(true);
+    setError(null);
+  };
 
   const fundCov = status.coverageFor("fundamentals");
   const techCov = status.coverageFor("technicals");
@@ -38,6 +67,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
     setDraft(next);
     setDirty(true);
     setError(null);
+    setPreset(null);
   };
 
   const handleSave = async () => {
@@ -54,6 +84,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
     if (saveErr) { setError(saveErr); return; }
     setDirty(false);
     setError(null);
+    setPreset(null);
   };
 
   return (
@@ -79,6 +110,23 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           <p className="text-sm text-foreground/90 mb-5 leading-relaxed">
             Scores are peer-relative within your watchlist. Each metric is normalized, weighted, and combined into a 0–100 score.
           </p>
+
+          {isAdmin && (
+            <div className="flex items-center gap-2 mb-5">
+              <span className="text-xs text-muted-foreground mr-1">Presets:</span>
+              {Object.entries(SCORING_PRESETS).map(([key, p]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={preset === key ? "default" : "outline"}
+                  className="text-xs h-7"
+                  onClick={() => applyPreset(key)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+          )}
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="h-10 mb-4">
@@ -172,6 +220,11 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
 
           <p className="text-xs text-muted-foreground mt-4">
             Relative to watchlist. Missing data → 0.
+          </p>
+          <p className="text-xs mt-2">
+            <button className="text-primary hover:underline" onClick={() => navigate("/options-scanner")}>
+              See scores on Scanner →
+            </button>
           </p>
         </div>
     </>

@@ -139,13 +139,20 @@ export interface MacroCharts {
 
 export interface SectorMoverPoint {
   ticker: string;
+  ret1d: number | null;
+  ret1w: number | null;
+  ret1m: number | null;
   rs1m: number | null;
 }
 
 export interface SectorRotationPoint {
   ticker: string;
   label: string;
+  ret1d: number | null;
+  ret1w: number | null;
+  ret1m: number | null;
   rs1d: number | null;
+  rs1w: number | null;
   rs1m: number | null;
   rs3m: number | null;
   momentum: number | null;
