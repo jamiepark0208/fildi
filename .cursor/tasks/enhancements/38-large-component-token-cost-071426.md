@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | backlog |
+| **Status** | in-progress — 1 of 6 done |
 | **Priority** | P2 |
 | **Area** | frontend / dev-cost |
 | **Effort** | M (per file) |
@@ -18,7 +18,7 @@ Several frontend files have grown large enough that every Claude session touchin
 | `components/settings/StockDBTab.tsx` | 1224 | Admin-only, lower churn — lower priority despite size |
 | `pages/options-scanner.tsx` | 1220 | Actively edited alongside enh/33 momentum work |
 | `pages/portfolio.tsx` | 1092 | Pairs with portfolio-analysis.tsx above — likely same refactor pass |
-| `components/stock-breakdown.tsx` | 1019 | Highest edit frequency of any file this session (enh/12 A2-A6, ongoing Competitors v2) — the one that prompted this filing |
+| `components/stock-breakdown.tsx` | ~~1019~~ 513 | **Done 2026-07-14** — split into `analyst-ratings-section.tsx`, `market-sentiment-section.tsx`, `news-card.tsx`, `breakdown-metrics-table.tsx`; also deleted dead code (`gradeColor`/`actionLabel`, unreferenced anywhere). tsc + all 268 tests pass. |
 
 ### Suggested approach (not yet scoped in detail)
 Split each into a page/container shell + section subcomponents (already the pattern `catalysts-section.tsx`, `competitors-section.tsx` follow for `stock-breakdown.tsx` — extend it: pull the remaining inline sections — bull/bear summary, header CTAs, overview bullets — into their own files the same way). `MacroComponents.tsx` is a grab-bag of unrelated chart components under one name; split by chart type/tab instead of one shared file.
