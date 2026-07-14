@@ -151,41 +151,14 @@ optional LLM: only format template facts; never invent fields not in JSON
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- StockDBTab (+ optional small helper); APIs unchanged preferred
-- Rollback: hide panel
-
-### 2. Bug introductions
-- Stale citation after override — must use invalidated query
-- LLM invents fields — templates-first; constrain keys
-- Field name mismatch (`pe` vs `peRatio`) — use FIELD_DEFS / COLS keys from UI
-- Catch: override then ask; confirm new source
-
-### 3. Performance & cost
-- Template &lt;100ms over cached JSON
-- LLM click/send only; one ticker max
-- Forbid universe prompts
-
-### 4. Workflow
-- Before: scan tables  
-- After: FAQ  
-- SKIP LLM if templates cover 80%
-
-### 5. Drift
-- Paired: provenance table ↔ FAQ ↔ FIELD_DEFS
-- Owner: payload shape change updates FAQ map
-
-### 6. Scalability
-- Per-ticker admin OK  
-- Org-wide trader bot = future
+- Citations must use an invalidated query after an override, or they show stale data
+- LLM must be templates-first and constrained to FIELD_DEFS/COLS keys from the UI — don't let it invent field names
+- Scoped to StockDBTab (+ optional small helper), one ticker max, no universe prompts
+- Paired with provenance table ↔ FAQ ↔ FIELD_DEFS — a payload shape change must update the FAQ map
 
 **Do not:** SQL agent; DB dump; Redis memory (R6, R9).  
 **Floors:** R3, R6, R9, R10.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready (templates-first; health later)  
-**Need:** FAQ over existing provenance JSON on StockDBTab.  
-**Better:** Reuse hover query; no new API; no SQL agent.
+## Review: APPROVE — ready (templates-first; health later). FAQ over existing provenance JSON on StockDBTab; reuse hover query; no new API; no SQL agent.

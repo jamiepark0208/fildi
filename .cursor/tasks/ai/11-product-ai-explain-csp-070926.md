@@ -198,43 +198,16 @@ Disclaimer copy: “AI narrative — not a trade recommendation.”
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius
-- options-scanner (+ home later); shared hook from /3
-- Rollback: remove button / flag
-
-### 2. Bug introductions
-- AI contradicts GO → always stack numbers + buildReasoning above AI
-- Stale cache after score refresh → key must include score/signal
-- Wrong-ticker click in list → bind ticker strictly; stopPropagation
-- Partial technicalData → 400 or garbage prose — gate on canBuildPayload
-- Confusing strike-detail “Why” with Haiku — different feature
-- Catch: kill API key; confirm soft fallback; change filters → cache miss
-
-### 3. Performance & cost
-- p95 explain &lt; 3s target; ≪1 call per card view
-- Forbidden: universe auto-explain
-
-### 4. Workflow
-- Before: buildReasoning only on expand  
-- After: optional narrative  
-- SKIP / block if /3 not started — sequence or merge
-
-### 5. Drift
-- Paired: buildReasoning ↔ explain prompts ↔ Scorecard Guide
-- One hook; no second route (R3)
-
-### 6. Scalability
-- Click-only + sessionStorage; option explain later = same route new scoreType (out of scope)
+- AI must never contradict the GO signal — always stack numbers + buildReasoning above the AI narrative
+- Cache key must include score/signal or it serves stale explanations after a score refresh
+- Bind ticker strictly with stopPropagation to avoid wrong-ticker clicks in lists
+- Gate on `canBuildPayload` — partial technicalData would otherwise cause a 400 or garbage prose
+- Don't confuse this with the strike-detail "Why" (Haiku) — different feature
+- p95 target <3s, click-only (never universe auto-explain)
 
 **Do not:** auto-explain; second API; LLM overrides scores (R3, R4).  
 **Floors:** R3, R4, R8, R9, R10.
 
 ---
 
-## Review (2026-07-09) — deep pass (ai/2 intensity)
-
-**Verdict:** APPROVE-WITH-SEQ — ready to build **after** or **merged with** new_app_features/3  
-**Lenses:** Eng Keep (API exists; UI gap real; payload mapping is the hard part) | BA Keep | PM Keep (P0 UX)
-
-**Need:** CSP card Explain more on shared hook — not a new API.  
-**Better:** Prove /3 artifacts exist before scanner-only PR; map technicalData from technical.tsx pattern.
+## Review: APPROVE-WITH-SEQ — ready to build after or merged with new_app_features/3. CSP card Explain more on shared hook, not a new API; prove /3 artifacts exist before a scanner-only PR; map technicalData from technical.tsx pattern.

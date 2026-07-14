@@ -248,18 +248,11 @@ Wire **band regret** from enh/35 into memory when that ships (soft dep).
 
 ## 12. Impact & Risk (for later builds)
 
-### Blast radius
-- `users`, `trade_posts`, feed UI, optional new memory table  
-- Rollback: disable job; hide AI badge  
-
-### Bug risks
-- AI posts flooding feed — hard daily cap  
-- LLM inventing scores — prompt must bind to JSON features only  
-- Memory polluting human journal queries — filter `source=ai` / system userId  
+- AI posts flooding the feed needs a hard daily cap
+- LLM must bind strictly to JSON features when scoring — never invent scores
+- Memory table must filter `source=ai` / system userId so it doesn't pollute human journal queries
+- Touches `users`, `trade_posts`, feed UI, optional new memory table; disable job / hide AI badge to roll back
 
 ---
 
-## Review (2026-07-09)
-
-**Verdict:** APPROVE — ready as research SSOT for AI trader account  
-**Key:** System user + deterministic select + memory retrieve; drivers/regret owned with enh/33; floors R3–R10.
+## Review: APPROVE — ready as research SSOT for AI trader account. System user + deterministic select + memory retrieve; drivers/regret owned with enh/33; floors R3–R10.

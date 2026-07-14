@@ -141,28 +141,13 @@ THEN index.ts must NOT also withRetry(runSeed) unconditionally
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- Startup behavior, enrichment timing, DB new pg-boss tables
-
-### 2. Bug introductions
-- Double seed / double FMP burn
-- Cron TZ mistakes (ET vs UTC) — document
-- pg-boss schema drift with Drizzle
-
-### 3. Performance
-- Neutral if replacing setInterval; watch connection pool
-
-### 4. Workflow
-- Ops visibility for failed backfills
-
-### 5. Drift
-- Paired: index withRetry ↔ scheduler ↔ enh/24 CLI ↔ data-health
+- Biggest risk if un-deferred: double seed / double FMP burn if pg-boss schedule and `index.ts` withRetry both call `runSeed`
+- Cron TZ mistakes (ET vs UTC) need explicit documentation
+- pg-boss schema would need to coexist with Drizzle migrations without drifting
+- Touches startup behavior, enrichment timing, and adds new DB tables — not a small change
 
 **Do not:** BullMQ; ship alongside boot seed without gate; Redis.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** DEFER (confirmed) — backlog  
-**Key:** `withRetry` + `startScheduler` already provide seed/enrichment orchestration. pg-boss is ops polish / scale — not missing core capability.
+## Review: DEFER (confirmed) — backlog. `withRetry` + `startScheduler` already provide seed/enrichment orchestration. pg-boss is ops polish / scale — not missing core capability.

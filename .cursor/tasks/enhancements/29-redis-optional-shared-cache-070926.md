@@ -143,29 +143,12 @@ export function createCache<T>(name: string, ttlMs: number): CacheLike<T> {
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- Every named cache consumer; admin monitor; deploy topology
-
-### 2. Bug introductions
-- JSON serialize Dates → string drift
-- Huge options chains OOM Redis
-- Accidental FLUSHDB wiping unrelated keys
-- Split brain if some instances lack REDIS_URL
-
-### 3. Performance
-- Network hop vs memory — may be slower for tiny payloads
-
-### 4. Workflow
-- Only pays off with ≥2 API replicas
-
-### 5. Drift
-- Paired: TTLCache ↔ registry ↔ data-architecture “No Redis” ↔ L-04
+- Would touch every named cache consumer, admin monitor, and deploy topology — a wide blast radius for a deferred item
+- Real risks if built: Date serialization drift, huge options chains OOMing Redis, accidental FLUSHDB wiping unrelated keys, split-brain if some instances lack REDIS_URL
+- Only pays off with ≥2 API replicas; single-instance TTLCache + PG is enough today
 
 **Do not:** implement while deferred; session-in-Redis; replace PG; ignore skill.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** DEFER (hard) — backlog  
-**Key:** Architecture + lessons say no Redis; single-instance TTLCache + PG is enough. Un-defer only for horizontal scale with explicit approval.
+## Review: DEFER (hard) — backlog. Architecture + lessons say no Redis; single-instance TTLCache + PG is enough. Un-defer only for horizontal scale with explicit approval.

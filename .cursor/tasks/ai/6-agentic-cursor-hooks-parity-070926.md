@@ -182,41 +182,16 @@ No database. Hooks are local Node scripts.
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- `.cursor/hooks.json`, new hook scripts, CURSOR/session docs
-- Who: Cursor agents only
-- Rollback: revert hooks.json to sessionStart-only (&lt;5 min)
-
-### 2. Bug introductions
-- Double session injection — keep single sessionStart path
-- Wrong I/O schema (Claude vs Cursor) — port carefully
-- Hardcoded Replit cwd if someone “reuses” Claude file — forbidden
-- Matcher never fires — document; keep ai/4 rule
-- Catch: Write with codegraph down → warn not lock
-
-### 3. Performance & cost
-- p95 &lt; 2s; no LLM in hooks; cap inject ≤1200 chars
-
-### 4. Workflow
-- Before: sessionStart only  
-- After: preToolUse + optional sessionEnd  
-- SKIP hard-lock if Agent mode breaks
-
-### 5. Drift
-- Paired: Claude settings hooks ↔ Cursor hooks.json (policy sync, not one binary)
-- Owner: behavior change updates both sides’ docs
-
-### 6. Scalability
-- Path-scoped `codegraph context "<file>"` only
-- Breaks if every keystroke runs heavy CLI — narrow matcher
+- Keep a single sessionStart path — avoid double session injection
+- Port the I/O schema carefully; Claude's and Cursor's differ
+- Never hardcode the Replit cwd by reusing the Claude file directly — forbidden
+- If codegraph is down during a Write, warn rather than lock the hook
+- Cap injected context at ≤1200 chars, p95 <2s, no LLM in hooks
+- Scoped to `.cursor/hooks.json`, new hook scripts, CURSOR/session docs; rollback to sessionStart-only in <5 min
 
 **Do not:** orchestrator, auto-commit, state.md writes (R1, R2).  
 **Floors:** R1, R2, R10.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Need:** Cursor-native precheck + optional sessionEnd.  
-**Better:** Fail-open; artifacts-only; never share Replit cwd script.
+## Review: APPROVE — ready. Cursor-native precheck + optional sessionEnd; fail-open; artifacts-only; never share the Replit cwd script.

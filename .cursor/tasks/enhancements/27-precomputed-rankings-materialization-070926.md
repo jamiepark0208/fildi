@@ -129,27 +129,12 @@ Tier A: persist scores on PG (`ticker_fundamentals` fund columns). Inputs alread
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- If wrongly built now: dual write paths, prefs bugs, migration churn
-
-### 2. Bug introductions
-- Snapshot ignoring user weights → wrong home scores
-- Mixing FUNDAMENTAL_WATCHLIST with peer_groups mid-migration — plan forbids watchlist-as-peers
-
-### 3. Performance
-- Current: persist hit is cheap; client V2 on ~shelf size is fine
-
-### 4. Workflow
-- Ops: trust ApiMonitor / data-health for freshness, not a new rankings dashboard
-
-### 5. Drift
-- Paired: fund_* persist ↔ sector plan ↔ scheduler ↔ L-04 waterfall
+- Building this now risks dual write paths and migration churn since rankings are already materialized
+- A snapshot must respect user weights, or home scores go stale/wrong
+- Don't mix FUNDAMENTAL_WATCHLIST with peer_groups mid-migration — plan forbids watchlist-as-peers
 
 **Do not:** rankings_snapshot clone; Redis; un-defer without approval.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** DEFER (confirmed) — backlog  
-**Key:** Fund rankings **already materialized** on `ticker_fundamentals` + served by API. Task was pitched as greenfield — wrong. Revisit with sector batch or proven pain only.
+## Review: DEFER (confirmed) — backlog. Fund rankings already materialized on `ticker_fundamentals` + served by API; task was pitched as greenfield, which is wrong. Revisit with sector batch or proven pain only.

@@ -143,29 +143,13 @@ export function buildReasoning(
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- `options-scanner.tsx` (large) — grep before edit; prefer extract + thin toggle
-- Rollback: remove toggle; keep Advanced as only view
-
-### 2. Bug introductions
-- Simple card click vs expand/refresh — `stopPropagation` on action buttons
-- Sorting diverges from Advanced — document Simple-only sort
-- Catch: GO ticker shows RSI/MFI headline without expand; Advanced unchanged
-
-### 3. Performance
-- Fewer DOM nodes in Simple; same query load
-
-### 4. Workflow
-- Triage GO list → expand one name → sell put
-
-### 5. Drift
-- Paired: `scanner-reasoning.ts` ↔ home FeaturedPick ↔ top picks
+- `options-scanner.tsx` is large — grep before editing, prefer extract + thin toggle over inline changes
+- Card click vs expand/refresh needs `stopPropagation` on action buttons
+- Simple-view sort diverging from Advanced needs explicit documentation
+- Paired with `scanner-reasoning.ts` ↔ home FeaturedPick ↔ top picks — keep in sync
 
 **Do not:** delete Advanced; new scorer; prefetch chains.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Key:** Reasoning exists but only on expand — Simple surfaces it; extract lib first for 4/6.
+## Review: APPROVE — ready. Reasoning exists but only on expand — Simple surfaces it; extract lib first for seq 4/6.

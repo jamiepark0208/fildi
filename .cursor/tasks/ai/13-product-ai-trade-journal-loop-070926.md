@@ -171,42 +171,14 @@ Summarize (optional):
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius
-- feed close, schema, TradeCard, profile; optional summarize
-- Rollback: hide UI; nullable columns; flag summarize
-
-### 2. Bug introductions
-- Mis-tagged outcomes — allow edit; show n
-- PII to model vendor — notes-only; redact
-- Journal conflated with agent lessons — hard ban + ai/3
-- Double-close — existing feed semantics
-- Catch: tagged close → profile; lessons.md clean
-
-### 3. Performance & cost
-- Tag write: single UPDATE  
-- Retrieve &lt;50ms indexed  
-- AI click-only  
-
-### 4. Workflow
-- Before: close = premium + PnL  
-- After: optional reflection chips  
-- Prefer optional tags v1
-
-### 5. Drift
-- Paired: feed ↔ portfolio journal ↔ profile ↔ **not** lessons.md
-- One schema owner
-
-### 6. Scalability
-- User-scoped similar mistakes v1  
-- No cross-user without privacy design
+- Mis-tagged outcomes should be editable, and n shown — don't lock users into a bad tag
+- Notes-only to the model vendor, redacted — no PII
+- Hard ban on conflating this journal with agent lessons.md (see ai/3) — separate systems entirely
+- Nullable columns + flagged summarize keep rollback cheap; scoped to feed close/schema/TradeCard/profile
 
 **Do not:** fine-tune; auto-trade; write lessons.md (R5, R8).  
 **Floors:** R3, R5, R8, R9, R10.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — **Phase 0 first**  
-**Need:** Tags on close + learning loop; schema with enh/8.  
-**Better:** Close is PnL-only today (`closePremium`); no tags on `trade_posts` yet.
+## Review: APPROVE — Phase 0 first. Tags on close + learning loop, schema shared with enh/8; close is PnL-only today (`closePremium`), no tags on `trade_posts` yet.

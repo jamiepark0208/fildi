@@ -143,29 +143,12 @@ Phase B: after ai/13 design — `feat(feed): optional journal tags on close`
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- profile.tsx primarily
-- Rollback: revert StatsBar
-
-### 2. Bug introductions
-- 90d toggle without server filter → wrong stats — ship all-time only if posts window incomplete
-- Bucket scanner with many tickers — pass one ticker or documented multi behavior
-- Catch: profile with known closed count; StatsBar matches
-
-### 3. Performance
-- Client aggregates on already-fetched posts
-
-### 4. Workflow
-- Credibility at a glance; buckets → action
-
-### 5. Drift
-- Paired: StatsBar n ↔ feed TopPerformers ↔ ai/13 tags ↔ leaderboard
+- 90d toggle without a server-side filter would give wrong stats — ship all-time only unless the posts window is complete
+- Bucket scanner needs a documented behavior for multiple tickers (or pass just one)
+- Paired with feed TopPerformers n ↔ ai/13 tags ↔ leaderboard — keep in sync
 
 **Do not:** Tradervue clone; OAuth; lessons.md; solo tag schema.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — Phase A ready; tags with ai/13  
-**Was:** draft. **Key:** `stats.closed` already in type — surface it; scanner from buckets.
+## Review: APPROVE — Phase A ready, tags with ai/13. `stats.closed` already in type — surface it; scanner from buckets.

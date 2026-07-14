@@ -179,30 +179,13 @@ Phase B: `refactor(macro): migrate fetches to Orval hooks`
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- Spec + generated clients (wide type surface) + one page at a time
-- Rollback: revert page PR; regen from previous yaml if needed
-
-### 2. Bug introductions
-- Wrong response schema → runtime Orval parse / TS lies — validate against real JSON fixtures
-- Losing `credentials: "include"` → 401 on session routes
-- operationId renames break imports — stable ids
-- Catch: macro Regime loads; network tab shows same `/api/macro/*` URLs
-
-### 3. Performance
-- Neutral if staleTimes preserved; enh/26 may improve dedupe later
-
-### 4. Workflow
-- Safer refactors; fewer silent FE breaks
-
-### 5. Drift
-- Paired: openapi.yaml ↔ routes ↔ Orval ↔ enh/26 query keys
+- Wrong response schema causes runtime Orval parse errors / TS lies — validate against real JSON fixtures, not assumptions
+- Losing `credentials: "include"` in generated clients breaks session routes with 401s
+- operationId renames break imports — keep ids stable
+- Migrate incrementally (one page at a time); regen from previous yaml if a page needs rollback
 
 **Do not:** big-bang; hand-edit generated; skip cookie auth on feed.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready (incremental)  
-**Was:** ready with thin audit. **Key:** only 5 OpenAPI paths; codegen script is `codegen`; migrate macro first; profile is 3 fetches not 8.
+## Review: APPROVE — ready, incremental. Only 5 OpenAPI paths; codegen script is `codegen`; migrate macro first; profile is 3 fetches not 8.

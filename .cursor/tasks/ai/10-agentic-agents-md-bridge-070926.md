@@ -139,36 +139,13 @@ Compressed tree (detail in AGENTS.md):
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius
-- CURSOR.md only; rollback trivial
-
-### 2. Bug introductions
-- Stale summary if registry changes — section says AGENTS.md is truth
-- Agents treat pointer as license for Task storms — R1 line required
-- Confusing Claude agent names with Cursor Task types — “align names; still no orchestrator”
-
-### 3. Performance & cost
-- Near-zero if not embedding full AGENTS.md
-
-### 4. Workflow
-- Before: Cursor-blind to catalog  
-- After: one hop  
-- SKIP if pointer already present — **verified absent today**
-
-### 5. Drift
-- Paired: AGENTS.md ↔ CURSOR bridge ↔ CLAUDE agent mentions
-- Guardrail: link only
-
-### 6. Scalability
-- Registry grows; pointer stays one link
+- CURSOR.md only, so rollback is trivial — but the section must say AGENTS.md is the source of truth, or it goes stale as the registry changes
+- Must include the R1 guardrail line so agents don't treat the pointer as license for Task storms
+- Watch for confusing Claude agent names with Cursor Task types — align names, still no orchestrator
 
 **Do not:** orchestrator; always-load AGENTS (R1).  
 **Floors:** R1, R2, R10.
 
 ---
 
-## Review (2026-07-09) — deep pass (ai/2 intensity)
-
-**Verdict:** APPROVE — ready (XS)  
-**Need:** Missing pointer confirmed.  
-**Better:** ≤20 lines + R1/R2; mega-PR with ai/9.
+## Review: APPROVE — ready (XS). Missing pointer confirmed; keep to ≤20 lines + R1/R2; mega-PR with ai/9.

@@ -195,40 +195,14 @@ rg -n "PROJECT RULES|alwaysApply" CURSOR.md
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius / impact
-- CURSOR.md (+ rare frontmatter fix)
-- Who: Cursor agents (discoverability of on-demand rules)
-- Rollback: revert CURSOR.md
-
-### 2. Bug introductions
-- Listing requestable rules might tempt agents to “always load them” — table must show **Invoke** column (on demand)
-- Accidental `alwaysApply: true` on task-reviewer/PM while “documenting” — acceptance count catches this
-- Removing codegraph from alwaysApply while “trimming” — **forbidden**
-
-### 3. Performance & cost
-- No runtime change if frontmatter unchanged
-- Better discoverability may *reduce* mistaken always-on additions later
-- Always-on token load today ≈ sum of 3 small mdc files (~3KB) — acceptable; do not grow
-
-### 4. Workflow changes
-- Before: incomplete CURSOR rules list  
-- After: full inventory + hard policy  
-- SKIP inventing trim work when count already = 3
-
-### 5. Drift & consistency
-- Paired: CURSOR.md table ↔ actual `.mdc` frontmatter
-- Owner: any new rule file updates CURSOR table **same PR**
-- ai/1 inventory text can stay; CURSOR is agent-facing SSOT
-
-### 6. Scalability
-- Hard cap **3** alwaysApply
-- Breaks when: every feature wants alwaysApply — reject; use skills (**ai/8**) or requestable rules
+- Listing requestable rules in a table might tempt agents to "always load them" — the table must have an explicit Invoke (on-demand) column
+- Removing codegraph from alwaysApply while "trimming" is forbidden
+- Hard cap stays at 3 alwaysApply rules — reject any feature wanting a 4th; use skills (ai/8) or requestable rules instead
+- Scoped to CURSOR.md (+ rare frontmatter fix); any new rule file must update the CURSOR table in the same PR
 
 **Do not:** 4th alwaysApply; always-inject lessons/PM/task-reviewer/AGENTS/skills (R1).  
 **Floors:** R1, R10.
 
 ---
 
-## Review notes
-
-Batch pack confirmed; deep pass = **document inventory + policy**, not a refactor of rules. Cap already satisfied on disk.
+## Review: batch pack confirmed; deep pass = document inventory + policy, not a refactor of rules. Cap already satisfied on disk.

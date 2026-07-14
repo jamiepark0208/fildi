@@ -164,36 +164,14 @@ None.
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- CURSOR.md; rollback trivial
-
-### 2. Bug introductions
-- Stale paths after rename — acceptance lists every file
-- Body fork drift — forbid
-- Agents always-load all skills — intro forbids
-
-### 3. Performance
-- Zero always-on token increase (table only)
-
-### 4. Workflow
-- Before: incomplete table  
-- After: full discovery  
-- SKIP stubs if table enough
-
-### 5. Drift
-- Paired: CLAUDE.md ↔ CURSOR ↔ `.claude/skills/*`
-- Owner: new skill updates both tables same PR
-
-### 6. Scalability
-- Table scales; stubs don’t — prefer table
+- Acceptance must list every file to catch stale paths after a rename
+- Forbid body-fork drift — no copies of skill content, table only
+- Intro must explicitly forbid agents always-loading all skills
+- Scoped to CURSOR.md, zero always-on token increase, trivial rollback; a new skill must update both the CLAUDE.md and CURSOR tables in the same PR
 
 **Do not:** always-load skills; fork bodies (R1).  
 **Floors:** R1, R10.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready (table-only)  
-**Need:** Complete CURSOR skills table.  
-**Better:** Full paths + replit skip note; no body copies.
+## Review: APPROVE — ready (table-only). Complete CURSOR skills table with full paths + replit skip note; no body copies.
