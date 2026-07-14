@@ -19,8 +19,9 @@ Three measures of data quality: timeliness, accuracy, completeness.
 - **Own the data.** Every fetch result (success OR failure) gets persisted or mapped.
 - **Suspect means cross-check, not discard.** Extreme values might be real (startup/meme/penny/pre-revenue).
   Research briefly — check peer group scoring_mode before overriding anything.
-- **Record everything.** What worked, what failed, for which ticker+field.
-  Future fetches consult this map first — never re-test a known-bad source/ticker combo.
+- **Record everything.** What worked, what failed, for which ticker+field, in the session log
+  (see LOGGING below) — there's no persisted per-field pass/fail table today, so the log is
+  the only record; check it before re-testing a combo you may have already ruled out this session.
 
 ---
 
@@ -33,7 +34,9 @@ Three measures of data quality: timeliness, accuracy, completeness.
 
 **DB persistence (long-term):** ticker_fundamentals, ticker_technicals
 - Fundamentals: written by writeFundamentalsRow() in fundamentals-db.ts
-- Technicals: written by technical refresh job
+- Technicals: written by computeTechnicalRankingsV2() in lib/technical-rankings.ts (the "V2"
+  scorer — see technical-scorecard.md). Separate from indicator_cache's simpler RSI/MFI signal,
+  which lib/seeder.ts populates at boot — both are live, not sequential versions of each other.
 - Upsert pattern: ON CONFLICT DO UPDATE — never DELETE+INSERT
 - Max 3 concurrent fetches — never batch all tickers simultaneously
 - FMP budget: checkFMPBudget() before any FMP batch — 250 calls/day free tier
@@ -49,7 +52,8 @@ Tier C — TTLCache short-lived: options chain (30min), expiry calendar (24h)
 
 ## DATA SOURCES + WATERFALL
 
-Stop at first successful result per field. Check source_ticker_map before each attempt.
+Stop at first successful result per field. Check source_ticker_map for a known symbol alias
+before each attempt (it does NOT track per-field pass/fail — see SOURCE-TICKER MAPPING below).
 
 ```
 1. Yahoo Finance   — yahoo-finance2, no key, ~2000/hr
@@ -75,9 +79,10 @@ Stop at first successful result per field. Check source_ticker_map before each a
                      NEWS_SENTIMENT endpoint for sentiment scoring
                      low daily limit — reserve for tickers where 1-3 all fail
 
-6. EDGAR/SEC       — NOT YET WIRED, no key, generous rate limit
+6. EDGAR/SEC       — wired into merge-trusted.ts FIELD_DEFS (lowest-priority fallback
+                     for balance sheet / income statement fields), no key, generous rate limit
                      authoritative for any public company
-                     gap: requires CIK lookup first, complex JSON structure
+                     gap: requires CIK lookup first (tickerCik table), complex JSON structure
                      use only when all others fail for critical fields
 
 7. FRED            — macro-data.ts, FRED_API_KEY
@@ -95,16 +100,17 @@ Stop at first successful result per field. Check source_ticker_map before each a
 
 ## SOURCE-TICKER MAPPING
 
-Table: `source_ticker_map`
+Table: `source_ticker_map` — actual columns (this section previously described an aspirational
+per-field works/last_tested design that was never built; don't reintroduce it without checking
+KNOWN GAPS first):
 ```sql
-ticker TEXT, source TEXT, field TEXT,
-works BOOLEAN, last_tested TIMESTAMP, notes TEXT
-PRIMARY KEY (ticker, source, field)
+ticker TEXT, source TEXT, source_ticker TEXT,
+active BOOLEAN, notes TEXT, created_at TIMESTAMPTZ
+PRIMARY KEY (ticker, source)
 ```
-- Check before every fetch. Skip known-bad combos instantly.
-- Upsert after every attempt (works=true/false).
-- Use field='all' when entire source fails for a ticker.
-- This is institutional memory — gets smarter over time, reduces future API calls.
+- Purely a ticker-symbol alias map per source today (e.g. internal `BRK.B` ↔ Polygon's
+  `BRK-B`) — not a per-field known-good/known-bad cache. Check `lib/stock-data-manager.ts`
+  before assuming any richer tracking exists.
 
 ---
 
@@ -146,7 +152,7 @@ REAL-TIME — Tier B, never persist:
              cashAndEquivalents, returnOnEquity, revenueGrowthYoY
    IMPORTANT: forwardPe, evEbitda, evRevenue, pbRatio, dividendYield,
               wacc, revenueGrowthYoyPrior, epsGrowth
-3. For each null: check source_ticker_map → run waterfall → persist result
+3. For each null: run waterfall (source_ticker_map has no per-field history to check) → persist result
 4. Validate suspect values (see below)
 5. Recompute fund_score after all fields attempted
 6. Write session log
@@ -158,18 +164,19 @@ REAL-TIME — Tier B, never persist:
 
 When a source returns null/empty for a ticker:
 ```
-1. Check source_ticker_map — if works=false already recorded → skip immediately
-2. Try next source in waterfall — test ONE ticker first, not full batch
-3. If data returned → validate:
+1. Try next source in waterfall — test ONE ticker first, not full batch
+2. If data returned → validate:
    - Order of magnitude reasonable vs peer group?
    - Does another source agree?
    - Is ticker in speculative_pre_revenue mode? → extreme values expected
-4. If two sources agree on extreme → real value, keep, add to suspectMetrics flag
-   If sources disagree → prefer non-outlier, update source_ticker_map
-5. All sources fail → log as unfillable, move on
+3. If two sources agree on extreme → real value, keep, add to suspectMetrics flag
+   If sources disagree → prefer non-outlier, note it in the session log (LOGGING below)
+4. All sources fail → log as unfillable, move on
    Scoring layer handles missing fields gracefully via coverage fallback
-6. After confirming source works for ticker → expand to batch
+5. After confirming source works for ticker → expand to batch
 ```
+Per-field pass/fail history isn't persisted anywhere today — source_ticker_map is symbol-alias
+only. Use the data-agent log file as the record of what worked per session (see LOGGING below).
 
 ---
 
@@ -182,7 +189,7 @@ Flag when: |netMargin|>100%, |revenueGrowth|>1000%, |epsGrowth|>1000%,
 Response:
   Cross-check one other source
   Sources agree → keep value, add suspectMetrics display flag
-  Sources disagree → use non-outlier, update source_ticker_map
+  Sources disagree → use non-outlier, note it in the session log
   speculative_pre_revenue scoring_mode → extreme expected, keep + flag
   Winsorization handles outliers at score time — flag don't override
 ```
@@ -236,7 +243,7 @@ cash_flow_statement.net_cash_flow_from_operating_activities→quarterlyOperating
 3. Add staging table (Bronze layer) + migration. Wire into populate-source-fundamentals.ts and merge-trusted.ts FIELD_DEFS
 4. Map fields to ticker_fundamentals columns (see mappings above)
 5. Test with ONE ticker (use NVDA) before any batch
-6. Update source_ticker_map with test result
+6. If the new source needs a ticker-symbol alias, add it to source_ticker_map
 7. Update KNOWN GAPS below
 ```
 
@@ -257,11 +264,22 @@ No UI needed. Logs for admin review only.
 ## KNOWN GAPS (update as resolved)
 
 ```
-[x] Alpha Vantage: backfill-av.ts built (25/day quota, resumable cursor). NOT yet in merge FIELD_DEFS — cross-validation only.
-[x] Polygon: backfill-polygon.ts built. NOT yet in merge FIELD_DEFS — cross-validation only.
-[x] source_ticker_map: table exists; ticker=canonical, source_ticker=source-specific alias (e.g. renamed tickers)
-[ ] Wire Polygon + AV into merge-trusted.ts FIELD_DEFS as lowest-priority fallbacks (next-session-tasks-db.md Step 4)
+[x] Alpha Vantage: backfill-av.ts built (25/day quota, resumable cursor). Wired into merge-trusted.ts
+    FIELD_DEFS as lowest-priority fallback (grossMargin, operatingMargin, totalDebt, etc.) — 2026-07-14.
+[x] Polygon: backfill-polygon.ts built. Wired into merge-trusted.ts FIELD_DEFS, same as above — 2026-07-14.
+[x] EDGAR: backfill-edgar.ts + edgar-client.ts + tickerCik built and wired into FIELD_DEFS
+    (balance sheet / income statement fallback) — 2026-07-14.
+[x] source_ticker_map: table exists; ticker+source PK, source_ticker=source-specific alias
+    (e.g. renamed tickers). Symbol-alias only — no per-field pass/fail tracking exists despite
+    earlier drafts of this doc describing one; don't reintroduce without a real migration.
 [x] freeCashFlow: now persisted to DB via writeFundamentalsRow
 [x] writeFundamentalsRow: forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior, freeCashFlow all present
 [ ] Yahoo fundamentals: fetched at serve-time in buildMetrics, not persisted to DB
 ```
+
+**Scripts that exist but aren't part of the core bronze→silver→gold flow above** (QA/one-off,
+not scheduled): `audit-coverage.ts`, `validate-sources.ts` (cross-source QA checks),
+`refetch-renamed-tickers.ts`, `snapshot-to-staging.ts`, `test-av-polygon.ts`. Portfolio-ingest-
+adjacent, not fundamentals pipeline: `backfill-analyst-events.ts`,
+`backfill-dividends-assignments-cashbonus.ts`, `backfill-ytd-orders.ts` (see db-patterns.md's
+Portfolio ingest table group).
