@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done* — shipped 2026-07-14 (W1-W3, W5-W7 below); W4 trending strip still open |
 | **Priority** | P1 |
 | **Area** | ui |
 | **Effort** | M |
@@ -14,22 +14,25 @@
 | **Impl research** | 2026-07-09 deep (ai/2 intensity) — was thin draft |
 
 ### Purpose
-Discover and validate CSP ideas from traders you trust — before copying a strike. Improve trust signals on the existing feed; do not rebuild CRUD.
+Rescoped 2026-07-14: the Feed page (opened via the FILDI home icon) needs to read as a real social feed, not a filtered data table. Remove the All/Open/Wins/Losses/Closed status pills entirely, keep the Recent/Top toggle but fix a live bug where switching it eventually shows stale/wrong results, and redesign the visual language (post header, thesis notes, action bar) to look like a legitimate social app (Instagram/LinkedIn-style). Trust-signal items from the original scope (TopPerformers n, thesis prominence, scanner CTA) are folded in since they fit naturally. Do not rebuild like/comment/close/delete CRUD or add new API routes.
 
 ### Cache / DB compliance
-Reuse `GET /api/feed/posts` (+ like/comment/close/delete). Trending = **client aggregate**. No new feed routes. No Redis. No TipRanks import.
+Reuse `GET /api/feed/posts` (+ like/comment/close/delete). No new feed routes. No Redis. No TipRanks import. `status` param is dropped from the frontend request only — backend filter stays intact/optional, unused.
 
 ---
 
-## 1. Executive summary (rescoped)
+## 1. Executive summary (rescoped 2026-07-14)
 
-**Do not** rebuild post system or add `/api/feed/trending`.
+**Do not** rebuild post system, add `/api/feed/trending`, or touch enh14 (profile) / enh21 (settings) — unrelated pages, left in ready queue.
 
 **Do:**
-1. **TopPerformers:** show closed count `n` (field `resolved` already computed); grey / warn when `n < 5` (keep min ≥2 to appear, but label low-n)
-2. **TradeCard:** make `notes` a prominent “Why now” thesis (not muted italic only)
-3. **Validate in scanner** CTA → `/options-scanner` with ticker
-4. Optional: **Trending in feed** row — top 5 tickers by open posts in loaded window / last 7d — client-side only
+1. **Remove status filter UI** — `StatusFilter`/`STATUS_MAP`/`STATUS_PILLS` and the pill row disappear from `feed.tsx`; stop sending `status` in the request
+2. **Fix Recent/Top bug** — replace the hand-rolled `offset`/`setAllPosts`-inside-`queryFn` pagination (feed.tsx L229-289) with `useInfiniteQuery`, so React Query owns cancellation per query key instead of racing manual state
+3. **Post-header redesign** (`TradeCard.tsx`) — bigger avatar, bold clickable username + timestamp as a byline (like a feed post header); ticker/status/signal badges move to a secondary line
+4. **Thesis notes** — `notes` gets a labeled "Thesis" treatment instead of plain italic muted text
+5. **Full-width action bar** — like/comment row gets more breathing room; add a "Validate in scanner" CTA → `/options-scanner?ticker=...`
+6. **TopPerformers:** show closed count `n` (field `resolved` already computed); grey / warn when `n < 5`
+7. Toolbar restyle — sort toggle becomes the primary control (segmented pill), search box kept as-is
 
 Coordinate sample-size UX with [new_app_features/7](../new_app_features/7-analyst-leaderboard-track-record-070926.md) so leaderboard + feed don’t invent different n rules.
 
@@ -130,31 +133,10 @@ Coordinate sample-size UX with [new_app_features/7](../new_app_features/7-analys
 
 ---
 
-## 5. Impact & Risk Analysis
+## 5. Risk notes
 
-### 1. Blast radius
-- feed.tsx + TradeCard (also used on profile)
-- Rollback: revert UI
-
-### 2. Bug introductions
-- TradeCard CTA on profile may be unwanted — allow `showValidateCta` prop default true on feed only
-- Scanner query param ignored — verify options-scanner reads it
-- Catch: feed card with notes; TopPerformers shows n
-
-### 3. Performance
-- Client aggregates only
-
-### 4. Workflow
-- Trust filter before copy-trade
-
-### 5. Drift
-- Paired: TopPerformers n ↔ profile StatsBar ↔ leaderboard task
+- `TradeCard.tsx` is shared with `profile.tsx` — the scanner CTA is hidden whenever `post.status !== "OPEN"`, so it won't show on resolved posts on either page.
+- Scanner CTA uses `addToScannerShelf()` (existing localStorage hand-off helper, same one used from stock-breakdown/technical pages) rather than a query param — confirmed pattern already works.
+- Paired with profile StatsBar (enh/14) and the leaderboard task on shared n-display semantics — don't diverge the low-sample threshold (`n < 5`).
 
 **Do not:** new APIs; TipRanks; Redis.
-
----
-
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Was:** draft. **Key:** `resolved` already computed — just surface it; thesis + scanner CTA.

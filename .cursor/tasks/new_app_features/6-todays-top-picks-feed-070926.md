@@ -143,29 +143,13 @@ strikeLine = optionsCache.get(ticker)?.best ?? null  // never fetch here
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- New page + shared component; home only if seq 4 also imports
-- Rollback: remove route/nav; home unaffected if not yet wired
-
-### 2. Bug introductions
-- Divergent sort vs scanner Simple — document “picks = GO by tech score”
-- Stale scorecard → stale picks — same staleTime as scanner source
-- Catch: 3 GO names appear; no options XHR on load
-
-### 3. Performance
-- Zero new vendor calls if cache-only
-
-### 4. Workflow
-- Morning: open picks → pick 1–2 → scanner expand → post idea
-
-### 5. Drift
-- Paired: FeaturedPickCard ↔ home/4 ↔ scanner-reasoning ↔ seq 5 Simple
+- Sort diverging from scanner Simple needs explicit documentation ("picks = GO by tech score")
+- Must reuse the same staleTime as the scanner source or picks go stale independently
+- Zero new vendor calls expected — cache-only
+- Paired with FeaturedPickCard ↔ home seq 4 ↔ scanner-reasoning ↔ seq 5 Simple — keep in sync
 
 **Do not:** home API; admin pin; outcome DB; chain prefetch.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Key:** Client GO list + shared card with seq 4; defer API/pin/outcomes; extract reasoning first.
+## Review: APPROVE — ready. Client GO list + shared card with seq 4; defer API/pin/outcomes; extract reasoning first.

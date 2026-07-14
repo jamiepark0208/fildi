@@ -166,29 +166,12 @@ Response: `{ users: [{ username, avatarUrl, closed, wins, losses, winRate, total
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- `feed.ts` + feed page + optional TradeCard
-- Rollback: remove route + UI; profile/TopPerformers unchanged
-
-### 2. Bug introductions
-- **EXPIRED_* vs CLOSED** mismatch → leaderboard ≠ TopPerformers — pick profile semantics
-- Small-n gaming if threshold lowered — keep ≥5 on server
-- Catch: user with 5+ CLOSED appears; likes sort still works
-
-### 3. Performance
-- One GROUP BY; optional 5m TTLCache; no vendor I/O
-
-### 4. Workflow
-- Browse Top analysts → open profile → follow ideas with known n
-
-### 5. Drift
-- Paired: leaderboard SQL ↔ profile stats ↔ TopPerformers closed definition ↔ enh/13–14
+- EXPIRED_* vs CLOSED status mismatch would make leaderboard disagree with TopPerformers — must pick profile's semantics explicitly
+- Keep the ≥5-closed threshold enforced server-side to prevent small-n gaming
+- Paired with leaderboard SQL ↔ profile stats ↔ TopPerformers closed definition ↔ enh/13–14 — keep in sync
 
 **Do not:** overload `sort=top`; touch RankingsLeaderboard; KYC badges.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Key:** New `/feed/leaderboard` (not likes); ≥5 closed; align n UX with enh/13–14; fix CLOSED vs EXPIRED semantics explicitly.
+## Review: APPROVE — ready. New `/feed/leaderboard` (not likes); ≥5 closed; align n UX with enh/13–14; fix CLOSED vs EXPIRED semantics explicitly.

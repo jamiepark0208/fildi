@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { Link } from "wouter"
+import { Link, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
+import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
 import { Heart, MessageCircle, TrendingUp } from "lucide-react"
 
 export interface TradePost {
@@ -109,20 +110,25 @@ function SignalBadge({ signal }: { signal: string | null }) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    OPEN:          { label: "OPEN",     cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-    CLOSED:        { label: "CLOSED",   cls: "bg-secondary text-muted-foreground border-border" },
-    EXPIRED_WIN:   { label: "WIN",      cls: "bg-green-500/15 text-green-400 border-green-500/30" },
-    EXPIRED_LOSS:  { label: "LOSS",     cls: "bg-red-500/15 text-red-400 border-red-500/30" },
-    ASSIGNED:      { label: "ASSIGNED", cls: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
-  }
-  const { label, cls } = map[status] ?? { label: status, cls: "bg-secondary text-muted-foreground border-border" }
-  return <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide", cls)}>{label}</span>
+const STATUS_MAP: Record<string, { label: string; badgeCls: string; cardCls: string }> = {
+  OPEN:         { label: "OPEN",     badgeCls: "bg-blue-500/15 text-blue-400 border-blue-500/30",   cardCls: "bg-blue-500/[0.06] border-blue-500/25" },
+  CLOSED:       { label: "CLOSED",   badgeCls: "bg-secondary text-muted-foreground border-border",  cardCls: "bg-card border-border" },
+  EXPIRED_WIN:  { label: "WIN",      badgeCls: "bg-green-500/15 text-green-400 border-green-500/30", cardCls: "bg-green-500/[0.06] border-green-500/25" },
+  EXPIRED_LOSS: { label: "LOSS",     badgeCls: "bg-red-500/15 text-red-400 border-red-500/30",       cardCls: "bg-red-500/[0.06] border-red-500/25" },
+  ASSIGNED:     { label: "ASSIGNED", badgeCls: "bg-orange-500/15 text-orange-400 border-orange-500/30", cardCls: "bg-orange-500/[0.06] border-orange-500/25" },
 }
 
-function AvatarInitial({ username, avatarUrl, size = "sm" }: { username: string; avatarUrl: string | null; size?: "sm" | "xs" }) {
-  const dim = size === "xs" ? "w-5 h-5 text-[10px]" : "w-6 h-6 text-xs"
+function statusStyle(status: string) {
+  return STATUS_MAP[status] ?? { label: status, badgeCls: "bg-secondary text-muted-foreground border-border", cardCls: "bg-card border-border" }
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { label, badgeCls } = statusStyle(status)
+  return <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide shrink-0", badgeCls)}>{label}</span>
+}
+
+function AvatarInitial({ username, avatarUrl, size = "sm" }: { username: string; avatarUrl: string | null; size?: "sm" | "xs" | "md" }) {
+  const dim = size === "xs" ? "w-5 h-5 text-[10px]" : size === "md" ? "w-9 h-9 text-sm" : "w-6 h-6 text-xs"
   if (avatarUrl) return <img src={avatarUrl} alt={username} className={cn(dim, "rounded-full object-cover")} />
   return (
     <div className={cn(dim, "rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary")}>
@@ -132,6 +138,7 @@ function AvatarInitial({ username, avatarUrl, size = "sm" }: { username: string;
 }
 
 export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUnlike, onComment, onClose, onDelete }: TradeCardProps) {
+  const [, navigate] = useLocation()
   const [showClose, setShowClose]       = useState(false)
   const [closePremium, setClosePremium] = useState("")
   const [showComments, setShowComments] = useState(false)
@@ -171,95 +178,66 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
 
   const isEquity = post.tradeType === "LONG" || post.tradeType === "SHORT"
   const totalPremium = post.premiumPerContract * post.contracts * 100
+  const isResolved = post.status !== "OPEN"
+  const { cardCls } = statusStyle(post.status)
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 shadow-sm space-y-2.5">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm font-bold text-white bg-white/10 px-2 py-0.5 rounded shrink-0">
-            {post.ticker}
-          </span>
-          <StatusBadge status={post.status} />
-          <SignalBadge signal={post.signalAtEntry} />
-          {post.regimeAtEntry && (
-            <span className="hidden sm:inline text-[10px] text-muted-foreground/60 font-medium">
-              {post.regimeAtEntry}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+    <div className={cn("border rounded-lg p-2.5 space-y-1.5", cardCls)}>
+      {/* Header — identity + ticker/status all in one compact row */}
+      <div className="flex items-center gap-2">
+        {showUser ? (
+          <Link href={`/profile/${post.username}`} className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity shrink-0">
+            <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} size="xs" />
+            <span className="text-xs font-bold text-foreground truncate max-w-[100px]">{post.username}</span>
+          </Link>
+        ) : null}
+        <span className="text-sm font-bold text-white bg-white/10 px-1.5 py-0.5 rounded shrink-0">
+          {post.ticker}
+        </span>
+        <StatusBadge status={post.status} />
+        <SignalBadge signal={post.signalAtEntry} />
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <ConfidenceLabel value={post.confidence} />
-          {showUser && (
-            <Link href={`/profile/${post.username}`} className="flex items-center gap-1 hover:opacity-80 transition-opacity">
-              <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} size="xs" />
-              <span className="text-[10px] text-muted-foreground">{post.username}</span>
-            </Link>
-          )}
+          <span className="text-[10px] text-muted-foreground/60">{timeAgo(post.createdAt)}</span>
         </div>
       </div>
 
-      {/* Trade details — layout branches on trade category */}
+      {/* Trade details — single dense row, layout branches on trade category */}
       {isEquity ? (
-        <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
-          {[
-            { label: "Direction", val: post.direction?.toUpperCase() ?? "—", color: post.direction === "long" ? "text-green-400" : "text-red-400" },
-            { label: "Entry",     val: post.entryPrice != null ? `$${post.entryPrice}` : "—" },
-            { label: "Shares",    val: post.shares != null ? String(post.shares) : "—" },
-            { label: "Stop",      val: post.stopLoss != null ? `$${post.stopLoss}` : "—", dim: true },
-          ].map(({ label, val, color, dim }) => (
-            <div key={label} className="space-y-0">
-              <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">{label}</div>
-              <div className={cn("text-sm font-semibold", color ?? (dim ? "text-muted-foreground" : "text-foreground"))}>{val}</div>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
+          <span className={cn("font-semibold", post.direction === "long" ? "text-green-400" : "text-red-400")}>{post.direction?.toUpperCase() ?? "—"}</span>
+          {post.entryPrice != null && <span className="text-foreground">Entry <b className="font-semibold">${post.entryPrice}</b></span>}
+          {post.shares != null && <span className="text-foreground">{post.shares} sh</span>}
+          {post.stopLoss != null && <span className="text-muted-foreground">Stop ${post.stopLoss}</span>}
+          {post.targetPrice != null && <span className="text-muted-foreground">Target ${post.targetPrice}</span>}
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
-          <div className="space-y-0">
-            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Strike</div>
-            <div className="text-sm font-semibold text-foreground">${post.strike}</div>
-          </div>
-          <div className="space-y-0">
-            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Expiry</div>
-            <div className="text-sm font-semibold text-foreground">{fmtExpiry(post.expiry)}</div>
-          </div>
-          <div className="space-y-0">
-            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Premium</div>
-            <div className="text-sm font-semibold text-foreground">${post.premiumPerContract}<span className="text-[10px] text-muted-foreground/60">×{post.contracts}</span></div>
-          </div>
-          <div className="space-y-0">
-            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Total</div>
-            <div className="text-sm font-semibold text-green-400">${totalPremium.toFixed(0)}</div>
-          </div>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs text-foreground">
+          <span>Strike <b className="font-semibold">${post.strike}</b></span>
+          <span>Exp <b className="font-semibold">{fmtExpiry(post.expiry)}</b></span>
+          <span>Prem <b className="font-semibold">${post.premiumPerContract}</b>×{post.contracts}</span>
+          <span className="text-green-400 font-semibold">${totalPremium.toFixed(0)} total</span>
+          <span className="text-muted-foreground">{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
         </div>
       )}
 
-      {/* Notes */}
+      {/* Thesis */}
       {post.notes && (
-        <div className="pl-2.5 border-l-2 border-border text-xs text-muted-foreground/80 italic leading-relaxed">
+        <div className="text-xs text-foreground/80 leading-snug line-clamp-2">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-primary/80 mr-1">Thesis</span>
           {post.notes}
         </div>
       )}
 
-      {/* Context chips */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/60">
-        {!isEquity && post.ivRankAtEntry != null && <span>IV Rank {post.ivRankAtEntry}%</span>}
-        {!isEquity && post.vixAtEntry != null && <span>VIX {post.vixAtEntry}</span>}
-        {isEquity && post.targetPrice != null && <span>Target ${post.targetPrice}</span>}
-        {!isEquity && <><span className="text-muted-foreground/40">·</span><span>{weeklyIncome(post.premiumPerContract, post.expiry)}</span></>}
-        <span className="ml-auto text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
-      </div>
-
-      {/* P&L (closed) */}
-      {post.status !== "OPEN" && post.resolvedPnl != null && (
-        <div className={cn("text-sm font-bold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
+      {/* P&L (resolved) */}
+      {isResolved && post.resolvedPnl != null && (
+        <div className={cn("text-xs font-bold", post.resolvedPnl >= 0 ? "text-green-400" : "text-red-400")}>
           {post.resolvedPnl >= 0 ? "+" : ""}${post.resolvedPnl.toFixed(0)} P&L
         </div>
       )}
 
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
+      {/* Action bar */}
+      <div className="flex items-center justify-between pt-1 border-t border-border/50">
         <div className="flex items-center gap-3">
           <button
             onClick={post.likedByMe ? onUnlike : onLike}
@@ -268,16 +246,25 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
               post.likedByMe ? "text-red-400 hover:text-red-300" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Heart className={cn("w-3 h-3", post.likedByMe && "fill-current")} />
+            <Heart className={cn("w-3.5 h-3.5", post.likedByMe && "fill-current")} />
             {post.likeCount}
           </button>
           <button
             onClick={toggleComments}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <MessageCircle className="w-3 h-3" />
+            <MessageCircle className="w-3.5 h-3.5" />
             {post.commentCount}
           </button>
+          {!isResolved && (
+            <button
+              onClick={() => { addToScannerShelf(post.ticker); navigate("/options-scanner") }}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              Validate in scanner
+            </button>
+          )}
         </div>
 
         {isOwner && post.status === "OPEN" && (

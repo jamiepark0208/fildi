@@ -138,33 +138,12 @@ Brief history is file-backed (`daily-brief.ts` HISTORY_PATH) — unchanged.
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- portfolio page layout + daily-brief UI; optional macro link
-- Rollback: revert reorder
-
-### 2. Bug introductions
-- Double-fetch highlights on portfolio + macro — share react-query key if both mount
-- Empty “your tickers” noise — hide section when no matches
-- Catch: portfolio with RH snapshot; confirm brief on top; network clean
-
-### 3. Performance
-- One highlights GET max; market chips already cheap
-
-### 4. Workflow
-- Before: brief mid-page  
-- After: morning starts at brief when you have a book  
-
-### 5. Drift
-- Paired: highlights packet ↔ brief “your tickers” ↔ catalyst tab list (enh/11)
-
-### 6. Scalability
-- Client filter only; never storm breakdown
+- Share the react-query key for highlights if both portfolio and macro mount it, to avoid a double-fetch
+- Hide the "your tickers" section entirely when there are no matches, rather than showing empty noise
+- Paired with highlights packet ↔ brief "your tickers" ↔ catalyst tab list (enh/11) — keep those in sync
 
 **Do not:** second AI; email; Redis; N+1 breakdown.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready (Phase A)  
-**Was:** draft. **Fix:** context is PATCH; brief already on page — pin/personalize, don’t rebuild.
+## Review: APPROVE — ready (Phase A). Context is PATCH; brief already on page — pin/personalize, don't rebuild.

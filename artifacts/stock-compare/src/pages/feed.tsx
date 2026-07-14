@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "wouter"
 import { X } from "lucide-react"
 import { TopNav } from "@/components/top-nav"
@@ -164,12 +164,15 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
                     <span className="text-xs text-muted-foreground/50">#{i + 1}</span>
                     <span className="text-sm font-medium text-foreground truncate">{u.username}</span>
                   </div>
-                  <div className="flex gap-2 text-xs text-muted-foreground">
+                  <div className={cn("flex items-center gap-2 text-xs", u.resolved < 5 && "opacity-60")}>
                     <span className={cn(u.winRate >= 0.6 ? "text-green-400" : u.winRate >= 0.4 ? "text-yellow-400" : "text-red-400")}>
                       {Math.round(u.winRate * 100)}% WR
                     </span>
                     <span className={cn(u.totalPnl >= 0 ? "text-green-400" : "text-red-400")}>
                       {u.totalPnl >= 0 ? "+" : ""}${u.totalPnl.toFixed(0)}
+                    </span>
+                    <span className="text-muted-foreground/50">
+                      ({u.resolved}{u.resolved < 5 ? " · low n" : ""})
                     </span>
                   </div>
                 </div>
@@ -184,16 +187,7 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
 
 // ── Feed ───────────────────────────────────────────────────────────────────────
 
-type StatusFilter = "all" | "open" | "wins" | "losses" | "closed"
 type SortMode = "recent" | "top"
-
-const STATUS_MAP: Record<StatusFilter, string | undefined> = {
-  all:    undefined,
-  open:   "OPEN",
-  wins:   "EXPIRED_WIN",
-  losses: "EXPIRED_LOSS",
-  closed: "CLOSED",
-}
 
 const LIMIT = 50
 
@@ -201,47 +195,44 @@ export default function Feed() {
   const { user: me } = useAuth()
   const qc = useQueryClient()
 
-  const [showForm,    setShowForm]    = useState(false)
-  const [search,      setSearch]      = useState("")
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
-  const [sort,        setSort]        = useState<SortMode>("recent")
-  const [offset,      setOffset]      = useState(0)
-  const [allPosts,    setAllPosts]    = useState<TradePost[]>([])
-  const [hasMore,     setHasMore]     = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [search,   setSearch]   = useState("")
+  const [sort,     setSort]     = useState<SortMode>("recent")
 
   const debouncedSearch = useDebounce(search, 400)
 
   const isUsername = debouncedSearch.startsWith("@")
   const ticker     = !isUsername && debouncedSearch ? debouncedSearch.toUpperCase() : undefined
   const username   = isUsername ? debouncedSearch.slice(1) : undefined
-  const status     = STATUS_MAP[statusFilter]
 
-  const params = new URLSearchParams()
-  if (ticker)   params.set("ticker", ticker)
-  if (username) params.set("username", username)
-  if (status)   params.set("status", status)
-  params.set("sort", sort)
-  params.set("limit", String(LIMIT))
-  params.set("offset", "0")
+  const queryKey = ["feed", "posts", ticker, username, sort]
 
-  const queryKey = ["feed", "posts", ticker, username, status, sort]
-
-  const { data: firstPage, isLoading } = useQuery<TradePost[]>({
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<TradePost[]>({
     queryKey,
-    queryFn: async () => {
-      setOffset(0)
-      setAllPosts([])
-      setHasMore(true)
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams()
+      if (ticker)   params.set("ticker", ticker)
+      if (username) params.set("username", username)
+      params.set("sort", sort)
+      params.set("limit", String(LIMIT))
+      params.set("offset", String(pageParam))
       const r = await fetch(`/api/feed/posts?${params}`, { credentials: "include" })
       if (!r.ok) throw new Error()
-      const posts: TradePost[] = await r.json()
-      setAllPosts(posts)
-      setHasMore(posts.length === LIMIT)
-      return posts
+      return r.json()
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => lastPage.length === LIMIT ? allPages.length * LIMIT : undefined,
     staleTime: 60000,
     refetchOnWindowFocus: false,
   })
+
+  const allPosts = useMemo(() => data?.pages.flat() ?? [], [data])
 
   // Separate "top 100" query for the performers panel — always runs
   const { data: topPosts = [] } = useQuery<TradePost[]>({
@@ -252,8 +243,7 @@ export default function Feed() {
   })
 
   function invalidate() {
-    qc.invalidateQueries({ queryKey })
-    qc.invalidateQueries({ queryKey: ["feed", "posts", "top100"] })
+    qc.invalidateQueries({ queryKey: ["feed", "posts"] })
   }
 
   async function handleLike(postId: number) {
@@ -277,25 +267,6 @@ export default function Feed() {
     invalidate()
   }
 
-  async function loadMore() {
-    const nextOffset = offset + LIMIT
-    const p = new URLSearchParams(params)
-    p.set("offset", String(nextOffset))
-    const r = await fetch(`/api/feed/posts?${p}`, { credentials: "include" })
-    const next: TradePost[] = await r.json()
-    setAllPosts(prev => [...prev, ...next])
-    setOffset(nextOffset)
-    setHasMore(next.length === LIMIT)
-  }
-
-  const STATUS_PILLS: { label: string; value: StatusFilter }[] = [
-    { label: "All", value: "all" },
-    { label: "Open", value: "open" },
-    { label: "Wins", value: "wins" },
-    { label: "Losses", value: "losses" },
-    { label: "Closed", value: "closed" },
-  ]
-
   return (
     <div className="min-h-[100dvh] bg-background">
       <TopNav />
@@ -303,16 +274,16 @@ export default function Feed() {
         <div className="max-w-5xl mx-auto flex gap-6">
 
           {/* Feed column */}
-          <div className="flex-1 min-w-0 space-y-4">
+          <div className="flex-1 min-w-0 max-w-xl mx-auto lg:mx-0 space-y-4">
 
             {/* Top bar */}
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-foreground">Feed</h1>
+              <h1 className="text-xl font-bold text-foreground tracking-tight">Feed</h1>
               <button
                 onClick={() => setShowForm(v => !v)}
-                className="text-sm bg-primary text-primary-foreground px-4 py-1.5 rounded hover:bg-primary/90 transition-colors"
+                className="text-sm bg-primary text-primary-foreground px-4 py-1.5 rounded-full hover:bg-primary/90 transition-colors font-medium"
               >
-                {showForm ? "Cancel" : "Post Trade Idea"}
+                {showForm ? "Cancel" : "+ Post Trade Idea"}
               </button>
             </div>
 
@@ -321,46 +292,31 @@ export default function Feed() {
               <SubmitForm onSuccess={() => { setShowForm(false); invalidate() }} />
             )}
 
-            {/* Search + filters */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Search + sort */}
+            <div className="flex items-center gap-3">
               {/* Search */}
-              <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+              <div className="relative flex-1 min-w-[160px]">
                 <input
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search ticker or @username"
-                  className="w-full bg-secondary border border-border rounded-lg px-3 py-1.5 text-sm text-foreground pr-8 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-secondary border border-border rounded-full px-3.5 py-1.5 text-sm text-foreground pr-8 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
-              {/* Status pills */}
-              <div className="flex items-center gap-1">
-                {STATUS_PILLS.map(p => (
-                  <button key={p.value} onClick={() => setStatusFilter(p.value)}
-                    className={cn(
-                      "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                      statusFilter === p.value
-                        ? "bg-primary/20 border-primary/40 text-white"
-                        : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
-                    )}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
               {/* Sort toggle */}
-              <div className="flex items-center rounded-lg border border-border overflow-hidden ml-auto">
+              <div className="flex items-center rounded-full border border-border overflow-hidden shrink-0">
                 {(["recent", "top"] as SortMode[]).map(s => (
                   <button key={s} onClick={() => setSort(s)}
                     className={cn(
-                      "text-xs px-3 py-1.5 transition-colors capitalize",
-                      sort === s ? "bg-primary/20 text-white" : "text-muted-foreground hover:text-foreground"
+                      "text-xs px-3.5 py-1.5 transition-colors capitalize font-medium",
+                      sort === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                     )}>
                     {s}
                   </button>
@@ -394,11 +350,11 @@ export default function Feed() {
             )}
 
             {/* Load more */}
-            {!isLoading && hasMore && allPosts.length > 0 && (
+            {!isLoading && hasNextPage && allPosts.length > 0 && (
               <div className="flex justify-center pt-2">
-                <button onClick={loadMore}
-                  className="text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-6 py-2 transition-colors">
-                  Load more
+                <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
+                  className="text-sm text-muted-foreground hover:text-foreground border border-border rounded-full px-6 py-2 transition-colors disabled:opacity-50">
+                  {isFetchingNextPage ? "Loading…" : "Load more"}
                 </button>
               </div>
             )}

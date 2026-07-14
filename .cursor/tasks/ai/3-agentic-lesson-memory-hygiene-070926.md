@@ -188,36 +188,14 @@ No Postgres. “Memory” = markdown files. Trader journal persistence is **ai/1
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius / impact
-- Docs (+ optional one `console.log` in lesson script)
-- Who: Cursor agents adding/grepping lessons
-- Rollback: revert markdown
-
-### 2. Bug introductions
-- Agents treat sync map as “copy Claude memory into lessons” — map must say **do not mirror**
-- Over-broad secret ban blocks legitimate “don’t commit .env” lessons — ban **values**, not the topic
-- Touching rehydrate accidentally injects full lessons — **do not edit** rehydrate unless necessary
-
-### 3. Performance & cost
-- Negligible; keeps always-on cost at 2 Fix lines
-
-### 4. Workflow changes
-- Before: tribal “don’t mix journal”  
-- After: written map + bans  
-- SKIP: rewriting working cap script
-
-### 5. Drift & consistency
-- Paired: lessons.md ↔ lessons-learned.mdc ↔ CURSOR.md ↔ ai/13 ↔ `.agents/memory`
-- Owner: lesson policy changes update map + rule same PR
-
-### 6. Scalability
-- Cap 15 remains hard limit; archive grows — grep-on-demand (optional future: `grep` searches archive)
+- Sync map must explicitly say "do not mirror" — otherwise agents copy Claude memory into lessons wholesale
+- Secret ban must target values, not the topic — an over-broad ban would block legitimate "don't commit .env" lessons
+- Don't touch rehydrate unless necessary — an accidental edit there could inject full lessons instead of the capped set
+- Scoped to docs (+ optional one console.log in lesson script); rollback is a markdown revert
 
 **Do not:** vector memory; auto-lessons every wrap; journal→lessons; alwaysApply lessons (R1, R5, R6).  
 **Floors:** R1, R5, R6, R10.
 
 ---
 
-## Review notes
-
-**Prior batch pack** upgraded to this deep pass. Cap/script = keep. Value = **boundaries + map**, not new platform.
+## Review: prior batch pack upgraded to this deep pass. Cap/script = keep. Value = boundaries + map, not a new platform.

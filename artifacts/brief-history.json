@@ -1,5 +1,91 @@
 [
   {
+    "date": "7/14/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 16.48,
+        "change": -0.6800003,
+        "changePct": -3.9650164
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 752.34,
+        "change": 3.170044,
+        "changePct": 0.42314082
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 721.315,
+        "change": 9.575012,
+        "changePct": 1.3452964
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.5810003,
+        "change": -0.027999878,
+        "changePct": -0.60750437
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7592.5,
+        "change": 29.5,
+        "changePct": 0.39005685
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 29860.5,
+        "change": 384.75,
+        "changePct": 1.3053102
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 372.64,
+        "change": 5.51001,
+        "changePct": 1.5008334
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.3795,
+        "change": -0.120500565,
+        "changePct": -0.42287576
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 84.175,
+        "change": 0.20500183,
+        "changePct": 0.24413699
+      }
+    ],
+    "content": "# 📋 DAILY BRIEFING | 7/14/2026\n\n## 🌍 Macro Environment\n- **Rates cooling, risk appetite rising**: 10Y yield at 4.58% (-61bps) signals flight-to-safety into bonds, yet equities rallied—classic \"goldilocks\" setup. Lower rates reduce discount rates for high-growth names you're short puts on (NVDA, PLTR, HOOD).\n- **VIX at 16.48 (-3.97%)** remains historically calm. Below 18 is your sweet spot for put-selling premiums, but compresses your margin of safety. At this level, implied volatility on short-dated puts is thin—you're getting paid for *conviction*, not volatility insurance.\n- **Dollar weakness (-0.42%)** + gold strength (+1.50%) suggest risk-off undertone despite equity gains. Watch this divergence; if it reverses sharply, tech puts could gap against you fast.\n\n## 📊 Market Pulse\n- **QQQ (+1.35%) outpacing SPY (+0.42%)**—clean tech rotation. Your portfolio is *heavily* overweight growth/AI (NVDA, PLTR, HOOD, POET, ONDS). This is supportive *today*, but breadth is narrowing (futures +0.39-1.31% vs. spot indexes). Rotation risk.\n- **Futures leading slightly** (NQ +1.31%, S&P +0.39%) suggests overnight Asia enthusiasm. Nasdaq strength validates your short-put positions in mega-cap AI—premiums justify the risk *if* this holds through close.\n- **This is cautious risk-on**: VIX compression + rate cuts + narrow breadth = small-cap / value lagging. You're short puts on mega-cap winners. Premium environment is *good* (IV rank likely 45-55%), but assignment risk on rallies is real.\n\n## 🏭 Sector & Stock Catalysts\n- **NVDA** (AI infrastructure demand thesis intact): News reiterates monopoly positioning + expanded partnerships. Upgraded to Buy by analysts. Your short puts here are *in the zone*—if assigned, you're holding a core AI holding. No red flags on technicals.\n- **PLTR** (Ontology Edge, Rackspace deepening): Concrete enterprise momentum from Zeta/Foundry. Zeta deal validates edge-AI TAM. Puts likely assigned at lower strikes near-term, but assignment = long a growth stock at a discount in a bull market. Acceptable.\n- **HOOD** (Compass Point buy rating, pre-earnings July 29)**: Down 30% YTD = cheap entry point. July 29 earnings = *event risk*. Short puts here *now* capture pre-earnings vol; be ready to roll if delta rises sharply pre-announcement.\n- **POET** (AI infrastructure, 160% upside call)**: Small-cap, momentum-driven. High vol. Only suitable if you're comfortable with *volatile* assignment. News is bullish but speculative—not core.\n- **REBN, RUM** (CEO transitions, operational noise)**: REBN new CEO/COO appointments = restructuring risk, not opportunity. RUM CEO retirement = near-term uncertainty. *Skip short puts* on both until leadership settles (2-3 weeks).\n\n## ⚠️ Risks This Week\n- **HOOD earnings (July 29, 15 days out)**: Implied move could spike 5-7% on either side. Your short puts will see gamma acceleration *next week*. Consider sizing down or rolling up/out if delta >50.\n- **Fed speak + CPI echo (Wed/Thu this week)**: While 10Y is already pricing cuts, any inflation data could reverse the yield rally and spike VIX 18-22. Gold signal (-1.50%) is a warning shot. Short puts on mega-cap Tech would face delta expansion if VIX spikes.\n\n## 💼 Portfolio Implications\n\n**ACTION: Selective *entry* day, but narrow strikes.**\n\n1. **Open NEW short puts on NVDA, PLTR, HOOD** (IV environment supports premiums despite VIX compression). Target strikes *1-2% OTM* (not deeper)—breadth divergence means assignment risk is real. Avoid POET, REBN, RUM; vol/clarity not favorable. Size puts in IRA (tax-free roll mechanics) if selling weeklies into HOOD earnings.\n\n2. **Skip NVDY** entirely—the news literally calls out the *fee drag* on underperformance. You'd be short puts on a derivative holding the underlying underweight. Structural disadvantage.\n\n3. **Consolidate MOM/FILDI** into highest-conviction tickers (NVDA, PLTR, HOOD). VIX at 16.48 means premiums won't improve much on weaker names (ONDS, RDW). Concentration of capital where breadth is strongest (QQQ names) maximizes risk-adjusted return. Reset in 2-3 weeks if macro backdrop clarifies post-Fed commentary.",
+    "generatedAt": "2026-07-14T18:06:38.271Z",
+    "tickers": [
+      "HOOY",
+      "OPEN",
+      "POET",
+      "REBN",
+      "RUM",
+      "RDW",
+      "NVDY",
+      "HOOD",
+      "PLTR",
+      "ONDS",
+      "NVDA",
+      "PLTU",
+      "AAOI"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "7/10/2026",
     "marketData": [
       {

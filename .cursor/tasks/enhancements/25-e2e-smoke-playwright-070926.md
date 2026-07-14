@@ -171,30 +171,11 @@ test("login → home", async ({ page }) => {
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- New e2e/ only + tiny testid
-- Rollback: delete e2e; remove CI job
-
-### 2. Bug introductions
-- Flaky waits — prefer testid + explicit timeout over networkidle alone
-- Wrong port/proxy on Replit — document BASE_URL
-- Session cookie `secure` in prod vs local
-- Catch: fail login password → S3 fails; break healthz shape → S1 fails
-
-### 3. Performance
-- Smoke suite < 3 min target
-
-### 4. Workflow
-- Safety net before shipping UX tours / home redesign
-
-### 5. Drift
-- Paired: enh/3 CI ↔ enh/4 healthz ↔ home testids ↔ auth cookie
-
-**Do not:** visual regression; prod E2E; password in repo; >5 tests.
+- Prefer testid + explicit timeout over networkidle alone to avoid flaky waits
+- Document BASE_URL — Replit port/proxy differs from local
+- Session cookie `secure` behaves differently in prod vs local — account for it in test setup
+- Keep suite small (<5 tests, <3 min) and scoped to new e2e/ dir + one testid addition — no visual regression, no prod E2E, no password in repo
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — Phase A ready; CI after enh/3  
-**Was:** ready with “Revise after CI”. **Key:** zero Playwright today; local smokes unblocked; healthz `{ status: "ok" }`.
+## Review: APPROVE — Phase A ready, CI after enh/3. Zero Playwright today; local smokes unblocked; healthz `{ status: "ok" }`.

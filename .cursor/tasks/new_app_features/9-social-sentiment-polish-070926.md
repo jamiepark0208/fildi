@@ -184,35 +184,13 @@ Phase B: `feat(feed): trending-tickers API + watchlist activity chips`
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- Phase A: feed UI only  
-- Phase B: feed.ts + watchlist  
-- Rollback: remove widget; drop route if added
-
-### 2. Bug introductions
-- Confusing `/sentiment` with social — **builder must not open COT page for this**
-- Client trending ≠ global 7d — label honestly or ship Phase B
-- Dual widgets if enh/13 also adds strip — **one owner**
-- Catch: post NVDA twice → NVDA chip; click filters feed
-
-### 3. Performance
-- Phase A: O(posts) client  
-- Phase B: one GROUP BY + 10m cache
-
-### 4. Workflow
-- Scan trending → open ticker filter → Validate in scanner (enh/13 CTA)
-
-### 5. Drift
-- Paired: TrendingTickers ↔ enh/13 W4 ↔ feed ticker param ↔ (B) watchlist chips  
-- Name: “social sentiment” ≠ COT `/sentiment`
+- Don't confuse this with the `/sentiment` COT page — builder must not touch `sentiment.tsx`, name collision only
+- Client-computed trending ≠ global 7d — label honestly, or ship Phase B (server GROUP BY) instead
+- One owner for the trending widget if enh/13 also adds a strip — avoid dual widgets
+- Paired with TrendingTickers ↔ enh/13 W4 ↔ feed ticker param ↔ (Phase B) watchlist chips
 
 **Do not:** StockTwits; edit sentiment.tsx; polls table v1; ignore enh/13 no-route rule without Phase B justification.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE-WITH-NITS — ready after rescope  
-**Lenses:** PM Rescope (client-first) | UX Keep pulse | Eng Keep (honor enh/13) | BA Phase A/B gates | User useful if labeled  
-**Nits applied in this pack:** Dropped v1 server route + polls; locked COT out; merge trending with enh/13 W4.  
-**Key:** Community ticker pulse on Feed from own posts; `/sentiment` stays COT (enh/17).
+## Review: APPROVE-WITH-NITS, ready after rescope. Dropped v1 server route + polls; locked COT out; merge trending with enh/13 W4. Community ticker pulse on Feed from own posts; `/sentiment` stays COT (enh/17).

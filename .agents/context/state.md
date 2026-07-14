@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh19-sector-money-flow-heatmap, enh20-scorecard-guide-presets, tasks-backlog-reclassification
-- In progress: sector heatmap colors verified live after api-server rebuild+restart, awaiting user visual confirm in Preview
+- Working: enh13-feed-redesign done* feed.tsx TradeCard.tsx trade-post-expiry.ts docs-verbosity-cleanup
+- In progress: enh13 shipped: instagram-style compact color-coded cards infinite-query race fix backend auto-expiry resolver; user verified UI live
 - Blocked: none
 
 ## Next tasks (priority order)

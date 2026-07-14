@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { useParams, Link } from "wouter"
+import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
 import { TopNav } from "@/components/top-nav"
@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
 import { TrendingUp, TrendingDown, Minus, X, Search, Loader2 } from "lucide-react"
+import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -550,29 +551,36 @@ function BucketsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileU
 // ── Compact stats bar ──────────────────────────────────────────────────────────
 
 function StatsBar({ stats }: { stats: ProfileData["stats"] }) {
+  const lowSample = stats.closed < 5
   const winRate = stats.winRate != null ? `${Math.round(stats.winRate * 100)}%` : "—"
   const pnl = stats.totalPnl != null ? (stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(0)}` : `-$${Math.abs(stats.totalPnl).toFixed(0)}`) : "—"
 
   const items = [
-    { label: "Trades",   value: String(stats.totalPosts),          color: "text-foreground" },
-    { label: "Open",     value: String(stats.openPosts),            color: "text-blue-400" },
-    { label: "Win Rate", value: winRate, color: stats.winRate == null ? "text-muted-foreground" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400" },
-    { label: "P&L",      value: pnl,    color: stats.totalPnl == null ? "text-muted-foreground" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400" },
-    { label: "Wins",     value: String(stats.wins),                 color: "text-green-400" },
-    { label: "Losses",   value: String(stats.losses),               color: "text-red-400" },
+    { label: "Trades",   value: String(stats.totalPosts),          color: "text-foreground", dim: false },
+    { label: "Open",     value: String(stats.openPosts),            color: "text-blue-400", dim: false },
+    { label: "Win Rate", value: winRate, color: stats.winRate == null ? "text-muted-foreground" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400", dim: lowSample },
+    { label: "P&L",      value: pnl,    color: stats.totalPnl == null ? "text-muted-foreground" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400", dim: lowSample },
+    { label: "Wins",     value: String(stats.wins),                 color: "text-green-400", dim: false },
+    { label: "Losses",   value: String(stats.losses),               color: "text-red-400", dim: false },
   ]
 
   return (
-    <div className="flex items-center gap-0 bg-card border border-border rounded-xl overflow-hidden">
-      {items.map(({ label, value, color }, i) => (
-        <div key={label} className={cn(
-          "flex-1 flex flex-col items-center py-2.5 px-1",
-          i < items.length - 1 && "border-r border-border"
-        )}>
-          <div className={cn("text-base font-bold leading-tight", color)}>{value}</div>
-          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mt-0.5">{label}</div>
-        </div>
-      ))}
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center gap-0">
+        {items.map(({ label, value, color, dim }, i) => (
+          <div key={label} className={cn(
+            "flex-1 flex flex-col items-center py-2.5 px-1",
+            i < items.length - 1 && "border-r border-border",
+            dim && "opacity-60"
+          )}>
+            <div className={cn("text-base font-bold leading-tight", color)}>{value}</div>
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-muted-foreground/50 text-center py-1 border-t border-border">
+        based on {stats.closed} closed{lowSample && stats.closed > 0 ? " · low sample" : ""}
+      </div>
     </div>
   )
 }

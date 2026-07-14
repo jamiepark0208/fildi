@@ -145,30 +145,12 @@ function prefsKey(userId?: number) {
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- settings.tsx + options-scanner init
-- Rollback: revert; clear prefs key
-
-### 2. Bug introductions
-- Dual brief editors if Trading also PATCHes — prefer single surface
-- Non-scoped localStorage clobber across users — must use userId
-- Invalid minIncome string — validate ≥ 0
-- Catch: set 1.0 in Trading → reload scanner → filter is 1.0
-
-### 3. Performance
-- No new network for scanner prefs
-
-### 4. Workflow
-- Set once → scan daily without re-typing income floor
-
-### 5. Drift
-- Paired: Trading prefs ↔ scanner localStorage ↔ Scorecard Guide (weights only)
+- Avoid dual brief editors if Trading tab also PATCHes — keep a single edit surface
+- localStorage prefs must be scoped by userId to avoid cross-user clobber
+- Validate minIncome ≥ 0 before persisting
 
 **Do not:** Settings weights; Redis; alert workers; widen brief PATCH silently.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Was:** draft. **Key:** minIncome not persisted today; Trading tab = localStorage + Guide link; brief stays admin PATCH.
+## Review: APPROVE — ready. minIncome not persisted today; Trading tab = localStorage + Guide link; brief stays admin PATCH.

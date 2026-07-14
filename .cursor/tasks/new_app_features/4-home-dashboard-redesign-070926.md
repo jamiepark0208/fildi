@@ -159,34 +159,14 @@ Empty: “No GO signals today” + link `/options-scanner`.
 
 ## 5. Impact & Risk
 
-### Blast radius
-Primary landing page layout. Power users who live in compare UI need one click to expand. Rollback = revert `home/*` + restore `home.tsx` title/layout; keep `scanner-reasoning` extract if already used by scanner.
-
-### Bug risks
-- Extra options/Yahoo on home → **forbidden** v1  
-- Removing `FUNDAMENTAL_WATCHLIST` → score drift (BUG-01)  
-- Double regime fetch if strip ignores existing `regimeQuery`  
-- Importing `buildReasoning` from page file → circular/heavy — **extract first**  
-- Tour step 1 breaks → graceful fallback + version bump
-
-### Performance / cost
-Should be equal or better perceived: rankings below fold. Reuse React Query keys from scanner (`technical-scorecard` / equivalents).
-
-### Drift
-FeaturedPickCard owned jointly with seq 6 — one component. Title/copy must update tour-config when shipped.
+- Extra options/Yahoo calls on home are forbidden for v1 — client-only picks
+- Removing `FUNDAMENTAL_WATCHLIST` would cause score drift (BUG-01) — do not touch it
+- Double regime fetch risk if the strip ignores the existing `regimeQuery` — reuse it
+- `buildReasoning` must be extracted from the scanner page file first to avoid circular/heavy imports
+- FeaturedPickCard is owned jointly with seq 6 as one shared component; tour-config copy must update when shipped
 
 **Do not:** new ranking engine; home AI brief; expand FUNDAMENTAL_WATCHLIST; options N+1 on mount.
 
 ---
 
-## Review (2026-07-09) — task-reviewer
-
-**Verdict:** APPROVE-WITH-NITS → nits applied (client picks only; extract reasoning first); **Status ready**
-
-**Lenses:** PM Keep | UX Keep (Today narrative) | Eng Rescope (no home API v1) | BA Keep | User Keep
-
-**Need:** Landing answers CSP “what today?” without denser compare-first chrome.
-
-**Code reality:** Regime + rankings exist; FeaturedPick absent; buildReasoning trapped in scanner.
-
-**Better:** Enhance layout + shared extract; **DEFER** `GET /api/home/featured-picks`; **MERGE** card ownership with seq 6.
+## Review: APPROVE-WITH-NITS, applied (client picks only; extract reasoning first) — ready. Enhance layout + shared extract; DEFER `GET /api/home/featured-picks`; MERGE card ownership with seq 6.

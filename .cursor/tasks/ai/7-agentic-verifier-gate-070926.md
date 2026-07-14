@@ -164,38 +164,14 @@ None.
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- Docs/playbooks only (unless verifier.md one-liner)
-- Rollback: revert docs
-
-### 2. Bug introductions
-- False green via SKIP — playbook rules
-- Wrong cwd empty success — require `--filter` from root
-- Verifier “fixes” code — constrain report-only
-- Catch: intentional tsc break → FAIL
-
-### 3. Performance
-- 30–120s once per feature — not per edit
-
-### 4. Workflow
-- Before: optional mental note  
-- After: checklist before done  
-- Local advisory until CI
-
-### 5. Drift
-- Paired: verifier.md ↔ CURSOR playbook ↔ enhancements/3
-- Owner: CI command change updates all three
-
-### 6. Scalability
-- Document package filters; later scope to touched packages if &gt;5 min
+- Playbook rules must prevent false green via SKIP
+- Require `--filter` from repo root — a wrong cwd can produce an empty "success"
+- Verifier must stay report-only — never auto-fix code
+- Docs/playbooks only (unless a verifier.md one-liner); runs 30-120s once per feature, not per edit
 
 **Do not:** auto-fix; hide failures (R1).  
 **Floors:** R1, R10.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — implement **via ai/9**  
-**Need:** One Verify playbook with real monorepo commands.  
-**Better:** Don’t trust verifier.md `npx`/`npm` as written.
+## Review: APPROVE — implement via ai/9. One Verify playbook with real monorepo commands; don't trust verifier.md's `npx`/`npm` as written.

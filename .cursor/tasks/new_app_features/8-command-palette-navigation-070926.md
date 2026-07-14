@@ -152,31 +152,13 @@ search: enabled = open && q.trim().length >= 2; debounce 200ms
 
 ## 5. Impact & Risk Analysis
 
-### 1. Blast radius
-- sidebar extract + App mount + watchlist query
-- Rollback: remove palette mount; revert sidebar import if needed
-
-### 2. Bug introductions
-- Palette outside Wouter → navigate broken (tour lesson applies)
-- Double Meta+k with browser conflicts — `preventDefault` when openable
-- nav-config drift if someone edits sidebar copy only — single source
-- Catch: ⌘K → “Options Scanner” → route; non-admin never sees Portfolio
-
-### 3. Performance
-- Search gated + debounced; pages static
-
-### 4. Workflow
-- Keyboard: open scanner / jump ticker without mouse sidebar
-
-### 5. Drift
-- Paired: `nav-config.ts` ↔ sidebar ↔ palette ↔ tour `data-tour-id` ids
+- Palette must mount inside Wouter or `navigate` breaks (same lesson as the tour)
+- Meta+K needs `preventDefault` to avoid browser shortcut conflicts
+- `nav-config.ts` must be the single source of truth — sidebar copy edited alone would drift from the palette
+- Paired with `nav-config.ts` ↔ sidebar ↔ palette ↔ tour `data-tour-id` ids — keep in sync
 
 **Do not:** reinstall cmdk; explain-score action; new watchlist route file.
 
 ---
 
-## Review (2026-07-09) — ai/2 intensity
-
-**Verdict:** APPROVE — ready  
-**Lenses:** PM Keep | UX Keep | Eng Keep (wire existing) | BA clear AC | User high value for wayfinding  
-**Key:** cmdk already installed; extract nav-config; mount inside Wouter; `?ticker=` on watchlist.
+## Review: APPROVE — ready. cmdk already installed; extract nav-config; mount inside Wouter; `?ticker=` on watchlist.

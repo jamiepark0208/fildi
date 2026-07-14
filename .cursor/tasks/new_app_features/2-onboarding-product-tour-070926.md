@@ -157,33 +157,13 @@ interface TourState {
 
 ## 5. Impact & Risk
 
-### Blast radius
-New provider + overlay; thin attrs on 4 pages + sidebar/settings. Rollback = revert those files + clear localStorage keys.
-
-### Bug risks
-- Tour before auth resolves → gate on `!isLoading && user`
-- Route paint race → retry measure 3× / fallback modal
-- z-index vs scanner expand → tour `z-[100]`
-- Multi-tab double start → acceptable v1
-
-### Performance / cost
-Zero network. One localStorage read on mount.
-
-### Drift
-Step 1 copy must track home title (“Fundamental Analysis” today → “Today” after /4). Single file: `tour-config.ts`.
+- Gate tour start on `!isLoading && user` — must not fire before auth resolves
+- Route paint race needs retry measure (3x) or fallback modal
+- Tour overlay needs `z-[100]` to sit above scanner expand
+- Step 1 copy must track home title ("Fundamental Analysis" today → "Today" after seq 4) — single source in `tour-config.ts`
 
 **Do not:** joyride package; DB column; Feed-as-step-1 (keep Fundamental/Today as CSP value prop).
 
 ---
 
-## Review (2026-07-09) — task-reviewer
-
-**Verdict:** APPROVE-WITH-NITS → nits applied in this pack; **Status ready**
-
-**Lenses:** PM Keep | UX Keep (4-step CSP path) | Eng Keep (FE-only) | BA Keep (acceptance concrete) | User Keep
-
-**Need:** First-session orientation; guide discovery.
-
-**Code reality:** No tour; Auth/sidebar/settings/guide baselines verified.
-
-**Better:** Custom overlay; defer DB; coordinate `TOUR_VERSION` with /4 — do not wait on /4 to ship.
+## Review: APPROVE-WITH-NITS, applied in this pack — ready. Custom overlay; defer DB; coordinate `TOUR_VERSION` with seq 4 — do not wait on seq 4 to ship.

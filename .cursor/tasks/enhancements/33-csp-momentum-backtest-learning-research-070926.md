@@ -205,20 +205,11 @@ CSP simplification (research must document): ignore early close / roll; assignme
 
 ## 10. Impact & Risk (for later builds)
 
-### Blast radius
-- New snapshot table; catalyst keyword changes; optional news table; offline job  
-
-### Bug risks
-- Lookahead in replay (using future IV) — snapshot only at \(t\)  
-- Keyword false positives → wrong `fundamental_catalyst`  
-- Regret UI read as “you should have sold closer” without touch-rate context  
-
-### Rollback
-- Disable job; stop attaching driver tags  
+- Lookahead risk in replay (using future IV) — must snapshot only at \(t\)
+- Keyword false positives could mislabel `fundamental_catalyst`
+- Regret UI could misleadingly read as "you should have sold closer" without touch-rate context
+- New snapshot table + optional news table + offline job; disable job / stop attaching driver tags to roll back
 
 ---
 
-## Review (2026-07-09)
-
-**Verdict:** APPROVE — ready as research SSOT for momentum + CSP learning  
-**Key:** Deterministic drivers; band regret not optimal strike; replay on prices_historical + snapshots; feeds ai/14.
+## Review: APPROVE — ready as research SSOT for momentum + CSP learning. Deterministic drivers; band regret not optimal strike; replay on prices_historical + snapshots; feeds ai/14.

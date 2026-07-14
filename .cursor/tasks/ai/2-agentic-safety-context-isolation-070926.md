@@ -193,42 +193,15 @@ Suggested CURSOR.md table (implementer can paste/adapt):
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius / impact
-- Touches: wrap script + CURSOR.md (+ small PM rule clarify)
-- Who: Cursor agents / humans running wrap
-- Rollback: revert those 2–3 files
-
-### 2. Bug introductions
-- False WARN if path spelling wrong — use exact `.agents/context/state.md`
-- Agents stop reading `.agents/` — docs must say **read OK / write deny**
-- Fail-closed wrap breaks session logging — **must fail-open**
-
-### 3. Performance & cost
-- One scoped `git status` ≪ 100ms; same class as rehydrate
-
-### 4. Workflow changes
-- Before: honor system only  
-- After: wrap nags on violation  
-- SKIP: nothing material for traders
-
-### 5. Drift & consistency
-- Paired: CURSOR.md ↔ cursor.mdc ↔ product-manager.mdc ↔ wrap script tip text
-- Owner: any boundary change updates table + wrap DENY list together
-
-### 6. Scalability
-- DENY list can grow (`.env`) carefully; don’t WARN on entire `.agents/` (noise)
+- Must use the exact `.agents/context/state.md` path or the WARN false-fires on path spelling
+- Docs must say "read OK / write deny" — don't let agents stop reading `.agents/` entirely
+- Wrap must fail-open (never fail-closed), or a check bug breaks session logging
+- Scoped to wrap script + CURSOR.md (+ small PM rule clarify); one scoped `git status` call, same performance class as rehydrate
+- Paired with CURSOR.md ↔ cursor.mdc ↔ product-manager.mdc ↔ wrap script tip text — any boundary change must update all of them together
 
 **Do not:** Cursor writes to state.md; Redis agent brain; auto-revert; new MCP (R2, R6, R7).  
 **Floors:** R2, R7, R10.
 
 ---
 
-## Review (2026-07-09) — task-reviewer
-
-**Verdict:** APPROVE-WITH-NITS → nits applied via impl research pack; **Status ready** for coding agent
-
-**Lenses:** PM Keep | UX N/A | Eng Rescope (thin delta) | BA Keep (acceptance now concrete) | User N/A
-
-**Need:** Enforcement gap in wrap — not another policy essay.
-
-**Better:** Warn-only git check reused from rehydrate pattern; reconcile PM/CURSOR cursor-state wording; defer MCP/secrets to ai/5 and ai/3.
+## Review: APPROVE-WITH-NITS, applied via impl research pack — ready for coding agent. Enforcement gap in wrap, not another policy essay; warn-only git check reused from rehydrate pattern; reconcile PM/CURSOR cursor-state wording; defer MCP/secrets to ai/5 and ai/3.

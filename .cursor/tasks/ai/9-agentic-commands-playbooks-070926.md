@@ -186,41 +186,14 @@ No database. Session/lesson files are markdown only.
 
 ## 6. Impact & Risk Analysis
 
-### 1. Blast radius
-- `CURSOR.md` (+ optional verifier.md one-liner)
-- Who: Cursor agents/humans
-- Rollback: revert docs
-
-### 2. Bug introductions
-- Two END OF SESSION lists diverge — merge or make playbooks the only command block
-- Agents run Claude wrap path — explicit naming required
-- False verify green via SKIP — playbook rules above
-- Catch: run each playbook once
-
-### 3. Performance & cost
-- Docs only; verify block may cost 30–120s when run — document **when**
-
-### 4. Workflow changes
-- Before: tribal / partial END OF SESSION  
-- After: four copy-paste playbooks  
-- SKIP: plan-only sessions need not Verify
-
-### 5. Drift & consistency
-- Paired: scripts ↔ CURSOR playbooks ↔ ai/7 ↔ enhancements/3
-- Owner: script flag change updates playbook same PR
-
-### 6. Scalability
-- More playbooks OK if &lt;1 page each; reject second CLAUDE.md
+- Two END OF SESSION lists must not diverge — merge them or make playbooks the only command block
+- Explicit naming required so agents don't accidentally run the Claude wrap path instead of Cursor's
+- Scoped to CURSOR.md (+ optional verifier.md one-liner); docs only, verify block costs 30-120s when run
+- Paired with scripts ↔ CURSOR playbooks ↔ ai/7 ↔ enhancements/3 — a script flag change must update the playbook in the same PR
 
 **Do not:** auto-wrap; dual wrap writing state.md (R2).  
 **Floors:** R2, R5, R10.
 
 ---
 
-## Review (2026-07-09) — deep pass (ai/2 intensity)
-
-**Verdict:** APPROVE — ready  
-**Lenses:** Eng Keep (docs; wrap≠cursor-state is the non-obvious finding) | BA Keep | PM Keep
-
-**Need:** One Playbooks SSOT with verified commands.  
-**Better:** Paste §4.4; absorb ai/7; don’t trust verifier.md cwd.
+## Review: APPROVE — ready. One Playbooks SSOT with verified commands; wrap≠cursor-state is the non-obvious finding; absorb ai/7; don't trust verifier.md's cwd.

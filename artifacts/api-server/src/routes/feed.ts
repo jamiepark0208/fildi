@@ -3,6 +3,7 @@ import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
 import { db, tradePosts, likes, comments, users, stockBuckets } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
 import { getLatestRegime } from './regime.js'
+import { resolveExpiredOptionTrades } from '../lib/trade-post-expiry.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -183,6 +184,8 @@ router.get('/feed/posts', async (req, res) => {
   const limit  = Math.min(Number(req.query['limit']  ?? 50), 100)
   const offset = Number(req.query['offset'] ?? 0)
 
+  await resolveExpiredOptionTrades().catch(err => console.error('resolveExpiredOptionTrades failed', err))
+
   const posts = await fetchPosts({ userId, ticker, username, status, sort, limit, offset })
   return res.json(posts)
 })
@@ -192,6 +195,8 @@ router.get('/feed/posts', async (req, res) => {
 router.get('/feed/posts/:id', async (req, res) => {
   const userId = req.session.userId!
   const postId = Number(req.params['id'])
+
+  await resolveExpiredOptionTrades().catch(err => console.error('resolveExpiredOptionTrades failed', err))
 
   const rows = await db
     .select({

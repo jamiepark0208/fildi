@@ -225,38 +225,14 @@ rg -n "default-deny|Do not add|Exception checklist" CURSOR.md
 
 ## Impact & Risk Analysis
 
-### 1. Blast radius / impact
-- CURSOR.md (+ optional wrap script via ai/2)
-- Who: Cursor agents tempted to add MCPs
-- Rollback: revert docs / wrap tip
-
-### 2. Bug introductions
-- Agents refuse IDE browser when user asked for UI verify — policy must allow **user-asked** browser
-- False WARN if mcp.json reformatted with extra metadata — keep check = keys of `mcpServers` only
-- Editing Kiro mcp “to match Cursor” — out of scope; document separation
-
-### 3. Performance & cost
-- Keeping 1 server avoids multi-KB schema tax per turn
-- Measure: `mcpServers` key count stays 1
-
-### 4. Workflow changes
-- Before: thin “here’s codegraph”  
-- After: explicit deny + how to approve exceptions  
-- SKIP adding servers as part of this task
-
-### 5. Drift & consistency
-- Paired: `.cursor/mcp.json` ↔ CURSOR.md ↔ ai/2 wrap WARN text
-- Owner: any approved new MCP updates json + CURSOR table **same PR**
-
-### 6. Scalability
-- Breaks when: many approved exceptions — then consider allowlist file (not now)
-- Hard preference: stay at 1 server
+- Policy must still allow browser MCP when the user explicitly asks for UI verification — don't over-deny
+- False WARN risk if mcp.json gets reformatted with extra metadata — keep the check limited to `mcpServers` keys only
+- Editing Kiro's mcp config "to match Cursor" is out of scope — document the separation instead
+- Scoped to CURSOR.md (+ optional wrap script via ai/2); hard preference to stay at 1 server (codegraph)
 
 **Do not:** memory/Redis/DB-dump/SaaS MCPs; remove codegraph; dual code-intel MCP (R1, R6, R7).  
 **Floors:** R1, R6, R7, R10.
 
 ---
 
-## Review notes
-
-Deep pass confirms: **policy docs are the deliverable**; mcp.json is already compliant. Bundle CURSOR.md with ai/2/ai/4. Optional enforcement lives in ai/2 wrap.
+## Review: deep pass confirms policy docs are the deliverable; mcp.json is already compliant. Bundle CURSOR.md with ai/2/ai/4. Optional enforcement lives in ai/2 wrap.
