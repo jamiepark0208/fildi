@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: Rankings tab options-scanner UI pass: removed header/legend, per-tab colors, split Ticker/Price columns, uniform white text, compact rows, colorTag ticker/score coloring, restyled strike-detail panel (bullets/Greeks/PnL layout+grouping)
+- Working: option-scorer double-delta-penalty fix (monotonic buffer/delta scoring), expiry-filter bug fix (real fractional-day check kills phantom 0.5-day chains causing false 100% POP)
 - In progress: none active
 - Blocked: none
 

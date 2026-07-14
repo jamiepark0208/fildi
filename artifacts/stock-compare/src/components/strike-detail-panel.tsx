@@ -64,10 +64,21 @@ function bsGreeksAndPrice(S: number, K: number, T: number, r: number, sigma: num
 
 // ── Score bullets ─────────────────────────────────────────────────────────────
 
+const COMPONENT_LABEL: Record<string, string> = {
+  income: "income",
+  buffer: "delta/buffer safety",
+  ivRelative: "IV rank",
+  ivAbsolute: "IV vs watchlist",
+  stockQuality: "stock quality",
+  support: "support proximity",
+  dte: "days-to-expiry preference",
+};
+
 function scoreBullets(
   result: OptionScoreResult,
   put: OptionRow,
   chain: OptionsChainResult,
+  runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
 ): Array<{ text: string; sentiment: "good" | "warn" | "bad" | "neutral" }> {
   const out: Array<{ text: string; sentiment: "good" | "warn" | "bad" | "neutral" }> = [];
   const cs = result.componentScores;
@@ -76,8 +87,43 @@ function scoreBullets(
   const inc = cs.income?.score;
   if (inc != null) {
     const s = inc >= 0.8 ? "good" : inc >= 0.5 ? "neutral" : "warn";
-    const lbl = inc >= 0.8 ? "exceeds weekly target" : inc >= 0.5 ? "meets target" : "below target";
+    const lbl = inc >= 0.8 ? "exceeds weekly target (~1%/wk)" : inc >= 0.5 ? "meets target" : "below target";
     out.push({ text: `Income ${result.weeklyIncome.toFixed(2)}%/wk — ${lbl}`, sentiment: s });
+  }
+
+  // Comparison bullet — always shown when there's a runner-up, regardless of score gap
+  // (a large gap is exactly when the "why this one" explanation matters most, not least).
+  // Names the component(s) that actually drove the gap instead of restating ticker-level
+  // facts that are identical across every strike/expiry on this ticker.
+  if (runnerUp) {
+    const ruExpiry = runnerUp.chain.daysToExpiry;
+    const ruIncome = runnerUp.result.weeklyIncome;
+    const sameStrike = runnerUp.put.strike === put.strike;
+
+    const drivers = Object.keys(result.componentScores)
+      .map((key) => {
+        const a = result.componentScores[key];
+        const b = runnerUp.result.componentScores[key];
+        if (a.score == null || b.score == null) return null;
+        return { key, delta: a.score * a.weight - b.score * b.weight };
+      })
+      .filter((d): d is { key: string; delta: number } => d !== null)
+      .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+
+    const label = drivers[0] ? COMPONENT_LABEL[drivers[0].key] ?? drivers[0].key : null;
+    const scoreGap = result.optionScore - runnerUp.result.optionScore;
+
+    if (sameStrike && ruIncome > result.weeklyIncome) {
+      out.push({
+        text: `Beats ${ruExpiry}d $${runnerUp.put.strike} (${ruIncome.toFixed(2)}%/wk, score ${runnerUp.result.optionScore.toFixed(1)} vs ${result.optionScore.toFixed(1)}) — higher yield there scored as excess assignment risk on ${label ?? "component"}, not extra credit`,
+        sentiment: "neutral",
+      });
+    } else {
+      out.push({
+        text: `Beats ${ruExpiry}d $${runnerUp.put.strike} (${ruIncome.toFixed(2)}%/wk, score ${runnerUp.result.optionScore.toFixed(1)} vs ${result.optionScore.toFixed(1)}) — driven mainly by ${label ?? "overall score"}${Math.abs(scoreGap) < 5 ? " (close call)" : ""}`,
+        sentiment: "neutral",
+      });
+    }
   }
 
   const buf = cs.buffer?.score;
@@ -92,7 +138,7 @@ function scoreBullets(
   if (ivRel != null) {
     const s = ivRel >= 0.7 ? "good" : ivRel >= 0.4 ? "neutral" : "warn";
     const lbl = ivRel >= 0.7 ? "elevated IV rank — sell premium" : ivRel >= 0.4 ? "neutral IV environment" : "low IV rank — premium thin";
-    out.push({ text: `IV environment: ${lbl}`, sentiment: s });
+    out.push({ text: `(ticker-level) IV environment: ${lbl}`, sentiment: s });
   }
 
   const ivAbs = cs.ivAbsolute?.score;
@@ -106,7 +152,7 @@ function scoreBullets(
   if (squal != null) {
     const s = squal >= 0.7 ? "good" : squal >= 0.4 ? "neutral" : "warn";
     const lbl = squal >= 0.7 ? "strong tech + fundamental base" : squal >= 0.4 ? "moderate quality" : "weak quality — higher risk";
-    out.push({ text: `Stock quality: ${lbl}`, sentiment: s });
+    out.push({ text: `(ticker-level) Stock quality: ${lbl}`, sentiment: s });
   }
 
   const sup = cs.support?.score;
@@ -349,6 +395,7 @@ interface StrikeDetailPanelProps {
   chain: OptionsChainResult;
   scoreResult: OptionScoreResult | null;
   isBest: boolean;
+  runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
 }
 
 const SENTIMENT_ICON: Record<string, string> = {
@@ -364,10 +411,10 @@ const SENTIMENT_COLOR: Record<string, string> = {
   neutral: "text-white",
 };
 
-export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDetailPanelProps) {
+export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }: StrikeDetailPanelProps) {
   const bullets = useMemo(
-    () => scoreResult ? scoreBullets(scoreResult, put, chain) : [],
-    [scoreResult, put, chain],
+    () => scoreResult ? scoreBullets(scoreResult, put, chain, isBest ? runnerUp ?? null : null) : [],
+    [scoreResult, put, chain, isBest, runnerUp],
   );
 
   return (

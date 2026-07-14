@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-14T17:52:51.531Z",
+  "fetchedAt": "2026-07-14T22:18:26.083Z",
   "vixHistory": [
     {
       "date": "2024-07-15",
@@ -2007,7 +2007,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 16.469999313354492
+      "value": 16.5
     }
   ],
   "fedFundsHistory": [
@@ -6019,7 +6019,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 4.583000183105469
+      "value": 4.585000038146973
     }
   ],
   "vixCurve": [
@@ -6034,7 +6034,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 16.47,
+      "value": 16.5,
       "weekAgo": 16.1299991607666,
       "monthAgo": 17.68000030517578,
       "threeMonthAgo": 18.360000610351562
@@ -6042,7 +6042,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 19.26,
+      "value": 19.3,
       "weekAgo": 19.010000228881836,
       "monthAgo": 20.510000228881836,
       "threeMonthAgo": 20.81999969482422
@@ -6050,7 +6050,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.46,
+      "value": 21.52,
       "weekAgo": 21.3799991607666,
       "monthAgo": 22.59000015258789,
       "threeMonthAgo": 22.770000457763672
@@ -6058,7 +6058,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.25,
+      "value": 23.28,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6068,7 +6068,7 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.627,
+      "impliedRate": 3.63,
       "weekAgo": 3.632,
       "monthAgo": 3.625,
       "threeMonthAgo": 3.64,
@@ -6086,7 +6086,7 @@
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.81,
+      "impliedRate": 3.795,
       "weekAgo": 3.82,
       "monthAgo": 3.7,
       "threeMonthAgo": 3.605,
@@ -6095,7 +6095,7 @@
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.925,
+      "impliedRate": 3.91,
       "weekAgo": 3.93,
       "monthAgo": 3.8,
       "threeMonthAgo": 3.555,
@@ -6104,7 +6104,7 @@
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 3.96,
+      "impliedRate": 3.94,
       "weekAgo": 3.96,
       "monthAgo": 3.83,
       "threeMonthAgo": 3.545,
@@ -6113,7 +6113,7 @@
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.025,
+      "impliedRate": 4.005,
       "weekAgo": 4.015,
       "monthAgo": 3.895,
       "threeMonthAgo": 3.525,
@@ -6122,7 +6122,7 @@
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 4.085,
+      "impliedRate": 4.055,
       "weekAgo": 4.045,
       "monthAgo": 3.96,
       "threeMonthAgo": 3.505,
@@ -14412,7 +14412,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 93.30999755859375
+      "value": 93.52999877929688
     }
   ],
   "fearGreedHistory": [
@@ -15426,11 +15426,11 @@
     },
     {
       "date": "2026-07-14",
-      "value": 43.7
+      "value": 43.1
     },
     {
       "date": "2026-07-14",
-      "value": 43.7
+      "value": 43.1
     }
   ],
   "putCallRatioHistory": [
@@ -16436,7 +16436,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 0.737
+      "value": 0.742
     }
   ],
   "gscpiHistory": [
@@ -41080,7 +41080,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 0.001567
+      "value": 0.001569
     }
   ],
   "dxyHistory": [
@@ -43094,7 +43094,7 @@
     },
     {
       "date": "2026-07-14",
-      "value": 100.91500091552734
+      "value": 100.94100189208984
     }
   ],
   "fedAssetsHistory": [
@@ -66065,6 +66065,10 @@
     {
       "date": "2026-07-13",
       "value": 0.795
+    },
+    {
+      "date": "2026-07-14",
+      "value": 0.278
     }
   ],
   "reservesHistory": [
@@ -80822,7 +80826,7 @@
     }
   ],
   "liquidityImplications": {
-    "asOf": "2026-07-14T17:52:51.530Z",
+    "asOf": "2026-07-14T22:18:26.080Z",
     "signals": [
       {
         "label": "Net Liquidity",
@@ -80833,7 +80837,7 @@
       {
         "label": "RRP Buffer",
         "level": "draining",
-        "readout": "$1B outstanding",
+        "readout": "$0B outstanding",
         "implication": "RRP buffer is nearly exhausted — further QT will start hitting bank reserves directly instead of being cushioned."
       },
       {
@@ -82840,10 +82844,14 @@
     {
       "date": "2026-07-10",
       "value": 69.55000305175781
+    },
+    {
+      "date": "2026-07-14",
+      "value": 75.03260040283203
     }
   ],
   "volatilityImplications": {
-    "asOf": "2026-07-14T17:52:51.531Z",
+    "asOf": "2026-07-14T22:18:26.083Z",
     "signals": [
       {
         "label": "VIX Level",
@@ -82860,7 +82868,7 @@
       {
         "label": "VVIX (Vol of VIX)",
         "level": "normal",
-        "readout": "93",
+        "readout": "94",
         "implication": "VVIX is in a normal range — no unusual demand for crash protection beyond what VIX already implies."
       },
       {
@@ -82878,7 +82886,7 @@
       {
         "label": "MOVE Index (Bond Vol)",
         "level": "calm",
-        "readout": "70",
+        "readout": "75",
         "implication": "Rates volatility is contained — no cross-asset warning from the bond market right now."
       }
     ],

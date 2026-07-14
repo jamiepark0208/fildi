@@ -61,29 +61,65 @@ describe("scoreIncomeAdequacy", () => {
   it("returns 0 for NaN", () => assert.equal(scoreIncomeAdequacy(NaN), 0));
 });
 
+// ── Dominance safety: shorter-DTE, same-strike, safer delta must not lose ───────
+
+describe("computeOptionScore: dominance across expiries", () => {
+  it("a same-strike put with lower delta, higher buffer, higher income, higher IV scores >= the longer-dated one", () => {
+    const stock: StockContext = {
+      ivRank: 0.6, ivPercentile: 60, ivVsRealizedVol: 1.1, basicSkew: 0.1,
+      swingLow20d: null, swingLow50d: null, pivotS1: null,
+      techTotalScore: 70, fundTotalScore: 70,
+    };
+    // Same strike/spot; 1wk has lower |delta|, higher IV, higher weeklyIncome, higher SD buffer
+    // than the 2wk — exactly the "dominates on every raw metric" case from the bug report.
+    const oneWeek: OptionCandidate = {
+      weeklyIncome: 1.6, delta: -0.09, strikeIV: 0.55, dte: 7, otmPct: 0.10,
+      openInterest: 500, spreadPct: 0.05, volume: 100, strike: 7, spot: 10,
+    };
+    const twoWeek: OptionCandidate = {
+      weeklyIncome: 1.1, delta: -0.13, strikeIV: 0.48, dte: 14, otmPct: 0.10,
+      openInterest: 500, spreadPct: 0.05, volume: 100, strike: 7, spot: 10,
+    };
+    const rOne = computeOptionScore(oneWeek, stock, "BASELINE", [0.4, 0.45, 0.5, 0.55]);
+    const rTwo = computeOptionScore(twoWeek, stock, "BASELINE", [0.4, 0.45, 0.5, 0.55]);
+    assert.ok(
+      rOne.optionScore >= rTwo.optionScore,
+      `1wk (safer delta, higher income/buffer/IV) scored ${rOne.optionScore}, should be >= 2wk's ${rTwo.optionScore}`,
+    );
+  });
+});
+
 // ── scoreDeltaBand ────────────────────────────────────────────────────────────
 
 describe("scoreDeltaBand", () => {
-  it("peaks inside BASELINE sweet spot [0.10, 0.15]", () => {
-    assert.equal(scoreDeltaBand(0.12, "BASELINE"), 1.0);
+  it("is monotonic decreasing in |delta| — never penalizes going safer", () => {
+    const deltas = [0, 0.02, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.34];
+    const scores = deltas.map((d) => scoreDeltaBand(d, "BASELINE"));
+    for (let i = 1; i < scores.length; i++) {
+      assert.ok(scores[i] <= scores[i - 1], `score not monotonic: delta ${deltas[i]} scored ${scores[i]} > delta ${deltas[i - 1]}'s ${scores[i - 1]}`);
+    }
   });
-  it("returns 0 at DELTA_MAX", () => assert.equal(scoreDeltaBand(0.35, "BASELINE"), 0));
-  it("returns 0 above DELTA_MAX", () => assert.equal(scoreDeltaBand(0.50, "BASELINE"), 0));
-  it("decays below sweet spot (0 < delta < lo)", () => {
+  it("scores 1.0 at delta=0 (max reward for deepest safety)", () => {
+    close(scoreDeltaBand(0, "BASELINE"), 1.0);
+  });
+  it("returns 0 at/above DELTA_MAX", () => {
+    assert.equal(scoreDeltaBand(0.35, "BASELINE"), 0);
+    assert.equal(scoreDeltaBand(0.50, "BASELINE"), 0);
+  });
+  it("decays smoothly below the old sweet-spot ceiling too (no plateau)", () => {
     const s = scoreDeltaBand(0.03, "BASELINE");
     assert.ok(s > 0 && s < 1, `expected (0,1), got ${s}`);
   });
-  it("decays above sweet spot (hi < delta < max)", () => {
+  it("decays above the sweet-spot ceiling (hi < delta < max)", () => {
     const s = scoreDeltaBand(0.25, "BASELINE");
     assert.ok(s > 0 && s < 1, `expected (0,1), got ${s}`);
   });
-  it("EXTREME regime has higher sweet-spot floor than BASELINE", () => {
-    // EXTREME sweet spot: [0.15, 0.25]
-    assert.equal(scoreDeltaBand(0.20, "EXTREME"), 1.0);
-    assert.equal(scoreDeltaBand(0.12, "BASELINE"), 1.0);
-    // 0.12 is below EXTREME sweet spot floor (0.15)
-    const extremeAt012 = scoreDeltaBand(0.12, "EXTREME");
-    assert.ok(extremeAt012 < 1.0, `expected <1.0 at 0.12 in EXTREME, got ${extremeAt012}`);
+  it("EXTREME regime is more tolerant of a given delta than BASELINE (higher sweet-spot ceiling)", () => {
+    // EXTREME's ceiling (0.25) is higher than BASELINE's (0.15), so the same delta scores
+    // higher under EXTREME — same underlying curve shape, shifted reference point.
+    const extreme  = scoreDeltaBand(0.20, "EXTREME");
+    const baseline = scoreDeltaBand(0.20, "BASELINE");
+    assert.ok(extreme > baseline, `expected EXTREME(${extreme}) > BASELINE(${baseline}) at delta=0.20`);
   });
 });
 
