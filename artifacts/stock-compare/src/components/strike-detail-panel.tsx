@@ -146,70 +146,59 @@ function GreeksTable({ put, chain }: { put: OptionRow; chain: OptionsChainResult
   const thetaDay = g.theta * 100;
   const vegaPct  = g.vega  * 100;
 
-  const rows: Array<{ label: string; value: string; color?: string; sub?: string }> = [
-    {
-      label: "Δ Delta",
-      value: g.delta.toFixed(3),
-      color: absDelta < 0.15 ? "text-green-400" : absDelta < 0.25 ? "text-white" : "text-orange-400",
-      sub: `${((1 - absDelta) * 100).toFixed(0)}% POP`,
-    },
-    {
-      label: "γ Gamma",
-      value: g.gamma.toFixed(4),
-      color: g.gamma < 0.05 ? "text-white" : "text-orange-400",
-      sub: g.gamma < 0.05 ? "stable" : "elevated",
-    },
-    {
-      label: "θ Theta",
-      value: `$${thetaDay.toFixed(2)}/d`,
-      color: "text-green-400",
-      sub: "earned daily",
-    },
-    {
-      label: "ν Vega",
-      value: `$${vegaPct.toFixed(2)}/1%`,
-      color: "text-purple-400",
-      sub: "per IV point",
-    },
-    {
-      label: "IV",
-      value: `${(put.iv * 100).toFixed(0)}%`,
-      color: "text-amber-400",
-      sub: "implied vol",
-    },
-    {
-      label: "Bid / Ask",
-      value: `$${put.bid.toFixed(2)} / $${put.ask.toFixed(2)}`,
-      color: "text-white",
-      sub: mid != null ? `mid $${mid.toFixed(2)}` : undefined,
-    },
-    {
-      label: "Spread",
-      value: put.spreadPct != null ? `${(put.spreadPct * 100).toFixed(0)}%` : "—",
-      color: put.spreadPct == null ? "text-slate-400" :
-             put.spreadPct < 0.20 ? "text-green-400" :
-             put.spreadPct < 0.40 ? "text-yellow-400" : "text-red-400",
-      sub: put.spreadPct != null
-        ? put.spreadPct < 0.20 ? "tight" : put.spreadPct < 0.40 ? "moderate" : "wide ⚠"
-        : undefined,
-    },
-    {
-      label: "Vol / OI",
-      value: `${put.volume != null ? put.volume.toLocaleString() : "—"} / ${put.openInterest != null ? put.openInterest.toLocaleString() : "—"}`,
-      color: "text-white",
-      sub: put.openInterest != null && put.openInterest >= 100 ? "liquid" : "thin",
-    },
-  ];
+  type Item = { label: string; value: string; color?: string; sub?: string };
+
+  const delta: Item = {
+    label: "Delta",
+    value: g.delta.toFixed(3),
+    color: absDelta < 0.15 ? "text-green-400" : absDelta < 0.25 ? "text-white" : "text-orange-400",
+    sub: `${((1 - absDelta) * 100).toFixed(0)}% POP`,
+  };
+  const gamma: Item = {
+    label: "Gamma",
+    value: g.gamma.toFixed(4),
+    color: g.gamma < 0.05 ? "text-white" : "text-orange-400",
+    sub: g.gamma < 0.05 ? "stable" : "elevated",
+  };
+  const theta: Item = { label: "Theta", value: `$${thetaDay.toFixed(2)}/d`, color: "text-green-400" };
+  const vega: Item  = { label: "Vega", value: `$${vegaPct.toFixed(2)}/1%`, color: "text-purple-400" };
+  const iv: Item    = { label: "IV", value: `${(put.iv * 100).toFixed(0)}%`, color: "text-amber-400" };
+  const bidAsk: Item = {
+    label: "Bid/Ask",
+    value: `$${put.bid.toFixed(2)}/$${put.ask.toFixed(2)}`,
+    color: "text-white",
+    sub: mid != null ? `mid $${mid.toFixed(2)}` : undefined,
+  };
+  const spread: Item = {
+    label: "Spread",
+    value: put.spreadPct != null ? `${(put.spreadPct * 100).toFixed(0)}%` : "—",
+    color: put.spreadPct == null ? "text-white" :
+           put.spreadPct < 0.20 ? "text-green-400" :
+           put.spreadPct < 0.40 ? "text-yellow-400" : "text-red-400",
+    sub: put.spreadPct != null
+      ? put.spreadPct < 0.20 ? "tight" : put.spreadPct < 0.40 ? "moderate" : "wide ⚠"
+      : undefined,
+  };
+  const volOi: Item = {
+    label: "Vol/OI",
+    value: `${put.volume != null ? put.volume.toLocaleString() : "—"} / ${put.openInterest != null ? put.openInterest.toLocaleString() : "—"}`,
+    color: "text-white",
+    sub: put.openInterest != null && put.openInterest >= 100 ? "liquid" : "thin",
+  };
+
+  const lines: Item[][] = [[delta, gamma], [theta, vega, iv], [bidAsk], [spread, volOi]];
 
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-0">
-      {rows.map(({ label, value, color, sub }) => (
-        <div key={label} className="flex items-center justify-between py-1.5 border-b border-slate-800/40 last:border-0">
-          <span className="text-xs text-slate-300 font-medium shrink-0 mr-1">{label}</span>
-          <div className="text-right min-w-0">
-            <span className={cn("text-sm font-mono font-semibold", color ?? "text-white")}>{value}</span>
-            {sub && <span className="block text-[10px] text-slate-400 leading-tight">{sub}</span>}
-          </div>
+    <div className="space-y-0.5 min-w-0">
+      {lines.map((items, li) => (
+        <div key={li} className="flex items-center gap-x-3 text-xs">
+          {items.map(({ label, value, color, sub }) => (
+            <span key={label} className="whitespace-nowrap">
+              <span className="text-white">{label} </span>
+              <span className={cn("font-mono font-semibold", color ?? "text-white")}>{value}</span>
+              {sub && <span className="text-white"> ({sub})</span>}
+            </span>
+          ))}
         </div>
       ))}
     </div>
@@ -269,17 +258,17 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
     : Math.round((premium - bsGreeksAndPrice(simPrice, K, T_sim, R, sigma).price) * 100 * 100) / 100;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       {/* Summary stats */}
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex items-center gap-6 text-xs">
         <span className="text-white">Max profit: <span className="text-green-400 font-mono font-bold">${maxProfit.toFixed(2)}</span></span>
         <span className="text-white">Break-even: <span className="text-amber-400 font-mono font-bold">${breakEven.toFixed(2)}</span></span>
         <span className="text-white">Max loss: <span className="text-red-400 font-mono font-bold">-${maxLoss.toFixed(2)}</span></span>
-        <span className="text-slate-300 ml-auto font-mono text-xs">T−{daysRemaining}d</span>
+        <span className="text-white ml-auto font-mono text-xs">T−{daysRemaining}d</span>
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={210}>
+      <ResponsiveContainer width="100%" height={170}>
         <LineChart data={chartData} margin={{ top: 4, right: 12, bottom: 4, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis
@@ -322,7 +311,7 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
       <div className="space-y-1.5 px-1">
         <div className="flex justify-between text-xs">
           <span className="text-blue-400 font-semibold">Today</span>
-          <span className="text-slate-300 font-mono">
+          <span className="text-white font-mono">
             {daysElapsed === 0 ? "at entry" : daysElapsed >= exactDte ? "at expiry" : `+${Math.round(daysElapsed)}d elapsed`}
           </span>
           <span className="text-red-400 font-semibold">Expiry</span>
@@ -372,7 +361,7 @@ const SENTIMENT_COLOR: Record<string, string> = {
   good:    "text-green-400",
   warn:    "text-amber-400",
   bad:     "text-red-400",
-  neutral: "text-slate-500",
+  neutral: "text-white",
 };
 
 export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDetailPanelProps) {
@@ -383,25 +372,25 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDet
 
   return (
     <div className="bg-slate-950/80 border-t border-slate-800/60">
-      {/* Top section: bullets + greeks table side by side */}
-      <div className="grid grid-cols-[1fr_340px] divide-x divide-slate-800/60">
+      {/* Top section: bullets (narrow) + P&L chart (remaining width) side by side */}
+      <div className="grid grid-cols-[380px_1fr] divide-x divide-slate-800/60">
         {/* Left: bullet reasoning */}
-        <div className="px-5 py-4 space-y-3">
-          <div className="flex items-center gap-3">
+        <div className="px-3 py-2 space-y-1.5 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className={cn(
-              "text-xs font-bold tracking-widest uppercase",
+              "text-[10px] font-bold tracking-widest uppercase",
               isBest ? "text-green-400" : "text-white",
             )}>
               {isBest ? "★ Why this strike is best" : "Strike Analysis"}
             </p>
             {scoreResult && (
               <span className={cn(
-                "font-mono text-sm font-bold",
+                "font-mono text-xs font-bold",
                 isBest ? "text-green-300" : "text-white",
               )}>
-                {scoreResult.optionScore.toFixed(1)}<span className="text-slate-400 text-xs font-normal">/100</span>
+                {scoreResult.optionScore.toFixed(1)}<span className="text-white text-[10px] font-normal">/100</span>
                 {scoreResult.dataQuality < 0.8 && (
-                  <span className="text-amber-400 text-xs font-normal ml-2">
+                  <span className="text-amber-400 text-[10px] font-normal ml-2">
                     {(scoreResult.dataQuality * 100).toFixed(0)}% data
                   </span>
                 )}
@@ -409,34 +398,34 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest }: StrikeDet
             )}
           </div>
           {bullets.length > 0 ? (
-            <ul className="space-y-2.5">
+            <ul className="space-y-1">
               {bullets.map(({ text, sentiment }, i) => (
-                <li key={i} className="flex items-start gap-2.5">
-                  <span className={cn("text-xs mt-0.5 shrink-0 font-bold", SENTIMENT_COLOR[sentiment])}>
+                <li key={i} className="flex items-start gap-1.5">
+                  <span className={cn("text-[10px] mt-0.5 shrink-0 font-bold", SENTIMENT_COLOR[sentiment])}>
                     {SENTIMENT_ICON[sentiment]}
                   </span>
-                  <span className="text-sm text-white leading-snug">{text}</span>
+                  <span className="text-xs text-white leading-snug">{text}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-400 italic">No scorer data — technicals not yet loaded.</p>
+            <p className="text-xs text-white italic">No scorer data — technicals not yet loaded.</p>
           )}
+
+          {/* Greeks & Liquidity — compact inline line */}
+          <div className="pt-1 border-t border-slate-800/60">
+            <p className="text-[9px] font-bold tracking-widest uppercase text-white mb-0.5">Greeks & Liquidity</p>
+            <GreeksTable put={put} chain={chain} />
+          </div>
         </div>
 
-        {/* Right: Greeks table */}
-        <div className="px-4 py-4">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-white mb-2">Greeks & Liquidity</p>
-          <GreeksTable put={put} chain={chain} />
+        {/* Right: P&L chart */}
+        <div className="px-3 py-2 space-y-1.5">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-white">
+            P&L Simulation — Short Put · 1 contract
+          </p>
+          <PayoffChart put={put} chain={chain} />
         </div>
-      </div>
-
-      {/* Bottom: P&L chart */}
-      <div className="border-t border-slate-800/60 px-5 py-4 space-y-3">
-        <p className="text-xs font-bold tracking-widest uppercase text-white">
-          P&L Simulation — Short Put · 1 contract
-        </p>
-        <PayoffChart put={put} chain={chain} />
       </div>
     </div>
   );

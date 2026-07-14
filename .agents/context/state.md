@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: rewrote db-patterns.md/data-agent.md/data-architecture.md to match current schema/pipeline (was previously fixed)
+- Working: Rankings tab options-scanner UI pass: removed header/legend, per-tab colors, split Ticker/Price columns, uniform white text, compact rows, colorTag ticker/score coloring, restyled strike-detail panel (bullets/Greeks/PnL layout+grouping)
 - In progress: none active
 - Blocked: none
 

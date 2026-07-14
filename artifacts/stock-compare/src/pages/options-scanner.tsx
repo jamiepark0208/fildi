@@ -151,7 +151,7 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
   const cls =
     signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
     signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
-                         "bg-muted text-muted-foreground border-border";
+                         "bg-muted text-white border-border";
   return (
     <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>
       {signal}
@@ -188,7 +188,7 @@ function StrikeRow({
   const gammaRisk    = exactDte <= 3 && absDelta != null && absDelta > 0.20;
   const incomeColor  =
     weeklyIncome >= 1.0 ? "text-green-400 font-semibold" :
-    weeklyIncome >= 0.7 ? "text-yellow-400 font-semibold" : "text-muted-foreground";
+    weeklyIncome >= 0.7 ? "text-yellow-400 font-semibold" : "text-white";
   const dqLabel = isBest && dataQuality != null
     ? dataQuality < 0.50 ? "sparse" : dataQuality < 0.80 ? "partial" : null
     : null;
@@ -197,7 +197,7 @@ function StrikeRow({
     <div>
       <div
         className={cn(
-          "grid items-center gap-x-4 px-3 py-2 text-sm border-l-2 transition-colors cursor-pointer select-none",
+          "grid items-center gap-x-4 px-3 py-1 text-xs border-l-2 transition-colors cursor-pointer select-none",
           "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
           isBest
             ? "border-l-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/15 ring-1 ring-inset ring-yellow-400/20"
@@ -216,28 +216,28 @@ function StrikeRow({
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
         </div>
         {/* Bid — dimmed with "~" prefix when using lastPrice fallback (market closed) */}
-        <div className={cn("font-mono", put.bidIsLive ? "text-slate-200" : "text-slate-500")}
+        <div className={cn("font-mono", put.bidIsLive ? "text-white" : "text-white")}
           title={put.bidIsLive ? undefined : "Market closed — showing last traded price"}>
           {put.bidIsLive ? "" : "~"}${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)}
         </div>
         {/* %/wk */}
         <div className={cn("font-mono font-semibold", incomeColor)}>{weeklyIncome.toFixed(2)}%</div>
         {/* OTM% */}
-        <div className="font-mono text-slate-300">{otmPct.toFixed(1)}%</div>
+        <div className="font-mono text-white">{otmPct.toFixed(1)}%</div>
         {/* Delta */}
-        <div className={cn("font-mono", absDelta == null ? "text-slate-500" :
+        <div className={cn("font-mono", absDelta == null ? "text-white" :
           absDelta < 0.15 ? "text-green-400" :
-          absDelta < 0.25 ? "text-slate-200" : "text-orange-400")}>
+          absDelta < 0.25 ? "text-white" : "text-orange-400")}>
           {absDelta != null ? put.delta!.toFixed(2) : "—"}
         </div>
         {/* POP */}
-        <div className={cn("font-mono", pop == null ? "text-slate-500" :
-          pop >= 85 ? "text-green-400" : pop >= 75 ? "text-slate-200" : "text-orange-400")}>
+        <div className={cn("font-mono", pop == null ? "text-white" :
+          pop >= 85 ? "text-green-400" : pop >= 75 ? "text-white" : "text-orange-400")}>
           {pop != null ? `${pop.toFixed(0)}%` : "—"}
         </div>
         {/* Buffer (SDs) */}
-        <div className={cn("font-mono", bufferSds == null ? "text-slate-500" :
-          bufferSds >= 1.5 ? "text-green-400" : bufferSds >= 1.0 ? "text-slate-200" : "text-orange-400")}>
+        <div className={cn("font-mono", bufferSds == null ? "text-white" :
+          bufferSds >= 1.5 ? "text-green-400" : bufferSds >= 1.0 ? "text-white" : "text-orange-400")}>
           {bufferSds != null ? `${bufferSds.toFixed(2)}σ` : "—"}
         </div>
         {/* IV */}
@@ -246,8 +246,8 @@ function StrikeRow({
         <div className="flex items-center gap-1.5">
           {optionScore != null && (
             <span className={cn(
-              "font-mono text-sm",
-              isBest ? "text-yellow-300" : "text-slate-300",
+              "font-mono text-xs",
+              isBest ? "text-yellow-300" : "text-white",
             )}>
               {optionScore.toFixed(1)}
             </span>
@@ -260,7 +260,7 @@ function StrikeRow({
               {dqLabel}
             </span>
           )}
-          <span className="ml-auto text-slate-400">
+          <span className="ml-auto text-white">
             <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
           </span>
         </div>
@@ -282,7 +282,7 @@ function StrikeRow({
 function StrikeTableHeader() {
   return (
     <div className={cn(
-      "grid items-center gap-x-4 px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase",
+      "grid items-center gap-x-4 px-3 py-1 text-[10px] font-semibold tracking-wider uppercase",
       "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
       "border-b border-border/60 bg-slate-900/60 text-white",
     )}>
@@ -343,19 +343,19 @@ function ExpirySection({
       {/* Expiry group header */}
       <button
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
+          "w-full flex items-center gap-2 px-3 py-1 text-left transition-colors",
           "hover:bg-secondary/40 bg-secondary/20",
         )}
         onClick={() => setCollapsed(c => !c)}
       >
         {collapsed
-          ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          ? <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
+          : <ChevronDown className="w-3.5 h-3.5 text-white shrink-0" />
         }
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-xs font-medium text-foreground">
           {formatExpiry(chain.expiry, chain.daysToExpiry)}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-white">
           {puts.length} strike{puts.length !== 1 ? "s" : ""}
           {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}
         </span>
@@ -502,18 +502,22 @@ function ScannerRow({
     <div className="border-b border-border last:border-b-0">
       {/* Collapsed header row */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
+        className="flex items-center gap-3 px-4 py-1.5 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
         style={{ borderLeft: `4px solid ${borderColor}` }}
         onClick={onExpand}
       >
-        {/* Left: ticker + price + signal */}
-        <div className="flex items-center gap-2 w-[150px] shrink-0">
+        {/* Ticker */}
+        <div className="w-[70px] shrink-0">
           <span
-            className="font-bold text-sm tracking-wide"
-            style={overrideEnabled ? { color: "#f87171" } : undefined}
+            className="font-bold text-xs tracking-wide"
+            style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
           >
             {ticker}
           </span>
+        </div>
+
+        {/* Price */}
+        <div className="w-[80px] shrink-0">
           {price != null && (
             <span className="text-xs font-mono font-semibold text-cyan-400">${price.toFixed(2)}</span>
           )}
@@ -524,7 +528,12 @@ function ScannerRow({
         </div>
 
         {/* Score */}
-        <span className="text-xs text-slate-300 w-[64px] shrink-0 font-mono">
+        <span className={cn(
+          "text-xs w-[100px] shrink-0 font-mono font-semibold",
+          score == null ? "text-white" :
+          score.totalScore >= 70 ? "text-green-400" :
+          score.totalScore >= 50 ? "text-yellow-400" : "text-white",
+        )}>
           {score ? score.totalScore.toFixed(1) : "—"}
         </span>
 
@@ -536,8 +545,8 @@ function ScannerRow({
         {/* Strike summary */}
         <span className={cn(
           "text-xs flex-1",
-          summary?.startsWith("excluded") ? "text-slate-500 italic" :
-          summary?.startsWith("no viable") ? "text-slate-500" : "text-slate-200",
+          summary?.startsWith("excluded") ? "text-white italic" :
+          summary?.startsWith("no viable") ? "text-white" : "text-white",
         )}>
           {optionsLoading ? (
             <Loader2 className="w-3 h-3 animate-spin inline" />
@@ -548,7 +557,7 @@ function ScannerRow({
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {onRefresh && (
             <button
-              className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-slate-200 transition-colors"
+              className="p-1 rounded hover:bg-secondary text-white transition-colors"
               onClick={onRefresh}
               title="Refresh options"
             >
@@ -556,7 +565,7 @@ function ScannerRow({
             </button>
           )}
           <button
-            className="p-1 rounded hover:bg-secondary text-slate-500 hover:text-red-400 transition-colors"
+            className="p-1 rounded hover:bg-secondary text-white hover:text-red-400 transition-colors"
             onClick={onDelete}
             title="Remove from scanner"
           >
@@ -564,27 +573,27 @@ function ScannerRow({
           </button>
         </div>
         {expanded
-          ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-          : <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
+          ? <ChevronDown className="w-4 h-4 text-white shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-white shrink-0" />
         }
       </div>
 
       {/* Expanded panel */}
       {expanded && (
         <div
-          className="px-4 pb-4 pt-1 space-y-3 bg-secondary/10"
+          className="px-4 pb-2 pt-1 space-y-1.5 bg-slate-950/70"
           style={{ borderLeft: `4px solid ${borderColor}` }}
         >
           {/* Reasoning line */}
           {indicator && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-white">
               {buildReasoning(indicator, firstIV, macroRegime)}
             </p>
           )}
 
           {/* Strike cards */}
           {optionsLoading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-white">
               <Loader2 className="w-3 h-3 animate-spin" />
               Loading options…
             </div>
@@ -602,7 +611,7 @@ function ScannerRow({
               group.puts.sort((a, b) => b.put.strike - a.put.strike);
             }
             return (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {Array.from(byExpiry.values()).map(({ chain, puts }, idx) => (
                   <ExpirySection
                     key={chain.expiry}
@@ -623,7 +632,7 @@ function ScannerRow({
 
           {!optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground italic">
+              <p className="text-xs text-white italic">
                 {strikeSummary(optionsData, show1wk, minIncome)}
               </p>
               {canOverride && !overrideEnabled && (
@@ -654,7 +663,7 @@ function ScannerRow({
           )}
 
           {!optionsLoading && !optionsData && (
-            <p className="text-xs text-muted-foreground italic">No options data.</p>
+            <p className="text-xs text-white italic">No options data.</p>
           )}
         </div>
       )}
@@ -670,7 +679,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
     data.regime === "LOW_VOL"  ? "text-blue-400 border-blue-500/30 bg-blue-500/5" :
     data.regime === "ELEVATED" ? "text-orange-400 border-orange-500/30 bg-orange-500/5" :
     data.regime === "EXTREME"  ? "text-red-400 border-red-500/30 bg-red-500/5" :
-                                  "text-muted-foreground border-border bg-card/50";
+                                  "text-white border-border bg-card/50";
   const dirIcon =
     data.indexDirection === "RALLY" ? "▲" :
     data.indexDirection === "CRASH" ? "▼" : "–";
@@ -681,7 +690,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
       <span className="font-semibold tracking-wide">{data.regime.replace("_", " ")}</span>
       <span>VIX {data.vix.toFixed(1)}</span>
       <span>{dirIcon} {data.indexDirection}</span>
-      <span className="text-muted-foreground">income target {floor === target ? `${target}%` : `${floor}–${target}%`}/wk</span>
+      <span className="text-white">income target {floor === target ? `${target}%` : `${floor}–${target}%`}/wk</span>
     </div>
   );
 }
@@ -1049,41 +1058,10 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   };
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const nonRedColors = PRESET_COLORS.filter(c => c !== RED_TAG);
 
   return (
     <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
-            <div className={cn("flex items-center gap-3", showHeader && "mt-1")}>
-              {nonRedColors.map(c => (
-                <span key={c} className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c }} />
-                </span>
-              ))}
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: RED_TAG }} />
-                excluded
-              </span>
-            </div>
-          </div>
-          {isAdmin && (
-            <button
-              className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors"
-              onClick={handleGlobalRefresh}
-              disabled={scorecardLoading}
-            >
-              {scorecardLoading
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <RefreshCw className="w-3.5 h-3.5" />
-              }
-              {minutesAgo(refreshedAt)}
-            </button>
-          )}
-        </div>
-
+        {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -1097,7 +1075,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                   "px-2.5 py-1 text-xs rounded transition-colors",
                   sort === key
                     ? "bg-primary text-primary-foreground"
-                    : "text-white/75 hover:text-white",
+                    : "text-white",
                 )}
               >
                 {label}
@@ -1114,7 +1092,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
               "px-2.5 py-1 text-xs rounded-md border transition-colors",
               show1wk
                 ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border text-white/75 hover:text-white",
+                : "border-border text-white",
             )}
           >
             1wk
@@ -1122,7 +1100,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
           {/* Editable min income filter */}
           <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
-            <span className="text-xs text-white/75">≥</span>
+            <span className="text-xs text-white">≥</span>
             <input
               type="number"
               min="0"
@@ -1135,7 +1113,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
               }}
               className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center"
             />
-            <span className="text-xs text-white/75">%/wk</span>
+            <span className="text-xs text-white">%/wk</span>
           </div>
 
           <div className="w-px h-5 bg-border mx-1" />
@@ -1148,12 +1126,12 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
               onChange={e => setAddInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === "Enter" && handleAdd()}
               placeholder="Add ticker…"
-              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-white placeholder:text-white/45 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-white placeholder:text-white/70 focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button
               onClick={handleAdd}
               disabled={!addInput.trim()}
-              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-white/75 hover:text-white hover:border-primary/50 disabled:opacity-40 transition-colors"
+              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-white hover:border-primary/50 disabled:opacity-40 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -1162,23 +1140,37 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
         {/* Scanner table */}
         {scorecardLoading || !isLoaded ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+          <div className="flex items-center gap-2 text-sm text-white py-8 justify-center">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading scorecard…
           </div>
         ) : sortedTickers.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-8 text-center">
+          <div className="text-sm text-white py-8 text-center">
             No tickers match current filters.
           </div>
         ) : (
           <div className="rounded-md border border-border overflow-hidden">
             {/* Column headers */}
             <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-slate-900/80 text-xs font-bold tracking-wider uppercase text-white" style={{ borderLeft: "4px solid transparent" }}>
-              <div className="w-[150px] shrink-0">Ticker / Price</div>
+              <div className="w-[70px] shrink-0">Ticker</div>
+              <div className="w-[80px] shrink-0">Price</div>
               <div className="w-[56px] shrink-0">Signal</div>
-              <div className="w-[64px] shrink-0">Stock Score</div>
+              <div className="w-[100px] shrink-0">Stock Score</div>
               <div className="w-[52px] shrink-0">IV%</div>
               <div className="flex-1">Best Strikes</div>
+              {isAdmin && (
+                <button
+                  className="flex items-center gap-1.5 text-xs normal-case font-normal tracking-normal text-white transition-colors shrink-0"
+                  onClick={handleGlobalRefresh}
+                  disabled={scorecardLoading}
+                >
+                  {scorecardLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <RefreshCw className="w-3.5 h-3.5" />
+                  }
+                  {minutesAgo(refreshedAt)}
+                </button>
+              )}
             </div>
             {sortedTickers.map(ticker => (
               <ScannerRow
