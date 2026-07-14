@@ -139,7 +139,9 @@ const next = coerce({
   in_progress: args.progress   !== undefined ? list(args.progress)   : ex.in_progress,
   blocked:     args.blocked    !== undefined ? list(args.blocked)    : ex.blocked,
   next:        args.next       !== undefined ? list(args.next)       : ex.next,
-  last_session: now + (args.note ? ` — ${args.note}` : ''),
+  // Kept short: rehydrate.js echoes this in full on EVERY prompt. Full note is preserved
+  // untruncated in .agents/sessions/claude-*.md (writeSessionEntry below) and the commit body.
+  last_session: now + (args.note ? ` — ${args.note.length > 150 ? args.note.slice(0, 147).trim() + '...' : args.note}` : ''),
   instincts:   args.instincts  !== undefined ? list(args.instincts)  : ex.instincts,
 });
 
@@ -166,7 +168,7 @@ syncStateFile(path.join(ROOT, '.agents/context/state.md'), next, now.slice(0, 10
 writeSessionEntry(next, args.note||'', now);
 
 // Stage all useful changes — source files, skills, docs, config, agent context
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 try {
   // Stage all tracked modified files
   execSync(`git -C "${ROOT}" add -u`, { stdio: 'pipe' });
@@ -190,13 +192,21 @@ try {
 }
 
 // Auto-commit and push staged changes
-const commitMsg = `chore: session checkpoint — ${args.note || 'auto-saved'}`;
+// Subject is kept short (<=72 chars) because `git log --oneline` — echoed in full by
+// rehydrate.js on EVERY prompt — shows only the subject line. A long subject compounds
+// as a per-turn cost forever; the full note still lives in the commit body (git log, not --oneline).
+const rawNote = args.note || 'auto-saved';
+const subjectPrefix = 'chore: session checkpoint — ';
+const subjectNote = rawNote.length > 72 ? rawNote.slice(0, 69).trim() + '...' : rawNote;
+const commitSubject = `${subjectPrefix}${subjectNote}`;
 try {
   // Only commit if there are staged changes
   const staged = execSync(`git -C "${ROOT}" diff --cached --name-only`, { stdio: 'pipe' }).toString().trim();
   if (staged) {
-    execSync(`git -C "${ROOT}" commit -m "${commitMsg}"`, { stdio: 'pipe' });
-    console.log(`✅ Committed: ${commitMsg}`);
+    const commitArgs = ['-C', ROOT, 'commit', '-m', commitSubject];
+    if (rawNote !== subjectNote) commitArgs.push('-m', rawNote);
+    execFileSync('git', commitArgs, { stdio: 'pipe' });
+    console.log(`✅ Committed: ${commitSubject}`);
     try {
       execSync(`git -C "${ROOT}" push origin main`, { stdio: 'pipe' });
       console.log(`✅ Pushed to origin/main`);

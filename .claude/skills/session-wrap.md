@@ -21,7 +21,12 @@ node .claude/scripts/session-wrap.js \
 ```
 ## Git commit + push
 The script handles this automatically — no manual git step needed.
-Fallback (if script fails): `git add -A && git commit -m "chore: session checkpoint — [brief note]"`
+Fallback (if script fails): `git add -A && git commit -m "chore: session checkpoint — [brief note, <=72 chars]" -m "[full note as body]"`
+Keep `--note` reasonably short regardless — the script auto-truncates it to a 72-char commit
+subject and a 150-char `state.json.last_session`, both of which rehydrate.js resends on EVERY
+prompt (`git log --oneline` only shows the subject; last_session is stored verbatim). The full
+note is never lost — it's always written untruncated to `.agents/sessions/claude-*.md` and, if
+truncated, to the commit body too.
 ## Keep instincts short (add to state.json instincts array)
 Every entry here is re-sent in full on EVERY prompt via rehydrate.js's UserPromptSubmit
 hook — this is a per-turn cost, not a one-time doc cost, so it compounds hard over a session.

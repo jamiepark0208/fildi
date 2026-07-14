@@ -641,7 +641,7 @@ export default function Settings() {
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "users",           label: "User Mgmt",     adminOnly: true },
     { id: "cache",           label: "Cache Monitor",  adminOnly: true },
-    { id: "stockdb",         label: "Stock DB",       adminOnly: true },
+    { id: "stockdb",         label: "Stock DB" },
     { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
   ];
 
@@ -689,7 +689,7 @@ export default function Settings() {
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
-          {tab === "stockdb"     && isAdmin && <StockDBTab />}
+          {tab === "stockdb"     && <StockDBTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
         </div>
       </main>

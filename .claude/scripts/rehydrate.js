@@ -14,8 +14,10 @@ function git() {
   try {
     return {
       log:  execSync('git log --oneline -2 2>/dev/null', { cwd:ROOT }).toString().trim(),
+      // status codes occupy cols 0-1 (staged, unstaged) — e.g. " M" is an unstaged
+      // modify. Matching only col 0 (old behavior) missed the common unstaged case.
       diff: execSync('git status --short 2>/dev/null', { cwd:ROOT })
-              .toString().split('\n').filter(l => l.match(/^[MADR]/)).join('\n').trim() || 'clean'
+              .toString().split('\n').filter(l => /[MADR]/.test(l.slice(0,2))).join('\n').trim() || 'clean'
     };
   } catch { return { log:'no git', diff:'clean' }; }
 }
@@ -30,8 +32,9 @@ const active = [
 console.log(`\n🔄 TRADEDASH | Phase: ${s.phase} | Next: ${(s.next||[]).slice(0,3).join(', ')||'tbd'}`);
 if (active.length) console.log(active.join(' | '));
 if (s.last_session) console.log(`Last: ${s.last_session}`);
-console.log(`Git: ${g.log.split('\n')[0]} ${g.diff !== 'clean' ? `| Changes: ${g.diff}` : '| clean'}`);
-if (g.log.includes('\n')) console.log(`     ${g.log.split('\n')[1]}`);
+const truncLine = (l, max = 100) => l.length > max ? l.slice(0, max - 3) + '...' : l;
+console.log(`Git: ${truncLine(g.log.split('\n')[0])} ${g.diff !== 'clean' ? `| Changes: ${g.diff}` : '| clean'}`);
+if (g.log.includes('\n')) console.log(`     ${truncLine(g.log.split('\n')[1])}`);
 if (s.instincts?.length) console.log(`Instincts: ${s.instincts.join(' · ')}`);
 
 // Playwright availability — check once per session, cache result

@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { db, positions, userPortfolioNames } from "@workspace/db";
-import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 
 const router = Router();
-router.use(requireAuth);
+// Portfolio feature is admin-only for now (regular-user manual-entry UX not yet built —
+// see enh/8). Nav already hides /portfolio from non-admin; this closes the backend gap
+// so a direct URL hit can't still trigger real computation for non-admin users.
+router.use(requireAdmin);
 
 // GET /positions
 router.get("/positions", async (req, res) => {

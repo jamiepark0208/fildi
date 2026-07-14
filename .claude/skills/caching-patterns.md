@@ -32,7 +32,10 @@ macro-cot         | COT Positioning (CFTC)          | file     | file cache (cot
 peer-map          | Peer Map                        | 24 hours | lib/peer-resolver.ts
 peer-profile      | Peer Profile                    | 24 hours | lib/peer-resolver.ts
 ticker-classify   | Peer Group Classification       | 24 hours | lib/peer-classifier.ts
-provenance        | Provenance (field source data)  | 15 min   | lib/provenance-cache.ts (pending registry)
+provenance        | Provenance (field source data)  | 15 min   | lib/provenance-cache.ts
+macro-indicator-history | Macro Indicator History    | 30 min   | routes/macro.ts
+macro-sep-actuals | SEP Actuals                     | 1 hour   | routes/macro.ts
+macro-sector-rotation | Sector Rotation Heatmap      | 30 min   | routes/macro.ts
 
 ## Cache key conventions
 - Single ticker: ticker.toUpperCase() e.g. "NVDA"

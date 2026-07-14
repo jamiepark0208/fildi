@@ -5,6 +5,7 @@ import { classifyCache } from './peer-classifier.js';
 import { optionsCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_REGIME_TTL } from '../routes/macro-regime.js';
+import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
 import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
@@ -38,6 +39,9 @@ const DISPLAY_NAMES: Record<string, string> = {
   'peer-profile':   'Peer Profile',
   'ticker-classify': 'Peer Group Classification',
   'provenance':     'Field Provenance',
+  'macro-indicator-history': 'Macro Indicator History',
+  'macro-sep-actuals':       'SEP Actuals',
+  'macro-sector-rotation':   'Sector Rotation Heatmap',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -60,6 +64,9 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'peer-profile':   profileCache,
   'ticker-classify': classifyCache,
   'provenance':     provenanceCache,
+  'macro-indicator-history': indicatorHistoryCache,
+  'macro-sep-actuals':       sepActualsCache,
+  'macro-sector-rotation':   sectorRotationCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -104,7 +111,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 

@@ -42,10 +42,12 @@ const ROOT       = join(__dirname, "..", "..");
 const HIGHLIGHTS_FILE    = join(ROOT, "macro-highlights.json");
 const BANK_RESEARCH_FILE = join(ROOT, "macro-bank-research.json");
 
-// Caches for routes that previously had no backend caching
-const indicatorHistoryCache = new TTLCache<object>(30 * 60 * 1000, "macro-indicator-history");
-const sepActualsCache       = new TTLCache<object>(60 * 60 * 1000, "macro-sep-actuals");
-const sectorRotationCache   = new TTLCache<object>(30 * 60 * 1000, "macro-sector-rotation");
+// Caches for routes that previously had no backend caching. Exported so cache-registry.ts
+// can surface them in the Cache Monitor tab — see bugs/5, same class of bug as profileCache
+// previously going untracked (a cache existing here doesn't automatically show up there).
+export const indicatorHistoryCache = new TTLCache<object>(30 * 60 * 1000, "macro-indicator-history");
+export const sepActualsCache       = new TTLCache<object>(60 * 60 * 1000, "macro-sep-actuals");
+export const sectorRotationCache   = new TTLCache<object>(30 * 60 * 1000, "macro-sector-rotation");
 
 const router = Router();
 

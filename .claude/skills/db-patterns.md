@@ -60,8 +60,8 @@ Rules:
 
 ## Fundamentals data layers (Bronze → Silver → Gold)
 
-**Canonical universe**: `fmp_fundamentals` table — 256 tickers (as of 2026-07-05).
-Always query this for the ticker universe, not peer_group_members or ticker_registry.
+**Canonical universe**: `fmp_fundamentals` table — never hardcode a ticker count, it drifts
+(see CLAUDE.md). Always query this for the ticker universe, not peer_group_members or ticker_registry.
 
 **Bronze (staging) — one row per ticker, source-prefixed columns:**
   - `fmp_fundamentals`      — 37 data columns, `fmp_` prefix. Written by backfill-fmp.ts
