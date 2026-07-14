@@ -1,7 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useWatchlist } from "@/hooks/use-watchlist";
 import { cn } from "@/lib/utils";
 import {
   ResponsiveContainer,
@@ -61,7 +65,7 @@ import { RegimeChips, CrossTabReadRow, StatCell, VolStrip, QuickStats } from "@/
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
-import { SectorRotationBubbles } from "@/components/macro/macro-sector-rotation";
+import { SectorRotationBubbles, SectorHeatmapGrid } from "@/components/macro/macro-sector-rotation";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
 import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
 import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
@@ -88,6 +92,8 @@ const TTD = "py-2 px-3 text-xs tabular-nums";
 export default function MacroDashboard() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
+  const { tickers: watchlistTickers } = useWatchlist();
   const [activeTab, setActiveTab] = useSessionState<MacroTab>("fildi_macro_tab", "regime");
   const [vixPeriod, setVixPeriod] = useState<CurvePeriod>("current");
   const [treasuryPeriod, setTreasuryPeriod] = useState<CurvePeriod>("current");
@@ -130,8 +136,28 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/sector-rotation").then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: activeTab === "liquidity",
+    enabled: activeTab === "liquidity" || activeTab === "heatmap",
   });
+
+  // Only fan out per-ticker quotes when the Heatmap tab is open — used for the
+  // "your watchlist in sectors" panel below the TradingView embed.
+  const watchlistQuoteQueries = useQueries({
+    queries: watchlistTickers.map((ticker) => ({
+      ...getGetStockQuoteQueryOptions({ ticker }),
+      staleTime: 10 * 60 * 1000,
+      enabled: activeTab === "heatmap",
+    })),
+  });
+
+  const watchlistBySector = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    watchlistTickers.forEach((ticker, i) => {
+      const data = watchlistQuoteQueries[i]?.data as StockMetrics | undefined;
+      const sector = data?.sector || "Unknown";
+      (groups[sector] ??= []).push(ticker);
+    });
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [watchlistTickers, watchlistQuoteQueries]);
 
   const { data: fedMembers } = useQuery<FedMember[]>({
     queryKey: ["macro-fed-members"],
@@ -753,6 +779,40 @@ export default function MacroDashboard() {
                 </div>
                 <TradingViewHeatmap />
               </div>
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-sm font-semibold">Sector Money Flow</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">1D / 1W / 1M price performance by sector ETF — where flow is rotating.</p>
+                </div>
+                <SectorHeatmapGrid data={sectorRotation} loading={activeTab === "heatmap" && !sectorRotation} />
+              </div>
+              {watchlistTickers.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Watchlist, by Sector</h3>
+                    <Button size="sm" variant="outline" onClick={() => navigate("/options-scanner")}>
+                      Open scanner
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                    {watchlistBySector.map(([sector, sTickers]) => (
+                      <div key={sector} className="flex items-center gap-1.5 text-xs">
+                        <span className="text-muted-foreground">{sector}:</span>
+                        {sTickers.map((ticker) => (
+                          <Badge
+                            key={ticker}
+                            variant="secondary"
+                            className="text-xs font-mono cursor-pointer hover:bg-secondary/70"
+                            onClick={() => navigate(`/watchlist?ticker=${ticker}`)}
+                          >
+                            {ticker}
+                          </Badge>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
                 <div>
                   <h2 className="text-sm font-semibold">Market Overview</h2>

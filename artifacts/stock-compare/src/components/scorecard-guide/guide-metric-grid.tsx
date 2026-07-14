@@ -115,6 +115,7 @@ export function GuideMetricGrid({
               return (
                 <TableRow
                   key={r.key}
+                  id={`metric-${r.key}`}
                   className={cn(
                     "border-border/40 hover:bg-secondary/15",
                     idx % 2 === 1 && "bg-secondary/5",

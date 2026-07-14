@@ -70,6 +70,30 @@ export function validateScoringWeights(c: ScoringWeightsConfig): string | null {
   return null;
 }
 
+/** Named presets for the Scorecard Guide preset buttons — only vary familyPreset;
+ *  intra-family/technical/option weights stay at defaults so the sums already
+ *  validate via validateScoringWeights. */
+export const SCORING_PRESETS: Record<string, { label: string; config: ScoringWeightsConfig }> = {
+  default: {
+    label: "Default",
+    config: buildDefaultScoringWeights(),
+  },
+  aggressiveIncome: {
+    label: "Aggressive income",
+    config: {
+      ...buildDefaultScoringWeights(),
+      familyPreset: { value: 25, growth: 15, quality: 30, safety: 30 },
+    },
+  },
+  qualityFirst: {
+    label: "Quality-first",
+    config: {
+      ...buildDefaultScoringWeights(),
+      familyPreset: { value: 15, growth: 15, quality: 45, safety: 25 },
+    },
+  },
+};
+
 export const SCORING_CONFIG_KEY = "scoring_weights";
 
 /** Map guide row keys → config paths for admin editing */

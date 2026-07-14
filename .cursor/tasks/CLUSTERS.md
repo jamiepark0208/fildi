@@ -5,7 +5,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 ---
 
 ## Skipped / Cursor-owned
-- **Cluster 2 — Agentic hygiene**: ai/2 context-isolation, ai/3 lesson-memory-hygiene, ai/4 scoped-rules-trim, ai/5 mcp-selective, ai/6 cursor-hooks-parity, ai/8 skills-discovery, ai/9 commands-playbooks, ai/10 agents-md-bridge. Config/docs tasks for Cursor's own tooling, partially maintained by Cursor already — defer entirely, don't pick up from Claude side.
+- **Cluster 2 — Agentic hygiene**: ai/2 context-isolation, ai/3 lesson-memory-hygiene, ai/4 scoped-rules-trim, ai/5 mcp-selective, ai/6 cursor-hooks-parity, ai/7 verifier-gate, ai/8 skills-discovery, ai/9 commands-playbooks, ai/10 agents-md-bridge. Config/docs tasks for Cursor's own tooling, partially maintained by Cursor already — defer entirely, don't pick up from Claude side.
 
 ---
 
@@ -17,7 +17,7 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 ---
 
 ## Cluster 5 — Macro tabs
-- enh/19 macro-heatmap-tab-improvements (S) — remaining open item; 10/11/17/18 done, files deleted
+- All done — 10/11/17/18/19 shipped, files deleted (see git log)
 
 ---
 
@@ -50,7 +50,6 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 ---
 
 ## Cluster 10 — Standalone polish (any order)
-- enh/20 scorecard-guide-improvements (S)
 - enh/21 settings-trader-preferences-improvements (M)
 - enh/35 ai-explanation-quality-improvements (M) — backlog, filed 2026-07-13: cross-cutting pass on every implication/brief/note-generating section (volatility, liquidity, regime, COT, daily brief, scorecard) — the COT `CotPositioningRead` narrative is a first draft of the pattern, not the final bar
 - enh/36 macro-policy-forward-guidance-depth (M) — backlog, filed 2026-07-13: Policy tab covers rate path/dots/SEP/Fed stances/bank views but not FOMC dissent counts, statement lexical shifts, press-conference nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks, or FedWatch-style probabilities — needs new data sourcing, bigger lift than enh/18's compaction pass; also carries the historical-analogy/pattern-matching request (tagged event history + market-reaction windows)
@@ -62,8 +61,8 @@ Tasks grouped by dependency / logical cohesion. Check `INDEX.md` for current sta
 ---
 
 ## Cluster 11 — Tech debt / infra (can batch or do one at a time)
-- enh/22 openapi-coverage-orval-migration (L)
-- enh/25 e2e-smoke-playwright (M) — after Cluster 1 CI is green ✅ (done)
+- enh/22 openapi-coverage-orval-migration (L) — backlog 2026-07-14, deferred: pays off with multiple contributors, not a solo prototype
+- enh/25 e2e-smoke-playwright (M) — backlog 2026-07-14, deferred: regression net for CI/multi-dev/live users; Replit Preview covers manual checks for now, weekly file restructuring would churn selectors
 - enh/38 large-component-token-cost (M, per file) — split oversized files (MacroComponents.tsx done; stock-breakdown.tsx done; others remain); one file per session
 
 ---
