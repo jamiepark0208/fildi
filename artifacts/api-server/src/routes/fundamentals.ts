@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import YahooFinanceClass from "yahoo-finance2";
 import { getUnionWatchlistTickers } from "../lib/watchlist-tickers.js";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
@@ -209,9 +210,10 @@ router.get("/fundamentals/peer-groups", async (req, res) => {
 });
 
 // GET /fundamentals/unmapped — admin only; returns tickers that failed peer-group classification.
-// GET /fundamentals/stock-db — admin only; every row in ticker_fundamentals.
-// Shows all tickers we have data for, regardless of watchlist membership.
-router.get("/fundamentals/stock-db", requireAdmin, async (_req, res) => {
+// GET /fundamentals/stock-db — any signed-in user (view-only); every row in ticker_fundamentals.
+// Shows all tickers we have data for, regardless of watchlist membership. Mutating actions
+// (refresh, import-history, overrides) stay requireAdmin.
+router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
   try {
     const watchlistSet = new Set((await getUnionWatchlistTickers()).map((t: string) => t.toUpperCase()));
 

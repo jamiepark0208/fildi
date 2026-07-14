@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -350,6 +351,7 @@ const families = ["value", "growth", "quality", "safety", "meta"] as const;
 type ActiveCell = { ticker: string; field: string; rect: DOMRect };
 
 export function StockDBTab() {
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [tickerFilter, setTickerFilter]         = useState("");
   const [sortCol, setSortCol]                   = useState<string | null>(null);
@@ -392,7 +394,7 @@ export function StockDBTab() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    enabled: !!hoveredTicker,
+    enabled: !!hoveredTicker && isAdmin,
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -434,18 +436,22 @@ export function StockDBTab() {
     },
   });
 
+  // Provenance/override is an admin editing feature backed by requireAdmin routes —
+  // no-op for regular users so we don't fire 401s or show an edit affordance they can't use.
   const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLTableCellElement>) => {
+    if (!isAdmin) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setActiveCell({ ticker, field, rect });
     setOverrideSrc(activeProv?.override?.source ?? "");
     setOverrideVal(activeProv?.override?.value != null ? String(activeProv.override.value) : "");
     setOverrideNote(activeProv?.override?.note ?? "");
-  }, [activeProv]);
+  }, [activeProv, isAdmin]);
 
   const onRowEnter = useCallback((ticker: string) => {
+    if (!isAdmin) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => setHoveredTicker(ticker), 250);
-  }, []);
+  }, [isAdmin]);
 
   const onRowLeave = useCallback(() => {
     hoverTimerRef.current = setTimeout(() => setHoveredTicker(null), 2000);
@@ -661,14 +667,16 @@ export function StockDBTab() {
           <span><span className={cn("font-medium", noRow > 0 ? "text-red-400" : "text-green-400")}>{noRow}</span> missing rows</span>
           <span>Coverage <span className={cn("font-medium", coverageColor(coverage))}>{coverage}%</span></span>
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1 border border-border rounded hover:bg-secondary disabled:opacity-50"
-        >
-          <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
-          Refresh
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 border border-border rounded hover:bg-secondary disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+            Refresh
+          </button>
+        )}
       </div>
 
       {/* View toggle */}

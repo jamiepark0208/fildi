@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh14-profile-phase-a done enh21-trader-prefs done token-usage-audit
+- Working: token-bloat fix (commit-subject/last_session truncation + rehydrate.js unstaged-diff bug fix) and cache-registry gap fix (3 unregistered macro caches wired up) and admin/regular-user visibility gating (Stock DB opened up, Portfolio backend locked to requireAdmin) done
 - In progress: none active
 - Blocked: none
 

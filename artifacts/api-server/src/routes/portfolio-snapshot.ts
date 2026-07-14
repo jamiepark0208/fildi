@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth } from '../middleware/requireAuth.js'
+import { requireAdmin } from '../middleware/requireAdmin.js'
 import { db, portfolioSnapshots, portfolioPositions, portfolioOptions, portfolioAccountSummaries, portfolioOrders } from '@workspace/db'
 import { desc, eq } from 'drizzle-orm'
 import { computeRealizedPnL } from '../lib/realized-pnl.js'
@@ -10,9 +10,9 @@ const router = Router()
 // Correlation matrix + parametric 95% VaR/CVaR across held tickers. Frontend
 // supplies { ticker, weight } pairs (it already computes notional weights for
 // the beta-contribution card) rather than this route re-deriving position
-// sizing from CSV/manual-entry data, since both admin and non-admin portfolios
-// share this endpoint.
-router.post('/portfolio/risk', requireAuth, async (req, res, next) => {
+// sizing from CSV/manual-entry data. Portfolio feature is admin-only for now
+// (regular-user manual-entry UX not yet built — see enh/8).
+router.post('/portfolio/risk', requireAdmin, async (req, res, next) => {
   try {
     const { positions, portfolioValueUsd } = req.body as { positions?: PortfolioRiskInput[]; portfolioValueUsd?: number }
     if (!Array.isArray(positions) || positions.length === 0) {
@@ -26,7 +26,7 @@ router.post('/portfolio/risk', requireAuth, async (req, res, next) => {
   }
 })
 
-router.get('/portfolio/snapshot/latest', requireAuth, async (req, res, next) => {
+router.get('/portfolio/snapshot/latest', requireAdmin, async (req, res, next) => {
   try {
     const [snapshot] = await db
       .select()

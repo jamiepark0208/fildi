@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth } from '../middleware/requireAuth.js'
+import { requireAdmin } from '../middleware/requireAdmin.js'
 import {
   db,
   portfolioSnapshots,
@@ -16,7 +16,7 @@ const router = Router()
 // Accept raw CSV text body (text/plain, text/csv) or JSON { csv: "..." }
 router.post(
   '/portfolio/ingest',
-  requireAuth,
+  requireAdmin,
   async (req, res, next) => {
     try {
       let csvText: string | undefined
