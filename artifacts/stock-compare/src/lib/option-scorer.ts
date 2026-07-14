@@ -6,8 +6,8 @@ import {
   type MacroRegime,
   INCOME_FLOOR, INCOME_TARGET, INCOME_DECAY_FLOOR,
   REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR,
-  DELTA_SWEET_LOW, DELTA_SWEET_HIGH, DELTA_MAX,
-  SD_BUFFER_TARGET, SD_BUFFER_MAX, BUFFER_WEIGHT_DELTA, BUFFER_WEIGHT_SD,
+  DELTA_SWEET_HIGH, DELTA_MAX,
+  SD_BUFFER_TARGET, BUFFER_WEIGHT_DELTA, BUFFER_WEIGHT_SD,
   IV_VS_REALIZED_BONUS, IV_SKEW_BONUS, IV_ABSOLUTE_CAP,
   W_INCOME, W_BUFFER, W_IV_RELATIVE, W_IV_ABSOLUTE,
   W_STOCK_QUALITY, W_SUPPORT, W_DTE,
@@ -70,7 +70,12 @@ function pf(v: number | string | null | undefined): number | null {
 }
 
 // ── Component: Income adequacy ────────────────────────────────────────────────
-// Soft target — penalizes both too low (income gate) and too high (assignment risk proxy).
+// Soft peak at target (~1%/wk after regime shift) — below target, income is the gate;
+// above target, yield decays gently toward INCOME_DECAY_FLOOR. This is the ONLY component
+// that penalizes distance from a target rather than rewarding a direction monotonically —
+// deeper safety (lower delta, more buffer, higher IV) is handled by their own components
+// below and should never be cross-gated by income or vice versa (each metric owns its own
+// reward curve — no double-counting across components).
 
 export function scoreIncomeAdequacy(
   weeklyIncome: number,
@@ -84,21 +89,23 @@ export function scoreIncomeAdequacy(
 }
 
 // ── Component: Delta band score ────────────────────────────────────────────────
+// Monotonic: lower |delta| (safer, more OTM, higher POP) always scores at least as well as
+// a higher one — never penalized for being "too safe" the way a sweet-band design would.
+// DELTA_SWEET_HIGH[regime] is kept as a soft reference point (still scores ~0.7 there) so
+// regime still shifts how aggressively the falloff toward 0 kicks in by DELTA_MAX.
 
 export function scoreDeltaBand(absDelta: number, regime: MacroRegime): number {
-  const lo = DELTA_SWEET_LOW[regime];
   const hi = DELTA_SWEET_HIGH[regime];
   if (absDelta >= DELTA_MAX) return 0;
-  if (absDelta >= lo && absDelta <= hi) return 1.0;
-  if (absDelta < lo) {
-    // Too far OTM — mild penalty (income component already penalizes low yield)
-    return c01(0.3 + 0.7 * (absDelta / lo));
-  }
-  // Too close — steeper penalty
-  return c01(1 - (absDelta - hi) / (DELTA_MAX - hi));
+  if (absDelta <= hi) return c01(1 - 0.3 * (absDelta / hi));
+  return c01(0.7 * (1 - (absDelta - hi) / (DELTA_MAX - hi)));
 }
 
 // ── Component: SD buffer (expected-move based) ────────────────────────────────
+// Monotonic: more buffer (in expected-move units) is always at least as good, capping at
+// 1.0 once sds reaches SD_BUFFER_TARGET. No decay for "too much" buffer — a huge buffer from
+// a safe delta is just safety; income's own target-decay already discourages chasing a strike
+// so far OTM that the premium becomes negligible.
 
 export function scoreSdBuffer(otmPct: number, strikeIV: number, dte: number): number {
   if (strikeIV <= 0 || dte <= 0) return 0;
@@ -106,7 +113,6 @@ export function scoreSdBuffer(otmPct: number, strikeIV: number, dte: number): nu
   if (em <= 0) return 0;
   const sds = otmPct / em;
   if (sds <= 0) return 0;
-  if (sds >= SD_BUFFER_MAX) return c01(INCOME_DECAY_FLOOR + (1 - INCOME_DECAY_FLOOR) * (SD_BUFFER_TARGET / sds));
   return c01(sds / SD_BUFFER_TARGET);
 }
 
@@ -333,8 +339,10 @@ export function pickBestStrike(
   allWatchlistIVs: number[],
   minScoredComponents: number = MIN_SCORED_COMPONENTS,
   strikeWeights?: Record<string, number>,
-): { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null {
-  let best: { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null = null;
+): { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult; runnerUp: { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null } | null {
+  type Candidate = { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult };
+  let best: Candidate | null = null;
+  let runnerUp: Candidate | null = null;
 
   for (const chain of chains) {
     for (const put of chain.puts) {
@@ -342,11 +350,15 @@ export function pickBestStrike(
       const candidate = buildCandidate(put, chain);
       const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights);
       if (result.availableComponents < minScoredComponents) continue;
+      const entry: Candidate = { chain, put, result };
       if (!best || result.optionScore > best.result.optionScore) {
-        best = { chain, put, result };
+        runnerUp = best;
+        best = entry;
+      } else if (!runnerUp || result.optionScore > runnerUp.result.optionScore) {
+        runnerUp = entry;
       }
     }
   }
 
-  return best;
+  return best ? { ...best, runnerUp } : null;
 }

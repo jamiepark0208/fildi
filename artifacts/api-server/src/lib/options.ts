@@ -56,7 +56,8 @@ interface RawOptionsResponse {
 
 // ── Options scanner constants ─────────────────────────────────────────────────
 const FLAT_MIN_OTM   = 0.03;  // 3% — minimum OTM distance (replaces tier bands)
-const FLAT_MAX_OTM   = 0.15;  // 15% — maximum OTM distance
+const FLAT_MAX_OTM   = 0.25;  // 25% — maximum OTM distance (widened from 15% so high-IV names'
+                               // income-target-optimal strikes aren't cut off before scoring)
 const RISK_FREE_RATE = 0.045; // ~current T-bill rate
 
 // ── Shared expiry date cache (24h TTL — expiry calendars change rarely) ───────
@@ -266,14 +267,19 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   let targets: Date[];
 
   if (cachedDates) {
-    targets = cachedDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 2);
+    // exactDaysUntil (real elapsed time), not daysUntil (calendar-day ceil) — the ceil'd
+    // version still counts an expiry a few hours away (e.g. tomorrow morning, checked
+    // after-hours tonight) as "1 day out", letting a near-expired contract through. That
+    // contract's near-zero real DTE then collapses BS delta to ~0 for nearly every OTM
+    // strike (false ~100% POP) and inflates weeklyIncome by annualizing over almost no time.
+    targets = cachedDates.filter(d => exactDaysUntil(d) >= 1 && exactDaysUntil(d) <= 28).slice(0, 2);
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   } else {
     // Cache miss — initial undated fetch to discover expiry calendar
     raw0 = await fetchChain(key);
     const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
     expiryCache.set(key, allDates);
-    targets = allDates.filter(d => daysUntil(d) >= 1 && daysUntil(d) <= 28).slice(0, 2);
+    targets = allDates.filter(d => exactDaysUntil(d) >= 1 && exactDaysUntil(d) <= 28).slice(0, 2);
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   }
 

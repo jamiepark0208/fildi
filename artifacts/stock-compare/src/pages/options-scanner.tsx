@@ -123,7 +123,17 @@ function strikeSummary(
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
 }
 
+// RSI thresholds are per-ticker, calibrated from historical win rate by tier — not a
+// universal constant. Shown alongside the threshold so "35" reads as a calibrated value,
+// not an arbitrary hardcode. See RSI_THRESHOLDS / TIER_MAP in api-server/src/lib/constants.ts.
+const TIER_WIN_RATE: Record<1 | 2 | 3, string> = {
+  1: "≥92%",
+  2: "≥94%",
+  3: "≥97%",
+};
+
 function buildReasoning(d: ScorecardRow, firstIV: number | null, macroRegime: MacroRegime = "BASELINE"): string {
+  const tierPart = ` (Tier ${d.tier}, ${TIER_WIN_RATE[d.tier]} win rate)`;
   if (d.signal === "GO") {
     const ivPct = d.ivCurrent && d.ivCurrent > 0
       ? d.ivCurrent.toFixed(0)
@@ -137,9 +147,9 @@ function buildReasoning(d: ScorecardRow, firstIV: number | null, macroRegime: Ma
   }
   if (d.signal === "WATCH") {
     if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} slightly above 25 — monitor for weakening`;
-    return `RSI ${d.rsi.toFixed(1)} near threshold ${d.rsiThreshold} — monitor`;
+    return `RSI ${d.rsi.toFixed(1)} near threshold ${d.rsiThreshold}${tierPart} — monitor`;
   }
-  if (!d.rsiOk) return `RSI ${d.rsi.toFixed(1)} above threshold ${d.rsiThreshold}`;
+  if (!d.rsiOk) return `RSI ${d.rsi.toFixed(1)} above threshold ${d.rsiThreshold}${tierPart}`;
   if (!d.mfiOk) return `MFI ${d.mfi.toFixed(1)} above 25`;
   if (d.return5d != null && d.return5d > 5) return `Up +${d.return5d.toFixed(1)}% in 5d — entry score reduced`;
   return "conditions not met";
@@ -168,6 +178,7 @@ function StrikeRow({
   optionScore,
   dataQuality,
   scoreResult,
+  runnerUp,
 }: {
   chain: OptionsChainResult;
   put: OptionRow;
@@ -175,6 +186,7 @@ function StrikeRow({
   optionScore?: number | null;
   dataQuality?: number | null;
   scoreResult?: OptionScoreResult | null;
+  runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const exactDte     = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
@@ -271,6 +283,7 @@ function StrikeRow({
           chain={chain}
           scoreResult={scoreResult ?? null}
           isBest={isBest}
+          runnerUp={isBest ? (runnerUp ?? null) : null}
         />
       )}
     </div>
@@ -315,7 +328,7 @@ function ExpirySection({
   chain: OptionsChainResult;
   puts: Array<{ put: OptionRow; weeklyIncome: number }>;
   bestStrike: { put: OptionRow; chain: OptionsChainResult } | null;
-  newScorerBest: { chain: OptionsChainResult; put: OptionRow; optionScore: number; dataQuality: number } | null;
+  newScorerBest: { chain: OptionsChainResult; put: OptionRow; optionScore: number; dataQuality: number; runnerUp: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null } | null;
   stockCtx: StockContext | null;
   macroRegime: MacroRegime;
   allWatchlistIVs: number[];
@@ -384,6 +397,7 @@ function ExpirySection({
                 optionScore={isBest ? (newScorerBest?.optionScore ?? sr?.optionScore ?? null) : (sr?.optionScore ?? null)}
                 dataQuality={isBest ? (newScorerBest?.dataQuality ?? sr?.dataQuality ?? null) : (sr?.dataQuality ?? null)}
                 scoreResult={sr}
+                runnerUp={isBest ? (newScorerBest?.runnerUp ?? null) : null}
               />
             );
           })}
@@ -473,6 +487,7 @@ function ScannerRow({
       weeklyIncome: picked.result.weeklyIncome,
       optionScore: picked.result.optionScore,
       dataQuality: picked.result.dataQuality,
+      runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
     };
   }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
 

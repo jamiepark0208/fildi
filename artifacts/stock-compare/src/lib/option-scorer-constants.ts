@@ -24,13 +24,9 @@ export const REGIME_INCOME_FLOOR: Record<MacroRegime, number> = {
 };
 
 // ── Delta / buffer ────────────────────────────────────────────────────────────
-// Sweet-spot band per regime — |put delta|, score peaks inside, decays outside
-export const DELTA_SWEET_LOW: Record<MacroRegime, number> = {
-  LOW_VOL:  0.08,
-  BASELINE: 0.10,
-  ELEVATED: 0.12,
-  EXTREME:  0.15,
-};
+// Monotonic reward for lower |put delta| (safer/more OTM) — DELTA_SWEET_HIGH[regime] is a
+// soft reference (still scores ~0.7 there), not a hard band; regime shifts how much
+// tolerance there is before falloff toward 0 at DELTA_MAX.
 export const DELTA_SWEET_HIGH: Record<MacroRegime, number> = {
   LOW_VOL:  0.12,
   BASELINE: 0.15,
@@ -40,9 +36,9 @@ export const DELTA_SWEET_HIGH: Record<MacroRegime, number> = {
 // Above DELTA_MAX → score 0; too much assignment risk
 export const DELTA_MAX = 0.35;
 
-// SD-buffer target: OTM distance / expected-move; score peaks at ~1.25 SDs OTM
+// SD-buffer target: OTM distance / expected-move; score caps at 1.0 once reached (monotonic —
+// more buffer is never penalized; income's own target-decay discourages chasing worthless premium)
 export const SD_BUFFER_TARGET = 1.25;
-export const SD_BUFFER_MAX    = 2.5; // above → mild decay (income catches low yield)
 
 // Blend weights inside the Buffer component (must sum to 1.0)
 export const BUFFER_WEIGHT_DELTA    = 0.60; // primary: delta band

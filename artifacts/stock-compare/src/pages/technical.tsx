@@ -25,6 +25,14 @@ const SLOT_COLORS = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#f472b6"];
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
+// RSI thresholds are per-ticker, calibrated from historical win rate by tier — not a
+// universal constant. See RSI_THRESHOLDS / TIER_MAP in api-server/src/lib/constants.ts.
+const TIER_WIN_RATE: Record<1 | 2 | 3, string> = {
+  1: "≥92%",
+  2: "≥94%",
+  3: "≥97%",
+};
+
 function TierBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const cls =
     tier === 1 ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
@@ -218,7 +226,10 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
                 <span className="text-muted-foreground">RSI 14</span>
-                <span className={cn("font-mono font-semibold tabular-nums", d.rsiOk ? "text-green-400" : "text-red-400")}>
+                <span
+                  className={cn("font-mono font-semibold tabular-nums", d.rsiOk ? "text-green-400" : "text-red-400")}
+                  title={`Threshold ${d.rsiThreshold} is calibrated for this ticker — Tier ${d.tier}, ${TIER_WIN_RATE[d.tier]} historical win rate`}
+                >
                   {d.rsi.toFixed(1)}<span className="text-muted-foreground font-normal"> /{d.rsiThreshold}</span>
                 </span>
               </div>
