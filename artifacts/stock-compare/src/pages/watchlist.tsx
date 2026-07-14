@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useSearch } from "wouter";
 import { TopNav } from "@/components/top-nav";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +32,16 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 function WatchlistView() {
   const { entries, isLoaded, addEntry, removeEntry, updateColorTag } = useWatchlist();
   const [selectedTicker, setSelectedTicker] = useSessionState<string | null>("fildi_watchlist_selected_ticker", null);
+  const search = useSearch();
+
+  // Deep-link support: /watchlist?ticker=XYZ selects that ticker on load (used by
+  // the old /breakdown route redirect and any other cross-page "view breakdown" CTA).
+  useEffect(() => {
+    const ticker = new URLSearchParams(search).get("ticker");
+    if (ticker) setSelectedTicker(ticker.toUpperCase());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
   const [filterColor, setFilterColor] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -391,10 +402,6 @@ export default function Watchlist() {
     <div className="min-h-[100dvh] bg-background text-foreground">
       <TopNav />
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
-        <div className="shrink-0 border-b border-border bg-background px-6 py-4">
-          <h1 className="text-lg font-bold tracking-tight leading-none">Watchlist</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Your personal watchlist</p>
-        </div>
         <WatchlistView />
       </main>
     </div>

@@ -15,7 +15,6 @@ const Rankings = lazy(() => import("@/pages/rankings"));
 const Home = lazy(() => import("@/pages/home"));
 const Watchlist = lazy(() => import("@/pages/watchlist"));
 const Technical = lazy(() => import("@/pages/technical"));
-const Breakdown = lazy(() => import("@/pages/breakdown"));
 const Portfolio = lazy(() => import("@/pages/portfolio"));
 const ScorecardExplanation = lazy(() => import("@/pages/scorecard-explanation"));
 const OptionsScanner = lazy(() => import("@/pages/options-scanner"));
@@ -93,7 +92,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/breakdown">
-        <ProtectedRoute><Breakdown /></ProtectedRoute>
+        <Redirect to="/watchlist" />
       </Route>
       <Route path="/portfolio">
         <ProtectedRoute><Portfolio /></ProtectedRoute>
