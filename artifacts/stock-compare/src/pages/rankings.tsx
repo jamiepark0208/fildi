@@ -105,17 +105,27 @@ export default function Rankings() {
       <TopNav />
 
       <main className="pt-14 min-w-0">
-        <div className="p-5 border-b border-border/50 sticky top-14 bg-background/95 backdrop-blur z-40">
-          <h1 className="text-lg font-bold tracking-tight leading-none">Rankings</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Watchlist leaderboards — fundamental and technical scoring</p>
-        </div>
-
         <div className="p-5">
           <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical" | "options")}>
             <TabsList className="h-10 mb-4">
-              <TabsTrigger value="fundamental" className="text-sm px-4">Fundamentals</TabsTrigger>
-              <TabsTrigger value="technical" className="text-sm px-4">Technicals</TabsTrigger>
-              <TabsTrigger value="options" className="text-sm px-4">Options</TabsTrigger>
+              <TabsTrigger
+                value="fundamental"
+                className="text-sm px-4 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
+              >
+                Fundamentals
+              </TabsTrigger>
+              <TabsTrigger
+                value="technical"
+                className="text-sm px-4 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-300"
+              >
+                Technicals
+              </TabsTrigger>
+              <TabsTrigger
+                value="options"
+                className="text-sm px-4 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300"
+              >
+                Options
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="fundamental" className="mt-0">
