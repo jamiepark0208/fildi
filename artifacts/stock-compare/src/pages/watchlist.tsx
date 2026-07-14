@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import { TopNav } from "@/components/top-nav";
-import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
+import { useWatchlist, PRESET_COLORS, COLOR_LABELS } from "@/hooks/use-watchlist";
 import { useQuery } from "@tanstack/react-query";
 import {
   useSearchStocks,
@@ -262,6 +262,7 @@ function WatchlistView() {
               <button
                 key={c}
                 onClick={() => setFilterColor(filterColor === c ? null : c)}
+                title={COLOR_LABELS[c] ?? undefined}
                 className={cn(
                   "w-4 h-4 rounded-full flex-shrink-0 transition-transform border border-transparent",
                   filterColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-background"
@@ -270,6 +271,16 @@ function WatchlistView() {
               />
             ))}
           </div>
+          {usedColors.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+              {usedColors.filter(c => COLOR_LABELS[c]).map(c => (
+                <span key={c} className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c }} />
+                  {COLOR_LABELS[c]}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Table Header */}
@@ -290,8 +301,19 @@ function WatchlistView() {
         {/* Table Body */}
         <div className="flex-1 overflow-y-auto">
           {visibleEntries.length === 0 ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              No tickers in watchlist.
+            <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+              {entries.length === 0 ? (
+                <>
+                  <p>No tickers in watchlist.</p>
+                  <p>
+                    <Link href="/options-scanner" className="text-primary hover:underline">
+                      Add from scanner GO list
+                    </Link>
+                  </p>
+                </>
+              ) : (
+                <p>No tickers match this color filter.</p>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-border/20">
@@ -359,6 +381,7 @@ function WatchlistView() {
                           <button
                             key={c}
                             onClick={() => { updateColorTag(entry.ticker, c); setColorPickerTicker(null); }}
+                            title={COLOR_LABELS[c] ?? undefined}
                             className={cn("w-4 h-4 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-background")}
                             style={{ backgroundColor: c }}
                           />
