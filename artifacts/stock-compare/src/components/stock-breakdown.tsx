@@ -5,13 +5,12 @@ import {
   Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, LineChart
 } from "lucide-react";
 import {
-  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
 import { PriceChart, Period } from "./price-chart";
 import { CompetitorsSection } from "./competitors-section";
 import { CatalystsSection } from "./catalysts-section";
-import { useSearchStocks, getSearchStocksQueryKey, getGetStockHistoryQueryOptions } from "@workspace/api-client-react";
+import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
@@ -104,35 +103,6 @@ function useBreakdown(ticker: string | null) {
   });
 }
 
-/** Derives 4-week / 13-week low-high ranges from the same history bars the price chart already fetches. */
-function useShortRanges(ticker: string | null) {
-  const oneMonth = useQuery({
-    ...getGetStockHistoryQueryOptions({ ticker: ticker ?? "", period: "1M" }),
-    enabled: !!ticker,
-    staleTime: 5 * 60 * 1000,
-  });
-  const threeMonth = useQuery({
-    ...getGetStockHistoryQueryOptions({ ticker: ticker ?? "", period: "3M" }),
-    enabled: !!ticker,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  return useMemo(() => {
-    const rangeFor = (bars: { date: string; close: number; high?: number | null; low?: number | null }[], days: number) => {
-      const cutoff = Date.now() - days * 86400000;
-      const window = bars.filter(b => new Date(b.date).getTime() >= cutoff);
-      if (!window.length) return null;
-      const highs = window.map(b => b.high ?? b.close);
-      const lows = window.map(b => b.low ?? b.close);
-      return { high: Math.max(...highs), low: Math.min(...lows) };
-    };
-    return {
-      fourWeek: rangeFor(oneMonth.data ?? [], 28),
-      thirteenWeek: rangeFor(threeMonth.data ?? [], 91),
-    };
-  }, [oneMonth.data, threeMonth.data]);
-}
-
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function overviewBullets(description: string, companyName: string | null | undefined): string[] {
@@ -156,42 +126,6 @@ function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
     <span className={cn("font-bold font-mono tabular-nums text-sm", color)}>
       {score}/{max}
     </span>
-  );
-}
-
-function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
-  const data = [
-    { dimension: "Value", score: scores.value, fullMark: 5 },
-    { dimension: "Future", score: scores.growth, fullMark: 5 },
-    { dimension: "Past", score: scores.past, fullMark: 5 },
-    { dimension: "Health", score: scores.health, fullMark: 5 },
-    { dimension: "Dividend", score: scores.dividend, fullMark: 5 },
-  ];
-
-  return (
-    <ResponsiveContainer width="100%" height={160}>
-      <RadarChart data={data} outerRadius="58%" margin={{ top: 10, right: 25, bottom: 10, left: 25 }}>
-        <PolarGrid
-          gridType="polygon"
-          stroke="rgba(255,255,255,0.08)"
-          radialLines={true}
-        />
-        <PolarAngleAxis
-          dataKey="dimension"
-          tick={{ fill: "rgba(255,255,255,0.95)", fontSize: 10, fontWeight: 700 }}
-        />
-        <Radar
-          name="Score"
-          dataKey="score"
-          stroke="hsl(var(--primary))"
-          fill="hsl(var(--primary))"
-          fillOpacity={0.28}
-          strokeWidth={2}
-          dot={{ r: 3, fill: "hsl(var(--primary))", strokeWidth: 0 }}
-          label={{ fill: "rgba(255,255,255,0.95)", fontSize: 10, fontWeight: 700 }}
-        />
-      </RadarChart>
-    </ResponsiveContainer>
   );
 }
 
@@ -626,70 +560,6 @@ function AnalystDonut({ recs }: { recs: Recommendations }) {
   );
 }
 
-function RangeBar({
-  current,
-  low,
-  high,
-}: {
-  current: number;
-  low: number;
-  high: number;
-}) {
-  const pct = high > low ? Math.max(2, Math.min(98, ((current - low) / (high - low)) * 100)) : 50;
-  return (
-    <div>
-      <div className="flex justify-between text-sm text-foreground font-mono font-medium mb-2">
-        <span>Low <span className="font-bold">${low.toFixed(2)}</span></span>
-        <span>High <span className="font-bold">${high.toFixed(2)}</span></span>
-      </div>
-      <div className="relative h-2 bg-secondary/50 rounded-full overflow-visible">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/25 via-yellow-500/20 to-green-500/25" />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-primary rounded-full shadow-sm shadow-primary/50 border-2 border-background z-10"
-          style={{ left: `${pct}%` }}
-        />
-      </div>
-      <div className="text-center text-xs font-mono font-semibold mt-2 text-foreground">
-        ${current.toFixed(2)}
-      </div>
-    </div>
-  );
-}
-
-function RangeTabsCard({
-  current,
-  ranges,
-}: {
-  current: number;
-  ranges: { key: string; label: string; low: number; high: number }[];
-}) {
-  const [active, setActive] = useState(0);
-  if (!ranges.length) return null;
-  const r = ranges[Math.min(active, ranges.length - 1)];
-  return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
-      <div className="flex items-center gap-1 mb-3">
-        {ranges.map((rng, i) => (
-          <button
-            key={rng.key}
-            type="button"
-            onClick={() => setActive(i)}
-            className={cn(
-              "text-xs font-semibold px-2.5 py-1 rounded-md border transition-colors",
-              i === active
-                ? "bg-primary text-primary-foreground border-primary"
-                : "text-foreground border-border/50 hover:bg-secondary/50",
-            )}
-          >
-            {rng.label}
-          </button>
-        ))}
-      </div>
-      <RangeBar current={current} low={r.low} high={r.high} />
-    </div>
-  );
-}
-
 function timeAgo(iso: string | null): string {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
@@ -764,7 +634,6 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
     dropdownOpen && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
   const { data, isLoading, error } = useBreakdown(activeTicker);
-  const shortRanges = useShortRanges(activeTicker);
 
   const commitTicker = useCallback((t: string) => {
     const upper = t.trim().toUpperCase();
@@ -1025,45 +894,6 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               </div>
             )}
 
-            {/* ── Snowflake + Range ── */}
-            <div className="grid grid-cols-[240px_1fr] gap-4">
-              {/* Snowflake */}
-              <div className="bg-card border border-border/50 rounded-xl p-3 flex flex-col">
-                <span className="text-sm font-bold tracking-tight text-foreground mb-1 block">
-                  Investment Profile
-                </span>
-                <SnowflakeChart scores={data.snowflake} />
-              </div>
-
-              {/* Price range, tabbed: 4W / 13W / 52W */}
-              <RangeTabsCard
-                current={m.currentPrice ?? 0}
-                ranges={[
-                  ...(m.currentPrice != null && shortRanges.fourWeek
-                    ? [{ key: "4w", label: "4W", low: shortRanges.fourWeek.low, high: shortRanges.fourWeek.high }]
-                    : []),
-                  ...(m.currentPrice != null && shortRanges.thirteenWeek
-                    ? [{ key: "13w", label: "13W", low: shortRanges.thirteenWeek.low, high: shortRanges.thirteenWeek.high }]
-                    : []),
-                  ...(m.currentPrice != null && m.fiftyTwoWeekLow != null && m.fiftyTwoWeekHigh != null
-                    ? [{ key: "52w", label: "52W", low: m.fiftyTwoWeekLow, high: m.fiftyTwoWeekHigh }]
-                    : []),
-                ]}
-              />
-            </div>
-
-            {/* ── Price Chart ── */}
-            <div className="overflow-hidden">
-              <PriceChart
-                tickers={[m.ticker]}
-                loadedStocks={[m]}
-                selectedPeriod={chartPeriod}
-                onPeriodChange={setChartPeriod}
-                showTechnicalZones={!!propTicker}
-                tickerForTechnicals={propTicker}
-              />
-            </div>
-
             {/* ── Metrics table ── */}
             <MetricsTable
               groups={[
@@ -1130,6 +960,18 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               ]}
             />
 
+            {/* ── Price Chart ── */}
+            <div className="overflow-hidden">
+              <PriceChart
+                tickers={[m.ticker]}
+                loadedStocks={[m]}
+                selectedPeriod={chartPeriod}
+                onPeriodChange={setChartPeriod}
+                showTechnicalZones={!!propTicker}
+                tickerForTechnicals={propTicker}
+              />
+            </div>
+
             {/* ── Analyst Ratings ── */}
             {data.recommendations && (
               <AnalystRatingsSection
@@ -1153,11 +995,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             <CatalystsSection catalysts={data.catalysts} />
 
             {propTicker && activeTicker && (
-              <CompetitorsSection
-                peers={data.peers ?? []}
-                industry={data.peerIndustry}
-                sector={data.peerSector}
-              />
+              <CompetitorsSection ticker={activeTicker} />
             )}
 
             {/* ── Recent News ── */}

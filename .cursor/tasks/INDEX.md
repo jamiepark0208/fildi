@@ -9,7 +9,7 @@ Layout (2026-07-09). Filename = `{seq}-{slug}-070926.md` — **seq is build orde
 | [`ai/`](ai/) | Dev agentic harness + product AI |
 | [`bugs/`](bugs/) | Production bugs, scale/multi-user, perf drift (fix tasks) |
 
-Root: `INDEX.md` only. Done → `archive/`.
+Root: `INDEX.md` only. Done tasks stay in place, condensed to a short stub in their own file (no `archive/` — that never got built, don't create it).
 
 ---
 
@@ -46,7 +46,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 9 | P1 | ready | [portfolio-daily-brief-improvements](enhancements/9-portfolio-daily-brief-improvements-070926.md) |
 | 10 | P0 | done | [macro-regime-tab-improvements](enhancements/10-macro-regime-tab-improvements-070926.md) — shipped as cross-tab verdict row |
 | 11 | P1 | done | [macro-catalyst-calendar-improvements](enhancements/11-macro-catalyst-calendar-improvements-070926.md) — Your Week list + Regime jump; earnings redirected to Portfolio/Watchlist |
-| 12 | P1 | ready | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) — A1 dedupe already done; A2-A6 remain |
+| 12 | P1 | done* | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) — A1-A3,A5,A6 shipped; A4 (clickable competitors) regressed by in-progress Competitors v2 rework, re-verify on landing |
 | 13 | P1 | ready | [feed-improvements](enhancements/13-feed-improvements-070926.md) |
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
 | 15 | P1 | ready | [technical-scorecard-improvements](enhancements/15-technical-scorecard-improvements-070926.md) |
@@ -70,6 +70,7 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 35 | P2 | backlog | [ai-explanation-quality-improvements](enhancements/35-ai-explanation-quality-improvements-071326.md) — filed 2026-07-13, cross-cutting pass on every implication/brief/note section (volatility, liquidity, regime, COT, daily brief, scorecard) |
 | 36 | P2 | backlog | [macro-policy-forward-guidance-depth](enhancements/36-macro-policy-forward-guidance-depth-071326.md) — filed 2026-07-13, needs new data sourcing: FOMC dissent counts/vote splits, statement lexical-shift tracking, press-conference Q&A nuance, Treasury Quarterly Refunding Announcements, IMF WEO, other central banks (ECB/BOJ/BOE), CME FedWatch-style cut/hike probabilities |
 | 37 | P2 | done | [macro-cache-admin-visibility-gap](enhancements/37-macro-cache-admin-visibility-gap-071326.md) — per-field Cache Monitor visibility for macro-charts |
+| 38 | P2 | backlog | [large-component-token-cost](enhancements/38-large-component-token-cost-071426.md) — filed 2026-07-14, split oversized files (MacroComponents.tsx 2565 lines, stock-breakdown.tsx 1019, others) into section subcomponents; one file per session, not a big-bang pass |
 
 Deps: 3–4 before confident builds; 6 Track 1 before 12 analyst section; 8 before 9; 10+11 together; 23 before `ai/12` DQ chat; 27–29 need explicit approval. **30** = liquidity research — spawn **31 plumbing** / **32 sector rotation** after checklist (do not collide with **19** Heatmap). **33** = momentum drivers + band regret + replay, standalone — its future spawn tasks should be numbered on pickup, not assumed to be 34/35 (34 is performance-resilience-optimization, **35 is now taken by ai-explanation-quality-improvements** — use 36+ for any enh/33 spawns); feeds **ai/14**.
 
