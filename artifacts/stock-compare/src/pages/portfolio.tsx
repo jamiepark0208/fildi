@@ -329,9 +329,10 @@ function AddPortfolioDialog({ open, onClose, onAdd, existing }: {
 
 // ── Position row ──────────────────────────────────────────────────────────────
 
-function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
+function PositionRow({ entry, currentPrice, earningsDate, onRemove, onEdit }: {
   entry: PortfolioEntry;
   currentPrice: number | undefined;
+  earningsDate: string | null | undefined;
   onRemove: (id: string) => void;
   onEdit: (entry: PortfolioEntry) => void;
 }) {
@@ -341,6 +342,11 @@ function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
   const premium    = premiumReceived(entry);
   const collateral = cashCollateral(entry);
   const optionType: "call" | "put" = entry.positionType.includes("call") ? "call" : "put";
+
+  const earningsDaysOut = earningsDate
+    ? Math.round((new Date(earningsDate + "T12:00:00").getTime() - Date.now()) / 86400000)
+    : null;
+  const earningsSoon = earningsDaysOut !== null && earningsDaysOut >= 0 && earningsDaysOut <= 7;
 
   const pnl      = (entry.positionType === "stock" && currentPrice != null)
     ? (currentPrice - entry.avgPrice) * entry.qty : null;
@@ -385,7 +391,20 @@ function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
   return (
     <>
       <tr className="border-b border-border/30 hover:bg-secondary/20 transition-colors group">
-        <td className="py-2.5 px-4 font-mono font-bold text-sm">{entry.ticker}</td>
+        <td className="py-2.5 px-4 font-mono font-bold text-sm">
+          <div className="flex items-center gap-1.5">
+            {entry.ticker}
+            {earningsSoon && (
+              <span
+                className="flex items-center gap-0.5 text-[9px] font-normal text-yellow-400"
+                title={`Earnings ${earningsDaysOut === 0 ? "today" : `in ${earningsDaysOut}d`} (${earningsDate})`}
+              >
+                <AlertTriangle className="w-2.5 h-2.5" />
+                {earningsDaysOut === 0 ? "ER today" : `ER ${earningsDaysOut}d`}
+              </span>
+            )}
+          </div>
+        </td>
         <td className="py-2.5 px-4">
           <Badge variant="outline" className={cn(
             "text-[10px] font-medium",
@@ -492,10 +511,11 @@ function PositionRow({ entry, currentPrice, onRemove, onEdit }: {
 
 // ── Portfolio box ─────────────────────────────────────────────────────────────
 
-function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition }: {
+function PortfolioBox({ name, entries, priceMap, stockDataMap, onEdit, onRemove, onAddPosition }: {
   name: string;
   entries: PortfolioEntry[];
   priceMap: Record<string, number | undefined>;
+  stockDataMap: Record<string, StockMetrics>;
   onEdit: (entry: PortfolioEntry) => void;
   onRemove: (id: string) => void;
   onAddPosition: (portfolioName: string) => void;
@@ -637,6 +657,7 @@ function PortfolioBox({ name, entries, priceMap, onEdit, onRemove, onAddPosition
                       key={entry.id}
                       entry={entry}
                       currentPrice={priceMap[entry.ticker]}
+                      earningsDate={stockDataMap[entry.ticker]?.earningsDate}
                       onRemove={onRemove}
                       onEdit={onEdit}
                     />
@@ -1009,6 +1030,7 @@ export default function Portfolio() {
                       name={name}
                       entries={grouped[name] ?? []}
                       priceMap={priceMap}
+                      stockDataMap={stockDataMap}
                       onEdit={setEditingEntry}
                       onRemove={removeEntry}
                       onAddPosition={openAddPosition}
@@ -1019,6 +1041,7 @@ export default function Portfolio() {
                       name="Unassigned"
                       entries={grouped["Unassigned"]}
                       priceMap={priceMap}
+                      stockDataMap={stockDataMap}
                       onEdit={setEditingEntry}
                       onRemove={removeEntry}
                       onAddPosition={openAddPosition}

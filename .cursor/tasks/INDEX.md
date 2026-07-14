@@ -45,8 +45,8 @@ Deps: 2 before heavy UI; 3 before product-ai explain (`ai/11`); extract `lib/sca
 | 8 | P0 | done* | [portfolio-analysis-improvements](enhancements/8-portfolio-analysis-improvements-070926.md) — UI overhaul done; A1/Phase B still open |
 | 9 | P1 | ready | [portfolio-daily-brief-improvements](enhancements/9-portfolio-daily-brief-improvements-070926.md) |
 | 10 | P0 | done | [macro-regime-tab-improvements](enhancements/10-macro-regime-tab-improvements-070926.md) — shipped as cross-tab verdict row |
-| 11 | P1 | ready | [macro-catalyst-calendar-improvements](enhancements/11-macro-catalyst-calendar-improvements-070926.md) |
-| 12 | P1 | ready | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) |
+| 11 | P1 | done | [macro-catalyst-calendar-improvements](enhancements/11-macro-catalyst-calendar-improvements-070926.md) — Your Week list + Regime jump; earnings redirected to Portfolio/Watchlist |
+| 12 | P1 | ready | [stock-breakdown-sections-improvements](enhancements/12-stock-breakdown-sections-improvements-070926.md) — A1 dedupe already done; A2-A6 remain |
 | 13 | P1 | ready | [feed-improvements](enhancements/13-feed-improvements-070926.md) |
 | 14 | P1 | ready | [profile-track-record-improvements](enhancements/14-profile-track-record-improvements-070926.md) |
 | 15 | P1 | ready | [technical-scorecard-improvements](enhancements/15-technical-scorecard-improvements-070926.md) |

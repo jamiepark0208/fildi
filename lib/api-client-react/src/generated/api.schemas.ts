@@ -45,12 +45,6 @@ export interface StockMetrics {
   peRatio?: number | null;
   /** @nullable */
   pegRatio?: number | null;
-  /** @nullable Forward P/E ratio. Source: FMP key-metrics. */
-  forwardPe?: number | null;
-  /** @nullable EV / EBITDA. Source: FMP key-metrics. */
-  evEbitda?: number | null;
-  /** @nullable EV / Revenue. Source: FMP key-metrics. */
-  evRevenue?: number | null;
   /** @nullable */
   priceToBook?: number | null;
   /** @nullable */
@@ -63,8 +57,6 @@ export interface StockMetrics {
   totalRevenue?: number | null;
   /** @nullable */
   revenueGrowthYoY?: number | null;
-  /** @nullable Prior-year revenue growth (for acceleration = current − prior). Source: FMP. */
-  revenueGrowthYoyPrior?: number | null;
   /** @nullable */
   revenueGrowthProjected?: number | null;
   /** @nullable */
@@ -128,31 +120,72 @@ export interface StockMetrics {
      * @nullable
      */
   dayChangePercent?: number | null;
-  /** @nullable Weighted average cost of capital (decimal). Source: FMP. */
+  /**
+     * Next earnings date (YYYY-MM-DD), from Yahoo calendarEvents. Source Yahoo.
+     * @nullable
+     */
+  earningsDate?: string | null;
+  /**
+     * Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.
+     * @nullable
+     */
   wacc?: number | null;
-  /** @nullable Return on invested capital (decimal). Source: FMP. */
+  /**
+     * Return on invested capital (decimal). Source FMP.
+     * @nullable
+     */
   roic?: number | null;
-  /** @nullable Annual interest expense in raw dollars (always positive). Source: FMP. */
+  /**
+     * Annual interest expense in raw dollars (always positive). Source FMP.
+     * @nullable
+     */
   interestExpense?: number | null;
-  /** @nullable Total debt in raw dollars. Source: FMP. */
+  /**
+     * Total debt in raw dollars. Source FMP.
+     * @nullable
+     */
   totalDebt?: number | null;
-  /** @nullable Total stockholders equity in raw dollars. Source: FMP. */
+  /**
+     * Total stockholders equity in raw dollars. Source FMP.
+     * @nullable
+     */
   totalStockholdersEquity?: number | null;
-  /** @nullable EBIT in raw dollars. Source: FMP. */
+  /**
+     * Earnings before interest and taxes in raw dollars. Source FMP.
+     * @nullable
+     */
   ebit?: number | null;
-  /** @nullable Effective tax rate (decimal). Source: FMP. */
+  /**
+     * Effective tax rate (decimal, e.g. 0.21 = 21%). Source FMP.
+     * @nullable
+     */
   effectiveTaxRate?: number | null;
-  /** @nullable Cash and cash equivalents in raw dollars. Source: FMP. */
+  /**
+     * Cash and cash equivalents in raw dollars. Source FMP.
+     * @nullable
+     */
   cashAndEquivalents?: number | null;
-  /** @nullable Most recent quarterly operating cash flow (negative = burning). Source: FMP. */
+  /**
+     * Most recent quarterly operating cash flow (negative = burning cash). Source FMP.
+     * @nullable
+     */
   quarterlyOperatingCashFlow?: number | null;
-  /** @nullable Current weighted average shares outstanding. Source: FMP. */
+  /**
+     * Current weighted average shares outstanding. Source FMP.
+     * @nullable
+     */
   sharesOutstanding?: number | null;
-  /** @nullable Prior period shares outstanding (for dilution rate). Source: FMP. */
+  /**
+     * Prior period weighted average shares outstanding (for dilution rate). Source FMP.
+     * @nullable
+     */
   sharesOutstandingPrior?: number | null;
-  /** @nullable Fields where FMP and Yahoo values diverged by more than 20%. */
+  /** Fields where FMP and Yahoo values diverged by more than 20%. */
   discrepancyFlags?: string[] | null;
-  /** @nullable ISO timestamp when FMP fundamentals were last fetched. */
+  /**
+     * ISO timestamp when FMP fundamentals were last fetched for this ticker.
+     * @nullable
+     */
   fundamentalsLastFetched?: string | null;
 }
 

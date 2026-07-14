@@ -3,7 +3,7 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-13
+**build** — last updated 2026-07-14
 
 ## Active work
 - Working: enh10-crosstab-regime-verdict-row, enh37-cache-monitor-per-field-visibility, fundamentals-pipeline-refresh, tasks-dir-token-cleanup

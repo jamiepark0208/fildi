@@ -309,6 +309,9 @@ components:
         dayChangePercent:
           type: ["number", "null"]
           description: Fractional price change for the day (0.03 = 3%)
+        earningsDate:
+          type: ["string", "null"]
+          description: Next earnings date (YYYY-MM-DD), from Yahoo calendarEvents. Source Yahoo.
         wacc:
           type: ["number", "null"]
           description: Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.
