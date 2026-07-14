@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh11-catalyst-calendar-your-week-plus-regime-jump, portfolio-earnings-badge, tasks-dir-cleanup-pass2
-- In progress: none
+- Working: enh12-stock-breakdown-A2-A6-shipped, stock-breakdown-aesthetic-pass
+- In progress: investment profile score label placement fix pending plus competitors sector-taxonomy peer scoring feature
 - Blocked: none
 
 ## Next tasks (priority order)

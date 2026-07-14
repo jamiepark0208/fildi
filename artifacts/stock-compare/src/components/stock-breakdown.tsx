@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
-  Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown, ChevronDown, ChevronUp
+  Loader2, Search, ExternalLink, AlertCircle, BarChart2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, LineChart
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
@@ -10,10 +11,12 @@ import {
 import { PriceChart, Period } from "./price-chart";
 import { CompetitorsSection } from "./competitors-section";
 import { CatalystsSection } from "./catalysts-section";
-import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
+import { useSearchStocks, getSearchStocksQueryKey, getGetStockHistoryQueryOptions } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
+import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -101,6 +104,35 @@ function useBreakdown(ticker: string | null) {
   });
 }
 
+/** Derives 4-week / 13-week low-high ranges from the same history bars the price chart already fetches. */
+function useShortRanges(ticker: string | null) {
+  const oneMonth = useQuery({
+    ...getGetStockHistoryQueryOptions({ ticker: ticker ?? "", period: "1M" }),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+  });
+  const threeMonth = useQuery({
+    ...getGetStockHistoryQueryOptions({ ticker: ticker ?? "", period: "3M" }),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return useMemo(() => {
+    const rangeFor = (bars: { date: string; close: number; high?: number | null; low?: number | null }[], days: number) => {
+      const cutoff = Date.now() - days * 86400000;
+      const window = bars.filter(b => new Date(b.date).getTime() >= cutoff);
+      if (!window.length) return null;
+      const highs = window.map(b => b.high ?? b.close);
+      const lows = window.map(b => b.low ?? b.close);
+      return { high: Math.max(...highs), low: Math.min(...lows) };
+    };
+    return {
+      fourWeek: rangeFor(oneMonth.data ?? [], 28),
+      thirteenWeek: rangeFor(threeMonth.data ?? [], 91),
+    };
+  }, [oneMonth.data, threeMonth.data]);
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function overviewBullets(description: string, companyName: string | null | undefined): string[] {
@@ -137,8 +169,8 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
   ];
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <RadarChart data={data} outerRadius="60%" margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+    <ResponsiveContainer width="100%" height={160}>
+      <RadarChart data={data} outerRadius="58%" margin={{ top: 10, right: 25, bottom: 10, left: 25 }}>
         <PolarGrid
           gridType="polygon"
           stroke="rgba(255,255,255,0.08)"
@@ -146,7 +178,7 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
         />
         <PolarAngleAxis
           dataKey="dimension"
-          tick={{ fill: "rgba(255,255,255,0.9)", fontSize: 11, fontWeight: 700 }}
+          tick={{ fill: "rgba(255,255,255,0.95)", fontSize: 10, fontWeight: 700 }}
         />
         <Radar
           name="Score"
@@ -156,54 +188,53 @@ function SnowflakeChart({ scores }: { scores: SnowflakeScores }) {
           fillOpacity={0.28}
           strokeWidth={2}
           dot={{ r: 3, fill: "hsl(var(--primary))", strokeWidth: 0 }}
+          label={{ fill: "rgba(255,255,255,0.95)", fontSize: 10, fontWeight: 700 }}
         />
       </RadarChart>
     </ResponsiveContainer>
   );
 }
 
-function MetricRow({
-  label,
-  value,
-  good,
-}: {
+interface MetricRowData {
   label: string;
   value: string;
   good?: boolean;
-}) {
-  return (
-    <div className="flex justify-between items-center py-1.5 border-b border-border/20 last:border-0">
-      <span className="text-sm text-foreground/80">{label}</span>
-      <span
-        className={cn(
-          "text-sm font-mono font-semibold",
-          good === true ? "text-green-400" : good === false ? "text-red-400" : "text-foreground",
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
 }
 
-function SectionCard({
-  title,
-  score,
-  children,
-}: {
+interface MetricGroup {
   title: string;
-  score?: number;
-  children: React.ReactNode;
-}) {
+  score: number;
+  rows: MetricRowData[];
+}
+
+function MetricsTable({ groups }: { groups: MetricGroup[] }) {
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-base font-bold tracking-tight text-foreground">
-          {title}
-        </span>
-        {score !== undefined && <ScoreBadge score={score} />}
-      </div>
-      {children}
+    <div className="grid grid-cols-4 gap-2">
+      {groups.map(group => (
+        <div key={group.title} className="bg-card border border-border/50 rounded-lg p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold tracking-tight text-foreground truncate">
+              {group.title}
+            </span>
+            <ScoreBadge score={group.score} />
+          </div>
+          <div className="space-y-1">
+            {group.rows.map((row, i) => (
+              <div key={i} className="flex justify-between items-center gap-1.5">
+                <span className="text-[10px] text-foreground truncate">{row.label}</span>
+                <span
+                  className={cn(
+                    "text-[10px] font-mono font-semibold shrink-0",
+                    row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
+                  )}
+                >
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -281,7 +312,7 @@ function AnalystRatingsSection({
         className="w-full flex items-center justify-between mb-4 group"
       >
         <span className="text-base font-bold tracking-tight text-foreground">Analyst Ratings</span>
-        <span className="text-foreground/50 group-hover:text-foreground transition-colors">
+        <span className="text-foreground group-hover:text-foreground transition-colors">
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
@@ -291,15 +322,15 @@ function AnalystRatingsSection({
         <AnalystDonut recs={recs} />
         {m.analystTargetPrice != null && m.currentPrice != null && (
           <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border/40 pt-4 sm:pt-0 sm:pl-6">
-            <div className="text-[10px] text-foreground/70 uppercase tracking-widest mb-3">Consensus Price Target</div>
+            <div className="text-[10px] text-foreground uppercase tracking-widest mb-3">Consensus Price Target</div>
             <div className="flex items-end gap-3">
               <div>
-                <div className="text-[10px] text-foreground/65 mb-1">Current</div>
+                <div className="text-[10px] text-foreground mb-1">Current</div>
                 <div className="text-xl font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
               </div>
-              <div className="text-foreground/30 text-lg mb-1">→</div>
+              <div className="text-foreground text-lg mb-1">→</div>
               <div>
-                <div className="text-[10px] text-foreground/65 mb-1">12M Target</div>
+                <div className="text-[10px] text-foreground mb-1">12M Target</div>
                 <div className="text-xl font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
               </div>
               <div className={cn("text-base font-bold font-mono mb-0.5",
@@ -318,7 +349,7 @@ function AnalystRatingsSection({
           {/* Price target range bar */}
           {hasRange && (
             <div>
-              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">Analyst Price Target Range</div>
+              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">Analyst Price Target Range</div>
               <div className="relative h-2.5 bg-secondary/50 rounded-full overflow-visible mb-3">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/20 via-yellow-500/15 to-green-500/20" />
                 {meanPct != null && (
@@ -336,7 +367,7 @@ function AnalystRatingsSection({
                   />
                 )}
               </div>
-              <div className="flex justify-between text-[10px] font-mono text-foreground/65">
+              <div className="flex justify-between text-[10px] font-mono text-foreground">
                 <span>Low ${pt!.low!.toFixed(2)}</span>
                 {pt!.mean != null && <span className="text-yellow-400/90">Mean ${pt!.mean!.toFixed(2)}</span>}
                 {pt!.median != null && <span>Median ${pt!.median!.toFixed(2)}</span>}
@@ -348,16 +379,16 @@ function AnalystRatingsSection({
           {/* Recent analyst rating changes (upgrade/downgrade history) */}
           {analystActions.length > 0 && (
             <div>
-              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">
+              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">
                 Analyst Rating Changes
               </div>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-border/40">
-                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Entity</th>
-                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
-                    <th className="text-left font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5 pr-2">Notes</th>
-                    <th className="text-right font-normal text-[10px] text-foreground/65 uppercase tracking-widest pb-1.5">Last Updated</th>
+                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Entity</th>
+                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
+                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Notes</th>
+                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5">Last Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,7 +414,7 @@ function AnalystRatingsSection({
           {/* Per-firm price targets from FMP */}
           {analystPriceTargets.length > 0 ? (
             <div>
-              <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">
+              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">
                 Price Targets by Firm
               </div>
               <div className="space-y-2">
@@ -398,7 +429,7 @@ function AnalystRatingsSection({
                     <div key={i} className="border border-border/40 rounded-lg p-3 bg-secondary/10">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-foreground">{t.firm}</span>
-                        {t.analyst && <span className="text-[11px] text-foreground/60">({t.analyst})</span>}
+                        {t.analyst && <span className="text-[11px] text-foreground">({t.analyst})</span>}
                         {t.priceTarget != null && (
                           <span className="ml-auto font-mono font-bold text-sm text-foreground">
                             ${t.priceTarget.toFixed(2)}
@@ -411,7 +442,7 @@ function AnalystRatingsSection({
                         )}
                       </div>
                       {t.date && (
-                        <div className="text-[10px] text-foreground/55 mt-1">
+                        <div className="text-[10px] text-foreground mt-1">
                           Published {t.date}
                           {t.priceWhenPosted != null && ` · Stock was $${t.priceWhenPosted.toFixed(2)} at time of rating`}
                           {fromPosted != null && (
@@ -422,7 +453,7 @@ function AnalystRatingsSection({
                         </div>
                       )}
                       {t.newsTitle && (
-                        <p className="text-[11px] text-foreground/70 mt-1.5 italic leading-snug line-clamp-2">
+                        <p className="text-[11px] text-foreground mt-1.5 italic leading-snug line-clamp-2">
                           "{t.newsTitle}"
                         </p>
                       )}
@@ -432,7 +463,7 @@ function AnalystRatingsSection({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground/55 italic">Per-analyst price targets not available on current data plan.</p>
+            <p className="text-sm text-foreground italic">Per-analyst price targets not available on current data plan.</p>
           )}
         </div>
       )}
@@ -463,7 +494,7 @@ function MarketSentimentSection({
       {/* Bullish / Neutral / Bearish bar */}
       {hasSentiment && (
         <div>
-          <div className="text-[10px] text-foreground/65 uppercase tracking-widest mb-2">Wall St. Consensus</div>
+          <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">Wall St. Consensus</div>
           <div className="flex h-3 rounded-full overflow-hidden gap-px">
             {bullPct > 0 && (
               <div className="bg-green-500/80 transition-all" style={{ width: `${bullPct}%` }} />
@@ -480,7 +511,7 @@ function MarketSentimentSection({
             <span className="text-yellow-400/80">{neutralPct}% Neutral</span>
             <span className="text-red-400 font-semibold">{bearPct}% Bearish</span>
           </div>
-          <div className="text-[10px] text-foreground/55 mt-1">Based on {total} Wall St. analyst recommendations</div>
+          <div className="text-[10px] text-foreground mt-1">Based on {total} Wall St. analyst recommendations</div>
         </div>
       )}
 
@@ -494,13 +525,13 @@ function MarketSentimentSection({
             </div>
             <ul className="space-y-1.5">
               {bullBullets.map((b, i) => (
-                <li key={i} className="text-[11px] text-foreground/80 flex gap-1.5">
+                <li key={i} className="text-[11px] text-foreground flex gap-1.5">
                   <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
                   {b}
                 </li>
               ))}
               {bullBullets.length === 0 && (
-                <li className="text-[11px] text-foreground/50 italic">No strong bull signals from current metrics</li>
+                <li className="text-[11px] text-foreground italic">No strong bull signals from current metrics</li>
               )}
             </ul>
           </div>
@@ -511,13 +542,13 @@ function MarketSentimentSection({
             </div>
             <ul className="space-y-1.5">
               {bearBullets.map((b, i) => (
-                <li key={i} className="text-[11px] text-foreground/80 flex gap-1.5">
+                <li key={i} className="text-[11px] text-foreground flex gap-1.5">
                   <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
                   {b}
                 </li>
               ))}
               {bearBullets.length === 0 && (
-                <li className="text-[11px] text-foreground/50 italic">No significant bear signals from current metrics</li>
+                <li className="text-[11px] text-foreground italic">No significant bear signals from current metrics</li>
               )}
             </ul>
           </div>
@@ -583,11 +614,11 @@ function AnalystDonut({ recs }: { recs: Recommendations }) {
         {data.map((d) => (
           <div key={d.name} className="flex items-center gap-2 text-[11px]">
             <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-            <span className="text-foreground/80">{d.name}</span>
+            <span className="text-foreground">{d.name}</span>
             <span className="font-mono ml-auto pl-3 font-semibold text-foreground">{d.value}</span>
           </div>
         ))}
-        <div className="pt-0.5 text-[11px] text-foreground/60 border-t border-border/30">
+        <div className="pt-0.5 text-[11px] text-foreground border-t border-border/30">
           {total} analyst{total !== 1 ? "s" : ""}
         </div>
       </div>
@@ -625,6 +656,40 @@ function RangeBar({
   );
 }
 
+function RangeTabsCard({
+  current,
+  ranges,
+}: {
+  current: number;
+  ranges: { key: string; label: string; low: number; high: number }[];
+}) {
+  const [active, setActive] = useState(0);
+  if (!ranges.length) return null;
+  const r = ranges[Math.min(active, ranges.length - 1)];
+  return (
+    <div className="bg-card border border-border/50 rounded-xl p-4">
+      <div className="flex items-center gap-1 mb-3">
+        {ranges.map((rng, i) => (
+          <button
+            key={rng.key}
+            type="button"
+            onClick={() => setActive(i)}
+            className={cn(
+              "text-xs font-semibold px-2.5 py-1 rounded-md border transition-colors",
+              i === active
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-foreground border-border/50 hover:bg-secondary/50",
+            )}
+          >
+            {rng.label}
+          </button>
+        ))}
+      </div>
+      <RangeBar current={current} low={r.low} high={r.high} />
+    </div>
+  );
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
@@ -647,7 +712,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors line-clamp-2">
           {item.title}
         </p>
-        <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-foreground/65">
+        <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-foreground">
           {item.publisher && <span className="font-medium">{item.publisher}</span>}
           {item.publishedAt && (
             <>
@@ -665,6 +730,7 @@ function NewsCard({ item }: { item: NewsItem }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {}) {
+  const [, navigate] = useLocation();
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("3M");
@@ -698,6 +764,7 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
     dropdownOpen && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
   const { data, isLoading, error } = useBreakdown(activeTicker);
+  const shortRanges = useShortRanges(activeTicker);
 
   const commitTicker = useCallback((t: string) => {
     const upper = t.trim().toUpperCase();
@@ -844,28 +911,74 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <h1 className="text-2xl font-bold font-mono tracking-tight shrink-0">
-                    {m.ticker}
-                  </h1>
-                  <span className="text-base text-foreground/75 font-medium truncate">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <h1 className="text-2xl font-bold font-mono tracking-tight shrink-0 cursor-help decoration-dotted underline-offset-4 hover:underline">
+                        {m.ticker}
+                      </h1>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="start" className="max-w-sm bg-card text-foreground border border-border p-3">
+                      <span className="text-xs font-bold tracking-tight text-foreground block mb-1.5">Company Overview</span>
+                      {m.description ? (
+                        <ul className="space-y-1.5">
+                          {overviewBullets(m.description, m.companyName).map((s: string, i: number) => (
+                            <li key={i} className="flex gap-1.5 text-xs text-foreground leading-snug">
+                              <span className="shrink-0 text-foreground mt-0.5">•</span>
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-foreground">No description available.</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="text-base text-foreground font-medium truncate">
                     {m.companyName}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {m.exchange && (
-                    <span className="text-[10px] bg-secondary/60 border border-border/40 px-2 py-0.5 rounded-md font-mono text-foreground/80">
+                    <span className="text-[10px] bg-secondary/60 border border-border/40 px-2 py-0.5 rounded-md font-mono text-foreground">
                       {m.exchange}
                     </span>
                   )}
                   {m.sector && (
-                    <span className="text-[10px] text-foreground/70">{m.sector}</span>
+                    <span className="text-[10px] text-foreground">{m.sector}</span>
                   )}
                   {m.industry && (
                     <>
-                      <span className="text-[10px] text-foreground/40">·</span>
-                      <span className="text-[10px] text-foreground/70">{m.industry}</span>
+                      <span className="text-[10px] text-foreground">·</span>
+                      <span className="text-[10px] text-foreground">{m.industry}</span>
                     </>
                   )}
+                  {m.stockType && (
+                    <>
+                      <span className="text-[10px] text-foreground">·</span>
+                      <span className="text-[10px] text-foreground">{m.stockType}</span>
+                    </>
+                  )}
+                  {m.beta != null && (
+                    <>
+                      <span className="text-[10px] text-foreground">·</span>
+                      <span className="text-[10px] text-foreground">Beta {formatNumber(m.beta)}</span>
+                    </>
+                  )}
+                  {m.fairValueEstimate != null && (
+                    <>
+                      <span className="text-[10px] text-foreground">·</span>
+                      <span className="text-[10px] text-foreground">Fair Value {formatCurrency(m.fairValueEstimate)}</span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { addToScannerShelf(m.ticker); navigate("/options-scanner"); }}
+                    className="flex items-center gap-1 text-[11px] font-medium text-white bg-green-600 hover:bg-green-500 rounded-md px-2.5 py-1 transition-colors"
+                  >
+                    <LineChart className="w-3 h-3" /> Open in Options Scanner
+                  </button>
                 </div>
               </div>
 
@@ -888,90 +1001,55 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                   {m.dayChange?.toFixed(2)} ({dayUp ? "+" : ""}
                   {((m.dayChangePercent ?? 0) * 100).toFixed(2)}%)
                 </div>
-                <div className="text-[11px] text-foreground/70 mt-0.5">
+                <div className="text-[11px] text-foreground mt-0.5">
                   Mkt Cap: {formatLargeNumber(m.marketCap)}
                 </div>
               </div>
             </div>
 
-            {/* ── Snowflake + Overview ── */}
+            {/* ── Top reward / risk summary ── */}
+            {(data.bullBullets?.[0] || data.bearBullets?.[0]) && (
+              <div className="grid grid-cols-2 gap-3">
+                {data.bullBullets?.[0] && (
+                  <div className="flex gap-1.5 text-[12px] text-foreground leading-snug border-l-2 border-green-500/50 pl-2.5 py-0.5">
+                    <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
+                    {data.bullBullets[0]}
+                  </div>
+                )}
+                {data.bearBullets?.[0] && (
+                  <div className="flex gap-1.5 text-[12px] text-foreground leading-snug border-l-2 border-red-500/50 pl-2.5 py-0.5">
+                    <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
+                    {data.bearBullets[0]}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Snowflake + Range ── */}
             <div className="grid grid-cols-[240px_1fr] gap-4">
               {/* Snowflake */}
-              <div className="bg-card border border-border/50 rounded-xl p-4 flex flex-col">
-                <span className="text-base font-bold tracking-tight text-foreground mb-3 block">
+              <div className="bg-card border border-border/50 rounded-xl p-3 flex flex-col">
+                <span className="text-sm font-bold tracking-tight text-foreground mb-1 block">
                   Investment Profile
                 </span>
                 <SnowflakeChart scores={data.snowflake} />
-                <div className="grid grid-cols-2 gap-1.5 mt-2">
-                  {(
-                    [
-                      { label: "Value", key: "value" },
-                      { label: "Growth", key: "growth" },
-                      { label: "Past Perf.", key: "past" },
-                      { label: "Health", key: "health" },
-                      { label: "Dividend", key: "dividend" },
-                    ] as const
-                  ).map(({ label, key }) => (
-                    <div
-                      key={key}
-                      className="flex items-center justify-between bg-secondary/30 rounded-md px-2.5 py-1.5"
-                    >
-                      <span className="text-xs font-medium text-foreground/85">{label}</span>
-                      <ScoreBadge score={data.snowflake[key]} />
-                    </div>
-                  ))}
-                </div>
               </div>
 
-              {/* Overview + 52W range */}
-              <div className="flex flex-col gap-3">
-                <div className="bg-card border border-border/50 rounded-xl p-4 flex-1">
-                  <span className="text-base font-bold tracking-tight text-foreground">
-                    Company Overview
-                  </span>
-                  {m.description ? (
-                    <ul className="mt-2 space-y-1.5">
-                      {overviewBullets(m.description, m.companyName).map((s: string, i: number) => (
-                        <li key={i} className="flex gap-2 text-sm text-foreground/85 leading-snug">
-                          <span className="shrink-0 text-foreground/40 mt-0.5">•</span>
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-foreground/75 mt-2">No description available.</p>
-                  )}
-                  <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-border/30">
-                    {[
-                      { label: "Stock Type", value: m.stockType ?? "—" },
-                      { label: "Beta", value: formatNumber(m.beta) ?? "—" },
-                      { label: "Fair Value Est.", value: m.fairValueEstimate ? formatCurrency(m.fairValueEstimate) : "—" },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <div className="text-xs text-foreground/65 font-medium mb-0.5">{label}</div>
-                        <div className="text-base font-bold text-foreground font-mono">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {m.currentPrice != null &&
-                  m.fiftyTwoWeekLow != null &&
-                  m.fiftyTwoWeekHigh != null && (
-                    <div className="bg-card border border-border/50 rounded-xl p-4">
-                      <span className="text-base font-bold tracking-tight text-foreground">
-                        52-Week Range
-                      </span>
-                      <div className="mt-3">
-                        <RangeBar
-                          current={m.currentPrice}
-                          low={m.fiftyTwoWeekLow}
-                          high={m.fiftyTwoWeekHigh}
-                        />
-                      </div>
-                    </div>
-                  )}
-              </div>
+              {/* Price range, tabbed: 4W / 13W / 52W */}
+              <RangeTabsCard
+                current={m.currentPrice ?? 0}
+                ranges={[
+                  ...(m.currentPrice != null && shortRanges.fourWeek
+                    ? [{ key: "4w", label: "4W", low: shortRanges.fourWeek.low, high: shortRanges.fourWeek.high }]
+                    : []),
+                  ...(m.currentPrice != null && shortRanges.thirteenWeek
+                    ? [{ key: "13w", label: "13W", low: shortRanges.thirteenWeek.low, high: shortRanges.thirteenWeek.high }]
+                    : []),
+                  ...(m.currentPrice != null && m.fiftyTwoWeekLow != null && m.fiftyTwoWeekHigh != null
+                    ? [{ key: "52w", label: "52W", low: m.fiftyTwoWeekLow, high: m.fiftyTwoWeekHigh }]
+                    : []),
+                ]}
+              />
             </div>
 
             {/* ── Price Chart ── */}
@@ -986,95 +1064,71 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
               />
             </div>
 
-            {/* ── Metrics grid ── */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Valuation */}
-              <SectionCard title="Valuation" score={data.snowflake.value}>
-                <MetricRow label="P/E Ratio" value={formatNumber(m.peRatio)} />
-                <MetricRow label="PEG Ratio" value={formatNumber(m.pegRatio)} good={m.pegRatio != null ? m.pegRatio < 1.5 : undefined} />
-                <MetricRow label="Price / Book" value={formatNumber(m.priceToBook)} />
-                <MetricRow label="Price / Sales" value={formatNumber(m.priceToSales)} />
-                {m.analystTargetPrice != null && (
-                  <MetricRow
-                    label="Analyst Target"
-                    value={formatCurrency(m.analystTargetPrice)}
-                  />
-                )}
-                {m.analystTargetPrice != null && m.currentPrice != null && (
-                  <MetricRow
-                    label="Upside to Target"
-                    value={`${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%`}
-                    good={m.analystTargetPrice > m.currentPrice}
-                  />
-                )}
-                {m.fairValueEstimate != null && m.currentPrice != null && (
-                  <MetricRow
-                    label="Fair Value Est."
-                    value={formatCurrency(m.fairValueEstimate)}
-                    good={m.fairValueEstimate > m.currentPrice}
-                  />
-                )}
-              </SectionCard>
-
-              {/* Future Growth */}
-              <SectionCard title="Future Growth" score={data.snowflake.growth}>
-                <MetricRow
-                  label="Revenue Growth (YoY)"
-                  value={formatPercent(m.revenueGrowthYoY)}
-                  good={m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined}
-                />
-                <MetricRow
-                  label="EPS Growth"
-                  value={formatPercent(m.epsGrowth)}
-                  good={m.epsGrowth != null ? m.epsGrowth > 0 : undefined}
-                />
-                <MetricRow label="EPS (Trailing)" value={formatCurrency(m.earningsPerShare)} />
-                <MetricRow label="Total Revenue" value={formatLargeNumber(m.totalRevenue)} />
-                <MetricRow label="EBITDA" value={formatLargeNumber(m.ebitda)} />
-              </SectionCard>
-
-              {/* Past Performance */}
-              <SectionCard title="Past Performance" score={data.snowflake.past}>
-                <MetricRow
-                  label="Return on Equity"
-                  value={formatPercent(m.returnOnEquity)}
-                  good={m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined}
-                />
-                <MetricRow
-                  label="Return on Assets"
-                  value={formatPercent(m.returnOnAssets)}
-                  good={m.returnOnAssets != null ? m.returnOnAssets > 0 : undefined}
-                />
-                <MetricRow label="Gross Margin" value={formatPercent(m.grossMargin)} />
-                <MetricRow label="Operating Margin" value={formatPercent(m.operatingMargin)} />
-                <MetricRow
-                  label="Net Margin"
-                  value={formatPercent(m.netMargin)}
-                  good={m.netMargin != null ? m.netMargin > 0.08 : undefined}
-                />
-                <MetricRow label="Free Cash Flow" value={formatLargeNumber(m.freeCashFlow)} />
-              </SectionCard>
-
-              {/* Financial Health */}
-              <SectionCard title="Financial Health" score={data.snowflake.health}>
-                <MetricRow
-                  label="Current Ratio"
-                  value={formatNumber(m.currentRatio)}
-                  good={m.currentRatio != null ? m.currentRatio > 1.5 : undefined}
-                />
-                <MetricRow
-                  label="Debt / Equity"
-                  value={formatNumber(m.debtToEquity)}
-                  good={m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined}
-                />
-                <MetricRow label="Net Income" value={formatLargeNumber(m.netIncome)} />
-                <MetricRow
-                  label="Dividend Yield"
-                  value={formatPercent(m.dividendYield)}
-                  good={m.dividendYield != null && m.dividendYield > 0 ? true : undefined}
-                />
-              </SectionCard>
-            </div>
+            {/* ── Metrics table ── */}
+            <MetricsTable
+              groups={[
+                {
+                  title: "Valuation",
+                  score: data.snowflake.value,
+                  rows: [
+                    { label: "P/E Ratio", value: formatNumber(m.peRatio) },
+                    { label: "PEG Ratio", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined },
+                    { label: "Price / Book", value: formatNumber(m.priceToBook) },
+                    { label: "Price / Sales", value: formatNumber(m.priceToSales) },
+                    ...(m.analystTargetPrice != null
+                      ? [{ label: "Analyst Target", value: formatCurrency(m.analystTargetPrice) }]
+                      : []),
+                    ...(m.analystTargetPrice != null && m.currentPrice != null
+                      ? [{
+                          label: "Upside to Target",
+                          value: `${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%`,
+                          good: m.analystTargetPrice > m.currentPrice,
+                        }]
+                      : []),
+                    ...(m.fairValueEstimate != null && m.currentPrice != null
+                      ? [{
+                          label: "Fair Value Est.",
+                          value: formatCurrency(m.fairValueEstimate),
+                          good: m.fairValueEstimate > m.currentPrice,
+                        }]
+                      : []),
+                  ],
+                },
+                {
+                  title: "Future Growth",
+                  score: data.snowflake.growth,
+                  rows: [
+                    { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined },
+                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
+                    { label: "EPS (Trailing)", value: formatCurrency(m.earningsPerShare) },
+                    { label: "Total Revenue", value: formatLargeNumber(m.totalRevenue) },
+                    { label: "EBITDA", value: formatLargeNumber(m.ebitda) },
+                  ],
+                },
+                {
+                  title: "Past Performance",
+                  score: data.snowflake.past,
+                  rows: [
+                    { label: "Return on Equity", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined },
+                    { label: "Return on Assets", value: formatPercent(m.returnOnAssets), good: m.returnOnAssets != null ? m.returnOnAssets > 0 : undefined },
+                    { label: "Gross Margin", value: formatPercent(m.grossMargin) },
+                    { label: "Operating Margin", value: formatPercent(m.operatingMargin) },
+                    { label: "Net Margin", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined },
+                    { label: "Free Cash Flow", value: formatLargeNumber(m.freeCashFlow) },
+                  ],
+                },
+                {
+                  title: "Financial Health",
+                  score: data.snowflake.health,
+                  rows: [
+                    { label: "Current Ratio", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined },
+                    { label: "Debt / Equity", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined },
+                    { label: "Net Income", value: formatLargeNumber(m.netIncome) },
+                    { label: "Dividend Yield", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined },
+                  ],
+                },
+              ]}
+            />
 
             {/* ── Analyst Ratings ── */}
             {data.recommendations && (
