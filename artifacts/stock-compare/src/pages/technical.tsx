@@ -1,21 +1,21 @@
 import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { TopNav } from "@/components/top-nav";
 import { TickerShelf } from "@/components/ticker-shelf";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Plus, RefreshCw, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useAuth } from "@/context/AuthContext";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
+import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
 import {
   type IndicatorResult,
   type TechnicalScore,
   type TechnicalRow,
   computeTechnicalRankingsV2,
-  // V1 kept exported — remove after one release
-  computeTechnicalRankings as _computeTechnicalRankingsV1,
 } from "@/lib/technical-rankings";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -89,6 +89,7 @@ interface TechnicalCardsProps {
 }
 
 function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, onRemove, onRefresh, refreshing }: TechnicalCardsProps) {
+  const [, navigate] = useLocation();
   const slots      = Array.from({ length: MAX_SLOTS }, (_, i) => tickers[i] ?? null);
   const scoreMap   = Object.fromEntries(scores.map(s => [s.ticker, s]));
   const showRanks  = scores.length >= 2;
@@ -188,6 +189,9 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-400 border-orange-500/20">EARN</Badge>
                   )}
                 </div>
+                {ts?.reason && (
+                  <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{ts.reason}</p>
+                )}
               </div>
               <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center shrink-0">×</button>
             </div>
@@ -278,19 +282,28 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               )}
             </div>
 
-            {/* Footer: MACD badge + refresh */}
-            <div className="flex items-center justify-between mt-auto">
+            {/* Footer: MACD badge + scanner CTA + refresh */}
+            <div className="flex items-center justify-between mt-auto gap-2">
               <MacdBadge cross={d.macdCross} />
-              {onRefresh && (
+              <div className="flex items-center gap-2 ml-auto">
                 <button
-                  onClick={() => onRefresh(ticker)}
-                  disabled={refreshing.has(ticker)}
-                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 ml-auto"
-                  title="Recompute from live data"
+                  onClick={() => { addToScannerShelf(ticker); navigate("/options-scanner"); }}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open in options scanner"
                 >
-                  <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
+                  <LineChart className="w-3 h-3" />
                 </button>
-              )}
+                {onRefresh && (
+                  <button
+                    onClick={() => onRefresh(ticker)}
+                    disabled={refreshing.has(ticker)}
+                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    title="Recompute from live data"
+                  >
+                    <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -353,6 +366,7 @@ function TechRow({ label, tickers, data, getValue, lowerIsBetter, higherIsBetter
 }
 
 function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[]; data: Record<string, IndicatorResult | null>; scoreMap?: Record<string, TechnicalScore> }) {
+  const [, navigate] = useLocation();
   const loadedTickers = tickers.filter(t => data[t] != null);
   if (loadedTickers.length === 0) return null;
 
@@ -365,7 +379,16 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
               <th className="p-4 font-semibold text-muted-foreground sticky left-0 bg-card z-10 w-48">Metric</th>
               {loadedTickers.map(ticker => (
                 <th key={ticker} className="p-4 font-bold text-xl text-right">
-                  <span className="font-mono">{ticker}</span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="font-mono">{ticker}</span>
+                    <button
+                      onClick={() => { addToScannerShelf(ticker); navigate("/options-scanner"); }}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Open in options scanner"
+                    >
+                      <LineChart className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>

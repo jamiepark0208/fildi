@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: enh38-stock-breakdown-split, enh38-macro-components-split
-- In progress: MacroComponents.tsx (2565 lines) split into 11 topic files (macro-format macro-curve-charts macro-history-charts macro-regime-overview macro-liquidity-section macro-volatility-policy macro-sector-rotation macro-fed-section macro-indicator-row macro-events-cot macro-tradingview-embeds); macro.tsx imports updated to new files; tsc + 268 tests pass; old MacroComponents.tsx file still on disk unused - user interrupted the rm command so delete is pending confirmation next session
+- Working: enh15-technical-scorecard, enh16-watchlist-monitor, tasks-folder-cleanup
+- In progress: none - all three closed out this session
 - Blocked: none
 
 ## Next tasks (priority order)

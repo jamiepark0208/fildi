@@ -18,6 +18,15 @@ export const PRESET_COLORS = [
   "#a855f7", // purple
 ];
 
+/** CSP-workflow meaning of each preset tag color, for legend / tooltip copy. */
+export const COLOR_LABELS: Record<string, string> = {
+  "#ef4444": "Short",
+  "#eab308": "Option income / watching to go long if it drops",
+  "#22c55e": "Long",
+  "#3b82f6": "My holdings",
+  "#a855f7": "Neutral — monitoring",
+};
+
 /** Distinct slate tag for auto-added competitor tickers */
 export const COMPETITOR_TAG_COLOR = "#64748b";
 
