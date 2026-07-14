@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ready |
+| **Status** | done* — Phase A shipped 2026-07-14 (A1-A4); Phase B (tags) still open, design-gated with ai/13 |
 | **Priority** | P1 |
 | **Area** | ui |
 | **Effort** | M (Phase A); tags = design-gated with ai/13 |

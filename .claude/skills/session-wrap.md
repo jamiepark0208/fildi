@@ -23,4 +23,9 @@ node .claude/scripts/session-wrap.js \
 The script handles this automatically — no manual git step needed.
 Fallback (if script fails): `git add -A && git commit -m "chore: session checkpoint — [brief note]"`
 ## Keep instincts short (add to state.json instincts array)
-  Each entry under 20 words. Only patterns worth remembering across sessions.
+Every entry here is re-sent in full on EVERY prompt via rehydrate.js's UserPromptSubmit
+hook — this is a per-turn cost, not a one-time doc cost, so it compounds hard over a session.
+Budget: **~1200 chars total across the whole array** (session-wrap.js warns above 5 entries).
+When adding a new instinct, consolidate into an existing entry or replace a stale one instead
+of appending — don't just grow the list. Only patterns worth remembering across sessions, and
+worth paying for on every single turn of every future session.

@@ -18,6 +18,7 @@ import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/l
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 import { useAuth } from "@/context/AuthContext";
 import { queryKeys } from "@/lib/query-keys";
+import { getTraderPrefs, saveTraderPrefs } from "@/lib/trader-prefs";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -688,7 +689,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { weights } = useScoringPreferences();
 
   // sessionStorage (not localStorage) — expanded rows are tab-lifetime UI state,
@@ -700,8 +701,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("score");
   const [show1wk,       setShow1wk]       = useState(true);
-  const [minIncome,     setMinIncome]     = useState(0.5);
-  const [minIncomeInput, setMinIncomeInput] = useState("0.5");
+  const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
+  const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
   const [extraTickers,  setExtraTickers]  = useState<string[]>(() => {
     try { const s = localStorage.getItem("fildi_scanner_extra"); return s ? JSON.parse(s) : []; } catch { return []; }
@@ -713,6 +714,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
   useEffect(() => { localStorage.setItem("fildi_scanner_extra",  JSON.stringify(extraTickers)); }, [extraTickers]);
   useEffect(() => { localStorage.setItem("fildi_scanner_hidden", JSON.stringify([...hiddenTickers])); }, [hiddenTickers]);
+  useEffect(() => { saveTraderPrefs({ minWeeklyIncome: minIncome }, user?.id); }, [minIncome, user?.id]);
   useEffect(() => { try { sessionStorage.setItem("fildi_scanner_expanded", JSON.stringify([...expandedSet])); } catch {} }, [expandedSet]);
 
   const { entries, isLoaded } = useWatchlist();

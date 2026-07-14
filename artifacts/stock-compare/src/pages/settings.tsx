@@ -9,6 +9,7 @@ import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users,
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
+import { getTraderPrefs, saveTraderPrefs, DEFAULT_TRADER_PREFS } from "@/lib/trader-prefs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -516,9 +517,119 @@ function CacheMonitorTab() {
   );
 }
 
+// ─── Trading Tab ──────────────────────────────────────────────────────────────
+
+interface BriefContextSummary { strategy: string; userNotes: string; lastUpdated: string }
+
+function TradingTab() {
+  const { user, isAdmin } = useAuth();
+  const [, navigate] = useLocation();
+  const [minWeeklyIncome, setMinWeeklyIncome] = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
+  const [input, setInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
+  const [saved, setSaved] = useState(false);
+
+  const { data: briefCtx } = useQuery<BriefContextSummary>({
+    queryKey: ["daily-brief-context"],
+    queryFn: async () => {
+      const r = await fetch("/api/daily-brief/context", { credentials: "include" });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    staleTime: 60000,
+  });
+
+  const handleSave = () => {
+    const n = parseFloat(input);
+    if (!Number.isFinite(n) || n < 0) return;
+    setMinWeeklyIncome(n);
+    saveTraderPrefs({ minWeeklyIncome: n }, user?.id);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleReset = () => {
+    setInput(String(DEFAULT_TRADER_PREFS.minWeeklyIncome));
+    setMinWeeklyIncome(DEFAULT_TRADER_PREFS.minWeeklyIncome);
+    saveTraderPrefs(DEFAULT_TRADER_PREFS, user?.id);
+  };
+
+  return (
+    <div className="space-y-5 max-w-lg">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h2 className="text-sm font-semibold mb-1">Scanner Defaults</h2>
+        <p className="text-xs text-muted-foreground mb-4">Applied when Options Scanner loads. Stored on this device.</p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Min weekly income ≥</span>
+          <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              className="w-12 text-xs bg-transparent text-foreground focus:outline-none text-center"
+            />
+            <span className="text-xs text-muted-foreground">%/wk</span>
+          </div>
+          <button
+            onClick={handleSave}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
+          >
+            {saved ? "Saved" : "Save as default"}
+          </button>
+          {minWeeklyIncome !== DEFAULT_TRADER_PREFS.minWeeklyIncome && (
+            <button onClick={handleReset} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h2 className="text-sm font-semibold mb-1">Score Weights</h2>
+        <p className="text-xs text-muted-foreground mb-3">Fundamental / technical / options weighting used across the app.</p>
+        <button
+          onClick={() => navigate("/scorecard-explanation")}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Edit score weights → Scorecard Guide
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h2 className="text-sm font-semibold mb-1">Daily Brief Context</h2>
+        {isAdmin ? (
+          <p className="text-xs text-muted-foreground">
+            Managed on{" "}
+            <button onClick={() => navigate("/portfolio")} className="text-primary hover:underline">
+              Portfolio
+            </button>
+            .
+          </p>
+        ) : (
+          <div className="text-xs text-muted-foreground space-y-1.5">
+            <p>Strategy: <span className="text-foreground/80">{briefCtx?.strategy || "—"}</span></p>
+            <p>Notes: <span className="text-foreground/80">{briefCtx?.userNotes || "—"}</span></p>
+            <p className="text-muted-foreground/60">Read-only — set by an admin.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm opacity-60">
+        <h2 className="text-sm font-semibold mb-1">Alerts</h2>
+        <p className="text-xs text-muted-foreground">Coming when background job-queue is approved.</p>
+        <div className="flex items-center gap-2 mt-3">
+          <input type="checkbox" disabled className="cursor-not-allowed" />
+          <span className="text-xs text-muted-foreground">Notify on new scanner strikes matching my filters</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide";
+type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -526,6 +637,7 @@ export default function Settings() {
 
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: "profile",         label: "Profile" },
+    { id: "trading",         label: "Trading" },
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "users",           label: "User Mgmt",     adminOnly: true },
     { id: "cache",           label: "Cache Monitor",  adminOnly: true },
@@ -573,6 +685,7 @@ export default function Settings() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-6">
           {tab === "profile" && <ProfileTab />}
+          {tab === "trading" && <TradingTab />}
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
