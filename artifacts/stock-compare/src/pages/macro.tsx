@@ -54,16 +54,20 @@ import type {
 import {
   fmt, fmtPct, fmtK, fmtB, fmtDate, fmtTs, fmtMonthYear,
   changeColor, inflColor, VIX_LEVEL_LABELS, vixBadgeClass,
-  stanceBadgeClass, stanceLabel, getIndicatorHighlight, CurvePeriodButtons,
-  RegimeChips, CrossTabReadRow, StatCell, VolStrip, QuickStats, VixCurveChart, YieldCurveChart,
-  FedFundsCurveChart, RateHistoryChart, DualLineHistoryChart, MacroRow, IndicatorHistoryChart,
-  LiquidityFlowDiagram, SectorRotationBubbles, LiquidityImplicationsCard, VolatilityImplicationsCard,
-  BalanceSheetCard,
-  PolicyCspSummary,
-  SepDotsChart, FedScaleStrip, BankCard, EventRow,
-  CotSection, TradingViewHeatmap, TradingViewEconomicCalendar,
-  TradingViewMarketOverview, TradingViewForexCrossRates,
-} from "@/components/macro/MacroComponents";
+  stanceBadgeClass, stanceLabel, getIndicatorHighlight,
+} from "@/components/macro/macro-format";
+import { CurvePeriodButtons, VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
+import { RegimeChips, CrossTabReadRow, StatCell, VolStrip, QuickStats } from "@/components/macro/macro-regime-overview";
+import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
+import { MacroRow } from "@/components/macro/macro-indicator-row";
+import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
+import { SectorRotationBubbles } from "@/components/macro/macro-sector-rotation";
+import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
+import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
+import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
+import {
+  TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
+} from "@/components/macro/macro-tradingview-embeds";
 
 const MACRO_TABS: { id: MacroTab; label: string }[] = [
   { id: "regime",     label: "Macro & Regime Health" },

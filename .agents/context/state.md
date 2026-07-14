@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-14
 
 ## Active work
-- Working: price-chart-lightweight-charts-migration, chart-levels-marker-vs-line-refactor, tasks-dir-staleness-fix
-- In progress: none - price chart swap shipped and typechecked; visual browser verify blocked (no chrome installed for playwright)
+- Working: enh38-stock-breakdown-split, enh38-macro-components-split
+- In progress: MacroComponents.tsx (2565 lines) split into 11 topic files (macro-format macro-curve-charts macro-history-charts macro-regime-overview macro-liquidity-section macro-volatility-policy macro-sector-rotation macro-fed-section macro-indicator-row macro-events-cot macro-tradingview-embeds); macro.tsx imports updated to new files; tsc + 268 tests pass; old MacroComponents.tsx file still on disk unused - user interrupted the rm command so delete is pending confirmation next session
 - Blocked: none
 
 ## Next tasks (priority order)
