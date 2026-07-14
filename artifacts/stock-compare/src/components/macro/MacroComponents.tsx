@@ -2038,14 +2038,47 @@ export function importanceBadgeClass(imp: MacroEvent["importance"]) {
   }
 }
 
-export function EventRow({ event, todayStr }: { event: MacroEvent; todayStr: string }) {
+// Event text → INDICATOR_SERIES key, for click-through to the Regime tab's indicator history.
+// Matched by substring against MacroEvent.event; first match wins. Events with no match render
+// as plain (non-clickable) rows — e.g. generic Fed-speak or press-conference entries.
+const EVENT_INDICATOR_MAP: [string, string][] = [
+  ["Core PCE", "corePce"],
+  ["PCE", "corePce"],
+  ["Core CPI", "coreCpi"],
+  ["CPI", "cpi"],
+  ["PPI", "ppi"],
+  ["Nonfarm Payrolls", "nonfarmPayrolls"],
+  ["JOLTS", "jolts"],
+  ["Unemployment", "unemployment"],
+  ["GDP", "gdp"],
+  ["Retail Sales", "retailSales"],
+  ["Consumer Sentiment", "consumerSentiment"],
+  ["ISM Manufacturing", "ismManufacturing"],
+  ["FOMC", "fedFundsRate"],
+];
+
+export function matchEventIndicatorKey(eventText: string): string | undefined {
+  return EVENT_INDICATOR_MAP.find(([needle]) => eventText.includes(needle))?.[1];
+}
+
+export function EventRow({
+  event, todayStr, onJumpToIndicator,
+}: {
+  event: MacroEvent;
+  todayStr: string;
+  onJumpToIndicator?: (indicatorKey: string) => void;
+}) {
   const isToday = event.date === todayStr;
+  const indicatorKey = onJumpToIndicator ? matchEventIndicatorKey(event.event) : undefined;
   return (
     <div
       className={cn(
         "flex items-center gap-3 px-3 py-2 rounded-md border border-border text-sm",
-        isToday && "border-l-2 border-l-primary bg-primary/5"
+        isToday && "border-l-2 border-l-primary bg-primary/5",
+        indicatorKey && "cursor-pointer hover:bg-secondary/40 transition-colors"
       )}
+      onClick={indicatorKey ? () => onJumpToIndicator!(indicatorKey) : undefined}
+      title={indicatorKey ? "View indicator history on Regime tab" : undefined}
     >
       <span className="text-[11px] text-muted-foreground font-medium w-12 shrink-0">
         {fmtDate(event.date)}

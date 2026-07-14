@@ -64,7 +64,21 @@ export const GetStockQuoteResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
-  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)'),
+  "earningsDate": zod.string().nullish().describe('Next earnings date (YYYY-MM-DD), from Yahoo calendarEvents. Source Yahoo.'),
+  "wacc": zod.number().nullish().describe('Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.'),
+  "roic": zod.number().nullish().describe('Return on invested capital (decimal). Source FMP.'),
+  "interestExpense": zod.number().nullish().describe('Annual interest expense in raw dollars (always positive). Source FMP.'),
+  "totalDebt": zod.number().nullish().describe('Total debt in raw dollars. Source FMP.'),
+  "totalStockholdersEquity": zod.number().nullish().describe('Total stockholders equity in raw dollars. Source FMP.'),
+  "ebit": zod.number().nullish().describe('Earnings before interest and taxes in raw dollars. Source FMP.'),
+  "effectiveTaxRate": zod.number().nullish().describe('Effective tax rate (decimal, e.g. 0.21 = 21%). Source FMP.'),
+  "cashAndEquivalents": zod.number().nullish().describe('Cash and cash equivalents in raw dollars. Source FMP.'),
+  "quarterlyOperatingCashFlow": zod.number().nullish().describe('Most recent quarterly operating cash flow (negative = burning cash). Source FMP.'),
+  "sharesOutstanding": zod.number().nullish().describe('Current weighted average shares outstanding. Source FMP.'),
+  "sharesOutstandingPrior": zod.number().nullish().describe('Prior period weighted average shares outstanding (for dilution rate). Source FMP.'),
+  "discrepancyFlags": zod.array(zod.string()).nullish().describe('Fields where FMP and Yahoo values diverged by more than 20%.'),
+  "fundamentalsLastFetched": zod.string().nullish().describe('ISO timestamp when FMP fundamentals were last fetched for this ticker.')
 })
 
 
@@ -137,7 +151,21 @@ export const CompareStocksResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
-  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)'),
+  "earningsDate": zod.string().nullish().describe('Next earnings date (YYYY-MM-DD), from Yahoo calendarEvents. Source Yahoo.'),
+  "wacc": zod.number().nullish().describe('Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.'),
+  "roic": zod.number().nullish().describe('Return on invested capital (decimal). Source FMP.'),
+  "interestExpense": zod.number().nullish().describe('Annual interest expense in raw dollars (always positive). Source FMP.'),
+  "totalDebt": zod.number().nullish().describe('Total debt in raw dollars. Source FMP.'),
+  "totalStockholdersEquity": zod.number().nullish().describe('Total stockholders equity in raw dollars. Source FMP.'),
+  "ebit": zod.number().nullish().describe('Earnings before interest and taxes in raw dollars. Source FMP.'),
+  "effectiveTaxRate": zod.number().nullish().describe('Effective tax rate (decimal, e.g. 0.21 = 21%). Source FMP.'),
+  "cashAndEquivalents": zod.number().nullish().describe('Cash and cash equivalents in raw dollars. Source FMP.'),
+  "quarterlyOperatingCashFlow": zod.number().nullish().describe('Most recent quarterly operating cash flow (negative = burning cash). Source FMP.'),
+  "sharesOutstanding": zod.number().nullish().describe('Current weighted average shares outstanding. Source FMP.'),
+  "sharesOutstandingPrior": zod.number().nullish().describe('Prior period weighted average shares outstanding (for dilution rate). Source FMP.'),
+  "discrepancyFlags": zod.array(zod.string()).nullish().describe('Fields where FMP and Yahoo values diverged by more than 20%.'),
+  "fundamentalsLastFetched": zod.string().nullish().describe('ISO timestamp when FMP fundamentals were last fetched for this ticker.')
 }),
   "stock2": zod.object({
   "ticker": zod.string(),
@@ -178,7 +206,21 @@ export const CompareStocksResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "dayChange": zod.number().nullish().describe('Absolute price change for the day'),
-  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)')
+  "dayChangePercent": zod.number().nullish().describe('Fractional price change for the day (0.03 = 3%)'),
+  "earningsDate": zod.string().nullish().describe('Next earnings date (YYYY-MM-DD), from Yahoo calendarEvents. Source Yahoo.'),
+  "wacc": zod.number().nullish().describe('Weighted average cost of capital (decimal, e.g. 0.089 = 8.9%). Source FMP.'),
+  "roic": zod.number().nullish().describe('Return on invested capital (decimal). Source FMP.'),
+  "interestExpense": zod.number().nullish().describe('Annual interest expense in raw dollars (always positive). Source FMP.'),
+  "totalDebt": zod.number().nullish().describe('Total debt in raw dollars. Source FMP.'),
+  "totalStockholdersEquity": zod.number().nullish().describe('Total stockholders equity in raw dollars. Source FMP.'),
+  "ebit": zod.number().nullish().describe('Earnings before interest and taxes in raw dollars. Source FMP.'),
+  "effectiveTaxRate": zod.number().nullish().describe('Effective tax rate (decimal, e.g. 0.21 = 21%). Source FMP.'),
+  "cashAndEquivalents": zod.number().nullish().describe('Cash and cash equivalents in raw dollars. Source FMP.'),
+  "quarterlyOperatingCashFlow": zod.number().nullish().describe('Most recent quarterly operating cash flow (negative = burning cash). Source FMP.'),
+  "sharesOutstanding": zod.number().nullish().describe('Current weighted average shares outstanding. Source FMP.'),
+  "sharesOutstandingPrior": zod.number().nullish().describe('Prior period weighted average shares outstanding (for dilution rate). Source FMP.'),
+  "discrepancyFlags": zod.array(zod.string()).nullish().describe('Fields where FMP and Yahoo values diverged by more than 20%.'),
+  "fundamentalsLastFetched": zod.string().nullish().describe('ISO timestamp when FMP fundamentals were last fetched for this ticker.')
 }),
   "scorecard": zod.object({
   "ticker1TotalScore": zod.number(),

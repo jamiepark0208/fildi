@@ -769,7 +769,49 @@ export default function MacroDashboard() {
           {/* ── Tab 5: Catalyst Calendar ──────────────────────────────────────── */}
           {activeTab === "catalyst" && (
             <div className="space-y-4">
-              <div>
+              {/* Your Week — curated macro releases, clickable through to Regime tab */}
+              {events && events.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      Your Week
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Curated high-signal releases only — the TradingView calendar below is the global feed and can't be
+                      filtered to your book. High-importance releases jump to their indicator history on the Regime tab.
+                    </p>
+                  </div>
+                  {thisWeekEvents.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">This Week</p>
+                      {thisWeekEvents.map((ev) => (
+                        <EventRow
+                          key={ev.date + ev.event}
+                          event={ev}
+                          todayStr={todayStr}
+                          onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {comingUpEvents.length > 0 && (
+                    <div className="space-y-1.5 mt-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Coming Up</p>
+                      {comingUpEvents.map((ev) => (
+                        <EventRow
+                          key={ev.date + ev.event}
+                          event={ev}
+                          todayStr={todayStr}
+                          onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   Economic Calendar
@@ -777,25 +819,6 @@ export default function MacroDashboard() {
                 <p className="text-xs text-muted-foreground mt-0.5">US high-importance macro releases · powered by TradingView</p>
               </div>
               <TradingViewEconomicCalendar />
-
-              {/* Static tracked events */}
-              {events && events.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tracked Events</h3>
-                  {thisWeekEvents.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">This Week</p>
-                      {thisWeekEvents.map((ev) => <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />)}
-                    </div>
-                  )}
-                  {comingUpEvents.length > 0 && (
-                    <div className="space-y-1.5 mt-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Coming Up</p>
-                      {comingUpEvents.map((ev) => <EventRow key={ev.date + ev.event} event={ev} todayStr={todayStr} />)}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
