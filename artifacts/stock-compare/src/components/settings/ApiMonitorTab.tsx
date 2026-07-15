@@ -37,10 +37,11 @@ const SOURCE_META: Record<string, SourceMeta> = {
   fred:   { label: "FRED",         limitKind: "none",    rateNote: "no hard limit" },
   cnn:    { label: "CNN",          limitKind: "none",    rateNote: "no hard limit" },
   nyfed:  { label: "NY Fed",       limitKind: "none",    rateNote: "no hard limit" },
+  anthropic: { label: "Anthropic (Haiku)", limitKind: "none", rateNote: "30 req/15min per user" },
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["fmp", "av", "polygon", "finnhub", "yahoo", "edgar"];
+const PRIMARY_SOURCES = ["fmp", "av", "polygon", "finnhub", "yahoo", "edgar", "anthropic"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

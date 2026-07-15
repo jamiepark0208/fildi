@@ -1249,3 +1249,25 @@ export const explainCache = pgTable('explain_cache', {
 }));
 
 export type ExplainCacheRow = typeof explainCache.$inferSelect
+
+// ── ai_usage_log ──────────────────────────────────────────────────────────────
+// Per-request audit trail for Explain AI (who asked, for what ticker, cache hit
+// or a real Haiku call). Separate from explain_cache (which stores content, not
+// attribution) and from api_usage (which is a vendor-level daily counter, not
+// per-user). Exists so a future multi-user deployment can see per-account usage
+// without storing prompt/explanation text here — metadata only.
+export const aiUsageLog = pgTable('ai_usage_log', {
+  id:          serial('id').primaryKey(),
+  userId:      integer('user_id').notNull().references(() => users.id),
+  ticker:      text('ticker').notNull(),
+  surfaceType: text('surface_type').notNull(),   // "fundamental" | "technical" | "options" | ...
+  cached:      boolean('cached').notNull(),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('ai_usage_log_user_idx').on(t.userId, t.createdAt),
+  // Supports the retention prune's range-delete (WHERE created_at < ...) across all
+  // users — the composite index above can't serve that since userId isn't filtered.
+  createdAtIdx: index('ai_usage_log_created_at_idx').on(t.createdAt),
+}));
+
+export type AiUsageLogRow = typeof aiUsageLog.$inferSelect

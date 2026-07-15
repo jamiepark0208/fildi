@@ -4,6 +4,8 @@ import { eq, and } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
+import { logApiCall } from "../lib/api-logger.js";
+import { recordAiUsage } from "../lib/ai-usage.js";
 
 const router  = Router();
 const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
@@ -151,7 +153,8 @@ router.post("/explain/score", async (req, res) => {
   let prompt: string;
   let scoreHash: string;
 
-  const log = req.log.child({ ticker, scoreType });
+  const userId = req.session.userId!;
+  const log = req.log.child({ ticker, scoreType, userId });
 
   try {
     if (scoreType === "fundamental") {
@@ -177,6 +180,7 @@ router.post("/explain/score", async (req, res) => {
 
     if (cached.length > 0) {
       log.info({ step: "cache-hit" }, "explain: serving from cache");
+      recordAiUsage({ userId, ticker, surfaceType: scoreType, cached: true });
       return res.json({ explanation: cached[0].explanation, cached: true });
     }
 
@@ -191,6 +195,8 @@ router.post("/explain/score", async (req, res) => {
 
     const explanation = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
     log.info({ step: "anthropic-ok", chars: explanation.length }, "explain: got response");
+    logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/score", ticker, outcome: "success" });
+    recordAiUsage({ userId, ticker, surfaceType: scoreType, cached: false });
 
     log.info({ step: "db-upsert" }, "explain: persisting to cache");
     await db.insert(explainCache)
@@ -279,7 +285,8 @@ router.post("/explain/options", async (req, res) => {
     return res.status(400).json({ error: "ticker, rsi, mfi, signal, and tier are required" });
   }
 
-  const log = req.log.child({ ticker, surfaceType: "options" });
+  const userId = req.session.userId!;
+  const log = req.log.child({ ticker, surfaceType: "options", userId });
 
   try {
     const bundle = await assembleContext(ticker, { include: ["stockEvent", "marketEvent"] });
@@ -290,6 +297,10 @@ router.post("/explain/options", async (req, res) => {
       { rsi, mfi, signal, tier, ivCurrent: ivCurrent ?? null, vsSpy20d: vsSpy20d ?? null },
       log,
     );
+    if (!result.cached) {
+      logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/options", ticker, outcome: "success" });
+    }
+    recordAiUsage({ userId, ticker, surfaceType: "options", cached: result.cached });
     return res.json(result);
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/options error");
