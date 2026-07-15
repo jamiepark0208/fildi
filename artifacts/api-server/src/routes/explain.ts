@@ -2,6 +2,8 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { eq, and } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
+import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
+import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
 
 const router  = Router();
 const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
@@ -201,6 +203,96 @@ router.post("/explain/score", async (req, res) => {
     return res.json({ explanation });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/score error");
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Options scanner surface ────────────────────────────────────────────────────
+// Replaces the scanner's hardcoded "RSI X above threshold Y" template with a real
+// per-ticker explanation — same cache-by-hash + Haiku pattern as above, generalized
+// via generateExplanation so future surfaces (breakdown, brief) don't reinline it.
+
+interface OptionsExtra {
+  rsi:        number;
+  mfi:        number;
+  signal:     "GO" | "WATCH" | "NO";
+  tier:       1 | 2 | 3;
+  ivCurrent:  number | null;
+  vsSpy20d:   number | null;
+}
+
+const TIER_WIN_RATE: Record<1 | 2 | 3, string> = { 1: "≥92%", 2: "≥94%", 3: "≥97%" };
+
+function optionsHash(bundle: ContextBundle, e: OptionsExtra): string {
+  // Round to the UTC day so market/sector context regenerates at most once a day —
+  // this is a daily-summary surface, not a live feed (see plan risk #2).
+  const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  return `v1_${dayBucket}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
+}
+
+function buildOptionsPrompt(bundle: ContextBundle, e: OptionsExtra): string {
+  const se = bundle.stockEvent;
+  const me = bundle.marketEvent;
+
+  const zscoreLine = se?.priceZScore != null
+    ? `Recent price move: ${se.priceZScore.toFixed(1)} standard deviations from its own 20-day average (${Math.abs(se.priceZScore) >= 1.5 ? "an outlier move" : "within normal range"}).`
+    : "Recent price move: not enough history to compute.";
+
+  const newsLines = se?.recentNews?.length
+    ? se.recentNews.map(n => `- ${n.title} (${n.source})`).join("\n")
+    : "No recent notable news found.";
+
+  const sectorLine = me?.sector
+    ? `Sector (${me.sector.label}) is in a "${me.sector.quadrant}" RRG quadrant, ${me.sector.rs1m != null ? `${me.sector.rs1m > 0 ? "+" : ""}${me.sector.rs1m.toFixed(1)}pp vs SPY over 1 month` : "relative strength unavailable"}.`
+    : "Sector context unavailable.";
+
+  const volLine = me?.volRegime ? `Market volatility regime: ${me.volRegime.replace("_", " ").toLowerCase()}.` : "";
+
+  return `You explain a cash-secured-put candidate to an options seller who wants recent, specific context — not a repeat of numbers they can already see on screen. Be concrete about WHY this ticker looks interesting right now, not just that a threshold was crossed.
+
+Ticker: ${bundle.ticker}
+Signal: ${e.signal} (Tier ${e.tier}, ${TIER_WIN_RATE[e.tier]} historical win rate) | RSI ${e.rsi.toFixed(1)} vs threshold | MFI ${e.mfi.toFixed(1)}
+${e.ivCurrent != null ? `IV: ${e.ivCurrent.toFixed(0)}%` : ""}${e.vsSpy20d != null ? ` | vs SPY 20d: ${e.vsSpy20d > 0 ? "+" : ""}${e.vsSpy20d.toFixed(1)}%` : ""}
+${zscoreLine}
+${sectorLine}
+${volLine}
+Recent news:
+${newsLines}
+
+Write exactly 2 bullets (starting with -). Rules:
+- Lead with the most decision-relevant fact: an outlier move, a sector rotation, or a specific news catalyst — whichever is most relevant, not always the same one
+- Each bullet under 20 words
+- No intro, no outro, no investment advice, no repeating the raw RSI/MFI numbers already shown above`;
+}
+
+const optionsSurface: ExplainSurface<OptionsExtra> = {
+  surfaceType:  "options",
+  promptVersion: "v1",
+  buildPrompt:  buildOptionsPrompt,
+  hashInputs:   optionsHash,
+};
+
+router.post("/explain/options", async (req, res) => {
+  const { ticker, rsi, mfi, signal, tier, ivCurrent, vsSpy20d } = req.body as { ticker?: string } & Partial<OptionsExtra>;
+
+  if (!ticker || rsi == null || mfi == null || !signal || !tier) {
+    return res.status(400).json({ error: "ticker, rsi, mfi, signal, and tier are required" });
+  }
+
+  const log = req.log.child({ ticker, surfaceType: "options" });
+
+  try {
+    const bundle = await assembleContext(ticker, { include: ["stockEvent", "marketEvent"] });
+    const result = await generateExplanation(
+      ticker.toUpperCase(),
+      optionsSurface,
+      bundle,
+      { rsi, mfi, signal, tier, ivCurrent: ivCurrent ?? null, vsSpy20d: vsSpy20d ?? null },
+      log,
+    );
+    return res.json(result);
+  } catch (err) {
+    log.error({ err, step: "failed" }, "explain/options error");
     return res.status(500).json({ error: String(err) });
   }
 });
