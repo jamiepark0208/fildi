@@ -25,6 +25,7 @@ import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
 import positionsRouter from "./positions";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { explainLimiter } from "../middleware/rateLimiter.js";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,9 @@ router.use(dataHealthRouter);
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
 router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm"], requireAuth);
+// explainLimiter reads req.session.userId, so it must be mounted after requireAuth
+// above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
+router.use("/explain", explainLimiter);
 router.use(stocksRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);

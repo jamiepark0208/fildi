@@ -6,7 +6,7 @@
 **build** — last updated 2026-07-15
 
 ## Active work
-- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button
+- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button, explain-ai-usage-tracking, api-monitor-anthropic, retention-and-log-rotation
 - In progress: none active
 - Blocked: none
 
