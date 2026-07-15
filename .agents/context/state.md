@@ -3,10 +3,10 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-14
+**build** — last updated 2026-07-15
 
 ## Active work
-- Working: option-scorer double-delta-penalty fix (monotonic buffer/delta scoring), expiry-filter bug fix (real fractional-day check kills phantom 0.5-day chains causing false 100% POP)
+- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button
 - In progress: none active
 - Blocked: none
 

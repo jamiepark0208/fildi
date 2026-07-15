@@ -10,7 +10,7 @@ import {
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X, Sparkles } from "lucide-react";
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -457,6 +457,35 @@ function ScannerRow({
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
 
+  // AI explanation — user-triggered only (button click), never fires just from
+  // expanding the row. The deterministic buildReasoning() text is always shown as the
+  // default, and on error/failure the AI text is never substituted in — the row never
+  // breaks, it just doesn't get the richer context.
+  const [aiRequested, setAiRequested] = useState(false);
+  const { data: aiReasoning, isLoading: reasoningLoading, isError: reasoningError } = useQuery({
+    queryKey: ["explain-options", ticker, indicator?.signal, indicator?.rsi?.toFixed(1), indicator?.mfi?.toFixed(1)],
+    queryFn: async (): Promise<string> => {
+      const res = await fetch("/api/explain/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker,
+          rsi: indicator!.rsi,
+          mfi: indicator!.mfi,
+          signal: indicator!.signal,
+          tier: indicator!.tier,
+          ivCurrent: indicator!.ivCurrent ?? null,
+          vsSpy20d: indicator!.vsSpy20d ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error("explain/options failed");
+      return (await res.json()).explanation as string;
+    },
+    enabled: aiRequested && expanded && !!indicator,
+    staleTime: 60 * 60 * 1000, // backend regenerates at most once/day — no need to refetch within the browser session sooner than this
+    retry: false,
+  });
+
   const strikes = optionsData
     ? viableStrikes(optionsData, minIncome, show1wk)
     : [];
@@ -599,11 +628,34 @@ function ScannerRow({
           className="px-4 pb-2 pt-1 space-y-1.5 bg-slate-950/70"
           style={{ borderLeft: `4px solid ${borderColor}` }}
         >
-          {/* Reasoning line */}
+          {/* Reasoning line — deterministic text always shown; AI context (outlier moves,
+              sector flow, news) is opt-in via the button below since it costs an API call. */}
           {indicator && (
             <p className="text-xs text-white">
               {buildReasoning(indicator, firstIV, macroRegime)}
             </p>
+          )}
+
+          {indicator && (
+            aiReasoning ? (
+              <p className="text-xs text-primary/90 leading-snug border-l-2 border-primary/30 pl-2 py-0.5">
+                {aiReasoning}
+              </p>
+            ) : (
+              <button
+                onClick={() => setAiRequested(true)}
+                disabled={reasoningLoading}
+                className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 disabled:opacity-60 disabled:cursor-default transition-colors"
+              >
+                {reasoningLoading
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Sparkles className="w-3 h-3" />}
+                {reasoningLoading ? "Getting AI context…" : "Get AI context"}
+              </button>
+            )
+          )}
+          {reasoningError && (
+            <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
           )}
 
           {/* Strike cards */}

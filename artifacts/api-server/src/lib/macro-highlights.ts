@@ -49,7 +49,7 @@ export type HighlightsPayload = z.infer<typeof HighlightsPayloadSchema>;
 
 // ── News fetching ──────────────────────────────────────────────────────────────
 
-interface NewsItem {
+export interface NewsItem {
   title: string;
   source: string;
   publishedAt: string;
@@ -88,7 +88,7 @@ async function fetchGoogleNewsRss(query: string, maxItems = 6): Promise<NewsItem
   }
 }
 
-async function fetchYahooTickerNews(ticker: string, max = 5): Promise<NewsItem[]> {
+export async function fetchYahooTickerNews(ticker: string, max = 5): Promise<NewsItem[]> {
   try {
     const result = await yahooFinance.search(
       ticker, { newsCount: max, quotesCount: 0 }, { validateResult: false }
