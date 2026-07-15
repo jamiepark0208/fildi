@@ -23,6 +23,7 @@ const Settings = lazy(() => import("@/pages/settings"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Feed = lazy(() => import("@/pages/feed"));
 const Sentiment = lazy(() => import("@/pages/sentiment"));
+const Live = lazy(() => import("@/pages/live"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,6 +118,9 @@ function Router() {
       </Route>
       <Route path="/sentiment">
         <ProtectedRoute><Sentiment /></ProtectedRoute>
+      </Route>
+      <Route path="/live">
+        <ProtectedRoute><Live /></ProtectedRoute>
       </Route>
       <Route>
         <Suspense fallback={<PageSkeleton />}>

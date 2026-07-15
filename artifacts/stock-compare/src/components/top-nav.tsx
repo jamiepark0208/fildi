@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   BarChart2, Bookmark, BriefcaseBusiness, Trophy, Globe, User, Settings as SettingsIcon,
+  Activity,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ const LEFT_NAV_ITEMS: NavItem[] = [
   { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, adminOnly: true },
   { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy },
   { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe },
+  { id: "live",      href: "/live",       label: "Live",       icon: Activity },
 ];
 
 const RIGHT_NAV_ITEMS: NavItem[] = [
