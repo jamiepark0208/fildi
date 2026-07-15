@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-15
 
 ## Active work
-- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button, explain-ai-usage-tracking, api-monitor-anthropic, retention-and-log-rotation
-- In progress: none active
+- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button, explain-ai-usage-tracking, api-monitor-anthropic, retention-and-log-rotation, live-intraday-monitor-phase1, live-tab-prototype
+- In progress: none
 - Blocked: none
 
 ## Next tasks (priority order)

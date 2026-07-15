@@ -3,3 +3,4 @@
 - [yahoo-finance2 v3 options](yahoo-finance2-options.md) — requires validateResult:false; options chain fetched via yahooFinance.options(ticker, {date}, {validateResult:false}); null bid/ask is normal when market is closed.
 - [Feedback reading rules](feedback-reading-rules.md) — No Explore sweeps; state file+reason before reading; max 5 files/task; find/grep first.
 - [Response style](feedback_response_style.md) — Concise only: no echoing code/commands back, 1-2 sentence summaries, no verbatim output blocks in prose.
+- [Live intraday monitor progress](live-intraday-monitor-progress.md) — Phase 1 (WS+candles+hotlist) shipped 2026-07-15; resume at Phase 2 (streaming TA engine).

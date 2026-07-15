@@ -27,3 +27,9 @@ Never use Explore agents for broad codebase sweeps — they read too many files 
 Before reading any file, state its name and the reason. Use find/grep to locate symbols before reading whole files. If a grep result answers the question, don't open the file.
 
 **Why:** User corrected this after the first plan session consumed excessive tokens via 2 broad Explore agents sweeping 50+ files. Repeated on 2026-06-16: read 7 large files in parallel on first prompt, hit 48% context.
+
+## Exception: tasks with a pre-researched implementation reference pack
+
+If a `.cursor/tasks/**` spec already includes an "Implementation Reference Pack" appendix (exact file paths, line numbers, library usage snippets, route registration diffs — see `10-live-intraday-monitor-071426.md` §Appendix A for the pattern), codegraph calls are largely redundant: the doc already did that lookup. In that case, go straight to targeted `grep -n` + `Read offset+limit` to confirm the referenced line numbers still match, skip `codegraph_context`, and spend the saved calls on live-testing the actual behavior instead (e.g. running new code against real APIs before declaring done).
+
+**Confirmed 2026-07-15:** built live-intraday-monitor Phase 1 (finnhub-ws.ts, candle-aggregator.ts, live-hotlist.ts) this way — grep-verified line refs from the task's Appendix A, skipped codegraph entirely, and it was still a clean, low-token implementation. Still read one full file (`finnhub-client.ts`, 156 lines) past its own READ_GUARD threshold out of habit — grep first even when a file feels short enough to just read.
