@@ -23,6 +23,7 @@ import cotRouter from "./macro-cot";
 import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
+import enrichmentRunsRouter from "./enrichment-runs";
 import positionsRouter from "./positions";
 import liveRouter from "./live";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -48,6 +49,7 @@ router.use(cotRouter);
 router.use(regimeRouter);
 router.use(apiUsageRouter);
 router.use(dataHealthRouter);
+router.use(enrichmentRunsRouter);
 
 // bug/1: vendor-cost routes (Yahoo/Anthropic/SDM on cache miss) had zero
 // auth. Path-scoped directly on the parent router — NOT a blanket

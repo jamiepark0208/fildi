@@ -231,6 +231,35 @@ function calcCoverage(entries: StockDBEntry[]): number {
   return Math.round((filled / (entries.length * COLS.length)) * 100);
 }
 
+// ── Pipeline health (enrichment run history) ─────────────────────────────────
+
+interface EnrichmentRun {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  status: "success" | "partial" | "failed";
+  trigger: "scheduled" | "manual";
+  perSource: Record<string, { targeted: number; fetched: number; nodata: number; failed: number; budgetSkipped: number }> | null;
+  coverageBefore: string | null;
+  coverageAfter: string | null;
+  error: string | null;
+  flagAuditOrphaned: number | null;
+  flagAuditMissing: number | null;
+}
+
+function runStatusBadge(status: EnrichmentRun["status"]): string {
+  return status === "success" ? "bg-green-500/15 text-green-400 border border-green-500/30"
+    : status === "partial" ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+    : "bg-red-500/15 text-red-400 border border-red-500/30";
+}
+
+function runDuration(run: EnrichmentRun): string {
+  if (!run.finishedAt) return "—";
+  const ms = new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime();
+  const mins = Math.round(ms / 60_000);
+  return mins < 1 ? "<1m" : `${mins}m`;
+}
+
 function coverageColor(pct: number): string {
   return pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-400";
 }
@@ -348,7 +377,7 @@ const _persist = {
 
 const families = ["value", "growth", "quality", "safety", "meta"] as const;
 
-type ActiveCell = { ticker: string; field: string; rect: DOMRect };
+type ActiveCell = { ticker: string; field: string; rect: DOMRect; tooltipParts: string[] };
 
 export function StockDBTab() {
   const { isAdmin } = useAuth();
@@ -364,7 +393,22 @@ export function StockDBTab() {
   const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(() => new Set(_persist.collapsedSectors));
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
   const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals">("fundamentals");
+  const [pipelineExpanded, setPipelineExpanded] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: runsData } = useQuery<{ runs: EnrichmentRun[] }>({
+    queryKey: ["enrichment-runs"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/enrichment-runs?limit=10", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: isAdmin,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const runs = runsData?.runs ?? [];
+  const latestRun = runs[0] ?? null;
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
@@ -436,12 +480,13 @@ export function StockDBTab() {
     },
   });
 
-  // Provenance/override is an admin editing feature backed by requireAdmin routes —
-  // no-op for regular users so we don't fire 401s or show an edit affordance they can't use.
-  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLTableCellElement>) => {
-    if (!isAdmin) return;
+  // Provenance/override editing is admin-only (backed by requireAdmin routes), but the
+  // suspect/discrepancy flag popup (tooltipParts) is plain client-side info anyone can see —
+  // so non-admins still get a click popup when a cell has flags, just without the edit UI.
+  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLTableCellElement>, tooltipParts: string[]) => {
+    if (!isAdmin && tooltipParts.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    setActiveCell({ ticker, field, rect });
+    setActiveCell({ ticker, field, rect, tooltipParts });
     setOverrideSrc(activeProv?.override?.source ?? "");
     setOverrideVal(activeProv?.override?.value != null ? String(activeProv.override.value) : "");
     setOverrideNote(activeProv?.override?.note ?? "");
@@ -678,6 +723,72 @@ export function StockDBTab() {
           </button>
         )}
       </div>
+
+      {/* Pipeline health */}
+      {isAdmin && latestRun && (
+        <div className="border border-border rounded-md">
+          <button
+            onClick={() => setPipelineExpanded(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+          >
+            <div className="flex items-center gap-2">
+              {pipelineExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              <span className="font-medium">Pipeline Health</span>
+              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", runStatusBadge(latestRun.status))}>{latestRun.status}</span>
+              <span className="text-muted-foreground">
+                {new Date(latestRun.startedAt).toLocaleString()} · {latestRun.trigger} · {runDuration(latestRun)}
+              </span>
+            </div>
+            {latestRun.coverageBefore != null && latestRun.coverageAfter != null && (
+              <span className="text-muted-foreground">
+                Coverage <span className={coverageColor(Number(latestRun.coverageBefore))}>{Number(latestRun.coverageBefore).toFixed(1)}%</span>
+                {" → "}
+                <span className={cn("font-medium", coverageColor(Number(latestRun.coverageAfter)))}>{Number(latestRun.coverageAfter).toFixed(1)}%</span>
+              </span>
+            )}
+          </button>
+          {pipelineExpanded && (
+            <div className="border-t border-border overflow-auto max-h-64">
+              <table className="text-xs w-full border-collapse">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="text-muted-foreground">
+                    <th className="text-left font-medium px-3 py-1.5">Started</th>
+                    <th className="text-left font-medium px-3 py-1.5">Trigger</th>
+                    <th className="text-left font-medium px-3 py-1.5">Status</th>
+                    <th className="text-left font-medium px-3 py-1.5">Duration</th>
+                    <th className="text-left font-medium px-3 py-1.5">Coverage</th>
+                    <th className="text-left font-medium px-3 py-1.5">Flag audit</th>
+                    <th className="text-left font-medium px-3 py-1.5">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map(run => (
+                    <tr key={run.id} className="border-t border-border/50">
+                      <td className="px-3 py-1.5 whitespace-nowrap">{new Date(run.startedAt).toLocaleString()}</td>
+                      <td className="px-3 py-1.5">{run.trigger}</td>
+                      <td className="px-3 py-1.5">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", runStatusBadge(run.status))}>{run.status}</span>
+                      </td>
+                      <td className="px-3 py-1.5">{runDuration(run)}</td>
+                      <td className="px-3 py-1.5">
+                        {run.coverageBefore != null && run.coverageAfter != null
+                          ? `${Number(run.coverageBefore).toFixed(1)}% → ${Number(run.coverageAfter).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {run.flagAuditOrphaned != null || run.flagAuditMissing != null
+                          ? `${run.flagAuditOrphaned ?? 0} orphaned / ${run.flagAuditMissing ?? 0} missing`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-red-400 max-w-xs truncate" title={run.error ?? undefined}>{run.error ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* View toggle */}
       <div className="flex items-center gap-1 p-0.5 bg-muted/30 border border-border rounded-md w-fit text-xs font-medium">
@@ -998,10 +1109,10 @@ export function StockDBTab() {
                     return (
                       <td
                         key={col.key as string}
-                        onClick={(e) => openCell(row.ticker, col.key as string, e)}
-                        title={tooltipParts.length ? tooltipParts.join("\n") : undefined}
+                        onClick={(e) => openCell(row.ticker, col.key as string, e, tooltipParts)}
                         className={cn(
-                          "px-2 py-0.5 text-right font-mono whitespace-nowrap border-border transition-colors cursor-pointer",
+                          "px-2 py-0.5 text-right font-mono whitespace-nowrap border-border transition-colors",
+                          (isAdmin || tooltipParts.length > 0) && "cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
                           isActive && "ring-1 ring-inset ring-primary/50",
                           isOptionalNull && "text-muted-foreground/40",
@@ -1071,7 +1182,18 @@ export function StockDBTab() {
         sideOffset={4}
         onInteractOutside={() => setActiveCell(null)}
       >
-        {!activeProv && provError && (
+        {!isAdmin && activeCell && (
+          <div className="p-3 flex flex-col gap-1.5">
+            <span className="font-semibold text-foreground">{activeCell.ticker} · {activeCell.field}</span>
+            {activeCell.tooltipParts.map((part, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-amber-400">
+                <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                <span>{part}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {isAdmin && !activeProv && provError && (
           <div className="p-3 flex flex-col gap-2">
             <div className="text-red-400 flex items-center gap-1.5 text-xs">
               <AlertTriangle className="h-3 w-3" /> Couldn't load source detail.
@@ -1084,14 +1206,14 @@ export function StockDBTab() {
             </button>
           </div>
         )}
-        {!activeProv && !provError && (
+        {isAdmin && !activeProv && !provError && (
           <div className="p-3 text-muted-foreground flex items-center gap-2">
             {provFetching
               ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…</>
               : "Hover the row first to load provenance."}
           </div>
         )}
-        {activeProv && (
+        {isAdmin && activeProv && (
           <div>
             <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
               <span className="font-semibold text-foreground">{activeCell?.ticker} · {activeCell?.field}</span>
@@ -1100,6 +1222,17 @@ export function StockDBTab() {
                 {activeProv.divergent  && <span title="Sources disagree"><TriangleAlert className="h-3 w-3 text-orange-400" /></span>}
               </div>
             </div>
+
+            {activeCell && activeCell.tooltipParts.length > 0 && (
+              <div className="px-3 py-2 border-b border-border flex flex-col gap-1">
+                {activeCell.tooltipParts.map((part, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-amber-400">
+                    <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                    <span>{part}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="px-3 py-2 border-b border-border">
               <div className="flex items-center justify-between">

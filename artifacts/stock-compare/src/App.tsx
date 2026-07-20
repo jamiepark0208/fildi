@@ -12,7 +12,6 @@ import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Rankings = lazy(() => import("@/pages/rankings"));
-const Home = lazy(() => import("@/pages/home"));
 const Watchlist = lazy(() => import("@/pages/watchlist"));
 const Technical = lazy(() => import("@/pages/technical"));
 const Portfolio = lazy(() => import("@/pages/portfolio"));
@@ -80,9 +79,7 @@ function Router() {
         <ProtectedRoute><Rankings /></ProtectedRoute>
       </Route>
       <Route path="/">
-        <ProtectedRoute>
-          <Home tickers={tickers} setTickers={setTickers} />
-        </ProtectedRoute>
+        <Redirect to="/watchlist" />
       </Route>
       <Route path="/watchlist">
         <ProtectedRoute><Watchlist /></ProtectedRoute>

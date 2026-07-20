@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-20
 
 ## Active work
-- Working: enrichment-runs-schema, nightly-enrichment-run-tracking, fixed-process-exit-crash-bug
-- In progress: data-quality-accountability-layer (plan: ~/.local/bin/claude/plans/jolly-honking-volcano.md) Phase A in progress: enrichment_runs table created+pushed, nightly-enrichment.ts instrumented with coverage snapshots/run recording/nodata-anomaly guard, scheduler.ts passes trigger param. tsc check on nightly-enrichment.ts+scheduler.ts was interrupted before completing — run that first next session.
-- Blocked: none — just resume the interrupted tsc verification
+- Working: enrichment-runs-route, pipeline-health-panel, yahoo-field-drop-bugfix, default-route-watchlist, cell-click-popup
+- In progress: data-quality-accountability-layer Phase A complete: enrichment_runs table+nightly-enrichment.ts instrumentation+GET /api/admin/enrichment-runs+Pipeline Health panel all shipped, tsc clean, api-server rebuilt+restarted. Found real bug via PE-ratio coverage audit: nightly-enrichment.ts silently dropped 10 Yahoo fields (incl peRatio) between client fetch and DB write since the insert object was missing them — fixed and verified all other 5 sources (edgar, finnhub, polygon, av, fmp) have no equivalent drop via direct client-interface-vs-write-site diff.
+- Blocked: none
 
 ## Next tasks (priority order)
 
