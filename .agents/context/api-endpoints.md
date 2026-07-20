@@ -167,6 +167,7 @@
 | DELETE | /api/admin/cache/clear/:name | requireAdmin | Clear named cache |
 | GET | /api/admin/cache/ttl/:name | requireAdmin | Get TTL for named cache |
 | GET | /api/admin/data-health | requireAuth | DB freshness counts, top null fields, divergent count, last enrichment run |
+| GET | /api/admin/enrichment-runs?limit=N | requireAdmin | Last N nightly-enrichment.ts runs (status, perSource counts, coverage before/after) |
 | GET | /api/api-usage/history?days=N | requireAuth | Daily call counts per source (last N days, default 5) |
 
 ## Route file map
@@ -174,6 +175,8 @@
 routes/admin-cache.ts      → /api/admin/cache/*
 routes/auth.ts             → /api/auth/*, /api/admin/invite*, /api/admin/users
 routes/daily-brief.ts      → /api/daily-brief/*
+routes/data-health.ts      → /api/admin/data-health
+routes/enrichment-runs.ts  → /api/admin/enrichment-runs
 routes/explain.ts          → /api/explain/*
 routes/feed.ts             → /api/feed/*
 routes/fundamentals.ts     → /api/fundamentals/* (rankings, status, refresh)

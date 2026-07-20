@@ -84,6 +84,7 @@ These files are edited frequently. Always `grep -n "<pattern>" <file>` to get li
 | `stock-compare/src/components/macro/macro-page-types.ts` | MacroCharts / MacroData types | `grep -n "MacroCharts\|MacroData\|igSpread\|nfci"` |
 | `lib/db/src/schema/index.ts` | any table definition | `grep -n "pgTable\|market_regime"` |
 | `api-server/src/scripts/merge-trusted.ts` | FIELD_DEFS priority table | `grep -n "FIELD_DEFS\|tfCol\|priority"` |
+| `api-server/src/scripts/nightly-enrichment.ts` | per-source fetchX() write bodies — check for dropped fields vs the source's *-client.ts interface before trusting coverage numbers | `grep -n "^async function fetch"` |
 | `api-server/src/lib/cache-registry.ts` | registered cache names | `grep -n "DISPLAY_NAMES\|getAllCaches"` |
 
 ## HOOKS
