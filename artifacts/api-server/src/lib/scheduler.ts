@@ -71,7 +71,7 @@ async function runEnrichment() {
   enrichmentRunning = true;
   logger.info("scheduler: starting nightly enrichment");
   try {
-    await runNightlyEnrichment();
+    await runNightlyEnrichment("scheduled");
     lastEnrichmentRun = new Date();
     await setConfigDate(LAST_ENRICHMENT_RUN_KEY, lastEnrichmentRun);
     logger.info("scheduler: enrichment complete");

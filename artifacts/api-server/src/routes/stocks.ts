@@ -21,6 +21,7 @@ import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
 import { logger } from "../lib/logger.js";
+import { getLivePrices } from "../lib/live-quote.js";
 
 const router = Router();
 
@@ -543,6 +544,14 @@ async function fetchQuoteMetrics(ticker: string) {
   return metrics;
 }
 
+// Overlays the golden-source live price (same cache Live Monitor reads) onto a metrics
+// object built by buildMetrics(), so currentPrice matches exactly across breakdown/quote/live.
+async function withLivePrice<T extends { currentPrice: number | null }>(ticker: string, metrics: T): Promise<T> {
+  const live = await getLivePrices([ticker]);
+  const price = live.get(ticker.toUpperCase())?.price;
+  return price != null ? { ...metrics, currentPrice: price } : metrics;
+}
+
 router.get("/stocks/quote", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
   if (!ticker || typeof ticker !== "string") {
@@ -551,7 +560,7 @@ router.get("/stocks/quote", async (req, res) => {
   const key = ticker.toUpperCase();
   try {
     const metrics = await fetchQuoteMetrics(key);
-    return res.json(metrics);
+    return res.json(await withLivePrice(key, metrics));
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
@@ -589,6 +598,15 @@ router.get("/stocks/quotes", async (req, res) => {
     }
   }
   await Promise.all(Array.from({ length: Math.min(QUOTES_BATCH_CONCURRENCY, keys.length) }, worker));
+
+  const live = await getLivePrices(keys);
+  for (const key of keys) {
+    const r = results[key];
+    const livePrice = live.get(key)?.price;
+    if (r && !("error" in r) && livePrice != null) {
+      results[key] = { ...r, currentPrice: livePrice };
+    }
+  }
 
   return res.json(results);
 });
@@ -702,6 +720,17 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
 const BREAKDOWN_CACHE_VER = 5;
 
+// Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
+// payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
+async function overlayBreakdownPrice(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
+  const live = await getLivePrices([ticker]);
+  const price = live.get(ticker)?.price;
+  if (price != null && payload.metrics && typeof payload.metrics === "object") {
+    (payload.metrics as any).currentPrice = price;
+  }
+  return payload;
+}
+
 router.get("/stocks/breakdown", async (req, res) => {
   const { ticker } = req.query as { ticker?: string };
   if (!ticker || typeof ticker !== "string") {
@@ -711,7 +740,7 @@ router.get("/stocks/breakdown", async (req, res) => {
   const key = `${upperTicker}:v${BREAKDOWN_CACHE_VER}`;
   const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
   if (cached) {
-    return res.json(attachCatalysts(cached));
+    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(cached)));
   }
 
   try {
@@ -813,7 +842,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       peerSector: peersPayload.sector,
     });
     breakdownCache.set(key, payload);
-    return res.json(payload);
+    return res.json(await overlayBreakdownPrice(upperTicker, payload));
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {

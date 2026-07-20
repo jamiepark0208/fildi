@@ -7,7 +7,8 @@ import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_REGIME_TTL } from '../routes/macro-regime.js';
 import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
 import { tickerNewsCache } from './explain-context.js';
-import { marketContextCache } from '../routes/live.js';
+import { livePriceCache } from './live-quote.js';
+import { screenerCache } from './live-movers.js';
 import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
@@ -45,7 +46,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   'macro-sep-actuals':       'SEP Actuals',
   'macro-sector-rotation':   'Sector Rotation Heatmap',
   'ticker-news':             'Ticker News (Explain AI)',
-  'live-market-context':     'Live Market Context (SPY/QQQ/VIX/10Y)',
+  'live-price':              'Live Price (Golden Source)',
+  'live-screener':           'Live Movers (Yahoo Screener)',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -72,7 +74,8 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'macro-sep-actuals':       sepActualsCache,
   'macro-sector-rotation':   sectorRotationCache,
   'ticker-news':             tickerNewsCache,
-  'live-market-context':     marketContextCache,
+  'live-price':              livePriceCache,
+  'live-screener':           screenerCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -117,7 +120,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, marketContextCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 

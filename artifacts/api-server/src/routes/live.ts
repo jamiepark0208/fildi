@@ -1,10 +1,9 @@
 import { Router } from "express";
-import YahooFinanceClass from "yahoo-finance2";
 import { liveHotlist, MARKET_CONTEXT_SYMBOLS, type HotlistEntry } from "../lib/live-hotlist.js";
-import { TTLCache } from "../lib/ttl-cache.js";
-import { logger } from "../lib/logger.js";
+import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
+import { getLiveIndicatorOverlay } from "../lib/indicators.js";
+import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
 
-const yahooFinance = new YahooFinanceClass();
 const router = Router();
 
 export interface MarketContextQuote {
@@ -13,36 +12,36 @@ export interface MarketContextQuote {
   changePercent: number | null;
 }
 
-// Real-time, never persisted (Tier B) — short TTL since this is a live-context strip.
-export const marketContextCache = new TTLCache<MarketContextQuote[]>(60 * 1000, "live-market-context");
-
 async function fetchMarketContext(): Promise<MarketContextQuote[]> {
-  const cached = marketContextCache.get("shared");
-  if (cached) return cached;
+  const live = await getLivePrices(MARKET_CONTEXT_SYMBOLS);
+  return MARKET_CONTEXT_SYMBOLS.map(ticker => ({
+    ticker,
+    price: live.get(ticker)?.price ?? null,
+    changePercent: live.get(ticker)?.changePercent ?? null,
+  }));
+}
 
-  try {
-    const quotes = await (yahooFinance as any).quote(
-      MARKET_CONTEXT_SYMBOLS,
-      {},
-      { validateResult: false },
-    ) as Array<{ symbol?: string; regularMarketPrice?: number; regularMarketChangePercent?: number }>;
+/** Overlay live price + intraday-refreshed RSI/MFI/Stoch/MACD/signal onto the daily-derived hot list. */
+async function liveHotlistEntries(): Promise<HotlistEntry[]> {
+  const entries = liveHotlist.getCurrentEntries();
+  if (entries.length === 0) return entries;
 
-    const result: MarketContextQuote[] = MARKET_CONTEXT_SYMBOLS.map((ticker, i) => ({
-      ticker,
-      price: quotes[i]?.regularMarketPrice ?? null,
-      changePercent: quotes[i]?.regularMarketChangePercent ?? null,
-    }));
-    marketContextCache.set("shared", result);
-    return result;
-  } catch (err: any) {
-    logger.warn({ err: String(err?.message ?? err) }, "live: market context quote fetch failed");
-    return MARKET_CONTEXT_SYMBOLS.map(ticker => ({ ticker, price: null, changePercent: null }));
-  }
+  const tickers = entries.map(e => e.ticker);
+  const [live, indicatorOverlay] = await Promise.all([
+    getLivePrices(tickers),
+    getLiveIndicatorOverlay(tickers),
+  ]);
+
+  return entries.map(e => ({
+    ...e,
+    price: live.get(e.ticker)?.price ?? e.price,
+    ...indicatorOverlay.get(e.ticker),
+  }));
 }
 
 async function snapshot(): Promise<{ hotlist: HotlistEntry[]; marketContext: MarketContextQuote[]; lastRefreshedAt: number | null }> {
   return {
-    hotlist: liveHotlist.getCurrentEntries(),
+    hotlist: await liveHotlistEntries(),
     marketContext: await fetchMarketContext(),
     lastRefreshedAt: liveHotlist.getLastRefreshedAt(),
   };
@@ -62,8 +61,17 @@ router.get("/live/state", async (_req, res, next) => {
 router.post("/live/refresh", async (_req, res, next) => {
   try {
     await liveHotlist.refresh();
-    marketContextCache.delete("shared");
+    livePriceCache.clear();
     res.json(await snapshot());
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/movers", async (_req, res, next) => {
+  try {
+    const [global, sectors] = await Promise.all([fetchGlobalMovers(), computeSectorMovers()]);
+    res.json({ global, sectors });
   } catch (err) {
     next(err);
   }
