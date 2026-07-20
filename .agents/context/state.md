@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-15
+**build** — last updated 2026-07-20
 
 ## Active work
-- Working: explain-ai-options-scanner-phase1, daily-cache-bucketing, opt-in-ai-button, explain-ai-usage-tracking, api-monitor-anthropic, retention-and-log-rotation, live-intraday-monitor-phase1, live-tab-prototype
-- In progress: none
-- Blocked: none
+- Working: enrichment-runs-schema, nightly-enrichment-run-tracking, fixed-process-exit-crash-bug
+- In progress: data-quality-accountability-layer (plan: ~/.local/bin/claude/plans/jolly-honking-volcano.md) Phase A in progress: enrichment_runs table created+pushed, nightly-enrichment.ts instrumented with coverage snapshots/run recording/nodata-anomaly guard, scheduler.ts passes trigger param. tsc check on nightly-enrichment.ts+scheduler.ts was interrupted before completing — run that first next session.
+- Blocked: none — just resume the interrupted tsc verification
 
 ## Next tasks (priority order)
 

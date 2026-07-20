@@ -33,6 +33,7 @@ import {
   sourceFundamentals,
   apiUsage,
   peerGroupMembers,
+  enrichmentRuns,
 } from "@workspace/db";
 import { FIELD_DEFS } from "./merge-trusted.js";
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
@@ -709,10 +710,110 @@ async function processSource(
   return { fetched, skippedBudget, failed, nodata };
 }
 
+// ── Coverage snapshot ────────────────────────────────────────────────────────
+// Same % calc as GET /api/admin/data-health: non-null field cells over active
+// tickers × FIELD_DEFS columns (excluding the synthetic "grossProfit" alias).
+
+const VALID_FIELD_DEFS = FIELD_DEFS.filter(d => (d.tfCol as string) !== "grossProfit");
+
+async function computeCoveragePercent(): Promise<number> {
+  const [regRows, tfRows] = await Promise.all([
+    db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true)),
+    db.select().from(tickerFundamentals),
+  ]);
+  const activeSet = new Set(regRows.map(r => r.ticker));
+  const tfMap = new Map(tfRows.map(r => [r.ticker, r]));
+  const totalCells = activeSet.size * VALID_FIELD_DEFS.length;
+  if (totalCells === 0) return 0;
+  let nonNull = 0;
+  for (const ticker of activeSet) {
+    const row = tfMap.get(ticker) as Record<string, unknown> | undefined;
+    for (const { tfCol } of VALID_FIELD_DEFS) {
+      if (row && row[tfCol as string] != null) nonNull++;
+    }
+  }
+  return Math.round((nonNull / totalCells) * 1000) / 10; // one decimal place
+}
+
+// ── Run accountability ───────────────────────────────────────────────────────
+// Writes one enrichment_runs row per invocation so run history is queryable
+// instead of living only in the per-day log file. Never throws — a failure to
+// record history must not mask (or replace) the actual enrichment outcome.
+
+type SourceTotals = { fetched: number; skippedBudget: number; failed: number; nodata: number };
+
+async function detectNodataAnomaly(perSource: Record<string, SourceTotals>): Promise<string | null> {
+  const recent = await db.select({ perSource: enrichmentRuns.perSource })
+    .from(enrichmentRuns)
+    .where(eq(enrichmentRuns.status, "success"))
+    .orderBy(sql`${enrichmentRuns.startedAt} desc`)
+    .limit(5);
+
+  for (const [source, totals] of Object.entries(perSource)) {
+    const attempted = totals.fetched + totals.nodata + totals.failed;
+    if (attempted < 5) continue; // too small a sample to judge
+
+    const nodataRate = totals.nodata / attempted;
+    const baselineRates: number[] = [];
+    for (const row of recent) {
+      const prior = (row.perSource as Record<string, SourceTotals> | null)?.[source];
+      if (!prior) continue;
+      const priorAttempted = prior.fetched + prior.nodata + prior.failed;
+      if (priorAttempted >= 5) baselineRates.push(prior.nodata / priorAttempted);
+    }
+    if (baselineRates.length === 0) continue;
+
+    const baseline = baselineRates.reduce((a, b) => a + b, 0) / baselineRates.length;
+    // Flag only a real jump, not a source that's always nodata-heavy
+    if (nodataRate > 0.5 && nodataRate > baseline * 2) {
+      return `${source}: nodata rate ${(nodataRate * 100).toFixed(0)}% vs baseline ${(baseline * 100).toFixed(0)}%`;
+    }
+  }
+  return null;
+}
+
+async function recordRun(row: {
+  startedAt: Date;
+  status: "success" | "partial" | "failed";
+  trigger: "scheduled" | "manual";
+  perSource?: Record<string, SourceTotals>;
+  coverageBefore: number | null;
+  coverageAfter: number | null;
+  error?: string;
+}): Promise<void> {
+  try {
+    await db.insert(enrichmentRuns).values({
+      startedAt:      row.startedAt,
+      finishedAt:     new Date(),
+      status:         row.status,
+      trigger:        row.trigger,
+      perSource:      row.perSource ?? {},
+      coverageBefore: row.coverageBefore != null ? String(row.coverageBefore) : null,
+      coverageAfter:  row.coverageAfter  != null ? String(row.coverageAfter)  : null,
+      error:          row.error ?? null,
+    });
+  } catch (err: any) {
+    log(`WARN: failed to record enrichment_runs row: ${err?.message}`);
+  }
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
+async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
+  const runStartedAt = new Date();
   log(`nightly-enrichment starting${DRY_RUN ? " (DRY RUN)" : ""}${FIELD_FILTER ? ` [fields: ${[...FIELD_FILTER].join(",")}]` : ""}`);
+
+  let coverageBefore: number | null = null;
+  try {
+    coverageBefore = await computeCoveragePercent();
+  } catch (err: any) {
+    log(`WARN: failed to compute pre-run coverage snapshot: ${err?.message}`);
+  }
+
+  let fetchPlan: Map<string, string[]>;
+  let budgets: Map<string, number>;
+
+  try {
 
   // 1. Get canonical ticker universe
   const flaggedTickers = (await db
@@ -768,13 +869,17 @@ async function main(): Promise<void> {
   const nullFieldsMap = await findNullFields(allTickers);
   const tickersWithNulls = [...nullFieldsMap.keys()];
   log(`Tickers with ≥1 null fundamental field: ${tickersWithNulls.length}`);
-  if (tickersWithNulls.length === 0) { log("Nothing to enrich — all fields populated."); process.exit(0); }
+  if (tickersWithNulls.length === 0) {
+    log("Nothing to enrich — all fields populated.");
+    await recordRun({ startedAt: runStartedAt, status: "success", trigger, perSource: {}, coverageBefore, coverageAfter: coverageBefore });
+    return;
+  }
 
   // 4. Which sources can fill which fields
   const sourceFieldMap = buildSourceFieldMap();
 
   // 5. Check remaining budgets
-  const budgets = await getRemainingBudgets();
+  budgets = await getRemainingBudgets();
   log("API budgets today:");
   for (const src of SOURCE_ORDER) {
     const rem = budgets.get(src)!;
@@ -784,9 +889,15 @@ async function main(): Promise<void> {
   // 6. Build per-source fetch plan: checks source_fundamentals + staging freshness
   //    before including a ticker, so we never call an API for data already in the DB
   log("Building fetch plan (checking source_fundamentals + staging freshness)…");
-  const fetchPlan = await buildFetchTargets(nullFieldsMap, sourceFieldMap);
+  fetchPlan = await buildFetchTargets(nullFieldsMap, sourceFieldMap);
   for (const src of SOURCE_ORDER) {
     log(`[${src}] ${fetchPlan.get(src)?.length ?? 0} tickers need enrichment`);
+  }
+
+  } catch (err: any) {
+    log(`FATAL during setup phase — ${err?.message}`);
+    await recordRun({ startedAt: runStartedAt, status: "failed", trigger, coverageBefore, coverageAfter: null, error: err?.message ?? String(err) });
+    throw err;
   }
 
   // 8. Process each source in order
@@ -815,7 +926,10 @@ async function main(): Promise<void> {
 
   if (!anyFetched || DRY_RUN) {
     log("No new data fetched — skipping populate + merge.");
-    process.exit(0);
+    if (!DRY_RUN) {
+      await recordRun({ startedAt: runStartedAt, status: "success", trigger, perSource: totals, coverageBefore, coverageAfter: coverageBefore });
+    }
+    return;
   }
 
   // 10. Repopulate source_fundamentals from staging tables
@@ -843,17 +957,32 @@ async function main(): Promise<void> {
     log(`WARN: merge-trusted failed: ${err?.message}`);
   }
 
+  const coverageAfter = await computeCoveragePercent().catch((err: any) => {
+    log(`WARN: failed to compute post-run coverage snapshot: ${err?.message}`);
+    return null;
+  });
+  const anomaly = await detectNodataAnomaly(totals).catch(() => null);
+  const regressed = coverageBefore != null && coverageAfter != null && coverageAfter < coverageBefore;
+  const status: "success" | "partial" = (anomaly || regressed) ? "partial" : "success";
+  if (anomaly)   log(`WARN: nodata anomaly detected — ${anomaly}`);
+  if (regressed) log(`WARN: coverage dropped ${coverageBefore}% → ${coverageAfter}%`);
+  await recordRun({ startedAt: runStartedAt, status, trigger, perSource: totals, coverageBefore, coverageAfter });
+
   log("\nnightly-enrichment complete.");
-  process.exit(0);
 }
 
 export { main as runNightlyEnrichment };
 
-// Run directly when invoked as a script
+// Run directly when invoked as a script — process.exit here is fine, this branch
+// only executes for a short-lived `npx tsx nightly-enrichment.ts` CLI invocation.
+// main() itself must never call process.exit: it also runs inside the long-lived
+// api-server process via scheduler.ts, where exiting would kill the whole server.
 const isMain = process.argv[1]?.includes("nightly-enrichment");
 if (isMain) {
-  main().catch(err => {
-    log(`FATAL — ${err.message}`);
-    process.exit(1);
-  });
+  main("manual")
+    .then(() => process.exit(0))
+    .catch(err => {
+      log(`FATAL — ${err.message}`);
+      process.exit(1);
+    });
 }

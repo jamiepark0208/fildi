@@ -18,15 +18,17 @@ export interface HotlistEntry {
   ticker: string;
   price: number;
   rsi: number;
+  mfi: number;
   ivCurrent: number;
   return5d: number | null;
   stoch: number | null;
+  macdCross: IndicatorResult["macdCross"];
   signal: "GO" | "WATCH" | "NO";
   tier: 1 | 2 | 3;
 }
 
 function toEntry(r: IndicatorResult): HotlistEntry {
-  return { ticker: r.ticker, price: r.price, rsi: r.rsi, ivCurrent: r.ivCurrent, return5d: r.return5d, stoch: r.stoch, signal: r.signal, tier: r.tier };
+  return { ticker: r.ticker, price: r.price, rsi: r.rsi, mfi: r.mfi, ivCurrent: r.ivCurrent, return5d: r.return5d, stoch: r.stoch, macdCross: r.macdCross, signal: r.signal, tier: r.tier };
 }
 
 /** Top-10-per-dimension derivation from cached daily indicators (see task doc A7). */

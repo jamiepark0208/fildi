@@ -1271,3 +1271,28 @@ export const aiUsageLog = pgTable('ai_usage_log', {
 }));
 
 export type AiUsageLogRow = typeof aiUsageLog.$inferSelect
+
+// ── enrichment_runs ───────────────────────────────────────────────────────────
+// One row per nightly-enrichment.ts invocation. Written at the end of a run (or
+// immediately on a setup-phase failure, before any per-source fetching starts) so
+// a run's outcome is queryable instead of living only in the per-day log file.
+// perSource shape: { [source]: { targeted, fetched, nodata, failed, budgetSkipped } }.
+// coverageBefore/After are % of active-ticker fields non-null, same calc as
+// GET /api/admin/data-health, so the numbers are directly comparable.
+export const enrichmentRuns = pgTable('enrichment_runs', {
+  id:                 serial('id').primaryKey(),
+  startedAt:          timestamp('started_at', { withTimezone: true }).notNull(),
+  finishedAt:         timestamp('finished_at', { withTimezone: true }),
+  status:             text('status').notNull(),      // "success" | "partial" | "failed"
+  trigger:            text('trigger').notNull(),      // "scheduled" | "manual"
+  perSource:          jsonb('per_source'),
+  coverageBefore:     numeric('coverage_before'),
+  coverageAfter:      numeric('coverage_after'),
+  error:              text('error'),
+  flagAuditOrphaned:  integer('flag_audit_orphaned'),
+  flagAuditMissing:   integer('flag_audit_missing'),
+}, (t) => ({
+  startedAtIdx: index('enrichment_runs_started_at_idx').on(t.startedAt),
+}));
+
+export type EnrichmentRunRow = typeof enrichmentRuns.$inferSelect
