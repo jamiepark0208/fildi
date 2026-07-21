@@ -72,13 +72,25 @@ function pfNum(v: number | string | null | undefined): number | null {
 
 const RED_TAG = "#ef4444";
 
-const SORT_LABELS: { key: SortKey; label: string }[] = [
-  { key: "optionScore", label: "Option Score" },
-  { key: "score",       label: "Stock Score" },
-  { key: "iv",          label: "IV%" },
-  { key: "income",      label: "Income%" },
-  { key: "buffer",      label: "Buffer" },
-];
+function SortableHeader({ label, sortKey, active, width, onClick }: {
+  label: string;
+  sortKey: SortKey;
+  active: boolean;
+  width: string;
+  onClick: (key: SortKey) => void;
+}) {
+  return (
+    <button
+      onClick={() => onClick(sortKey)}
+      className={cn(
+        `${width} shrink-0 text-left transition-colors`,
+        active ? "text-primary" : "text-white hover:text-white/80",
+      )}
+    >
+      {label}{active ? " ▾" : ""}
+    </button>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -430,6 +442,9 @@ interface ScannerRowProps {
   macroRegime?: MacroRegime;
   allWatchlistIVs?: number[];
   strikeWeights?: Record<string, number>;
+  bestOptionScore?: number | null;
+  bestIncome?: number | null;
+  bestBuffer?: number | null;
 }
 
 function ScannerRow({
@@ -452,6 +467,9 @@ function ScannerRow({
   macroRegime = "BASELINE",
   allWatchlistIVs = [],
   strikeWeights,
+  bestOptionScore = null,
+  bestIncome = null,
+  bestBuffer = null,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
@@ -571,9 +589,19 @@ function ScannerRow({
           <SignalBadge signal={signal} />
         </div>
 
+        {/* Option Score */}
+        <span className={cn(
+          "text-xs w-[90px] shrink-0 font-mono font-semibold",
+          bestOptionScore == null ? "text-white" :
+          bestOptionScore >= 70 ? "text-green-400" :
+          bestOptionScore >= 50 ? "text-yellow-400" : "text-white",
+        )}>
+          {bestOptionScore != null ? bestOptionScore.toFixed(1) : "—"}
+        </span>
+
         {/* Score */}
         <span className={cn(
-          "text-xs w-[100px] shrink-0 font-mono font-semibold",
+          "text-xs w-[90px] shrink-0 font-mono font-semibold",
           score == null ? "text-white" :
           score.totalScore >= 70 ? "text-green-400" :
           score.totalScore >= 50 ? "text-yellow-400" : "text-white",
@@ -584,6 +612,16 @@ function ScannerRow({
         {/* IV — distinctly amber */}
         <span className="text-xs font-mono font-semibold text-amber-400 w-[52px] shrink-0">
           {ivPct != null ? `${ivPct}%` : "—"}
+        </span>
+
+        {/* Income% */}
+        <span className="text-xs font-mono font-semibold text-white w-[72px] shrink-0">
+          {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "—"}
+        </span>
+
+        {/* Buffer (SDs OTM) */}
+        <span className="text-xs font-mono font-semibold text-white w-[64px] shrink-0">
+          {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "—"}
         </span>
 
         {/* Strike summary */}
@@ -975,6 +1013,48 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     return m;
   }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike]);
 
+  // Best weekly income % per ticker (drives "Income%" sort + column display)
+  const bestIncomeMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ticker of displayTickers) {
+      const chains = optionsMap.get(ticker);
+      if (!chains) continue;
+      let best = -1;
+      for (const c of chains) {
+        const exactDte = Math.max(0.01, c.exactDte ?? c.daysToExpiry);
+        for (const p of c.puts) {
+          const wi = p.incomePct / (exactDte / 7);
+          if (wi > best) best = wi;
+        }
+      }
+      if (best >= 0) m.set(ticker, best);
+    }
+    return m;
+  }, [displayTickers, optionsMap]);
+
+  // Best buffer (SDs OTM) per ticker (drives "Buffer" sort + column display)
+  const bufferMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ticker of displayTickers) {
+      const chains = optionsMap.get(ticker);
+      if (!chains) continue;
+      const spot = chains[0]?.spot ?? 0;
+      if (!spot) continue;
+      let best = -1;
+      for (const c of chains) {
+        const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
+        for (const p of c.puts) {
+          if (p.iv <= 0 || exactDte <= 0) continue;
+          const otm = (spot - p.strike) / spot;
+          const sds = otm / (p.iv * Math.sqrt(exactDte / 365));
+          if (sds > best) best = sds;
+        }
+      }
+      if (best >= 0) m.set(ticker, best);
+    }
+    return m;
+  }, [displayTickers, optionsMap]);
+
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -1009,12 +1089,16 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const bestOptionScoreMapRef = useRef(bestOptionScoreMap); bestOptionScoreMapRef.current = bestOptionScoreMap;
   const stockScoreMapRef     = useRef(stockScoreMap);     stockScoreMapRef.current     = stockScoreMap;
   const scorecardMapRef      = useRef(scorecardMap);      scorecardMapRef.current      = scorecardMap;
+  const bestIncomeMapRef     = useRef(bestIncomeMap);     bestIncomeMapRef.current     = bestIncomeMap;
+  const bufferMapRef         = useRef(bufferMap);         bufferMapRef.current         = bufferMap;
 
   const sortedTickers = useMemo(() => {
     const optMap    = optionsMapRef.current;
     const bestScores = bestOptionScoreMapRef.current;
     const stockScores = stockScoreMapRef.current;
     const scorecard = scorecardMapRef.current;
+    const incomeMap  = bestIncomeMapRef.current;
+    const bufMap     = bufferMapRef.current;
 
     let list = [...displayTickers];
 
@@ -1028,26 +1112,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
           const iv = (t: string) => scorecard.get(t)?.ivCurrent ?? -1;
           return iv(b) - iv(a);
         }
-        case "buffer": {
-          const buf = (t: string) => {
-            const chains = optMap.get(t);
-            if (!chains) return -1;
-            const spot = chains[0]?.spot ?? 0;
-            if (!spot) return -1;
-            let best = -1;
-            for (const c of chains) {
-              const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
-              for (const p of c.puts) {
-                if (p.iv <= 0 || exactDte <= 0) continue;
-                const otm = (spot - p.strike) / spot;
-                const sds = otm / (p.iv * Math.sqrt(exactDte / 365));
-                if (sds > best) best = sds;
-              }
-            }
-            return best;
-          };
-          return buf(b) - buf(a);
-        }
+        case "buffer":
+          return (bufMap.get(b) ?? -1) - (bufMap.get(a) ?? -1);
         case "otm": {
           const otm = (t: string) => {
             const chains = optMap.get(t);
@@ -1059,22 +1125,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
           return otm(b) - otm(a);
         }
         case "income":
-        default: {
-          const income = (t: string) => {
-            const chains = optMap.get(t);
-            if (!chains) return -1;
-            let best = -1;
-            for (const c of chains) {
-              const exactDte = Math.max(0.01, c.exactDte ?? c.daysToExpiry);
-              for (const p of c.puts) {
-                const wi = p.incomePct / (exactDte / 7);
-                if (wi > best) best = wi;
-              }
-            }
-            return best;
-          };
-          return income(b) - income(a);
-        }
+        default:
+          return (incomeMap.get(b) ?? -1) - (incomeMap.get(a) ?? -1);
       }
     });
     return list;
@@ -1132,26 +1184,6 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sort buttons */}
-          <div className="flex items-center gap-1 border border-border rounded-md p-0.5">
-            {SORT_LABELS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setSort(key)}
-                className={cn(
-                  "px-2.5 py-1 text-xs rounded transition-colors",
-                  sort === key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-white",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-px h-5 bg-border mx-1" />
-
           {/* Filter chips */}
           <button
             onClick={() => setShow1wk(v => !v)}
@@ -1222,8 +1254,11 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
               <div className="w-[70px] shrink-0">Ticker</div>
               <div className="w-[80px] shrink-0">Price</div>
               <div className="w-[56px] shrink-0">Signal</div>
-              <div className="w-[100px] shrink-0">Stock Score</div>
-              <div className="w-[52px] shrink-0">IV%</div>
+              <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
+              <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
+              <SortableHeader label="IV%" sortKey="iv" active={sort === "iv"} width="w-[52px]" onClick={setSort} />
+              <SortableHeader label="Income%" sortKey="income" active={sort === "income"} width="w-[72px]" onClick={setSort} />
+              <SortableHeader label="Buffer" sortKey="buffer" active={sort === "buffer"} width="w-[64px]" onClick={setSort} />
               <div className="flex-1">Best Strikes</div>
               {isAdmin && (
                 <button
@@ -1261,6 +1296,9 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 macroRegime={macroRegimeData?.regime ?? "BASELINE"}
                 allWatchlistIVs={allWatchlistIVs}
                 strikeWeights={weights.optionStrike}
+                bestOptionScore={bestOptionScoreMap.get(ticker) ?? null}
+                bestIncome={bestIncomeMap.get(ticker) ?? null}
+                bestBuffer={bufferMap.get(ticker) ?? null}
               />
             ))}
           </div>
