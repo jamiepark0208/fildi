@@ -9,6 +9,7 @@ import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../
 import { tickerNewsCache } from './explain-context.js';
 import { livePriceCache } from './live-quote.js';
 import { screenerCache } from './live-movers.js';
+import { marketDataCache } from '../routes/daily-brief.js';
 import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
@@ -48,6 +49,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'ticker-news':             'Ticker News (Explain AI)',
   'live-price':              'Live Price (Golden Source)',
   'live-screener':           'Live Movers (Yahoo Screener)',
+  'daily-brief-market':      'Daily Brief Market Strip',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -76,6 +78,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'ticker-news':             tickerNewsCache,
   'live-price':              livePriceCache,
   'live-screener':           screenerCache,
+  'daily-brief-market':      marketDataCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -120,7 +123,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 

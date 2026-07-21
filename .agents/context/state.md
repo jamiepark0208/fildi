@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-21
 
 ## Active work
-- Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization
-- In progress: Options scanner: replaced sort-button row with sortable Option Score / Income% / Buffer columns (added bestIncomeMap/bufferMap alongside existing bestOptionScoreMap; header buttons drive same sort state). Context audit: tightened codegraph-precheck.js Read guard to fire even when offset+limit given but window is still >100 lines; added matching guard on codegraph_context (warns if includeCode isn't false and maxNodes>10). Reverted skillListingMaxDescChars (would've truncated claude-api skill's 748-char SKIP clause mid-instruction) and autoCompactWindow (didn't address mid-turn spikes -- just added compaction churn). Root cause found: invoking update-config skill for a 3-key settings edit pulled in the full multi-thousand-line settings.json JSON Schema -- the actual driver of that turn's 77% jump not hooks/rehydrate overhead.
-- Blocked: none
+- Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization, secrets-remediation
+- In progress: No code changed this session. Investigated onboarding Ed/Chandler for app access without full public publish.
+- Blocked: Secrets remediation (rotate keys, move fully to Replit Secrets UI, purge git history) must happen before onboarding anyone; awaiting user to act on provider dashboards + Replit UI, both outside Claude Code's reach
 
 ## Next tasks (priority order)
 

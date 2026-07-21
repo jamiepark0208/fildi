@@ -5,10 +5,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { TTLCache } from "../lib/ttl-cache.js";
 
 const yahooFinance = new YahooFinanceClass();
 const anthropic    = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 const router       = Router();
+
+export const marketDataCache = new TTLCache<MarketDataPoint[]>(60 * 1000, "daily-brief-market", 1);
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -221,7 +224,10 @@ Be specific and data-driven. Use numbers from the market data. Reference the inv
 // GET /api/daily-brief/market — live prices only, no AI, called on every page load
 router.get("/daily-brief/market", async (_req, res) => {
   try {
+    const cached = marketDataCache.get("shared");
+    if (cached) return res.json({ marketData: cached });
     const marketData = await fetchMarketData();
+    marketDataCache.set("shared", marketData);
     return res.json({ marketData });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

@@ -682,6 +682,10 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.100.9(react@19.1.0)
+    devDependencies:
+      '@sentry/react':
+        specifier: ^10.64.0
+        version: 10.64.0(react@19.1.0)
 
   lib/api-spec:
     devDependencies:
@@ -3595,6 +3599,7 @@ packages:
   token-optimizer-mcp@2.17.0:
     resolution: {integrity: sha512-u2d54wKVPZb1UVAeiDVLp7hgfmUTA8GWcmbxLufVNYKMbCPxO2etFF+XA7CgAx93dMM1PgBY5xPCHtLkinlg6Q==}
     engines: {node: '>=18.0.0', npm: '>=9.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     hasBin: true
 
   tough-cookie-file-store@2.0.3:

@@ -367,7 +367,7 @@ export async function customFetch<T = unknown>(
     const apiError = new ApiError(response, errorData, requestInfo);
     if (response.status >= 500 && typeof window !== "undefined") {
       import("@sentry/react").then(({ captureException, withScope }) => {
-        withScope(scope => {
+        withScope((scope: import("@sentry/react").Scope) => {
           const reqId = response.headers.get("x-request-id");
           if (reqId) scope.setTag("requestId", reqId);
           scope.setTag("url", requestInfo.url);
