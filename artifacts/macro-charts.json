@@ -1,26 +1,6 @@
 {
-  "fetchedAt": "2026-07-15T17:29:14.595Z",
+  "fetchedAt": "2026-07-21T01:02:55.806Z",
   "vixHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 13.119999885559082
-    },
-    {
-      "date": "2024-07-16",
-      "value": 13.1899995803833
-    },
-    {
-      "date": "2024-07-17",
-      "value": 14.479999542236328
-    },
-    {
-      "date": "2024-07-18",
-      "value": 15.930000305175781
-    },
-    {
-      "date": "2024-07-19",
-      "value": 16.520000457763672
-    },
     {
       "date": "2024-07-22",
       "value": 14.90999984741211
@@ -2011,30 +1991,22 @@
     },
     {
       "date": "2026-07-15",
-      "value": 16.15999984741211
+      "value": 15.670000076293945
+    },
+    {
+      "date": "2026-07-16",
+      "value": 16.729999542236328
+    },
+    {
+      "date": "2026-07-17",
+      "value": 18.770000457763672
+    },
+    {
+      "date": "2026-07-20",
+      "value": 18.649999618530273
     }
   ],
   "fedFundsHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 5.192999839782715
-    },
-    {
-      "date": "2024-07-16",
-      "value": 5.192999839782715
-    },
-    {
-      "date": "2024-07-17",
-      "value": 5.195000171661377
-    },
-    {
-      "date": "2024-07-18",
-      "value": 5.192999839782715
-    },
-    {
-      "date": "2024-07-19",
-      "value": 5.192999839782715
-    },
     {
       "date": "2024-07-22",
       "value": 5.190000057220459
@@ -4021,30 +3993,22 @@
     },
     {
       "date": "2026-07-15",
-      "value": 3.695000171661377
+      "value": 3.687999963760376
+    },
+    {
+      "date": "2026-07-16",
+      "value": 3.697000026702881
+    },
+    {
+      "date": "2026-07-17",
+      "value": 3.7070000171661377
+    },
+    {
+      "date": "2026-07-20",
+      "value": 3.7049999237060547
     }
   ],
   "tenYearHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 4.229000091552734
-    },
-    {
-      "date": "2024-07-16",
-      "value": 4.166999816894531
-    },
-    {
-      "date": "2024-07-17",
-      "value": 4.145999908447266
-    },
-    {
-      "date": "2024-07-18",
-      "value": 4.189000129699707
-    },
-    {
-      "date": "2024-07-19",
-      "value": 4.238999843597412
-    },
     {
       "date": "2024-07-22",
       "value": 4.260000228881836
@@ -6031,7 +5995,19 @@
     },
     {
       "date": "2026-07-15",
-      "value": 4.550999641418457
+      "value": 4.545000076293945
+    },
+    {
+      "date": "2026-07-16",
+      "value": 4.568999767303467
+    },
+    {
+      "date": "2026-07-17",
+      "value": 4.540999889373779
+    },
+    {
+      "date": "2026-07-20",
+      "value": 4.5980000495910645
     }
   ],
   "vixCurve": [
@@ -6046,31 +6022,31 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 16.16,
-      "weekAgo": 16.899999618530273,
-      "monthAgo": 16.200000762939453,
-      "threeMonthAgo": 18.170000076293945
+      "value": 18.65,
+      "weekAgo": 16.5,
+      "monthAgo": 16.399999618530273,
+      "threeMonthAgo": 19.5
     },
     {
       "tenor": "93D",
       "days": 93,
-      "value": 19.2,
-      "weekAgo": 19.459999084472656,
-      "monthAgo": 19.360000610351562,
-      "threeMonthAgo": 20.780000686645508
+      "value": 20.4,
+      "weekAgo": 19.299999237060547,
+      "monthAgo": 19.56999969482422,
+      "threeMonthAgo": 21.510000228881836
     },
     {
       "tenor": "6M",
       "days": 183,
-      "value": 21.45,
-      "weekAgo": 21.559999465942383,
-      "monthAgo": 21.770000457763672,
-      "threeMonthAgo": 22.84000015258789
+      "value": 22.2,
+      "weekAgo": 21.520000457763672,
+      "monthAgo": 21.989999771118164,
+      "threeMonthAgo": 23.190000534057617
     },
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.27,
+      "value": 23.67,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6081,83 +6057,67 @@
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
       "impliedRate": 3.627,
-      "weekAgo": 3.632,
-      "monthAgo": 3.63,
-      "threeMonthAgo": 3.645,
+      "weekAgo": 3.628,
+      "monthAgo": 3.64,
+      "threeMonthAgo": 3.635,
       "isTbillProxy": false
     },
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.705,
-      "weekAgo": 3.765,
-      "monthAgo": 3.675,
-      "threeMonthAgo": 3.62,
+      "impliedRate": 3.73,
+      "weekAgo": 3.725,
+      "monthAgo": 3.79,
+      "threeMonthAgo": 3.615,
       "isTbillProxy": false
     },
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.765,
-      "weekAgo": 3.84,
-      "monthAgo": 3.705,
-      "threeMonthAgo": 3.605,
+      "impliedRate": 3.815,
+      "weekAgo": 3.795,
+      "monthAgo": 3.86,
+      "threeMonthAgo": 3.6,
       "isTbillProxy": false
     },
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 3.865,
-      "weekAgo": 3.965,
-      "monthAgo": 3.795,
+      "impliedRate": 3.94,
+      "weekAgo": 3.905,
+      "monthAgo": 3.99,
       "threeMonthAgo": 3.56,
       "isTbillProxy": false
     },
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 3.89,
-      "weekAgo": 3.995,
-      "monthAgo": 3.82,
-      "threeMonthAgo": 3.55,
+      "impliedRate": 3.965,
+      "weekAgo": 3.935,
+      "monthAgo": 4.025,
+      "threeMonthAgo": 3.555,
       "isTbillProxy": false
     },
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 3.945,
-      "weekAgo": 4.05,
-      "monthAgo": 3.88,
-      "threeMonthAgo": 3.53,
+      "impliedRate": 4.025,
+      "weekAgo": 4,
+      "monthAgo": 4.08,
+      "threeMonthAgo": 3.535,
       "isTbillProxy": false
     },
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 3.995,
-      "weekAgo": 4.085,
-      "monthAgo": 3.925,
-      "threeMonthAgo": 3.51,
+      "impliedRate": 4.07,
+      "weekAgo": 4.055,
+      "monthAgo": 4.1,
+      "threeMonthAgo": 3.52,
       "isTbillProxy": false
     }
   ],
   "hySpreadHistory": [
-    {
-      "date": "2023-07-17",
-      "value": 3.97
-    },
-    {
-      "date": "2023-07-18",
-      "value": 3.9
-    },
-    {
-      "date": "2023-07-19",
-      "value": 3.89
-    },
-    {
-      "date": "2023-07-20",
-      "value": 3.9
-    },
     {
       "date": "2023-07-21",
       "value": 3.89
@@ -9285,25 +9245,21 @@
     {
       "date": "2026-07-14",
       "value": 2.72
+    },
+    {
+      "date": "2026-07-15",
+      "value": 2.71
+    },
+    {
+      "date": "2026-07-16",
+      "value": 2.71
+    },
+    {
+      "date": "2026-07-17",
+      "value": 2.73
     }
   ],
   "igSpreadHistory": [
-    {
-      "date": "2023-07-17",
-      "value": 1.29
-    },
-    {
-      "date": "2023-07-18",
-      "value": 1.28
-    },
-    {
-      "date": "2023-07-19",
-      "value": 1.28
-    },
-    {
-      "date": "2023-07-20",
-      "value": 1.27
-    },
     {
       "date": "2023-07-21",
       "value": 1.26
@@ -12427,29 +12383,21 @@
     {
       "date": "2026-07-14",
       "value": 0.79
+    },
+    {
+      "date": "2026-07-15",
+      "value": 0.79
+    },
+    {
+      "date": "2026-07-16",
+      "value": 0.78
+    },
+    {
+      "date": "2026-07-17",
+      "value": 0.79
     }
   ],
   "putCallHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 83.86000061035156
-    },
-    {
-      "date": "2024-07-16",
-      "value": 82.4000015258789
-    },
-    {
-      "date": "2024-07-17",
-      "value": 88.27999877929688
-    },
-    {
-      "date": "2024-07-18",
-      "value": 94.70999908447266
-    },
-    {
-      "date": "2024-07-19",
-      "value": 97.93000030517578
-    },
     {
       "date": "2024-07-22",
       "value": 93.66000366210938
@@ -14436,26 +14384,22 @@
     },
     {
       "date": "2026-07-15",
-      "value": 94.2300033569336
+      "value": 91.8499984741211
+    },
+    {
+      "date": "2026-07-16",
+      "value": 97.30999755859375
+    },
+    {
+      "date": "2026-07-17",
+      "value": 104.87000274658203
+    },
+    {
+      "date": "2026-07-20",
+      "value": 102.81999969482422
     }
   ],
   "fearGreedHistory": [
-    {
-      "date": "2025-07-15",
-      "value": 73.5
-    },
-    {
-      "date": "2025-07-16",
-      "value": 72.9
-    },
-    {
-      "date": "2025-07-17",
-      "value": 74.2
-    },
-    {
-      "date": "2025-07-18",
-      "value": 73.9
-    },
     {
       "date": "2025-07-21",
       "value": 73.3
@@ -15286,27 +15230,27 @@
     },
     {
       "date": "2026-05-18",
-      "value": 61.6
+      "value": 62.1
     },
     {
       "date": "2026-05-19",
-      "value": 59.4
+      "value": 59.3
     },
     {
       "date": "2026-05-20",
-      "value": 60.3
+      "value": 60.5
     },
     {
       "date": "2026-05-21",
-      "value": 58.1
+      "value": 57.5
     },
     {
       "date": "2026-05-22",
-      "value": 59
+      "value": 58.2
     },
     {
       "date": "2026-05-26",
-      "value": 60.9
+      "value": 59.8
     },
     {
       "date": "2026-05-27",
@@ -15314,166 +15258,150 @@
     },
     {
       "date": "2026-05-28",
-      "value": 60.1
+      "value": 60.7
     },
     {
       "date": "2026-05-29",
-      "value": 59.5
+      "value": 60.5
     },
     {
       "date": "2026-06-01",
-      "value": 56.5
+      "value": 59.5
     },
     {
       "date": "2026-06-02",
-      "value": 56.1
+      "value": 57
     },
     {
       "date": "2026-06-03",
-      "value": 53
+      "value": 54.6
     },
     {
       "date": "2026-06-04",
-      "value": 53.9
+      "value": 54.6
     },
     {
       "date": "2026-06-05",
-      "value": 41.8
+      "value": 41.9
     },
     {
       "date": "2026-06-08",
-      "value": 39.9
+      "value": 39.4
     },
     {
       "date": "2026-06-09",
-      "value": 32.5
+      "value": 33.8
     },
     {
       "date": "2026-06-10",
-      "value": 26.9
-    },
-    {
-      "date": "2026-06-11",
-      "value": 31.6
-    },
-    {
-      "date": "2026-06-12",
-      "value": 35.5
-    },
-    {
-      "date": "2026-06-15",
-      "value": 41.6
-    },
-    {
-      "date": "2026-06-16",
-      "value": 39.1
-    },
-    {
-      "date": "2026-06-17",
-      "value": 32.2
-    },
-    {
-      "date": "2026-06-18",
-      "value": 37.6
-    },
-    {
-      "date": "2026-06-19",
-      "value": 37.6
-    },
-    {
-      "date": "2026-06-22",
-      "value": 32
-    },
-    {
-      "date": "2026-06-23",
-      "value": 27.5
-    },
-    {
-      "date": "2026-06-24",
-      "value": 26
-    },
-    {
-      "date": "2026-06-25",
-      "value": 24.4
-    },
-    {
-      "date": "2026-06-26",
-      "value": 25.1
-    },
-    {
-      "date": "2026-06-29",
       "value": 27.3
     },
     {
+      "date": "2026-06-11",
+      "value": 29.7
+    },
+    {
+      "date": "2026-06-12",
+      "value": 33.5
+    },
+    {
+      "date": "2026-06-15",
+      "value": 40.1
+    },
+    {
+      "date": "2026-06-16",
+      "value": 39.5
+    },
+    {
+      "date": "2026-06-17",
+      "value": 32.9
+    },
+    {
+      "date": "2026-06-18",
+      "value": 37.3
+    },
+    {
+      "date": "2026-06-22",
+      "value": 33.9
+    },
+    {
+      "date": "2026-06-23",
+      "value": 28.5
+    },
+    {
+      "date": "2026-06-24",
+      "value": 26.5
+    },
+    {
+      "date": "2026-06-25",
+      "value": 25.4
+    },
+    {
+      "date": "2026-06-26",
+      "value": 24.7
+    },
+    {
+      "date": "2026-06-29",
+      "value": 26.9
+    },
+    {
       "date": "2026-06-30",
-      "value": 30.9
+      "value": 30
     },
     {
       "date": "2026-07-01",
-      "value": 30.5
+      "value": 31.6
     },
     {
       "date": "2026-07-02",
-      "value": 37.5
-    },
-    {
-      "date": "2026-07-03",
-      "value": 32.4
+      "value": 32.5
     },
     {
       "date": "2026-07-06",
-      "value": 44
-    },
-    {
-      "date": "2026-07-07",
-      "value": 43.7
-    },
-    {
-      "date": "2026-07-08",
-      "value": 44.1
-    },
-    {
-      "date": "2026-07-09",
-      "value": 46.1
-    },
-    {
-      "date": "2026-07-10",
-      "value": 48.4
-    },
-    {
-      "date": "2026-07-13",
       "value": 41.7
     },
     {
+      "date": "2026-07-07",
+      "value": 39.8
+    },
+    {
+      "date": "2026-07-08",
+      "value": 38.6
+    },
+    {
+      "date": "2026-07-09",
+      "value": 44.7
+    },
+    {
+      "date": "2026-07-10",
+      "value": 46.8
+    },
+    {
+      "date": "2026-07-13",
+      "value": 40.9
+    },
+    {
       "date": "2026-07-14",
-      "value": 45.4
+      "value": 41.1
     },
     {
-      "date": "2026-07-15",
-      "value": 45.3
+      "date": "2026-07-16",
+      "value": 41.2
     },
     {
-      "date": "2026-07-15",
-      "value": 45.2
+      "date": "2026-07-17",
+      "value": 37.2
+    },
+    {
+      "date": "2026-07-20",
+      "value": 37.5
+    },
+    {
+      "date": "2026-07-20",
+      "value": 37.5
     }
   ],
   "putCallRatioHistory": [
-    {
-      "date": "2025-07-15",
-      "value": 0.627
-    },
-    {
-      "date": "2025-07-16",
-      "value": 0.64
-    },
-    {
-      "date": "2025-07-17",
-      "value": 0.644
-    },
-    {
-      "date": "2025-07-18",
-      "value": 0.638
-    },
     {
       "date": "2025-07-21",
       "value": 0.636
@@ -16459,8 +16387,20 @@
       "value": 0.742
     },
     {
-      "date": "2026-07-15",
-      "value": 0.724
+      "date": "2026-07-16",
+      "value": 0.755
+    },
+    {
+      "date": "2026-07-17",
+      "value": 0.784
+    },
+    {
+      "date": "2026-07-20",
+      "value": 0.811
+    },
+    {
+      "date": "2026-07-20",
+      "value": 0.811
     }
   ],
   "gscpiHistory": [
@@ -39099,26 +39039,6 @@
   ],
   "copperGoldHistory": [
     {
-      "date": "2024-07-15",
-      "value": 0.001869
-    },
-    {
-      "date": "2024-07-16",
-      "value": 0.001805
-    },
-    {
-      "date": "2024-07-17",
-      "value": 0.001792
-    },
-    {
-      "date": "2024-07-18",
-      "value": 0.00174
-    },
-    {
-      "date": "2024-07-19",
-      "value": 0.001761
-    },
-    {
       "date": "2024-07-22",
       "value": 0.001748
     },
@@ -41112,30 +41032,22 @@
     },
     {
       "date": "2026-07-15",
-      "value": 0.00157
+      "value": 0.001556
+    },
+    {
+      "date": "2026-07-16",
+      "value": 0.00158
+    },
+    {
+      "date": "2026-07-17",
+      "value": 0.00155
+    },
+    {
+      "date": "2026-07-21",
+      "value": 0.00158
     }
   ],
   "dxyHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 104.19000244140625
-    },
-    {
-      "date": "2024-07-16",
-      "value": 104.2699966430664
-    },
-    {
-      "date": "2024-07-17",
-      "value": 103.75
-    },
-    {
-      "date": "2024-07-18",
-      "value": 104.16999816894531
-    },
-    {
-      "date": "2024-07-19",
-      "value": 104.4000015258789
-    },
     {
       "date": "2024-07-22",
       "value": 104.30999755859375
@@ -43130,7 +43042,19 @@
     },
     {
       "date": "2026-07-15",
-      "value": 100.59100341796875
+      "value": 100.5
+    },
+    {
+      "date": "2026-07-16",
+      "value": 100.7300033569336
+    },
+    {
+      "date": "2026-07-17",
+      "value": 100.75
+    },
+    {
+      "date": "2026-07-21",
+      "value": 100.96800231933594
     }
   ],
   "fedAssetsHistory": [
@@ -48053,6 +47977,10 @@
     {
       "date": "2026-07-08",
       "value": 6735609
+    },
+    {
+      "date": "2026-07-15",
+      "value": 6743028
     }
   ],
   "tgaHistory": [
@@ -52975,6 +52903,10 @@
     {
       "date": "2026-07-08",
       "value": 774062
+    },
+    {
+      "date": "2026-07-15",
+      "value": 756218
     }
   ],
   "rrpHistory": [
@@ -66105,6 +66037,22 @@
     {
       "date": "2026-07-14",
       "value": 0.278
+    },
+    {
+      "date": "2026-07-15",
+      "value": 0.151
+    },
+    {
+      "date": "2026-07-16",
+      "value": 0.125
+    },
+    {
+      "date": "2026-07-17",
+      "value": 0.1
+    },
+    {
+      "date": "2026-07-20",
+      "value": 0.03
     }
   ],
   "reservesHistory": [
@@ -71027,6 +70975,10 @@
     {
       "date": "2026-07-08",
       "value": 3098911
+    },
+    {
+      "date": "2026-07-15",
+      "value": 3142721
     }
   ],
   "netLiquidityHistory": [
@@ -75917,6 +75869,10 @@
     {
       "date": "2026-07-08",
       "value": 5958.2
+    },
+    {
+      "date": "2026-07-15",
+      "value": 5986.66
     }
   ],
   "sofrIorbSpreadHistory": [
@@ -80863,15 +80819,27 @@
     {
       "date": "2026-07-14",
       "value": -2
+    },
+    {
+      "date": "2026-07-15",
+      "value": -1
+    },
+    {
+      "date": "2026-07-16",
+      "value": -3
+    },
+    {
+      "date": "2026-07-17",
+      "value": -6
     }
   ],
   "liquidityImplications": {
-    "asOf": "2026-07-15T17:29:14.593Z",
+    "asOf": "2026-07-21T01:02:55.805Z",
     "signals": [
       {
         "label": "Net Liquidity",
         "level": "neutral",
-        "readout": "+$4B over 3mo (+0.1%)",
+        "readout": "+$33B over 3mo (+0.5%)",
         "implication": "Net liquidity is roughly flat — no strong directional pull from the plumbing right now."
       },
       {
@@ -80883,7 +80851,7 @@
       {
         "label": "Reserve Scarcity (SOFR-IORB)",
         "level": "supportive",
-        "readout": "-2.0bps",
+        "readout": "-6.0bps",
         "implication": "SOFR is trading at or below IORB — reserves remain ample and repo funding is orderly."
       },
       {
@@ -80895,7 +80863,7 @@
       {
         "label": "Credit Stress (HY OAS)",
         "level": "supportive",
-        "readout": "272bps",
+        "readout": "273bps",
         "implication": "High-yield spreads are tight — credit markets see ample liquidity and low near-term default risk."
       }
     ],
@@ -80905,26 +80873,6 @@
     }
   },
   "moveHistory": [
-    {
-      "date": "2024-07-15",
-      "value": 94.5
-    },
-    {
-      "date": "2024-07-16",
-      "value": 93.87000274658203
-    },
-    {
-      "date": "2024-07-17",
-      "value": 91
-    },
-    {
-      "date": "2024-07-18",
-      "value": 91.97000122070312
-    },
-    {
-      "date": "2024-07-19",
-      "value": 94.29000091552734
-    },
     {
       "date": "2024-07-22",
       "value": 94.44999694824219
@@ -82884,51 +82832,75 @@
     {
       "date": "2026-07-10",
       "value": 69.55000305175781
+    },
+    {
+      "date": "2026-07-13",
+      "value": 77.7699966430664
+    },
+    {
+      "date": "2026-07-14",
+      "value": 75.02999877929688
+    },
+    {
+      "date": "2026-07-15",
+      "value": 68.4800033569336
+    },
+    {
+      "date": "2026-07-16",
+      "value": 68.16000366210938
+    },
+    {
+      "date": "2026-07-17",
+      "value": 70.87999725341797
+    },
+    {
+      "date": "2026-07-20",
+      "value": 72.6592025756836
     }
   ],
   "volatilityImplications": {
-    "asOf": "2026-07-15T17:29:14.595Z",
+    "asOf": "2026-07-21T01:02:55.806Z",
     "signals": [
       {
         "label": "VIX Level",
         "level": "normal",
-        "readout": "16.2",
+        "readout": "18.6",
         "implication": "VIX is in its normal range — no strong edge either buying or selling premium off level alone."
       },
       {
         "label": "VIX Term Structure",
         "level": "calm",
-        "readout": "-3.0pts (30D vs 3M)",
+        "readout": "-1.8pts (30D vs 3M)",
         "implication": "Curve is in steep contango — the normal, complacent state that favors carry/premium-selling strategies."
       },
       {
         "label": "VVIX (Vol of VIX)",
-        "level": "normal",
-        "readout": "94",
-        "implication": "VVIX is in a normal range — no unusual demand for crash protection beyond what VIX already implies."
+        "level": "elevated",
+        "readout": "103",
+        "implication": "VVIX is elevated — tail-hedging demand is building faster than the VIX level alone suggests."
       },
       {
         "label": "Put/Call Ratio",
         "level": "normal",
-        "readout": "0.72",
+        "readout": "0.81",
         "implication": "Put/call is in a normal range — no extreme positioning either way."
       },
       {
         "label": "Credit Cross-Check (HY OAS)",
         "level": "calm",
-        "readout": "272bps",
+        "readout": "273bps",
         "implication": "Credit spreads are tight — if equity vol is elevated without credit confirmation, it's more likely a technical/liquidity move that tends to mean-revert faster."
       },
       {
         "label": "MOVE Index (Bond Vol)",
         "level": "calm",
-        "readout": "70",
+        "readout": "73",
         "implication": "Rates volatility is contained — no cross-asset warning from the bond market right now."
       }
     ],
     "overall": {
-      "level": "calm",
-      "summary": "Vol is broadly quiet across equity and rates markets, with no confirming credit stress — a benign backdrop, though complacency itself is worth flagging at extremes."
+      "level": "normal",
+      "summary": "Vol signals are mixed/normal — no single channel is dominating the picture right now."
     }
   }
 }

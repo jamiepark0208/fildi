@@ -54,10 +54,8 @@ export default function Rankings() {
 
   const fundamentalRankings = useMemo((): StockScore[] => {
     if (!serverRankings?.length) return [];
-    const watchlistSet = new Set(watchlistTickers);
     const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
-    return serverRankings
-      .filter(r => watchlistSet.has(r.ticker))
+    return [...serverRankings]
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
@@ -75,8 +73,9 @@ export default function Rankings() {
           growth:  { score: r.growthScore,  coverage: 1, lowCoverage: false },
           safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
         },
+        regime: r.regime,
       }));
-  }, [serverRankings, loadedStocks, watchlistTickers]);
+  }, [serverRankings, loadedStocks]);
 
   const { data: allTechnicalsData } = useQuery({
     queryKey: ["technicals", "all"],

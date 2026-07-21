@@ -9,7 +9,6 @@ import { type StockScore } from "@/lib/rankings";
 import { TopNav } from "@/components/top-nav";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
-import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
 import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
 
@@ -21,7 +20,6 @@ interface HomeProps {
 export default function Home({ tickers, setTickers }: HomeProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1M");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { tickers: watchlistTickers } = useWatchlist();
 
   const focusInput = () => {
     const el = document.querySelector<HTMLInputElement>('input[placeholder="Add ticker..."]');
@@ -81,10 +79,8 @@ export default function Home({ tickers, setTickers }: HomeProps) {
 
   const rankings = useMemo((): StockScore[] => {
     if (!serverRankings?.length) return [];
-    const watchlistSet = new Set(watchlistTickers);
     const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
-    return serverRankings
-      .filter(r => watchlistSet.has(r.ticker))
+    return [...serverRankings]
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
@@ -102,8 +98,9 @@ export default function Home({ tickers, setTickers }: HomeProps) {
           growth:  { score: r.growthScore,  coverage: 1, lowCoverage: false },
           safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
         },
+        regime: r.regime,
       }));
-  }, [serverRankings, loadedStocks, watchlistTickers]);
+  }, [serverRankings, loadedStocks]);
 
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 

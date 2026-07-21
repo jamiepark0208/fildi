@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-20
+**build** — last updated 2026-07-21
 
 ## Active work
-- Working: enrichment-runs-route, pipeline-health-panel, yahoo-field-drop-bugfix, default-route-watchlist, cell-click-popup
-- In progress: data-quality-accountability-layer Phase A complete: enrichment_runs table+nightly-enrichment.ts instrumentation+GET /api/admin/enrichment-runs+Pipeline Health panel all shipped, tsc clean, api-server rebuilt+restarted. Found real bug via PE-ratio coverage audit: nightly-enrichment.ts silently dropped 10 Yahoo fields (incl peRatio) between client fetch and DB write since the insert object was missing them — fixed and verified all other 5 sources (edgar, finnhub, polygon, av, fmp) have no equivalent drop via direct client-interface-vs-write-site diff.
-- Blocked: none
+- Working: fundamentals-leaderboard-watchlist-filter-fix, leaderboard-ticker-search, fundamentals-why-panel-formula-breakdown, technical-why-panel-formula-breakdown, explain-prompt-peer-grounding
+- In progress: Scorecard 'Why' panel enhancement in progress (not yet verified in browser, Playwright unavailable). Done: rankings-leaderboard.tsx + technical-leaderboard.tsx rewritten with ag-grid-styled formula-breakdown tables (family/component score x weight = contribution, matches server formula exactly), real peer min/median/max/percentile columns (replaces old bare z-score), colored bullet highlighting via new lib/score-explain-format.tsx, new lib/fundamental-scoring-meta.ts mirrors server SCORING_METRICS+REGIME_WEIGHTS client-side, technical-rankings.ts got COMPONENT_EXPLAINERS (6 fns) exposing literal sub-metric math per component. Backend api-server/src/routes/explain.ts updated: FundamentalData.metricDetails (real percentile+peerMedian) now passed to Claude prompt so AI cites real peer numbers instead of inventing them; PROMPT_VERSION bumped v3->v4 to bust explain_cache. Frontend tsc clean. Backend tsc has 3 PRE-EXISTING unrelated errors (stocks.ts:563, backfill-edgar.ts:70, merge-trusted.ts:276 - none touch explain.ts, did not introduce these).
+- Blocked: none - just needs final verification steps below
 
 ## Next tasks (priority order)
 

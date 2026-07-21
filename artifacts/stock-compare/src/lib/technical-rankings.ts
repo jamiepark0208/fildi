@@ -333,3 +333,83 @@ export function computeTechnicalRankingsV2(
   });
 }
 
+// ── Component breakdowns for the "Why" panel ─────────────────────────────────
+// Mirrors each scoreXxx() function above exactly, but returns the intermediate
+// [0,1] sub-scores instead of just the averaged result, so the UI can show the
+// literal inputs that produced the component score rather than a black box.
+
+export interface ComponentPart { label: string; raw: string; score: number; }
+
+function fmtPct01(v: number): string { return `${(v * 100).toFixed(0)}%`; }
+
+export function explainOversoldDepth(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const rsiPct = pf(r.rsi14Pct), mfiPct = pf(r.mfi14Pct), stochPct = pf(r.stochPct);
+  if (rsiPct != null)   parts.push({ label: "RSI percentile (own history)",   raw: fmtPct01(rsiPct),   score: 1 - rsiPct });
+  if (mfiPct != null)   parts.push({ label: "MFI percentile (own history)",   raw: fmtPct01(mfiPct),   score: 1 - mfiPct });
+  if (stochPct != null) parts.push({ label: "Stochastic percentile (own history)", raw: fmtPct01(stochPct), score: 1 - stochPct });
+  return parts;
+}
+
+export function explainReversalSignal(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  if (r.macdDirection != null) {
+    const s = r.macdDirection === "UP" ? 1.0 : r.macdDirection === "FLAT" ? 0.5 : 0.0;
+    parts.push({ label: "MACD direction", raw: r.macdDirection, score: s });
+  }
+  const vel = pf(r.rsiVelocity);
+  if (vel != null) parts.push({ label: "RSI velocity (5d Δ)", raw: vel.toFixed(1), score: c01(0.5 + vel / 10) });
+  const dist = pf(r.nearestSupportDistPct);
+  if (dist != null) parts.push({ label: "Distance to nearest support", raw: `${dist.toFixed(1)}%`, score: c01(1 - Math.max(0, dist - 2) / 8) });
+  return parts;
+}
+
+export function explainVolatilityState(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const ivRank = pf(r.ivRank);
+  if (ivRank != null) parts.push({ label: "IV rank (own history)", raw: fmtPct01(ivRank), score: ivRank });
+  const ivVsRv = pf(r.ivVsRealizedVol);
+  if (ivVsRv != null) parts.push({ label: "IV vs realized vol", raw: `${ivVsRv.toFixed(2)}x`, score: c01((ivVsRv - 0.5) / 1.0) });
+  const bbPct = pf(r.bbWidthPct);
+  if (bbPct != null) parts.push({ label: "Bollinger Band width percentile", raw: fmtPct01(bbPct), score: 1 - bbPct });
+  return parts;
+}
+
+export function explainTrendContext(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  if (r.regime != null) {
+    const s = r.regime === "BULLISH" ? 1.0 : r.regime === "BEARISH" ? 0.3 : 0.5;
+    parts.push({ label: "Macro regime", raw: r.regime, score: s });
+  }
+  const ma50Atr = pf(r.priceVsMa50Atr);
+  if (ma50Atr != null) parts.push({ label: "Price vs MA50 (ATR units)", raw: `${ma50Atr.toFixed(2)} ATR`, score: c01(-ma50Atr / 3) });
+  const vwapPct = pf(r.priceVsVwapPct);
+  if (vwapPct != null) parts.push({ label: "Price vs VWAP", raw: `${vwapPct.toFixed(1)}%`, score: c01(0.5 - vwapPct / 10) });
+  return parts;
+}
+
+export function explainOptionsFlow(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const pc = pf(r.putCallVolumeRatio);
+  if (pc != null) parts.push({ label: "Put/Call volume ratio", raw: pc.toFixed(2), score: c01((pc - 0.5) / 1.5) });
+  const skew = pf(r.basicSkew);
+  if (skew != null) parts.push({ label: "Put skew", raw: `${skew.toFixed(1)}pts`, score: c01(skew / 15) });
+  const term = pf(r.ivTermStructure);
+  if (term != null) parts.push({ label: "IV term structure", raw: term.toFixed(2), score: c01((term - 0.8) / 0.4) });
+  return parts;
+}
+
+export function explainVolumeConfirm(r: TechnicalRow): ComponentPart[] {
+  const v = pf(r.volumeRatioPct);
+  return v != null ? [{ label: "Volume ratio percentile (own history)", raw: fmtPct01(v), score: v }] : [];
+}
+
+export const COMPONENT_EXPLAINERS: Record<string, (r: TechnicalRow) => ComponentPart[]> = {
+  oversoldDepth:   explainOversoldDepth,
+  reversalSignal:  explainReversalSignal,
+  volatilityState: explainVolatilityState,
+  trendContext:    explainTrendContext,
+  optionsFlow:     explainOptionsFlow,
+  volumeConfirm:   explainVolumeConfirm,
+};
+
