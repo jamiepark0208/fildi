@@ -7,8 +7,8 @@
 
 ## Active work
 - Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization, secrets-remediation
-- In progress: No code changed this session. Investigated onboarding Ed/Chandler for app access without full public publish.
-- Blocked: Secrets remediation (rotate keys, move fully to Replit Secrets UI, purge git history) must happen before onboarding anyone; awaiting user to act on provider dashboards + Replit UI, both outside Claude Code's reach
+- In progress: Secrets remediation: Anthropic+GitHub keys rotated in Replit Secrets. Purged .replit (only affected file, 48 commits) from all local git history via git-filter-repo, verified clean. Local .replit on disk untouched (still backs Replit's Secrets UI).
+- Blocked: Force-push of rewritten history (main, 01-security-setup, cursor/scorecard-guide-chart-zones, replit-agent) to origin failing — GitHub rejects the local git PAT as invalid, almost certainly because rotating GITHUB_TOKEN in Replit Secrets killed the same token Replit's git integration was using to push. User must reconnect GitHub integration in Replit's Git pane, then retry the 4-branch force-push.
 
 ## Next tasks (priority order)
 
