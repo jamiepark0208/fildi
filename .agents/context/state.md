@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-21
 
 ## Active work
-- Working: fundamentals-sector-relative-scoring, fundamentals-why-panel-peer-group-display, market-regime-table-fix
-- In progress: Sector-relative blend fully shipped: server exposes peerGroupName/peerGroupSize (joined from peer_groups.name), Why panel shows Peer group header + Sector Median/Range columns computed from actual peer group (not whole market), AI explain prompt cites sector median over market median. Fixed 2 bugs found via user testing: (1) rankings.tsx/home.tsx were dropping peerGroupId/Name/Size when rebuilding StockScore objects from fetch response — now passed through. (2) market_regime table was defined in schema but never created in DB (drizzle-kit push never run for it) — every write silently failed via catch, every read returned null, so fundamentals always used 'unknown'/default regime weights. Created table via raw SQL matching schema exactly, hit /api/regime/macro to compute+persist real classification (expansion, 17% confidence), recomputed all 276 scores. Verified end-to-end via curl: PLTR now shows regime=expansion, peerGroupName='Enterprise Software & Cloud' (29 tickers).
+- Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization
+- In progress: Options scanner: replaced sort-button row with sortable Option Score / Income% / Buffer columns (added bestIncomeMap/bufferMap alongside existing bestOptionScoreMap; header buttons drive same sort state). Context audit: tightened codegraph-precheck.js Read guard to fire even when offset+limit given but window is still >100 lines; added matching guard on codegraph_context (warns if includeCode isn't false and maxNodes>10). Reverted skillListingMaxDescChars (would've truncated claude-api skill's 748-char SKIP clause mid-instruction) and autoCompactWindow (didn't address mid-turn spikes -- just added compaction churn). Root cause found: invoking update-config skill for a 3-key settings edit pulled in the full multi-thousand-line settings.json JSON Schema -- the actual driver of that turn's 77% jump not hooks/rehydrate overhead.
 - Blocked: none
 
 ## Next tasks (priority order)
