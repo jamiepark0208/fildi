@@ -15,6 +15,7 @@ const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 interface FundamentalData {
   totalScore:     number;
   rank:           number;
+  universeSize?:  number;
   familyScores:   { value: number; growth: number; quality: number; safety: number };
   topMetrics:     string[];
   weakMetrics:    string[];
@@ -24,6 +25,9 @@ interface FundamentalData {
   sector?:        string;
   industry?:      string;
   metricValues?:  Record<string, number | null>;
+  // Real cross-sectional peer numbers, keyed by metric label — lets the model cite an
+  // actual peer median instead of inventing a plausible-sounding benchmark.
+  metricDetails?: Record<string, { value: string; percentile: number; peerMedian: string; n: number }>;
 }
 
 interface TechnicalData {
@@ -58,7 +62,7 @@ interface ExplainRequest {
 
 // ── Score hash — deterministic fingerprint of key inputs ──────────────────────
 // Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
-const PROMPT_VERSION = "v3";
+const PROMPT_VERSION = "v4";
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
@@ -80,29 +84,36 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
     : "";
 
   const sectorCtx = d.sector ? `Sector: ${d.sector}${d.industry ? ` / ${d.industry}` : ""}` : "";
+  const universeSize = d.universeSize ?? 256;
 
-  const metricLines = d.metricValues
-    ? Object.entries(d.metricValues)
-        .filter(([, v]) => v != null)
-        .map(([k, v]) => `  ${k}: ${(v as number).toFixed(2)}`)
+  // Prefer the real cross-sectional numbers (metricDetails) over raw metricValues — this is
+  // what the model must cite, so it can't invent a "vs X% peers" figure that doesn't exist.
+  const metricLines = d.metricDetails
+    ? Object.entries(d.metricDetails)
+        .map(([label, m]) => `  ${label}: ${m.value} — ${m.percentile}th percentile of ${m.n} peers (peer median ${m.peerMedian})`)
         .join("\n")
-    : "";
+    : d.metricValues
+      ? Object.entries(d.metricValues)
+          .filter(([, v]) => v != null)
+          .map(([k, v]) => `  ${k}: ${(v as number).toFixed(2)}`)
+          .join("\n")
+      : "";
 
   return `You explain stock fundamentals to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid and specific. Skip anything unremarkable; only explain what stands out.
 
 Ticker: ${ticker}
 ${sectorCtx}
-Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} in the universe (top ${((d.rank / 256) * 100).toFixed(0)}% is worse, so this is genuinely exceptional or genuinely weak depending on rank)
+Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} of ${universeSize} in the universe
 Pillar scores — Value: ${d.familyScores.value.toFixed(0)}/100 | Growth: ${d.familyScores.growth.toFixed(0)}/100 | Quality: ${d.familyScores.quality.toFixed(0)}/100 | Safety: ${d.familyScores.safety.toFixed(0)}/100
 Top strengths: ${d.topMetrics.join(", ") || "none"}
 Top weaknesses: ${d.weakMetrics.join(", ") || "none"}
-${metricLines ? `\nKey metrics:\n${metricLines}` : ""}
+${metricLines ? `\nMetrics (value — percentile vs the actual universe, peer median given):\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
 
 Write exactly 3 bullet points (starting with -). Rules:
-- Each bullet: max 12 words + one parenthetical with the key number and peer context
-- Format: "[what it means for a put seller] (value vs benchmark)"
-- Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% peers)"
+- Each bullet: max 12 words + one parenthetical with the key number
+- Format: "[what it means for a put seller] (value vs peer median — use ONLY the peer median numbers given above, never invent one)"
+- Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% peer median)"
 - Only the 3 most significant drivers — skip anything near average
 
 No intro. No outro. No investment advice.`;

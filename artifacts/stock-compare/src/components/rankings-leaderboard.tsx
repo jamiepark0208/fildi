@@ -1,9 +1,13 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
 import { StockScore } from "@/lib/rankings";
 import { StockMetrics } from "@workspace/api-client-react";
-import { Trophy, ChevronDown } from "lucide-react";
+import { Trophy, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScoreExplanation } from "@/hooks/useScoreExplanation";
+import {
+  FUNDAMENTAL_METRIC_BY_KEY, FundamentalFamily, familyWeightsForRegime, formatMetricValue,
+} from "@/lib/fundamental-scoring-meta";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, zScoreColor, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -22,6 +26,8 @@ const ROW_STYLE = (idx: number) =>
   idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
               "border-border/40 bg-background/30";
 
+const FAMILY_LABEL: Record<FundamentalFamily, string> = { quality: "Quality", growth: "Growth", safety: "Safety" };
+
 function parseBullets(text: string): string[] {
   return text
     .split(/\n|(?<=[.!?])\s{1,2}(?=[A-Z•\-])/)
@@ -29,69 +35,126 @@ function parseBullets(text: string): string[] {
     .filter(s => s.length > 8);
 }
 
-function buildFundamentalPayload(score: StockScore, stocks?: StockMetrics[]) {
-  const metricEntries = Object.entries(score.metricScores)
-    .filter(([, v]) => v.value != null)
-    .sort((a, b) => b[1].weightedScore - a[1].weightedScore);
+export interface MetricRow {
+  key: string;
+  label: string;
+  valueStr: string;
+  weight: number;
+  family: FundamentalFamily;
+  percentile: number;   // 0-100, this ticker's cross-sectional percentile for the metric
+  rankPos: number;      // 1 = best
+  n: number;             // peer universe size with non-null data for this metric
+  peerMin: string;
+  peerMedian: string;
+  peerMax: string;
+  zScore: number;
+}
+
+function metricLabel(key: string): string {
+  const meta = FUNDAMENTAL_METRIC_BY_KEY[key];
+  if (meta) return meta.label;
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
+}
+
+// Recomputes the same percentile-rank formula the server uses (computePerMetricScores in
+// fundamentals-db.ts) purely from the metric values already present in `allScores`, so the
+// breakdown is provably the same number the server used to score this ticker — not an
+// approximation.
+function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[] {
+  const entries = Object.entries(score.metricScores).filter(([, v]) => v.value != null);
+
+  return entries.map(([key, mv]) => {
+    const meta = FUNDAMENTAL_METRIC_BY_KEY[key];
+    const rawVal = mv.value as number;
+    const peerVals = allScores
+      .map(s => s.metricScores[key]?.value)
+      .filter((v): v is number => v != null);
+    const sorted = [...peerVals].sort((a, b) => a - b);
+    const mean = peerVals.reduce((a, b) => a + b, 0) / peerVals.length;
+    const std = Math.sqrt(peerVals.reduce((a, b) => a + (b - mean) ** 2, 0) / peerVals.length);
+
+    const idx = sorted.findIndex(v => v >= rawVal);
+    const rawPct = sorted.length <= 1 ? 0.5 : idx / (sorted.length - 1);
+    const pct = meta && !meta.higherBetter ? 1 - rawPct : rawPct;
+
+    // "#N of M" rank, always 1 = best regardless of higher/lower-is-better framing.
+    const rankPos = meta?.higherBetter === false
+      ? sorted.indexOf(rawVal) + 1
+      : [...sorted].reverse().indexOf(rawVal) + 1;
+
+    const median = sorted.length % 2 === 1
+      ? sorted[(sorted.length - 1) / 2]
+      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+
+    return {
+      key,
+      label: metricLabel(key),
+      valueStr: formatMetricValue(meta, rawVal),
+      weight: meta?.weight ?? 0,
+      family: meta?.family ?? "quality",
+      percentile: Math.round(pct * 100),
+      rankPos,
+      n: peerVals.length,
+      peerMin: formatMetricValue(meta, sorted[0]),
+      peerMedian: formatMetricValue(meta, median),
+      peerMax: formatMetricValue(meta, sorted[sorted.length - 1]),
+      zScore: std > 0 ? (rawVal - mean) / std : 0,
+    };
+  }).sort((a, b) => b.percentile - a.percentile);
+}
+
+export interface FamilyBreakdownRow {
+  family: FundamentalFamily;
+  score: number;
+  weight: number;
+  contribution: number;
+}
+
+// Reproduces the family/total roll-up in computeAndPersistFundamentalScores: totalScore is a
+// weighted average of the three family scores using the current macro regime's weights.
+function buildFamilyBreakdown(score: StockScore): { rows: FamilyBreakdownRow[]; weightSum: number } {
+  const weights = familyWeightsForRegime(score.regime);
+  const fs = score.familyScores;
+  const families: FundamentalFamily[] = ["quality", "growth", "safety"];
+  const rows = families.map(fam => {
+    const famScore = fs?.[fam]?.score ?? 50;
+    const w = weights[fam];
+    return { family: fam, score: famScore, weight: w, contribution: (famScore * w) / 100 };
+  });
+  const weightSum = families.reduce((s, f) => s + weights[f], 0);
+  return { rows, weightSum };
+}
+
+function buildFundamentalPayload(score: StockScore, allScores: StockScore[], stocks?: StockMetrics[]) {
+  const metricRows = buildMetricRows(score, allScores);
+  const topRows = [...metricRows].filter(r => r.percentile >= 50).slice(0, 4);
+  const weakRows = [...metricRows].filter(r => r.percentile < 50).slice(-4);
   const fs = score.familyScores;
   const stockData = stocks?.find(s => s.ticker === score.ticker);
   return {
     fundamentalData: {
       totalScore: score.totalScore,
       rank: score.rank,
+      universeSize: allScores.length,
       familyScores: {
         value:   fs?.value.score   ?? 50,
         growth:  fs?.growth.score  ?? 50,
         quality: fs?.quality.score ?? 50,
         safety:  fs?.safety.score  ?? 50,
       },
-      topMetrics:     metricEntries.slice(0, 4).map(([k]) => k),
-      weakMetrics:    metricEntries.slice(-4).map(([k]) => k),
+      topMetrics:     topRows.map(r => r.label),
+      weakMetrics:    weakRows.map(r => r.label),
       reason:         score.reason,
       suspectMetrics: score.suspectMetrics,
       dataQuality:    score.dataQuality,
       sector:         stockData?.sector   ?? undefined,
       industry:       stockData?.industry ?? undefined,
-      metricValues:   Object.fromEntries(metricEntries.map(([k, v]) => [k, v.value])),
+      // Real cross-sectional numbers — instructs the model to cite these instead of guessing.
+      metricDetails:  Object.fromEntries(metricRows.map(r => [r.label, {
+        value: r.valueStr, percentile: r.percentile, peerMedian: r.peerMedian, n: r.n,
+      }])),
     },
   };
-}
-
-export interface MetricRow {
-  label: string;
-  value: string;
-  zScore: number;
-}
-
-function metricLabel(key: string): string {
-  return key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
-}
-
-function metricValueStr(val: number): string {
-  if (Math.abs(val) >= 1000) return val.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  if (Math.abs(val) >= 10) return val.toFixed(1);
-  return val.toFixed(2);
-}
-
-function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[] {
-  const top = Object.entries(score.metricScores)
-    .filter(([, v]) => v.value != null)
-    .sort((a, b) => Math.abs(b[1].weightedScore) - Math.abs(a[1].weightedScore))
-    .slice(0, 5);
-
-  return top.map(([key, mv]) => {
-    const rawVal = mv.value ?? 0;
-    const peerVals = allScores
-      .map(s => s.metricScores[key]?.value)
-      .filter((v): v is number => v != null);
-    const mean = peerVals.reduce((a, b) => a + b, 0) / peerVals.length;
-    const std = Math.sqrt(peerVals.reduce((a, b) => a + (b - mean) ** 2, 0) / peerVals.length);
-    return {
-      label: metricLabel(key),
-      value: metricValueStr(rawVal),
-      zScore: std > 0 ? (rawVal - mean) / std : 0,
-    };
-  });
 }
 
 interface ExplainState { text: string; status: "idle" | "loading" | "done" | "error"; }
@@ -106,18 +169,10 @@ interface RowProps {
   explain: ReturnType<typeof useScoreExplanation>["explain"];
 }
 
-function zScoreColor(z: number): string {
-  if (z >= 1.5) return "text-emerald-400";
-  if (z >= 0.5) return "text-emerald-300/80";
-  if (z <= -1.5) return "text-red-400";
-  if (z <= -0.5) return "text-red-300/80";
-  return "text-white/50";
-}
-
 function shortenBullet(text: string): string {
   const clean = text.replace(/\*\*/g, "").replace(/^\s*[-•]\s*/, "").trim();
   const sentence = clean.split(/(?<=[.!?])\s/)[0];
-  return sentence.length > 120 ? sentence.slice(0, 117) + "…" : sentence;
+  return sentence.length > 160 ? sentence.slice(0, 157) + "…" : sentence;
 }
 
 const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explainState, explain }: RowProps) {
@@ -130,6 +185,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
 
   const isExpanded = state.status === "done" && !!state.text && open;
   const metricRows = isExpanded ? buildMetricRows(score, allScores) : [];
+  const { rows: familyRows, weightSum } = isExpanded ? buildFamilyBreakdown(score) : { rows: [], weightSum: 0 };
   const bullets = isExpanded ? parseBullets(state.text).map(shortenBullet).filter(Boolean) : [];
 
   return (
@@ -165,7 +221,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
         <button
           onClick={() => {
             if (state.status === "done") setOpen(!open);
-            else explain(score.ticker, "fundamental", buildFundamentalPayload(score, stocks));
+            else explain(score.ticker, "fundamental", buildFundamentalPayload(score, allScores, stocks));
           }}
           disabled={state.status === "loading"}
           className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
@@ -176,37 +232,95 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
       </div>
 
       {isExpanded && (
-        <div className="mt-2.5 mb-1 pl-9 space-y-2.5">
-          {/* Metric table */}
-          {metricRows.length > 0 && (
-            <table className="w-full text-[11px] border-collapse">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left pb-1 text-white/40 font-medium">Metric</th>
-                  <th className="text-right pb-1 text-white/40 font-medium pr-3">Value</th>
-                  <th className="text-right pb-1 text-white/40 font-medium">vs Peers</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metricRows.map((row, i) => (
-                  <tr key={i} className="border-b border-white/5 last:border-0">
-                    <td className="py-1 text-white/80">{row.label}</td>
-                    <td className="py-1 pr-3 text-right font-mono text-white/70">{row.value}</td>
-                    <td className={cn("py-1 text-right font-mono font-semibold", zScoreColor(row.zScore))}>
-                      {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}σ
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="mt-2.5 mb-1 pl-9 space-y-3">
+          {/* Formula breakdown: Total = Σ(family score × regime weight) */}
+          {familyRows.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
+                Score Formula — {score.regime ? score.regime.replace(/_/g, " ") : "default"} regime weights
+              </p>
+              <div className={GRID_WRAP}>
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className={GRID_HEADER}>
+                      <th className={cn(GRID_TH, "text-left")}>Pillar</th>
+                      <th className={cn(GRID_TH, "text-right")}>Score</th>
+                      <th className={cn(GRID_TH, "text-right")}>Weight</th>
+                      <th className={cn(GRID_TH, "text-right")}>Contribution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {familyRows.map((r, i) => (
+                      <tr key={r.family} className={gridRow(i)}>
+                        <td className={cn(GRID_TD, "text-left text-white/80")}>{FAMILY_LABEL[r.family]}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono", percentileColor(r.score))}>{r.score.toFixed(1)}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>{r.weight}%</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/80")}>+{r.contribution.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-primary/10 border-t border-border/60">
+                      <td className={cn(GRID_TD, "text-left font-semibold text-white")}>Total</td>
+                      <td className={GRID_TD}></td>
+                      <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>÷{weightSum}%</td>
+                      <td className={cn(GRID_TD, "text-right font-mono font-bold text-white")}>{score.totalScore.toFixed(1)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
-          {/* Shortened bullets */}
+          {/* Metric table: every scored metric, its value, weight, and real peer comparison */}
+          {metricRows.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
+                Metrics vs {metricRows[0]?.n ?? 0} peers in universe
+              </p>
+              <div className={GRID_WRAP}>
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className={GRID_HEADER}>
+                      <th className={cn(GRID_TH, "text-left")}>Metric</th>
+                      <th className={cn(GRID_TH, "text-right")}>Value</th>
+                      <th className={cn(GRID_TH, "text-right")}>Wt</th>
+                      <th className={cn(GRID_TH, "text-right")}>Percentile</th>
+                      <th className={cn(GRID_TH, "text-right")}>Peer Min</th>
+                      <th className={cn(GRID_TH, "text-right")}>Peer Median</th>
+                      <th className={cn(GRID_TH, "text-right")}>Peer Max</th>
+                      <th className={cn(GRID_TH, "text-right")}>z</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metricRows.map((row, i) => (
+                      <tr key={row.key} className={gridRow(i)}>
+                        <td className={cn(GRID_TD, "text-left text-white/80")}>{row.label}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white font-semibold")}>{row.valueStr}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.weight}</td>
+                        <td className="py-1.5 px-2.5 text-right">
+                          <span className={cn("inline-block px-1.5 py-0.5 rounded border text-[10px] font-mono font-semibold", percentileBadge(row.percentile))}>
+                            {row.percentile}th · #{row.rankPos}/{row.n}
+                          </span>
+                        </td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMin}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/60")}>{row.peerMedian}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMax}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono font-semibold", zScoreColor(row.zScore))}>
+                          {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* AI narrative — key numbers highlighted */}
           <ul className="space-y-1">
             {bullets.map((b, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-white/70 leading-relaxed">
                 <span className="text-white/30 shrink-0 mt-0.5">•</span>
-                {b}
+                <span>{highlightBullet(b)}</span>
               </li>
             ))}
           </ul>
@@ -219,30 +333,54 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
 
 export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps) {
   const { explain, getState } = useScoreExplanation();
+  const [query, setQuery] = useState("");
 
   if (scores.length < 2) return null;
   const maxScore = scores[0].totalScore;
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return scores;
+    return scores.filter(s => s.ticker.toLowerCase().includes(q) || s.companyName?.toLowerCase().includes(q));
+  }, [scores, query]);
+
   return (
     <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <Trophy className="w-4 h-4 text-primary" />
-        <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
+          <span className="text-xs text-muted-foreground">({scores.length})</span>
+        </div>
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Filter ticker..."
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-border bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-0.5">
-        {scores.map((score, idx) => (
-          <LeaderboardRow
-            allScores={scores}
-            explainState={getState(score.ticker, "fundamental")}
-            key={score.ticker}
-            score={score}
-            idx={idx}
-            maxScore={maxScore}
-            stocks={stocks}
-            explain={explain}
-          />
-        ))}
+        {filtered.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">No tickers match "{query}".</p>
+        ) : (
+          filtered.map((score) => (
+            <LeaderboardRow
+              allScores={scores}
+              explainState={getState(score.ticker, "fundamental")}
+              key={score.ticker}
+              score={score}
+              idx={score.rank - 1}
+              maxScore={maxScore}
+              stocks={stocks}
+              explain={explain}
+            />
+          ))
+        )}
       </div>
     </div>
   );

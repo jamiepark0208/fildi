@@ -14,6 +14,7 @@
  *
  * Run: cd artifacts/api-server && npx tsx src/scripts/nightly-enrichment.ts
  * Dry run: npx tsx src/scripts/nightly-enrichment.ts --dry-run
+ * Scoped test: npx tsx src/scripts/nightly-enrichment.ts --tickers=RGTI,SPCX --dry-run
  */
 
 import fs from "node:fs";
@@ -60,6 +61,15 @@ const PEER_EXPANSION_CAP = 25;
 const FIELDS_ARG = process.argv.find(a => a.startsWith("--fields="))?.split("=")[1];
 const FIELD_FILTER: Set<string> | null = FIELDS_ARG
   ? new Set(FIELDS_ARG.split(",").map(s => s.trim()))
+  : null;
+
+// --tickers=RGTI,SPCX  → restrict the universe to these tickers only (for testing
+// a small batch before a full run). Intersected with the flagged universe below —
+// does not bypass fetch_fundamentals gating. Peer expansion is skipped when this
+// is set, so a scoped test run never flips fetch_fundamentals for unrelated peers.
+const TICKERS_ARG = process.argv.find(a => a.startsWith("--tickers="))?.split("=")[1];
+const TICKER_FILTER: Set<string> | null = TICKERS_ARG
+  ? new Set(TICKERS_ARG.split(",").map(s => s.trim().toUpperCase()))
   : null;
 
 const AV_API_KEY      = process.env.AV_API_KEY      ?? "";
@@ -137,8 +147,10 @@ async function findNullFields(tickers: string[]): Promise<Map<string, Set<string
     ? new Set([...allCovered].filter(f => FIELD_FILTER.has(f)))
     : allCovered;
   const result  = new Map<string, Set<string>>();
+  const seen    = new Set<string>();
 
   for (const row of rows) {
+    seen.add(row.ticker);
     const nulls = new Set<string>();
     for (const col of covered) {
       if ((row as any)[col] === null || (row as any)[col] === undefined) {
@@ -147,6 +159,15 @@ async function findNullFields(tickers: string[]): Promise<Map<string, Set<string
     }
     if (nulls.size > 0) result.set(row.ticker, nulls);
   }
+
+  // Tickers flagged in ticker_registry but with no ticker_fundamentals row yet
+  // (e.g. just added via the watchlist) never appear in `rows` above — nothing
+  // else seeds an empty row for them, so without this they'd be silently
+  // invisible to the fetch pipeline forever.
+  for (const ticker of tickers) {
+    if (!seen.has(ticker)) result.set(ticker, new Set(covered));
+  }
+
   return result;
 }
 
@@ -836,19 +857,29 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
   try {
 
   // 1. Get canonical ticker universe
-  const flaggedTickers = (await db
+  let flaggedTickers = (await db
     .select({ ticker: tickerRegistry.ticker })
     .from(tickerRegistry)
     .where(eq(tickerRegistry.fetchFundamentals, true))
     .orderBy(tickerRegistry.ticker))
     .map(r => r.ticker);
+
+  if (TICKER_FILTER) {
+    const before = flaggedTickers.length;
+    flaggedTickers = flaggedTickers.filter(t => TICKER_FILTER.has(t));
+    const missing = [...TICKER_FILTER].filter(t => !flaggedTickers.includes(t));
+    log(`--tickers filter: ${flaggedTickers.length}/${before} flagged tickers matched [${[...TICKER_FILTER].join(",")}]`);
+    if (missing.length > 0) log(`WARN: --tickers requested but not fetch_fundamentals=true in registry: ${missing.join(",")}`);
+  }
   log(`Universe: ${flaggedTickers.length} tickers (fetch_fundamentals=true)`);
 
   // 1b. bug/9 — expand to peers of the flagged universe that aren't flagged yet,
   // capped per run, and flip fetch_fundamentals=true for them now (before the
   // fetch pipeline + merge-trusted run below) so peer-relative scoring picks
   // them up this same pass instead of needing a second nightly cycle.
-  const peerGroupIds = flaggedTickers.length > 0
+  // Skipped entirely under --tickers: a scoped test run should never flip
+  // fetch_fundamentals for tickers outside the requested set.
+  const peerGroupIds = !TICKER_FILTER && flaggedTickers.length > 0
     ? [...new Set((await db
         .select({ groupId: peerGroupMembers.groupId })
         .from(peerGroupMembers)

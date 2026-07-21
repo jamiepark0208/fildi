@@ -49,6 +49,9 @@ export type StockScore = {
   // Peer group context — present when peerGroupMap was passed to computeRankingsV2
   peerGroupId?: string;
   peerGroupConfidence?: 'mapped' | 'auto' | 'unmapped';
+  // Macro regime at score time — drives family weights server-side (REGIME_WEIGHTS in
+  // fundamentals-db.ts). Needed client-side to reproduce the same formula in the Why panel.
+  regime?: string;
 };
 
 export function computeRankings(stocks: StockMetrics[]): StockScore[] {
