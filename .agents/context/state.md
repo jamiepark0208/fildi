@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-21
 
 ## Active work
-- Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization, secrets-remediation
-- In progress: Secrets remediation: Anthropic+GitHub keys rotated in Replit Secrets. Purged .replit (only affected file, 48 commits) from all local git history via git-filter-repo, verified clean. Local .replit on disk untouched (still backs Replit's Secrets UI).
-- Blocked: Force-push of rewritten history (main, 01-security-setup, cursor/scorecard-guide-chart-zones, replit-agent) to origin failing — GitHub rejects the local git PAT as invalid, almost certainly because rotating GITHUB_TOKEN in Replit Secrets killed the same token Replit's git integration was using to push. User must reconnect GitHub integration in Replit's Git pane, then retry the 4-branch force-push.
+- Working: perf-diagnosis, options-scanner-localstorage-scoping-fix, ed-test-account, stock-views-colorTag-migration
+- In progress: Stock Views feature shipped: colorTag moved from localStorage to DB (watchlist.color_tag), new PATCH /watchlist/:ticker + GET /watchlist/user/:username routes, profile.tsx StockViewsPanel replaces old Bullish/Neutral/Bearish BucketsPanel. Migration broke existing tags for jamie(id1)/ed(id8) since old data lived only in browser localStorage under fildi_watchlist_colors_<userId> — gave user a devtools snippet to extract it, awaiting paste-back to restore via direct SQL.
+- Blocked: Same GitHub reconnect blocker as before (push failing, PAT invalid). NEW: waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags — cannot proceed without it.
 
 ## Next tasks (priority order)
 
