@@ -7,8 +7,10 @@ import { TradeCard, type TradePost } from "@/components/TradeCard"
 import { useAuth } from "@/context/AuthContext"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown, Minus, X, Search, Loader2 } from "lucide-react"
+import { X, Search, Loader2 } from "lucide-react"
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
+import { PRESET_COLORS, COLOR_LABELS, fetchWatchlistFor } from "@/hooks/use-watchlist"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -325,239 +327,111 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
   )
 }
 
-// ── Stock Buckets panel ────────────────────────────────────────────────────────
+// ── Stock Views panel (reflects the user's tagged Watchlist) ───────────────────
 
-function BucketTickerInput({
-  onSelect,
-  disabled,
-  excludeTickers = [],
-}: {
-  onSelect: (ticker: string) => void
-  disabled?: boolean
-  excludeTickers?: string[]
-}) {
-  const [inputText, setInputText] = useState("")
-  const [open, setOpen] = useState(false)
-  const [focusedIndex, setFocusedIndex] = useState(-1)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const debouncedSearch = useDebounce(inputText, 180)
-  const exclude = new Set(excludeTickers.map(t => t.toUpperCase()))
-
-  const { data: apiResults, isFetching } = useSearchStocks(
-    { q: debouncedSearch },
-    {
-      query: {
-        enabled: debouncedSearch.length >= 2,
-        queryKey: getSearchStocksQueryKey({ q: debouncedSearch }),
-        staleTime: 5 * 60 * 1000,
-        gcTime: 10 * 60 * 1000,
-      },
-    },
-  )
-
-  const results = (apiResults ?? []).filter(r => !exclude.has(r.ticker.toUpperCase()))
-  const showDropdown = open && debouncedSearch.length >= 2
-
-  const selectTicker = useCallback((ticker: string) => {
-    const upper = ticker.toUpperCase().trim()
-    if (upper) onSelect(upper)
-    setInputText("")
-    setOpen(false)
-    setFocusedIndex(-1)
-  }, [onSelect])
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || results.length === 0) {
-      if (e.key === "Enter" && inputText.trim()) {
-        e.preventDefault()
-        selectTicker(inputText.trim())
-      }
-      return
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault()
-      setFocusedIndex(i => Math.min(i + 1, results.length - 1))
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault()
-      setFocusedIndex(i => Math.max(i - 1, 0))
-    } else if (e.key === "Enter") {
-      e.preventDefault()
-      if (focusedIndex >= 0 && results[focusedIndex]) selectTicker(results[focusedIndex].ticker)
-      else if (inputText.trim()) selectTicker(inputText.trim())
-    } else if (e.key === "Escape") {
-      setOpen(false)
-    }
-  }
-
-  return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50 z-10" />
-      {isFetching && debouncedSearch.length >= 2 && (
-        <Loader2 className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground animate-spin z-10" />
-      )}
-      <input
-        ref={inputRef}
-        type="text"
-        autoComplete="off"
-        spellCheck={false}
-        disabled={disabled}
-        value={inputText}
-        onChange={e => { setInputText(e.target.value.toUpperCase()); setOpen(true); setFocusedIndex(-1) }}
-        onFocus={() => { if (closeTimeout.current) clearTimeout(closeTimeout.current); if (inputText.length >= 2) setOpen(true) }}
-        onBlur={() => { closeTimeout.current = setTimeout(() => setOpen(false), 150) }}
-        onKeyDown={handleKeyDown}
-        placeholder="Search…"
-        maxLength={10}
-        className="w-full min-w-0 bg-background/60 border border-border/60 rounded pl-7 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-      />
-      {showDropdown && (
-        <div className="absolute top-full left-0 right-0 min-w-[200px] mt-1 z-50 rounded-md border border-border bg-card shadow-xl overflow-hidden">
-          {isFetching && results.length === 0 ? (
-            <div className="px-3 py-2 text-[10px] text-muted-foreground flex items-center gap-1.5">
-              <Loader2 className="h-3 w-3 animate-spin" /> Searching…
-            </div>
-          ) : results.length === 0 ? (
-            <div className="px-3 py-2 text-[10px] text-muted-foreground">No results</div>
-          ) : (
-            <ul className="max-h-40 overflow-y-auto py-0.5">
-              {results.map((r, i) => (
-                <li
-                  key={r.ticker}
-                  onMouseDown={e => { e.preventDefault(); selectTicker(r.ticker) }}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-1.5 cursor-pointer text-[10px]",
-                    "hover:bg-primary/10",
-                    i === focusedIndex && "bg-primary/15",
-                  )}
-                >
-                  <span className="font-mono font-bold">{r.ticker}</span>
-                  <span className="text-muted-foreground truncate ml-2 max-w-[100px]">{r.name}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const BUCKETS = [
-  { key: "BULLISH",  label: "Bullish",  icon: TrendingUp,   color: "text-green-400",  border: "border-green-500/30",  bg: "bg-green-500/5",  pill: "bg-green-500/15 text-green-400 border-green-500/30" },
-  { key: "NEUTRAL",  label: "Neutral",  icon: Minus,        color: "text-yellow-400", border: "border-yellow-500/30", bg: "bg-yellow-500/5", pill: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
-  { key: "BEARISH",  label: "Bearish",  icon: TrendingDown, color: "text-red-400",    border: "border-red-500/30",    bg: "bg-red-500/5",    pill: "bg-red-500/15 text-red-400 border-red-500/30" },
-] as const
-
-type BucketKey = "BULLISH" | "NEUTRAL" | "BEARISH"
-
-function BucketsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileUsername: string }) {
-  const qc = useQueryClient()
+function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileUsername: string }) {
   const [, navigate] = useLocation()
-  const [adding, setAdding] = useState<Record<BucketKey, boolean>>({ BULLISH: false, NEUTRAL: false, BEARISH: false })
+  const [open, setOpen] = useState(false)
 
-  const { data: allBuckets = [], isLoading } = useQuery<{ ticker: string; bucket: BucketKey; addedAt: string }[]>({
-    queryKey: ["feed", "buckets", profileUsername],
-    queryFn: () => apiFeed(`/buckets/${profileUsername}`),
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ["watchlist", "user", profileUsername],
+    queryFn: () => fetchWatchlistFor(profileUsername),
     staleTime: 30000,
     refetchOnWindowFocus: false,
   })
 
-  function invalidateBuckets() {
-    qc.invalidateQueries({ queryKey: ["feed", "buckets", profileUsername] })
-  }
+  // Only the 5 labeled colors from the Watchlist legend — the 6th preset (orange) has no label there either.
+  const groups = PRESET_COLORS
+    .filter(color => COLOR_LABELS[color])
+    .map(color => ({
+      color,
+      label: COLOR_LABELS[color]!,
+      tickers: entries.filter(e => e.colorTag === color).map(e => e.ticker).sort(),
+    }))
 
-  async function addTicker(bucket: BucketKey, ticker: string) {
-    const t = ticker.trim().toUpperCase()
-    if (!t) return
-    setAdding(prev => ({ ...prev, [bucket]: true }))
-    try {
-      await apiFeed("/buckets", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: t, bucket }),
-      })
-      invalidateBuckets()
-    } finally {
-      setAdding(prev => ({ ...prev, [bucket]: false }))
-    }
-  }
+  const taggedCount = groups.reduce((n, g) => n + g.tickers.length, 0)
 
-  async function removeTicker(ticker: string) {
-    await apiFeed(`/buckets/${ticker}`, { method: "DELETE" })
-    invalidateBuckets()
+  function openInScanner(tickers: string[]) {
+    tickers.forEach(t => addToScannerShelf(t))
+    navigate("/options-scanner")
   }
-
-  // Group all buckets by bucket type, then group tickers by who picked them
-  function tickersFor(bucketKey: BucketKey) {
-    return allBuckets.filter(b => b.bucket === bucketKey).sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }
-
-  const myTickers = new Set(allBuckets.map(b => b.ticker))
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Views</div>
-      <div className="grid grid-cols-3 gap-3">
-        {BUCKETS.map(({ key, label, icon: Icon, color, border, bg, pill }) => {
-          const tickers = tickersFor(key)
-          return (
-            <div key={key} className={cn("rounded-xl border p-3 space-y-2.5", border, bg)}>
-              <div className={cn("flex items-center gap-1.5 text-xs font-bold", color)}>
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-                <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{tickers.length}</span>
-              </div>
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full text-left space-y-2 rounded-xl border border-border p-3 hover:border-border/80 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Views</div>
+          <span className="text-[10px] text-muted-foreground/60">{taggedCount} tagged →</span>
+        </div>
+        {isLoading ? (
+          <span className="text-[10px] text-muted-foreground/40 animate-pulse">Loading…</span>
+        ) : taggedCount === 0 ? (
+          <span className="text-[10px] text-muted-foreground/40">No tagged tickers yet</span>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {groups.filter(g => g.tickers.length > 0).map(g => (
+              <span key={g.color} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                {g.tickers.slice(0, 3).join(", ")}{g.tickers.length > 3 ? ` +${g.tickers.length - 3}` : ""}
+              </span>
+            ))}
+          </div>
+        )}
+      </button>
 
-              {tickers.length > 0 && (
-                <button
-                  onClick={() => {
-                    tickers.forEach(({ ticker }) => addToScannerShelf(ticker))
-                    navigate("/options-scanner")
-                  }}
-                  className="w-full text-[10px] font-medium text-muted-foreground/70 hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1 transition-colors"
-                >
-                  Open in scanner →
-                </button>
-              )}
-
-              <div className="space-y-1 min-h-[40px]">
-                {isLoading ? (
-                  <span className="text-[10px] text-muted-foreground/40 animate-pulse">Loading…</span>
-                ) : tickers.length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground/40">No picks yet</span>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Stock Views{!isOwner ? ` — ${profileUsername}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+            {groups.map(g => (
+              <div key={g.color} className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                  {g.label}
+                  <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{g.tickers.length}</span>
+                </div>
+                {g.tickers.length === 0 ? (
+                  <span className="text-[10px] text-muted-foreground/40">None</span>
                 ) : (
-                  tickers.map(({ ticker }) => (
-                    <div key={ticker} className="flex items-center gap-1.5 group">
-                      <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded border", pill)}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.tickers.map(ticker => (
+                      <span
+                        key={ticker}
+                        className="text-xs font-bold px-1.5 py-0.5 rounded border"
+                        style={{ borderColor: g.color, color: g.color, backgroundColor: `${g.color}15` }}
+                      >
                         {ticker}
                       </span>
-                      {isOwner && (
-                        <button
-                          onClick={() => removeTicker(ticker)}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-red-400 transition-all ml-auto"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
-
-              {isOwner && (
-                <BucketTickerInput
-                  disabled={adding[key]}
-                  excludeTickers={[...myTickers]}
-                  onSelect={t => addTicker(key, t)}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
+            ))}
+          </div>
+          {taggedCount > 0 && (
+            <button
+              onClick={() => openInScanner(groups.flatMap(g => g.tickers))}
+              className="w-full text-[10px] font-medium text-muted-foreground/70 hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
+            >
+              Open all in scanner →
+            </button>
+          )}
+          {isOwner && (
+            <button
+              onClick={() => navigate("/watchlist")}
+              className="w-full text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              Edit tags on Watchlist →
+            </button>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -743,8 +617,8 @@ export default function Profile() {
             {/* ── Monthly summary (own profile only) ── */}
             {isOwnerProfile && <MonthlySummary posts={data.posts} />}
 
-            {/* ── Stock Views Buckets ── */}
-            <BucketsPanel isOwner={isOwnerProfile} profileUsername={username} />
+            {/* ── Stock Views (reflects tagged Watchlist) ── */}
+            <StockViewsPanel isOwner={isOwnerProfile} profileUsername={username} />
 
             {/* ── Submit form ── */}
             {isOwnerProfile && showForm && (

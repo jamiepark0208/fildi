@@ -36,12 +36,13 @@ export type InviteCode = typeof inviteCodes.$inferSelect
 // ── watchlist ─────────────────────────────────────────────────────────────────
 
 export const watchlist = pgTable('watchlist', {
-  userId:  integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  ticker:  text('ticker').notNull(),
-  tier:    integer('tier').notNull(),
-  status:  text('status').notNull(),  // want_to_own | assigned | monitoring | closed
-  addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
-  notes:   text('notes'),
+  userId:   integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:   text('ticker').notNull(),
+  tier:     integer('tier').notNull(),
+  status:   text('status').notNull(),  // want_to_own | assigned | monitoring | closed
+  addedAt:  timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+  notes:    text('notes'),
+  colorTag: text('color_tag').notNull().default(''),  // hex color from PRESET_COLORS, '' = untagged
 }, t => ({
   pk:        primaryKey({ columns: [t.userId, t.ticker] }),
   userIdx:   index('idx_watchlist_user_id').on(t.userId),

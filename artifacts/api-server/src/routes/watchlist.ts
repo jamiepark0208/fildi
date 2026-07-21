@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, asc } from "drizzle-orm";
-import { db, watchlist, tickerRegistry, peerGroupMembers } from "@workspace/db";
+import { db, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -8,27 +8,49 @@ const router = Router();
 // Bounds client-side N+1 quote fan-out (see bug/12); must stay > register seed size if seeding is reintroduced.
 const MAX_WATCHLIST_SIZE = 75;
 
+// Matches PRESET_COLORS in use-watchlist.ts; '' clears the tag.
+const COLOR_TAG_RE = /^(#[0-9a-fA-F]{6})?$/;
+
 // All watchlist routes require auth
 router.use(requireAuth);
 
 // GET /watchlist
 router.get("/watchlist", async (req, res) => {
-  const rows = await db.select({ ticker: watchlist.ticker, addedAt: watchlist.addedAt })
+  const rows = await db.select({ ticker: watchlist.ticker, addedAt: watchlist.addedAt, colorTag: watchlist.colorTag })
     .from(watchlist)
     .where(eq(watchlist.userId, req.session.userId!))
     .orderBy(asc(watchlist.addedAt));
   return res.json(rows);
 });
 
+// GET /watchlist/user/:username — another user's tagged watchlist, for profile viewing.
+// Any signed-in user can view (mirrors existing /api/feed/buckets/:username visibility).
+router.get("/watchlist/user/:username", async (req, res) => {
+  const [target] = await db.select({ id: users.id })
+    .from(users)
+    .where(eq(users.username, req.params["username"]!))
+    .limit(1);
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const rows = await db.select({ ticker: watchlist.ticker, addedAt: watchlist.addedAt, colorTag: watchlist.colorTag })
+    .from(watchlist)
+    .where(eq(watchlist.userId, target.id))
+    .orderBy(asc(watchlist.addedAt));
+  return res.json(rows);
+});
+
 // POST /watchlist
 router.post("/watchlist", async (req, res) => {
-  const { ticker } = req.body as { ticker?: string };
+  const { ticker, colorTag } = req.body as { ticker?: string; colorTag?: string };
   if (!ticker || typeof ticker !== "string") {
     return res.status(400).json({ error: "ticker is required" });
   }
   const normalized = ticker.trim().toUpperCase();
   if (normalized.length === 0 || normalized.length > 10) {
     return res.status(400).json({ error: "ticker must be 1-10 characters" });
+  }
+  if (colorTag !== undefined && !COLOR_TAG_RE.test(colorTag)) {
+    return res.status(400).json({ error: "colorTag must be a 6-digit hex color or empty" });
   }
 
   const existingCount = await db.$count(watchlist, eq(watchlist.userId, req.session.userId!));
@@ -37,7 +59,7 @@ router.post("/watchlist", async (req, res) => {
   }
 
   await db.insert(watchlist)
-    .values({ userId: req.session.userId!, ticker: normalized, tier: 1, status: "monitoring" })
+    .values({ userId: req.session.userId!, ticker: normalized, tier: 1, status: "monitoring", colorTag: colorTag ?? "" })
     .onConflictDoNothing();
 
   // Ensure ticker is in ticker_registry with fetch_fundamentals=true.
@@ -71,6 +93,20 @@ router.post("/watchlist", async (req, res) => {
     ticker: normalized,
     ...(warnings.length > 0 ? { warnings } : {}),
   });
+});
+
+// PATCH /watchlist/:ticker — update color tag
+router.patch("/watchlist/:ticker", async (req, res) => {
+  const { colorTag } = req.body as { colorTag?: string };
+  if (typeof colorTag !== "string" || !COLOR_TAG_RE.test(colorTag)) {
+    return res.status(400).json({ error: "colorTag must be a 6-digit hex color or empty" });
+  }
+  const result = await db.update(watchlist)
+    .set({ colorTag })
+    .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, req.params["ticker"]!)))
+    .returning({ ticker: watchlist.ticker });
+  if (result.length === 0) return res.status(404).json({ error: "Ticker not in watchlist" });
+  return res.json({ ok: true });
 });
 
 // DELETE /watchlist/:ticker

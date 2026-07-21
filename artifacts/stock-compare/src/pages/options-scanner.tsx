@@ -802,6 +802,15 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
   );
 }
 
+// Scoped per user so multiple accounts on the same browser don't inherit each
+// other's manually-added/hidden scanner tickers (mirrors colorKey in use-watchlist.ts)
+function scannerExtraKey(userId: number | undefined): string {
+  return userId ? `fildi_scanner_extra_${userId}` : "fildi_scanner_extra";
+}
+function scannerHiddenKey(userId: number | undefined): string {
+  return userId ? `fildi_scanner_hidden_${userId}` : "fildi_scanner_hidden";
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
@@ -820,16 +829,25 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
+  // Scoped per user (like colorKey in use-watchlist.ts) so multiple accounts on
+  // the same browser don't inherit each other's manually-added/hidden tickers.
   const [extraTickers,  setExtraTickers]  = useState<string[]>(() => {
-    try { const s = localStorage.getItem("fildi_scanner_extra"); return s ? JSON.parse(s) : []; } catch { return []; }
+    try { const s = localStorage.getItem(scannerExtraKey(user?.id)); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(() => {
-    try { const s = localStorage.getItem("fildi_scanner_hidden"); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
+    try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
   });
   const [addInput,      setAddInput]      = useState("");
 
-  useEffect(() => { localStorage.setItem("fildi_scanner_extra",  JSON.stringify(extraTickers)); }, [extraTickers]);
-  useEffect(() => { localStorage.setItem("fildi_scanner_hidden", JSON.stringify([...hiddenTickers])); }, [hiddenTickers]);
+  // Reload from the new user's key on account switch (covers login/logout without a full page reload)
+  useEffect(() => {
+    try { const s = localStorage.getItem(scannerExtraKey(user?.id)); setExtraTickers(s ? JSON.parse(s) : []); } catch { setExtraTickers([]); }
+    try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); setHiddenTickers(s ? new Set(JSON.parse(s)) : new Set()); } catch { setHiddenTickers(new Set()); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => { localStorage.setItem(scannerExtraKey(user?.id),  JSON.stringify(extraTickers)); }, [extraTickers, user?.id]);
+  useEffect(() => { localStorage.setItem(scannerHiddenKey(user?.id), JSON.stringify([...hiddenTickers])); }, [hiddenTickers, user?.id]);
   useEffect(() => { saveTraderPrefs({ minWeeklyIncome: minIncome }, user?.id); }, [minIncome, user?.id]);
   useEffect(() => { try { sessionStorage.setItem("fildi_scanner_expanded", JSON.stringify([...expandedSet])); } catch {} }, [expandedSet]);
 
