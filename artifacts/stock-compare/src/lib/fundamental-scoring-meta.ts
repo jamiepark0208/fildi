@@ -31,18 +31,27 @@ export const FUNDAMENTAL_METRIC_BY_KEY: Record<string, FundamentalMetricMeta> =
   Object.fromEntries(FUNDAMENTAL_METRIC_META.map(m => [m.key, m]));
 
 export const REGIME_FAMILY_WEIGHTS: Record<string, Record<FundamentalFamily, number>> = {
-  expansion:   { quality: 30, growth: 35, safety: 20 },
-  late_cycle:  { quality: 35, growth: 20, safety: 25 },
-  contraction: { quality: 35, growth: 15, safety: 30 },
-  recession:   { quality: 30, growth: 10, safety: 45 },
-  recovery:    { quality: 30, growth: 35, safety: 20 },
-  stagflation: { quality: 35, growth: 10, safety: 30 },
+  expansion:   { quality: 35, growth: 41, safety: 24 },
+  late_cycle:  { quality: 44, growth: 25, safety: 31 },
+  contraction: { quality: 44, growth: 19, safety: 37 },
+  recession:   { quality: 35, growth: 12, safety: 53 },
+  recovery:    { quality: 35, growth: 41, safety: 24 },
+  stagflation: { quality: 47, growth: 13, safety: 40 },
 };
-export const DEFAULT_FAMILY_WEIGHTS: Record<FundamentalFamily, number> = { quality: 35, growth: 25, safety: 20 };
+export const DEFAULT_FAMILY_WEIGHTS: Record<FundamentalFamily, number> = { quality: 40, growth: 35, safety: 25 };
 
 export function familyWeightsForRegime(regime: string | undefined): Record<FundamentalFamily, number> {
   return (regime && REGIME_FAMILY_WEIGHTS[regime]) ? REGIME_FAMILY_WEIGHTS[regime] : DEFAULT_FAMILY_WEIGHTS;
 }
+
+// How much each metric's percentile leans on same-sector peers vs. the whole universe.
+// Mirrors SECTOR_WEIGHT / MIN_SECTOR_PEERS in fundamentals-db.ts.
+export const SECTOR_WEIGHT: Record<string, number> = {
+  grossMargin: 0.70, operatingMargin: 0.70, netMargin: 0.65, roe: 0.55, roicWacc: 0.50,
+  revGrowth: 0.60, epsGrowth: 0.55, currentRatio: 0.65, debtToEquity: 0.70, intCoverage: 0.65,
+  cashRunway: 0.30,
+};
+export const MIN_SECTOR_PEERS = 3;
 
 export function formatMetricValue(meta: FundamentalMetricMeta | undefined, raw: number): string {
   if (!meta) return raw.toFixed(2);

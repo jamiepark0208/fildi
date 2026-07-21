@@ -518,7 +518,9 @@ router.get("/stocks/history", async (req, res) => {
   }
 });
 
-export const quoteCache = new TTLCache<object>(60 * 60 * 1000, 'quote', 1000); // key = ticker
+type QuoteMetrics = ReturnType<typeof buildMetrics> & { earningsDate: ReturnType<typeof parseEarningsDate> };
+
+export const quoteCache = new TTLCache<QuoteMetrics>(60 * 60 * 1000, 'quote', 1000); // key = ticker
 
 async function fetchQuoteSummary(ticker: string) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
@@ -526,7 +528,7 @@ async function fetchQuoteSummary(ticker: string) {
   });
 }
 
-async function fetchQuoteMetrics(ticker: string) {
+async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
   const cached = quoteCache.get(key);
   if (cached) return cached;

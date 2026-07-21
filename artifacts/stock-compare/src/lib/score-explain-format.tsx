@@ -3,12 +3,20 @@ import { cn } from "@/lib/utils";
 
 // Shared "ag-grid" table look used across the app (see macro.tsx SEP Projections table):
 // bordered container, dense uppercase header row, zebra rows, hover highlight, tabular numerals.
-export const GRID_WRAP   = "border border-border/60 rounded-lg overflow-hidden";
-export const GRID_HEADER = "border-b border-border/60 bg-secondary/20";
-export const GRID_TH     = "py-1.5 px-2.5 font-medium text-[10px] uppercase tracking-widest text-muted-foreground whitespace-nowrap";
-export const GRID_TD     = "py-1.5 px-2.5 text-[11px] tabular-nums";
+// bg-black/30 gives the table its own visibly darker surface vs. the translucent row it sits in
+// (rows use bg-*/5, near-identical to the card background — without this the table edges vanish).
+export const GRID_WRAP   = "border border-border/60 rounded-lg overflow-hidden bg-black/30";
+export const GRID_HEADER = "border-b border-border/60 bg-secondary/30";
+export const GRID_TH     = "py-1 px-2.5 font-medium text-[11px] uppercase tracking-widest text-muted-foreground whitespace-nowrap";
+export const GRID_TD     = "py-1 px-2.5 text-[13px] tabular-nums";
 export const gridRow = (i: number) =>
-  cn("border-b border-border/20 last:border-0 hover:bg-secondary/10 transition-colors", i % 2 === 1 && "bg-secondary/5");
+  cn("border-b border-border/20 last:border-0 hover:bg-secondary/10 transition-colors", i % 2 === 1 && "bg-secondary/10");
+
+export const FAMILY_BAR_COLOR: Record<"quality" | "growth" | "safety", string> = {
+  quality: "bg-purple-400",
+  growth:  "bg-green-400",
+  safety:  "bg-amber-400",
+};
 
 export function zScoreColor(z: number): string {
   if (z >= 1.5) return "text-emerald-400";
