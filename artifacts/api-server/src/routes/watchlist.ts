@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { db, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 
@@ -28,7 +28,7 @@ router.get("/watchlist", async (req, res) => {
 router.get("/watchlist/user/:username", async (req, res) => {
   const [target] = await db.select({ id: users.id })
     .from(users)
-    .where(eq(users.username, req.params["username"]!))
+    .where(eq(sql`lower(${users.username})`, req.params["username"]!.toLowerCase()))
     .limit(1);
   if (!target) return res.status(404).json({ error: "User not found" });
 

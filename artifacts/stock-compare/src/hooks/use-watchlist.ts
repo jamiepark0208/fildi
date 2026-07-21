@@ -95,12 +95,21 @@ export function useWatchlist() {
   }, [queryClient]);
 
   const updateColorTag = useCallback(async (ticker: string, colorTag: string) => {
-    await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
+    const res = await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ colorTag }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      toast({
+        title: "Couldn't update tag",
+        description: body.error ?? "Unknown error",
+        variant: "destructive",
+      });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
   }, [queryClient]);
 
