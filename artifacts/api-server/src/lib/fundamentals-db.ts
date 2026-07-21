@@ -269,6 +269,8 @@ export type FundScoreResult = {
   computedAt: string;
   metricScores?: Record<string, { value: number | null; weightedScore: number }>;
   peerGroupId?: string | null;
+  peerGroupName?: string | null;
+  peerGroupSize?: number;
 };
 
 type Family = 'quality' | 'growth' | 'safety';
@@ -428,10 +430,16 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
   const groupExclusionRows = uniqueGroupIds.length > 0
-    ? await db.select({ id: peerGroups.id, metricExclusions: peerGroups.metricExclusions })
+    ? await db.select({ id: peerGroups.id, name: peerGroups.name, metricExclusions: peerGroups.metricExclusions })
         .from(peerGroups).where(inArray(peerGroups.id, uniqueGroupIds))
     : [];
   const exclusionsByGroup = new Map(groupExclusionRows.map(g => [g.id, new Set(g.metricExclusions ?? [])]));
+  const nameByGroup = new Map(groupExclusionRows.map(g => [g.id, g.name]));
+  const groupSizeById = new Map<string, number>();
+  regRows.forEach(r => {
+    if (!r.primaryPeerGroupId) return;
+    groupSizeById.set(r.primaryPeerGroupId, (groupSizeById.get(r.primaryPeerGroupId) ?? 0) + 1);
+  });
 
   // Raw metric values with peer-group exclusions and ROE structural null applied
   const values = SCORING_METRICS.map(m => rows.map(r => m.getValue(r)));
@@ -492,6 +500,14 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     computedAt: computedAt.toISOString(),
     metricScores: perMetric.get(r.ticker),
     peerGroupId: peerGroupByTicker.get(r.ticker) ?? null,
+    peerGroupName: (() => {
+      const gid = peerGroupByTicker.get(r.ticker);
+      return gid ? (nameByGroup.get(gid) ?? null) : null;
+    })(),
+    peerGroupSize: (() => {
+      const gid = peerGroupByTicker.get(r.ticker);
+      return gid ? (groupSizeById.get(gid) ?? 0) : 0;
+    })(),
   }));
 
   // Persist scores back to DB — single batch upsert instead of one UPDATE per ticker
@@ -558,6 +574,17 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     .from(tickerRegistry)
     .where(inArray(tickerRegistry.ticker, rawRows.map(r => r.ticker)));
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
+  const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+  const groupNameRows = uniqueGroupIds.length > 0
+    ? await db.select({ id: peerGroups.id, name: peerGroups.name })
+        .from(peerGroups).where(inArray(peerGroups.id, uniqueGroupIds))
+    : [];
+  const nameByGroup = new Map(groupNameRows.map(g => [g.id, g.name]));
+  const groupSizeById = new Map<string, number>();
+  regRows.forEach(r => {
+    if (!r.primaryPeerGroupId) return;
+    groupSizeById.set(r.primaryPeerGroupId, (groupSizeById.get(r.primaryPeerGroupId) ?? 0) + 1);
+  });
   const familyWeights: Record<Family, number> =
     (currentRegime && REGIME_WEIGHTS[currentRegime]) ? REGIME_WEIGHTS[currentRegime] : DEFAULT_WEIGHTS;
   const perMetric = computePerMetricScores(rawRows, familyWeights, peerGroupByTicker);
@@ -573,5 +600,13 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     computedAt:   r.fundScoreComputedAt!.toISOString(),
     metricScores: perMetric.get(r.ticker),
     peerGroupId:  peerGroupByTicker.get(r.ticker) ?? null,
+    peerGroupName: (() => {
+      const gid = peerGroupByTicker.get(r.ticker);
+      return gid ? (nameByGroup.get(gid) ?? null) : null;
+    })(),
+    peerGroupSize: (() => {
+      const gid = peerGroupByTicker.get(r.ticker);
+      return gid ? (groupSizeById.get(gid) ?? 0) : 0;
+    })(),
   }));
 }

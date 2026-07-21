@@ -24,10 +24,18 @@ interface FundamentalData {
   dataQuality?:   string;
   sector?:        string;
   industry?:      string;
+  peerGroup?:     string;
+  peerGroupSize?: number;
   metricValues?:  Record<string, number | null>;
   // Real cross-sectional peer numbers, keyed by metric label — lets the model cite an
-  // actual peer median instead of inventing a plausible-sounding benchmark.
-  metricDetails?: Record<string, { value: string; percentile: number; peerMedian: string; n: number }>;
+  // actual peer median instead of inventing a plausible-sounding benchmark. sectorMedian is
+  // the ticker's actual peer-group median (undefined if no/too-small peer group); marketMedian
+  // is the whole-universe fallback — always present.
+  metricDetails?: Record<string, {
+    value: string; percentile: number;
+    sectorMedian?: string; sectorN?: number;
+    marketMedian: string; n: number;
+  }>;
 }
 
 interface TechnicalData {
@@ -62,7 +70,7 @@ interface ExplainRequest {
 
 // ── Score hash — deterministic fingerprint of key inputs ──────────────────────
 // Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
-const PROMPT_VERSION = "v4";
+const PROMPT_VERSION = "v5";
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
@@ -84,13 +92,18 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
     : "";
 
   const sectorCtx = d.sector ? `Sector: ${d.sector}${d.industry ? ` / ${d.industry}` : ""}` : "";
+  const peerGroupCtx = d.peerGroup ? `Peer group: ${d.peerGroup} (${d.peerGroupSize ?? "?"} tickers)` : "";
   const universeSize = d.universeSize ?? 256;
 
   // Prefer the real cross-sectional numbers (metricDetails) over raw metricValues — this is
   // what the model must cite, so it can't invent a "vs X% peers" figure that doesn't exist.
+  // sectorMedian (the actual peer-group comparison) is what should be cited when present;
+  // marketMedian is only the fallback for metrics/tickers without a usable peer group.
   const metricLines = d.metricDetails
     ? Object.entries(d.metricDetails)
-        .map(([label, m]) => `  ${label}: ${m.value} — ${m.percentile}th percentile of ${m.n} peers (peer median ${m.peerMedian})`)
+        .map(([label, m]) => m.sectorMedian
+          ? `  ${label}: ${m.value} — ${m.percentile}th percentile (sector median ${m.sectorMedian} of ${m.sectorN} peers; market median ${m.marketMedian} of ${m.n})`
+          : `  ${label}: ${m.value} — ${m.percentile}th percentile of ${m.n} peers (market median ${m.marketMedian})`)
         .join("\n")
     : d.metricValues
       ? Object.entries(d.metricValues)
@@ -103,17 +116,18 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
 
 Ticker: ${ticker}
 ${sectorCtx}
+${peerGroupCtx}
 Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} of ${universeSize} in the universe
 Pillar scores — Value: ${d.familyScores.value.toFixed(0)}/100 | Growth: ${d.familyScores.growth.toFixed(0)}/100 | Quality: ${d.familyScores.quality.toFixed(0)}/100 | Safety: ${d.familyScores.safety.toFixed(0)}/100
 Top strengths: ${d.topMetrics.join(", ") || "none"}
 Top weaknesses: ${d.weakMetrics.join(", ") || "none"}
-${metricLines ? `\nMetrics (value — percentile vs the actual universe, peer median given):\n${metricLines}` : ""}
+${metricLines ? `\nMetrics (value — percentile, sector median preferred over market median when both given):\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
 
 Write exactly 3 bullet points (starting with -). Rules:
 - Each bullet: max 12 words + one parenthetical with the key number
-- Format: "[what it means for a put seller] (value vs peer median — use ONLY the peer median numbers given above, never invent one)"
-- Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% peer median)"
+- Format: "[what it means for a put seller] (value vs sector median if given, else market median — use ONLY the numbers given above, never invent one)"
+- Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% sector median)"
 - Only the 3 most significant drivers — skip anything near average
 
 No intro. No outro. No investment advice.`;

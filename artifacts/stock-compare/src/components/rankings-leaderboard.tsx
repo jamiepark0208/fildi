@@ -49,6 +49,14 @@ export interface MetricRow {
   peerMedian: string;
   peerMax: string;
   zScore: number;
+  sectorWeight: number;   // 0-1, how much this metric's percentile leans on peerGroup vs market
+  // Peer-group-specific comparison — the numbers that actually drove most of `percentile`
+  // for high-sectorWeight metrics. Undefined when the ticker has no peer group or the group
+  // is too small (< MIN_SECTOR_PEERS) to be meaningful.
+  groupN?: number;
+  groupMin?: string;
+  groupMedian?: string;
+  groupMax?: string;
 }
 
 function metricLabel(key: string): string {
@@ -88,7 +96,12 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
 
     const universePct = percentileOf(rawVal, sorted, higherBetter);
 
+    const sectorWeight = SECTOR_WEIGHT[key] ?? 0.5;
     let blendedPct = universePct;
+    let groupN: number | undefined;
+    let groupMin: string | undefined;
+    let groupMedian: string | undefined;
+    let groupMax: string | undefined;
     if (scoreGroup) {
       const groupVals = allScores
         .filter(s => s.peerGroupId === scoreGroup)
@@ -97,8 +110,14 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
       if (groupVals.length >= MIN_SECTOR_PEERS) {
         const groupSorted = [...groupVals].sort((a, b) => a - b);
         const groupPct = percentileOf(rawVal, groupSorted, higherBetter);
-        const sectorWeight = SECTOR_WEIGHT[key] ?? 0.5;
         blendedPct = groupPct * sectorWeight + universePct * (1 - sectorWeight);
+        const gMedian = groupSorted.length % 2 === 1
+          ? groupSorted[(groupSorted.length - 1) / 2]
+          : (groupSorted[groupSorted.length / 2 - 1] + groupSorted[groupSorted.length / 2]) / 2;
+        groupN = groupVals.length;
+        groupMin = formatMetricValue(meta, groupSorted[0]);
+        groupMedian = formatMetricValue(meta, gMedian);
+        groupMax = formatMetricValue(meta, groupSorted[groupSorted.length - 1]);
       }
     }
 
@@ -124,6 +143,8 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
       peerMedian: formatMetricValue(meta, median),
       peerMax: formatMetricValue(meta, sorted[sorted.length - 1]),
       zScore: std > 0 ? (rawVal - mean) / std : 0,
+      sectorWeight,
+      groupN, groupMin, groupMedian, groupMax,
     };
   }).sort((a, b) => b.percentile - a.percentile);
 }
@@ -174,9 +195,15 @@ function buildFundamentalPayload(score: StockScore, allScores: StockScore[], sto
       dataQuality:    score.dataQuality,
       sector:         stockData?.sector   ?? undefined,
       industry:       stockData?.industry ?? undefined,
+      peerGroup:      score.peerGroupName ?? undefined,
+      peerGroupSize:  score.peerGroupSize ?? undefined,
       // Real cross-sectional numbers — instructs the model to cite these instead of guessing.
+      // Prefer sector-peer median/range over the whole-market one when available, since that's
+      // what actually explains why this ticker beat or lost to a specific rival.
       metricDetails:  Object.fromEntries(metricRows.map(r => [r.label, {
-        value: r.valueStr, percentile: r.percentile, peerMedian: r.peerMedian, n: r.n,
+        value: r.valueStr, percentile: r.percentile,
+        sectorMedian: r.groupMedian ?? undefined, sectorN: r.groupN ?? undefined,
+        marketMedian: r.peerMedian, n: r.n,
       }])),
     },
   };
@@ -301,7 +328,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
           {metricRows.length > 0 && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
-                Metrics vs {allScores.length} tickers (blended with sector peers)
+                Peer group: {score.peerGroupName
+                  ? <span className="text-white/70 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} tickers)</span>
+                  : <span className="text-white/50 normal-case tracking-normal">unclassified — scored vs full {allScores.length}-ticker market only</span>}
               </p>
               <div className={GRID_WRAP}>
                 <table className="w-full border-collapse">
@@ -311,9 +340,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
                       <th className={cn(GRID_TH, "text-right")}>Value</th>
                       <th className={cn(GRID_TH, "text-right")}>Wt</th>
                       <th className={cn(GRID_TH, "text-right")}>Percentile</th>
-                      <th className={cn(GRID_TH, "text-right")}>Peer Min</th>
-                      <th className={cn(GRID_TH, "text-right")}>Peer Median</th>
-                      <th className={cn(GRID_TH, "text-right")}>Peer Max</th>
+                      <th className={cn(GRID_TH, "text-right")}>Sector Median</th>
+                      <th className={cn(GRID_TH, "text-right")}>Sector Range</th>
+                      <th className={cn(GRID_TH, "text-right")}>Market Median</th>
                       <th className={cn(GRID_TH, "text-right")}>z</th>
                     </tr>
                   </thead>
@@ -327,10 +356,16 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
                           <span className={cn("inline-block px-1.5 py-0.5 rounded border text-[10px] font-mono font-semibold", percentileBadge(row.percentile))}>
                             {row.percentile}th · #{row.rankPos}/{row.n}
                           </span>
+                          <span className="block text-[9px] text-white/30 mt-0.5">{Math.round(row.sectorWeight * 100)}% sector</span>
                         </td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMin}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/60")}>{row.peerMedian}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMax}</td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/70")}>
+                          {row.groupMedian ?? <span className="text-white/25 italic">n/a</span>}
+                          {row.groupN != null && <span className="block text-[9px] text-white/30">n={row.groupN}</span>}
+                        </td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>
+                          {row.groupMin != null ? `${row.groupMin} – ${row.groupMax}` : <span className="text-white/25 italic">n/a</span>}
+                        </td>
+                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMedian}</td>
                         <td className={cn(GRID_TD, "text-right font-mono font-semibold", zScoreColor(row.zScore))}>
                           {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}
                         </td>
