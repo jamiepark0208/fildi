@@ -65,7 +65,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
-      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }> }>>;
+      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }>; peerGroupId?: string | null; peerGroupName?: string | null; peerGroupSize?: number }>>;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -99,6 +99,9 @@ export default function Home({ tickers, setTickers }: HomeProps) {
           safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
         },
         regime: r.regime,
+        peerGroupId:   r.peerGroupId ?? undefined,
+        peerGroupName: r.peerGroupName ?? undefined,
+        peerGroupSize: r.peerGroupSize,
       }));
   }, [serverRankings, loadedStocks]);
 

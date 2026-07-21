@@ -49,6 +49,10 @@ export type StockScore = {
   // Peer group context — present when peerGroupMap was passed to computeRankingsV2
   peerGroupId?: string;
   peerGroupConfidence?: 'mapped' | 'auto' | 'unmapped';
+  // Human-readable peer group name/size — present when scores came from the server
+  // (/api/fundamentals/rankings), which joins peer_groups.name server-side.
+  peerGroupName?: string | null;
+  peerGroupSize?: number;
   // Macro regime at score time — drives family weights server-side (REGIME_WEIGHTS in
   // fundamentals-db.ts). Needed client-side to reproduce the same formula in the Why panel.
   regime?: string;
