@@ -240,10 +240,19 @@ components:
           type: ["number", "null"]
         pegRatio:
           type: ["number", "null"]
+        forwardPe:
+          type: ["number", "null"]
+          description: Forward P/E ratio. Source Yahoo/FMP/Alpha Vantage.
         priceToBook:
           type: ["number", "null"]
         priceToSales:
           type: ["number", "null"]
+        evEbitda:
+          type: ["number", "null"]
+          description: Enterprise value / EBITDA. Source Yahoo/FMP.
+        evRevenue:
+          type: ["number", "null"]
+          description: Enterprise value / revenue. Source Yahoo/FMP.
         leverageRatio:
           type: ["number", "null"]
         debtToEquity:
@@ -252,6 +261,9 @@ components:
           type: ["number", "null"]
         revenueGrowthYoY:
           type: ["number", "null"]
+        revenueGrowthYoyPrior:
+          type: ["number", "null"]
+          description: Prior-period YoY revenue growth (for acceleration/deceleration comparisons). Source Yahoo/FMP.
         revenueGrowthProjected:
           type: ["number", "null"]
         netIncome:

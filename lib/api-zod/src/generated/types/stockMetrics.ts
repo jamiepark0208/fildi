@@ -17,10 +17,25 @@ export interface StockMetrics {
   peRatio?: number | null;
   /** @nullable */
   pegRatio?: number | null;
+  /**
+     * Forward P/E ratio. Source Yahoo/FMP/Alpha Vantage.
+     * @nullable
+     */
+  forwardPe?: number | null;
   /** @nullable */
   priceToBook?: number | null;
   /** @nullable */
   priceToSales?: number | null;
+  /**
+     * Enterprise value / EBITDA. Source Yahoo/FMP.
+     * @nullable
+     */
+  evEbitda?: number | null;
+  /**
+     * Enterprise value / revenue. Source Yahoo/FMP.
+     * @nullable
+     */
+  evRevenue?: number | null;
   /** @nullable */
   leverageRatio?: number | null;
   /** @nullable */
@@ -29,6 +44,11 @@ export interface StockMetrics {
   totalRevenue?: number | null;
   /** @nullable */
   revenueGrowthYoY?: number | null;
+  /**
+     * Prior-period YoY revenue growth (for acceleration/deceleration comparisons). Source Yahoo/FMP.
+     * @nullable
+     */
+  revenueGrowthYoyPrior?: number | null;
   /** @nullable */
   revenueGrowthProjected?: number | null;
   /** @nullable */

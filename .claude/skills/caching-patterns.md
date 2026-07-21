@@ -36,6 +36,10 @@ provenance        | Provenance (field source data)  | 15 min   | lib/provenance-
 macro-indicator-history | Macro Indicator History    | 30 min   | routes/macro.ts
 macro-sep-actuals | SEP Actuals                     | 1 hour   | routes/macro.ts
 macro-sector-rotation | Sector Rotation Heatmap      | 30 min   | routes/macro.ts
+ticker-news       | Ticker News (Explain AI)        | 30 min   | lib/explain-context.ts
+live-price        | Live Price (Golden Source)      | 1 min    | lib/live-quote.ts
+live-screener     | Live Movers (Yahoo Screener)    | 5 min    | lib/live-movers.ts
+daily-brief-market | Daily Brief Market Strip       | 1 min    | routes/daily-brief.ts
 
 ## Cache key conventions
 - Single ticker: ticker.toUpperCase() e.g. "NVDA"

@@ -10,6 +10,15 @@
     "@tanstack/react-query": "catalog:"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "@sentry/react": "^10.64.0"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@sentry/react": "^10.64.0"
   }
 }

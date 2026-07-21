@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
@@ -445,6 +445,7 @@ interface ScannerRowProps {
   bestOptionScore?: number | null;
   bestIncome?: number | null;
   bestBuffer?: number | null;
+  stockScore?: number | null;
 }
 
 function ScannerRow({
@@ -470,6 +471,7 @@ function ScannerRow({
   bestOptionScore = null,
   bestIncome = null,
   bestBuffer = null,
+  stockScore = null,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
@@ -599,14 +601,14 @@ function ScannerRow({
           {bestOptionScore != null ? bestOptionScore.toFixed(1) : "—"}
         </span>
 
-        {/* Score */}
+        {/* Stock Score (blended tech+fund+relMove+option+tag) — matches "score" sort key */}
         <span className={cn(
           "text-xs w-[90px] shrink-0 font-mono font-semibold",
-          score == null ? "text-white" :
-          score.totalScore >= 70 ? "text-green-400" :
-          score.totalScore >= 50 ? "text-yellow-400" : "text-white",
+          stockScore == null ? "text-white" :
+          stockScore >= 70 ? "text-green-400" :
+          stockScore >= 50 ? "text-yellow-400" : "text-white",
         )}>
-          {score ? score.totalScore.toFixed(1) : "—"}
+          {stockScore != null ? stockScore.toFixed(1) : "—"}
         </span>
 
         {/* IV — distinctly amber */}
@@ -1083,22 +1085,17 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
-  // Use refs for options-derived maps so loading new data doesn't trigger re-sort.
-  // Sort order only changes when the user picks a different sort key or tickers change.
-  const optionsMapRef        = useRef(optionsMap);        optionsMapRef.current        = optionsMap;
-  const bestOptionScoreMapRef = useRef(bestOptionScoreMap); bestOptionScoreMapRef.current = bestOptionScoreMap;
-  const stockScoreMapRef     = useRef(stockScoreMap);     stockScoreMapRef.current     = stockScoreMap;
-  const scorecardMapRef      = useRef(scorecardMap);      scorecardMapRef.current      = scorecardMap;
-  const bestIncomeMapRef     = useRef(bestIncomeMap);     bestIncomeMapRef.current     = bestIncomeMap;
-  const bufferMapRef         = useRef(bufferMap);         bufferMapRef.current         = bufferMap;
-
+  // Re-sorts whenever the score map behind the active sort key actually changes
+  // (e.g. options/technicals data finishes loading) — previously this read stale
+  // snapshots via refs, which froze row order at whatever (mostly-empty) scores
+  // existed on first render and never converged to match the displayed values.
   const sortedTickers = useMemo(() => {
-    const optMap    = optionsMapRef.current;
-    const bestScores = bestOptionScoreMapRef.current;
-    const stockScores = stockScoreMapRef.current;
-    const scorecard = scorecardMapRef.current;
-    const incomeMap  = bestIncomeMapRef.current;
-    const bufMap     = bufferMapRef.current;
+    const optMap     = optionsMap;
+    const bestScores  = bestOptionScoreMap;
+    const stockScores = stockScoreMap;
+    const scorecard   = scorecardMap;
+    const incomeMap   = bestIncomeMap;
+    const bufMap      = bufferMap;
 
     let list = [...displayTickers];
 
@@ -1130,8 +1127,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       }
     });
     return list;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayTickers, sort, isLoaded]);
+  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
@@ -1299,6 +1295,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 bestOptionScore={bestOptionScoreMap.get(ticker) ?? null}
                 bestIncome={bestIncomeMap.get(ticker) ?? null}
                 bestBuffer={bufferMap.get(ticker) ?? null}
+                stockScore={stockScoreMap.get(ticker) ?? null}
               />
             ))}
           </div>
