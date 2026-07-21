@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import {
   FUNDAMENTAL_METRIC_BY_KEY, FundamentalFamily, familyWeightsForRegime, formatMetricValue,
+  SECTOR_WEIGHT, MIN_SECTOR_PEERS,
 } from "@/lib/fundamental-scoring-meta";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, zScoreColor, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -56,15 +57,27 @@ function metricLabel(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
 }
 
-// Recomputes the same percentile-rank formula the server uses (computePerMetricScores in
-// fundamentals-db.ts) purely from the metric values already present in `allScores`, so the
-// breakdown is provably the same number the server used to score this ticker — not an
-// approximation.
+function percentileOf(rawVal: number, sorted: number[], higherBetter: boolean): number {
+  const idx = sorted.findIndex(v => v >= rawVal);
+  const rawPct = sorted.length <= 1 ? 0.5 : idx / (sorted.length - 1);
+  return higherBetter ? rawPct : 1 - rawPct;
+}
+
+// Recomputes the same percentile-rank formula the server uses (computePerMetricScores /
+// computeBlendedPctRanks in fundamentals-db.ts) purely from the metric values already present
+// in `allScores`, so the breakdown is provably the same number the server used to score this
+// ticker — not an approximation. Peer min/median/max/n/z stay whole-universe (real context for
+// the reader); only `percentile` blends in the peer-group-relative rank per SECTOR_WEIGHT,
+// matching how the metric was actually scored. Grouped by `peerGroupId` (from
+// tickerRegistry.primaryPeerGroupId, populated for 273/276 tickers) — NOT tickerRegistry.sector,
+// which is only set for a handful of tickers and would silently disable the blend for almost everyone.
 function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[] {
   const entries = Object.entries(score.metricScores).filter(([, v]) => v.value != null);
+  const scoreGroup = score.peerGroupId ?? null;
 
   return entries.map(([key, mv]) => {
     const meta = FUNDAMENTAL_METRIC_BY_KEY[key];
+    const higherBetter = meta?.higherBetter ?? true;
     const rawVal = mv.value as number;
     const peerVals = allScores
       .map(s => s.metricScores[key]?.value)
@@ -73,12 +86,24 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
     const mean = peerVals.reduce((a, b) => a + b, 0) / peerVals.length;
     const std = Math.sqrt(peerVals.reduce((a, b) => a + (b - mean) ** 2, 0) / peerVals.length);
 
-    const idx = sorted.findIndex(v => v >= rawVal);
-    const rawPct = sorted.length <= 1 ? 0.5 : idx / (sorted.length - 1);
-    const pct = meta && !meta.higherBetter ? 1 - rawPct : rawPct;
+    const universePct = percentileOf(rawVal, sorted, higherBetter);
+
+    let blendedPct = universePct;
+    if (scoreGroup) {
+      const groupVals = allScores
+        .filter(s => s.peerGroupId === scoreGroup)
+        .map(s => s.metricScores[key]?.value)
+        .filter((v): v is number => v != null);
+      if (groupVals.length >= MIN_SECTOR_PEERS) {
+        const groupSorted = [...groupVals].sort((a, b) => a - b);
+        const groupPct = percentileOf(rawVal, groupSorted, higherBetter);
+        const sectorWeight = SECTOR_WEIGHT[key] ?? 0.5;
+        blendedPct = groupPct * sectorWeight + universePct * (1 - sectorWeight);
+      }
+    }
 
     // "#N of M" rank, always 1 = best regardless of higher/lower-is-better framing.
-    const rankPos = meta?.higherBetter === false
+    const rankPos = higherBetter === false
       ? sorted.indexOf(rawVal) + 1
       : [...sorted].reverse().indexOf(rawVal) + 1;
 
@@ -92,7 +117,7 @@ function buildMetricRows(score: StockScore, allScores: StockScore[]): MetricRow[
       valueStr: formatMetricValue(meta, rawVal),
       weight: meta?.weight ?? 0,
       family: meta?.family ?? "quality",
-      percentile: Math.round(pct * 100),
+      percentile: Math.round(blendedPct * 100),
       rankPos,
       n: peerVals.length,
       peerMin: formatMetricValue(meta, sorted[0]),
@@ -185,7 +210,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
 
   const isExpanded = state.status === "done" && !!state.text && open;
   const metricRows = isExpanded ? buildMetricRows(score, allScores) : [];
-  const { rows: familyRows, weightSum } = isExpanded ? buildFamilyBreakdown(score) : { rows: [], weightSum: 0 };
+  // Computed unconditionally (not just when expanded) since the collapsed row's stacked bar
+  // needs each family's contribution to size its color segments.
+  const { rows: familyRows, weightSum } = buildFamilyBreakdown(score);
   const bullets = isExpanded ? parseBullets(state.text).map(shortenBullet).filter(Boolean) : [];
 
   return (
@@ -208,14 +235,14 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
           <span className="text-xs text-white/50"> pts</span>
         </div>
 
-        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className={cn(
-              "h-full rounded-full",
-              idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-slate-400" : idx === 2 ? "bg-amber-700" : "bg-primary/60"
-            )}
-            style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
-          />
+        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
+          {familyRows.map(r => (
+            <div
+              key={r.family}
+              className={cn("h-full", FAMILY_BAR_COLOR[r.family])}
+              style={{ width: `${(r.contribution / maxScore) * 100}%` }}
+            />
+          ))}
         </div>
 
         <button
@@ -274,7 +301,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
           {metricRows.length > 0 && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
-                Metrics vs {metricRows[0]?.n ?? 0} peers in universe
+                Metrics vs {allScores.length} tickers (blended with sector peers)
               </p>
               <div className={GRID_WRAP}>
                 <table className="w-full border-collapse">
@@ -351,6 +378,14 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
           <Trophy className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
           <span className="text-xs text-muted-foreground">({scores.length})</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {(Object.keys(FAMILY_LABEL) as FundamentalFamily[]).map(fam => (
+            <span key={fam} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={cn("w-2 h-2 rounded-sm", FAMILY_BAR_COLOR[fam])} />
+              {FAMILY_LABEL[fam]}
+            </span>
+          ))}
         </div>
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />

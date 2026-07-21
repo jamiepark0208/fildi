@@ -268,6 +268,7 @@ export type FundScoreResult = {
   regime: string;
   computedAt: string;
   metricScores?: Record<string, { value: number | null; weightedScore: number }>;
+  peerGroupId?: string | null;
 };
 
 type Family = 'quality' | 'growth' | 'safety';
@@ -308,33 +309,87 @@ const SCORING_METRICS: Metric[] = [
   }},
 ];
 
+// Each regime's tilt away from the baseline is proportional to the original scheme, just
+// rescaled so every row sums to exactly 100 (was 75-85 before, which made the "Why" panel's
+// weight column look broken even though the score math already normalized by weightSum).
 const REGIME_WEIGHTS: Record<string, Record<Family, number>> = {
-  expansion:   { quality: 30, growth: 35, safety: 20 },
-  late_cycle:  { quality: 35, growth: 20, safety: 25 },
-  contraction: { quality: 35, growth: 15, safety: 30 },
-  recession:   { quality: 30, growth: 10, safety: 45 },
-  recovery:    { quality: 30, growth: 35, safety: 20 },
-  stagflation: { quality: 35, growth: 10, safety: 30 },
+  expansion:   { quality: 35, growth: 41, safety: 24 },
+  late_cycle:  { quality: 44, growth: 25, safety: 31 },
+  contraction: { quality: 44, growth: 19, safety: 37 },
+  recession:   { quality: 35, growth: 12, safety: 53 },
+  recovery:    { quality: 35, growth: 41, safety: 24 },
+  stagflation: { quality: 47, growth: 13, safety: 40 },
 };
-const DEFAULT_WEIGHTS: Record<Family, number> = { quality: 35, growth: 25, safety: 20 };
+const DEFAULT_WEIGHTS: Record<Family, number> = { quality: 40, growth: 35, safety: 25 };
+
+// How much each metric's percentile leans on same-sector peers vs. the whole universe.
+// Margins/leverage ratios are structurally sector-dependent (a utility's debt/equity means
+// something different than a software company's), so they lean heavily sector-relative.
+// Cash runway is mostly an absolute safety cushion regardless of sector, so it leans universe-wide.
+const SECTOR_WEIGHT: Record<string, number> = {
+  grossMargin: 0.70, operatingMargin: 0.70, netMargin: 0.65, roe: 0.55, roicWacc: 0.50,
+  revGrowth: 0.60, epsGrowth: 0.55, currentRatio: 0.65, debtToEquity: 0.70, intCoverage: 0.65,
+  cashRunway: 0.30,
+};
+const MIN_SECTOR_PEERS = 3; // below this, a sector percentile is too noisy to trust — fall back to universe-only
+
+function percentileRanks(vals: (number | null)[], higherBetter: boolean): (number | null)[] {
+  const nonNull = vals.filter((v): v is number => v !== null);
+  if (nonNull.length === 0) return vals.map(() => null);
+  const sorted = [...nonNull].sort((a, b) => a - b);
+  return vals.map(v => {
+    if (v === null) return null;
+    const idx = sorted.findIndex(s => s >= v);
+    const pct = sorted.length === 1 ? 0.5 : idx / (sorted.length - 1);
+    return higherBetter ? pct : 1 - pct;
+  });
+}
+
+// Blends each metric's whole-universe percentile with its same-sector percentile per
+// SECTOR_WEIGHT, so e.g. gross margin is judged mostly against sector peers while cash
+// runway is judged mostly against the full universe.
+function computeBlendedPctRanks(
+  rows: TickerFundamentalsRow[],
+  values: (number | null)[][],
+  sectorByTicker: Map<string, string | null>,
+): (number | null)[][] {
+  const sectorGroups = new Map<string, number[]>();
+  rows.forEach((row, ri) => {
+    const sec = sectorByTicker.get(row.ticker) ?? null;
+    if (sec === null) return;
+    if (!sectorGroups.has(sec)) sectorGroups.set(sec, []);
+    sectorGroups.get(sec)!.push(ri);
+  });
+
+  return SCORING_METRICS.map((m, mi) => {
+    const vals = values[mi];
+    const universePct = percentileRanks(vals, m.higherBetter);
+
+    const sectorPct: (number | null)[] = vals.map(() => null);
+    sectorGroups.forEach(indices => {
+      if (indices.length < MIN_SECTOR_PEERS) return;
+      const sectorVals = indices.map(ri => vals[ri]);
+      const ranks = percentileRanks(sectorVals, m.higherBetter);
+      indices.forEach((ri, k) => { sectorPct[ri] = ranks[k]; });
+    });
+
+    const sectorWeight = SECTOR_WEIGHT[m.key] ?? 0.5;
+    return vals.map((_, ri) => {
+      const u = universePct[ri];
+      if (u === null) return null;
+      const s = sectorPct[ri];
+      return s !== null ? s * sectorWeight + u * (1 - sectorWeight) : u;
+    });
+  });
+}
 
 function computePerMetricScores(
   rows: TickerFundamentalsRow[],
   familyWeights: Record<Family, number>,
+  sectorByTicker: Map<string, string | null>,
 ): Map<string, Record<string, { value: number | null; weightedScore: number }>> {
   const values = SCORING_METRICS.map(m => rows.map(r => m.getValue(r)));
-  const pctRanks: (number | null)[][] = SCORING_METRICS.map((m, mi) => {
-    const vals = values[mi];
-    const nonNull = vals.filter((v): v is number => v !== null);
-    if (nonNull.length === 0) return vals.map(() => null);
-    const sorted = [...nonNull].sort((a, b) => a - b);
-    return vals.map(v => {
-      if (v === null) return null;
-      const idx = sorted.findIndex(s => s >= v);
-      const pct = sorted.length === 1 ? 0.5 : idx / (sorted.length - 1);
-      return m.higherBetter ? pct : 1 - pct;
-    });
-  });
+  const pctRanks = computeBlendedPctRanks(rows, values, sectorByTicker);
 
   const result = new Map<string, Record<string, { value: number | null; weightedScore: number }>>();
   rows.forEach((row, ri) => {
@@ -361,7 +416,10 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   const familyWeights: Record<Family, number> =
     (regime && REGIME_WEIGHTS[regime]) ? REGIME_WEIGHTS[regime] : DEFAULT_WEIGHTS;
 
-  // Load peer group metric exclusions
+  // Load peer group metric exclusions + peer group (for sector-relative percentiles).
+  // primaryPeerGroupId (e.g. "technology.semiconductors_design") is populated for 273/276
+  // tickers via the curated sector_taxonomy.json import — tickerRegistry.sector itself is
+  // only set for ~17, so peer group is the field to group by, not the flat sector column.
   const tickers = rows.map(r => r.ticker);
   const regRows = await db
     .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
@@ -390,19 +448,8 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     });
   });
 
-  // Percentile ranks per metric
-  const pctRanks: (number | null)[][] = SCORING_METRICS.map((m, mi) => {
-    const vals = values[mi];
-    const nonNull = vals.filter(v => v !== null) as number[];
-    if (nonNull.length === 0) return vals.map(() => null);
-    const sorted = [...nonNull].sort((a, b) => a - b);
-    return vals.map(v => {
-      if (v === null) return null;
-      const idx = sorted.findIndex(s => s >= v);
-      const pct = sorted.length === 1 ? 0.5 : idx / (sorted.length - 1);
-      return m.higherBetter ? pct : 1 - pct;
-    });
-  });
+  // Percentile ranks per metric (blended universe-wide + peer-group-relative, see SECTOR_WEIGHT)
+  const pctRanks = computeBlendedPctRanks(rows, values, peerGroupByTicker);
 
   const FAMILIES: Family[] = ['quality', 'growth', 'safety'];
   const computedAt = new Date();
@@ -436,7 +483,7 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   const sorted = [...rawResults].sort((a, b) => b.totalScore - a.totalScore);
   const rankMap = new Map(sorted.map((r, i) => [r.ticker, i + 1]));
 
-  const perMetric = computePerMetricScores(rows, familyWeights);
+  const perMetric = computePerMetricScores(rows, familyWeights, peerGroupByTicker);
 
   const results: FundScoreResult[] = rawResults.map(r => ({
     ...r,
@@ -444,6 +491,7 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     regime: regime ?? "unknown",
     computedAt: computedAt.toISOString(),
     metricScores: perMetric.get(r.ticker),
+    peerGroupId: peerGroupByTicker.get(r.ticker) ?? null,
   }));
 
   // Persist scores back to DB — single batch upsert instead of one UPDATE per ticker
@@ -505,9 +553,14 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   if (currentRegime && rows.some(r => r.regimeAtScore !== currentRegime)) return null;
 
   const rawRows = await getAllFundamentalsRows();
+  const regRows = await db
+    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+    .from(tickerRegistry)
+    .where(inArray(tickerRegistry.ticker, rawRows.map(r => r.ticker)));
+  const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const familyWeights: Record<Family, number> =
     (currentRegime && REGIME_WEIGHTS[currentRegime]) ? REGIME_WEIGHTS[currentRegime] : DEFAULT_WEIGHTS;
-  const perMetric = computePerMetricScores(rawRows, familyWeights);
+  const perMetric = computePerMetricScores(rawRows, familyWeights, peerGroupByTicker);
 
   return rows.map(r => ({
     ticker:       r.ticker,
@@ -519,5 +572,6 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     regime:       r.regimeAtScore ?? currentRegime ?? "unknown",
     computedAt:   r.fundScoreComputedAt!.toISOString(),
     metricScores: perMetric.get(r.ticker),
+    peerGroupId:  peerGroupByTicker.get(r.ticker) ?? null,
   }));
 }

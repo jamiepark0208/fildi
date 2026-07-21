@@ -252,7 +252,7 @@ async function main() {
     const byField = index.get(ticker) ?? new Map();
     const update: Record<string, number> = {};
     const tickerSourceUsage: Record<string, number> = {};
-    const provenanceBatch: Array<{ field: string; result: ResolveResult }> = [];
+    const provenanceBatch: Array<{ field: string; result: Exclude<ResolveResult, null> }> = [];
     const tickerNullFields: string[] = [];
 
     for (const fieldDef of VALID_FIELD_DEFS) {

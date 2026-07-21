@@ -44,7 +44,7 @@ function isFresh(fetchedAt: Date | null): boolean {
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-function countFilled(data: Record<string, unknown>): number {
+function countFilled<T extends object>(data: T): number {
   return Object.values(data).filter(v => v !== undefined && v !== null).length;
 }
 
