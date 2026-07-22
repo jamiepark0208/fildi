@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-21
+**build** — last updated 2026-07-22
 
 ## Active work
-- Working: perf-diagnosis, options-scanner-localstorage-scoping-fix, ed-test-account, stock-views-colorTag-migration
-- In progress: Stock Views feature shipped: colorTag moved from localStorage to DB (watchlist.color_tag), new PATCH /watchlist/:ticker + GET /watchlist/user/:username routes, profile.tsx StockViewsPanel replaces old Bullish/Neutral/Bearish BucketsPanel. Migration broke existing tags for jamie(id1)/ed(id8) since old data lived only in browser localStorage under fildi_watchlist_colors_<userId> — gave user a devtools snippet to extract it, awaiting paste-back to restore via direct SQL.
-- Blocked: Same GitHub reconnect blocker as before (push failing, PAT invalid). NEW: waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags — cannot proceed without it.
+- Working: watchlist-username-case-fix, updateColorTag-error-toast, stale-server-diagnosis, app-published, feedback-widget-shipped
+- In progress: Feedback feature shipped end-to-end: feedback table+POST /feedback+GET /admin/feedback+floating widget+Settings admin tab. App is now published at fildi--jamiepark0208.replit.app (invite-code gated). Fixed 2 real bugs: GET /watchlist/user/:username case-sensitivity, updateColorTag silent-failure. Diagnosed color-tag/cross-user-lookup 'not working' report as a stale compiled dist/index.mjs (built before the routes existed) rather than a code bug — resolved by restart.
+- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags via direct SQL — cannot proceed without it. Same GitHub reconnect blocker (push failing, PAT invalid).
 
 ## Next tasks (priority order)
 

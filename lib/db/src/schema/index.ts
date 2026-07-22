@@ -1297,3 +1297,19 @@ export const enrichmentRuns = pgTable('enrichment_runs', {
 }));
 
 export type EnrichmentRunRow = typeof enrichmentRuns.$inferSelect
+
+// ── feedback ──────────────────────────────────────────────────────────────────
+
+export const feedback = pgTable('feedback', {
+  id:        serial('id').primaryKey(),
+  userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message:   text('message').notNull(),
+  page:      text('page'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  createdAtIdx: index('idx_feedback_created_at').on(t.createdAt),
+}))
+
+export const insertFeedbackSchema = createInsertSchema(feedback).omit({ id: true, createdAt: true })
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>
+export type Feedback = typeof feedback.$inferSelect

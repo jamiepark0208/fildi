@@ -31,6 +31,14 @@ interface AdminUser {
   lastLoginAt: string | null;
 }
 
+interface FeedbackRow {
+  id: number;
+  message: string;
+  page: string | null;
+  createdAt: string;
+  username: string;
+}
+
 interface CacheEntry { key: string; expiresAt: number; expiresInSec: number; label?: string; stale?: boolean }
 interface CacheRow {
   name: string; displayName?: string; ttlMs: number; entryCount: number;
@@ -281,6 +289,49 @@ function UserMgmtTab() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Feedback Tab ─────────────────────────────────────────────────────────────
+
+function FeedbackTab() {
+  const { data: entries = [], isLoading } = useQuery<FeedbackRow[]>({
+    queryKey: ["admin", "feedback"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/feedback", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load feedback");
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  return (
+    <div className="max-w-2xl">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-sm font-semibold">User Feedback</h2>
+          <span className="ml-auto text-[10px] text-muted-foreground">{entries.length} total</span>
+        </div>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+        ) : entries.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No feedback submitted yet.</p>
+        ) : (
+          <div className="divide-y divide-border/40">
+            {entries.map(e => (
+              <div key={e.id} className="py-3 space-y-1">
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <span className="font-semibold text-foreground">{e.username}</span>
+                  <span>{new Date(e.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                  {e.page && <span className="font-mono">{e.page}</span>}
+                </div>
+                <p className="text-xs whitespace-pre-wrap">{e.message}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -629,7 +680,7 @@ function TradingTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide";
+type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -643,6 +694,7 @@ export default function Settings() {
     { id: "cache",           label: "Cache Monitor",  adminOnly: true },
     { id: "stockdb",         label: "Stock DB" },
     { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
+    { id: "feedback",        label: "Feedback",       adminOnly: true },
   ];
 
   // Persisted tab may point at an admin-only tab from a prior admin session —
@@ -691,6 +743,7 @@ export default function Settings() {
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
           {tab === "stockdb"     && <StockDBTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
+          {tab === "feedback"    && isAdmin && <FeedbackTab />}
         </div>
       </main>
     </div>

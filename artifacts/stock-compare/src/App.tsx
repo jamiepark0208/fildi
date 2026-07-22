@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import { useSessionState } from "@/hooks/use-session-state";
 import Login from "@/pages/login";
@@ -137,6 +138,7 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
+          <FeedbackWidget />
           <Toaster />
         </TooltipProvider>
         </ScoringPreferencesProvider>

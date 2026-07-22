@@ -25,6 +25,7 @@ import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
 import enrichmentRunsRouter from "./enrichment-runs";
 import positionsRouter from "./positions";
+import feedbackRouter from "./feedback";
 import liveRouter from "./live";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { explainLimiter } from "../middleware/rateLimiter.js";
@@ -85,5 +86,6 @@ router.use(liveRouter);
 router.use(watchlistRouter);
 router.use(feedRouter);
 router.use(positionsRouter);
+router.use(feedbackRouter);
 
 export default router;
