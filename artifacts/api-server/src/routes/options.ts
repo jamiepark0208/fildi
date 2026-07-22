@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getOptionsChain, getOptionPositionQuote, type OptionsChainResult } from "../lib/options.js";
+import { getOptionsChain, getOptionPositionQuote, withFreshDte, type OptionsChainResult } from "../lib/options.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
@@ -33,10 +33,10 @@ router.get("/options/position-quote", async (req, res) => {
 
 async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const cached = optionsCache.get(ticker);
-  if (cached) return cached;
+  if (cached) return withFreshDte(cached);
   const result = await getOptionsChain(ticker);
   optionsCache.set(ticker, result);
-  return result;
+  return withFreshDte(result);
 }
 
 // GET /api/options/batch?tickers=A,B,C — batched chain fetch, per-ticker optionsCache reuse.

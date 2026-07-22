@@ -27,6 +27,7 @@ export interface OptionsChainResult {
   isWeekly: boolean;
   daysToExpiry: number;
   exactDte: number;
+  settlementDte: number;
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
@@ -193,6 +194,35 @@ function isWeeklyExpiry(d: unknown): boolean {
   return d instanceof Date && d.getDay() === 5; // Friday
 }
 
+// Options settle T+1 business day after expiration — a put you sell against a Friday
+// expiry doesn't return your capital until Monday. weeklyIncome (return per week of
+// capital tied up) needs the settlement date, not the bare expiration date; option
+// pricing (Greeks, theta/buffer) must keep using the real expiration date instead.
+function settlementOffsetDays(expiryDate: Date): number {
+  const day = expiryDate.getDay(); // 0=Sun .. 6=Sat
+  if (day === 5) return 3; // Fri -> Mon
+  if (day === 6) return 2; // Sat (shouldn't occur) -> Mon
+  if (day === 0) return 1; // Sun (shouldn't occur) -> Mon
+  return 1; // Mon-Thu -> next day
+}
+
+// daysToExpiry/exactDte/settlementDte are pure clock math (expiry date vs. now) — they
+// don't need Yahoo data and shouldn't go stale just because the surrounding bid/ask/iv
+// blob is cache-hit. Recompute them at serve time (whether the chain came from cache or
+// a fresh fetch) so they're never more than a few ms old, no matter the cache TTL.
+export function withFreshDte(chains: OptionsChainResult[]): OptionsChainResult[] {
+  return chains.map(c => {
+    const expiryDate = new Date(c.expiry + "T16:00:00");
+    const exactDte    = Math.max(0.5, exactDaysUntil(expiryDate));
+    return {
+      ...c,
+      daysToExpiry: daysUntil(expiryDate),
+      exactDte,
+      settlementDte: exactDte + settlementOffsetDays(expiryDate),
+    };
+  });
+}
+
 function buildRows(
   puts: RawContract[],
   spot: number,
@@ -292,15 +322,17 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
 
   function buildResult(raw: RawOptionsResponse, fallbackDate: Date): OptionsChainResult {
-    const expiryDate = raw.options?.[0]?.expirationDate ?? fallbackDate;
+    const expiryDate = (raw.options?.[0]?.expirationDate ?? fallbackDate) as Date;
     const dte        = daysUntil(expiryDate);
     const exactDte   = Math.max(0.5, exactDaysUntil(expiryDate));
+    const settlementDte = exactDte + settlementOffsetDays(expiryDate);
     return {
       ticker: key,
       expiry:        toDateStr(expiryDate),
       isWeekly:      isWeeklyExpiry(expiryDate),
       daysToExpiry:  dte,
       exactDte,
+      settlementDte,
       spot: spot as number,
       tier,
       puts:      buildRows(raw.options?.[0]?.puts ?? [], spot as number, exactDte),

@@ -43,6 +43,7 @@ interface OptionsChainResult {
   isWeekly: boolean;
   daysToExpiry: number;
   exactDte: number;
+  settlementDte: number;
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
@@ -116,9 +117,9 @@ function viableStrikes(
     .filter(c => (show1wk && Math.ceil(c.daysToExpiry / 7) === 1) ||
                  Math.ceil(c.daysToExpiry / 7) >= 2)
     .flatMap(c => {
-      const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
+      const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
       return c.puts
-        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (exactDte / 7) }))
+        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (settlementDte / 7) }))
         .filter(x => x.weeklyIncome >= minWeeklyIncome);
     });
 }
@@ -201,8 +202,9 @@ function StrikeRow({
   runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const exactDte     = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
-  const weeklyIncome = put.incomePct / (exactDte / 7);
+  const exactDte      = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
+  const settlementDte = chain.settlementDte ?? exactDte;
+  const weeklyIncome  = put.incomePct / (settlementDte / 7);
   const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
   const absDelta     = put.delta != null ? Math.abs(put.delta) : null;
   const pop          = absDelta != null ? (1 - absDelta) * 100 : null;
@@ -245,7 +247,19 @@ function StrikeRow({
           {put.bidIsLive ? "" : "~"}${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)}
         </div>
         {/* %/wk */}
-        <div className={cn("font-mono font-semibold", incomeColor)}>{weeklyIncome.toFixed(2)}%</div>
+        <div
+          className={cn("font-mono font-semibold", incomeColor)}
+          title={
+            `%/wk = (Bid ÷ Strike × 100) ÷ (Days until settlement ÷ 7)\n` +
+            `= ($${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)} ÷ $${put.strike}) × 100 ÷ (${settlementDte.toFixed(1)} ÷ 7)\n` +
+            `= ${put.incomePct.toFixed(3)}% total premium ÷ ${(settlementDte / 7).toFixed(2)} wks until settlement\n` +
+            `= ${weeklyIncome.toFixed(2)}%/wk\n\n` +
+            `Settlement days = ${exactDte.toFixed(1)} days to expiry + ${(settlementDte - exactDte).toFixed(0)}d settlement lag ` +
+            `(options settle T+1 business day — e.g. Friday expiry → Monday)`
+          }
+        >
+          {weeklyIncome.toFixed(2)}%
+        </div>
         {/* OTM% */}
         <div className="font-mono text-white">{otmPct.toFixed(1)}%</div>
         {/* Delta */}
@@ -821,7 +835,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   });
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
-  const [sort,          setSort]          = useState<SortKey>("score");
+  const [sort,          setSort]          = useState<SortKey>("income");
   const [show1wk,       setShow1wk]       = useState(true);
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
@@ -1011,9 +1025,9 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       if (!chains) continue;
       let best = -1;
       for (const c of chains) {
-        const exactDte = Math.max(0.01, c.exactDte ?? c.daysToExpiry);
+        const settlementDte = Math.max(0.01, c.settlementDte ?? c.exactDte ?? c.daysToExpiry);
         for (const p of c.puts) {
-          const wi = p.incomePct / (exactDte / 7);
+          const wi = p.incomePct / (settlementDte / 7);
           if (wi > best) best = wi;
         }
       }

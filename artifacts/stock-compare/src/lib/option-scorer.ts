@@ -313,14 +313,15 @@ export function computeOptionScore(
 
 export function buildCandidate(
   put: { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
-  chain: { spot: number; exactDte: number },
+  chain: { spot: number; exactDte: number; settlementDte?: number },
 ): OptionCandidate {
   const exactDte = Math.max(0.01, chain.exactDte);
+  const settlementDte = Math.max(0.01, chain.settlementDte ?? exactDte);
   return {
     strike:       put.strike,
     spot:         chain.spot,
     dte:          exactDte,
-    weeklyIncome: put.incomePct / (exactDte / 7),
+    weeklyIncome: put.incomePct / (settlementDte / 7),
     delta:        put.delta,
     strikeIV:     put.iv > 0 ? put.iv : null,
     otmPct:       chain.spot > 0 ? (chain.spot - put.strike) / chain.spot : 0,
@@ -333,7 +334,7 @@ export function buildCandidate(
 // ── Convenience: pick the BEST strike across all chains for a stock ───────────
 
 export function pickBestStrike(
-  chains: Array<{ spot: number; exactDte: number; puts: Array<{ strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number }> }>,
+  chains: Array<{ spot: number; exactDte: number; settlementDte?: number; puts: Array<{ strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number }> }>,
   stock: StockContext,
   regime: MacroRegime,
   allWatchlistIVs: number[],

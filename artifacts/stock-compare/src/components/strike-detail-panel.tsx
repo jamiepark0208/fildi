@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import type { OptionScoreResult } from "@/lib/option-scorer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ── Types mirrored from options-scanner (avoid circular import) ───────────────
 interface OptionRow {
@@ -26,6 +27,7 @@ interface OptionsChainResult {
   expiry: string;
   daysToExpiry: number;
   exactDte: number;
+  settlementDte: number;
   spot: number;
   tier: number;
   puts: OptionRow[];
@@ -411,11 +413,98 @@ const SENTIMENT_COLOR: Record<string, string> = {
   neutral: "text-white",
 };
 
+function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onClose: () => void; put: OptionRow; chain: OptionsChainResult }) {
+  const [contracts,  setContracts]  = useState("1");
+  const [confidence, setConfidence] = useState(0);
+  const [notes,      setNotes]      = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [success,    setSuccess]    = useState(false);
+
+  const premium = put.bid > 0 ? put.bid : put.lastPrice;
+
+  const reset = () => { setContracts("1"); setConfidence(0); setNotes(""); setError(null); setSuccess(false); };
+  const handleClose = () => { reset(); onClose(); };
+
+  async function handleSubmit() {
+    if (!confidence) { setError("Select a confidence level"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const r = await fetch("/api/feed/posts", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: chain.ticker,
+          tradeType: "SELL_PUT",
+          strike: put.strike,
+          expiry: chain.expiry,
+          contracts: parseInt(contracts),
+          premiumPerContract: premium,
+          confidence,
+          notes: notes || undefined,
+          ivRankAtEntry: put.iv != null ? put.iv * 100 : undefined,
+        }),
+      });
+      if (r.status === 429) { setError("You already have 3 open trade ideas"); return; }
+      if (!r.ok) { const d = await r.json(); setError(d.error ?? "Submit failed"); return; }
+      setSuccess(true);
+      setTimeout(handleClose, 1000);
+    } finally { setSubmitting(false); }
+  }
+
+  const inputCls = "w-full h-9 px-3 text-sm bg-secondary border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
+  const labelCls = "block text-xs font-medium text-muted-foreground mb-1";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Sell Put — {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} exp {chain.expiry}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Contracts</label>
+              <input type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Premium / contract</label>
+              <input disabled value={`$${premium.toFixed(2)}`} className={cn(inputCls, "opacity-60")} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Confidence</label>
+            <div className="flex items-center gap-1 h-9">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} type="button" onClick={() => setConfidence(n)}
+                  className={cn("text-lg leading-none transition-colors", n <= confidence ? "text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-400/60")}>●</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Rationale (optional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Your rationale…" className={cn(inputCls, "h-auto py-1.5 resize-none")} />
+          </div>
+          {error   && <div className="text-xs text-red-400">{error}</div>}
+          {success && <div className="text-xs text-green-400">Posted!</div>}
+          <button onClick={handleSubmit} disabled={submitting}
+            className="w-full bg-primary text-primary-foreground text-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-50">
+            {submitting ? "Posting…" : "Post Trade Idea"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }: StrikeDetailPanelProps) {
   const bullets = useMemo(
     () => scoreResult ? scoreBullets(scoreResult, put, chain, isBest ? runnerUp ?? null : null) : [],
     [scoreResult, put, chain, isBest, runnerUp],
   );
+  const [showCreateIdea, setShowCreateIdea] = useState(false);
 
   return (
     <div className="bg-slate-950/80 border-t border-slate-800/60">
@@ -443,6 +532,12 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }:
                 )}
               </span>
             )}
+            <button
+              onClick={() => setShowCreateIdea(true)}
+              className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary border border-primary/40 rounded px-2 py-0.5 hover:bg-primary/10 transition-colors shrink-0"
+            >
+              + Sell Put Idea
+            </button>
           </div>
           {bullets.length > 0 ? (
             <ul className="space-y-1">
@@ -474,6 +569,7 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }:
           <PayoffChart put={put} chain={chain} />
         </div>
       </div>
+      <CreateSellPutDialog open={showCreateIdea} onClose={() => setShowCreateIdea(false)} put={put} chain={chain} />
     </div>
   );
 }
