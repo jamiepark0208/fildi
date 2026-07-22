@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-22
 
 ## Active work
-- Working: watchlist-username-case-fix, updateColorTag-error-toast, stale-server-diagnosis, app-published, feedback-widget-shipped
-- In progress: Feedback feature shipped end-to-end: feedback table+POST /feedback+GET /admin/feedback+floating widget+Settings admin tab. App is now published at fildi--jamiepark0208.replit.app (invite-code gated). Fixed 2 real bugs: GET /watchlist/user/:username case-sensitivity, updateColorTag silent-failure. Diagnosed color-tag/cross-user-lookup 'not working' report as a stale compiled dist/index.mjs (built before the routes existed) rather than a code bug — resolved by restart.
-- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags via direct SQL — cannot proceed without it. Same GitHub reconnect blocker (push failing, PAT invalid).
+- Working: feedback-widget-badge-fix, options-scanner-add-ticker-removed, portfolio-multi-csv-ingest
+- In progress: Portfolio CSV ingest now supports 4 export shapes: holdings (overwrite via latest-snapshot), recent+cumulative transactions (upsert-by-txn_id into new portfolio_transactions table, decoupled from snapshot), ticker-earnings-summary (upsert by account+ticker into new portfolio_ticker_earnings table, now feeds the Cumulative Summary table in portfolio-analysis.tsx in place of the old legEffect-chain recomputation). Import CSV button accepts multiple files, auto-detects format per file by content. All 4 of user's real exports imported successfully (2634 txns, 54 earnings rows, fresh holdings snapshot). Also: moved FeedbackWidget off bottom-right (was hidden behind Replit badge) to bottom-left. Removed manual 'Add ticker' from Options Scanner — tickers now only come from watchlist.
+- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags via direct SQL. GitHub push still failing — PAT in .git/config remote origin URL is invalid and needs rotation.
 
 ## Next tasks (priority order)
 

@@ -8,36 +8,127 @@ import {
   portfolioEquityFundamentals,
   portfolioOptions,
   portfolioOrders,
+  portfolioTransactions,
+  portfolioTickerEarnings,
 } from '@workspace/db'
 import { parseRobinhoodCSV } from '../lib/portfolio-parser.js'
+import {
+  isTransactionsCSV,
+  isTickerEarningsCSV,
+  parseTransactionsCSV,
+  parseTickerEarningsCSV,
+} from '../lib/portfolio-txn-parser.js'
 
 const router = Router()
 
-// Accept raw CSV text body (text/plain, text/csv) or JSON { csv: "..." }
+async function readCsvBody(req: import('express').Request): Promise<string | undefined> {
+  const ct = req.headers['content-type'] ?? ''
+  if (ct.startsWith('text/')) {
+    // Raw text body — express.text() not mounted globally, so read manually
+    return new Promise<string>((resolve, reject) => {
+      let body = ''
+      req.on('data', (chunk: Buffer) => { body += chunk.toString('utf8') })
+      req.on('end', () => resolve(body))
+      req.on('error', reject)
+    })
+  }
+  // JSON body: { csv: "..." } — already parsed by express.json()
+  return typeof req.body?.csv === 'string' ? req.body.csv : undefined
+}
+
+// Accept raw CSV text body (text/plain, text/csv) or JSON { csv: "..." }.
+// Auto-detects which of the three export shapes the file is (by content, not
+// filename) and dispatches to the matching ingest path:
+//  - flat transactions export (recent or cumulative — same shape, upserted by txn_id)
+//  - ticker-earnings-summary export (upserted by account+ticker)
+//  - Robinhood holdings export (multi-section — creates a new snapshot; "latest
+//    snapshot" naturally supersedes prior holdings for display)
 router.post(
   '/portfolio/ingest',
   requireAdmin,
   async (req, res, next) => {
     try {
-      let csvText: string | undefined
-
-      const ct = req.headers['content-type'] ?? ''
-
-      if (ct.startsWith('text/')) {
-        // Raw text body — express.text() not mounted globally, so read manually
-        csvText = await new Promise<string>((resolve, reject) => {
-          let body = ''
-          req.on('data', (chunk: Buffer) => { body += chunk.toString('utf8') })
-          req.on('end', () => resolve(body))
-          req.on('error', reject)
-        })
-      } else {
-        // JSON body: { csv: "..." } — already parsed by express.json()
-        csvText = typeof req.body?.csv === 'string' ? req.body.csv : undefined
-      }
+      const csvText = await readCsvBody(req)
 
       if (!csvText || csvText.trim().length === 0) {
         res.status(400).json({ code: 'MISSING_CSV', message: 'No CSV content provided.' })
+        return
+      }
+
+      if (isTransactionsCSV(csvText)) {
+        const txns = parseTransactionsCSV(csvText)
+        let inserted = 0
+        for (const t of txns) {
+          const result = await db
+            .insert(portfolioTransactions)
+            .values({
+              txnId:      t.txnId,
+              account:    t.account,
+              symbol:     t.symbol,
+              txnType:    t.txnType,
+              category:   t.category,
+              side:       t.side,
+              quantity:   t.quantity,
+              price:      t.price,
+              amount:     t.amount,
+              txnDate:    t.txnDate ? new Date(t.txnDate) : null,
+              source:     t.source,
+              confidence: t.confidence,
+            })
+            .onConflictDoNothing({ target: portfolioTransactions.txnId })
+            .returning({ id: portfolioTransactions.id })
+          if (result.length > 0) inserted++
+        }
+        res.json({
+          success:     true,
+          format:      'transactions',
+          rowCount:    txns.length,
+          insertCount: inserted,
+          skipCount:   txns.length - inserted,
+        })
+        return
+      }
+
+      if (isTickerEarningsCSV(csvText)) {
+        const rows = parseTickerEarningsCSV(csvText)
+        for (const r of rows) {
+          await db
+            .insert(portfolioTickerEarnings)
+            .values({
+              account:          r.account,
+              ticker:           r.ticker,
+              totalUnrealized:  r.totalUnrealized,
+              totalRealized:    r.totalRealized,
+              totalEarned:      r.totalEarned,
+              sellPut:          r.sellPut,
+              sellCall:         r.sellCall,
+              longCall:         r.longCall,
+              longPut:          r.longPut,
+              dividends:        r.dividends,
+              stocksRealized:   r.stocksRealized,
+              stocksUnrealized: r.stocksUnrealized,
+              totalStocks:      r.totalStocks,
+              importedAt:       new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [portfolioTickerEarnings.account, portfolioTickerEarnings.ticker],
+              set: {
+                totalUnrealized:  r.totalUnrealized,
+                totalRealized:    r.totalRealized,
+                totalEarned:      r.totalEarned,
+                sellPut:          r.sellPut,
+                sellCall:         r.sellCall,
+                longCall:         r.longCall,
+                longPut:          r.longPut,
+                dividends:        r.dividends,
+                stocksRealized:   r.stocksRealized,
+                stocksUnrealized: r.stocksUnrealized,
+                totalStocks:      r.totalStocks,
+                importedAt:       new Date(),
+              },
+            })
+        }
+        res.json({ success: true, format: 'ticker_earnings', rowCount: rows.length })
         return
       }
 
@@ -198,6 +289,7 @@ router.post(
 
       res.json({
         success:       true,
+        format:        'holdings',
         snapshotId,
         positionCount: parsed.positions.length,
         optionCount:   parsed.options.length,

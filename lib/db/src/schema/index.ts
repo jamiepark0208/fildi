@@ -814,6 +814,67 @@ export const portfolioOrders = pgTable('portfolio_orders', {
 export type PortfolioOrder = typeof portfolioOrders.$inferSelect
 export type InsertPortfolioOrder = typeof portfolioOrders.$inferInsert
 
+// ── portfolio_transactions ──────────────────────────────────────────────────────
+// The flat txn-export format (export_rbh_transactions.py), NOT tied to a
+// portfolio_snapshots row — unlike holdings (which fully replace on each import,
+// so "latest snapshot" = current state), transaction history accumulates across
+// imports. txnId is the dedupe key: a "recent" export (small, latest activity)
+// and a "cumulative" export (full history) both upsert into this same table via
+// ON CONFLICT (txn_id) — whichever runs first wins no duplicates, and importing
+// cumulative after recent (or vice versa) just backfills whatever's missing.
+
+export const portfolioTransactions = pgTable('portfolio_transactions', {
+  id:         serial('id').primaryKey(),
+  txnId:      text('txn_id').notNull(),
+  account:    text('account').notNull(),
+  symbol:     text('symbol').notNull(),
+  txnType:    text('txn_type'),      // 'equity_order' | 'option_order' | 'assignment_buy' | 'assignment_sell' | 'realized_close' | 'dividend'
+  category:   text('category'),      // 'Stocks (capital gains)' | 'Sell Puts' | 'Sell Calls' | 'Options — Put (close)' | 'Options — Call (close)' | 'Long Calls' | 'Dividends' | 'cash_bonus'
+  side:       text('side'),          // 'buy' | 'sell'
+  quantity:   numeric('quantity'),
+  price:      numeric('price'),
+  amount:     numeric('amount'),
+  txnDate:    timestamp('txn_date', { withTimezone: true }),
+  source:     text('source'),        // e.g. 'get_equity_orders', 'get_option_orders'
+  confidence: text('confidence'),
+  importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  txnIdUnique: unique('portfolio_transactions_txn_id_unique').on(t.txnId),
+  symbolIdx:   index('portfolio_transactions_symbol_idx').on(t.symbol),
+}))
+
+export type PortfolioTransaction = typeof portfolioTransactions.$inferSelect
+export type InsertPortfolioTransaction = typeof portfolioTransactions.$inferInsert
+
+// ── portfolio_ticker_earnings ───────────────────────────────────────────────────
+// ticker-earnings-summary export — cumulative YTD realized/unrealized P&L broken
+// out per ticker per account, already computed upstream by the export script.
+// Each import supersedes the prior figures for that (account, ticker) pair via
+// ON CONFLICT DO UPDATE (the export is always cumulative-to-date, never a delta).
+
+export const portfolioTickerEarnings = pgTable('portfolio_ticker_earnings', {
+  id:                serial('id').primaryKey(),
+  account:           text('account').notNull(),   // account nickname, e.g. 'FILDI', or 'TOTAL'
+  ticker:            text('ticker').notNull(),
+  totalUnrealized:   numeric('total_unrealized'),
+  totalRealized:     numeric('total_realized'),
+  totalEarned:       numeric('total_earned'),
+  sellPut:           numeric('sell_put'),
+  sellCall:          numeric('sell_call'),
+  longCall:          numeric('long_call'),
+  longPut:           numeric('long_put'),
+  dividends:         numeric('dividends'),
+  stocksRealized:    numeric('stocks_realized'),
+  stocksUnrealized:  numeric('stocks_unrealized'),
+  totalStocks:       numeric('total_stocks'),
+  importedAt:        timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  accountTickerUnique: unique('portfolio_ticker_earnings_account_ticker_unique').on(t.account, t.ticker),
+}))
+
+export type PortfolioTickerEarning = typeof portfolioTickerEarnings.$inferSelect
+export type InsertPortfolioTickerEarning = typeof portfolioTickerEarnings.$inferInsert
+
 // ── market_regime ─────────────────────────────────────────────────────────────
 // Classifier output: one row per run. Keep latest 90 rows; prune manually via
 //   DELETE FROM market_regime WHERE id NOT IN (SELECT id FROM market_regime ORDER BY computed_at DESC LIMIT 90)

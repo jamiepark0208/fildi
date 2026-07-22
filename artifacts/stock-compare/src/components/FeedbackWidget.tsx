@@ -37,7 +37,7 @@ export function FeedbackWidget() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed bottom-5 left-5 z-50">
       {open ? (
         <div className="w-72 bg-card border border-border rounded-xl shadow-lg p-3 space-y-2">
           <div className="flex items-center justify-between">

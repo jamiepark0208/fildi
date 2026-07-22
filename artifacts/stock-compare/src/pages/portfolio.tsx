@@ -776,6 +776,7 @@ export default function Portfolio() {
     options: Array<{ id: number; symbol: string; direction: string | null; optionType: string | null; qty: string | null; avgPremium: string | null; strike: string | null; expiration: string | null; account: string; markPrice: string | null; unrealizedPnL: string | null; delta: string | null; theta: string | null; gamma: string | null; vega: string | null }>;
     accountSummaries: Array<{ account: string; nickname: string | null; totalValue: string | null; equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null; marginUsed: string | null; buyingPower: string | null }>;
     realizedEvents: Array<{ account: string; symbol: string; assetType: 'stock' | 'option'; direction: 'long' | 'short'; optionType: 'call' | 'put' | null; qty: number; pnl: number; fees: number; closedAt: string }>;
+    tickerEarnings: Array<{ account: string; ticker: string; totalUnrealized: string | null; totalRealized: string | null; totalEarned: string | null; sellPut: string | null; sellCall: string | null; longCall: string | null; longPut: string | null; dividends: string | null; stocksRealized: string | null; stocksUnrealized: string | null; totalStocks: string | null }>;
   }>({
     queryKey: ['portfolio-snapshot-latest'],
     queryFn: async () => {
@@ -1013,6 +1014,7 @@ export default function Portfolio() {
                       portfolioNames={portfolioNames}
                       accountSummaries={rhData?.accountSummaries ?? []}
                       realizedEvents={rhData?.realizedEvents ?? []}
+                      tickerEarnings={rhData?.tickerEarnings ?? []}
                     />
                   )}
 

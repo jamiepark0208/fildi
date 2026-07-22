@@ -248,6 +248,13 @@ interface RealizedEvent {
   optionType: "call" | "put" | null; qty: number; pnl: number; fees: number; closedAt: string;
 }
 
+interface TickerEarningsRow {
+  account: string; ticker: string;
+  totalUnrealized: string | null; totalRealized: string | null; totalEarned: string | null;
+  sellPut: string | null; sellCall: string | null; longCall: string | null; longPut: string | null;
+  dividends: string | null; stocksRealized: string | null; stocksUnrealized: string | null; totalStocks: string | null;
+}
+
 interface PortfolioRiskResult {
   tickers: string[];
   correlationMatrix: number[][];
@@ -263,9 +270,10 @@ interface PortfolioAnalysisProps {
   portfolioNames: string[];
   accountSummaries?: AccountSummary[];
   realizedEvents?: RealizedEvent[];
+  tickerEarnings?: TickerEarningsRow[];
 }
 
-export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [] }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [] }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
   const filtered = useMemo(() =>
     (activePortfolio === "All"
@@ -630,8 +638,27 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   }, [realizedEvents, accountNickMap]);
 
   // ── Cumulative summary per ticker — mirrors the CSV's per-account SUMMARY table ──
+  // Prefers the imported ticker-earnings-summary export (authoritative, computed
+  // upstream from full tax-lot data) over recomputing from realizedEvents, which
+  // depends on legEffect open/close chaining that the flat transactions export
+  // doesn't carry. Falls back to the realizedEvents computation only when no
+  // ticker-earnings CSV has been imported yet.
+  const num = (v: string | null) => (v == null ? 0 : parseFloat(v)) || 0;
   const cumulativeSummaryByAccount = useMemo(() => {
-    const buildFor = (accountKey: string) => {
+    const buildFromImported = (accountKey: string) => {
+      return tickerEarnings
+        .filter(r => r.account === accountKey || accountKey.includes(r.account))
+        .map(r => ({
+          ticker: r.ticker,
+          sellPut: num(r.sellPut), sellCall: num(r.sellCall), longCall: num(r.longCall), longPut: num(r.longPut),
+          stocksRealized: num(r.stocksRealized), dividends: num(r.dividends), stocksUnrealized: num(r.stocksUnrealized),
+          optionsUnrealized: num(r.totalUnrealized) - num(r.stocksUnrealized),
+          totalRealized: num(r.totalRealized), totalUnrealized: num(r.totalUnrealized),
+          totalStocks: num(r.totalStocks), totalEarned: num(r.totalEarned),
+        }))
+        .sort((a, b) => b.totalEarned - a.totalEarned);
+    };
+    const buildFromRealizedEvents = (accountKey: string) => {
       const rows = new Map<string, {
         sellPut: number; sellCall: number; longCall: number; longPut: number;
         stocksRealized: number; dividends: number; stocksUnrealized: number; optionsUnrealized: number;
@@ -664,8 +691,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         return { ticker, ...v, totalRealized, totalUnrealized, totalStocks, totalEarned };
       }).sort((a, b) => b.totalEarned - a.totalEarned);
     };
-    return Object.fromEntries(ACCOUNT_TABS.map(t => [t.key, buildFor(t.key)])) as Record<AccountTabKey, ReturnType<typeof buildFor>>;
-  }, [realizedEvents, entries, accountNickMap]);
+    const buildFor = tickerEarnings.length > 0 ? buildFromImported : buildFromRealizedEvents;
+    return Object.fromEntries(ACCOUNT_TABS.map(t => [t.key, buildFor(t.key)])) as Record<AccountTabKey, ReturnType<typeof buildFromRealizedEvents>>;
+  }, [realizedEvents, entries, accountNickMap, tickerEarnings]);
 
   // ── Cumulative P&L — top tickers, all accounts combined — stacked bar ──
   const topTickersPnlChartData = useMemo(() => {

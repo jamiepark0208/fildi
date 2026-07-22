@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAdmin } from '../middleware/requireAdmin.js'
-import { db, portfolioSnapshots, portfolioPositions, portfolioOptions, portfolioAccountSummaries, portfolioOrders } from '@workspace/db'
+import { db, portfolioSnapshots, portfolioPositions, portfolioOptions, portfolioAccountSummaries, portfolioOrders, portfolioTransactions, portfolioTickerEarnings } from '@workspace/db'
 import { desc, eq } from 'drizzle-orm'
 import { computeRealizedPnL } from '../lib/realized-pnl.js'
 import { computePortfolioRisk, type PortfolioRiskInput } from '../lib/portfolio-risk.js'
@@ -34,8 +34,17 @@ router.get('/portfolio/snapshot/latest', requireAdmin, async (req, res, next) =>
       .orderBy(desc(portfolioSnapshots.importedAt))
       .limit(1)
 
+    // Transactions and ticker earnings are NOT scoped to a single holdings
+    // snapshot — they accumulate/upsert across imports independently (see
+    // portfolio_transactions / portfolio_ticker_earnings schema comments) —
+    // so they're fetched regardless of whether a holdings snapshot exists yet.
+    const [transactions, tickerEarnings] = await Promise.all([
+      db.select().from(portfolioTransactions).orderBy(desc(portfolioTransactions.txnDate)),
+      db.select().from(portfolioTickerEarnings),
+    ])
+
     if (!snapshot) {
-      res.json({ snapshot: null, positions: [], options: [], accountSummaries: [], realizedEvents: [] })
+      res.json({ snapshot: null, positions: [], options: [], accountSummaries: [], realizedEvents: [], transactions, tickerEarnings })
       return
     }
 
@@ -59,7 +68,7 @@ router.get('/portfolio/snapshot/latest', requireAdmin, async (req, res, next) =>
       `totalRealized=${(stockPnl + optShortPnl + optLongPnl).toFixed(2)}`
     )
 
-    res.json({ snapshot, positions, options, accountSummaries, realizedEvents })
+    res.json({ snapshot, positions, options, accountSummaries, realizedEvents, transactions, tickerEarnings })
   } catch (err) {
     next(err)
   }

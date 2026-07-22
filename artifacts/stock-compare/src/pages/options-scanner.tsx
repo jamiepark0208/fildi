@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import {
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { ChevronDown, ChevronRight, RefreshCw, Loader2, Plus, X, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles } from "lucide-react";
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -803,10 +803,7 @@ function MacroBanner({ data }: { data: MacroRegimeResult | undefined }) {
 }
 
 // Scoped per user so multiple accounts on the same browser don't inherit each
-// other's manually-added/hidden scanner tickers (mirrors colorKey in use-watchlist.ts)
-function scannerExtraKey(userId: number | undefined): string {
-  return userId ? `fildi_scanner_extra_${userId}` : "fildi_scanner_extra";
-}
+// other's hidden scanner tickers (mirrors colorKey in use-watchlist.ts)
 function scannerHiddenKey(userId: number | undefined): string {
   return userId ? `fildi_scanner_hidden_${userId}` : "fildi_scanner_hidden";
 }
@@ -829,24 +826,16 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
-  // Scoped per user (like colorKey in use-watchlist.ts) so multiple accounts on
-  // the same browser don't inherit each other's manually-added/hidden tickers.
-  const [extraTickers,  setExtraTickers]  = useState<string[]>(() => {
-    try { const s = localStorage.getItem(scannerExtraKey(user?.id)); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
   const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(() => {
     try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
   });
-  const [addInput,      setAddInput]      = useState("");
 
   // Reload from the new user's key on account switch (covers login/logout without a full page reload)
   useEffect(() => {
-    try { const s = localStorage.getItem(scannerExtraKey(user?.id)); setExtraTickers(s ? JSON.parse(s) : []); } catch { setExtraTickers([]); }
     try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); setHiddenTickers(s ? new Set(JSON.parse(s)) : new Set()); } catch { setHiddenTickers(new Set()); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  useEffect(() => { localStorage.setItem(scannerExtraKey(user?.id),  JSON.stringify(extraTickers)); }, [extraTickers, user?.id]);
   useEffect(() => { localStorage.setItem(scannerHiddenKey(user?.id), JSON.stringify([...hiddenTickers])); }, [hiddenTickers, user?.id]);
   useEffect(() => { saveTraderPrefs({ minWeeklyIncome: minIncome }, user?.id); }, [minIncome, user?.id]);
   useEffect(() => { try { sessionStorage.setItem("fildi_scanner_expanded", JSON.stringify([...expandedSet])); } catch {} }, [expandedSet]);
@@ -862,12 +851,11 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     [entries],
   );
 
-  // Watchlist tickers minus hidden, plus user-added extras
-  const displayTickers = useMemo(() => {
-    const base  = activeTickers.filter(t => !hiddenTickers.has(t));
-    const extra = extraTickers.filter(t => !hiddenTickers.has(t));
-    return [...base, ...extra];
-  }, [activeTickers, extraTickers, hiddenTickers]);
+  // Watchlist tickers minus hidden
+  const displayTickers = useMemo(
+    () => activeTickers.filter(t => !hiddenTickers.has(t)),
+    [activeTickers, hiddenTickers],
+  );
 
   // ── V2 technicals — all 31 rows for self-relative scoring ───────────────────
   const { data: allTechnicalsData } = useQuery({
@@ -893,20 +881,6 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     refetchOnWindowFocus: false,
   });
 
-  // ── Individual indicator queries for extra tickers ───────────────────────────
-  const extraIndicatorQueries = useQueries({
-    queries: extraTickers.map(ticker => ({
-      queryKey:             ["indicators", ticker],
-      queryFn:              async () => {
-        const res = await fetch(`/api/indicators/${ticker}`);
-        if (!res.ok) throw new Error(`indicator fetch failed: ${ticker}`);
-        return res.json() as Promise<ScorecardRow>;
-      },
-      staleTime:            Infinity,
-      refetchOnWindowFocus: false,
-    })),
-  });
-
   // ── Options — one batched request for all display tickers ───────────────────
   // Every sort key (income/buffer/otm/optionScore) is computed FROM the options
   // chain, so there's no way to lazy-load "just the top N" — the ranking itself
@@ -927,14 +901,10 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   });
 
   // ── Derived maps ─────────────────────────────────────────────────────────────
-  const scorecardMap = useMemo(() => {
-    const m = new Map((scorecardData ?? []).map(r => [r.ticker, r]));
-    extraTickers.forEach((t, i) => {
-      const d = extraIndicatorQueries[i]?.data;
-      if (d) m.set(t, d);
-    });
-    return m;
-  }, [scorecardData, extraTickers, extraIndicatorQueries]);
+  const scorecardMap = useMemo(
+    () => new Map((scorecardData ?? []).map(r => [r.ticker, r])),
+    [scorecardData],
+  );
 
   const optionsMap = useMemo(() => {
     const m = new Map<string, OptionsChainResult[] | null>();
@@ -1173,16 +1143,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
   const handleDelete = (ticker: string) => {
     setHiddenTickers(prev => new Set([...prev, ticker]));
-    setExtraTickers(prev => prev.filter(t => t !== ticker));
     setExpandedSet(prev => { const n = new Set(prev); n.delete(ticker); return n; });
     setOverrides(prev => { const n = new Set(prev); n.delete(ticker); return n; });
-  };
-
-  const handleAdd = () => {
-    const t = addInput.trim().toUpperCase();
-    if (!t || displayTickers.includes(t)) { setAddInput(""); return; }
-    setExtraTickers(prev => [...prev, t]);
-    setAddInput("");
   };
 
   const handleGlobalRefresh = () => {
@@ -1229,26 +1191,6 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
             <span className="text-xs text-white">%/wk</span>
           </div>
 
-          <div className="w-px h-5 bg-border mx-1" />
-
-          {/* Add ticker input */}
-          <div className="flex items-center gap-1">
-            <input
-              type="text"
-              value={addInput}
-              onChange={e => setAddInput(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === "Enter" && handleAdd()}
-              placeholder="Add ticker…"
-              className="h-7 w-28 px-2 text-xs rounded-md border border-border bg-background text-white placeholder:text-white/70 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={!addInput.trim()}
-              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-white hover:border-primary/50 disabled:opacity-40 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          </div>
         </div>
 
         {/* Scanner table */}
