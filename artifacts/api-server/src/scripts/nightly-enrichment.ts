@@ -19,7 +19,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { sql, eq, and, inArray, isNull } from "drizzle-orm";
 import {
   db,
@@ -36,7 +35,8 @@ import {
   peerGroupMembers,
   enrichmentRuns,
 } from "@workspace/db";
-import { FIELD_DEFS } from "./merge-trusted.js";
+import { FIELD_DEFS, runMergeTrusted } from "./merge-trusted.js";
+import { runPopulateSourceFundamentals } from "./populate-source-fundamentals.js";
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
 import { fetchEdgarFundamentals, bootstrapCikCache } from "../lib/edgar-client.js";
 import { fetchFinnhubFundamentals }  from "../lib/finnhub-client.js";
@@ -87,7 +87,7 @@ const SOURCE_DAILY_LIMITS: Record<string, number> = {
 };
 
 // Calls consumed per ticker-fetch (for budget math)
-const CALLS_PER_TICKER: Record<string, number> = {
+export const CALLS_PER_TICKER: Record<string, number> = {
   yahoo: 1, edgar: 1, finnhub: 1, polygon: 1, alpha_vantage: 1,
   fmp: 9,   // fetchFMPFundamentals fires 9 endpoints
 };
@@ -674,7 +674,7 @@ async function fetchFMP(ticker: string): Promise<"ok" | "fail" | "nodata"> {
 
 // ── Per-source dispatch ────────────────────────────────────────────────────────
 
-const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" | "nodata">> = {
+export const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" | "nodata">> = {
   yahoo:         fetchYahoo,
   edgar:         fetchEdgar,
   finnhub:       fetchFinnhub,
@@ -988,29 +988,35 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
     return;
   }
 
-  // 10. Repopulate source_fundamentals from staging tables
-  log("\nRunning populate-source-fundamentals…");
-  const scriptDir = path.resolve(new URL(import.meta.url).pathname, "..");
+  // 10 + 11. Materialize staging → source_fundamentals → ticker_fundamentals.
+  //
+  // These run IN-PROCESS (direct function calls), not as `npx tsx` subprocesses.
+  // The old execFileSync approach spawned npx inside the long-lived api-server and
+  // swallowed any failure as a WARN — in production that spawn failed silently, so
+  // freshly-fetched staging never flowed downstream and coverage regressed as the
+  // flagged universe grew. A failure here now marks the run `partial` instead of
+  // masquerading as a clean success. Both runners are careful never to process.exit.
+  let pipelineError: string | null = null;
+
+  log("\nRunning populate-source-fundamentals (in-process)…");
   try {
-    execFileSync("npx", ["tsx", path.join(scriptDir, "populate-source-fundamentals.ts")], {
-      stdio: "inherit",
-      cwd: path.resolve(scriptDir, "../.."),
-      timeout: 120_000,
-    });
+    await runPopulateSourceFundamentals();
   } catch (err: any) {
-    log(`WARN: populate-source-fundamentals failed: ${err?.message}`);
+    pipelineError = `populate-source-fundamentals failed: ${err?.message ?? String(err)}`;
+    log(`ERROR: ${pipelineError}`);
   }
 
-  // 11. Merge into ticker_fundamentals
-  log("\nRunning merge-trusted…");
-  try {
-    execFileSync("npx", ["tsx", path.join(scriptDir, "merge-trusted.ts")], {
-      stdio: "inherit",
-      cwd: path.resolve(scriptDir, "../.."),
-      timeout: 120_000,
-    });
-  } catch (err: any) {
-    log(`WARN: merge-trusted failed: ${err?.message}`);
+  // Merge is the step that writes ticker_fundamentals — skip it if populate threw,
+  // since merging on half-populated source_fundamentals would just persist a
+  // partial/regressed snapshot.
+  if (!pipelineError) {
+    log("\nRunning merge-trusted (in-process)…");
+    try {
+      await runMergeTrusted();
+    } catch (err: any) {
+      pipelineError = `merge-trusted failed: ${err?.message ?? String(err)}`;
+      log(`ERROR: ${pipelineError}`);
+    }
   }
 
   const coverageAfter = await computeCoveragePercent().catch((err: any) => {
@@ -1019,10 +1025,11 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
   });
   const anomaly = await detectNodataAnomaly(totals).catch(() => null);
   const regressed = coverageBefore != null && coverageAfter != null && coverageAfter < coverageBefore;
-  const status: "success" | "partial" = (anomaly || regressed) ? "partial" : "success";
+  const status: "success" | "partial" = (pipelineError || anomaly || regressed) ? "partial" : "success";
+  if (pipelineError) log(`WARN: enrichment pipeline degraded — ${pipelineError}`);
   if (anomaly)   log(`WARN: nodata anomaly detected — ${anomaly}`);
   if (regressed) log(`WARN: coverage dropped ${coverageBefore}% → ${coverageAfter}%`);
-  await recordRun({ startedAt: runStartedAt, status, trigger, perSource: totals, coverageBefore, coverageAfter });
+  await recordRun({ startedAt: runStartedAt, status, trigger, perSource: totals, coverageBefore, coverageAfter, error: pipelineError ?? undefined });
 
   log("\nnightly-enrichment complete.");
 }

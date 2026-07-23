@@ -240,6 +240,10 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   fundamentalsLastFetched:    timestamp('fundamentals_last_fetched', { withTimezone: true }),
   // comma-separated list of fields where FMP vs Yahoo diverged >20%
   discrepancyFlags:           text('discrepancy_flags'),
+  // comma-separated list of fields currently resolved via manual_overrides (admin picked a
+  // non-default source after analysis) — lets the grid outline those cells without a
+  // per-cell provenance fetch, same pattern as discrepancyFlags.
+  overrideFlags:              text('override_flags'),
   fmpCoveragePercent:         numeric('fmp_coverage_percent'),
 
   // Replaces Yahoo financialData + defaultKeyStatistics modules
@@ -1358,6 +1362,26 @@ export const enrichmentRuns = pgTable('enrichment_runs', {
 }));
 
 export type EnrichmentRunRow = typeof enrichmentRuns.$inferSelect
+
+// ── fetch_queue ───────────────────────────────────────────────────────────────
+// Ad-hoc re-fetch requests queued from the Stock DB tab popup (e.g. admin sees a
+// null/suspect cell and wants a specific source refetched now, without waiting
+// for nightly enrichment). field is stored for display only — the fetch
+// functions operate per (ticker, source), so processing dedupes on that pair.
+export const fetchQueue = pgTable('fetch_queue', {
+  id:          serial('id').primaryKey(),
+  ticker:      text('ticker').notNull(),
+  field:       text('field').notNull(),
+  source:      text('source').notNull(), // yahoo | edgar | finnhub | polygon | alpha_vantage | fmp
+  status:      text('status').notNull().default('pending'), // pending | running | done | failed
+  queuedAt:    timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  error:       text('error'),
+}, (t) => ({
+  statusIdx: index('fetch_queue_status_idx').on(t.status),
+}));
+
+export type FetchQueueRow = typeof fetchQueue.$inferSelect
 
 // ── feedback ──────────────────────────────────────────────────────────────────
 

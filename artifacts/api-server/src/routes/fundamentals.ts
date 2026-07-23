@@ -8,7 +8,6 @@ import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundam
 import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
-import { classifyTicker, type PeerGroupClassification } from "../lib/peer-classifier.js";
 import { db, unmappedTickers, tickerRegistry, peerGroups, peerGroupMembers, tickerFundamentals, tickerTechnicals, indicatorCache } from "@workspace/db";
 import { desc, inArray, sql } from "drizzle-orm";
 
@@ -180,30 +179,6 @@ router.get("/fundamentals/rankings", async (_req, res) => {
 
     const results = await computeAndPersistFundamentalScores(regime);
     return res.json(results);
-  } catch (err: any) {
-    return res.status(500).json({ error: String(err?.message ?? err) });
-  }
-});
-
-// GET /fundamentals/peer-groups?tickers=AAPL,MSFT,...
-// Resolves peer group classification for each ticker. Used by home.tsx to build
-// peerGroupMap before calling computeRankingsV2.
-router.get("/fundamentals/peer-groups", async (req, res) => {
-  const tickerParam = req.query["tickers"];
-  if (typeof tickerParam !== "string" || !tickerParam.trim()) {
-    return res.status(400).json({ error: "tickers query param required" });
-  }
-  const tickers = tickerParam.split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
-  if (tickers.length === 0) return res.json({});
-
-  try {
-    const entries = await Promise.all(
-      tickers.map(async t => {
-        const result = await classifyTicker(t);
-        return [t, result] as [string, PeerGroupClassification];
-      }),
-    );
-    return res.json(Object.fromEntries(entries));
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

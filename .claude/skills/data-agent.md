@@ -79,11 +79,12 @@ before each attempt (it does NOT track per-field pass/fail — see SOURCE-TICKER
                      NEWS_SENTIMENT endpoint for sentiment scoring
                      low daily limit — reserve for tickers where 1-3 all fail
 
-6. EDGAR/SEC       — wired into merge-trusted.ts FIELD_DEFS (lowest-priority fallback
-                     for balance sheet / income statement fields), no key, generous rate limit
-                     authoritative for any public company
+6. EDGAR/SEC       — wired into merge-trusted.ts FIELD_DEFS as **last resort in every chain**
+                     (annual 10-K data lags TTM/MRQ sources; only wins when all else is null),
+                     no key, generous rate limit. Authoritative but stale + extraction can be
+                     unreliable per-field (e.g. totalDebt often captures LT-debt only).
+                     Excluded from the divergence check for TTM/flow fields (period mismatch).
                      gap: requires CIK lookup first (tickerCik table), complex JSON structure
-                     use only when all others fail for critical fields
 
 7. FRED            — macro-data.ts, FRED_API_KEY
                      macro only (SOFR, Fed Funds, CPI, GDP, yield curve)
@@ -274,7 +275,21 @@ No UI needed. Logs for admin review only.
     earlier drafts of this doc describing one; don't reintroduce without a real migration.
 [x] freeCashFlow: now persisted to DB via writeFundamentalsRow
 [x] writeFundamentalsRow: forwardPe, evEbitda, evRevenue, revenueGrowthYoyPrior, freeCashFlow all present
+[x] nightly-enrichment: populate+merge run IN-PROCESS now (not npx tsx subprocesses — those
+    failed silently in prod, stranding ~61 flagged blue-chips with fetched-but-unmerged data for
+    a month). Coverage recovered 77.6%→92.8% once run correctly — 2026-07-23.
+[x] EDGAR demoted to last-resort in every FIELD_DEFS chain (was winning totalStockholdersEquity /
+    interestExpense over timelier sources) — 2026-07-23.
+[x] Definitional alignment (2026-07-23): cashAndEquivalents = yahoo totalCash only (cash+STI);
+    totalDebt = yahoo→fmp only (dropped Polygon/EDGAR garbage); revenueGrowthYoY/epsGrowth on
+    annual-YoY basis. "Needs Review" divergence redefined winner-vs-fallback/period-aware/material
+    → 2208 down to ~1017. See fundamentals-field-definitions memory + db-patterns.md.
+[x] Removed SKHYV (pre-IPO, replaced by SKHY) and ADYEN (foreign, no US-source coverage) from
+    ticker_registry + all fundamentals tables — 2026-07-23.
 [ ] Yahoo fundamentals: fetched at serve-time in buildMetrics, not persisted to DB
+[ ] PENDING DEPLOY: all 2026-07-23 merge-trusted/nightly-enrichment changes are in source + the
+    live DB (ran manually) but NOT in the running server's compiled code — needs rebuild+restart
+    or the next scheduled merge recomputes with old logic.
 ```
 
 **Scripts that exist but aren't part of the core bronze→silver→gold flow above** (QA/one-off,

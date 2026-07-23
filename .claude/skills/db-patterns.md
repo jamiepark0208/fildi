@@ -102,32 +102,57 @@ ticker_registry (those hold richer per-ticker metadata for the same tickers, not
     Written by populate-source-fundamentals.ts. Read by merge-trusted.ts and provenance API.
 
 **Gold (merged) — one row per ticker:**
-  - `ticker_fundamentals` — per-field priority: yahoo → finnhub → edgar → fmp (varies by field family).
+  - `ticker_fundamentals` — per-field priority (varies by field family, see below).
     Written by merge-trusted.ts. Read by scorer, Stock DB view (`GET /fundamentals/stock-db`,
-    now viewable by any signed-in user; mutations stay admin-only).
-  - `field_provenance` (PK: ticker, field) — which source won + divergence flag.
+    now viewable by any signed-in user; mutations stay admin-only). `discrepancy_flags` /
+    `override_flags` columns are comma-separated field lists the grid uses to outline cells
+    (sky = divergent, blue = manual override) without a per-cell provenance fetch.
+  - `field_provenance` (PK: ticker, field) — which source won + `divergent` flag.
     Written by merge-trusted.ts. Read by provenance API (GET /fundamentals/provenance/:ticker,
-    admin-only).
+    admin-only) and the "Needs Review" queue (GET /fundamentals/divergent).
   - `manualOverrides` — admin per-field overrides, consumed before FIELD_DEFS priority.
+  - `enrichment_runs` — one row per nightly-enrichment invocation (status/trigger/perSource/
+    coverageBefore→After/error). Run history is queryable here, not just the per-day log file.
 
 **Merge pipeline order:**
   1. Run backfill scripts (bronze) → 2. populate-source-fundamentals.ts (silver) → 3. merge-trusted.ts (gold)
+  Nightly-enrichment.ts orchestrates 2+3 automatically. **They run IN-PROCESS via
+  `runPopulateSourceFundamentals()` / `runMergeTrusted()` imports — NOT as `npx tsx`
+  subprocesses** (the old execFileSync approach failed silently in the long-lived server;
+  fixed 2026-07-23). Both scripts still have a CLI guard for standalone runs. A populate/merge
+  failure now marks the enrichment_runs row `partial` instead of a false `success`.
 
-**Per-field priority rules (hardcoded in merge-trusted.ts FIELD_DEFS)** — all 6 sources are
-wired in, including EDGAR and Polygon/AV as lowest-priority fallbacks (not "cross-validation
-only" — see data-agent.md's changelog):
+**Per-field priority rules (hardcoded in merge-trusted.ts FIELD_DEFS)** — all 6 sources wired
+in. **EDGAR is last-resort in EVERY chain** (annual 10-K data lags; it only wins when every
+timelier source is null — reordered 2026-07-23). Highlights:
   - Valuation (peRatio, evEbitda, etc.): yahoo → finnhub → fmp
-  - Margins/returns: yahoo → finnhub → fmp (never edgar — period mismatch)
-  - Balance sheet: yahoo → finnhub → edgar → fmp → polygon/av fallback
-  - Income statement: yahoo → fmp → edgar → polygon/av fallback
-  - Cash flow: yahoo → fmp → edgar
+  - Margins/returns: yahoo → finnhub → fmp (EDGAR excluded from the divergence check for these
+    TTM fields — period mismatch)
+  - Balance sheet: yahoo → finnhub → fmp → polygon → edgar(last)
+  - Income statement: yahoo → fmp → polygon → edgar(last)
+  - Cash flow: yahoo → fmp → edgar(last)
   - debtToEquity: yahoo → fmp (never finnhub — definitional mismatch)
   - wacc, roic, priceToSales, effectiveTaxRate: fmp only (Yahoo never carries these)
+  - **cashAndEquivalents: yahoo `totalCash` ONLY** — concept = "cash + ST investments" (UI
+    "Cash & ST Inv" label, what cashRunway needs). FMP/EDGAR report cash-only and are excluded.
+  - **totalDebt: yahoo → fmp only** — Polygon/EDGAR dropped (unreliable: Polygon includes bank
+    deposits e.g. GS=$1.68T, EDGAR often long-term only e.g. MSFT=$43B).
+  - **revenueGrowthYoY / epsGrowth: annual-YoY basis** — yahoo `annualRevenueYoy`/`epsGrowth`
+    (both annual, match FMP exactly) preferred; Yahoo quarterly + Finnhub TTM are last-resort.
 
-**Rate limits:**
-  - FMP: 250 calls/day (free tier). 9 calls/ticker × 257 tickers = ~10 days. Budget tracked in `api_usage`.
-  - AV: 25 calls/day. Resumable cursor in logs/av-cursor.json. ~10+ days to cover 257 tickers.
-  - Polygon: no hard daily limit. 3 concurrent, 1s between batches.
+**Divergence ("Needs Review") logic** (merge-trusted.ts `isMaterialDivergence`): winner-vs-
+fallback, period-aware, materiality-based — NOT all-pairs. Flags only when the value we chose
+materially disagrees with its next period-comparable fallback: sign flip, ≥3× scale/unit error,
+or beyond a field-class tolerance (growth 50%, price ratios 25%, totalDebt 35%, margins/$ 20%)
+with a 0.03 absolute floor. Do NOT confuse with `validate-sources.ts` (a separate QA report).
+See fundamentals-field-definitions memory for the full canonical-concept rationale.
+
+**Rate limits** (nightly-enrichment.ts `SOURCE_DAILY_LIMITS`, read from `api_usage`):
+  - FMP: budgeted 220 calls/day (free tier is 250; margin left for ad-hoc calls). 9 calls/ticker.
+    NOTE: FMP self-records usage even on nodata, so a nodata-heavy run still consumes budget.
+  - AV: 25 calls/day. Reserved for tickers where free sources all fail.
+  - yahoo/edgar/finnhub/polygon: no hard daily cap (rate-limited only).
+  - Scheduled biweekly (Sun + Thu 02:00 UTC) via lib/scheduler.ts; also runnable manually.
 
 **Backfill script locations (api-server/src/scripts/):**
   - backfill-fmp.ts      — skip if fmp_wacc/fmp_roic non-null AND fetchedAt < 7 days

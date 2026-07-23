@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-22
+**build** — last updated 2026-07-23
 
 ## Active work
-- Working: options-scanner-income-sort-default, options-scanner-sell-put-trade-idea, options-scanner-settlement-dte-fix
-- In progress: Options scanner: default sort now Income%, added a 'Sell Put Idea' button on expanded strike rows that posts directly to the trade-ideas feed (tradeType SELL_PUT). Fixed %/wk calc to account for T+1 settlement lag (Friday expiry money isn't back until Monday) via new settlementDte field, applied across sorting/filtering/scoring, with a formula tooltip. Also fixed a related bug: DTE fields were being frozen inside the 30-min options cache blob instead of recomputed at serve time — added withFreshDte() so DTE is always clock-accurate regardless of cache age. Rebuilt+restarted api-server twice for these changes; both confirmed live (HTTP 200).
-- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1 and _8) to restore jamie/ed color tags. GitHub push still failing — PAT in .git/config remote origin URL is invalid and needs rotation.
+- Working: provenance-cache-removal, regime-cache-restart-fix, dead-peer-groups-route-removal, queue-refetch-completion-feedback
+- In progress: Diagnosed SNOW finnhub provenance bug -- root cause was a stale provenanceCache (added pre-persistence, never removed), not bad data. Removed it entirely (route + 3 invalidation call sites + file + cache-registry entry). Audited all 21 registered caches plus grepped for unregistered ones -- found regime.ts's business-cycle _cache was invisible to the monitor and didn't survive restarts; fixed to seed from latest market_regime DB row and registered it as 'business-cycle-regime'. Found GET /fundamentals/peer-groups was dead (zero frontend callers, stale comment) and removed it, but kept classifyTicker/classifyCache since they're still live via getTaxonomyPeers -> /stocks/competitors. Built queue-refetch completion visibility: /queue-refetch/run now returns per-item done/failed results (previously only aggregate ok/failed counts, and completed rows vanish from GET once done); frontend shows a per-item results list plus a transient 5s green cell flash (local state only, clears on reload). Confirmed admin-only gating was already correct both client (isAdmin) and server (requireAdmin) side -- no gap there.
+- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1/_8) to restore jamie/ed color tags. GitHub push still failing -- PAT in .git/config remote origin URL invalid, needs rotation.
 
 ## Next tasks (priority order)
 
@@ -42,12 +42,34 @@
 ## RSI / MFI thresholds
 Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI threshold: 25 (all tickers).
 
-## Fundamentals pipeline state (2026-07-13)
-- Universe: ticker_registry WHERE fetch_fundamentals=true (257 tickers) — golden source for all scripts
-- Bronze tables: fmp(257), yahoo(280), finnhub(280), edgar(280), polygon(162), av(14)
-- Silver: source_fundamentals 23,158 rows (fresh — re-ran 2026-07-13, 118 rejected)
-- Gold: ticker_fundamentals 269 tickers merged, field_provenance 9,259 rows (fresh — re-ran 2026-07-13). Fields null >20% of tickers: peRatio (64/283), pegRatio (59/283) — worth investigating if these matter for scoring.
-- All 7 backfill scripts now read from ticker_registry WHERE fetch_fundamentals=true
-- populate-source-fundamentals.ts now handles all 6 sources including Polygon (source='polygon') and AV (source='alpha_vantage')
-- merge-trusted.ts FIELD_DEFS: Polygon + AV added as lowest-priority fallbacks across applicable fields
-- Backfill safe order: check api_usage budget → backfill-fmp (250/day) → backfill-polygon (no cap) → populate-source-fundamentals → merge-trusted → backfill-av (25/day)
+## Fundamentals pipeline state (2026-07-23)
+- Universe: ticker_registry WHERE fetch_fundamentals=true (335 tickers after removing SKHYV+ADYEN)
+- Gold coverage: ~92.8% (335 active tickers × VALID_FIELD_DEFS). Was 77.6% pre-session — the
+  regression was the subprocess-spawn bug (below), not real data loss.
+- Only 2 flagged tickers now lack a ticker_fundamentals row (down from 61): both are peer-expansion
+  edge cases; the 59 recovered were blue-chips (GS/MA/BAC/ASML/KLAC…) whose fetched staging data
+  was never being merged.
+
+### This session's changes (all in merge-trusted.ts / nightly-enrichment.ts / populate-source-fundamentals.ts)
+1. **Subprocess bug FIXED**: nightly-enrichment ran populate+merge as `npx tsx` subprocesses via
+   execFileSync and swallowed failures as WARN — silently failing in the long-lived prod server.
+   Now runs them in-process (`runPopulateSourceFundamentals()`, `runMergeTrusted()` exported;
+   process.exit only in CLI guards). A failure marks enrichment_runs `partial`.
+2. **EDGAR → last-resort** in every FIELD_DEFS chain (was winning totalStockholdersEquity /
+   interestExpense despite being annual/lagging).
+3. **Divergence redesign** (isMaterialDivergence): winner-vs-fallback, period-aware, materiality
+   tolerances → "Needs Review" 2208 → ~1017. Reads GET /fundamentals/divergent.
+4. **Definitional alignment**: cashAndEquivalents = yahoo totalCash only (cash+STI concept);
+   totalDebt = yahoo→fmp only; revenueGrowthYoY/epsGrowth on annual basis. NOTE: revenueGrowthYoY
+   VALUES shifted (quarterly→annual, e.g. AAPL 16.6%→6.4%) and affect the growth score.
+5. Removed SKHYV (pre-IPO→SKHY) + ADYEN (foreign) from registry + all fundamentals tables.
+6. finnhub debtToEquity parser fix + override_flags column plumbing (from prior session, still uncommitted).
+
+### Still open / next
+- **Rebuild+restart to deploy** (deferred by user) — see Active work note.
+- Production hardening not yet done: process.on(uncaughtException/unhandledRejection) in index.ts;
+  frozen log-date bug (nightly log filename fixed at server-start date).
+- Residual ~1017 Needs Review is genuine vendor disagreement (lease inclusion, price-snapshot
+  timing, growth basis) — driving lower needs looser tolerances or per-field comparable curation.
+- Backfill safe order: check api_usage budget → backfill-fmp → backfill-polygon → (populate+merge
+  now automatic via nightly-enrichment) → backfill-av.

@@ -154,9 +154,9 @@ export async function getTaxonomyPeers(ticker: string, limit = 15): Promise<Taxo
 }
 
 // Classification is DB-backed and effectively static (sector/industry rarely
-// changes) — cache per ticker so repeat /fundamentals/peer-groups calls for
-// the same watchlist don't re-run the registry lookup (or the full peer
-// overlap + keyword-match path for unmapped tickers) on every request.
+// changes) — cache per ticker so repeat calls (e.g. getTaxonomyPeers, used by
+// GET /stocks/competitors/:ticker) don't re-run the registry lookup (or the
+// full peer overlap + keyword-match path for unmapped tickers) every time.
 export const classifyCache = new TTLCache<PeerGroupClassification>(24 * 60 * 60 * 1000, "ticker-classify", 1000); // key = ticker
 
 /** Classify a ticker to its best-fit peer group.

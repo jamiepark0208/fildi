@@ -12,12 +12,36 @@ import { desc } from "drizzle-orm";
 // home/fundamentals/feed scoring rather than option-strike selection.
 
 const router = Router();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let _cache: (RegimeResult & { cachedAt: number }) | null = null;
 
 function isFresh(): boolean {
   return _cache !== null && Date.now() - _cache.cachedAt < CACHE_TTL_MS;
+}
+
+// On a cold process (post-restart), a persisted row from within the TTL window
+// means we don't need to recompute — computeRegime() is cheap CPU-only scoring,
+// but computeAndPersist() also writes a fresh market_regime row every time it
+// runs, so avoiding an unnecessary call here also avoids an unnecessary insert.
+async function seedFromDb(): Promise<void> {
+  const [row] = await db.select()
+    .from(marketRegime)
+    .orderBy(desc(marketRegime.computedAt))
+    .limit(1);
+  if (!row) return;
+  const cachedAt = row.computedAt.getTime();
+  if (Date.now() - cachedAt >= CACHE_TTL_MS) return;
+  _cache = {
+    regime:             row.regime as RegimeResult["regime"],
+    confidence:         row.confidence,
+    signalScores:       row.signalScores as RegimeResult["signalScores"],
+    confirmingSignals:  row.confirmingSignals,
+    conflictingSignals: row.conflictingSignals,
+    indicatorSnapshot:  row.indicatorSnapshot as RegimeResult["indicatorSnapshot"],
+    computedAt:         row.computedAt,
+    cachedAt,
+  };
 }
 
 async function computeAndPersist(): Promise<RegimeResult> {
@@ -34,6 +58,9 @@ async function computeAndPersist(): Promise<RegimeResult> {
 }
 
 router.get("/regime/macro", async (_req, res) => {
+  if (!isFresh()) {
+    await seedFromDb().catch((err: unknown) => logger.warn({ err: String(err) }, "regime: DB seed failed"));
+  }
   if (isFresh()) return res.json(_cache);
   try {
     const result = await computeAndPersist();
@@ -55,6 +82,12 @@ router.post("/regime/macro/refresh", requireAdmin, async (_req, res) => {
     return res.status(500).json({ error: "regime computation failed" });
   }
 });
+
+// For the admin cache monitor — exposes the in-process cache's fill state without
+// letting other modules read/mutate _cache directly.
+export function getCacheState(): { cachedAt: number } | null {
+  return _cache ? { cachedAt: _cache.cachedAt } : null;
+}
 
 // Exported for use by other routes (e.g. feed.ts)
 export async function getLatestRegime(): Promise<string | null> {

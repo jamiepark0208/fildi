@@ -269,7 +269,7 @@ async function populateFromTable(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main() {
+export async function runPopulateSourceFundamentals() {
   const [yahooRows, edgarRows, finnhubRows, fmpRows, polygonRows, avRows] = await Promise.all([
     db.select().from(yahooFundamentals),
     db.select().from(edgarFundamentals),
@@ -316,11 +316,14 @@ async function main() {
   console.log(`  polygon:       ${polygon.tickers} tickers, ${polygon.totalFields} fields`);
   console.log(`  alpha_vantage: ${av.tickers} tickers, ${av.totalFields} fields`);
   console.log(`  TOTAL:         ${totalFields} rows written, ${totalRejected} rejected`);
-
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+// CLI entrypoint only — when imported (e.g. by nightly-enrichment running in the
+// long-lived api-server process) the caller invokes runPopulateSourceFundamentals()
+// directly and must not have the process exit out from under it.
+const isMain = process.argv[1]?.includes("populate-source-fundamentals");
+if (isMain) {
+  runPopulateSourceFundamentals()
+    .then(() => process.exit(0))
+    .catch((err) => { console.error("Fatal:", err); process.exit(1); });
+}

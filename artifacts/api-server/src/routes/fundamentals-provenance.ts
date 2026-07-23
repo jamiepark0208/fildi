@@ -8,7 +8,6 @@ import {
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { resolveField, writeProvenance, FIELD_DEFS } from "../scripts/merge-trusted.js";
-import { provenanceCache } from "../lib/provenance-cache.js";
 import { computeAndPersistFundamentalScores } from "../lib/fundamentals-db.js";
 import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
@@ -43,7 +42,11 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
     effectiveTaxRate:   "not tracked by EDGAR",
   },
   finnhub: {
-    debtToEquity:   "definitionally incompatible (different calculation)",
+    // Was mislabeled "definitionally incompatible" — actually a parser bug (finnhub-client.ts
+    // wrongly divided the raw ratio by 100). Fixed 2026-07-23 and now agrees closely with fmp,
+    // but left out of default priority pending broader validation; used via manual override
+    // on tickers where yahoo's own scaling is ambiguous (see manual_overrides notes).
+    debtToEquity:   "excluded from default priority pending broader validation (parser bug fixed 2026-07-23 — see override notes on affected tickers)",
     priceToSales:   "not tracked by Finnhub",
     wacc:           "not tracked by Finnhub",
     effectiveTaxRate: "not tracked by Finnhub",
@@ -121,9 +124,6 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
 router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) => {
   const ticker = String(req.params.ticker).toUpperCase();
   try {
-    const cached = provenanceCache.get(ticker);
-    if (cached) return res.json(cached);
-
     const [provRows, sfRows, overrideRows, yahooRow, edgarRow, finnhubRow, polygonRow, avRow, fmpRow] = await Promise.all([
       db.select().from(fieldProvenance).where(eq(fieldProvenance.ticker, ticker)),
       db.select().from(sourceFundamentals).where(eq(sourceFundamentals.ticker, ticker)),
@@ -177,20 +177,26 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
 
         // Build per-source breakdown
         const sources = ALL_SOURCES.map(source => {
-          const sfField = priority.find(([s]) => s === source)?.[1];
-          const sfEntry = sfField ? sfByField.get(sfField)?.get(source) : undefined;
+          // Sources excluded from priority still get looked up under the canonical field
+          // name — source_fundamentals always stores rows under it regardless of source —
+          // so an admin override pointing at an excluded source (e.g. after a parser fix
+          // makes it trustworthy again) can still surface its value here.
+          const sfField = priority.find(([s]) => s === source)?.[1] ?? field;
+          const sfEntry = sfByField.get(sfField)?.get(source);
 
           let status: "used" | "available" | "excluded" | "no_data";
           let exclusionReason: string | undefined;
 
-          if (!prioritySources.has(source)) {
+          if (override?.overrideSource === source && sfEntry) {
+            // Active override wins even if the source is normally excluded from priority —
+            // an admin deliberately picked it, so it shouldn't read as "excl" in the table.
+            status = "used";
+          } else if (!prioritySources.has(source)) {
             status = "excluded";
             exclusionReason = EXCLUDED_REASONS[source]?.[field] ?? "not in priority list for this field";
           } else if (!sfEntry) {
             status = "no_data";
           } else if (prov?.winningSource === source && !override) {
-            status = "used";
-          } else if (override?.overrideSource === source) {
             status = "used";
           } else {
             status = "available";
@@ -224,7 +230,6 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
       });
 
     const payload = { ticker, fields };
-    provenanceCache.set(ticker, payload);
     return res.json(payload);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -261,6 +266,18 @@ router.get("/fundamentals/divergent", requireAdmin, async (_req, res) => {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
 });
+
+// Recompute the comma-separated override_flags column for a ticker from manual_overrides —
+// keeps the bulk grid view's blue-outline indicator in sync without a per-cell provenance
+// fetch. Mirrors discrepancy_flags, which does the same for divergent fields.
+async function syncOverrideFlags(ticker: string) {
+  const rows = await db.select({ field: manualOverrides.field })
+    .from(manualOverrides).where(eq(manualOverrides.ticker, ticker));
+  const overrideFlags = rows.length > 0 ? rows.map(r => r.field).join(",") : null;
+  await db.insert(tickerFundamentals)
+    .values({ ticker, overrideFlags } as any)
+    .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: { overrideFlags } as any });
+}
 
 // ── PUT /fundamentals/override ────────────────────────────────────────────────
 // Upsert a manual override, then immediately re-resolve and persist that field.
@@ -301,7 +318,7 @@ router.put("/fundamentals/override", requireAdmin, async (req, res) => {
       ]);
     }
 
-    provenanceCache.delete(t);
+    await syncOverrideFlags(t);
     // Scores are cross-sectional — any override invalidates all. Fire-and-forget.
     getLatestRegime().then(regime => computeAndPersistFundamentalScores(regime)).catch(err =>
       logger.warn({ err: String(err) }, "fundamentals: score recompute after override failed")
@@ -339,7 +356,7 @@ router.delete("/fundamentals/override/:ticker/:field", requireAdmin, async (req,
       ]);
     }
 
-    provenanceCache.delete(t);
+    await syncOverrideFlags(t);
     getLatestRegime().then(regime => computeAndPersistFundamentalScores(regime)).catch(err =>
       logger.warn({ err: String(err) }, "fundamentals: score recompute after override delete failed")
     );

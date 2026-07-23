@@ -27,6 +27,9 @@ const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
 // Hydrated from app_config at startup — see loadPersistedLastRun().
 export let lastEnrichmentRun: Date | null = null;
 export let enrichmentRunning = false;
+// Setter so other modules (e.g. the ad-hoc refetch-queue route) can share this
+// mutex with the scheduler — a plain `let` export is read-only outside this file.
+export function setEnrichmentRunning(v: boolean) { enrichmentRunning = v; }
 export let lastTradeExpiryRun: Date | null = null;
 export let tradeExpiryRunning = false;
 

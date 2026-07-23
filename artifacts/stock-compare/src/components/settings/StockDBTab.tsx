@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ interface FundamentalsRow {
   lastSource: string | null;
   fmpCoveragePercent: string | null;
   discrepancyFlags: string | null;
+  overrideFlags: string | null;
   // VALUE
   peRatio: string | null; pegRatio: string | null; forwardPe: string | null;
   priceToBook: string | null; priceToSales: string | null; evEbitda: string | null;
@@ -84,6 +85,14 @@ interface DivergentItem {
   winningSource: string | null;
   winningValue: number | null;
   fetchedAt: string | null;
+}
+interface QueueItem {
+  id: number;
+  ticker: string;
+  field: string;
+  source: string;
+  status: "pending" | "running" | "done" | "failed";
+  queuedAt: string;
 }
 
 // ── Grouping helpers ──────────────────────────────────────────────────────────
@@ -434,6 +443,72 @@ export function StockDBTab() {
   });
   const runs = runsData?.runs ?? [];
   const latestRun = runs[0] ?? null;
+
+  const [queueExpanded, setQueueExpanded] = useState(false);
+  type QueueRunItem = { ticker: string; field: string; source: string; status: "done" | "failed" };
+  const [queueRunResult, setQueueRunResult] = useState<{ processed: number; ok: number; failed: number; items: QueueRunItem[] } | null>(null);
+
+  // Transient per-cell success flash — cleared after a few seconds, and never
+  // persisted, so a page reload (or the next run) always starts clean.
+  const [justSucceeded, setJustSucceeded] = useState<Set<string>>(new Set());
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashSuccessfulCells = useCallback((items: QueueRunItem[]) => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    const keys = new Set(items.filter(i => i.status === "done").map(i => `${i.ticker}:${i.field}`));
+    setJustSucceeded(keys);
+    flashTimerRef.current = setTimeout(() => setJustSucceeded(new Set()), 5_000);
+  }, []);
+  useEffect(() => () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); }, []);
+  const { data: queueData } = useQuery<{ queue: QueueItem[] }>({
+    queryKey: ["refetch-queue"],
+    queryFn: async () => {
+      const r = await fetch("/api/fundamentals/queue-refetch", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: isAdmin,
+    staleTime: 10_000,
+    refetchInterval: queueExpanded ? 5_000 : false,
+  });
+  const refetchQueue = queueData?.queue ?? [];
+
+  const queueRefetchMutation = useMutation({
+    mutationFn: async ({ ticker, field, sources }: { ticker: string; field: string; sources: string[] }) => {
+      const r = await fetch("/api/fundamentals/queue-refetch", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, field, sources }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["refetch-queue"] }),
+  });
+
+  const removeQueueItemMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/fundamentals/queue-refetch/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["refetch-queue"] }),
+  });
+
+  const runQueueMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/fundamentals/queue-refetch/run", { method: "POST", credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<{ processed: number; ok: number; failed: number; items: QueueRunItem[] }>;
+    },
+    onSuccess: (result) => {
+      setQueueRunResult(result);
+      flashSuccessfulCells(result.items);
+      qc.invalidateQueries({ queryKey: ["refetch-queue"] });
+      qc.invalidateQueries({ predicate: q => q.queryKey[0] === "provenance" });
+      qc.invalidateQueries({ queryKey: ["admin-stock-db"] });
+    },
+  });
 
   const [reviewExpanded, setReviewExpanded] = useState(false);
   const { data: divergentData } = useQuery<{ items: DivergentItem[]; count: number }>({
@@ -877,6 +952,102 @@ export function StockDBTab() {
         </div>
       )}
 
+      {isAdmin && (refetchQueue.length > 0 || queueRunResult) && (
+        <div className="border border-blue-500/30 rounded-md">
+          <button
+            onClick={() => setQueueExpanded(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+          >
+            <div className="flex items-center gap-2">
+              {queueExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              <RefreshCw className="h-3 w-3 text-blue-400" />
+              <span className="font-medium">Refetch queue</span>
+              {refetchQueue.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                  {refetchQueue.length}
+                </span>
+              )}
+            </div>
+            {queueRunResult && (
+              <span className="text-muted-foreground">
+                last run: {queueRunResult.ok} ok, {queueRunResult.failed} failed
+              </span>
+            )}
+          </button>
+          {queueExpanded && (
+            <div className="border-t border-border">
+              {refetchQueue.length > 0 && (
+                <div className="overflow-auto max-h-64">
+                  <table className="text-xs w-full border-collapse">
+                    <thead className="sticky top-0 bg-background">
+                      <tr className="text-muted-foreground">
+                        <th className="text-left font-medium px-3 py-1.5">Ticker</th>
+                        <th className="text-left font-medium px-3 py-1.5">Field</th>
+                        <th className="text-left font-medium px-3 py-1.5">Source</th>
+                        <th className="text-left font-medium px-3 py-1.5">Status</th>
+                        <th className="text-right font-medium px-3 py-1.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {refetchQueue.map(item => (
+                        <tr key={item.id} className="border-t border-border/50">
+                          <td className="px-3 py-1.5 font-mono font-semibold">{item.ticker}</td>
+                          <td className="px-3 py-1.5 font-mono">{item.field}</td>
+                          <td className="px-3 py-1.5">{item.source}</td>
+                          <td className="px-3 py-1.5">{item.status}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            {item.status === "pending" && (
+                              <button
+                                onClick={() => removeQueueItemMutation.mutate(item.id)}
+                                className="text-[10px] px-2 py-0.5 border border-border rounded hover:bg-secondary"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="px-3 py-2 flex items-center gap-2">
+                <button
+                  disabled={refetchQueue.filter(i => i.status === "pending").length === 0 || runQueueMutation.isPending}
+                  onClick={() => runQueueMutation.mutate()}
+                  className="text-[10px] px-3 py-1 rounded bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90"
+                >
+                  {runQueueMutation.isPending ? "Running…" : "Run now"}
+                </button>
+                {runQueueMutation.isError && (
+                  <span className="text-[10px] text-red-400">Run failed — see server log</span>
+                )}
+              </div>
+              {/* Completed items vanish from the live queue table above the instant they
+                  finish (GET only returns pending/running rows), so this is the only place
+                  a per-item done/failed result is visible. Cleared on the next run. */}
+              {queueRunResult && queueRunResult.items.length > 0 && (
+                <div className="border-t border-border px-3 py-2">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Last run results</div>
+                  <div className="flex flex-col gap-0.5 max-h-40 overflow-auto">
+                    {queueRunResult.items.map((item, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px] font-mono">
+                        <span className={item.status === "done" ? "text-green-400" : "text-red-400"}>
+                          {item.status === "done" ? "✓" : "✗"}
+                        </span>
+                        <span className="font-semibold">{item.ticker}</span>
+                        <span className="text-muted-foreground">{item.field}</span>
+                        <span className="text-muted-foreground">via {item.source}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* View toggle */}
       <div className="flex items-center gap-1 p-0.5 bg-muted/30 border border-border rounded-md w-fit text-xs font-medium">
         {(["fundamentals", "technicals"] as const).map(mode => (
@@ -1184,13 +1355,17 @@ export function StockDBTab() {
                     const suspect = hardInvalid || isStatOutlier;
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
+                    const overrideFlags = f?.overrideFlags?.split(",") ?? [];
+                    const hasOverride = overrideFlags.includes(col.key as string);
                     const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
+                    const justRefetched = justSucceeded.has(`${row.ticker}:${col.key as string}`);
                     const tooltipParts: string[] = [];
                     if (suspect) {
                       if (hardInvalid) tooltipParts.push(`Suspect: ${col.label} value is structurally invalid (e.g. negative when it shouldn't be)`);
                       else if (isStatOutlier) tooltipParts.push(`Outlier: z = ${z!.toFixed(1)} — unusually ${z! > 0 ? "high" : "low"} vs peer group median`);
                     }
                     if (hasFlag) tooltipParts.push(`Discrepancy: multiple data sources report different values for ${col.label}`);
+                    if (hasOverride) tooltipParts.push(`Manual override active for ${col.label} — a source other than default priority was picked after review`);
                     return (
                       <td
                         key={col.key as string}
@@ -1204,7 +1379,12 @@ export function StockDBTab() {
                           !isOptionalNull && isNull && "bg-red-500/15 text-red-400/70",
                           !isNull && hasFlag && "bg-sky-500/15",
                           !isNull && suspect && "ring-1 ring-inset ring-amber-500/80",
+                          !isNull && hasOverride && "ring-1 ring-inset ring-blue-500/80",
+                          // Transient re-fetch success flash — !important so it visibly
+                          // wins over the other conditional backgrounds above while active.
+                          justRefetched && "!bg-green-500/25 !ring-1 !ring-inset !ring-green-500/70",
                         )}
+                        title={justRefetched ? "Re-fetched successfully" : undefined}
                       >
                         {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-muted-foreground/60" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
                       </td>
@@ -1350,10 +1530,15 @@ export function StockDBTab() {
                     <th className="text-right font-normal pb-0.5">Value</th>
                     <th className="text-right font-normal pb-0.5">Age</th>
                     <th className="text-right font-normal pb-0.5">Status</th>
+                    <th className="text-right font-normal pb-0.5"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeProv.sources.map(s => (
+                  {activeProv.sources.map(s => {
+                    const queued = refetchQueue.some(
+                      q => q.ticker === activeCell?.ticker && q.field === activeCell?.field && q.source === s.source
+                    );
+                    return (
                     <tr key={s.source} className={cn(s.status === "excluded" || s.status === "no_data" ? "text-muted-foreground/50" : "")}>
                       <td className="py-px">{s.source}</td>
                       <td className="text-right font-mono py-px">
@@ -1372,8 +1557,21 @@ export function StockDBTab() {
                           <span className="text-muted-foreground/40" title={s.exclusionReason}>excl</span>
                         )}
                       </td>
+                      <td className="text-right py-px pl-1">
+                        <button
+                          disabled={queued || queueRefetchMutation.isPending}
+                          onClick={() => {
+                            if (!activeCell) return;
+                            queueRefetchMutation.mutate({ ticker: activeCell.ticker, field: activeCell.field, sources: [s.source] });
+                          }}
+                          className="text-[9px] px-1 py-0.5 border border-border rounded hover:bg-secondary disabled:opacity-40 whitespace-nowrap"
+                        >
+                          {queued ? "queued" : "queue re-fetch"}
+                        </button>
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
