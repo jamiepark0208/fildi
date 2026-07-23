@@ -4,7 +4,7 @@
  * Rules:
  *   TTM_ONLY fields (margins, returns, growth):  compare yahoo vs finnhub only — EDGAR is annual, period mismatch
  *   SKIP_VALIDATION fields (debtToEquity):       always skip — definitionally incompatible across sources
- *   Ratio fields (abs(v) ≤ 10):                  PASS if |a - b| ≤ 0.05
+ *   Ratio fields (abs(v) ≤ 10):                  PASS if |a - b| ≤ 0.05 OR |a - b| / max(|a|, |b|) ≤ 0.10 (relative 10%)
  *   Mid-range fields (10 < abs(v) < 1000):       PASS if |a - b| / max(|a|, |b|) ≤ 0.10 (relative 10%)
  *   Large number fields (abs(v) ≥ 1000):         PASS if min/max ≥ 0.80 (within 20%)
  *   Scale mismatch (max/min > 50):               flag SCALE_MISMATCH, treated as FAIL
@@ -58,8 +58,12 @@ export function compareTwo(a: number, b: number): CompareResult {
     return maxAbs > 0 && Math.abs(a - b) / maxAbs <= 0.10 ? "PASS" : "FAIL";
   }
 
-  // Ratio (abs ≤ 10): absolute ±0.05
-  return Math.abs(a - b) <= 0.05 ? "PASS" : "FAIL";
+  // Ratio (abs ≤ 10): absolute ±0.05 floor (handles near-zero values where relative
+  // diff is unstable) OR relative 10% (same tolerance as mid-range) — avoids a cliff
+  // at the abs=10 boundary where a value just above 10 got 20x more slack than one
+  // just below it.
+  if (Math.abs(a - b) <= 0.05) return "PASS";
+  return maxAbs > 0 && Math.abs(a - b) / maxAbs <= 0.10 ? "PASS" : "FAIL";
 }
 
 export function compareAll(vals: Map<string, number>): CompareResult {

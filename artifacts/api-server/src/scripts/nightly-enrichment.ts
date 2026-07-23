@@ -269,8 +269,13 @@ async function buildFetchTargets(
         return false;
       }
 
-      // If staging is fresh AND source has at least some data in sf → source returned null recently
-      if (isStagingFresh.has(ticker) && sourceSfFields.size > 0) return false;
+      // Staging fresh means we attempted this source for this ticker within STALE_DAYS —
+      // whether it returned partial data or nothing at all, don't burn budget retrying
+      // it again until the staleness window passes. Previously this only skipped when
+      // sourceSfFields.size > 0, so tickers that came back with zero data (the common
+      // case for small/foreign tickers on FMP/AV) were retried every single run,
+      // starving never-tried tickers of the tiny FMP/AV daily budget.
+      if (isStagingFresh.has(ticker)) return false;
 
       return true;
     });

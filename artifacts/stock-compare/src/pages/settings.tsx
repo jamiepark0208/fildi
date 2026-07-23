@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
+import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
 import { getTraderPrefs, saveTraderPrefs, DEFAULT_TRADER_PREFS } from "@/lib/trader-prefs";
 
@@ -680,7 +681,7 @@ function TradingTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback";
+type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -692,6 +693,7 @@ export default function Settings() {
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "users",           label: "User Mgmt",     adminOnly: true },
     { id: "cache",           label: "Cache Monitor",  adminOnly: true },
+    { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
     { id: "stockdb",         label: "Stock DB" },
     { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
     { id: "feedback",        label: "Feedback",       adminOnly: true },
@@ -741,6 +743,7 @@ export default function Settings() {
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
+          {tab === "scheduled-tasks" && isAdmin && <ScheduledTasksTab />}
           {tab === "stockdb"     && <StockDBTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
           {tab === "feedback"    && isAdmin && <FeedbackTab />}

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import {
   db, sourceFundamentals, fieldProvenance, manualOverrides, tickerFundamentals,
+  yahooFundamentals, edgarFundamentals, finnhubFundamentals, polygonFundamentals,
+  avFundamentals, fmpFundamentals,
   type ManualOverridesRow,
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
@@ -122,11 +124,30 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
     const cached = provenanceCache.get(ticker);
     if (cached) return res.json(cached);
 
-    const [provRows, sfRows, overrideRows] = await Promise.all([
+    const [provRows, sfRows, overrideRows, yahooRow, edgarRow, finnhubRow, polygonRow, avRow, fmpRow] = await Promise.all([
       db.select().from(fieldProvenance).where(eq(fieldProvenance.ticker, ticker)),
       db.select().from(sourceFundamentals).where(eq(sourceFundamentals.ticker, ticker)),
       db.select().from(manualOverrides).where(eq(manualOverrides.ticker, ticker)),
+      db.select({ fetchedAt: yahooFundamentals.fetchedAt }).from(yahooFundamentals).where(eq(yahooFundamentals.ticker, ticker)),
+      db.select({ fetchedAt: edgarFundamentals.fetchedAt }).from(edgarFundamentals).where(eq(edgarFundamentals.ticker, ticker)),
+      db.select({ fetchedAt: finnhubFundamentals.fetchedAt }).from(finnhubFundamentals).where(eq(finnhubFundamentals.ticker, ticker)),
+      db.select({ fetchedAt: polygonFundamentals.fetchedAt }).from(polygonFundamentals).where(eq(polygonFundamentals.ticker, ticker)),
+      db.select({ fetchedAt: avFundamentals.fetchedAt }).from(avFundamentals).where(eq(avFundamentals.ticker, ticker)),
+      db.select({ fetchedAt: fmpFundamentals.fetchedAt }).from(fmpFundamentals).where(eq(fmpFundamentals.ticker, ticker)),
     ]);
+
+    // Last time each source's fetch job actually ran for this ticker, independent
+    // of whether any given field came back — distinguishes "queried, source had
+    // nothing for this field" from "this source has never been fetched for this
+    // ticker at all". See lastQueriedAt on each source entry below.
+    const lastQueried: Record<string, Date | null> = {
+      yahoo:         yahooRow[0]?.fetchedAt ?? null,
+      edgar:         edgarRow[0]?.fetchedAt ?? null,
+      finnhub:       finnhubRow[0]?.fetchedAt ?? null,
+      polygon:       polygonRow[0]?.fetchedAt ?? null,
+      alpha_vantage: avRow[0]?.fetchedAt ?? null,
+      fmp:           fmpRow[0]?.fetchedAt ?? null,
+    };
 
     // Index provenance rows by field
     const provByField = new Map(provRows.map(r => [r.field, r]));
@@ -177,8 +198,9 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
 
           return {
             source,
-            value:       sfEntry?.value ?? null,
-            fetchedAt:   sfEntry?.fetchedAt ?? null,
+            value:        sfEntry?.value ?? null,
+            fetchedAt:    sfEntry?.fetchedAt ?? null,
+            lastQueriedAt: lastQueried[source] ?? null,
             status,
             exclusionReason,
           };
@@ -204,6 +226,37 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
     const payload = { ticker, fields };
     provenanceCache.set(ticker, payload);
     return res.json(payload);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// ── GET /fundamentals/divergent ───────────────────────────────────────────────
+// Review queue: every (ticker, field) where sources disagree and no admin has
+// resolved it via override yet. Divergence detection alone doesn't pick a
+// value — this just makes the backlog visible so a human can decide.
+
+router.get("/fundamentals/divergent", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.select({
+      ticker:        fieldProvenance.ticker,
+      field:         fieldProvenance.field,
+      winningSource: fieldProvenance.winningSource,
+      winningValue:  fieldProvenance.winningValue,
+      fetchedAt:     fieldProvenance.fetchedAt,
+    }).from(fieldProvenance).where(and(eq(fieldProvenance.divergent, true), eq(fieldProvenance.isOverride, false)));
+
+    const items = rows
+      .map(r => ({
+        ticker:        r.ticker,
+        field:         r.field,
+        winningSource: r.winningSource,
+        winningValue:  r.winningValue != null ? parseFloat(String(r.winningValue)) : null,
+        fetchedAt:     r.fetchedAt,
+      }))
+      .sort((a, b) => a.ticker.localeCompare(b.ticker) || a.field.localeCompare(b.field));
+
+    return res.json({ items, count: items.length });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

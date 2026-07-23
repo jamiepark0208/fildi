@@ -24,6 +24,7 @@ import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
 import enrichmentRunsRouter from "./enrichment-runs";
+import scheduledTasksRouter from "./scheduled-tasks";
 import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
 import liveRouter from "./live";
@@ -51,6 +52,7 @@ router.use(regimeRouter);
 router.use(apiUsageRouter);
 router.use(dataHealthRouter);
 router.use(enrichmentRunsRouter);
+router.use(scheduledTasksRouter);
 
 // bug/1: vendor-cost routes (Yahoo/Anthropic/SDM on cache miss) had zero
 // auth. Path-scoped directly on the parent router — NOT a blanket

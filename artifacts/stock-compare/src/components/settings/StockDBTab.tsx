@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,7 @@ interface SourceEntry {
   source: string;
   value: number | null;
   fetchedAt: string | null;
+  lastQueriedAt: string | null;
   status: "used" | "available" | "excluded" | "no_data";
   exclusionReason?: string;
 }
@@ -77,6 +78,13 @@ interface FieldProv {
   sources: SourceEntry[];
 }
 interface ProvenanceData { ticker: string; fields: FieldProv[] }
+interface DivergentItem {
+  ticker: string;
+  field: string;
+  winningSource: string | null;
+  winningValue: number | null;
+  fetchedAt: string | null;
+}
 
 // ── Grouping helpers ──────────────────────────────────────────────────────────
 
@@ -358,6 +366,25 @@ function fmtDate(ts: string | null): string {
   return d.toLocaleDateString();
 }
 
+// For "used"/"available" the field itself has a value, so show its age.
+// For "no_data" there's no value to age — show when the source was last
+// queried instead, so "never" is reserved for sources truly never fetched
+// for this ticker (rather than sources that ran and legitimately found nothing).
+function sourceAgeLabel(s: SourceEntry): string {
+  if (s.status === "excluded") return "—";
+  if (s.status === "no_data") {
+    return s.lastQueriedAt ? `checked ${fmtDate(s.lastQueriedAt)}` : "never queried";
+  }
+  return fmtDate(s.fetchedAt);
+}
+
+function sourceAgeTitle(s: SourceEntry): string | undefined {
+  if (s.status !== "no_data") return undefined;
+  return s.lastQueriedAt
+    ? "source was queried but returned no value for this field"
+    : "this source has never been fetched for this ticker";
+}
+
 function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: string | null; sortDir: "asc" | "desc" }) {
   if (sortCol !== colKey) return <span className="opacity-20 ml-0.5 inline-block w-2.5 text-center">↕</span>;
   return sortDir === "asc"
@@ -385,7 +412,6 @@ export function StockDBTab() {
   const [tickerFilter, setTickerFilter]         = useState("");
   const [sortCol, setSortCol]                   = useState<string | null>(null);
   const [sortDir, setSortDir]                   = useState<"asc" | "desc">("asc");
-  const [hoveredTicker, setHoveredTicker]       = useState<string | null>(null);
   const [activeCell, setActiveCell]             = useState<ActiveCell | null>(null);
   const [overrideSrc, setOverrideSrc]           = useState("");
   const [overrideVal, setOverrideVal]           = useState("");
@@ -394,7 +420,6 @@ export function StockDBTab() {
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
   const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals">("fundamentals");
   const [pipelineExpanded, setPipelineExpanded] = useState(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: runsData } = useQuery<{ runs: EnrichmentRun[] }>({
     queryKey: ["enrichment-runs"],
@@ -409,6 +434,20 @@ export function StockDBTab() {
   });
   const runs = runsData?.runs ?? [];
   const latestRun = runs[0] ?? null;
+
+  const [reviewExpanded, setReviewExpanded] = useState(false);
+  const { data: divergentData } = useQuery<{ items: DivergentItem[]; count: number }>({
+    queryKey: ["divergent-fields"],
+    queryFn: async () => {
+      const r = await fetch("/api/fundamentals/divergent", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: isAdmin,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const divergentItems = divergentData?.items ?? [];
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
@@ -431,14 +470,15 @@ export function StockDBTab() {
     setCollapsedGroups(new Set(allGroupIds));
   }, [data]);
 
+  const provTicker = activeCell?.ticker ?? null;
   const { data: provData, isFetching: provFetching, isError: provError, refetch: refetchProv } = useQuery<ProvenanceData>({
-    queryKey: ["provenance", hoveredTicker],
+    queryKey: ["provenance", provTicker],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`/api/fundamentals/provenance/${hoveredTicker}`, { credentials: "include", signal });
+      const r = await fetch(`/api/fundamentals/provenance/${provTicker}`, { credentials: "include", signal });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    enabled: !!hoveredTicker && isAdmin,
+    enabled: !!provTicker && isAdmin,
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -483,7 +523,7 @@ export function StockDBTab() {
   // Provenance/override editing is admin-only (backed by requireAdmin routes), but the
   // suspect/discrepancy flag popup (tooltipParts) is plain client-side info anyone can see —
   // so non-admins still get a click popup when a cell has flags, just without the edit UI.
-  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLTableCellElement>, tooltipParts: string[]) => {
+  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLElement>, tooltipParts: string[]) => {
     if (!isAdmin && tooltipParts.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setActiveCell({ ticker, field, rect, tooltipParts });
@@ -491,16 +531,6 @@ export function StockDBTab() {
     setOverrideVal(activeProv?.override?.value != null ? String(activeProv.override.value) : "");
     setOverrideNote(activeProv?.override?.note ?? "");
   }, [activeProv, isAdmin]);
-
-  const onRowEnter = useCallback((ticker: string) => {
-    if (!isAdmin) return;
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => setHoveredTicker(ticker), 250);
-  }, [isAdmin]);
-
-  const onRowLeave = useCallback(() => {
-    hoverTimerRef.current = setTimeout(() => setHoveredTicker(null), 2000);
-  }, []);
 
   function handleSort(colKey: string) {
     if (sortCol === colKey) {
@@ -790,6 +820,63 @@ export function StockDBTab() {
         </div>
       )}
 
+      {/* Divergent-field review queue — sources disagree and no admin has overridden yet */}
+      {isAdmin && divergentItems.length > 0 && (
+        <div className="border border-orange-500/30 rounded-md">
+          <button
+            onClick={() => setReviewExpanded(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+          >
+            <div className="flex items-center gap-2">
+              {reviewExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              <TriangleAlert className="h-3 w-3 text-orange-400" />
+              <span className="font-medium">Needs Review</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                {divergentItems.length}
+              </span>
+            </div>
+            <span className="text-muted-foreground">sources disagree — no override set yet</span>
+          </button>
+          {reviewExpanded && (
+            <div className="border-t border-border overflow-auto max-h-64">
+              <table className="text-xs w-full border-collapse">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="text-muted-foreground">
+                    <th className="text-left font-medium px-3 py-1.5">Ticker</th>
+                    <th className="text-left font-medium px-3 py-1.5">Field</th>
+                    <th className="text-right font-medium px-3 py-1.5">Current value</th>
+                    <th className="text-left font-medium px-3 py-1.5">Source used</th>
+                    <th className="text-left font-medium px-3 py-1.5">Age</th>
+                    <th className="text-right font-medium px-3 py-1.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {divergentItems.map(item => (
+                    <tr key={`${item.ticker}:${item.field}`} className="border-t border-border/50">
+                      <td className="px-3 py-1.5 font-mono font-semibold">{item.ticker}</td>
+                      <td className="px-3 py-1.5 font-mono">{item.field}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">
+                        {item.winningValue != null ? item.winningValue.toPrecision(5) : "—"}
+                      </td>
+                      <td className="px-3 py-1.5">{item.winningSource ?? "—"}</td>
+                      <td className="px-3 py-1.5">{fmtDate(item.fetchedAt)}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        <button
+                          onClick={e => openCell(item.ticker, item.field, e, [])}
+                          className="text-[10px] px-2 py-0.5 border border-border rounded hover:bg-secondary"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* View toggle */}
       <div className="flex items-center gap-1 p-0.5 bg-muted/30 border border-border rounded-md w-fit text-xs font-medium">
         {(["fundamentals", "technicals"] as const).map(mode => (
@@ -1066,8 +1153,6 @@ export function StockDBTab() {
                       ? "bg-amber-500/8 border-l-2 border-l-amber-500/50"
                       : ri % 2 === 0 ? "" : "bg-muted/5",
                   )}
-                  onMouseEnter={() => onRowEnter(row.ticker)}
-                  onMouseLeave={onRowLeave}
                 >
                   {/* Ticker cell — sticky */}
                   <td className={cn(
@@ -1208,9 +1293,7 @@ export function StockDBTab() {
         )}
         {isAdmin && !activeProv && !provError && (
           <div className="p-3 text-muted-foreground flex items-center gap-2">
-            {provFetching
-              ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…</>
-              : "Hover the row first to load provenance."}
+            <Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…
           </div>
         )}
         {isAdmin && activeProv && (
@@ -1276,11 +1359,15 @@ export function StockDBTab() {
                       <td className="text-right font-mono py-px">
                         {s.value != null ? s.value.toPrecision(4) : "—"}
                       </td>
-                      <td className="text-right py-px">{fmtDate(s.fetchedAt)}</td>
+                      <td className="text-right py-px" title={sourceAgeTitle(s)}>{sourceAgeLabel(s)}</td>
                       <td className="text-right py-px">
                         {s.status === "used"      && <span className="text-green-400">used</span>}
                         {s.status === "available" && <span className="text-blue-400">avail</span>}
-                        {s.status === "no_data"   && <span>—</span>}
+                        {s.status === "no_data"   && (
+                          <span title={s.lastQueriedAt ? "source was queried but had no value for this field" : "this source has never been fetched for this ticker"}>
+                            no data
+                          </span>
+                        )}
                         {s.status === "excluded"  && (
                           <span className="text-muted-foreground/40" title={s.exclusionReason}>excl</span>
                         )}

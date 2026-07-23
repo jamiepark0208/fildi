@@ -42,7 +42,15 @@ export async function resolveExpiredOptionTrades(): Promise<void> {
       lt(tradePosts.expiry, todayStr()),
       sql`${tradePosts.tradeType} IN ('SELL_PUT','BUY_PUT','SELL_CALL','BUY_CALL')`,
     ))
-  if (expired.length === 0) return
+  if (expired.length === 0) {
+    logger.info('trade-post-expiry: no expired OPEN trades found')
+    return
+  }
+
+  let resolvedWin = 0
+  let resolvedLoss = 0
+  let skippedNoPrice = 0
+  let failed = 0
 
   for (const post of expired) {
     try {
@@ -53,6 +61,7 @@ export async function resolveExpiredOptionTrades(): Promise<void> {
       }
       if (closePrice == null) {
         logger.warn({ ticker: post.ticker, postId: post.id }, 'trade-post-expiry: no price data, leaving OPEN')
+        skippedNoPrice++
         continue
       }
 
@@ -62,15 +71,29 @@ export async function resolveExpiredOptionTrades(): Promise<void> {
       const isShort   = post.tradeType === 'SELL_PUT' || post.tradeType === 'SELL_CALL'
       const pnlPerContract = isShort ? premium - intrinsic : intrinsic - premium
       const resolvedPnl = pnlPerContract * post.contracts * 100
+      const status = resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS'
 
       await db.update(tradePosts).set({
-        status:      resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS',
+        status,
         resolvedAt:  new Date(),
         resolvedPnl: String(resolvedPnl),
         updatedAt:   new Date(),
       }).where(eq(tradePosts.id, post.id))
+
+      if (status === 'EXPIRED_WIN') resolvedWin++
+      else resolvedLoss++
+      logger.info(
+        { ticker: post.ticker, postId: post.id, expiry: post.expiry, closePrice, status, resolvedPnl },
+        'trade-post-expiry: resolved trade',
+      )
     } catch (err) {
-      logger.error({ err, postId: post.id }, 'trade-post-expiry: failed to resolve')
+      logger.error({ err, postId: post.id, ticker: post.ticker }, 'trade-post-expiry: failed to resolve')
+      failed++
     }
   }
+
+  logger.info(
+    { found: expired.length, resolvedWin, resolvedLoss, skippedNoPrice, failed },
+    'trade-post-expiry: resolution run complete',
+  )
 }

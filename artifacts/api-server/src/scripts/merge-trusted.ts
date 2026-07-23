@@ -216,10 +216,22 @@ async function main() {
   const trackedTickers = new Set(regRows.map(r => r.ticker));
   console.log(`Canonical universe: ${trackedTickers.size} tickers (fetch_fundamentals=true in ticker_registry)\n`);
 
-  const [sfRows, overrideRows] = await Promise.all([
+  const [sfRows, overrideRows, existingRows] = await Promise.all([
     db.select().from(sourceFundamentals),
     db.select().from(manualOverrides),
+    db.select().from(tickerFundamentals),
   ]);
+  const existingMap = new Map(existingRows.map(r => [r.ticker, r as Record<string, unknown>]));
+
+  // Treat a value as "changed" only past a small tolerance — avoids logging
+  // noise from float round-tripping through numeric/string DB columns.
+  function isChanged(oldVal: unknown, newVal: number): { changed: boolean; from: number | null } {
+    if (oldVal == null) return { changed: true, from: null };
+    const from = parseFloat(String(oldVal));
+    if (!isFinite(from)) return { changed: true, from: null };
+    return { changed: Math.abs(from - newVal) > Math.max(1e-6, Math.abs(from) * 0.0005), from };
+  }
+  const fmt = (n: number | null) => n == null ? "—" : Number(n.toFixed(4)).toString();
 
   // Index: ticker → sfField → source → value
   const index = new Map<string, Map<string, Map<string, number>>>();
@@ -251,9 +263,10 @@ async function main() {
   for (const ticker of allTickers) {
     const byField = index.get(ticker) ?? new Map();
     const update: Record<string, number> = {};
-    const tickerSourceUsage: Record<string, number> = {};
     const provenanceBatch: Array<{ field: string; result: Exclude<ResolveResult, null> }> = [];
     const tickerNullFields: string[] = [];
+    const changedFields: Array<{ field: string; from: number | null; to: number }> = [];
+    const existing = existingMap.get(ticker);
 
     for (const fieldDef of VALID_FIELD_DEFS) {
       const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
@@ -261,9 +274,11 @@ async function main() {
 
       if (result) {
         update[fieldDef.tfCol as string] = result.value;
-        tickerSourceUsage[result.source] = (tickerSourceUsage[result.source] ?? 0) + 1;
-        sourceUsage[result.source]       = (sourceUsage[result.source]       ?? 0) + 1;
+        sourceUsage[result.source] = (sourceUsage[result.source] ?? 0) + 1;
         provenanceBatch.push({ field: fieldDef.tfCol as string, result });
+
+        const { changed, from } = isChanged(existing?.[fieldDef.tfCol as string], result.value);
+        if (changed) changedFields.push({ field: fieldDef.tfCol as string, from, to: result.value });
       } else {
         fieldNullCount[fieldDef.tfCol as string]++;
         tickerNullFields.push(fieldDef.tfCol as string);
@@ -308,13 +323,10 @@ async function main() {
 
     provenanceCache.delete(ticker);
 
-    const srcStr = Object.entries(tickerSourceUsage)
-      .sort(([, a], [, b]) => b - a)
-      .map(([s, n]) => `${s}:${n}`)
-      .join(" ");
-    console.log(`[${ticker}] merged ${Object.keys(update).length} fields — sources used: ${srcStr}`);
-    if (tickerNullFields.length > 0) {
-      console.log(`[FUND-NULL] ${ticker}: ${tickerNullFields.join(", ")} (${tickerNullFields.length}/${VALID_FIELD_DEFS.length} null)`);
+    if (changedFields.length > 0) {
+      const shown = changedFields.slice(0, 6).map(c => `${c.field} ${fmt(c.from)}→${fmt(c.to)}`).join(", ");
+      const more  = changedFields.length > 6 ? ` (+${changedFields.length - 6} more)` : "";
+      console.log(`[${ticker}] updated: ${shown}${more}`);
     }
     totalTickersMerged++;
     totalFieldsWritten += Object.keys(update).length;
