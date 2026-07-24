@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import {
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles, TrendingUp, ListFilter } from "lucide-react";
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -111,11 +112,8 @@ function minutesAgo(d: Date): string {
 function viableStrikes(
   chains: OptionsChainResult[],
   minWeeklyIncome: number,
-  show1wk: boolean,
 ): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
   return chains
-    .filter(c => (show1wk && Math.ceil(c.daysToExpiry / 7) === 1) ||
-                 Math.ceil(c.daysToExpiry / 7) >= 2)
     .flatMap(c => {
       const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
       return c.puts
@@ -126,11 +124,10 @@ function viableStrikes(
 
 function strikeSummary(
   chains: OptionsChainResult[] | null,
-  show1wk: boolean,
   minWeeklyIncome: number,
 ): string {
   if (!chains) return "—";
-  const strikes = viableStrikes(chains, minWeeklyIncome, show1wk);
+  const strikes = viableStrikes(chains, minWeeklyIncome);
   if (strikes.length === 0) return "no viable strikes";
   const best = Math.max(...strikes.map(s => s.weeklyIncome));
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
@@ -223,13 +220,13 @@ function StrikeRow({
     <div>
       <div
         className={cn(
-          "grid items-center gap-x-4 px-3 py-1 text-xs border-l-2 transition-colors cursor-pointer select-none",
+          "grid items-center gap-x-3 px-3 py-0.5 text-xs border-l-2 transition-colors cursor-pointer select-none",
           "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
           isBest
             ? "border-l-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/15 ring-1 ring-inset ring-yellow-400/20"
             : gammaRisk
-              ? "border-l-orange-500/60 hover:bg-secondary/30"
-              : "border-l-transparent hover:bg-secondary/30",
+              ? "border-l-orange-500/60 bg-orange-950/20 hover:bg-orange-900/25"
+              : "border-l-transparent bg-zinc-900/40 even:bg-zinc-800/40 hover:bg-zinc-700/50",
         )}
         onClick={() => setExpanded(e => !e)}
         title="Click to expand analysis"
@@ -321,9 +318,9 @@ function StrikeRow({
 function StrikeTableHeader() {
   return (
     <div className={cn(
-      "grid items-center gap-x-4 px-3 py-1 text-[10px] font-semibold tracking-wider uppercase",
+      "grid items-center gap-x-3 px-3 py-0.5 text-[10px] font-semibold tracking-wider uppercase",
       "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
-      "border-b border-border/60 bg-slate-900/60 text-white",
+      "border-b border-zinc-600/40 bg-zinc-800/90 text-white",
     )}>
       <div>Strike</div>
       <div>Bid</div>
@@ -378,12 +375,12 @@ function ExpirySection({
   }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
 
   return (
-    <div className="rounded-md border border-border/60 overflow-hidden">
-      {/* Expiry group header */}
+    <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
+      {/* Expiry group header — warm tan accent so it reads as a section divider, not more body text */}
       <button
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-1 text-left transition-colors",
-          "hover:bg-secondary/40 bg-secondary/20",
+          "w-full flex items-center gap-2 px-3 py-0.5 text-left transition-colors",
+          "hover:bg-amber-500/15 bg-amber-500/10 border-b border-amber-500/20",
         )}
         onClick={() => setCollapsed(c => !c)}
       >
@@ -405,28 +402,31 @@ function ExpirySection({
         )}
       </button>
 
-      {/* Strike table */}
+      {/* Strike table — capped at ~5 visible rows so multiple tickers' expiries can be
+          compared without one long list pushing the rest off screen; scrolls for more. */}
       {!collapsed && (
         <div>
           <StrikeTableHeader />
-          {puts.map(({ put }) => {
-            const isBest = bestStrike != null &&
-              put.strike === bestStrike.put.strike &&
-              chain.expiry === bestStrike.chain.expiry;
-            const sr = scoreResults.get(put.strike) ?? null;
-            return (
-              <StrikeRow
-                key={`${chain.expiry}-${put.strike}`}
-                chain={chain}
-                put={put}
-                isBest={isBest}
-                optionScore={isBest ? (newScorerBest?.optionScore ?? sr?.optionScore ?? null) : (sr?.optionScore ?? null)}
-                dataQuality={isBest ? (newScorerBest?.dataQuality ?? sr?.dataQuality ?? null) : (sr?.dataQuality ?? null)}
-                scoreResult={sr}
-                runnerUp={isBest ? (newScorerBest?.runnerUp ?? null) : null}
-              />
-            );
-          })}
+          <div className="max-h-[104px] overflow-y-auto">
+            {puts.map(({ put }) => {
+              const isBest = bestStrike != null &&
+                put.strike === bestStrike.put.strike &&
+                chain.expiry === bestStrike.chain.expiry;
+              const sr = scoreResults.get(put.strike) ?? null;
+              return (
+                <StrikeRow
+                  key={`${chain.expiry}-${put.strike}`}
+                  chain={chain}
+                  put={put}
+                  isBest={isBest}
+                  optionScore={isBest ? (newScorerBest?.optionScore ?? sr?.optionScore ?? null) : (sr?.optionScore ?? null)}
+                  dataQuality={isBest ? (newScorerBest?.dataQuality ?? sr?.dataQuality ?? null) : (sr?.dataQuality ?? null)}
+                  scoreResult={sr}
+                  runnerUp={isBest ? (newScorerBest?.runnerUp ?? null) : null}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -443,7 +443,6 @@ interface ScannerRowProps {
   optionsData: OptionsChainResult[] | null;
   optionsLoading: boolean;
   expanded: boolean;
-  show1wk: boolean;
   minIncome: number;
   overrideEnabled: boolean;
   onExpand: () => void;
@@ -470,7 +469,6 @@ function ScannerRow({
   optionsData,
   optionsLoading,
   expanded,
-  show1wk,
   minIncome,
   overrideEnabled,
   onExpand,
@@ -521,7 +519,7 @@ function ScannerRow({
   });
 
   const strikes = optionsData
-    ? viableStrikes(optionsData, minIncome, show1wk)
+    ? viableStrikes(optionsData, minIncome)
     : [];
 
   const stockCtx = useMemo((): StockContext | null => {
@@ -560,7 +558,7 @@ function ScannerRow({
   // Override: show best put even when no viable strikes at current minIncome threshold
   const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;
   const overrideStrikes = overrideEnabled && optionsData
-    ? viableStrikes(optionsData, 0, show1wk)
+    ? viableStrikes(optionsData, 0)
     : [];
   const overrideBest = overrideStrikes.length > 0
     ? overrideStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
@@ -572,7 +570,7 @@ function ScannerRow({
     : firstIV != null ? (firstIV * 100).toFixed(0) : null;
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
-  const summary = optionsLoading ? null : strikeSummary(optionsData, show1wk, minIncome);
+  const summary = optionsLoading ? null : strikeSummary(optionsData, minIncome);
 
   const borderColor = colorTag || "transparent";
 
@@ -580,7 +578,7 @@ function ScannerRow({
     <div className="border-b border-border last:border-b-0">
       {/* Collapsed header row */}
       <div
-        className="flex items-center gap-3 px-4 py-1.5 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
+        className="flex items-center gap-2 px-3 py-0.5 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
         style={{ borderLeft: `4px solid ${borderColor}` }}
         onClick={onExpand}
       >
@@ -604,6 +602,17 @@ function ScannerRow({
         <div className="w-[56px] shrink-0">
           <SignalBadge signal={signal} />
         </div>
+
+        {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.) */}
+        <span
+          className={cn(
+            "text-xs font-mono font-semibold w-[48px] shrink-0",
+            indicator == null ? "text-white" : indicator.rsiOk ? "text-green-400" : "text-orange-400",
+          )}
+          title={indicator ? buildReasoning(indicator, firstIV, macroRegime) : undefined}
+        >
+          {indicator ? indicator.rsi.toFixed(1) : "—"}
+        </span>
 
         {/* Option Score */}
         <span className={cn(
@@ -640,16 +649,7 @@ function ScannerRow({
           {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "—"}
         </span>
 
-        {/* Strike summary */}
-        <span className={cn(
-          "text-xs flex-1",
-          summary?.startsWith("excluded") ? "text-white italic" :
-          summary?.startsWith("no viable") ? "text-white" : "text-white",
-        )}>
-          {optionsLoading ? (
-            <Loader2 className="w-3 h-3 animate-spin inline" />
-          ) : (summary ?? "—")}
-        </span>
+        <div className="flex-1" />
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -679,34 +679,44 @@ function ScannerRow({
       {/* Expanded panel */}
       {expanded && (
         <div
-          className="px-4 pb-2 pt-1 space-y-1.5 bg-slate-950/70"
+          className="px-3 pb-1.5 pt-1 space-y-1 bg-neutral-950/80"
           style={{ borderLeft: `4px solid ${borderColor}` }}
         >
-          {/* Reasoning line — deterministic text always shown; AI context (outlier moves,
-              sector flow, news) is opt-in via the button below since it costs an API call. */}
-          {indicator && (
-            <p className="text-xs text-white">
-              {buildReasoning(indicator, firstIV, macroRegime)}
-            </p>
-          )}
+          {/* Deterministic reasoning now shown as a hover tooltip on the RSI value in the
+              ticker row above. AI context (outlier moves, sector flow, news) is opt-in via
+              the button below since it costs an API call. */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
+                summary == null || summary.startsWith("no viable")
+                  ? "border-border/60 bg-slate-900/40 text-white/70"
+                  : "border-primary/30 bg-primary/10 text-white",
+              )}
+            >
+              <ListFilter className="w-3 h-3 text-primary shrink-0" />
+              {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
+            </span>
 
-          {indicator && (
-            aiReasoning ? (
-              <p className="text-xs text-primary/90 leading-snug border-l-2 border-primary/30 pl-2 py-0.5">
-                {aiReasoning}
-              </p>
-            ) : (
-              <button
-                onClick={() => setAiRequested(true)}
-                disabled={reasoningLoading}
-                className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 disabled:opacity-60 disabled:cursor-default transition-colors"
-              >
-                {reasoningLoading
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : <Sparkles className="w-3 h-3" />}
-                {reasoningLoading ? "Getting AI context…" : "Get AI context"}
-              </button>
-            )
+            {indicator && (
+              aiReasoning ? null : (
+                <button
+                  onClick={() => setAiRequested(true)}
+                  disabled={reasoningLoading}
+                  className="flex items-center gap-1.5 text-[11px] font-medium text-primary border border-primary/30 bg-primary/5 rounded-full px-2.5 py-1 hover:bg-primary/15 hover:border-primary/50 disabled:opacity-60 disabled:cursor-default transition-colors"
+                >
+                  {reasoningLoading
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <Sparkles className="w-3 h-3" />}
+                  {reasoningLoading ? "Getting AI context…" : "Get AI context"}
+                </button>
+              )
+            )}
+          </div>
+          {indicator && aiReasoning && (
+            <p className="text-xs text-primary/90 leading-snug border-l-2 border-primary/30 pl-2 py-0.5">
+              {aiReasoning}
+            </p>
           )}
           {reasoningError && (
             <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
@@ -754,7 +764,7 @@ function ScannerRow({
           {!optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-white italic">
-                {strikeSummary(optionsData, show1wk, minIncome)}
+                {strikeSummary(optionsData, minIncome)}
               </p>
               {canOverride && !overrideEnabled && (
                 <button
@@ -767,7 +777,7 @@ function ScannerRow({
               {overrideEnabled && overrideBest && (
                 <div className="space-y-1.5">
                   <p className="text-[11px] text-red-400/80 italic">Overridden — recommendation below does not meet normal criteria</p>
-                  <div className="rounded-md border border-border/60 overflow-hidden">
+                  <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
                     <StrikeTableHeader />
                     <StrikeRow
                       chain={overrideBest.chain}
@@ -824,6 +834,10 @@ function scannerHiddenKey(userId: number | undefined): string {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// DOM id for an optional host element (e.g. rendered inline in a tab bar by a parent page)
+// that the min-income filter portals into instead of its own default control row.
+export const OPTIONS_FILTER_SLOT_ID = "options-filter-bar-slot";
+
 export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
   const { isAdmin, user } = useAuth();
   const { weights } = useScoringPreferences();
@@ -836,7 +850,6 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("income");
-  const [show1wk,       setShow1wk]       = useState(true);
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
@@ -853,6 +866,12 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   useEffect(() => { localStorage.setItem(scannerHiddenKey(user?.id), JSON.stringify([...hiddenTickers])); }, [hiddenTickers, user?.id]);
   useEffect(() => { saveTraderPrefs({ minWeeklyIncome: minIncome }, user?.id); }, [minIncome, user?.id]);
   useEffect(() => { try { sessionStorage.setItem("fildi_scanner_expanded", JSON.stringify([...expandedSet])); } catch {} }, [expandedSet]);
+
+  // If a parent page (e.g. the Fundamentals/Technicals/Options tab bar in rankings.tsx)
+  // renders a host element with this id, portal the filter control there instead of
+  // showing it in this component's own control row.
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setFilterSlot(document.getElementById(OPTIONS_FILTER_SLOT_ID)); }, []);
 
   const { entries, isLoaded } = useWatchlist();
 
@@ -1168,44 +1187,42 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // Editable min-income filter — hides strikes that return less than this % per week.
+  // Portals into the parent tab bar when embedded in rankings.tsx (see filterSlot above);
+  // falls back to rendering inline above the table when used standalone (e.g. /options-scanner).
+  const filterBar = (
+    <div
+      className="flex items-center gap-1.5 border border-emerald-500/30 bg-emerald-500/5 rounded-full pl-2.5 pr-1 h-7"
+      title="Minimum weekly return filter — hides option strikes that yield less than this % of the strike price per week"
+    >
+      <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
+      <span className="text-xs text-white whitespace-nowrap">Min %/wk</span>
+      <input
+        type="number"
+        min="0"
+        step="0.1"
+        value={minIncomeInput}
+        onChange={e => {
+          setMinIncomeInput(e.target.value);
+          const n = parseFloat(e.target.value);
+          if (Number.isFinite(n) && n >= 0) setMinIncome(n);
+        }}
+        className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center font-mono"
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-4">
         {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
 
-        {/* Controls */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filter chips */}
-          <button
-            onClick={() => setShow1wk(v => !v)}
-            className={cn(
-              "px-2.5 py-1 text-xs rounded-md border transition-colors",
-              show1wk
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border text-white",
-            )}
-          >
-            1wk
-          </button>
-
-          {/* Editable min income filter */}
-          <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
-            <span className="text-xs text-white">≥</span>
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={minIncomeInput}
-              onChange={e => {
-                setMinIncomeInput(e.target.value);
-                const n = parseFloat(e.target.value);
-                if (Number.isFinite(n) && n >= 0) setMinIncome(n);
-              }}
-              className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center"
-            />
-            <span className="text-xs text-white">%/wk</span>
+        {/* Controls — hidden here and portaled into the tab bar when filterSlot is present */}
+        {!filterSlot && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {filterBar}
           </div>
-
-        </div>
+        )}
+        {filterSlot && createPortal(filterBar, filterSlot)}
 
         {/* Scanner table */}
         {scorecardLoading || !isLoaded ? (
@@ -1220,16 +1237,17 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         ) : (
           <div className="rounded-md border border-border overflow-hidden">
             {/* Column headers */}
-            <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-slate-900/80 text-xs font-bold tracking-wider uppercase text-white" style={{ borderLeft: "4px solid transparent" }}>
+            <div className="flex items-center gap-2 px-3 py-1 border-b border-border bg-slate-900/80 text-xs font-bold tracking-wider uppercase text-white" style={{ borderLeft: "4px solid transparent" }}>
               <div className="w-[70px] shrink-0">Ticker</div>
               <div className="w-[80px] shrink-0">Price</div>
               <div className="w-[56px] shrink-0">Signal</div>
+              <div className="w-[48px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
               <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
               <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
               <SortableHeader label="IV%" sortKey="iv" active={sort === "iv"} width="w-[52px]" onClick={setSort} />
               <SortableHeader label="Income%" sortKey="income" active={sort === "income"} width="w-[72px]" onClick={setSort} />
               <SortableHeader label="Buffer" sortKey="buffer" active={sort === "buffer"} width="w-[64px]" onClick={setSort} />
-              <div className="flex-1">Best Strikes</div>
+              <div className="flex-1" />
               {isAdmin && (
                 <button
                   className="flex items-center gap-1.5 text-xs normal-case font-normal tracking-normal text-white transition-colors shrink-0"
@@ -1254,7 +1272,6 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 optionsData={optionsMap.get(ticker) ?? null}
                 optionsLoading={optionsLoadingMap.get(ticker) ?? false}
                 expanded={expandedSet.has(ticker)}
-                show1wk={show1wk}
                 minIncome={minIncome}
                 overrideEnabled={overrides.has(ticker)}
                 onExpand={() => handleExpand(ticker)}

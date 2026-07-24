@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-23
+**build** — last updated 2026-07-24
 
 ## Active work
-- Working: provenance-cache-removal, regime-cache-restart-fix, dead-peer-groups-route-removal, queue-refetch-completion-feedback
-- In progress: Diagnosed SNOW finnhub provenance bug -- root cause was a stale provenanceCache (added pre-persistence, never removed), not bad data. Removed it entirely (route + 3 invalidation call sites + file + cache-registry entry). Audited all 21 registered caches plus grepped for unregistered ones -- found regime.ts's business-cycle _cache was invisible to the monitor and didn't survive restarts; fixed to seed from latest market_regime DB row and registered it as 'business-cycle-regime'. Found GET /fundamentals/peer-groups was dead (zero frontend callers, stale comment) and removed it, but kept classifyTicker/classifyCache since they're still live via getTaxonomyPeers -> /stocks/competitors. Built queue-refetch completion visibility: /queue-refetch/run now returns per-item done/failed results (previously only aggregate ok/failed counts, and completed rows vanish from GET once done); frontend shows a per-item results list plus a transient 5s green cell flash (local state only, clears on reload). Confirmed admin-only gating was already correct both client (isAdmin) and server (requireAdmin) side -- no gap there.
-- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1/_8) to restore jamie/ed color tags. GitHub push still failing -- PAT in .git/config remote origin URL invalid, needs rotation.
+- Working: options-scanner-ui-polish, watchlist-tag-badges-popup, live-opportunities-restyle, options-table-section-coloring
+- In progress: Options Scanner: moved Best Strikes text next to Get AI context button (styled as pills), removed 1wk filter, renamed+relocated min-income filter as portal into rankings.tsx tab bar (OPTIONS_FILTER_SLOT_ID), added RSI value to ticker row with hover tooltip replacing old reasoning line, compacted row spacing, capped strike list to ~5 rows with scroll. Styling: expiry-group cards now zinc-900 floating panels with amber-tinted header bar (section divider), darker neutral column header, zebra-striped rows -- replaces flat black panel look. Watchlist: exchange/sector/industry/stockType tags are now color-coded pill badges (sky/violet/teal/amber); clicking one opens a Dialog listing other watchlist tickers sharing that tag (reuses existing /api/stocks/quotes batch fetch, widened from filteredEntries to full entries so popup covers whole watchlist regardless of color filter); clicking a ticker in the popup jumps to it via commitTicker. Live monitor Opportunities table restyled to match Options Scanner card look (zinc-900/70 card, zinc-800/90 header, zebra rows, amber IV, mono fonts). All changes tsc --noEmit clean.
+- Blocked: Still waiting on user's localStorage JSON dump (fildi_watchlist_colors_1/_8) to restore jamie/ed color tags. GitHub push still failing -- PAT in .git/config remote origin URL invalid, needs rotation. Playwright unavailable all session -- none of today's UI changes (options scanner, watchlist tag popup, live table) have been visually verified in browser, only typecheck-verified.
 
 ## Next tasks (priority order)
 

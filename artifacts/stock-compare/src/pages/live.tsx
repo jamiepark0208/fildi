@@ -100,63 +100,130 @@ function MarketContextChip({ quote }: { quote: MarketContextQuote }) {
   );
 }
 
-function MoverRow({ m }: { m: ScreenerMover }) {
-  const up = (m.changePercent ?? 0) >= 0;
-  return (
-    <div className="flex items-center justify-between text-sm px-3 py-1.5">
-      <span className="font-mono font-semibold text-foreground">{m.ticker}</span>
-      <span className="text-foreground">{m.price != null ? m.price.toFixed(2) : "—"}</span>
-      <span className={cn("font-medium", up ? "text-green-500" : "text-red-500")}>{pct(m.changePercent)}</span>
-    </div>
-  );
+// Maps a %change value to a background color whose intensity scales with magnitude, clamped
+// at maxMagnitude so single-digit movers still look visually distinct from the ±5%+ extremes.
+function heatColor(changePercent: number | null, maxMagnitude = 5): string {
+  if (changePercent == null) return "hsl(0, 0%, 50%, 0.08)";
+  const magnitude = Math.min(Math.abs(changePercent), maxMagnitude) / maxMagnitude;
+  const alpha = 0.12 + magnitude * 0.55;
+  const hue = changePercent >= 0 ? 142 : 0; // matches text-green-500 / text-red-500 hues
+  return `hsl(${hue}, 70%, 45%, ${alpha})`;
 }
 
-function MoverList({ title, movers }: { title: string; movers: ScreenerMover[] }) {
+function heatBorderColor(changePercent: number | null): string {
+  if (changePercent == null) return "hsl(0, 0%, 50%)";
+  return changePercent >= 0 ? "hsl(142, 70%, 45%)" : "hsl(0, 70%, 50%)";
+}
+
+function formatVolume(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  return String(v);
+}
+
+function MoverTile({ m, showVolume }: { m: ScreenerMover; showVolume?: boolean }) {
+  const up = (m.changePercent ?? 0) >= 0;
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2 bg-secondary">
-        {title}
-      </h3>
-      <div className="divide-y divide-border">
-        {movers.length === 0 ? (
-          <p className="text-sm text-muted-foreground px-3 py-2">No data.</p>
-        ) : (
-          movers.slice(0, 8).map((m) => <MoverRow key={m.ticker} m={m} />)
-        )}
+    <div
+      className="rounded-lg border border-border/60 p-2.5 flex flex-col gap-1 transition-transform hover:scale-[1.03] hover:border-border"
+      style={{
+        backgroundColor: heatColor(m.changePercent),
+        borderLeftColor: heatBorderColor(m.changePercent),
+        borderLeftWidth: 3,
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-mono font-bold text-sm text-foreground">{m.ticker}</span>
+        <span className={cn("text-xs font-bold", up ? "text-green-500" : "text-red-500")}>
+          {pct(m.changePercent)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>{m.price != null ? `$${m.price.toFixed(2)}` : "—"}</span>
+        {showVolume && <span>{m.volume != null ? formatVolume(m.volume) : "—"}</span>}
       </div>
     </div>
   );
 }
 
-function SectorMoversTable({ groups }: { groups: SectorMoverGroup[] }) {
+function MoverHeatmapGrid({
+  title,
+  movers,
+  showVolume,
+}: {
+  title: string;
+  movers: ScreenerMover[];
+  showVolume?: boolean;
+}) {
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-secondary text-muted-foreground">
-          <tr>
-            <th className="text-left font-medium px-3 py-2">Sector</th>
-            <th className="text-right font-medium px-3 py-2">Avg Change</th>
-            <th className="text-left font-medium px-3 py-2">Top Gainers</th>
-            <th className="text-left font-medium px-3 py-2">Top Losers</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {groups.map((g) => (
-            <tr key={g.sector} className="hover:bg-secondary/50">
-              <td className="px-3 py-2 text-foreground">{g.sector}</td>
-              <td className={cn("px-3 py-2 text-right font-medium", g.avgChangePercent >= 0 ? "text-green-500" : "text-red-500")}>
-                {pct(g.avgChangePercent)}
-              </td>
-              <td className="px-3 py-2 text-foreground font-mono text-xs">
-                {g.topGainers.map((m) => `${m.ticker} ${pct(m.changePercent)}`).join("  ")}
-              </td>
-              <td className="px-3 py-2 text-foreground font-mono text-xs">
-                {g.topLosers.map((m) => `${m.ticker} ${pct(m.changePercent)}`).join("  ")}
-              </td>
-            </tr>
+    <div className="space-y-2">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {title}
+      </h3>
+      {movers.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No data.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-1.5">
+          {movers.slice(0, 8).map((m) => (
+            <MoverTile key={m.ticker} m={m} showVolume={showVolume} />
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectorMoverBars({ groups }: { groups: SectorMoverGroup[] }) {
+  const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g.avgChangePercent)));
+  return (
+    <div className="space-y-1.5">
+      {groups.map((g) => {
+        const up = g.avgChangePercent >= 0;
+        const widthPct = (Math.abs(g.avgChangePercent) / maxAbs) * 50;
+        return (
+          <div
+            key={g.sector}
+            className="rounded-lg border border-border/60 bg-card px-3 py-2 hover:border-border transition-colors"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-medium text-foreground">{g.sector}</span>
+              <span className="text-xs text-muted-foreground">{g.tickerCount} tickers</span>
+              <span className={cn("text-sm font-bold font-mono", up ? "text-green-500" : "text-red-500")}>
+                {pct(g.avgChangePercent)}
+              </span>
+            </div>
+
+            <div className="relative h-1.5 rounded-full bg-secondary overflow-hidden mb-2">
+              <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+              <div
+                className={cn("absolute inset-y-0 rounded-full", up ? "bg-green-500" : "bg-red-500")}
+                style={up ? { left: "50%", width: `${widthPct}%` } : { right: "50%", width: `${widthPct}%` }}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {g.topGainers.map((m) => (
+                <span
+                  key={`g-${m.ticker}`}
+                  className="text-[11px] font-mono px-1.5 py-0.5 rounded text-green-400"
+                  style={{ backgroundColor: heatColor(m.changePercent, 5) }}
+                >
+                  {m.ticker} {pct(m.changePercent)}
+                </span>
+              ))}
+              {g.topLosers.map((m) => (
+                <span
+                  key={`l-${m.ticker}`}
+                  className="text-[11px] font-mono px-1.5 py-0.5 rounded text-red-400"
+                  style={{ backgroundColor: heatColor(m.changePercent, 5) }}
+                >
+                  {m.ticker} {pct(m.changePercent)}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -265,44 +332,44 @@ export default function Live() {
                 </p>
               )
             ) : (
-              <div className="border border-border rounded-lg overflow-hidden">
+              <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
                 <table className="w-full text-sm">
-                  <thead className="bg-secondary text-muted-foreground">
-                    <tr>
-                      <th className="text-left font-medium px-3 py-2">Ticker</th>
-                      <th className="text-right font-medium px-3 py-2">Price</th>
-                      <th className="text-right font-medium px-3 py-2">RSI</th>
-                      <th className="text-right font-medium px-3 py-2">IV</th>
-                      <th className="text-right font-medium px-3 py-2">5d Return</th>
-                      <th className="text-right font-medium px-3 py-2">Stoch</th>
-                      <th className="text-right font-medium px-3 py-2">Fund Score</th>
-                      <th className="text-right font-medium px-3 py-2">Tech Score</th>
-                      <th className="text-center font-medium px-3 py-2">Signal</th>
+                  <thead className="bg-zinc-800/90 text-white">
+                    <tr className="border-b border-zinc-600/40">
+                      <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Ticker</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Price</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">RSI</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">IV</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">5d Return</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Stoch</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Fund Score</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Tech Score</th>
+                      <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Signal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
+                  <tbody>
                     {sortedHotlist.map((e) => {
                       const fundScore = fundScoreMap.get(e.ticker) ?? null;
                       const techScore = techScoreMap.get(e.ticker) ?? null;
                       return (
-                      <tr key={e.ticker} className="hover:bg-secondary/50">
-                        <td className="px-3 py-2 font-mono font-semibold text-foreground">{e.ticker}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{e.price.toFixed(2)}</td>
-                        <td className={cn("px-3 py-2 text-right", e.rsi < 30 ? "text-green-500 font-medium" : "text-foreground")}>
+                      <tr key={e.ticker} className="bg-zinc-900/40 even:bg-zinc-800/40 hover:bg-zinc-700/50 transition-colors">
+                        <td className="px-3 py-1.5 font-mono font-semibold text-white">{e.ticker}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
+                        <td className={cn("px-3 py-1.5 text-right font-mono", e.rsi < 30 ? "text-green-400 font-semibold" : "text-white")}>
                           {e.rsi.toFixed(1)}
                         </td>
-                        <td className="px-3 py-2 text-right text-foreground">{e.ivCurrent.toFixed(0)}%</td>
-                        <td className={cn("px-3 py-2 text-right", (e.return5d ?? 0) < 0 ? "text-red-500" : "text-green-500")}>
+                        <td className="px-3 py-1.5 text-right font-mono text-amber-400">{e.ivCurrent.toFixed(0)}%</td>
+                        <td className={cn("px-3 py-1.5 text-right font-mono", (e.return5d ?? 0) < 0 ? "text-red-400" : "text-green-400")}>
                           {pct(e.return5d)}
                         </td>
-                        <td className="px-3 py-2 text-right text-foreground">{e.stoch != null ? e.stoch.toFixed(0) : "—"}</td>
-                        <td className={cn("px-3 py-2 text-right font-mono", scoreColor(fundScore))}>
+                        <td className="px-3 py-1.5 text-right font-mono text-white">{e.stoch != null ? e.stoch.toFixed(0) : "—"}</td>
+                        <td className={cn("px-3 py-1.5 text-right font-mono", scoreColor(fundScore))}>
                           {fundScore != null ? fundScore.toFixed(0) : "—"}
                         </td>
-                        <td className={cn("px-3 py-2 text-right font-mono", scoreColor(techScore))}>
+                        <td className={cn("px-3 py-1.5 text-right font-mono", scoreColor(techScore))}>
                           {techScore != null ? techScore.toFixed(0) : "—"}
                         </td>
-                        <td className="px-3 py-2 text-center"><SignalBadge signal={e.signal} /></td>
+                        <td className="px-3 py-1.5 text-center"><SignalBadge signal={e.signal} /></td>
                       </tr>
                       );
                     })}
@@ -320,12 +387,19 @@ export default function Live() {
               <p className="text-sm text-muted-foreground">Loading movers…</p>
             ) : (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <MoverList title="Gainers" movers={movers?.global.gainers ?? []} />
-                  <MoverList title="Losers" movers={movers?.global.losers ?? []} />
-                  <MoverList title="Most Active" movers={movers?.global.mostActive ?? []} />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
+                  <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
+                  <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
                 </div>
-                {(movers?.sectors.length ?? 0) > 0 && <SectorMoversTable groups={movers!.sectors} />}
+                {(movers?.sectors.length ?? 0) > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Sector Breakdown
+                    </h3>
+                    <SectorMoverBars groups={movers!.sectors} />
+                  </div>
+                )}
               </div>
             )}
           </section>

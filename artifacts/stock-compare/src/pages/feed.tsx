@@ -40,7 +40,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       const r = await fetch("/api/feed/posts", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, strike: parseFloat(strike), expiry, contracts: parseInt(contracts), premiumPerContract: parseFloat(premium), confidence, notes: notes || undefined }),
+        body: JSON.stringify({ ticker, tradeType: "SELL_PUT", strike: parseFloat(strike), expiry, contracts: parseInt(contracts), premiumPerContract: parseFloat(premium), confidence, notes: notes || undefined }),
       })
       if (r.status === 429) { setError("You already have 3 open trade ideas"); return }
       if (!r.ok) { const d = await r.json(); setError(d.error ?? "Submit failed"); return }

@@ -136,9 +136,11 @@ function WatchlistView() {
     return entries.filter(e => e.colorTag === filterColor);
   }, [entries, filterColor]);
 
+  // Fetched for the full watchlist (not just filteredEntries) so the tag-click popup in
+  // StockBreakdown can list matching tickers regardless of the active color filter.
   const tickerKey = useMemo(
-    () => [...filteredEntries.map(e => e.ticker)].sort().join(","),
-    [filteredEntries],
+    () => [...entries.map(e => e.ticker)].sort().join(","),
+    [entries],
   );
 
   const { data: quotesData } = useQuery({
@@ -184,6 +186,17 @@ function WatchlistView() {
     });
     return sorted;
   }, [filteredEntries, quoteMap, sortField, sortDir]);
+
+  const watchlistTagMetrics = useMemo(() => {
+    const m: Record<string, { companyName?: string | null; exchange?: string | null; sector?: string | null; industry?: string | null; stockType?: string | null } | undefined> = {};
+    for (const e of entries) {
+      const q = quotesData?.[e.ticker];
+      if (q && !("error" in q)) {
+        m[e.ticker] = { companyName: q.companyName, exchange: q.exchange, sector: q.sector, industry: q.industry, stockType: q.stockType };
+      }
+    }
+    return m;
+  }, [entries, quotesData]);
 
   const usedColors = useMemo(() => {
     const colors = new Set<string>();
@@ -411,7 +424,7 @@ function WatchlistView() {
             <p className="text-sm font-medium">Select a security from your watchlist</p>
           </div>
         ) : (
-          <StockBreakdown ticker={selectedTicker} />
+          <StockBreakdown ticker={selectedTicker} watchlistMetrics={watchlistTagMetrics} />
         )}
       </div>
     </div>

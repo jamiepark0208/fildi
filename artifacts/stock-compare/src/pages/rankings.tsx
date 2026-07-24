@@ -6,7 +6,7 @@ import { TopNav } from "@/components/top-nav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
-import { OptionsScannerContent } from "@/pages/options-scanner";
+import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
 import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -109,26 +109,33 @@ export default function Rankings() {
       <main className="pt-14 min-w-0">
         <div className="p-5">
           <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical" | "options")}>
-            <TabsList className="h-10 mb-4">
-              <TabsTrigger
-                value="fundamental"
-                className="text-sm px-4 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
-              >
-                Fundamentals
-              </TabsTrigger>
-              <TabsTrigger
-                value="technical"
-                className="text-sm px-4 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-300"
-              >
-                Technicals
-              </TabsTrigger>
-              <TabsTrigger
-                value="options"
-                className="text-sm px-4 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300"
-              >
-                Options
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <TabsList className="h-11 p-1 bg-secondary/40 border border-border/60 rounded-xl">
+                <TabsTrigger
+                  value="fundamental"
+                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-300 data-[state=active]:shadow-sm data-[state=active]:shadow-blue-500/20"
+                >
+                  Fundamentals
+                </TabsTrigger>
+                <TabsTrigger
+                  value="technical"
+                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-300 data-[state=active]:shadow-sm data-[state=active]:shadow-violet-500/20"
+                >
+                  Technicals
+                </TabsTrigger>
+                <TabsTrigger
+                  value="options"
+                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-500/20"
+                >
+                  Options
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Host for the Options tab's min-income filter — OptionsScannerContent
+                  portals its control here so it sits inline with the tabs instead of
+                  its own row; empty/inert on the other two tabs. */}
+              <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center" />
+            </div>
 
             <TabsContent value="fundamental" className="mt-0">
               {fundamentalRankings.length >= 2 ? (

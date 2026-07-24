@@ -297,19 +297,18 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   let targets: Date[];
 
   if (cachedDates) {
-    // exactDaysUntil (real elapsed time), not daysUntil (calendar-day ceil) — the ceil'd
-    // version still counts an expiry a few hours away (e.g. tomorrow morning, checked
-    // after-hours tonight) as "1 day out", letting a near-expired contract through. That
-    // contract's near-zero real DTE then collapses BS delta to ~0 for nearly every OTM
-    // strike (false ~100% POP) and inflates weeklyIncome by annualizing over almost no time.
-    targets = cachedDates.filter(d => exactDaysUntil(d) >= 1 && exactDaysUntil(d) <= 28).slice(0, 2);
+    // exactDaysUntil (real elapsed time), not daysUntil (calendar-day ceil) — only exclude
+    // expiries that have actually passed. Near-zero-DTE contracts still show (you can sell
+    // a put right up until expiry); withFreshDte/buildRows floor exactDte at 0.5 days before
+    // computing delta/weeklyIncome so those figures don't blow up for same-day expiries.
+    targets = cachedDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 28).slice(0, 2);
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   } else {
     // Cache miss — initial undated fetch to discover expiry calendar
     raw0 = await fetchChain(key);
     const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
     expiryCache.set(key, allDates);
-    targets = allDates.filter(d => exactDaysUntil(d) >= 1 && exactDaysUntil(d) <= 28).slice(0, 2);
+    targets = allDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 28).slice(0, 2);
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   }
 

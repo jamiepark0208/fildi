@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,45 @@ function overviewBullets(description: string, companyName: string | null | undef
   return filtered.slice(0, 3);
 }
 
+// ── Classification tags (exchange/sector/industry/stockType) ───────────────────
+// Each tag type gets its own color so the row reads as distinct categories rather
+// than a wall of grey text. Clicking a tag opens a popup listing other watchlist
+// tickers sharing that same value.
+
+type TagType = "exchange" | "sector" | "industry" | "stockType";
+
+interface WatchlistTagEntry {
+  companyName?: string | null;
+  exchange?: string | null;
+  sector?: string | null;
+  industry?: string | null;
+  stockType?: string | null;
+}
+
+const TAG_STYLES: Record<TagType, string> = {
+  exchange:  "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20",
+  sector:    "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
+  industry:  "border-teal-500/30 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20",
+  stockType: "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
+};
+
+function TagBadge({ type, value, onClick }: { type: TagType; value: string; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border transition-colors",
+        onClick ? "cursor-pointer" : "cursor-default",
+        TAG_STYLES[type],
+      )}
+    >
+      {value}
+    </button>
+  );
+}
+
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
     score >= 4 ? "text-green-400" : score >= 3 ? "text-yellow-400" : score >= 2 ? "text-orange-400" : "text-red-400";
@@ -93,13 +133,17 @@ function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {}) {
+export function StockBreakdown({
+  ticker: propTicker,
+  watchlistMetrics,
+}: { ticker?: string; watchlistMetrics?: Record<string, WatchlistTagEntry | undefined> } = {}) {
   const [, navigate] = useLocation();
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("3M");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
+  const [tagPopup, setTagPopup] = useState<{ type: TagType; value: string } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When driven by watchlist click, sync ticker from prop
@@ -128,6 +172,13 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
     dropdownOpen && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
   const { data, isLoading, error } = useBreakdown(activeTicker);
+
+  const tagMatches = tagPopup && watchlistMetrics
+    ? Object.entries(watchlistMetrics)
+        .filter(([, m]) => m?.[tagPopup.type] === tagPopup.value)
+        .map(([t, m]) => ({ ticker: t, companyName: m?.companyName ?? null }))
+        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+    : [];
 
   const commitTicker = useCallback((t: string) => {
     const upper = t.trim().toUpperCase();
@@ -302,24 +353,16 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {m.exchange && (
-                    <span className="text-[10px] bg-secondary/60 border border-border/40 px-2 py-0.5 rounded-md font-mono text-foreground">
-                      {m.exchange}
-                    </span>
+                    <TagBadge type="exchange" value={m.exchange} onClick={watchlistMetrics ? () => setTagPopup({ type: "exchange", value: m.exchange }) : undefined} />
                   )}
                   {m.sector && (
-                    <span className="text-[10px] text-foreground">{m.sector}</span>
+                    <TagBadge type="sector" value={m.sector} onClick={watchlistMetrics ? () => setTagPopup({ type: "sector", value: m.sector }) : undefined} />
                   )}
                   {m.industry && (
-                    <>
-                      <span className="text-[10px] text-foreground">·</span>
-                      <span className="text-[10px] text-foreground">{m.industry}</span>
-                    </>
+                    <TagBadge type="industry" value={m.industry} onClick={watchlistMetrics ? () => setTagPopup({ type: "industry", value: m.industry }) : undefined} />
                   )}
                   {m.stockType && (
-                    <>
-                      <span className="text-[10px] text-foreground">·</span>
-                      <span className="text-[10px] text-foreground">{m.stockType}</span>
-                    </>
+                    <TagBadge type="stockType" value={m.stockType} onClick={watchlistMetrics ? () => setTagPopup({ type: "stockType", value: m.stockType }) : undefined} />
                   )}
                   {m.beta != null && (
                     <>
@@ -508,6 +551,37 @@ export function StockBreakdown({ ticker: propTicker }: { ticker?: string } = {})
           </div>
         )}
       </div>
+
+      <Dialog open={!!tagPopup} onOpenChange={open => { if (!open) setTagPopup(null); }}>
+        <DialogContent className="max-w-sm bg-card border border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {tagPopup && <TagBadge type={tagPopup.type} value={tagPopup.value} />}
+              <span className="text-sm font-normal text-muted-foreground">
+                {tagMatches.length} ticker{tagMatches.length !== 1 ? "s" : ""} in your watchlist
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {tagMatches.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No other watchlist tickers share this tag.</p>
+            ) : (
+              tagMatches.map(({ ticker: t, companyName }) => (
+                <button
+                  key={t}
+                  onClick={() => { commitTicker(t); setTagPopup(null); }}
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md hover:bg-secondary/60 transition-colors text-left"
+                >
+                  <span className="font-mono font-bold text-sm text-foreground">{t}</span>
+                  {companyName && (
+                    <span className="text-xs text-muted-foreground truncate">{companyName}</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
