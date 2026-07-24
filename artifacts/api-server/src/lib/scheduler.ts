@@ -16,6 +16,8 @@ import { runNightlyEnrichment } from "../scripts/nightly-enrichment.js";
 import { pruneOldRows } from "./retention.js";
 import { rotateApiServerLogIfNeeded, pruneScriptLogs } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
+import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
+import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -134,6 +136,31 @@ async function runRetentionPrune() {
   pruneScriptLogs();
 }
 
+export let regimeCheckRunning = false;
+export let lastRegimeCheckpointRun: Date | null = null;
+
+// Separate, finer heartbeat for the intraday regime banner — checkpoints are
+// 15 min apart, tighter than the 30-min cadence the other jobs use, so this
+// runs on its own interval rather than changing CHECK_INTERVAL_MS for everything else.
+async function runRegimeCheckpoints() {
+  if (regimeCheckRunning) return;
+  const minSinceOpen = minutesSinceOpen();
+  if (minSinceOpen == null) return;
+  regimeCheckRunning = true;
+  try {
+    for (const threshold of CHECKPOINTS_MIN) {
+      if (minSinceOpen >= threshold) {
+        await runCheckpoint(threshold).catch(err =>
+          logger.error({ err, threshold }, "scheduler: intraday-regime checkpoint failed"),
+        );
+      }
+    }
+    lastRegimeCheckpointRun = new Date();
+  } finally {
+    regimeCheckRunning = false;
+  }
+}
+
 export async function startScheduler(): Promise<void> {
   [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
@@ -157,6 +184,10 @@ export async function startScheduler(): Promise<void> {
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);
+
+  setInterval(() => {
+    if (isMarketOpen()) runRegimeCheckpoints();
+  }, 60 * 1000);
 
   logger.info(
     {

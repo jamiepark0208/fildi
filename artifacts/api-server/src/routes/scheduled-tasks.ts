@@ -4,6 +4,7 @@ import {
   lastEnrichmentRun, enrichmentRunning,
   lastRetentionPrune,
   lastTradeExpiryRun, tradeExpiryRunning,
+  lastRegimeCheckpointRun, regimeCheckRunning,
 } from "../lib/scheduler.js";
 
 const router = Router();
@@ -32,6 +33,13 @@ router.get("/admin/scheduled-tasks", requireAdmin, (_req, res) => {
         schedule: "Saturday, 02:00 UTC",
         lastRun: lastTradeExpiryRun?.toISOString() ?? null,
         running: tradeExpiryRunning,
+      },
+      {
+        name: "Intraday Regime Checkpoints",
+        description: "Samples SPY/QQQ at 15/30/45/60/90/120/150/180 min after the open to classify the day as trend vs. reversal, feeding the Live tab's regime banner.",
+        schedule: "Weekdays, 15/30/45/60/90/120/150/180 min after 9:30 ET (skips NYSE holidays)",
+        lastRun: lastRegimeCheckpointRun?.toISOString() ?? null,
+        running: regimeCheckRunning,
       },
     ],
   });

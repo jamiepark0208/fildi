@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
+import { TabBar } from "@/components/ui/tab-bar";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
@@ -719,21 +720,8 @@ export default function Settings() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="shrink-0 flex gap-1 border-b border-border px-6 bg-background">
-          {visibleTabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "text-xs font-medium px-3 py-2.5 border-b-2 transition-colors -mb-px",
-                tab === t.id
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="shrink-0 border-b border-border px-6 py-2 bg-background">
+          <TabBar<Tab> tabs={visibleTabs} active={tab} onChange={setTab} />
         </div>
 
         {/* Tab content */}

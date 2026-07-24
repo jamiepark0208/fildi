@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
@@ -189,6 +189,7 @@ function StrikeRow({
   dataQuality,
   scoreResult,
   runnerUp,
+  rowRef,
 }: {
   chain: OptionsChainResult;
   put: OptionRow;
@@ -197,6 +198,7 @@ function StrikeRow({
   dataQuality?: number | null;
   scoreResult?: OptionScoreResult | null;
   runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
+  rowRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const exactDte      = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
@@ -217,7 +219,7 @@ function StrikeRow({
     : null;
 
   return (
-    <div>
+    <div ref={rowRef}>
       <div
         className={cn(
           "grid items-center gap-x-3 px-3 py-0.5 text-xs border-l-2 transition-colors cursor-pointer select-none",
@@ -359,9 +361,21 @@ function ExpirySection({
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bestRowRef = useRef<HTMLDivElement>(null);
 
   const hasBestStrike = bestStrike != null && bestStrike.chain.expiry === chain.expiry;
   const bestInExpiry  = puts.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b, puts[0]);
+
+  // Pre-scroll the capped strike list to the best-recommendation row as soon as it's expanded,
+  // so the user sees it without manually scrolling — but keep strikes in their natural sort order.
+  useEffect(() => {
+    if (collapsed || !hasBestStrike) return;
+    const container = scrollRef.current;
+    const row = bestRowRef.current;
+    if (!container || !row) return;
+    container.scrollTop = row.offsetTop - container.offsetTop;
+  }, [collapsed, hasBestStrike]);
 
   // Compute full OptionScoreResult for every put in this expiry
   const scoreResults = useMemo(() => {
@@ -388,10 +402,10 @@ function ExpirySection({
           ? <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
           : <ChevronDown className="w-3.5 h-3.5 text-white shrink-0" />
         }
-        <span className="text-xs font-medium text-foreground">
+        <span className="font-bold text-xs tracking-wide text-foreground">
           {formatExpiry(chain.expiry, chain.daysToExpiry)}
         </span>
-        <span className="text-xs text-white">
+        <span className="font-bold text-xs tracking-wide text-white">
           {puts.length} strike{puts.length !== 1 ? "s" : ""}
           {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}
         </span>
@@ -407,7 +421,7 @@ function ExpirySection({
       {!collapsed && (
         <div>
           <StrikeTableHeader />
-          <div className="max-h-[104px] overflow-y-auto">
+          <div ref={scrollRef} className="max-h-[104px] overflow-y-auto">
             {puts.map(({ put }) => {
               const isBest = bestStrike != null &&
                 put.strike === bestStrike.put.strike &&
@@ -416,6 +430,7 @@ function ExpirySection({
               return (
                 <StrikeRow
                   key={`${chain.expiry}-${put.strike}`}
+                  rowRef={isBest ? bestRowRef : undefined}
                   chain={chain}
                   put={put}
                   isBest={isBest}

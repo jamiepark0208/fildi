@@ -3,6 +3,7 @@ import { liveHotlist, MARKET_CONTEXT_SYMBOLS, type HotlistEntry } from "../lib/l
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
+import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
 
 const router = Router();
 
@@ -72,6 +73,14 @@ router.get("/live/movers", async (_req, res, next) => {
   try {
     const [global, sectors] = await Promise.all([fetchGlobalMovers(), computeSectorMovers()]);
     res.json({ global, sectors });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/regime", async (_req, res, next) => {
+  try {
+    res.json(await getTodaysCheckpoints());
   } catch (err) {
     next(err);
   }
