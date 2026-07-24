@@ -48,7 +48,9 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
         changePercent: q?.regularMarketChangePercent ?? null,
         open: q?.regularMarketOpen ?? null,
       };
-      livePriceCache.set(key, entry);
+      // Only cache real quotes — caching a null (symbol omitted from the batch response)
+      // would pin the miss for the full TTL; leave it uncached so the next call retries.
+      if (entry.price != null) livePriceCache.set(key, entry);
       result.set(key, entry);
     }
   } catch (err: any) {

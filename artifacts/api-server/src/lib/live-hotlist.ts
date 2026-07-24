@@ -9,9 +9,8 @@ const REFRESH_MS = 60 * 60 * 1000; // 1hr — re-enable via ENABLE_AUTO_REFRESH 
 // Flip to true to restore the periodic setInterval in start().
 const ENABLE_AUTO_REFRESH = false;
 
-// Always subscribed regardless of scanner state. "^VIX" matches the Yahoo convention used
-// elsewhere (see macro-regime.ts) — Finnhub's WebSocket symbol may differ, revisit in Phase 1
-// (W1) when wiring these into the live ws subscription rather than just display.
+// Market context strip on the Live tab. "^VIX"/"^TNX" use the Yahoo convention (see
+// macro-regime.ts) — priced through getLivePrices (Yahoo), which resolves them fine.
 export const MARKET_CONTEXT_SYMBOLS = ["SPY", "QQQ", "^VIX", "^TNX"];
 
 export interface HotlistEntry {

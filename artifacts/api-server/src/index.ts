@@ -20,7 +20,17 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
+// Last-resort process guards: an unhandled rejection crashes the process on modern
+// Node, and an uncaught exception leaves it in an undefined state. Log both loudly so
+// Sentry/logs capture the cause instead of a silent exit under long-running load.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "unhandledRejection");
+});
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "uncaughtException");
+});
+
+const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -40,3 +50,25 @@ app.listen(port, (err) => {
     logger.error({ err: e }, "startup: stale refresh failed"),
   );
 });
+
+// Graceful shutdown: on redeploy/restart Replit sends SIGTERM. Stop accepting new
+// connections and let in-flight requests drain (e.g. a mid-write enrichment) instead
+// of being killed abruptly. Force-exit after a grace window so a hung socket can't
+// block the restart forever.
+let shuttingDown = false;
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "shutdown: draining connections");
+  const forceTimer = setTimeout(() => {
+    logger.warn("shutdown: grace period elapsed, forcing exit");
+    process.exit(0);
+  }, 10_000);
+  forceTimer.unref();
+  server.close(() => {
+    logger.info("shutdown: server closed cleanly");
+    process.exit(0);
+  });
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

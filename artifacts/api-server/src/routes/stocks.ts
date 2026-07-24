@@ -530,20 +530,18 @@ async function fetchQuoteSummary(ticker: string) {
 
 async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
-  const cached = quoteCache.get(key);
-  if (cached) return cached;
-
-  const [q, fmpRow, regRow] = await Promise.all([
-    fetchQuoteSummary(key),
-    readFundamentalsRow(key),
-    readRegistryRow(key),
-  ]);
-  // assetProfile carries sector/industry — price/summaryDetail/financialData/
-  // defaultKeyStatistics never do, so quote.sector was always undefined without it.
-  const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-  const metrics = { ...buildMetrics(merged, fmpRow, key, regRow), earningsDate: parseEarningsDate(q, null) };
-  quoteCache.set(key, metrics);
-  return metrics;
+  // getOrCompute coalesces concurrent misses for the same ticker into one Yahoo call.
+  return quoteCache.getOrCompute(key, async () => {
+    const [q, fmpRow, regRow] = await Promise.all([
+      fetchQuoteSummary(key),
+      readFundamentalsRow(key),
+      readRegistryRow(key),
+    ]);
+    // assetProfile carries sector/industry — price/summaryDetail/financialData/
+    // defaultKeyStatistics never do, so quote.sector was always undefined without it.
+    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
+    return { ...buildMetrics(merged, fmpRow, key, regRow), earningsDate: parseEarningsDate(q, null) };
+  });
 }
 
 // Overlays the golden-source live price (same cache Live Monitor reads) onto a metrics
@@ -740,12 +738,11 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
   const upperTicker = ticker.toUpperCase();
   const key = `${upperTicker}:v${BREAKDOWN_CACHE_VER}`;
-  const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
-  if (cached) {
-    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(cached)));
-  }
 
   try {
+    // getOrCompute coalesces concurrent misses for the same ticker into one build
+    // (breakdown is the heaviest fan-out: Yahoo summary + news + peers + fundamentals).
+    const payload = (await breakdownCache.getOrCompute(key, async () => {
     const analystFresh = await isAnalystDataFresh(upperTicker);
     const modules = ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
     if (!analystFresh) modules.push("upgradeDowngradeHistory");
@@ -828,7 +825,7 @@ router.get("/stocks/breakdown", async (req, res) => {
 
     const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
 
-    const payload = attachCatalysts({
+    return attachCatalysts({
       metrics,
       recommendations,
       analystActions,
@@ -843,8 +840,8 @@ router.get("/stocks/breakdown", async (req, res) => {
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,
     });
-    breakdownCache.set(key, payload);
-    return res.json(await overlayBreakdownPrice(upperTicker, payload));
+    })) as BreakdownPayload;
+    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(payload)));
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {

@@ -62,3 +62,32 @@ describe("TTLCache cache hits within TTL", () => {
     assert.equal(cache.getStats().misses, 0);
   });
 });
+
+describe("TTLCache.getOrCompute", () => {
+  it("coalesces concurrent misses into a single compute call", async () => {
+    const cache = new TTLCache<number>(60_000, "test");
+    let calls = 0;
+    const compute = async () => { calls++; await Promise.resolve(); return 42; };
+
+    const [a, b, c] = await Promise.all([
+      cache.getOrCompute("k", compute),
+      cache.getOrCompute("k", compute),
+      cache.getOrCompute("k", compute),
+    ]);
+
+    assert.equal(calls, 1);            // three concurrent callers, one upstream call
+    assert.deepEqual([a, b, c], [42, 42, 42]);
+    assert.equal(cache.get("k"), 42);  // result cached for later callers
+  });
+
+  it("does not cache on rejection and lets the next caller retry", async () => {
+    const cache = new TTLCache<number>(60_000, "test");
+    let calls = 0;
+    const flaky = async () => { calls++; if (calls === 1) throw new Error("boom"); return 7; };
+
+    await assert.rejects(cache.getOrCompute("k", flaky));
+    assert.equal(cache.get("k"), undefined); // failure left nothing cached
+    assert.equal(await cache.getOrCompute("k", flaky), 7); // retry succeeds
+    assert.equal(calls, 2);
+  });
+});

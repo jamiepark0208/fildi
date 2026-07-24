@@ -1,6 +1,9 @@
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import Anthropic from "@anthropic-ai/sdk";
+// Module-scope client so each request reuses one keep-alive pool (was constructed
+// per-request in the two AI handlers below — see one-time review).
+const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -245,7 +248,6 @@ router.post("/highlights/generate", requireAdmin, async (_req: Request, res: Res
     const packet = await buildFactsPacket();
     const prompt = buildHighlightsPrompt(packet);
 
-    const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1500,
@@ -332,7 +334,6 @@ Respond with a JSON array. Each object must have exactly these fields:
 
 Base stances on publicly known views and the current macro context. Return ONLY the JSON array, no other text.`;
 
-    const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2000,

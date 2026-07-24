@@ -17,10 +17,38 @@ export interface CacheStats {
 
 export class TTLCache<T> {
   private store = new Map<string, CacheEntry<T>>();
+  private inflight = new Map<string, Promise<T>>();
   private hits = 0;
   private misses = 0;
 
   constructor(private ttlMs: number, private name = '', private maxEntries?: number) {}
+
+  /**
+   * Cache-aside with in-flight coalescing: on a miss, concurrent callers for the same
+   * key share ONE `compute()` promise instead of each firing a duplicate upstream call
+   * (thundering herd when a popular key expires under load). Only successful results are
+   * cached; a rejection is surfaced to all waiters and leaves the cache untouched so the
+   * next caller retries.
+   */
+  async getOrCompute(key: string, compute: () => Promise<T>): Promise<T> {
+    const cached = this.get(key);
+    if (cached !== undefined) return cached;
+
+    const pending = this.inflight.get(key);
+    if (pending) return pending;
+
+    const promise = (async () => {
+      try {
+        const value = await compute();
+        this.set(key, value);
+        return value;
+      } finally {
+        this.inflight.delete(key);
+      }
+    })();
+    this.inflight.set(key, promise);
+    return promise;
+  }
 
   get(key: string): T | undefined {
     const entry = this.store.get(key);

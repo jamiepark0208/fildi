@@ -1,5 +1,5 @@
-import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
+import { fetchJsonWithRetry } from "./http-client.js";
 
 const POLY_BASE = "https://api.polygon.io";
 
@@ -17,37 +17,8 @@ export interface PolygonFundamentalsData {
   quarterlyOperatingCashFlow?: number;
 }
 
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
-  let delay = 1000;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    let res: Response;
-    try {
-      res = await fetch(url);
-    } catch (err) {
-      if (attempt === maxRetries) throw err;
-      await sleep(delay);
-      delay *= 2;
-      continue;
-    }
-    if (res.status === 429) {
-      if (attempt === maxRetries) throw new Error(`Polygon rate limit exceeded after ${maxRetries} retries`);
-      logger.warn({ url, attempt }, "polygon: rate limited, backing off");
-      await sleep(delay);
-      delay *= 2;
-      continue;
-    }
-    if (!res.ok) {
-      if (attempt === maxRetries) throw new Error(`Polygon HTTP ${res.status} for ${url}`);
-      await sleep(delay);
-      delay *= 2;
-      continue;
-    }
-    return res.json();
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
+function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
+  return fetchJsonWithRetry(url, { provider: "Polygon", maxRetries });
 }
 
 function polyN(v: unknown): number | undefined {

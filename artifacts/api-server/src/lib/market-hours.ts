@@ -111,7 +111,7 @@ export function minutesSinceOpen(now: Date = new Date()): number | null {
   return minutesOfDay - MARKET_OPEN_MIN;
 }
 
-/** Today's ET calendar date as YYYY-MM-DD — same convention as candle-aggregator's etDateKey(). */
+/** Today's ET calendar date as YYYY-MM-DD. */
 export function etDateKey(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }

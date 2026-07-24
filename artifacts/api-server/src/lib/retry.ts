@@ -24,7 +24,9 @@ export async function withRetry<T>(
         } else {
           logger.warn({ err, attempt }, "withRetry: attempt failed, retrying");
         }
-        await new Promise(r => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)));
+        // ±50% jitter so concurrent callers that failed together don't retry in lockstep.
+        const backoff = baseDelayMs * 2 ** (attempt - 1);
+        await new Promise(r => setTimeout(r, Math.round(backoff * (0.5 + Math.random()))));
       }
     }
   }
