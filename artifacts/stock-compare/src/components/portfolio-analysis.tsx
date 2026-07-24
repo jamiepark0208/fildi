@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
@@ -583,6 +583,20 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     return { rows, grandTotal };
   }, [realizedEvents, filtered]);
 
+  // ── Cumulative realized P&L over time — running total across all realized events
+  // (stock + options + dividends), sorted by close date. Same realizedEvents source as
+  // pnlTotals above, so no double-counting of premium-open vs close rows.
+  const cumulativePnlTimeline = useMemo(() => {
+    const sorted = [...realizedEvents].sort((a, b) => new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime());
+    let running = 0;
+    const byDay = new Map<string, number>();
+    sorted.forEach(e => {
+      running += e.pnl;
+      byDay.set(e.closedAt.slice(0, 10), running);
+    });
+    return Array.from(byDay.entries()).map(([date, cumulative]) => ({ date, cumulative }));
+  }, [realizedEvents]);
+
   // ── Cumulative P&L per trade type — stacked bar (realized + unrealized = total) ──
   const TRADE_TYPE_LABELS: Record<string, string> = {
     "Stock": "Stock", "Options — Short Call": "Sell Call", "Options — Short Put": "Sell Put",
@@ -1157,12 +1171,58 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
         <Card>
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
-              Reserved
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+                  Cumulative Realized P&amp;L
+                </CardTitle>
+                <p className="text-[10px] text-white/70">stock + options + dividends, full transaction history</p>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">Total Realized</div>
+                <div className={cn("text-sm font-bold font-mono tabular-nums", pnlTotals.grandTotal.realized >= 0 ? "text-green-400" : "text-red-400")}>
+                  {pnlTotals.grandTotal.realized >= 0 ? "+" : ""}{formatCurrency(pnlTotals.grandTotal.realized)}
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <div className="h-[240px] flex items-center justify-center text-xs text-white/70">Coming soon</div>
+            {cumulativePnlTimeline.length === 0 ? (
+              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={cumulativePnlTimeline} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="cumPnlFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#ffffff" }}
+                    axisLine={false} tickLine={false}
+                    tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })} />
+                  <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false}
+                    width={52} tickFormatter={(v) => formatCurrency(v)} />
+                  <Tooltip content={(p) => {
+                    const d = p.payload?.[0]?.payload;
+                    if (!p.active || !d) return null;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 text-white">
+                        <div className="font-semibold">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-white/70">Cumulative</span>
+                          <span className={cn("font-mono font-semibold", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
+                            {formatCurrency(d.cumulative)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }} />
+                  <Area type="monotone" dataKey="cumulative" stroke="#34d399" strokeWidth={2} fill="url(#cumPnlFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>

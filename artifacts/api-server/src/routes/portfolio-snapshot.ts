@@ -48,12 +48,28 @@ router.get('/portfolio/snapshot/latest', requireAdmin, async (req, res, next) =>
       return
     }
 
-    const [positions, options, accountSummaries, orders] = await Promise.all([
+    const [positions, options, accountSummaries, ordersForLatest] = await Promise.all([
       db.select().from(portfolioPositions).where(eq(portfolioPositions.snapshotId, snapshot.id)),
       db.select().from(portfolioOptions).where(eq(portfolioOptions.snapshotId, snapshot.id)),
       db.select().from(portfolioAccountSummaries).where(eq(portfolioAccountSummaries.snapshotId, snapshot.id)),
       db.select().from(portfolioOrders).where(eq(portfolioOrders.snapshotId, snapshot.id)),
     ])
+
+    // Orders (the full equity/option order book) aren't re-exported on every import —
+    // some imports only refresh holdings/account-summary CSVs — so if the latest
+    // snapshot has none, fall back to the most recent snapshot that does, rather than
+    // silently reporting zero realized P&L.
+    let orders = ordersForLatest
+    if (orders.length === 0) {
+      const [latestWithOrders] = await db
+        .select({ snapshotId: portfolioOrders.snapshotId })
+        .from(portfolioOrders)
+        .orderBy(desc(portfolioOrders.snapshotId))
+        .limit(1)
+      if (latestWithOrders) {
+        orders = await db.select().from(portfolioOrders).where(eq(portfolioOrders.snapshotId, latestWithOrders.snapshotId))
+      }
+    }
 
     const realizedEvents = computeRealizedPnL(orders)
 
