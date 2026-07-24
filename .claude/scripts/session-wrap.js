@@ -149,9 +149,25 @@ const next = coerce({
 // hook — unbounded growth here is a direct, compounding per-turn token cost, not a
 // one-time doc-size issue. Cap hard instead of letting it silently creep (grew to
 // 8 entries / ~1850 chars before a 2026-07-15 trim brought it back to 3 / ~1100).
-const INSTINCT_CAP = 5;
+// Enforced (not just warned) — oldest entries are dropped past the cap, since a soft
+// warning was easy to ignore mid-wrap and let the array creep back up anyway.
+const INSTINCT_CAP = 10;
 if (next.instincts.length > INSTINCT_CAP) {
-  process.stderr.write(`\n[STATE] instincts has ${next.instincts.length} entries (cap ${INSTINCT_CAP}) — consolidate/drop stale ones before wrapping, not just append.\n`);
+  const dropped = next.instincts.length - INSTINCT_CAP;
+  process.stderr.write(`\n[STATE] instincts had ${next.instincts.length} entries (cap ${INSTINCT_CAP}) — dropped ${dropped} oldest. Consolidate instead of just appending next time.\n`);
+  next.instincts = next.instincts.slice(-INSTINCT_CAP);
+}
+
+// working/in_progress/blocked/next are comma-split by list() above — an item containing
+// prose with its own commas gets silently shredded into unrelated fragments (seen in the
+// wild: a single sentence became 4-5 disconnected array entries). Flag long items so the
+// caller shortens them into tags instead of writing paragraphs into a CSV-style field.
+const TAG_MAX_CHARS = 90;
+for (const field of ['working', 'in_progress', 'blocked', 'next']) {
+  const long = next[field].filter(x => x.length > TAG_MAX_CHARS);
+  if (long.length) {
+    process.stderr.write(`\n[STATE] ${field} has ${long.length} entr${long.length === 1 ? 'y' : 'ies'} over ${TAG_MAX_CHARS} chars — likely prose that got comma-shredded, not a short tag:\n  ${long.map(x => `"${x.slice(0, 60)}..."`).join('\n  ')}\n`);
+  }
 }
 
 // Final validation before write — hard stop if coerce still fails
