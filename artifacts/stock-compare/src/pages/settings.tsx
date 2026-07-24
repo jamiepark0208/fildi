@@ -721,7 +721,8 @@ export default function Settings() {
 
         {/* Sub-tabs */}
         <div className="shrink-0 border-b border-border px-6 py-2 bg-background">
-          <TabBar<Tab> tabs={visibleTabs} active={tab} onChange={setTab} />
+          {/* No explicit generic on TabBar — Replit's vite metadata plugin can't parse generic JSX call sites (`<TabBar<Tab> …>`) and corrupts the transform; T is inferred from props anyway. */}
+          <TabBar tabs={visibleTabs} active={tab} onChange={(id) => setTab(id)} />
         </div>
 
         {/* Tab content */}

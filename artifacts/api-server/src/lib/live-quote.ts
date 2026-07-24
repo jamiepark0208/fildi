@@ -7,6 +7,8 @@ const yahooFinance = new YahooFinanceClass();
 export interface LivePrice {
   price: number | null;
   changePercent: number | null;
+  /** Today's regular-session open — lets intraday consumers measure direction since the open instead of vs. prior close (gap days poison the latter). */
+  open: number | null;
 }
 
 /**
@@ -36,7 +38,7 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
       missing,
       {},
       { validateResult: false },
-    ) as Array<{ symbol?: string; regularMarketPrice?: number; regularMarketChangePercent?: number }>;
+    ) as Array<{ symbol?: string; regularMarketPrice?: number; regularMarketChangePercent?: number; regularMarketOpen?: number }>;
 
     const bySymbol = new Map(quotes.map(q => [q.symbol, q]));
     for (const key of missing) {
@@ -44,13 +46,14 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
       const entry: LivePrice = {
         price: q?.regularMarketPrice ?? null,
         changePercent: q?.regularMarketChangePercent ?? null,
+        open: q?.regularMarketOpen ?? null,
       };
       livePriceCache.set(key, entry);
       result.set(key, entry);
     }
   } catch (err: any) {
     logger.warn({ err: String(err?.message ?? err), tickers: missing }, "live-quote: batch quote fetch failed");
-    for (const key of missing) result.set(key, { price: null, changePercent: null });
+    for (const key of missing) result.set(key, { price: null, changePercent: null, open: null });
   }
 
   return result;

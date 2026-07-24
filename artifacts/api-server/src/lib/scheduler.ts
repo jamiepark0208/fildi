@@ -18,6 +18,7 @@ import { rotateApiServerLogIfNeeded, pruneScriptLogs } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
 import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
+import { runEntrySignals } from "./intraday-entry-signals.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -148,12 +149,22 @@ async function runRegimeCheckpoints() {
   if (minSinceOpen == null) return;
   regimeCheckRunning = true;
   try {
+    let anyRecorded = false;
     for (const threshold of CHECKPOINTS_MIN) {
       if (minSinceOpen >= threshold) {
-        await runCheckpoint(threshold).catch(err =>
-          logger.error({ err, threshold }, "scheduler: intraday-regime checkpoint failed"),
-        );
+        const recorded = await runCheckpoint(threshold).catch(err => {
+          logger.error({ err, threshold }, "scheduler: intraday-regime checkpoint failed");
+          return false;
+        });
+        if (recorded) anyRecorded = true;
       }
+    }
+    // Per-ticker entry signals ride the same cadence: refreshed once per newly
+    // resolved checkpoint, not on every 60s tick (each run is ~46 chart fetches).
+    if (anyRecorded) {
+      await runEntrySignals().catch(err =>
+        logger.error({ err }, "scheduler: entry-signal recompute failed"),
+      );
     }
     lastRegimeCheckpointRun = new Date();
   } finally {

@@ -100,6 +100,60 @@ async function fetchRegime(): Promise<RegimeCheckpoint[]> {
   return r.json();
 }
 
+type EntryVerdict = "enter" | "wait" | "avoid";
+
+interface EntrySignal {
+  ticker: string;
+  price: number;
+  direction: RegimeDirection | null;
+  score: number;
+  verdict: EntryVerdict;
+  factors: string[];
+}
+
+interface EntrySignalsSnapshot {
+  computedAt: number;
+  afterCheckpointMin: number | null;
+  regimeDirection: RegimeDirection | null;
+  regimeConfidence: number | null;
+  signals: EntrySignal[];
+}
+
+async function fetchEntrySignals(): Promise<EntrySignalsSnapshot | null> {
+  const r = await fetch("/api/live/entry-signals", { credentials: "include" });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+interface VerdictStats { n: number; avgFwd1dPct: number | null; avgFwd5dPct: number | null }
+interface EntryStatsResponse { days: number; gradedDays: number; perVerdict: Record<EntryVerdict, VerdictStats> }
+
+async function fetchEntryStats(): Promise<EntryStatsResponse> {
+  const r = await fetch("/api/live/entry-stats", { credentials: "include" });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// drizzle numeric columns arrive as strings — parse defensively (mirrors pf() in technical-rankings).
+function num(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Nearest support BELOW current price from levels the nightly technicals job already
+// computed (swing lows + pivot S1) — and whether an ~8% OTM put strike would sit
+// below that support (support cushions the strike) or dangle unprotected above it.
+function supportContext(row: TechnicalRow | undefined, price: number): { support: number; cushioned: boolean } | null {
+  if (!row) return null;
+  const levels = [num(row.swingLow20d), num(row.swingLow50d), num(row.pivotS1)]
+    .filter((v): v is number => v != null && v > 0 && v < price);
+  if (levels.length === 0) return null;
+  const support = Math.max(...levels); // highest level still below price = nearest support
+  const strike = price * 0.92;
+  return { support, cushioned: support <= strike ? false : true };
+}
+
 function regimeDotColor(c: RegimeCheckpoint): string {
   if (c.status === "pending" || c.direction == null) return "bg-muted-foreground/40";
   if (c.direction === "mixed") return "bg-yellow-500";
@@ -124,12 +178,32 @@ function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] | undef
 
   const cols = checkpoints.length;
 
+  // Headline = latest resolved directional call; flag a flip vs. the checkpoint
+  // before it — a mid-day regime flip is the single most tradeable banner event.
+  const resolved = checkpoints.filter(c => c.status === "resolved" && c.direction != null);
+  const latest = resolved[resolved.length - 1] ?? null;
+  const prev = resolved[resolved.length - 2] ?? null;
+  const flipped = latest != null && prev != null && prev.direction !== latest.direction;
+
   return (
     <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
-      <div className="px-3 py-1.5 border-b border-zinc-600/40 bg-zinc-800/90">
+      <div className="px-3 py-1.5 border-b border-zinc-600/40 bg-zinc-800/90 flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold text-white uppercase tracking-wide">
           Intraday Regime
         </span>
+        {latest && (
+          <span className="flex items-center gap-2 text-[11px] font-mono">
+            <span className={cn("font-semibold", regimeTextColor(latest))}>
+              Now: {regimeShortLabel(latest)}{latest.confidence != null ? ` ${latest.confidence}%` : ""}
+            </span>
+            <span className="text-zinc-500">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
+            {flipped && prev && (
+              <span className="text-amber-400 font-semibold">
+                ⚠ flipped from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}
+              </span>
+            )}
+          </span>
+        )}
       </div>
       <div className="grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {checkpoints.map((c) => (
@@ -185,6 +259,39 @@ function scoreColor(score: number | null): string {
   if (score >= 65) return "text-green-500";
   if (score >= 45) return "text-yellow-500";
   return "text-red-500";
+}
+
+const VERDICT_STYLE: Record<EntryVerdict, string> = {
+  enter: "bg-green-600/20 text-green-400 border-green-600/40",
+  wait: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40",
+  avoid: "bg-red-600/20 text-red-400 border-red-600/40",
+};
+
+const VERDICT_LABEL: Record<EntryVerdict, string> = { enter: "Enter", wait: "Wait", avoid: "Avoid" };
+
+/** Entry-timing verdict pill + click-to-open factor breakdown, mirroring the regime banner popover. */
+function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: string | null }) {
+  if (!signal) return <span className="text-muted-foreground">—</span>;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={cn("px-2 py-0.5 rounded border text-[11px] font-semibold transition-colors hover:brightness-125", VERDICT_STYLE[signal.verdict])}>
+          {VERDICT_LABEL[signal.verdict]}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0 text-xs bg-zinc-900 border-zinc-600/40" align="center">
+        <div className="px-3 py-2 border-b border-amber-500/20 bg-zinc-800/90 flex items-center justify-between gap-2">
+          <span className="font-semibold text-white">{signal.ticker} entry timing</span>
+          {asOf && <span className="text-zinc-500 font-mono text-[10px]">as of {asOf}</span>}
+        </div>
+        <div className="p-3 flex flex-col gap-1.5">
+          {signal.factors.map((f, i) => (
+            <span key={i} className="text-zinc-300 leading-snug font-mono text-[11px]">{f}</span>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function SignalBadge({ signal }: { signal: HotlistEntry["signal"] }) {
@@ -354,6 +461,19 @@ export default function Live() {
     refetchInterval: 60_000,
   });
 
+  const { data: entrySignals } = useQuery({
+    queryKey: ["live-entry-signals"],
+    queryFn: fetchEntrySignals,
+    refetchInterval: 60_000,
+  });
+
+  const { data: entryStats } = useQuery({
+    queryKey: ["live-entry-stats"],
+    queryFn: fetchEntryStats,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
   const { data: fundRankingsData } = useQuery({
     queryKey: ["fundamentals", "rankings"],
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
@@ -386,6 +506,13 @@ export default function Live() {
     return new Map(computeTechnicalRankingsV2(allTechnicalsData).map(s => [s.ticker, s.totalScore]));
   }, [allTechnicalsData]);
 
+  // Raw technicals rows by ticker — ER proximity / IV rank / support levels / falling-knife
+  // are all already computed nightly and shipped in this payload; no extra fetch.
+  const techRowMap = useMemo(
+    () => new Map((allTechnicalsData ?? []).map(r => [r.ticker, r])),
+    [allTechnicalsData],
+  );
+
   const refreshMutation = useMutation({
     mutationFn: () => apiLive("/refresh", { method: "POST" }),
     onSuccess: (next) => {
@@ -399,6 +526,14 @@ export default function Live() {
     : "never";
 
   const sortedHotlist = [...(data?.hotlist ?? [])].sort((a, b) => a.rsi - b.rsi);
+
+  const entryByTicker = useMemo(
+    () => new Map((entrySignals?.signals ?? []).map(s => [s.ticker, s])),
+    [entrySignals],
+  );
+  const entryAsOf = entrySignals?.afterCheckpointMin != null
+    ? (CHECKPOINT_TIME_PT[entrySignals.afterCheckpointMin] ?? `${entrySignals.afterCheckpointMin}m after open`)
+    : null;
 
   return (
     <div className="min-h-[100dvh] bg-background">
@@ -437,9 +572,31 @@ export default function Live() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Opportunities ({sortedHotlist.length})
-            </h2>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Opportunities ({sortedHotlist.length})
+              </h2>
+              {entryStats && entryStats.gradedDays > 0 && (
+                <span
+                  className="text-[11px] font-mono text-zinc-400"
+                  title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days). Avg next-day / next-5-day return from the signal price. This is the accountability layer — if Enter doesn't beat Wait here, don't trust the verdicts.`}
+                >
+                  {(["enter", "wait", "avoid"] as const).map((v, i) => {
+                    const s = entryStats.perVerdict[v];
+                    if (s.n === 0) return null;
+                    return (
+                      <span key={v}>
+                        {i > 0 && " · "}
+                        <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
+                          {VERDICT_LABEL[v]}
+                        </span>
+                        {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+            </div>
             {sortedHotlist.length === 0 ? (
               !isLoading && (
                 <p className="text-sm text-muted-foreground">
@@ -454,30 +611,69 @@ export default function Live() {
                       <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Ticker</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Price</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">RSI</th>
-                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">IV</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">IV · Rank</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">5d Return</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Stoch</th>
+                      <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Support</th>
+                      <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">ER</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Fund Score</th>
                       <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Tech Score</th>
                       <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Signal</th>
+                      <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Entry</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedHotlist.map((e) => {
                       const fundScore = fundScoreMap.get(e.ticker) ?? null;
                       const techScore = techScoreMap.get(e.ticker) ?? null;
+                      const tech = techRowMap.get(e.ticker);
+                      const ivRank = num(tech?.ivRank); // [0,1] self-relative
+                      const support = supportContext(tech, e.price);
+                      const erDays = tech?.earningsDaysOut ?? null;
+                      const erSoon = erDays != null && erDays >= 0 && erDays <= 7;
+                      const knife = tech?.fallingKnife === 1;
                       return (
                       <tr key={e.ticker} className="bg-zinc-900/40 even:bg-zinc-800/40 hover:bg-zinc-700/50 transition-colors">
-                        <td className="px-3 py-1.5 font-mono font-semibold text-white">{e.ticker}</td>
+                        <td className="px-3 py-1.5 font-mono font-semibold text-white">
+                          {e.ticker}
+                          {knife && <span className="ml-1 text-red-500" title="Falling knife: >2 ATR below MA50 and MA200 with MACD falling">⚠</span>}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
                         <td className={cn("px-3 py-1.5 text-right font-mono", e.rsi < 30 ? "text-green-400 font-semibold" : "text-white")}>
                           {e.rsi.toFixed(1)}
                         </td>
-                        <td className="px-3 py-1.5 text-right font-mono text-amber-400">{e.ivCurrent.toFixed(0)}%</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-amber-400">
+                          {e.ivCurrent.toFixed(0)}%
+                          <span className={cn("ml-1", ivRank != null && ivRank >= 0.7 ? "text-amber-300 font-semibold" : "text-zinc-500")}>
+                            {ivRank != null ? `R${Math.round(ivRank * 100)}` : ""}
+                          </span>
+                        </td>
                         <td className={cn("px-3 py-1.5 text-right font-mono", (e.return5d ?? 0) < 0 ? "text-red-400" : "text-green-400")}>
                           {pct(e.return5d)}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono text-white">{e.stoch != null ? e.stoch.toFixed(0) : "—"}</td>
+                        <td
+                          className="px-3 py-1.5 text-right font-mono text-zinc-300"
+                          title={support ? `Nearest support below price (swing lows / pivot S1). ${support.cushioned ? "An ~8% OTM strike would sit BELOW this support (cushioned)." : "An ~8% OTM strike would sit ABOVE this support (no cushion)."}` : undefined}
+                        >
+                          {support ? (
+                            <>
+                              {support.support.toFixed(2)}
+                              <span className={cn("ml-1 font-semibold", support.cushioned ? "text-green-400" : "text-red-400")}>
+                                {support.cushioned ? "✓" : "✗"}
+                              </span>
+                            </>
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          {erSoon ? (
+                            <span className="px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-400 text-[10px] font-semibold" title={`Earnings in ${erDays} day${erDays === 1 ? "" : "s"}`}>
+                              {erDays}d
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600 text-[10px]">{erDays != null ? `${erDays}d` : "—"}</span>
+                          )}
+                        </td>
                         <td className={cn("px-3 py-1.5 text-right font-mono", scoreColor(fundScore))}>
                           {fundScore != null ? fundScore.toFixed(0) : "—"}
                         </td>
@@ -485,6 +681,7 @@ export default function Live() {
                           {techScore != null ? techScore.toFixed(0) : "—"}
                         </td>
                         <td className="px-3 py-1.5 text-center"><SignalBadge signal={e.signal} /></td>
+                        <td className="px-3 py-1.5 text-center"><EntryCell signal={entryByTicker.get(e.ticker)} asOf={entryAsOf} /></td>
                       </tr>
                       );
                     })}

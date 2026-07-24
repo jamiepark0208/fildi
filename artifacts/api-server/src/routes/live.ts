@@ -4,6 +4,7 @@ import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
+import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 
 const router = Router();
 
@@ -81,6 +82,22 @@ router.get("/live/movers", async (_req, res, next) => {
 router.get("/live/regime", async (_req, res, next) => {
   try {
     res.json(await getTodaysCheckpoints());
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/entry-signals", async (_req, res, next) => {
+  try {
+    res.json(await getTodaysEntrySignals());
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/entry-stats", async (_req, res, next) => {
+  try {
+    res.json(await computeEntryStats(30));
   } catch (err) {
     next(err);
   }
