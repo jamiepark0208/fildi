@@ -445,7 +445,6 @@ function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onC
           ivRankAtEntry: put.iv != null ? put.iv * 100 : undefined,
         }),
       });
-      if (r.status === 429) { setError("You already have 3 open trade ideas"); return; }
       if (!r.ok) { const d = await r.json(); setError(d.error ?? "Submit failed"); return; }
       setSuccess(true);
       setTimeout(handleClose, 1000);

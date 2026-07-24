@@ -142,13 +142,6 @@ router.post('/feed/posts', async (req, res) => {
       return res.status(400).json({ error: 'shares: integer >= 1 required' })
   }
 
-  const [{ openCount }] = await db
-    .select({ openCount: count() })
-    .from(tradePosts)
-    .where(and(eq(tradePosts.userId, userId), eq(tradePosts.status, 'OPEN')))
-  if (openCount >= 3)
-    return res.status(429).json({ error: 'Max 3 open trade ideas at a time' })
-
   const [created] = await db.insert(tradePosts).values({
     userId,
     ticker:             ticker.trim().toUpperCase(),

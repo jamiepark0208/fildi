@@ -133,7 +133,6 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      if (r.status === 429) { setError("Max 3 open trade ideas at a time"); return }
       if (!r.ok) { const d = await r.json(); setError(d.error ?? "Submit failed"); return }
       setSuccess(true)
       setTimeout(() => { setSuccess(false); reset(); onSuccess() }, 1200)
