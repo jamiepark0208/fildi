@@ -60,6 +60,11 @@ function isSameUtcDay(a: Date, b: Date): boolean {
   );
 }
 
+function daysSince(d: Date | null): number {
+  if (!d) return Infinity;
+  return (Date.now() - d.getTime()) / (24 * 60 * 60 * 1000);
+}
+
 export let lastRetentionPrune: Date | null = null;
 
 const SCHEDULE_DAYS = new Set([0, 4]); // 0=Sunday, 4=Thursday (UTC)
@@ -68,13 +73,17 @@ const TRADE_EXPIRY_DAY = 6; // Saturday (UTC) — the day after Friday's typical
 const TRADE_EXPIRY_HOUR = 2;
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
+// Windows are Sun/Thu, so a healthy run is never more than ~4 days old. If the process
+// wasn't alive during the exact scheduled hour (deploy restart, autoscale cold start),
+// the day/hour match is missed entirely with no other trigger — catch up once the gap
+// exceeds a full cycle instead of silently skipping until the next window.
+const ENRICHMENT_CATCHUP_DAYS = 4;
+
 function shouldRunEnrichmentNow(): boolean {
   const now = new Date();
-  return (
-    SCHEDULE_DAYS.has(now.getUTCDay()) &&
-    now.getUTCHours() === SCHEDULE_HOUR &&
-    !(lastEnrichmentRun && isSameUtcDay(lastEnrichmentRun, now))
-  );
+  const onSchedule = SCHEDULE_DAYS.has(now.getUTCDay()) && now.getUTCHours() === SCHEDULE_HOUR;
+  const missedWindow = daysSince(lastEnrichmentRun) > ENRICHMENT_CATCHUP_DAYS;
+  return (onSchedule || missedWindow) && !(lastEnrichmentRun && isSameUtcDay(lastEnrichmentRun, now));
 }
 
 function shouldRunRetentionNow(): boolean {
@@ -82,13 +91,15 @@ function shouldRunRetentionNow(): boolean {
   return !(lastRetentionPrune && isSameUtcDay(lastRetentionPrune, now));
 }
 
+// Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
+// same catch-up guard rather than depending entirely on the lazy /feed/posts fallback.
+const TRADE_EXPIRY_CATCHUP_DAYS = 8;
+
 function shouldRunTradeExpiryNow(): boolean {
   const now = new Date();
-  return (
-    now.getUTCDay() === TRADE_EXPIRY_DAY &&
-    now.getUTCHours() === TRADE_EXPIRY_HOUR &&
-    !(lastTradeExpiryRun && isSameUtcDay(lastTradeExpiryRun, now))
-  );
+  const onSchedule = now.getUTCDay() === TRADE_EXPIRY_DAY && now.getUTCHours() === TRADE_EXPIRY_HOUR;
+  const missedWindow = daysSince(lastTradeExpiryRun) > TRADE_EXPIRY_CATCHUP_DAYS;
+  return (onSchedule || missedWindow) && !(lastTradeExpiryRun && isSameUtcDay(lastTradeExpiryRun, now));
 }
 
 async function runEnrichment() {

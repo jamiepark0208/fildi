@@ -202,6 +202,12 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
           </div>
         ) : (
           <div className="flex flex-wrap items-baseline gap-x-2.5 text-xs text-foreground/90">
+            <span className={cn(
+              "font-bold",
+              post.tradeType === "SELL_PUT" || post.tradeType === "BUY_CALL" ? "text-green-400" : "text-red-400"
+            )}>
+              {post.tradeType.replace("_", " ")}
+            </span>
             <span>${post.strike}<span className="text-foreground/50">strike</span></span>
             <span>{fmtExpiry(post.expiry)}</span>
             <span>${post.premiumPerContract}×{post.contracts}</span>

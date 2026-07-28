@@ -47,6 +47,10 @@ export async function fetchJsonWithRetry<T = any>(url: string, opts: FetchJsonOp
       continue;
     }
     if (!res.ok) {
+      // Permanent client errors (bad auth, plan/entitlement, not-found) never succeed on
+      // retry — failing fast avoids burning ~15s*attempts per ticker on a dead endpoint.
+      const isPermanent = res.status >= 400 && res.status < 500 && res.status !== 429;
+      if (isPermanent) throw new Error(`${provider} HTTP ${res.status} for ${url}`);
       if (attempt === maxRetries) throw new Error(`${provider} HTTP ${res.status} for ${url}`);
       await sleep(jitter(delay));
       delay *= 2;

@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-28
 
 ## Active work
-- Working: profile-redesign, accounting-tab-redesign, tradecard-compact-layout
-- In progress: none
-- Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid
+- Working: scheduler-catchup-fix, http-client-fastfail-fix, tradecard-option-label-fix
+- In progress: verify-profile-and-accounting-tabs-in-preview
+- Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)
 
