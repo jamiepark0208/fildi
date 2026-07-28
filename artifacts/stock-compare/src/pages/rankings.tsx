@@ -9,6 +9,7 @@ import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
 import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
 import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
+import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
@@ -23,6 +24,9 @@ const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: strin
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
   const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options">("fildi_rankings_tab", "fundamental");
+  // Technical tab lens: oversold (sell puts) vs overbought (sell calls) — mirrors the
+  // Options tab's page-level Sell Puts/Sell Calls toggle, persisted independently.
+  const [techSide, setTechSide] = useSessionState<"puts" | "calls">("fildi_technical_side", "puts");
   const { weights } = useScoringPreferences();
   const { tickers: watchlistTickers } = useWatchlist();
 
@@ -100,8 +104,8 @@ export default function Rankings() {
 
   const technicalScores = useMemo(() => {
     if (!allTechnicalsData?.length) return [];
-    return computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical);
-  }, [allTechnicalsData, weights.technical]);
+    return computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, techSide === "calls" ? "call" : "put");
+  }, [allTechnicalsData, weights.technical, techSide]);
 
   const technicalRowMap = useMemo(
     () => allTechnicalsData ? Object.fromEntries(allTechnicalsData.map(r => [r.ticker, r])) : undefined,
@@ -133,7 +137,39 @@ export default function Rankings() {
 
           {tab === "technical" && (
             technicalScores.length >= 2 ? (
-              <TechnicalLeaderboard scores={technicalScores} rowMap={technicalRowMap} />
+              <>
+                {/* Lens toggle — same styling as the Options tab's Sell Puts/Sell Calls */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-xs h-7 shrink-0">
+                    <button
+                      onClick={() => setTechSide("puts")}
+                      className={cn(
+                        "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                        techSide === "puts" ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+                      )}
+                    >
+                      Sell Puts
+                    </button>
+                    <button
+                      onClick={() => setTechSide("calls")}
+                      className={cn(
+                        "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                        techSide === "calls" ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+                      )}
+                    >
+                      Sell Calls
+                    </button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {techSide === "puts" ? "Oversold lens — best put-selling setups" : "Overbought lens — best call-selling setups"}
+                  </span>
+                </div>
+                <TechnicalLeaderboard
+                  scores={technicalScores}
+                  rowMap={technicalRowMap}
+                  side={techSide === "calls" ? "call" : "put"}
+                />
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
             )

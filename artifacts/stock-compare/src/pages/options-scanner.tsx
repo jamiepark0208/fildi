@@ -587,9 +587,24 @@ function ScannerRow({
   stockScore = null,
   isCall,
 }: ScannerRowProps) {
-  const signal    = indicator?.signal ?? "NO";
+  // Put mode: legacy per-ticker RSI/MFI threshold signal (server scorecard).
+  // Call mode: V2 call-side gate (overbought + fading momentum) from `score` —
+  // the legacy indicator signal is oversold-based and would be backwards here.
+  const signal    = isCall ? (score?.gateStatus ?? "NO") : (indicator?.signal ?? "NO");
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
+
+  // Call-mode red-flag warnings — warn only, never exclude (trader-context convention).
+  const callWarnings = useMemo(() => {
+    if (!isCall || !techRow) return [];
+    const w: string[] = [];
+    const ma50Atr = pfNum(techRow.priceVsMa50Atr);
+    if (ma50Atr != null && ma50Atr > 2) w.push("Strong uptrend (+2 ATR above MA50) — capping a winner");
+    const resist = [pfNum(techRow.swingHigh20d), pfNum(techRow.swingHigh50d), pfNum(techRow.pivotR1)]
+      .filter((v): v is number => v != null);
+    if (price != null && resist.length > 0 && price > Math.max(...resist)) w.push("Breakout above all resistance");
+    return w;
+  }, [isCall, techRow, price]);
 
   // Sub-tab within the expanded panel: strike table vs. the ticker's IV term structure.
   // Put vs. call is decided one level up (scanMode) — this row just renders whichever
@@ -727,17 +742,22 @@ function ScannerRow({
           )}
         </div>
 
-        <div className="w-[56px] shrink-0">
+        <div className="w-[56px] shrink-0 flex items-center gap-1">
           <SignalBadge signal={signal} />
+          {callWarnings.length > 0 && (
+            <span className="text-amber-400 text-[10px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
+          )}
         </div>
 
-        {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.) */}
+        {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.).
+            Call mode: green = overbought (favorable overwriting), tooltip = V2 call reason. */}
         <span
           className={cn(
             "text-xs font-mono font-semibold w-[48px] shrink-0",
-            indicator == null ? "text-white" : indicator.rsiOk ? "text-green-400" : "text-orange-400",
+            indicator == null ? "text-white" :
+            (isCall ? indicator.rsi >= 65 : indicator.rsiOk) ? "text-green-400" : "text-orange-400",
           )}
-          title={indicator ? buildReasoning(indicator, firstIV, macroRegime) : undefined}
+          title={isCall ? (score?.reason ?? undefined) : (indicator ? buildReasoning(indicator, firstIV, macroRegime) : undefined)}
         >
           {indicator ? indicator.rsi.toFixed(1) : "—"}
         </span>
@@ -1153,11 +1173,16 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     refetchOnWindowFocus: false,
   });
 
-  // V2: self-relative scores over all 31 watchlist rows — invariant to display filter
+  // V2: self-relative scores over all 31 watchlist rows — invariant to display filter.
+  // Side-aware: call mode scores overbought/exhaustion/extension (sell calls into
+  // strength) instead of the put-side oversold/reversal components.
   const rankings = useMemo(() => {
     if (!allTechnicalsData?.length) return new Map<string, TechnicalScore>();
-    return new Map(computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical).map(s => [s.ticker, s]));
-  }, [allTechnicalsData, weights.technical]);
+    return new Map(
+      computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, isCallMode ? "call" : "put")
+        .map(s => [s.ticker, s]),
+    );
+  }, [allTechnicalsData, weights.technical, isCallMode]);
 
   // Tech row map (full fields for Option Scorer — includes swingLow, pivotS1, atr14, etc.)
   const techRowMap = useMemo(
@@ -1269,6 +1294,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         pfNum(techRow?.swingHigh20d),
         pfNum(techRow?.swingLow20d),
         chains?.[0]?.spot ?? null,
+        isCallMode ? "call" : "put",
       );
       const result = computeStockScore({
         techTotalScore:    rankings.get(ticker)?.totalScore ?? null,
@@ -1280,7 +1306,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       m.set(ticker, result.stockScore);
     }
     return m;
-  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock]);
+  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock, isCallMode]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
   // Re-sorts whenever the score map behind the active sort key actually changes

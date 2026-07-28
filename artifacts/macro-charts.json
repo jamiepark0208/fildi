@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-28T03:39:47.756Z",
+  "fetchedAt": "2026-07-28T16:18:05.084Z",
   "vixHistory": [
     {
       "date": "2024-07-29",
@@ -2004,6 +2004,10 @@
     {
       "date": "2026-07-27",
       "value": 18.670000076293945
+    },
+    {
+      "date": "2026-07-28",
+      "value": 17.989999771118164
     }
   ],
   "fedFundsHistory": [
@@ -4005,7 +4009,11 @@
     },
     {
       "date": "2026-07-27",
-      "value": 3.7970001697540283
+      "value": 3.796999931335449
+    },
+    {
+      "date": "2026-07-28",
+      "value": 3.75
     }
   ],
   "tenYearHistory": [
@@ -6008,6 +6016,10 @@
     {
       "date": "2026-07-27",
       "value": 4.640999794006348
+    },
+    {
+      "date": "2026-07-28",
+      "value": 4.590000152587891
     }
   ],
   "vixCurve": [
@@ -6022,7 +6034,7 @@
     {
       "tenor": "30D",
       "days": 30,
-      "value": 18.67,
+      "value": 17.99,
       "weekAgo": 17.049999237060547,
       "monthAgo": 18.40999984741211,
       "threeMonthAgo": 17.829999923706055
@@ -6030,7 +6042,7 @@
     {
       "tenor": "93D",
       "days": 93,
-      "value": 20.2,
+      "value": 19.8,
       "weekAgo": 20.540000915527344,
       "monthAgo": 20.1299991607666,
       "threeMonthAgo": 20.489999771118164
@@ -6038,7 +6050,7 @@
     {
       "tenor": "6M",
       "days": 183,
-      "value": 22.11,
+      "value": 21.81,
       "weekAgo": 22.280000686645508,
       "monthAgo": 22.260000228881836,
       "threeMonthAgo": 22.8700008392334
@@ -6046,7 +6058,7 @@
     {
       "tenor": "1Y",
       "days": 365,
-      "value": 23.53,
+      "value": 23.28,
       "weekAgo": null,
       "monthAgo": null,
       "threeMonthAgo": null
@@ -6056,7 +6068,7 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.635,
+      "impliedRate": 3.63,
       "weekAgo": 3.63,
       "monthAgo": 3.635,
       "threeMonthAgo": 3.635,
@@ -6065,7 +6077,7 @@
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.805,
+      "impliedRate": 3.775,
       "weekAgo": 3.76,
       "monthAgo": 3.755,
       "threeMonthAgo": 3.61,
@@ -6074,7 +6086,7 @@
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
-      "impliedRate": 3.905,
+      "impliedRate": 3.865,
       "weekAgo": 3.845,
       "monthAgo": 3.815,
       "threeMonthAgo": 3.6,
@@ -6083,7 +6095,7 @@
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 4.04,
+      "impliedRate": 3.995,
       "weekAgo": 3.985,
       "monthAgo": 3.915,
       "threeMonthAgo": 3.59,
@@ -6092,7 +6104,7 @@
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 4.065,
+      "impliedRate": 4.02,
       "weekAgo": 4.015,
       "monthAgo": 3.935,
       "threeMonthAgo": 3.59,
@@ -6101,7 +6113,7 @@
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.125,
+      "impliedRate": 4.075,
       "weekAgo": 4.085,
       "monthAgo": 3.965,
       "threeMonthAgo": 3.6,
@@ -6110,7 +6122,7 @@
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 4.175,
+      "impliedRate": 4.12,
       "weekAgo": 4.135,
       "monthAgo": 3.975,
       "threeMonthAgo": 3.615,
@@ -6118,10 +6130,6 @@
     }
   ],
   "hySpreadHistory": [
-    {
-      "date": "2023-07-28",
-      "value": 3.82
-    },
     {
       "date": "2023-07-31",
       "value": 3.79
@@ -9257,13 +9265,13 @@
     {
       "date": "2026-07-24",
       "value": 2.79
+    },
+    {
+      "date": "2026-07-27",
+      "value": 2.81
     }
   ],
   "igSpreadHistory": [
-    {
-      "date": "2023-07-28",
-      "value": 1.19
-    },
     {
       "date": "2023-07-31",
       "value": 1.19
@@ -12395,6 +12403,10 @@
     {
       "date": "2026-07-24",
       "value": 0.8
+    },
+    {
+      "date": "2026-07-27",
+      "value": 0.81
     }
   ],
   "putCallHistory": [
@@ -14397,6 +14409,10 @@
     {
       "date": "2026-07-27",
       "value": 100.91000366210938
+    },
+    {
+      "date": "2026-07-28",
+      "value": 97.58999633789062
     }
   ],
   "fearGreedHistory": [
@@ -15394,11 +15410,15 @@
     },
     {
       "date": "2026-07-27",
-      "value": 39.9
+      "value": 37.6
     },
     {
-      "date": "2026-07-27",
-      "value": 39.9
+      "date": "2026-07-28",
+      "value": 37.7
+    },
+    {
+      "date": "2026-07-28",
+      "value": 37.9
     }
   ],
   "putCallRatioHistory": [
@@ -16399,8 +16419,8 @@
       "value": 0.822
     },
     {
-      "date": "2026-07-27",
-      "value": 0.822
+      "date": "2026-07-28",
+      "value": 0.808
     }
   ],
   "gscpiHistory": [
@@ -41052,7 +41072,7 @@
     },
     {
       "date": "2026-07-28",
-      "value": 0.001569
+      "value": 0.001575
     }
   ],
   "dxyHistory": [
@@ -43062,7 +43082,7 @@
     },
     {
       "date": "2026-07-28",
-      "value": 101.45800018310547
+      "value": 101.28700256347656
     }
   ],
   "fedAssetsHistory": [
@@ -80895,10 +80915,14 @@
     {
       "date": "2026-07-24",
       "value": -1
+    },
+    {
+      "date": "2026-07-27",
+      "value": -1
     }
   ],
   "liquidityImplications": {
-    "asOf": "2026-07-28T03:39:47.755Z",
+    "asOf": "2026-07-28T16:18:05.082Z",
     "signals": [
       {
         "label": "Net Liquidity",
@@ -80927,7 +80951,7 @@
       {
         "label": "Credit Stress (HY OAS)",
         "level": "supportive",
-        "readout": "279bps",
+        "readout": "281bps",
         "implication": "High-yield spreads are tight — credit markets see ample liquidity and low near-term default risk."
       }
     ],
@@ -82896,55 +82920,51 @@
     {
       "date": "2026-07-17",
       "value": 70.87999725341797
-    },
-    {
-      "date": "2026-07-27",
-      "value": 77.21279907226562
     }
   ],
   "volatilityImplications": {
-    "asOf": "2026-07-28T03:39:47.756Z",
+    "asOf": "2026-07-28T16:18:05.084Z",
     "signals": [
       {
         "label": "VIX Level",
         "level": "normal",
-        "readout": "18.7",
+        "readout": "18.0",
         "implication": "VIX is in its normal range — no strong edge either buying or selling premium off level alone."
       },
       {
         "label": "VIX Term Structure",
         "level": "calm",
-        "readout": "-1.5pts (30D vs 3M)",
+        "readout": "-1.8pts (30D vs 3M)",
         "implication": "Curve is in steep contango — the normal, complacent state that favors carry/premium-selling strategies."
       },
       {
         "label": "VVIX (Vol of VIX)",
-        "level": "elevated",
-        "readout": "101",
-        "implication": "VVIX is elevated — tail-hedging demand is building faster than the VIX level alone suggests."
+        "level": "normal",
+        "readout": "98",
+        "implication": "VVIX is in a normal range — no unusual demand for crash protection beyond what VIX already implies."
       },
       {
         "label": "Put/Call Ratio",
         "level": "normal",
-        "readout": "0.82",
+        "readout": "0.81",
         "implication": "Put/call is in a normal range — no extreme positioning either way."
       },
       {
         "label": "Credit Cross-Check (HY OAS)",
         "level": "calm",
-        "readout": "279bps",
+        "readout": "281bps",
         "implication": "Credit spreads are tight — if equity vol is elevated without credit confirmation, it's more likely a technical/liquidity move that tends to mean-revert faster."
       },
       {
         "label": "MOVE Index (Bond Vol)",
         "level": "calm",
-        "readout": "77",
+        "readout": "71",
         "implication": "Rates volatility is contained — no cross-asset warning from the bond market right now."
       }
     ],
     "overall": {
-      "level": "normal",
-      "summary": "Vol signals are mixed/normal — no single channel is dominating the picture right now."
+      "level": "calm",
+      "summary": "Vol is broadly quiet across equity and rates markets, with no confirming credit stress — a benign backdrop, though complacency itself is worth flagging at extremes."
     }
   }
 }

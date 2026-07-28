@@ -18,8 +18,9 @@ function pf(v: number | string | null | undefined): number | null {
 
 // ── Component: Relative Move ──────────────────────────────────────────────────
 // Replaces return5d > 3% hard gate with a continuous [0,1] score.
-// High score = stock is low in its range / oversold = favorable entry.
-// Low score = stock just spiked into upper range = unfavorable.
+// Put side (default): high score = stock low in its range / oversold = favorable entry.
+// Call side: every directional part inverts — high score = stock spiked / high in
+// range / extended above MA50 = favorable call-selling setup (sell into strength).
 
 export function computeRelativeMove(
   priceZScore: number | null,         // z-score of price vs own rolling history
@@ -28,41 +29,43 @@ export function computeRelativeMove(
   swingHigh20d: number | null,
   swingLow20d: number | null,
   spot: number | null,
+  side: "put" | "call" = "put",
 ): number {
   const parts: Array<{ score: number; weight: number }> = [];
+  const inv = (s: number) => (side === "call" ? 1 - s : s); // mirror around 0.5
 
-  // z-score component: negative z = price low vs history = favorable
+  // z-score component: negative z = price low vs history = favorable (puts)
   const z = pf(priceZScore);
   if (z !== null) {
     // sigmoid-like: z = -2 → ~0.88; z = 0 → 0.5; z = +2 → ~0.12
     const s = c01(0.5 - z * 0.18);
-    parts.push({ score: s, weight: 0.35 });
+    parts.push({ score: inv(s), weight: 0.35 });
   }
 
-  // MA50/ATR component: below MA50 = favorable (negative value is good)
+  // MA50/ATR component: below MA50 = favorable for puts (negative value is good)
   const ma50Atr = pf(priceVsMa50Atr);
   if (ma50Atr !== null) {
     // -3 ATRs below MA50 → 1.0; at MA50 → 0.5; +3 ATRs above → 0.0
     const s = c01(0.5 - ma50Atr * 0.15);
-    parts.push({ score: s, weight: 0.30 });
+    parts.push({ score: inv(s), weight: 0.30 });
   }
 
-  // 5-day return component: large negative return = better entry opportunity
+  // 5-day return component: large negative return = better put entry
   // return5d stored as % (e.g. 5.2 = +5.2%)
   const r5 = pf(return5d);
   if (r5 !== null) {
     // +8% spike → 0.1; 0% → 0.5; -8% selloff → 0.9
     const s = c01(0.5 - r5 * 0.05);
-    parts.push({ score: s, weight: 0.20 });
+    parts.push({ score: inv(s), weight: 0.20 });
   }
 
-  // Range position: low in 20d range = favorable
+  // Range position: low in 20d range = favorable for puts
   const hi = pf(swingHigh20d);
   const lo = pf(swingLow20d);
   const sp = pf(spot);
   if (hi !== null && lo !== null && sp !== null && hi > lo) {
     const rangePos = (sp - lo) / (hi - lo);
-    parts.push({ score: c01(1 - rangePos), weight: 0.15 });
+    parts.push({ score: inv(c01(1 - rangePos)), weight: 0.15 });
   }
 
   if (parts.length === 0) return 0.5; // no data → neutral

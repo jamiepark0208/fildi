@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-28
 
 ## Active work
-- Working: sell-put-scanner, sell-call-scoring, options-cache-shared
-- In progress: sell-puts-sell-calls-toggle-shipped
+- Working: sell-put-scanner, sell-call-scoring, call-side-technical-mirror, technical-tab-side-toggle
+- In progress: side-aware-scoring-shipped-needs-browser-eyeball
 - Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)

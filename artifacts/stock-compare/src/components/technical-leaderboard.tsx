@@ -3,19 +3,18 @@ import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import { ChevronDown, Trophy, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  type TechnicalScore, type TechnicalRow, TECHNICAL_SCORECARD_METRICS_V2, COMPONENT_EXPLAINERS,
+  type TechnicalScore, type TechnicalRow, type ScoreSide,
+  getTechnicalScorecardMetrics, getComponentExplainers,
 } from "@/lib/technical-rankings";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
 
-const COMPONENT_LABEL: Record<string, string> = Object.fromEntries(
-  TECHNICAL_SCORECARD_METRICS_V2.map(m => [m.key, m.label]),
-);
-
-function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>) {
+function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>, side: ScoreSide = "put") {
   const row = rowMap?.[score.ticker];
   const cs  = score.componentScores ?? {};
   return {
     technicalData: {
+      // Lens the score was computed under: "put" = oversold/sell-puts, "call" = overbought/sell-calls
+      side,
       totalScore:      score.totalScore,
       rank:            score.rank,
       signal:          score.signal,
@@ -47,7 +46,11 @@ function parseBullets(text: string): string[] {
     .filter(s => s.length > 8);
 }
 
-export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow> }) {
+export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow>; side?: ScoreSide }) {
+  // Side-aware labels/explainers — same component keys, direction-correct wording.
+  const metrics = getTechnicalScorecardMetrics(side);
+  const explainers = getComponentExplainers(side);
+  const componentLabel: Record<string, string> = Object.fromEntries(metrics.map(m => [m.key, m.label]));
   const { explain, getState } = useScoreExplanation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -97,14 +100,14 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
         )}
         {filtered.map((score) => {
           const idx = score.rank - 1;
-          const state      = getState(score.ticker, "technical");
+          const state      = getState(score.ticker, "technical", `technical-${side}`);
           const isLoading  = state.status === "loading";
           const bullets    = state.status === "done" ? parseBullets(state.text) : [];
           const isExpanded = state.status === "done" && bullets.length > 0 && !collapsed.has(score.ticker);
 
           const row = rowMap?.[score.ticker];
           const componentRows = isExpanded
-            ? TECHNICAL_SCORECARD_METRICS_V2.map(m => {
+            ? metrics.map(m => {
                 const cs = score.componentScores?.[m.key];
                 const s01 = cs?.score ?? null;
                 const weight = cs?.weight ?? m.weight;
@@ -164,7 +167,7 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
                         return next;
                       });
                     } else {
-                      explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap));
+                      explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap, side), `technical-${side}`);
                     }
                   }}
                   disabled={isLoading}
@@ -235,14 +238,14 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
                           <tbody>
                             {(() => {
                               let flatIdx = 0;
-                              return Object.entries(COMPONENT_EXPLAINERS).flatMap(([key, fn]) => {
+                              return Object.entries(explainers).flatMap(([key, fn]) => {
                                 const parts = fn(row);
                                 return parts.map((part, pi) => {
                                   const tr = (
                                     <tr key={`${key}-${pi}`} className={gridRow(flatIdx)}>
                                       {pi === 0 ? (
                                         <td className={cn(GRID_TD, "text-left text-white/50 font-medium")} rowSpan={parts.length}>
-                                          {COMPONENT_LABEL[key] ?? key}
+                                          {componentLabel[key] ?? key}
                                         </td>
                                       ) : null}
                                       <td className={cn(GRID_TD, "text-left text-white/70")}>{part.label}</td>

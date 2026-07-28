@@ -149,6 +149,7 @@ export function scoreIvRelative(
   ivPercentile: number | null,
   ivVsRealizedVol: number | null,
   basicSkew: number | null,
+  isCall: boolean = false,
 ): number | null {
   const rank = pf(ivRank);
   const pct  = pf(ivPercentile);
@@ -164,8 +165,10 @@ export function scoreIvRelative(
   const vr = pf(ivVsRealizedVol);
   if (vr !== null && vr > 1.0) base = Math.min(1, base + IV_VS_REALIZED_BONUS);
 
+  // Side-specific: basicSkew = OTM put IV − OTM call IV. Put sellers harvest a rich
+  // put wing (sk > 0); call sellers want the call wing bid (sk < 0).
   const sk = pf(basicSkew);
-  if (sk !== null && sk > 0)   base = Math.min(1, base + IV_SKEW_BONUS);
+  if (sk !== null && (isCall ? sk < 0 : sk > 0)) base = Math.min(1, base + IV_SKEW_BONUS);
 
   return c01(base);
 }
@@ -316,7 +319,7 @@ export function computeOptionScore(
   const components: Array<{ key: string; weight: number; score: number | null }> = [
     { key: "income",      weight: w("income", W_INCOME),        score: scoreIncomeAdequacy(candidate.weeklyIncome, floor, target) },
     { key: "buffer",      weight: w("buffer", W_BUFFER),        score: scoreBuffer(candidate.delta, candidate.strikeIV, candidate.dte, candidate.otmPct, regime) },
-    { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew) },
+    { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew, isCall) },
     { key: "ivAbsolute",  weight: w("ivAbsolute", W_IV_ABSOLUTE),   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
     { key: "stockQuality",weight: w("stockQuality", W_STOCK_QUALITY), score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
     { key: "support",     weight: w("support", W_SUPPORT),

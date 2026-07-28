@@ -65,6 +65,7 @@ export interface TechnicalRow {
   ma50: Num; ma200: Num;
   priceVsMa50Atr: Num; priceVsMa200Atr: Num;
   nearestSupportDistPct: Num;
+  nearestResistDistPct: Num;
   priceVsVwapPct: Num;
   regime: string | null;
   fallingKnife: number | null;
@@ -98,6 +99,24 @@ export const TECHNICAL_SCORECARD_METRICS_V2 = [
   { key: "optionsFlow",     label: "Options Flow",     weight: W_OPTIONS_FLOW,     description: "Put/call volume ratio, put skew, IV term structure" },
   { key: "volumeConfirm",   label: "Volume Confirm",   weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
 ] as const;
+
+// Call-side ("sell calls into strength") variant. SAME component keys as the put
+// metadata above — keys are the stable contract for weight overrides, componentScores,
+// and explainers; only the scoring direction and display labels flip by side.
+export type ScoreSide = "put" | "call";
+
+export const TECHNICAL_SCORECARD_METRICS_V2_CALL = [
+  { key: "oversoldDepth",   label: "Overbought Depth",   weight: W_OVERSOLD_DEPTH,   description: "RSI/MFI/Stoch high vs own trailing history (sell calls into strength)" },
+  { key: "reversalSignal",  label: "Exhaustion Signal",  weight: W_REVERSAL_SIGNAL,  description: "MACD rolling over, RSI velocity fading, proximity to own resistance" },
+  { key: "volatilityState", label: "Volatility State",   weight: W_VOLATILITY_STATE, description: "IV rank vs own history, IV/realized spread, BB squeeze" },
+  { key: "trendContext",    label: "Trend Extension",    weight: W_TREND_CONTEXT,    description: "Regime, price stretched above MA50 in own ATR units, above VWAP" },
+  { key: "optionsFlow",     label: "Call-Side Flow",     weight: W_OPTIONS_FLOW,     description: "Call-heavy volume, call wing richness (negative skew), IV term structure" },
+  { key: "volumeConfirm",   label: "Volume Confirm",     weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
+] as const;
+
+export function getTechnicalScorecardMetrics(side: ScoreSide) {
+  return side === "call" ? TECHNICAL_SCORECARD_METRICS_V2_CALL : TECHNICAL_SCORECARD_METRICS_V2;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -176,6 +195,59 @@ function scoreVolumeConfirm(r: TechnicalRow): number | null {
   return pf(r.volumeRatioPct); // already [0,1] self-relative percentile from DB
 }
 
+// ── Call-side component scorers (mirror of the put scorers above) ─────────────
+// "Sell calls into strength": overbought + momentum fading + extended above trend
+// + call wing bid = ideal overwriting setup. volatilityState/volumeConfirm are
+// side-neutral and shared as-is.
+
+function scoreOverboughtDepth(r: TechnicalRow): number | null {
+  const parts: number[] = [];
+  const rsiPct = pf(r.rsi14Pct);
+  const mfiPct = pf(r.mfi14Pct);
+  const stochPct = pf(r.stochPct);
+  if (rsiPct != null)   parts.push(rsiPct);   // higher percentile = more overbought FOR THIS STOCK
+  if (mfiPct != null)   parts.push(mfiPct);
+  if (stochPct != null) parts.push(stochPct);
+  return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
+function scoreExhaustionSignal(r: TechnicalRow): number | null {
+  const parts: number[] = [];
+  if (r.macdDirection != null) {
+    parts.push(r.macdDirection === "DOWN" ? 1.0 : r.macdDirection === "FLAT" ? 0.5 : 0.0);
+  }
+  const vel = pf(r.rsiVelocity);
+  if (vel != null) parts.push(c01(0.5 - vel / 10)); // momentum fading (negative velocity) = good
+  const dist = pf(r.nearestResistDistPct);
+  if (dist != null) parts.push(c01(1 - Math.max(0, dist - 2) / 8)); // 0-2%→1.0, ≥10%→0.0
+  return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
+function scoreTrendExtension(r: TechnicalRow): number | null {
+  const parts: number[] = [];
+  if (r.regime != null) {
+    // BULLISH reduces to 0.3 — "don't cap a winner": strong bull regime is the worst
+    // time to sell calls (AQR overwriting research). Informational, never blocks.
+    parts.push(r.regime === "BEARISH" ? 1.0 : r.regime === "BULLISH" ? 0.3 : 0.5);
+  }
+  const ma50Atr = pf(r.priceVsMa50Atr);
+  if (ma50Atr != null) parts.push(c01(ma50Atr / 3));              // 0→0, +3 ATRs above→1.0
+  const vwapPct = pf(r.priceVsVwapPct);
+  if (vwapPct != null) parts.push(c01(0.5 + vwapPct / 10));      // +5%→1.0, 0%→0.5, -5%→0.0
+  return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
+function scoreCallFlow(r: TechnicalRow): number | null {
+  const parts: number[] = [];
+  const pc = pf(r.putCallVolumeRatio);
+  if (pc != null) parts.push(c01(1 - (pc - 0.5) / 1.5));         // 0.5→1.0 (call-heavy), 2.0→0
+  const skew = pf(r.basicSkew);
+  if (skew != null) parts.push(c01(-skew / 15));                  // call wing rich (negative skew) = good
+  const term = pf(r.ivTermStructure);
+  if (term != null) parts.push(c01((term - 0.8) / 0.4));         // same as put side: near-dated IV rich
+  return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
 // ── Gate (per-ticker, self-relative, no macro view) ──────────────────────────
 // regime=BEARISH is NEVER a gate condition — it only affects trendContext score.
 
@@ -213,6 +285,45 @@ function computeGateV2(r: TechnicalRow): "GO" | "WATCH" | "NO" {
   return "NO";
 }
 
+// ── Call-side gate (mirror of computeGateV2) ─────────────────────────────────
+// GO = overbought + momentum fading + no earnings + not a "rocket ship"
+// (still-accelerating extreme extension — the call-side analog of fallingKnife:
+// selling calls into a stock going vertical risks capping a runaway winner).
+
+function computeGateV2Call(r: TechnicalRow): "GO" | "WATCH" | "NO" {
+  const cov = pf(r.technicalsCoverage);
+  if (cov != null && cov < 0.5) return "NO";
+
+  const rsiPct  = pf(r.rsi14Pct);
+  const mfiPct  = pf(r.mfi14Pct);
+  const stochPct = pf(r.stochPct);
+  const vel     = pf(r.rsiVelocity);
+  const zScore  = pf(r.priceZScore);
+  const rocket  = zScore != null && zScore > 2 && vel != null && vel > 0;
+  const earningsDays = r.earningsDaysOut;
+  const earningsImminent = earningsDays != null && earningsDays <= 7;
+
+  // GO: all five conditions must hold
+  const goRsi        = rsiPct != null && rsiPct > 0.70;
+  const goMomentum   = (mfiPct != null && mfiPct > 0.65) || (stochPct != null && stochPct > 0.65);
+  const goFading     = r.macdDirection === "DOWN" || (vel != null && vel < 0);
+  const goNoRocket   = !rocket;
+  const goNoEarnings = !earningsImminent;
+
+  if (goRsi && goMomentum && goFading && goNoRocket && goNoEarnings) return "GO";
+
+  // Would-be GO blocked by rocket or earnings → WATCH (not NO)
+  if (goRsi && goMomentum && goFading && (rocket || earningsImminent)) return "WATCH";
+
+  // WATCH: any of these approaching-signal conditions
+  const watchRsi    = rsiPct != null && rsiPct > 0.60;
+  const watchMacd   = r.macdDirection === "DOWN";
+  const watchZScore = zScore != null && zScore > 1.5;
+  if (watchRsi || watchMacd || watchZScore || earningsImminent) return "WATCH";
+
+  return "NO";
+}
+
 // ── Reason string ─────────────────────────────────────────────────────────────
 
 function generateReasonV2(r: TechnicalRow, signal: "GO" | "WATCH" | "NO"): string {
@@ -244,23 +355,67 @@ function generateReasonV2(r: TechnicalRow, signal: "GO" | "WATCH" | "NO"): strin
   return parts.join(" · ");
 }
 
+// Call-side reason string (mirror of generateReasonV2)
+function generateReasonV2Call(r: TechnicalRow, signal: "GO" | "WATCH" | "NO"): string {
+  const regime = r.regime ?? "NEUTRAL";
+  const parts: string[] = [`${signal} · ${regime} regime`];
+
+  const rsiPct = pf(r.rsi14Pct);
+  const rsi14  = pf(r.rsi14);
+  if (rsiPct != null) {
+    const rsiStr = rsi14 != null ? `RSI ${rsi14.toFixed(1)} ` : "RSI ";
+    parts.push(`${rsiStr}(pct ${(rsiPct * 100).toFixed(0)}%)`);
+  }
+
+  if (r.macdDirection === "DOWN")   parts.push("MACD rolling over");
+  else if (r.macdDirection === "UP") parts.push("MACD still UP");
+
+  const ivVsRv = pf(r.ivVsRealizedVol);
+  if (ivVsRv != null && ivVsRv > 1.1) parts.push(`IV ${ivVsRv.toFixed(1)}x realized`);
+
+  const resistDist = pf(r.nearestResistDistPct);
+  if (resistDist != null && resistDist < 5) parts.push(`near resistance (${resistDist.toFixed(1)}%)`);
+
+  const zScore = pf(r.priceZScore);
+  const vel    = pf(r.rsiVelocity);
+  if (zScore != null && zScore > 2 && vel != null && vel > 0) parts.push("⚠ still accelerating");
+
+  if (r.earningsDaysOut != null && r.earningsDaysOut <= 14) {
+    parts.push(`earnings ${r.earningsDaysOut}d`);
+  }
+
+  return parts.join(" · ");
+}
+
 // ── Main V2 scorer ────────────────────────────────────────────────────────────
 
 export function computeTechnicalRankingsV2(
   rows: TechnicalRow[],
   tierMap: Record<string, 1 | 2 | 3> = {},
   technicalWeights?: Record<string, number>,
+  side: ScoreSide = "put",
 ): TechnicalScore[] {
   if (rows.length === 0) return [];
 
-  const defaultComponents = [
-    { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
-    { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
-    { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
-    { key: "trendContext",    weight: W_TREND_CONTEXT,    scoreFn: scoreTrendContext },
-    { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
-    { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
-  ] as const;
+  // Component keys are identical across sides (stable contract for weight
+  // overrides / componentScores / explainers); only scoreFn direction flips.
+  const defaultComponents = side === "call"
+    ? ([
+        { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOverboughtDepth },
+        { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreExhaustionSignal },
+        { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
+        { key: "trendContext",    weight: W_TREND_CONTEXT,    scoreFn: scoreTrendExtension },
+        { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreCallFlow },
+        { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
+      ] as const)
+    : ([
+        { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
+        { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
+        { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
+        { key: "trendContext",    weight: W_TREND_CONTEXT,    scoreFn: scoreTrendContext },
+        { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
+        { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
+      ] as const);
 
   const COMPONENTS = defaultComponents.map(c => ({
     ...c,
@@ -286,7 +441,7 @@ export function computeTechnicalRankingsV2(
       compScores,
       available,
       totalScore,
-      signal:  computeGateV2(row),
+      signal:  side === "call" ? computeGateV2Call(row) : computeGateV2(row),
       tier:    tierMap[row.ticker.toUpperCase()] ?? (1 as 1 | 2 | 3),
       regime:  (row.regime ?? "NEUTRAL") as "BULLISH" | "NEUTRAL" | "BEARISH",
       coverage: pf(row.technicalsCoverage),
@@ -322,7 +477,7 @@ export function computeTechnicalRankingsV2(
       signal,
       tier,
       metricScores: ms,
-      reason:       generateReasonV2(row, signal),
+      reason:       side === "call" ? generateReasonV2Call(row, signal) : generateReasonV2(row, signal),
       // V2 optional fields
       gateStatus:   signal,
       regime,
@@ -413,4 +568,65 @@ export const COMPONENT_EXPLAINERS: Record<string, (r: TechnicalRow) => Component
   optionsFlow:     explainOptionsFlow,
   volumeConfirm:   explainVolumeConfirm,
 };
+
+// ── Call-side explainers (mirror the call scorers exactly) ───────────────────
+
+export function explainOverboughtDepth(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const rsiPct = pf(r.rsi14Pct), mfiPct = pf(r.mfi14Pct), stochPct = pf(r.stochPct);
+  if (rsiPct != null)   parts.push({ label: "RSI percentile (own history)",   raw: fmtPct01(rsiPct),   score: rsiPct });
+  if (mfiPct != null)   parts.push({ label: "MFI percentile (own history)",   raw: fmtPct01(mfiPct),   score: mfiPct });
+  if (stochPct != null) parts.push({ label: "Stochastic percentile (own history)", raw: fmtPct01(stochPct), score: stochPct });
+  return parts;
+}
+
+export function explainExhaustionSignal(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  if (r.macdDirection != null) {
+    const s = r.macdDirection === "DOWN" ? 1.0 : r.macdDirection === "FLAT" ? 0.5 : 0.0;
+    parts.push({ label: "MACD direction (rolling over = good)", raw: r.macdDirection, score: s });
+  }
+  const vel = pf(r.rsiVelocity);
+  if (vel != null) parts.push({ label: "RSI velocity (5d Δ, fading = good)", raw: vel.toFixed(1), score: c01(0.5 - vel / 10) });
+  const dist = pf(r.nearestResistDistPct);
+  if (dist != null) parts.push({ label: "Distance to nearest resistance", raw: `${dist.toFixed(1)}%`, score: c01(1 - Math.max(0, dist - 2) / 8) });
+  return parts;
+}
+
+export function explainTrendExtension(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  if (r.regime != null) {
+    const s = r.regime === "BEARISH" ? 1.0 : r.regime === "BULLISH" ? 0.3 : 0.5;
+    parts.push({ label: "Macro regime (bull = don't cap a winner)", raw: r.regime, score: s });
+  }
+  const ma50Atr = pf(r.priceVsMa50Atr);
+  if (ma50Atr != null) parts.push({ label: "Price vs MA50 (ATR units, extended = good)", raw: `${ma50Atr.toFixed(2)} ATR`, score: c01(ma50Atr / 3) });
+  const vwapPct = pf(r.priceVsVwapPct);
+  if (vwapPct != null) parts.push({ label: "Price vs VWAP (above = good)", raw: `${vwapPct.toFixed(1)}%`, score: c01(0.5 + vwapPct / 10) });
+  return parts;
+}
+
+export function explainCallFlow(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const pc = pf(r.putCallVolumeRatio);
+  if (pc != null) parts.push({ label: "Put/Call volume ratio (call-heavy = good)", raw: pc.toFixed(2), score: c01(1 - (pc - 0.5) / 1.5) });
+  const skew = pf(r.basicSkew);
+  if (skew != null) parts.push({ label: "Skew (call wing rich = good)", raw: `${skew.toFixed(1)}pts`, score: c01(-skew / 15) });
+  const term = pf(r.ivTermStructure);
+  if (term != null) parts.push({ label: "IV term structure", raw: term.toFixed(2), score: c01((term - 0.8) / 0.4) });
+  return parts;
+}
+
+export const COMPONENT_EXPLAINERS_CALL: Record<string, (r: TechnicalRow) => ComponentPart[]> = {
+  oversoldDepth:   explainOverboughtDepth,
+  reversalSignal:  explainExhaustionSignal,
+  volatilityState: explainVolatilityState,
+  trendContext:    explainTrendExtension,
+  optionsFlow:     explainCallFlow,
+  volumeConfirm:   explainVolumeConfirm,
+};
+
+export function getComponentExplainers(side: ScoreSide) {
+  return side === "call" ? COMPONENT_EXPLAINERS_CALL : COMPONENT_EXPLAINERS;
+}
 

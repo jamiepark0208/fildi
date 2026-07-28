@@ -39,6 +39,9 @@ interface FundamentalData {
 }
 
 interface TechnicalData {
+  // Lens the score was computed under: "put" = oversold/sell-puts (default),
+  // "call" = overbought/sell-calls. Changes prompt framing and cache hash.
+  side?:           "put" | "call";
   totalScore:      number;
   rank:            number;
   signal:          string;
@@ -70,7 +73,7 @@ interface ExplainRequest {
 
 // ── Score hash — deterministic fingerprint of key inputs ──────────────────────
 // Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
-const PROMPT_VERSION = "v5";
+const PROMPT_VERSION = "v6"; // v6: side-aware technical prompt (put/call lens)
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
@@ -78,7 +81,7 @@ function fundamentalHash(d: FundamentalData): string {
 }
 
 function technicalHash(d: TechnicalData): string {
-  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
+  return `${PROMPT_VERSION}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
@@ -134,6 +137,8 @@ No intro. No outro. No investment advice.`;
 }
 
 function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {
+  const isCall = d.side === "call";
+
   const oversoldLabel = d.rsi14Pct < 20 ? "deeply oversold vs own history"
     : d.rsi14Pct < 40 ? "oversold vs own history"
     : d.rsi14Pct > 80 ? "overbought vs own history"
@@ -144,22 +149,37 @@ function buildTechnicalPrompt(ticker: string, d: TechnicalData): string {
     : "No near-term earnings.";
 
   const cs = d.componentScores;
+
+  // Lens-specific naming — the same component slots score opposite directions per side
+  const lensLine = isCall
+    ? `This score ranks the stock as a CALL-SELLING candidate (sell calls into strength: overbought + momentum fading + elevated IV = good).`
+    : `This score ranks the stock as a PUT-SELLING candidate (oversold + stabilizing + elevated IV = good).`;
+  const componentLine = isCall
+    ? `Component scores (0–1): overbought depth ${cs.oversoldDepth.toFixed(2)} | exhaustion signal ${cs.reversalSignal.toFixed(2)} | vol state ${cs.volatilityState.toFixed(2)} | trend extension ${cs.trendContext.toFixed(2)}`
+    : `Component scores (0–1): oversold depth ${cs.oversoldDepth.toFixed(2)} | reversal signal ${cs.reversalSignal.toFixed(2)} | vol state ${cs.volatilityState.toFixed(2)} | trend ${cs.trendContext.toFixed(2)}`;
+  const formatLine = isCall
+    ? `- Format: "[what this means for selling a covered call] (value, context)"
+- Example: "Overbought vs own history, momentum stalling — good overwrite (RSI 76, top 10%)"
+- Lead with any key risk (earnings, still-accelerating uptrend that could blow through the strike)`
+    : `- Format: "[what this means for selling a put] (value, context)"
+- Example: "Oversold vs own history, good entry timing (RSI 28, bottom 15%)"
+- Lead with any key risk (earnings, falling knife, overbought IV)`;
+
   return `You explain a stock's technical setup to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid. Skip unremarkable readings; only explain what stands out.
 
 Ticker: ${ticker}
+${lensLine}
 Signal: ${d.signal} | Macro regime: ${d.regime}
 Score: ${d.totalScore.toFixed(1)}/100 — rank #${d.rank} in universe
 RSI: ${d.rsi14.toFixed(1)} — at the ${d.rsi14Pct.toFixed(0)}th percentile of its own 1-year history (${oversoldLabel})
 IV rank: ${d.ivRank.toFixed(0)}/100 | IV vs realized: ${d.ivVsRealizedVol.toFixed(2)}x
 MACD: ${d.macdDirection} | Falling knife: ${d.fallingKnife ? "YES — price momentum sharply negative" : "no"}
 ${earningsNote}
-Component scores (0–1): oversold depth ${cs.oversoldDepth.toFixed(2)} | reversal signal ${cs.reversalSignal.toFixed(2)} | vol state ${cs.volatilityState.toFixed(2)} | trend ${cs.trendContext.toFixed(2)}
+${componentLine}
 
 Write exactly 2 bullets (starting with -). Rules:
 - Each bullet: max 12 words + one parenthetical with the key number
-- Format: "[what this means for selling a put] (value, context)"
-- Example: "Oversold vs own history, good entry timing (RSI 28, bottom 15%)"
-- Lead with any key risk (earnings, falling knife, overbought IV)
+${formatLine}
 
 No intro. No outro. No investment advice.`;
 }

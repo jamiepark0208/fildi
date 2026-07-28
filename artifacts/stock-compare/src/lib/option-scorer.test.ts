@@ -454,3 +454,42 @@ describe("computeTechFundScore", () => {
     assert.equal(computeTechFundScore(null, null), null);
   });
 });
+
+// ── Call-side (sell calls into strength) ─────────────────────────────────────
+
+describe("scoreIvRelative: side-specific skew bonus", () => {
+  it("positive skew (put wing rich) boosts puts only", () => {
+    const base = scoreIvRelative(0.50, 50, null, null) as number;
+    assert.ok((scoreIvRelative(0.50, 50, null, 5, false) as number) > base, "put side should get bonus");
+    close(scoreIvRelative(0.50, 50, null, 5, true), base, 0.001, "call side should NOT get bonus");
+  });
+  it("negative skew (call wing rich) boosts calls only", () => {
+    const base = scoreIvRelative(0.50, 50, null, null) as number;
+    assert.ok((scoreIvRelative(0.50, 50, null, -5, true) as number) > base, "call side should get bonus");
+    close(scoreIvRelative(0.50, 50, null, -5, false), base, 0.001, "put side should NOT get bonus");
+  });
+});
+
+describe("computeRelativeMove: call side mirrors put side", () => {
+  it("put-side default output unchanged by explicit side param", () => {
+    close(
+      computeRelativeMove(-2, -1, -5, 110, 90, 95),
+      computeRelativeMove(-2, -1, -5, 110, 90, 95, "put"),
+      1e-9,
+    );
+  });
+  it("spiked/overbought stock → high score on call side, low on put side", () => {
+    const put  = computeRelativeMove(2, 2.5, 8, 110, 90, 109, "put");
+    const call = computeRelativeMove(2, 2.5, 8, 110, 90, 109, "call");
+    assert.ok(call > 0.7, `call side expected > 0.7, got ${call}`);
+    assert.ok(put < 0.3, `put side expected < 0.3, got ${put}`);
+  });
+  it("call side is exact mirror around 0.5", () => {
+    const put  = computeRelativeMove(1.2, 0.8, 3, 110, 90, 104, "put");
+    const call = computeRelativeMove(1.2, 0.8, 3, 110, 90, 104, "call");
+    close(put + call, 1.0, 1e-9, "put + call scores should sum to 1");
+  });
+  it("no data → neutral 0.5 on both sides", () => {
+    close(computeRelativeMove(null, null, null, null, null, null, "call"), 0.5, 0.01);
+  });
+});
