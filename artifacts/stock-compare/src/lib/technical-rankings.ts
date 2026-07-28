@@ -77,6 +77,7 @@ export interface TechnicalRow {
   swingLow20d: Num; swingHigh20d: Num;
   swingLow50d: Num; swingHigh50d: Num;
   pivotS1: Num;
+  pivotR1: Num;
   atr14: Num;
   impliedMoveWeekly: Num;
 }

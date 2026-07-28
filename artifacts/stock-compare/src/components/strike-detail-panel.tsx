@@ -31,6 +31,7 @@ interface OptionsChainResult {
   spot: number;
   tier: number;
   puts: OptionRow[];
+  calls: OptionRow[];
   fetchedAt: number;
 }
 
@@ -47,21 +48,29 @@ function normCDF(x: number): number {
   return x > 0 ? 1 - p : p;
 }
 
-function bsGreeksAndPrice(S: number, K: number, T: number, r: number, sigma: number) {
+function bsGreeksAndPrice(S: number, K: number, T: number, r: number, sigma: number, isCall: boolean = false) {
   if (T <= 0 || S <= 0 || sigma <= 0) {
-    return { price: Math.max(0, K - S), delta: -1, gamma: 0, theta: 0, vega: 0 };
+    return isCall
+      ? { price: Math.max(0, S - K), delta: 1, gamma: 0, theta: 0, vega: 0 }
+      : { price: Math.max(0, K - S), delta: -1, gamma: 0, theta: 0, vega: 0 };
   }
   const sqrtT = Math.sqrt(T);
   const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
-  const d2 = d1 - sigma * sqrtT;
+  const d2 = d1 - sqrtT * sigma;
   const nd1 = normPDF(d1);
+  const gamma = nd1 / (S * sigma * sqrtT);
+  const vega  = S * nd1 * sqrtT / 100;                    // per 1% change in IV
+
+  if (isCall) {
+    const price = Math.max(0, S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2));
+    const delta = normCDF(d1);                             // call delta (positive)
+    const thetaAnnual = (-S * nd1 * sigma / (2 * sqrtT)) - r * K * Math.exp(-r * T) * normCDF(d2);
+    return { price, delta, gamma, theta: thetaAnnual / 365, vega };
+  }
   const price = Math.max(0, K * Math.exp(-r * T) * normCDF(-d2) - S * normCDF(-d1));
   const delta = normCDF(d1) - 1;                           // put delta (negative)
-  const gamma = nd1 / (S * sigma * sqrtT);
   const thetaAnnual = (-S * nd1 * sigma / (2 * sqrtT)) + r * K * Math.exp(-r * T) * normCDF(-d2);
-  const theta = thetaAnnual / 365;                         // per calendar day
-  const vega  = S * nd1 * sqrtT / 100;                    // per 1% change in IV
-  return { price, delta, gamma, theta, vega };
+  return { price, delta, gamma, theta: thetaAnnual / 365, vega };
 }
 
 // ── Score bullets ─────────────────────────────────────────────────────────────
@@ -81,10 +90,13 @@ function scoreBullets(
   put: OptionRow,
   chain: OptionsChainResult,
   runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
+  isCall: boolean = false,
 ): Array<{ text: string; sentiment: "good" | "warn" | "bad" | "neutral" }> {
   const out: Array<{ text: string; sentiment: "good" | "warn" | "bad" | "neutral" }> = [];
   const cs = result.componentScores;
-  const otmPct = ((chain.spot - put.strike) / chain.spot * 100);
+  const otmPct = isCall
+    ? ((put.strike - chain.spot) / chain.spot * 100)
+    : ((chain.spot - put.strike) / chain.spot * 100);
 
   const inc = cs.income?.score;
   if (inc != null) {
@@ -160,8 +172,10 @@ function scoreBullets(
   const sup = cs.support?.score;
   if (sup != null) {
     const s = sup >= 0.7 ? "good" : sup >= 0.4 ? "neutral" : "warn";
-    const lbl = sup >= 0.7 ? "above key support levels" : sup >= 0.4 ? "near support — monitor" : "below recent support";
-    out.push({ text: `Support: strike ${lbl}`, sentiment: s });
+    const lbl = isCall
+      ? (sup >= 0.7 ? "above key resistance levels" : sup >= 0.4 ? "near resistance — monitor" : "below recent resistance")
+      : (sup >= 0.7 ? "above key support levels" : sup >= 0.4 ? "near support — monitor" : "below recent support");
+    out.push({ text: `${isCall ? "Resistance" : "Support"}: strike ${lbl}`, sentiment: s });
   }
 
   const dte = cs.dte?.score;
@@ -185,9 +199,9 @@ function scoreBullets(
 
 const R = 0.05;
 
-function GreeksTable({ put, chain }: { put: OptionRow; chain: OptionsChainResult }) {
+function GreeksTable({ put, chain, isCall = false }: { put: OptionRow; chain: OptionsChainResult; isCall?: boolean }) {
   const T = Math.max(chain.exactDte, 0.5) / 365;
-  const g = bsGreeksAndPrice(chain.spot, put.strike, T, R, put.iv);
+  const g = bsGreeksAndPrice(chain.spot, put.strike, T, R, put.iv, isCall);
 
   const mid = put.bid > 0 && put.ask > 0 ? (put.bid + put.ask) / 2 : null;
   const absDelta = Math.abs(g.delta);
@@ -258,15 +272,15 @@ function GreeksTable({ put, chain }: { put: OptionRow; chain: OptionsChainResult
 const PRICE_STEPS = 80;
 
 function generateCurve(
-  K: number, premium: number, sigma: number, T_years: number, priceRange: number[],
+  K: number, premium: number, sigma: number, T_years: number, priceRange: number[], isCall: boolean = false,
 ): Array<{ price: number; pnl: number }> {
   return priceRange.map(S => ({
     price: S,
-    pnl: Math.round((premium - bsGreeksAndPrice(S, K, T_years, R, sigma).price) * 100 * 100) / 100,
+    pnl: Math.round((premium - bsGreeksAndPrice(S, K, T_years, R, sigma, isCall).price) * 100 * 100) / 100,
   }));
 }
 
-function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult }) {
+function PayoffChart({ put, chain, isCall = false }: { put: OptionRow; chain: OptionsChainResult; isCall?: boolean }) {
   const { strike: K, bid: premium, iv: sigma } = put;
   const { spot, exactDte } = chain;
 
@@ -281,11 +295,11 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
   const chartData = useMemo(() => {
     const T_entry     = Math.max(exactDte, 0.5) / 365;
     const T_remaining = Math.max(exactDte - daysElapsed, 0) / 365;
-    const entry    = generateCurve(K, premium, sigma, T_entry, priceRange);
-    const selected = generateCurve(K, premium, sigma, T_remaining, priceRange);
+    const entry    = generateCurve(K, premium, sigma, T_entry, priceRange, isCall);
+    const selected = generateCurve(K, premium, sigma, T_remaining, priceRange, isCall);
     const expiry   = priceRange.map(S => ({
       price: S,
-      pnl: Math.round((premium - Math.max(0, K - S)) * 100 * 100) / 100,
+      pnl: Math.round((premium - Math.max(0, isCall ? S - K : K - S)) * 100 * 100) / 100,
     }));
     return priceRange.map((price, i) => ({
       price,
@@ -293,17 +307,17 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
       "Selected":  selected[i].pnl,
       "At Expiry": expiry[i].pnl,
     }));
-  }, [K, premium, sigma, spot, exactDte, priceRange, daysElapsed]);
+  }, [K, premium, sigma, spot, exactDte, priceRange, daysElapsed, isCall]);
 
-  const breakEven = K - premium;
+  const breakEven = isCall ? K + premium : K - premium;
   const maxProfit = Math.round(premium * 100 * 100) / 100;
-  const maxLoss   = Math.round((K - premium) * 100 * 100) / 100;
+  const maxLoss   = isCall ? null : Math.round((K - premium) * 100 * 100) / 100;
   const daysRemaining = Math.max(0, Math.round(exactDte - daysElapsed));
 
   const T_sim = Math.max(exactDte - daysElapsed, 0) / 365;
   const pnlAtSim = T_sim <= 0
-    ? Math.round((premium - Math.max(0, K - simPrice)) * 100 * 100) / 100
-    : Math.round((premium - bsGreeksAndPrice(simPrice, K, T_sim, R, sigma).price) * 100 * 100) / 100;
+    ? Math.round((premium - Math.max(0, isCall ? simPrice - K : K - simPrice)) * 100 * 100) / 100
+    : Math.round((premium - bsGreeksAndPrice(simPrice, K, T_sim, R, sigma, isCall).price) * 100 * 100) / 100;
 
   return (
     <div className="space-y-1.5">
@@ -311,7 +325,7 @@ function PayoffChart({ put, chain }: { put: OptionRow; chain: OptionsChainResult
       <div className="flex items-center gap-6 text-xs">
         <span className="text-white">Max profit: <span className="text-green-400 font-mono font-bold">${maxProfit.toFixed(2)}</span></span>
         <span className="text-white">Break-even: <span className="text-amber-400 font-mono font-bold">${breakEven.toFixed(2)}</span></span>
-        <span className="text-white">Max loss: <span className="text-red-400 font-mono font-bold">-${maxLoss.toFixed(2)}</span></span>
+        <span className="text-white">Max loss: <span className="text-red-400 font-mono font-bold">{maxLoss == null ? "Unlimited" : `-$${maxLoss.toFixed(2)}`}</span></span>
         <span className="text-white ml-auto font-mono text-xs">T−{daysRemaining}d</span>
       </div>
 
@@ -398,6 +412,7 @@ interface StrikeDetailPanelProps {
   scoreResult: OptionScoreResult | null;
   isBest: boolean;
   runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
+  isCall?: boolean;
 }
 
 const SENTIMENT_ICON: Record<string, string> = {
@@ -413,7 +428,7 @@ const SENTIMENT_COLOR: Record<string, string> = {
   neutral: "text-white",
 };
 
-function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onClose: () => void; put: OptionRow; chain: OptionsChainResult }) {
+function CreateSellPutDialog({ open, onClose, put, chain, isCall = false }: { open: boolean; onClose: () => void; put: OptionRow; chain: OptionsChainResult; isCall?: boolean }) {
   const [contracts,  setContracts]  = useState("1");
   const [confidence, setConfidence] = useState(0);
   const [notes,      setNotes]      = useState("");
@@ -435,7 +450,7 @@ function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ticker: chain.ticker,
-          tradeType: "SELL_PUT",
+          tradeType: isCall ? "SELL_CALL" : "SELL_PUT",
           strike: put.strike,
           expiry: chain.expiry,
           contracts: parseInt(contracts),
@@ -459,7 +474,7 @@ function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onC
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Sell Put — {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} exp {chain.expiry}
+            {isCall ? "Sell Call" : "Sell Put"} — {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} exp {chain.expiry}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
@@ -498,10 +513,10 @@ function CreateSellPutDialog({ open, onClose, put, chain }: { open: boolean; onC
   );
 }
 
-export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }: StrikeDetailPanelProps) {
+export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp, isCall = false }: StrikeDetailPanelProps) {
   const bullets = useMemo(
-    () => scoreResult ? scoreBullets(scoreResult, put, chain, isBest ? runnerUp ?? null : null) : [],
-    [scoreResult, put, chain, isBest, runnerUp],
+    () => scoreResult ? scoreBullets(scoreResult, put, chain, isBest ? runnerUp ?? null : null, isCall) : [],
+    [scoreResult, put, chain, isBest, runnerUp, isCall],
   );
   const [showCreateIdea, setShowCreateIdea] = useState(false);
 
@@ -535,7 +550,7 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }:
               onClick={() => setShowCreateIdea(true)}
               className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary border border-primary/40 rounded px-2 py-0.5 hover:bg-primary/10 transition-colors shrink-0"
             >
-              + Sell Put Idea
+              + Sell {isCall ? "Call" : "Put"} Idea
             </button>
           </div>
           {bullets.length > 0 ? (
@@ -556,19 +571,19 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }:
           {/* Greeks & Liquidity — compact inline line */}
           <div className="pt-1 border-t border-slate-800/60">
             <p className="text-[9px] font-bold tracking-widest uppercase text-white mb-0.5">Greeks & Liquidity</p>
-            <GreeksTable put={put} chain={chain} />
+            <GreeksTable put={put} chain={chain} isCall={isCall} />
           </div>
         </div>
 
         {/* Right: P&L chart */}
         <div className="px-3 py-2 space-y-1.5">
           <p className="text-[10px] font-bold tracking-widest uppercase text-white">
-            P&L Simulation — Short Put · 1 contract
+            P&L Simulation — Short {isCall ? "Call" : "Put"} · 1 contract
           </p>
-          <PayoffChart put={put} chain={chain} />
+          <PayoffChart put={put} chain={chain} isCall={isCall} />
         </div>
       </div>
-      <CreateSellPutDialog open={showCreateIdea} onClose={() => setShowCreateIdea(false)} put={put} chain={chain} />
+      <CreateSellPutDialog open={showCreateIdea} onClose={() => setShowCreateIdea(false)} put={put} chain={chain} isCall={isCall} />
     </div>
   );
 }

@@ -31,6 +31,7 @@ export interface OptionsChainResult {
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
+  calls: OptionRow[];
   fetchedAt: number;
 }
 
@@ -60,6 +61,8 @@ const FLAT_MIN_OTM   = 0.03;  // 3% — minimum OTM distance (replaces tier band
 const FLAT_MAX_OTM   = 0.25;  // 25% — maximum OTM distance (widened from 15% so high-IV names'
                                // income-target-optimal strikes aren't cut off before scoring)
 const RISK_FREE_RATE = 0.045; // ~current T-bill rate
+const MONTHLY_TARGET_DTE   = 37;  // ~30-45D covered-call convention for the calls-only 3rd chain
+const MONTHLY_MAX_DIFF_RATIO = 0.6; // same nearest-match sanity cutoff as getIvTermStructure
 
 // ── Shared expiry date cache (24h TTL — expiry calendars change rarely) ───────
 export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry', 1000); // key = ticker
@@ -224,15 +227,16 @@ export function withFreshDte(chains: OptionsChainResult[]): OptionsChainResult[]
 }
 
 function buildRows(
-  puts: RawContract[],
+  contracts: RawContract[],
   spot: number,
   exactDte: number,
+  isCall: boolean = false,
 ): OptionRow[] {
-  const lo = spot * (1 - FLAT_MAX_OTM);
-  const hi = spot * (1 - FLAT_MIN_OTM);
+  const lo = isCall ? spot * (1 + FLAT_MIN_OTM) : spot * (1 - FLAT_MAX_OTM);
+  const hi = isCall ? spot * (1 + FLAT_MAX_OTM) : spot * (1 - FLAT_MIN_OTM);
   const T  = exactDte / 365;
 
-  const rows = puts
+  const rows = contracts
     .filter(p => typeof p.strike === "number" && p.strike >= lo && p.strike <= hi)
     .map(p => {
       const strike       = p.strike!;
@@ -251,7 +255,7 @@ function buildRows(
 
       let delta: number | null = null;
       if (iv > 0 && spot > 0 && T > 0) {
-        const g = bsGreeks(spot, strike, T, RISK_FREE_RATE, iv, false);
+        const g = bsGreeks(spot, strike, T, RISK_FREE_RATE, iv, isCall);
         delta = parseFloat(g.delta.toFixed(4));
       }
 
@@ -273,6 +277,17 @@ function buildRows(
   }
 
   return Array.from(byStrike.values()).sort((a, b) => b.strike - a.strike);
+}
+
+function pickNearestExpiry(dates: Date[], targetDte: number, maxDiffRatio: number = 0.6): Date | null {
+  let best: Date | null = null;
+  let bestDiff = Infinity;
+  for (const d of dates) {
+    const diff = Math.abs(exactDaysUntil(d) - targetDte);
+    if (diff < bestDiff) { bestDiff = diff; best = d; }
+  }
+  if (!best || bestDiff > targetDte * maxDiffRatio) return null;
+  return best;
 }
 
 async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsResponse> {
@@ -320,7 +335,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   // The first raw fetch already contains puts for its expiry — reuse if DTE matches target[0]
   const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
 
-  function buildResult(raw: RawOptionsResponse, fallbackDate: Date): OptionsChainResult {
+  function buildResult(raw: RawOptionsResponse, fallbackDate: Date, putsOnly: boolean = false): OptionsChainResult {
     const expiryDate = (raw.options?.[0]?.expirationDate ?? fallbackDate) as Date;
     const dte        = daysUntil(expiryDate);
     const exactDte   = Math.max(0.5, exactDaysUntil(expiryDate));
@@ -334,7 +349,8 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
       settlementDte,
       spot: spot as number,
       tier,
-      puts:      buildRows(raw.options?.[0]?.puts ?? [], spot as number, exactDte),
+      puts:      putsOnly ? [] : buildRows(raw.options?.[0]?.puts ?? [], spot as number, exactDte),
+      calls:     buildRows(raw.options?.[0]?.calls ?? [], spot as number, exactDte, true),
       fetchedAt: Date.now(),
     };
   }
@@ -346,6 +362,24 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
     const raw      = canReuse ? raw0 : await fetchChain(key, date);
     results.push(buildResult(raw, date));
   }
+
+  // 3rd chain: monthly expiry (~30-45 DTE) for calls only — puts stay weekly/2wk-only.
+  // Skip entirely if no viable monthly date exists (short calendar) or it collapses onto
+  // an already-fetched target (small-cap tickers with few expiries).
+  const allDates = cachedDates ?? (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
+  const monthlyDate = pickNearestExpiry(
+    allDates.filter(d => exactDaysUntil(d) > 0),
+    MONTHLY_TARGET_DTE,
+    MONTHLY_MAX_DIFF_RATIO,
+  );
+  if (monthlyDate) {
+    const collidesWithTarget = targets.some(d => Math.abs(daysUntil(d) - daysUntil(monthlyDate)) <= 1);
+    if (!collidesWithTarget) {
+      const monthlyRaw = await fetchChain(key, monthlyDate);
+      results.push(buildResult(monthlyRaw, monthlyDate, true));
+    }
+  }
+
   return results;
 }
 

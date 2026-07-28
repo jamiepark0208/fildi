@@ -6,6 +6,7 @@ import {
   type MacroRegime,
   INCOME_FLOOR, INCOME_TARGET, INCOME_DECAY_FLOOR,
   REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR,
+  CALL_INCOME_FLOOR, CALL_INCOME_TARGET,
   DELTA_SWEET_HIGH, DELTA_MAX,
   SD_BUFFER_TARGET, BUFFER_WEIGHT_DELTA, BUFFER_WEIGHT_SD,
   IV_VS_REALIZED_BONUS, IV_SKEW_BONUS, IV_ABSOLUTE_CAP,
@@ -38,6 +39,9 @@ export interface StockContext {
   swingLow20d: number | null;
   swingLow50d: number | null;
   pivotS1: number | null;
+  swingHigh20d: number | null;
+  swingHigh50d: number | null;
+  pivotR1: number | null;
   nearestSupportDistPct: number | null;
   techTotalScore: number | null;   // [0, 100]
   fundTotalScore: number | null;   // [0, 100]
@@ -218,6 +222,32 @@ export function scoreStrikeSupport(
   return c01((hi - strike) / (hi - bestSupport));
 }
 
+// ── Component: Strike-specific resistance proximity (calls) ───────────────────
+// Mirror of scoreStrikeSupport — scores how far the STRIKE is above known resistance
+// levels (safety from assignment, not downside safety).
+
+export function scoreStrikeResistance(
+  strike: number,
+  spot: number,
+  swingHigh20d: number | null,
+  swingHigh50d: number | null,
+  pivotR1: number | null,
+): number | null {
+  const levels = [pf(swingHigh20d), pf(swingHigh50d), pf(pivotR1)].filter((v): v is number => v !== null);
+  if (levels.length === 0) return null;
+
+  const bestResistance = Math.max(...levels);
+  if (spot >= bestResistance) return 0.5; // degenerate: spot already above all resistance
+
+  // Strike at or above the highest resistance → max score (safe from assignment)
+  if (strike >= bestResistance) return 1.0;
+
+  // Linear: 0 at spot * 1.03 (just barely OTM), 1.0 at bestResistance
+  const lo = spot * 1.03;
+  if (strike <= lo) return 0;
+  return c01((strike - lo) / (bestResistance - lo));
+}
+
 // ── Component: DTE / theta preference ────────────────────────────────────────
 
 export function scoreDtePreference(dte: number): number {
@@ -225,6 +255,19 @@ export function scoreDtePreference(dte: number): number {
   if (dte <= 14) return 0.8;
   if (dte <= 21) return 0.6;
   return 0.4;
+}
+
+// ── Component: DTE preference for calls ────────────────────────────────────────
+// Soft peak in the 25-50D "monthly" convention window pros use for covered/short calls —
+// deliberately gentle (W_DTE is only ~0.04 of total weight) so 1W/2W can still win outright
+// on income/buffer/IV merits (e.g. an elevated front-week IV), matching the "usually 1M,
+// sometimes 1W" preference — this is a nudge, not a gate.
+export function scoreDtePreferenceCall(dte: number): number {
+  if (dte <= 10)              return 0.6;
+  if (dte <= 21)              return 0.75;
+  if (dte >= 25 && dte <= 50) return 1.0;
+  if (dte > 50)                return 0.7;
+  return 0.8; // 21 < dte < 25 transition zone
 }
 
 // ── Liquidity gate ────────────────────────────────────────────────────────────
@@ -253,6 +296,7 @@ export function computeOptionScore(
   regime: MacroRegime,
   allWatchlistIVs: number[],
   strikeWeights?: Record<string, number>,
+  isCall: boolean = false,
 ): OptionScoreResult {
   if (candidate.dte <= 0 || candidate.strike <= 0 || candidate.spot <= 0) {
     return {
@@ -264,8 +308,8 @@ export function computeOptionScore(
     };
   }
 
-  const floor  = REGIME_INCOME_FLOOR[regime];
-  const target = REGIME_INCOME_TARGET[regime];
+  const floor  = isCall ? CALL_INCOME_FLOOR  : REGIME_INCOME_FLOOR[regime];
+  const target = isCall ? CALL_INCOME_TARGET : REGIME_INCOME_TARGET[regime];
 
   const w = (key: string, def: number) => strikeWeights?.[key] ?? def;
 
@@ -275,8 +319,12 @@ export function computeOptionScore(
     { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew) },
     { key: "ivAbsolute",  weight: w("ivAbsolute", W_IV_ABSOLUTE),   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
     { key: "stockQuality",weight: w("stockQuality", W_STOCK_QUALITY), score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
-    { key: "support",     weight: w("support", W_SUPPORT),       score: scoreStrikeSupport(candidate.strike, candidate.spot, stock.swingLow20d, stock.swingLow50d, stock.pivotS1) },
-    { key: "dte",         weight: w("dte", W_DTE),           score: scoreDtePreference(candidate.dte) },
+    { key: "support",     weight: w("support", W_SUPPORT),
+      score: isCall
+        ? scoreStrikeResistance(candidate.strike, candidate.spot, stock.swingHigh20d, stock.swingHigh50d, stock.pivotR1)
+        : scoreStrikeSupport(candidate.strike, candidate.spot, stock.swingLow20d, stock.swingLow50d, stock.pivotS1) },
+    { key: "dte",         weight: w("dte", W_DTE),
+      score: isCall ? scoreDtePreferenceCall(candidate.dte) : scoreDtePreference(candidate.dte) },
   ];
 
   const available = components.filter(c => c.score !== null);
@@ -312,44 +360,54 @@ export function computeOptionScore(
 // ── Convenience: build candidate from raw chain data ─────────────────────────
 
 export function buildCandidate(
-  put: { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
+  option: { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
   chain: { spot: number; exactDte: number; settlementDte?: number },
+  isCall: boolean = false,
 ): OptionCandidate {
   const exactDte = Math.max(0.01, chain.exactDte);
   const settlementDte = Math.max(0.01, chain.settlementDte ?? exactDte);
   return {
-    strike:       put.strike,
+    strike:       option.strike,
     spot:         chain.spot,
     dte:          exactDte,
-    weeklyIncome: put.incomePct / (settlementDte / 7),
-    delta:        put.delta,
-    strikeIV:     put.iv > 0 ? put.iv : null,
-    otmPct:       chain.spot > 0 ? (chain.spot - put.strike) / chain.spot : 0,
-    openInterest: put.openInterest,
-    spreadPct:    put.spreadPct,
-    volume:       put.volume,
+    weeklyIncome: option.incomePct / (settlementDte / 7),
+    delta:        option.delta,
+    strikeIV:     option.iv > 0 ? option.iv : null,
+    otmPct:       chain.spot > 0
+      ? (isCall ? (option.strike - chain.spot) / chain.spot : (chain.spot - option.strike) / chain.spot)
+      : 0,
+    openInterest: option.openInterest,
+    spreadPct:    option.spreadPct,
+    volume:       option.volume,
   };
 }
 
 // ── Convenience: pick the BEST strike across all chains for a stock ───────────
+// Chain-shape-agnostic: caller supplies the strike array to scan via `options`
+// (e.g. `{ ...chain, options: chain.puts }` or `{ ...chain, options: chain.calls }`)
+// so puts and calls share this one loop/liquidity-gate/runner-up implementation.
 
-export function pickBestStrike(
-  chains: Array<{ spot: number; exactDte: number; settlementDte?: number; puts: Array<{ strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number }> }>,
+export function pickBestStrike<
+  Opt extends { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
+  Chain extends { spot: number; exactDte: number; settlementDte?: number; options: Opt[] },
+>(
+  chains: Chain[],
   stock: StockContext,
   regime: MacroRegime,
   allWatchlistIVs: number[],
   minScoredComponents: number = MIN_SCORED_COMPONENTS,
   strikeWeights?: Record<string, number>,
-): { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult; runnerUp: { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult } | null } | null {
-  type Candidate = { chain: (typeof chains)[0]; put: (typeof chains)[0]["puts"][0]; result: OptionScoreResult };
+  isCall: boolean = false,
+): { chain: Chain; put: Opt; result: OptionScoreResult; runnerUp: { chain: Chain; put: Opt; result: OptionScoreResult } | null } | null {
+  type Candidate = { chain: Chain; put: Opt; result: OptionScoreResult };
   let best: Candidate | null = null;
   let runnerUp: Candidate | null = null;
 
   for (const chain of chains) {
-    for (const put of chain.puts) {
+    for (const put of chain.options) {
       if (put.bid <= 0) continue;
-      const candidate = buildCandidate(put, chain);
-      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights);
+      const candidate = buildCandidate(put, chain, isCall);
+      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights, isCall);
       if (result.availableComponents < minScoredComponents) continue;
       const entry: Candidate = { chain, put, result };
       if (!best || result.optionScore > best.result.optionScore) {

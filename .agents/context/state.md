@@ -7,7 +7,7 @@
 
 ## Active work
 - Working: options-popup-nonmodal, iv-term-structure-feature, profile-page-redesign, scanner-default-sort-score, topnav-icon-colors
-- In progress: verify-iv-term-structure-in-preview
+- In progress: best-sell-call-subtab-in-progress
 - Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)

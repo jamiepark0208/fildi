@@ -23,6 +23,12 @@ export const REGIME_INCOME_FLOOR: Record<MacroRegime, number> = {
   EXTREME:  0.5,
 };
 
+// ── Call-specific income adequacy ─────────────────────────────────────────────
+// Lower floor/target than puts — user accepts less premium in exchange for a strike
+// further OTM, preserving upside/capital-gains room if the stock runs past the strike.
+export const CALL_INCOME_FLOOR  = 0.35; // %/wk
+export const CALL_INCOME_TARGET = 0.65; // %/wk
+
 // ── Delta / buffer ────────────────────────────────────────────────────────────
 // Monotonic reward for lower |put delta| (safer/more OTM) — DELTA_SWEET_HIGH[regime] is a
 // soft reference (still scores ~0.7 there), not a hard band; regime shifts how much
@@ -64,6 +70,15 @@ export const W_IV_ABSOLUTE   = 0.06;
 export const W_STOCK_QUALITY = 0.12;
 export const W_SUPPORT       = 0.06;
 export const W_DTE           = 0.04;
+
+// ── Call strike-weight overrides ──────────────────────────────────────────────
+// De-emphasize income, emphasize buffer/OTM distance — capital-gains preference
+// over premium optimization. Only keys that differ from the put defaults above;
+// computeOptionScore falls back to W_* defaults for any key omitted here.
+export const CALL_STRIKE_WEIGHTS: Record<string, number> = {
+  income: 0.18,
+  buffer: 0.40,
+};
 
 // ── IV nudge caps (additive bonuses within IV relative component) ─────────────
 export const IV_VS_REALIZED_BONUS = 0.05; // bonus if IV > realized vol

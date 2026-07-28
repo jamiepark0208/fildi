@@ -17,7 +17,7 @@ import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles, TrendingUp,
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
-import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR } from "@/lib/option-scorer-constants";
+import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR, CALL_STRIKE_WEIGHTS } from "@/lib/option-scorer-constants";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 import { useAuth } from "@/context/AuthContext";
 import { queryKeys } from "@/lib/query-keys";
@@ -50,6 +50,7 @@ interface OptionsChainResult {
   spot: number;
   tier: 1 | 2 | 3;
   puts: OptionRow[];
+  calls: OptionRow[];
   fetchedAt: number;
 }
 
@@ -131,12 +132,36 @@ function viableStrikes(
     });
 }
 
+function viableCallStrikes(
+  chains: OptionsChainResult[],
+  minWeeklyIncome: number,
+): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
+  return chains
+    .flatMap(c => {
+      const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
+      return c.calls
+        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (settlementDte / 7) }))
+        .filter(x => x.weeklyIncome >= minWeeklyIncome);
+    });
+}
+
 function strikeSummary(
   chains: OptionsChainResult[] | null,
   minWeeklyIncome: number,
 ): string {
   if (!chains) return "—";
   const strikes = viableStrikes(chains, minWeeklyIncome);
+  if (strikes.length === 0) return "no viable strikes";
+  const best = Math.max(...strikes.map(s => s.weeklyIncome));
+  return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
+}
+
+function callStrikeSummary(
+  chains: OptionsChainResult[] | null,
+  minWeeklyIncome: number,
+): string {
+  if (!chains) return "—";
+  const strikes = viableCallStrikes(chains, minWeeklyIncome);
   if (strikes.length === 0) return "no viable strikes";
   const best = Math.max(...strikes.map(s => s.weeklyIncome));
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
@@ -199,6 +224,7 @@ function StrikeRow({
   scoreResult,
   runnerUp,
   rowRef,
+  isCall = false,
 }: {
   chain: OptionsChainResult;
   put: OptionRow;
@@ -208,12 +234,15 @@ function StrikeRow({
   scoreResult?: OptionScoreResult | null;
   runnerUp?: { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null;
   rowRef?: React.RefObject<HTMLDivElement | null>;
+  isCall?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const exactDte      = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
   const settlementDte = chain.settlementDte ?? exactDte;
   const weeklyIncome  = put.incomePct / (settlementDte / 7);
-  const otmPct       = ((chain.spot - put.strike) / chain.spot) * 100;
+  const otmPct       = isCall
+    ? ((put.strike - chain.spot) / chain.spot) * 100
+    : ((chain.spot - put.strike) / chain.spot) * 100;
   const absDelta     = put.delta != null ? Math.abs(put.delta) : null;
   const pop          = absDelta != null ? (1 - absDelta) * 100 : null;
   const bufferSds    = put.iv > 0 && exactDte > 0
@@ -321,7 +350,7 @@ function StrikeRow({
           >
             <div className="flex items-center justify-between mb-2">
               <DialogPrimitive.Title className="text-sm font-semibold text-white">
-                {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} put — exp {chain.expiry}
+                {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} {isCall ? "call" : "put"} — exp {chain.expiry}
               </DialogPrimitive.Title>
               <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 text-white transition-opacity">
                 <X className="w-4 h-4" />
@@ -333,6 +362,7 @@ function StrikeRow({
               scoreResult={scoreResult ?? null}
               isBest={isBest}
               runnerUp={isBest ? (runnerUp ?? null) : null}
+              isCall={isCall}
             />
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
@@ -375,6 +405,7 @@ function ExpirySection({
   allWatchlistIVs,
   strikeWeights,
   defaultCollapsed = false,
+  isCall = false,
 }: {
   chain: OptionsChainResult;
   puts: Array<{ put: OptionRow; weeklyIncome: number }>;
@@ -385,6 +416,7 @@ function ExpirySection({
   allWatchlistIVs: number[];
   strikeWeights?: Record<string, number>;
   defaultCollapsed?: boolean;
+  isCall?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -408,11 +440,11 @@ function ExpirySection({
     if (!stockCtx) return new Map<number, OptionScoreResult>();
     const map = new Map<number, OptionScoreResult>();
     for (const { put } of puts) {
-      const candidate = buildCandidate(put, chain);
-      map.set(put.strike, computeOptionScore(candidate, stockCtx, macroRegime, allWatchlistIVs, strikeWeights));
+      const candidate = buildCandidate(put, chain, isCall);
+      map.set(put.strike, computeOptionScore(candidate, stockCtx, macroRegime, allWatchlistIVs, strikeWeights, isCall));
     }
     return map;
-  }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
+  }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs, strikeWeights, isCall]);
 
   return (
     <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
@@ -464,6 +496,7 @@ function ExpirySection({
                   dataQuality={isBest ? (newScorerBest?.dataQuality ?? sr?.dataQuality ?? null) : (sr?.dataQuality ?? null)}
                   scoreResult={sr}
                   runnerUp={isBest ? (newScorerBest?.runnerUp ?? null) : null}
+                  isCall={isCall}
                 />
               );
             })}
@@ -579,7 +612,7 @@ function ScannerRow({
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
 
   // Sub-tab within the expanded panel: strike table vs. the ticker's IV term structure.
-  const [subTab, setSubTab] = useState<"options" | "term">("options");
+  const [subTab, setSubTab] = useState<"options" | "calls" | "term">("options");
 
   const { data: ivTerm, isLoading: ivTermLoading } = useQuery({
     queryKey: ["iv-term-structure", ticker],
@@ -636,6 +669,9 @@ function ScannerRow({
       swingLow20d:           pfNum(techRow.swingLow20d),
       swingLow50d:           pfNum(techRow.swingLow50d),
       pivotS1:               pfNum(techRow.pivotS1),
+      swingHigh20d:          pfNum(techRow.swingHigh20d),
+      swingHigh50d:          pfNum(techRow.swingHigh50d),
+      pivotR1:               pfNum(techRow.pivotR1),
       nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
       techTotalScore:        score?.totalScore ?? null,
       fundTotalScore:        fundTotalScore ?? null,
@@ -644,7 +680,10 @@ function ScannerRow({
 
   const newScorerBest = useMemo(() => {
     if (!optionsData || !stockCtx) return null;
-    const picked = pickBestStrike(optionsData, stockCtx, macroRegime, allWatchlistIVs, undefined, strikeWeights);
+    const picked = pickBestStrike(
+      optionsData.map(c => ({ ...c, options: c.puts })),
+      stockCtx, macroRegime, allWatchlistIVs, undefined, strikeWeights, false,
+    );
     if (!picked) return null;
     return {
       chain: picked.chain as OptionsChainResult,
@@ -656,8 +695,29 @@ function ScannerRow({
     };
   }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
 
+  const newScorerBestCall = useMemo(() => {
+    if (!optionsData || !stockCtx) return null;
+    const picked = pickBestStrike(
+      optionsData.map(c => ({ ...c, options: c.calls })),
+      stockCtx, macroRegime, allWatchlistIVs, undefined, CALL_STRIKE_WEIGHTS, true,
+    );
+    if (!picked) return null;
+    return {
+      chain: picked.chain as OptionsChainResult,
+      put: picked.put as OptionRow,
+      weeklyIncome: picked.result.weeklyIncome,
+      optionScore: picked.result.optionScore,
+      dataQuality: picked.result.dataQuality,
+      runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
+    };
+  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs]);
+
   const bestStrike = newScorerBest
     ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
+
+  const callStrikes = optionsData ? viableCallStrikes(optionsData, minIncome) : [];
+  const bestCallStrike = newScorerBestCall
+    ?? (callStrikes.length > 0 ? callStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
 
   // Override: show best put even when no viable strikes at current minIncome threshold
   const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;
@@ -675,6 +735,7 @@ function ScannerRow({
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
   const summary = optionsLoading ? null : strikeSummary(optionsData, minIncome);
+  const callSummary = optionsLoading ? null : callStrikeSummary(optionsData, minIncome);
 
   const borderColor = colorTag || "transparent";
 
@@ -803,6 +864,15 @@ function ScannerRow({
                   Options
                 </button>
                 <button
+                  onClick={e => { e.stopPropagation(); setSubTab("calls"); }}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full transition-colors",
+                    subTab === "calls" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                  )}
+                >
+                  Calls
+                </button>
+                <button
                   onClick={e => { e.stopPropagation(); setSubTab("term"); }}
                   className={cn(
                     "px-2.5 py-0.5 rounded-full transition-colors",
@@ -824,6 +894,20 @@ function ScannerRow({
                 >
                   <ListFilter className="w-3 h-3 text-primary shrink-0" />
                   {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
+                </span>
+              )}
+
+              {subTab === "calls" && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
+                    callSummary == null || callSummary.startsWith("no viable")
+                      ? "border-border/60 bg-slate-900/40 text-white/70"
+                      : "border-primary/30 bg-primary/10 text-white",
+                  )}
+                >
+                  <ListFilter className="w-3 h-3 text-primary shrink-0" />
+                  {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (callSummary ?? "—")}
                 </span>
               )}
             </div>
@@ -929,6 +1013,52 @@ function ScannerRow({
           )}
 
           {subTab === "options" && !optionsLoading && !optionsData && (
+            <p className="text-xs text-white italic">No options data.</p>
+          )}
+
+          {/* Calls sub-tab */}
+          {subTab === "calls" && optionsLoading && (
+            <div className="flex items-center gap-2 text-xs text-white">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading options…
+            </div>
+          )}
+
+          {subTab === "calls" && !optionsLoading && optionsData && callStrikes.length > 0 && (() => {
+            const byExpiry = new Map<string, { chain: OptionsChainResult; puts: Array<{ put: OptionRow; weeklyIncome: number }> }>();
+            for (const { chain, put, weeklyIncome } of callStrikes) {
+              if (!byExpiry.has(chain.expiry)) byExpiry.set(chain.expiry, { chain, puts: [] });
+              byExpiry.get(chain.expiry)!.puts.push({ put, weeklyIncome });
+            }
+            for (const group of byExpiry.values()) {
+              group.puts.sort((a, b) => a.put.strike - b.put.strike);
+            }
+            return (
+              <div className="space-y-1">
+                {Array.from(byExpiry.values()).map(({ chain, puts }, idx) => (
+                  <ExpirySection
+                    key={chain.expiry}
+                    chain={chain}
+                    puts={puts}
+                    bestStrike={bestCallStrike}
+                    newScorerBest={newScorerBestCall}
+                    stockCtx={stockCtx}
+                    macroRegime={macroRegime}
+                    allWatchlistIVs={allWatchlistIVs}
+                    strikeWeights={CALL_STRIKE_WEIGHTS}
+                    defaultCollapsed={idx > 0}
+                    isCall
+                  />
+                ))}
+              </div>
+            );
+          })()}
+
+          {subTab === "calls" && !optionsLoading && optionsData && callStrikes.length === 0 && (
+            <p className="text-xs text-white italic">{callStrikeSummary(optionsData, minIncome)}</p>
+          )}
+
+          {subTab === "calls" && !optionsLoading && !optionsData && (
             <p className="text-xs text-white italic">No options data.</p>
           )}
         </div>
@@ -1162,11 +1292,17 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         swingLow20d:           pfNum(techRow.swingLow20d),
         swingLow50d:           pfNum(techRow.swingLow50d),
         pivotS1:               pfNum(techRow.pivotS1),
+        swingHigh20d:          pfNum(techRow.swingHigh20d),
+        swingHigh50d:          pfNum(techRow.swingHigh50d),
+        pivotR1:               pfNum(techRow.pivotR1),
         nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
         techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
       };
-      const picked = pickBestStrike(chains, stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined, weights.optionStrike);
+      const picked = pickBestStrike(
+        chains.map(c => ({ ...c, options: c.puts })),
+        stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined, weights.optionStrike, false,
+      );
       if (picked) m.set(ticker, picked.result.optionScore);
     }
     return m;
