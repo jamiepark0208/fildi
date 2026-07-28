@@ -119,49 +119,27 @@ function minutesAgo(d: Date): string {
   return `${mins} min ago`;
 }
 
-function viableStrikes(
+function viableOptionStrikes(
   chains: OptionsChainResult[],
   minWeeklyIncome: number,
+  isCall: boolean = false,
 ): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
   return chains
     .flatMap(c => {
       const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
-      return c.puts
+      return (isCall ? c.calls : c.puts)
         .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (settlementDte / 7) }))
         .filter(x => x.weeklyIncome >= minWeeklyIncome);
     });
 }
 
-function viableCallStrikes(
-  chains: OptionsChainResult[],
-  minWeeklyIncome: number,
-): Array<{ chain: OptionsChainResult; put: OptionRow; weeklyIncome: number }> {
-  return chains
-    .flatMap(c => {
-      const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
-      return c.calls
-        .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (settlementDte / 7) }))
-        .filter(x => x.weeklyIncome >= minWeeklyIncome);
-    });
-}
-
-function strikeSummary(
+function optionStrikeSummary(
   chains: OptionsChainResult[] | null,
   minWeeklyIncome: number,
+  isCall: boolean = false,
 ): string {
   if (!chains) return "—";
-  const strikes = viableStrikes(chains, minWeeklyIncome);
-  if (strikes.length === 0) return "no viable strikes";
-  const best = Math.max(...strikes.map(s => s.weeklyIncome));
-  return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
-}
-
-function callStrikeSummary(
-  chains: OptionsChainResult[] | null,
-  minWeeklyIncome: number,
-): string {
-  if (!chains) return "—";
-  const strikes = viableCallStrikes(chains, minWeeklyIncome);
+  const strikes = viableOptionStrikes(chains, minWeeklyIncome, isCall);
   if (strikes.length === 0) return "no viable strikes";
   const best = Math.max(...strikes.map(s => s.weeklyIncome));
   return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
@@ -581,6 +559,7 @@ interface ScannerRowProps {
   bestIncome?: number | null;
   bestBuffer?: number | null;
   stockScore?: number | null;
+  isCall: boolean;
 }
 
 function ScannerRow({
@@ -606,13 +585,16 @@ function ScannerRow({
   bestIncome = null,
   bestBuffer = null,
   stockScore = null,
+  isCall,
 }: ScannerRowProps) {
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
 
   // Sub-tab within the expanded panel: strike table vs. the ticker's IV term structure.
-  const [subTab, setSubTab] = useState<"options" | "calls" | "term">("options");
+  // Put vs. call is decided one level up (scanMode) — this row just renders whichever
+  // side it's told to via `isCall`.
+  const [subTab, setSubTab] = useState<"strikes" | "term">("strikes");
 
   const { data: ivTerm, isLoading: ivTermLoading } = useQuery({
     queryKey: ["iv-term-structure", ticker],
@@ -656,7 +638,7 @@ function ScannerRow({
   });
 
   const strikes = optionsData
-    ? viableStrikes(optionsData, minIncome)
+    ? viableOptionStrikes(optionsData, minIncome, isCall)
     : [];
 
   const stockCtx = useMemo((): StockContext | null => {
@@ -678,11 +660,14 @@ function ScannerRow({
     };
   }, [techRow, score, fundTotalScore]);
 
+  // Only score the side (puts or calls) this row was told to render — scoring both
+  // unconditionally on every render was wasted work when only one is ever shown.
+  const effectiveWeights = isCall ? CALL_STRIKE_WEIGHTS : strikeWeights;
   const newScorerBest = useMemo(() => {
     if (!optionsData || !stockCtx) return null;
     const picked = pickBestStrike(
-      optionsData.map(c => ({ ...c, options: c.puts })),
-      stockCtx, macroRegime, allWatchlistIVs, undefined, strikeWeights, false,
+      optionsData.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
+      stockCtx, macroRegime, allWatchlistIVs, undefined, effectiveWeights, isCall,
     );
     if (!picked) return null;
     return {
@@ -693,36 +678,15 @@ function ScannerRow({
       dataQuality: picked.result.dataQuality,
       runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
     };
-  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, strikeWeights]);
-
-  const newScorerBestCall = useMemo(() => {
-    if (!optionsData || !stockCtx) return null;
-    const picked = pickBestStrike(
-      optionsData.map(c => ({ ...c, options: c.calls })),
-      stockCtx, macroRegime, allWatchlistIVs, undefined, CALL_STRIKE_WEIGHTS, true,
-    );
-    if (!picked) return null;
-    return {
-      chain: picked.chain as OptionsChainResult,
-      put: picked.put as OptionRow,
-      weeklyIncome: picked.result.weeklyIncome,
-      optionScore: picked.result.optionScore,
-      dataQuality: picked.result.dataQuality,
-      runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
-    };
-  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs]);
+  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall]);
 
   const bestStrike = newScorerBest
     ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
 
-  const callStrikes = optionsData ? viableCallStrikes(optionsData, minIncome) : [];
-  const bestCallStrike = newScorerBestCall
-    ?? (callStrikes.length > 0 ? callStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
-
-  // Override: show best put even when no viable strikes at current minIncome threshold
+  // Override: show the best strike even when no viable strikes exist at the current minIncome threshold
   const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;
   const overrideStrikes = overrideEnabled && optionsData
-    ? viableStrikes(optionsData, 0)
+    ? viableOptionStrikes(optionsData, 0, isCall)
     : [];
   const overrideBest = overrideStrikes.length > 0
     ? overrideStrikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b)
@@ -734,8 +698,7 @@ function ScannerRow({
     : firstIV != null ? (firstIV * 100).toFixed(0) : null;
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
-  const summary = optionsLoading ? null : strikeSummary(optionsData, minIncome);
-  const callSummary = optionsLoading ? null : callStrikeSummary(optionsData, minIncome);
+  const summary = optionsLoading ? null : optionStrikeSummary(optionsData, minIncome, isCall);
 
   const borderColor = colorTag || "transparent";
 
@@ -852,25 +815,17 @@ function ScannerRow({
               the button below since it costs an API call. */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Sub-tabs: strike table vs. this ticker's IV term structure */}
+              {/* Sub-tabs: strike table vs. this ticker's IV term structure. Puts vs. calls
+                  is decided by the page-level Sell Puts/Sell Calls toggle, not here. */}
               <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-[11px] shrink-0">
                 <button
-                  onClick={e => { e.stopPropagation(); setSubTab("options"); }}
+                  onClick={e => { e.stopPropagation(); setSubTab("strikes"); }}
                   className={cn(
                     "px-2.5 py-0.5 rounded-full transition-colors",
-                    subTab === "options" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                    subTab === "strikes" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
                   )}
                 >
-                  Options
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setSubTab("calls"); }}
-                  className={cn(
-                    "px-2.5 py-0.5 rounded-full transition-colors",
-                    subTab === "calls" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
-                  )}
-                >
-                  Calls
+                  {isCall ? "Calls" : "Puts"}
                 </button>
                 <button
                   onClick={e => { e.stopPropagation(); setSubTab("term"); }}
@@ -883,7 +838,7 @@ function ScannerRow({
                 </button>
               </div>
 
-              {subTab === "options" && (
+              {subTab === "strikes" && (
                 <span
                   className={cn(
                     "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
@@ -896,23 +851,9 @@ function ScannerRow({
                   {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
                 </span>
               )}
-
-              {subTab === "calls" && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
-                    callSummary == null || callSummary.startsWith("no viable")
-                      ? "border-border/60 bg-slate-900/40 text-white/70"
-                      : "border-primary/30 bg-primary/10 text-white",
-                  )}
-                >
-                  <ListFilter className="w-3 h-3 text-primary shrink-0" />
-                  {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (callSummary ?? "—")}
-                </span>
-              )}
             </div>
 
-            {subTab === "options" && indicator && (
+            {subTab === "strikes" && indicator && (
               aiReasoning ? null : (
                 <button
                   onClick={() => setAiRequested(true)}
@@ -927,12 +868,12 @@ function ScannerRow({
               )
             )}
           </div>
-          {subTab === "options" && indicator && aiReasoning && (
+          {subTab === "strikes" && indicator && aiReasoning && (
             <p className="text-xs text-primary/90 leading-snug border-l-2 border-primary/30 pl-2 py-0.5">
               {aiReasoning}
             </p>
           )}
-          {subTab === "options" && reasoningError && (
+          {subTab === "strikes" && reasoningError && (
             <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
           )}
 
@@ -941,24 +882,24 @@ function ScannerRow({
             <IvTermStructureChart data={ivTerm} isLoading={ivTermLoading} />
           )}
 
-          {/* Strike cards */}
-          {subTab === "options" && optionsLoading && (
+          {/* Strike cards — puts or calls, decided by the isCall prop from the page-level toggle */}
+          {subTab === "strikes" && optionsLoading && (
             <div className="flex items-center gap-2 text-xs text-white">
               <Loader2 className="w-3 h-3 animate-spin" />
               Loading options…
             </div>
           )}
 
-          {subTab === "options" && !optionsLoading && optionsData && strikes.length > 0 && (() => {
+          {subTab === "strikes" && !optionsLoading && optionsData && strikes.length > 0 && (() => {
             // Group strikes by expiry, preserving chronological chain order
             const byExpiry = new Map<string, { chain: OptionsChainResult; puts: Array<{ put: OptionRow; weeklyIncome: number }> }>();
             for (const { chain, put, weeklyIncome } of strikes) {
               if (!byExpiry.has(chain.expiry)) byExpiry.set(chain.expiry, { chain, puts: [] });
               byExpiry.get(chain.expiry)!.puts.push({ put, weeklyIncome });
             }
-            // Sort each expiry's puts by strike descending (highest first)
+            // Puts: highest strike (closest to money) first. Calls: lowest strike first — same idea, mirrored.
             for (const group of byExpiry.values()) {
-              group.puts.sort((a, b) => b.put.strike - a.put.strike);
+              group.puts.sort((a, b) => isCall ? a.put.strike - b.put.strike : b.put.strike - a.put.strike);
             }
             return (
               <div className="space-y-1">
@@ -972,25 +913,26 @@ function ScannerRow({
                     stockCtx={stockCtx}
                     macroRegime={macroRegime}
                     allWatchlistIVs={allWatchlistIVs}
-                    strikeWeights={strikeWeights}
+                    strikeWeights={effectiveWeights}
                     defaultCollapsed={idx > 0}
+                    isCall={isCall}
                   />
                 ))}
               </div>
             );
           })()}
 
-          {subTab === "options" && !optionsLoading && optionsData && strikes.length === 0 && (
+          {subTab === "strikes" && !optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-white italic">
-                {strikeSummary(optionsData, minIncome)}
+                {optionStrikeSummary(optionsData, minIncome, isCall)}
               </p>
               {canOverride && !overrideEnabled && (
                 <button
                   onClick={e => { e.stopPropagation(); onOverride(); }}
                   className="text-xs px-2.5 py-1 rounded border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors"
                 >
-                  Override — show best put anyway
+                  Override — show best {isCall ? "call" : "put"} anyway
                 </button>
               )}
               {overrideEnabled && overrideBest && (
@@ -1002,63 +944,18 @@ function ScannerRow({
                       chain={overrideBest.chain}
                       put={overrideBest.put}
                       isBest
+                      isCall={isCall}
                     />
                   </div>
                 </div>
               )}
               {overrideEnabled && overrideStrikes.length === 0 && (
-                <p className="text-xs text-red-400/70 italic">No puts available even without income filter.</p>
+                <p className="text-xs text-red-400/70 italic">No {isCall ? "calls" : "puts"} available even without income filter.</p>
               )}
             </div>
           )}
 
-          {subTab === "options" && !optionsLoading && !optionsData && (
-            <p className="text-xs text-white italic">No options data.</p>
-          )}
-
-          {/* Calls sub-tab */}
-          {subTab === "calls" && optionsLoading && (
-            <div className="flex items-center gap-2 text-xs text-white">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Loading options…
-            </div>
-          )}
-
-          {subTab === "calls" && !optionsLoading && optionsData && callStrikes.length > 0 && (() => {
-            const byExpiry = new Map<string, { chain: OptionsChainResult; puts: Array<{ put: OptionRow; weeklyIncome: number }> }>();
-            for (const { chain, put, weeklyIncome } of callStrikes) {
-              if (!byExpiry.has(chain.expiry)) byExpiry.set(chain.expiry, { chain, puts: [] });
-              byExpiry.get(chain.expiry)!.puts.push({ put, weeklyIncome });
-            }
-            for (const group of byExpiry.values()) {
-              group.puts.sort((a, b) => a.put.strike - b.put.strike);
-            }
-            return (
-              <div className="space-y-1">
-                {Array.from(byExpiry.values()).map(({ chain, puts }, idx) => (
-                  <ExpirySection
-                    key={chain.expiry}
-                    chain={chain}
-                    puts={puts}
-                    bestStrike={bestCallStrike}
-                    newScorerBest={newScorerBestCall}
-                    stockCtx={stockCtx}
-                    macroRegime={macroRegime}
-                    allWatchlistIVs={allWatchlistIVs}
-                    strikeWeights={CALL_STRIKE_WEIGHTS}
-                    defaultCollapsed={idx > 0}
-                    isCall
-                  />
-                ))}
-              </div>
-            );
-          })()}
-
-          {subTab === "calls" && !optionsLoading && optionsData && callStrikes.length === 0 && (
-            <p className="text-xs text-white italic">{callStrikeSummary(optionsData, minIncome)}</p>
-          )}
-
-          {subTab === "calls" && !optionsLoading && !optionsData && (
+          {subTab === "strikes" && !optionsLoading && !optionsData && (
             <p className="text-xs text-white italic">No options data.</p>
           )}
         </div>
@@ -1115,6 +1012,13 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("optionScore");
+  // Sell Puts vs. Sell Calls — a page-level mode, not a per-row sub-tab, so the whole
+  // table (scores, sort, expanded strike view) is scoped consistently to one side at a time.
+  const [scanMode,      setScanMode]      = useState<"puts" | "calls">(() => {
+    try { return (localStorage.getItem("fildi_scanner_mode") as "puts" | "calls") || "puts"; } catch { return "puts"; }
+  });
+  const isCallMode = scanMode === "calls";
+  useEffect(() => { try { localStorage.setItem("fildi_scanner_mode", scanMode); } catch {} }, [scanMode]);
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [tickerQuery,   setTickerQuery]   = useState("");
@@ -1300,13 +1204,14 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
       };
       const picked = pickBestStrike(
-        chains.map(c => ({ ...c, options: c.puts })),
-        stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined, weights.optionStrike, false,
+        chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
+        stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
+        isCallMode ? CALL_STRIKE_WEIGHTS : weights.optionStrike, isCallMode,
       );
       if (picked) m.set(ticker, picked.result.optionScore);
     }
     return m;
-  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike]);
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike, isCallMode]);
 
   // Best weekly income % per ticker (drives "Income%" sort + column display)
   const bestIncomeMap = useMemo(() => {
@@ -1317,7 +1222,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       let best = -1;
       for (const c of chains) {
         const settlementDte = Math.max(0.01, c.settlementDte ?? c.exactDte ?? c.daysToExpiry);
-        for (const p of c.puts) {
+        for (const p of (isCallMode ? c.calls : c.puts)) {
           const wi = p.incomePct / (settlementDte / 7);
           if (wi > best) best = wi;
         }
@@ -1325,7 +1230,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       if (best >= 0) m.set(ticker, best);
     }
     return m;
-  }, [displayTickers, optionsMap]);
+  }, [displayTickers, optionsMap, isCallMode]);
 
   // Best buffer (SDs OTM) per ticker (drives "Buffer" sort + column display)
   const bufferMap = useMemo(() => {
@@ -1338,9 +1243,9 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       let best = -1;
       for (const c of chains) {
         const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
-        for (const p of c.puts) {
+        for (const p of (isCallMode ? c.calls : c.puts)) {
           if (p.iv <= 0 || exactDte <= 0) continue;
-          const otm = (spot - p.strike) / spot;
+          const otm = isCallMode ? (p.strike - spot) / spot : (spot - p.strike) / spot;
           const sds = otm / (p.iv * Math.sqrt(exactDte / 365));
           if (sds > best) best = sds;
         }
@@ -1348,7 +1253,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       if (best >= 0) m.set(ticker, best);
     }
     return m;
-  }, [displayTickers, optionsMap]);
+  }, [displayTickers, optionsMap, isCallMode]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
@@ -1409,8 +1314,10 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
             const chains = optMap.get(t);
             if (!chains) return -1;
             const spot = chains[0]?.spot ?? 0;
-            const best = Math.max(...chains.flatMap((c: OptionsChainResult) => c.puts.filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike)), 0);
-            return spot > 0 && best > 0 ? ((spot - best) / spot) * 100 : -1;
+            const strikes = chains.flatMap((c: OptionsChainResult) => (isCallMode ? c.calls : c.puts).filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike));
+            if (spot <= 0 || strikes.length === 0) return -1;
+            const best = isCallMode ? Math.min(...strikes) : Math.max(...strikes);
+            return isCallMode ? ((best - spot) / spot) * 100 : ((spot - best) / spot) * 100;
           };
           return otm(b) - otm(a);
         }
@@ -1420,7 +1327,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       }
     });
     return list;
-  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap]);
+  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap, isCallMode]);
 
   const filteredTickers = useMemo(() => {
     const q = tickerQuery.trim().toLowerCase();
@@ -1502,8 +1409,35 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     </div>
   );
 
+  // Sell Puts / Sell Calls — swaps the whole table (scores, sort, expanded strikes) to
+  // the other side. Both are served from the same already-fetched per-ticker options
+  // batch (optionsCache on the server), so switching never triggers a network request.
+  const scanModeToggle = (
+    <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-xs h-7 shrink-0">
+      <button
+        onClick={() => setScanMode("puts")}
+        className={cn(
+          "px-2.5 h-6 rounded-full transition-colors font-semibold",
+          !isCallMode ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+        )}
+      >
+        Sell Puts
+      </button>
+      <button
+        onClick={() => setScanMode("calls")}
+        className={cn(
+          "px-2.5 h-6 rounded-full transition-colors font-semibold",
+          isCallMode ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+        )}
+      >
+        Sell Calls
+      </button>
+    </div>
+  );
+
   const controlsRow = (
     <div className="flex items-center gap-2">
+      {scanModeToggle}
       {filterBar}
       {tickerFilterBar}
     </div>
@@ -1584,6 +1518,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 bestIncome={bestIncomeMap.get(ticker) ?? null}
                 bestBuffer={bufferMap.get(ticker) ?? null}
                 stockScore={stockScoreMap.get(ticker) ?? null}
+                isCall={isCallMode}
               />
             ))}
           </div>

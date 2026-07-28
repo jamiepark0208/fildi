@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-28
 
 ## Active work
-- Working: options-popup-nonmodal, iv-term-structure-feature, profile-page-redesign, scanner-default-sort-score, topnav-icon-colors
-- In progress: best-sell-call-subtab-in-progress
+- Working: sell-put-scanner, sell-call-scoring, options-cache-shared
+- In progress: sell-puts-sell-calls-toggle-shipped
 - Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)
