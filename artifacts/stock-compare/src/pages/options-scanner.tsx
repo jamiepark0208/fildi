@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { useWatchlist, PRESET_COLORS } from "@/hooks/use-watchlist";
 import {
@@ -49,6 +51,13 @@ interface OptionsChainResult {
   tier: 1 | 2 | 3;
   puts: OptionRow[];
   fetchedAt: number;
+}
+
+interface IvTermPoint {
+  label:  string; // "1W" | "1M" | "2M" | "3M" | "6M" | "1Y"
+  expiry: string;
+  dte:    number;
+  iv:     number; // decimal, e.g. 0.32
 }
 
 interface MacroRegimeResult {
@@ -302,15 +311,32 @@ function StrikeRow({
           </span>
         </div>
       </div>
-      {expanded && (
-        <StrikeDetailPanel
-          put={put}
-          chain={chain}
-          scoreResult={scoreResult ?? null}
-          isBest={isBest}
-          runnerUp={isBest ? (runnerUp ?? null) : null}
-        />
-      )}
+      {/* Non-modal: no overlay, no scroll lock, no focus trap — the scanner list stays
+          fully scrollable/clickable behind this floating panel. */}
+      <DialogPrimitive.Root open={expanded} onOpenChange={setExpanded} modal={false}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Content
+            onOpenAutoFocus={e => e.preventDefault()}
+            className="fixed z-50 right-4 bottom-4 w-[min(640px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-background shadow-2xl p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <DialogPrimitive.Title className="text-sm font-semibold text-white">
+                {chain.ticker} ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)} put — exp {chain.expiry}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 text-white transition-opacity">
+                <X className="w-4 h-4" />
+              </DialogPrimitive.Close>
+            </div>
+            <StrikeDetailPanel
+              put={put}
+              chain={chain}
+              scoreResult={scoreResult ?? null}
+              isBest={isBest}
+              runnerUp={isBest ? (runnerUp ?? null) : null}
+            />
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </div>
   );
 }
@@ -448,6 +474,54 @@ function ExpirySection({
   );
 }
 
+// ── IV term structure chart (ticker-level — ATM IV across the expiry calendar) ─
+
+function IvTermStructureChart({ data, isLoading }: { data: IvTermPoint[] | undefined; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-white py-4">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        Loading term structure…
+      </div>
+    );
+  }
+  if (!data || data.length === 0) {
+    return <p className="text-xs text-white italic py-4">No term structure data available.</p>;
+  }
+
+  const points = data.map(d => ({ ...d, ivPct: d.iv * 100 }));
+  const first = points[0]!.ivPct;
+  const last = points[points.length - 1]!.ivPct;
+  const shape = last > first * 1.03 ? "Contango" : last < first * 0.97 ? "Backwardation" : "Flat";
+  const shapeColor = shape === "Backwardation" ? "text-orange-400" : shape === "Contango" ? "text-green-400" : "text-white";
+
+  return (
+    <div className="space-y-1 py-1">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] text-white uppercase tracking-wide">ATM IV by expiry</span>
+        <span className={cn("text-[10px] font-semibold", shapeColor)}>{shape}</span>
+      </div>
+      <ResponsiveContainer width="100%" height={140}>
+        <LineChart data={points} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
+          <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#fff" }} axisLine={{ stroke: "#3f3f46" }} tickLine={false} />
+          <YAxis tick={{ fontSize: 9, fill: "#fff" }} axisLine={{ stroke: "#3f3f46" }} tickLine={false} width={36} tickFormatter={v => `${v}%`} />
+          <Tooltip content={(p) => {
+            const d = p.payload?.[0]?.payload as (IvTermPoint & { ivPct: number }) | undefined;
+            if (!p.active || !d) return null;
+            return (
+              <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
+                <div className="text-white font-bold">{d.label} · {d.dte}d · exp {d.expiry}</div>
+                <div className="text-amber-400 font-bold tabular-nums">{d.ivPct.toFixed(1)}% IV</div>
+              </div>
+            );
+          }} />
+          <Line type="monotone" dataKey="ivPct" stroke="#fbbf24" strokeWidth={1.75} dot={{ r: 3, fill: "#fbbf24" }} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ── Scanner Row ───────────────────────────────────────────────────────────────
 
 interface ScannerRowProps {
@@ -503,6 +577,21 @@ function ScannerRow({
   const signal    = indicator?.signal ?? "NO";
   const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
+
+  // Sub-tab within the expanded panel: strike table vs. the ticker's IV term structure.
+  const [subTab, setSubTab] = useState<"options" | "term">("options");
+
+  const { data: ivTerm, isLoading: ivTermLoading } = useQuery({
+    queryKey: ["iv-term-structure", ticker],
+    queryFn: async (): Promise<IvTermPoint[]> => {
+      const res = await fetch(`/api/options/${ticker}/term-structure`);
+      if (!res.ok) throw new Error("term-structure fetch failed");
+      return res.json();
+    },
+    enabled: expanded && subTab === "term",
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
 
   // AI explanation — user-triggered only (button click), never fires just from
   // expanding the row. The deterministic buildReasoning() text is always shown as the
@@ -701,19 +790,45 @@ function ScannerRow({
               ticker row above. AI context (outlier moves, sector flow, news) is opt-in via
               the button below since it costs an API call. */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
-                summary == null || summary.startsWith("no viable")
-                  ? "border-border/60 bg-slate-900/40 text-white/70"
-                  : "border-primary/30 bg-primary/10 text-white",
-              )}
-            >
-              <ListFilter className="w-3 h-3 text-primary shrink-0" />
-              {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Sub-tabs: strike table vs. this ticker's IV term structure */}
+              <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-[11px] shrink-0">
+                <button
+                  onClick={e => { e.stopPropagation(); setSubTab("options"); }}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full transition-colors",
+                    subTab === "options" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                  )}
+                >
+                  Options
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setSubTab("term"); }}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full transition-colors",
+                    subTab === "term" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                  )}
+                >
+                  IV Term
+                </button>
+              </div>
 
-            {indicator && (
+              {subTab === "options" && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
+                    summary == null || summary.startsWith("no viable")
+                      ? "border-border/60 bg-slate-900/40 text-white/70"
+                      : "border-primary/30 bg-primary/10 text-white",
+                  )}
+                >
+                  <ListFilter className="w-3 h-3 text-primary shrink-0" />
+                  {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
+                </span>
+              )}
+            </div>
+
+            {subTab === "options" && indicator && (
               aiReasoning ? null : (
                 <button
                   onClick={() => setAiRequested(true)}
@@ -728,24 +843,29 @@ function ScannerRow({
               )
             )}
           </div>
-          {indicator && aiReasoning && (
+          {subTab === "options" && indicator && aiReasoning && (
             <p className="text-xs text-primary/90 leading-snug border-l-2 border-primary/30 pl-2 py-0.5">
               {aiReasoning}
             </p>
           )}
-          {reasoningError && (
+          {subTab === "options" && reasoningError && (
             <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
           )}
 
+          {/* IV term structure tab */}
+          {subTab === "term" && (
+            <IvTermStructureChart data={ivTerm} isLoading={ivTermLoading} />
+          )}
+
           {/* Strike cards */}
-          {optionsLoading && (
+          {subTab === "options" && optionsLoading && (
             <div className="flex items-center gap-2 text-xs text-white">
               <Loader2 className="w-3 h-3 animate-spin" />
               Loading options…
             </div>
           )}
 
-          {!optionsLoading && optionsData && strikes.length > 0 && (() => {
+          {subTab === "options" && !optionsLoading && optionsData && strikes.length > 0 && (() => {
             // Group strikes by expiry, preserving chronological chain order
             const byExpiry = new Map<string, { chain: OptionsChainResult; puts: Array<{ put: OptionRow; weeklyIncome: number }> }>();
             for (const { chain, put, weeklyIncome } of strikes) {
@@ -776,7 +896,7 @@ function ScannerRow({
             );
           })()}
 
-          {!optionsLoading && optionsData && strikes.length === 0 && (
+          {subTab === "options" && !optionsLoading && optionsData && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-white italic">
                 {strikeSummary(optionsData, minIncome)}
@@ -808,7 +928,7 @@ function ScannerRow({
             </div>
           )}
 
-          {!optionsLoading && !optionsData && (
+          {subTab === "options" && !optionsLoading && !optionsData && (
             <p className="text-xs text-white italic">No options data.</p>
           )}
         </div>
@@ -864,7 +984,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   });
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
-  const [sort,          setSort]          = useState<SortKey>("income");
+  const [sort,          setSort]          = useState<SortKey>("optionScore");
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [tickerQuery,   setTickerQuery]   = useState("");

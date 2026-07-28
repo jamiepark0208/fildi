@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-27T22:24:53.954Z",
+  "fetchedAt": "2026-07-28T03:39:47.756Z",
   "vixHistory": [
     {
       "date": "2024-07-29",
@@ -6023,9 +6023,9 @@
       "tenor": "30D",
       "days": 30,
       "value": 18.67,
-      "weekAgo": 18.649999618530273,
+      "weekAgo": 17.049999237060547,
       "monthAgo": 18.40999984741211,
-      "threeMonthAgo": 18.020000457763672
+      "threeMonthAgo": 17.829999923706055
     },
     {
       "tenor": "93D",
@@ -6033,7 +6033,7 @@
       "value": 20.2,
       "weekAgo": 20.540000915527344,
       "monthAgo": 20.1299991607666,
-      "threeMonthAgo": 20.770000457763672
+      "threeMonthAgo": 20.489999771118164
     },
     {
       "tenor": "6M",
@@ -6041,7 +6041,7 @@
       "value": 22.11,
       "weekAgo": 22.280000686645508,
       "monthAgo": 22.260000228881836,
-      "threeMonthAgo": 23.030000686645508
+      "threeMonthAgo": 22.8700008392334
     },
     {
       "tenor": "1Y",
@@ -6056,64 +6056,64 @@
     {
       "label": "Jul '26",
       "meetingDate": "2026-07-29",
-      "impliedRate": 3.632,
-      "weekAgo": 3.628,
+      "impliedRate": 3.635,
+      "weekAgo": 3.63,
       "monthAgo": 3.635,
-      "threeMonthAgo": 3.625,
+      "threeMonthAgo": 3.635,
       "isTbillProxy": false
     },
     {
       "label": "Sep '26",
       "meetingDate": "2026-09-17",
-      "impliedRate": 3.81,
-      "weekAgo": 3.73,
+      "impliedRate": 3.805,
+      "weekAgo": 3.76,
       "monthAgo": 3.755,
-      "threeMonthAgo": 3.6,
+      "threeMonthAgo": 3.61,
       "isTbillProxy": false
     },
     {
       "label": "Oct '26",
       "meetingDate": "2026-10-29",
       "impliedRate": 3.905,
-      "weekAgo": 3.815,
+      "weekAgo": 3.845,
       "monthAgo": 3.815,
-      "threeMonthAgo": 3.585,
+      "threeMonthAgo": 3.6,
       "isTbillProxy": false
     },
     {
       "label": "Dec '26",
       "meetingDate": "2026-12-10",
-      "impliedRate": 4.045,
-      "weekAgo": 3.945,
+      "impliedRate": 4.04,
+      "weekAgo": 3.985,
       "monthAgo": 3.915,
-      "threeMonthAgo": 3.56,
+      "threeMonthAgo": 3.59,
       "isTbillProxy": false
     },
     {
       "label": "Jan '27",
       "meetingDate": "2027-01-28",
-      "impliedRate": 4.075,
-      "weekAgo": 3.975,
+      "impliedRate": 4.065,
+      "weekAgo": 4.015,
       "monthAgo": 3.935,
-      "threeMonthAgo": 3.555,
+      "threeMonthAgo": 3.59,
       "isTbillProxy": false
     },
     {
       "label": "Mar '27",
       "meetingDate": "2027-03-19",
-      "impliedRate": 4.14,
-      "weekAgo": 4.035,
+      "impliedRate": 4.125,
+      "weekAgo": 4.085,
       "monthAgo": 3.965,
-      "threeMonthAgo": 3.555,
+      "threeMonthAgo": 3.6,
       "isTbillProxy": false
     },
     {
       "label": "May '27",
       "meetingDate": "2027-05-06",
-      "impliedRate": 4.195,
-      "weekAgo": 4.08,
+      "impliedRate": 4.175,
+      "weekAgo": 4.135,
       "monthAgo": 3.975,
-      "threeMonthAgo": 3.555,
+      "threeMonthAgo": 3.615,
       "isTbillProxy": false
     }
   ],
@@ -16393,6 +16393,10 @@
     {
       "date": "2026-07-24",
       "value": 0.819
+    },
+    {
+      "date": "2026-07-27",
+      "value": 0.822
     },
     {
       "date": "2026-07-27",
@@ -41044,7 +41048,11 @@
     },
     {
       "date": "2026-07-27",
-      "value": 0.001567
+      "value": 0.001556
+    },
+    {
+      "date": "2026-07-28",
+      "value": 0.001569
     }
   ],
   "dxyHistory": [
@@ -43053,8 +43061,8 @@
       "value": 101.47000122070312
     },
     {
-      "date": "2026-07-27",
-      "value": 101.51399993896484
+      "date": "2026-07-28",
+      "value": 101.45800018310547
     }
   ],
   "fedAssetsHistory": [
@@ -80890,7 +80898,7 @@
     }
   ],
   "liquidityImplications": {
-    "asOf": "2026-07-27T22:24:53.953Z",
+    "asOf": "2026-07-28T03:39:47.755Z",
     "signals": [
       {
         "label": "Net Liquidity",
@@ -82895,7 +82903,7 @@
     }
   ],
   "volatilityImplications": {
-    "asOf": "2026-07-27T22:24:53.954Z",
+    "asOf": "2026-07-28T03:39:47.756Z",
     "signals": [
       {
         "label": "VIX Level",

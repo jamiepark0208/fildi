@@ -508,7 +508,7 @@ export function StrikeDetailPanel({ put, chain, scoreResult, isBest, runnerUp }:
   return (
     <div className="bg-slate-950/80 border-t border-slate-800/60">
       {/* Top section: bullets (narrow) + P&L chart (remaining width) side by side */}
-      <div className="grid grid-cols-[380px_1fr] divide-x divide-slate-800/60">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-y md:divide-y-0 md:divide-x divide-slate-800/60">
         {/* Left: bullet reasoning */}
         <div className="px-3 py-2 space-y-1.5 min-w-0 overflow-hidden">
           <div className="flex items-center gap-2 flex-wrap">

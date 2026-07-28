@@ -16,24 +16,25 @@ type NavItem = {
   href: string;
   label: string;
   icon: typeof Bookmark;
+  color: string;
   adminOnly?: boolean;
 };
 
 const LEFT_NAV_ITEMS: NavItem[] = [
-  { id: "watchlist", href: "/watchlist",  label: "Watchlist",  icon: Bookmark },
+  { id: "watchlist", href: "/watchlist",  label: "Watchlist",  icon: Bookmark,          color: "#22d3ee" }, // cyan
   // adminOnly is intentional, not a leftover — enh/8 Phase A1 (unlock nav for
   // everyone) is deferred until the regular-user manual-entry experience in
   // portfolio.tsx is solidified (bug/14, 2026-07-11). Don't "fix" this without
   // checking enh/8's status first.
-  { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, adminOnly: true },
-  { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy },
-  { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe },
-  { id: "live",      href: "/live",       label: "Live",       icon: Activity },
+  { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, color: "#34d399", adminOnly: true }, // emerald
+  { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy,            color: "#fbbf24" }, // gold
+  { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe,             color: "#a78bfa" }, // violet
+  { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose
 ];
 
 const RIGHT_NAV_ITEMS: NavItem[] = [
-  { id: "profile",   href: "/profile/me", label: "Profile",    icon: User },
-  { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon },
+  { id: "profile",   href: "/profile/me", label: "Profile",    icon: User,          color: "#f472b6" }, // pink
+  { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon,  color: "#2dd4bf" }, // teal
 ];
 
 async function apiFeed(path: string, opts?: RequestInit) {
@@ -49,14 +50,20 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       <div
         onMouseEnter={() => prefetchRouteChunk(item.href.replace(/^\//, ""))}
         className={cn(
-          "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-md cursor-pointer transition-colors min-w-[64px]",
-          active
-            ? "bg-primary/15 text-primary"
-            : "text-primary/60 hover:text-primary hover:bg-primary/10"
+          "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-md cursor-pointer transition-all",
+          "min-w-[64px]",
+          active ? "bg-white/10" : "hover:bg-white/5",
         )}
+        style={active ? { boxShadow: `inset 0 0 0 1px ${item.color}40` } : undefined}
       >
-        <Icon className="w-5 h-5 shrink-0" strokeWidth={2.5} />
-        <span className="text-xs font-bold leading-none whitespace-nowrap">{item.label}</span>
+        <Icon
+          className="w-5 h-5 shrink-0 transition-opacity"
+          strokeWidth={2.5}
+          style={{ color: item.color, opacity: active ? 1 : 0.75, filter: active ? `drop-shadow(0 0 4px ${item.color}80)` : undefined }}
+        />
+        <span className={cn("text-xs font-bold leading-none whitespace-nowrap", active ? "text-white" : "text-white/70")}>
+          {item.label}
+        </span>
       </div>
     </Link>
   );
@@ -130,11 +137,11 @@ export function TopNav() {
     <header className="fixed inset-x-0 top-0 h-14 bg-gradient-to-b from-[#232427] to-[#0a0a0b] border-b border-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset] flex items-center px-4 gap-1 z-50">
       <Link href="/feed">
         <div
-          className="w-8 h-8 rounded-md bg-primary flex items-center justify-center shrink-0 cursor-pointer mr-3"
+          className="w-8 h-8 rounded-md bg-white/10 border border-white/20 flex items-center justify-center shrink-0 cursor-pointer mr-3"
           title="Feed"
           onMouseEnter={() => prefetchRouteChunk("feed")}
         >
-          <BarChart2 className="w-4 h-4 text-primary-foreground" />
+          <BarChart2 className="w-4 h-4" style={{ color: "#f59e0b", filter: "drop-shadow(0 0 4px #f59e0b80)" }} />
         </div>
       </Link>
 

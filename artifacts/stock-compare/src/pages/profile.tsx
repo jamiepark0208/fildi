@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
@@ -55,7 +55,7 @@ const TRADE_TYPES = [
 type TradeTypeId = typeof TRADE_TYPES[number]["id"]
 
 const CONFIDENCE_OPTS = ["Speculative", "Low", "Moderate", "High", "Strong"]
-const CONF_COLORS = ["text-muted-foreground border-border bg-secondary", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
+const CONF_COLORS = ["text-white border-border bg-secondary", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
 
 function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
   const [tradeType, setTradeType] = useState<TradeTypeId>("SELL_PUT")
@@ -153,7 +153,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
             className={cn("text-xs px-2.5 py-1 rounded-full border font-medium transition-all",
               tradeType === t.id
                 ? t.cat === "option" ? "bg-blue-500/20 text-blue-400 border-blue-500/40" : "bg-purple-500/20 text-purple-400 border-purple-500/40"
-                : "bg-transparent text-muted-foreground border-border opacity-50 hover:opacity-80"
+                : "bg-transparent text-white border-border opacity-50 hover:opacity-80"
             )}>
             {t.label}
           </button>
@@ -166,7 +166,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       {/* ── OPTIONS: expiry tabs + strike chain ── */}
       {isOption && ticker && (
         <div className="space-y-2">
-          {chainLoading && <p className="text-xs text-muted-foreground animate-pulse">Loading chain…</p>}
+          {chainLoading && <p className="text-xs text-white animate-pulse">Loading chain…</p>}
           {!chainLoading && expiryChains.length > 0 && (
             <>
               {/* Expiry selector */}
@@ -176,7 +176,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                     className={cn("text-[10px] px-2 py-0.5 rounded border transition-all",
                       (selectedExpiry || expiryChains[0]?.expiry) === c.expiry
                         ? "bg-primary/20 text-primary border-primary/40"
-                        : "text-muted-foreground border-border hover:border-muted-foreground"
+                        : "text-white border-border hover:border-muted-foreground"
                     )}>
                     {c.expiry} <span className="opacity-60">{c.dte}d</span>
                   </button>
@@ -188,7 +188,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20">
+                      <tr className="text-[10px] text-white uppercase tracking-wider border-b border-border bg-muted/20">
                         <th className="text-left px-2 py-1.5 font-semibold">Strike</th>
                         <th className="text-right px-2 py-1.5 font-semibold">Bid</th>
                         <th className="text-right px-2 py-1.5 font-semibold">Ask</th>
@@ -208,11 +208,11 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                               isSelected ? "bg-primary/15 text-primary" : "hover:bg-muted/20"
                             )}>
                             <td className="px-2 font-bold tabular-nums">{row.strike}</td>
-                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.bid.toFixed(2)}</td>
-                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.ask.toFixed(2)}</td>
+                            <td className="px-2 text-right tabular-nums text-white">{row.bid.toFixed(2)}</td>
+                            <td className="px-2 text-right tabular-nums text-white">{row.ask.toFixed(2)}</td>
                             <td className="px-2 text-right tabular-nums font-semibold">{mid}</td>
-                            <td className="px-2 text-right tabular-nums text-muted-foreground">{(row.iv * 100).toFixed(0)}%</td>
-                            <td className="px-2 text-right tabular-nums text-muted-foreground">{row.openInterest ?? "—"}</td>
+                            <td className="px-2 text-right tabular-nums text-white">{(row.iv * 100).toFixed(0)}%</td>
+                            <td className="px-2 text-right tabular-nums text-white">{row.openInterest ?? "—"}</td>
                           </tr>
                         )
                       })}
@@ -226,7 +226,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
                   <span className="text-xs font-bold text-primary">{tradeType.replace("_"," ")} {selectedStrike} @ ${selectedPremium}</span>
                   <div className="ml-auto flex items-center gap-1.5">
-                    <label className="text-xs text-muted-foreground">Contracts</label>
+                    <label className="text-xs text-white">Contracts</label>
                     <input type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)}
                       className="w-14 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                   </div>
@@ -247,7 +247,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
             { label: "Target",      val: targetPrice, set: setTargetPrice, placeholder: "optional" },
           ].map(({ label, val, set, placeholder, required, step, min }) => (
             <div key={label} className="space-y-1">
-              <label className="text-xs text-muted-foreground">{label}</label>
+              <label className="text-xs text-white">{label}</label>
               <input required={required} type="number" min={min ?? "0"} step={step ?? "0.01"}
                 value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
                 className={inp} />
@@ -258,7 +258,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Confidence */}
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Confidence</label>
+        <label className="text-xs text-white">Confidence</label>
         <div className="flex gap-1.5 flex-wrap">
           {CONFIDENCE_OPTS.map((label, i) => (
             <button key={i} type="button" onClick={() => setConf(i + 1)}
@@ -273,7 +273,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Rationale</label>
+        <label className="text-xs text-white">Rationale</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
           placeholder="Your rationale…"
           className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
@@ -303,7 +303,7 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
   function pick(ticker: string) { onChange(ticker); setInput(ticker); setOpen(false) }
   return (
     <div className="relative space-y-1">
-      <label className="text-xs text-muted-foreground">Ticker</label>
+      <label className="text-xs text-white">Ticker</label>
       <input value={input}
         onChange={e => { setInput(e.target.value.toUpperCase()); setOpen(true) }}
         onFocus={() => setOpen(true)}
@@ -312,13 +312,13 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
         className="w-full bg-white border border-white/20 rounded px-2 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary" />
       {open && debouncedQ.length >= 1 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-          {isFetching && <div className="px-3 py-2 text-xs text-muted-foreground animate-pulse">Searching…</div>}
-          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No results</div>}
+          {isFetching && <div className="px-3 py-2 text-xs text-white animate-pulse">Searching…</div>}
+          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-white">No results</div>}
           {results.map((r: { ticker: string; name?: string }) => (
             <button key={r.ticker} type="button" onMouseDown={() => pick(r.ticker)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left">
               <span className="font-bold text-foreground w-14 shrink-0">{r.ticker}</span>
-              <span className="text-muted-foreground truncate">{r.name}</span>
+              <span className="text-white truncate">{r.name}</span>
             </button>
           ))}
         </div>
@@ -328,6 +328,11 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
 }
 
 // ── Stock Views panel (reflects the user's tagged Watchlist) ───────────────────
+
+/** Readable text color for a solid-color tile background (yellow needs black, the rest read fine in white). */
+function boxTextColor(hex: string): string {
+  return hex.toLowerCase() === "#eab308" ? "#000" : "#fff"
+}
 
 function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profileUsername: string }) {
   const [, navigate] = useLocation()
@@ -363,21 +368,29 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
         className="w-full text-left space-y-2 rounded-xl border border-border p-3 hover:border-border/80 transition-colors"
       >
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Views</div>
-          <span className="text-[10px] text-muted-foreground">{taggedCount} tagged →</span>
+          <div className="text-xs font-semibold text-white uppercase tracking-wider">Stock Views</div>
+          <span className="text-[10px] text-white">{taggedCount} tagged →</span>
         </div>
         {isLoading ? (
-          <span className="text-[10px] text-muted-foreground animate-pulse">Loading…</span>
+          <span className="text-[10px] text-white animate-pulse">Loading…</span>
         ) : taggedCount === 0 ? (
-          <span className="text-[10px] text-muted-foreground">No tagged tickers yet</span>
+          <span className="text-[10px] text-white">No tagged tickers yet</span>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {groups.filter(g => g.tickers.length > 0).map(g => (
-              <span key={g.color} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
-                {g.tickers.slice(0, 3).join(", ")}{g.tickers.length > 3 ? ` +${g.tickers.length - 3}` : ""}
+          <div className="flex flex-wrap gap-1.5">
+            {groups.flatMap(g => g.tickers.map(ticker => ({ ticker, color: g.color }))).slice(0, 12).map(({ ticker, color }) => (
+              <span
+                key={ticker}
+                className="text-xs font-extrabold px-2 py-1 rounded-md shadow-sm"
+                style={{ backgroundColor: color, color: boxTextColor(color) }}
+              >
+                {ticker}
               </span>
             ))}
+            {taggedCount > 12 && (
+              <span className="text-xs font-bold text-white px-2 py-1 rounded-md bg-white/10">
+                +{taggedCount - 12}
+              </span>
+            )}
           </div>
         )}
       </button>
@@ -387,23 +400,23 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           <DialogHeader>
             <DialogTitle>Stock Views{!isOwner ? ` — ${profileUsername}` : ""}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             {groups.map(g => (
               <div key={g.color} className="space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                   {g.label}
-                  <span className="ml-auto text-[10px] font-normal text-muted-foreground">{g.tickers.length}</span>
+                  <span className="ml-auto text-[10px] font-normal text-white">{g.tickers.length}</span>
                 </div>
                 {g.tickers.length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground">None</span>
+                  <span className="text-[10px] text-white">None</span>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {g.tickers.map(ticker => (
                       <span
                         key={ticker}
-                        className="text-xs font-bold px-1.5 py-0.5 rounded border"
-                        style={{ borderColor: g.color, color: g.color, backgroundColor: `${g.color}15` }}
+                        className="text-sm font-extrabold text-center px-2 py-2.5 rounded-lg shadow-sm"
+                        style={{ backgroundColor: g.color, color: boxTextColor(g.color) }}
                       >
                         {ticker}
                       </span>
@@ -416,7 +429,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {taggedCount > 0 && (
             <button
               onClick={() => openInScanner(groups.flatMap(g => g.tickers))}
-              className="w-full text-[10px] font-medium text-muted-foreground hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
+              className="w-full text-[10px] font-medium text-white hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
             >
               Open all in scanner →
             </button>
@@ -424,7 +437,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {isOwner && (
             <button
               onClick={() => navigate("/watchlist")}
-              className="w-full text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full text-[10px] text-white hover:text-foreground transition-colors"
             >
               Edit tags on Watchlist →
             </button>
@@ -456,8 +469,8 @@ function computeStreak(posts: TradePost[]): { n: number; win: boolean } | null {
 
 function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradePost[] }) {
   const lowSample = stats.closed < 5
-  const winRateColor = stats.winRate == null ? "text-muted-foreground" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
-  const pnlColor = stats.totalPnl == null ? "text-muted-foreground" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
+  const winRateColor = stats.winRate == null ? "text-white" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
+  const pnlColor = stats.totalPnl == null ? "text-white" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
   const pnl = stats.totalPnl != null ? (stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(0)}` : `-$${Math.abs(stats.totalPnl).toFixed(0)}`) : "—"
   const avgPnl = stats.closed > 0 && stats.totalPnl != null ? stats.totalPnl / stats.closed : null
   const streak = computeStreak(posts)
@@ -465,44 +478,40 @@ function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradeP
   const items = [
     {
       label: "Win Rate",
-      value: stats.winRate != null ? `${Math.round(stats.winRate * 100)}%` : "—",
-      sub: `${stats.wins}-${stats.losses}`,
+      value: stats.winRate != null ? `${Math.round(stats.winRate * 100)}% (${stats.wins}-${stats.losses})` : "—",
       color: winRateColor,
       dim: lowSample,
     },
-    { label: "Total P&L", value: pnl, sub: `${stats.closed} closed`, color: pnlColor, dim: lowSample },
+    { label: "P&L", value: pnl, color: pnlColor, dim: lowSample },
     {
-      label: "Avg/Trade",
+      label: "Avg",
       value: avgPnl != null ? (avgPnl >= 0 ? `+$${avgPnl.toFixed(0)}` : `-$${Math.abs(avgPnl).toFixed(0)}`) : "—",
-      sub: "per closed",
-      color: avgPnl == null ? "text-muted-foreground" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
+      color: avgPnl == null ? "text-white" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
       dim: lowSample,
     },
-    { label: "Open", value: String(stats.openPosts), sub: `${stats.totalPosts} total`, color: "text-blue-400", dim: false },
+    { label: "Open", value: String(stats.openPosts), color: "text-blue-400", dim: false },
     {
       label: "Streak",
       value: streak ? `${streak.win ? "W" : "L"}${streak.n}` : "—",
-      sub: streak ? (streak.win ? "winning" : "losing") : "no closed trades",
-      color: !streak ? "text-muted-foreground" : streak.win ? "text-green-400" : "text-red-400",
+      color: !streak ? "text-white" : streak.win ? "text-green-400" : "text-red-400",
       dim: false,
     },
   ]
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="flex items-stretch gap-0">
-        {items.map(({ label, value, sub, color, dim }, i) => (
-          <div key={label} className={cn(
-            "flex-1 flex flex-col items-center py-2.5 px-1 min-w-0",
-            i < items.length - 1 && "border-r border-border",
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {items.map(({ label, value, color, dim }) => (
+        <span
+          key={label}
+          className={cn(
+            "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-border bg-secondary/50 whitespace-nowrap",
             dim && "opacity-70"
-          )}>
-            <div className={cn("text-base font-bold leading-tight tabular-nums", color)}>{value}</div>
-            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mt-0.5">{label}</div>
-            <div className="text-[10px] text-muted-foreground mt-px truncate max-w-full">{sub}</div>
-          </div>
-        ))}
-      </div>
+          )}
+        >
+          <span className="text-white uppercase tracking-wide">{label}</span>
+          <span className={cn("tabular-nums", color)}>{value}</span>
+        </span>
+      ))}
     </div>
   )
 }
@@ -527,7 +536,7 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
   return (
     <div className="bg-card border border-border rounded-xl p-3 space-y-1">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Cumulative P&L</div>
+        <div className="text-xs font-semibold text-white uppercase tracking-wider">Cumulative P&L</div>
         {timeline.length > 0 && (
           <span className={cn("text-xs font-bold tabular-nums", total >= 0 ? "text-green-400" : "text-red-400")}>
             {total >= 0 ? "+" : ""}${total.toFixed(0)}
@@ -535,24 +544,38 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
         )}
       </div>
       {timeline.length === 0 ? (
-        <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">No closed trades yet</div>
+        <div className="h-[120px] flex items-center justify-center text-xs text-white">No closed trades yet</div>
       ) : (
-        <ResponsiveContainer width="100%" height={120}>
-          <AreaChart data={timeline} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={150}>
+          <AreaChart data={timeline} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="profilePnlFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
                 <stop offset="100%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="date" hide />
-            <YAxis hide domain={["auto", "auto"]} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 9, fill: "#fff" }}
+              tickFormatter={d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              axisLine={{ stroke: "#3f3f46" }}
+              tickLine={false}
+              minTickGap={30}
+            />
+            <YAxis
+              tick={{ fontSize: 9, fill: "#fff" }}
+              domain={["auto", "auto"]}
+              axisLine={{ stroke: "#3f3f46" }}
+              tickLine={false}
+              width={44}
+              tickFormatter={v => `$${v}`}
+            />
             <Tooltip content={(p) => {
               const d = p.payload?.[0]?.payload as { date: string; cumulative: number; ticker: string } | undefined
               if (!p.active || !d) return null
               return (
                 <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
-                  <div className="text-foreground/70">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
+                  <div className="text-white">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
                   <div className={cn("font-bold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.cumulative >= 0 ? "+" : ""}${d.cumulative.toFixed(0)}
                   </div>
@@ -569,98 +592,59 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
 
 // ── Top tickers breakdown ────────────────────────────────────────────────────
 
+interface TickerRow { ticker: string; count: number; pnl: number }
+
+/** Custom XAxis tick: ticker on top line, contract quantity ("2×") below it. */
+function TickerAxisTick({ x, y, payload, rows }: { x?: number; y?: number; payload?: { value: string }; rows: TickerRow[] }) {
+  const row = rows.find(r => r.ticker === payload?.value)
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={12} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700}>{payload?.value}</text>
+      <text x={0} y={0} dy={25} textAnchor="middle" fill="#fff" fontSize={9} fillOpacity={0.6}>{row?.count}×</text>
+    </g>
+  )
+}
+
 function TopTickers({ posts }: { posts: TradePost[] }) {
-  const rows = useMemo(() => {
-    const map = new Map<string, { ticker: string; count: number; wins: number; losses: number }>()
+  const rows = useMemo<TickerRow[]>(() => {
+    const map = new Map<string, TickerRow>()
     for (const p of posts) {
-      const entry = map.get(p.ticker) ?? { ticker: p.ticker, count: 0, wins: 0, losses: 0 }
+      const entry = map.get(p.ticker) ?? { ticker: p.ticker, count: 0, pnl: 0 }
       entry.count++
-      if (p.status !== "OPEN" && p.resolvedPnl != null) {
-        if (p.resolvedPnl >= 0) entry.wins++
-        else entry.losses++
-      }
+      if (p.status !== "OPEN" && p.resolvedPnl != null) entry.pnl += p.resolvedPnl
       map.set(p.ticker, entry)
     }
-    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 5)
+    return [...map.values()].sort((a, b) => b.pnl - a.pnl).slice(0, 6)
   }, [posts])
 
   return (
     <div className="bg-card border border-border rounded-xl p-3 space-y-1.5">
-      <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Top Tickers</div>
+      <div className="text-xs font-semibold text-white uppercase tracking-wider">Top Tickers</div>
       {rows.length === 0 ? (
-        <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">No trade ideas yet</div>
+        <div className="h-[150px] flex items-center justify-center text-xs text-white">No trade ideas yet</div>
       ) : (
-        <div className="space-y-1.5">
-          {rows.map(r => {
-            const resolved = r.wins + r.losses
-            const winRate = resolved > 0 ? r.wins / resolved : null
-            const wrColor = winRate == null ? "text-muted-foreground" : winRate >= 0.6 ? "text-green-400" : winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
-            return (
-              <div key={r.ticker} className="flex items-center gap-2 text-xs">
-                <span className="font-bold text-white bg-white/10 px-1.5 py-0.5 rounded w-14 text-center shrink-0">{r.ticker}</span>
-                <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
-                  {resolved > 0 && (
-                    <div
-                      className={cn("h-full rounded-full", winRate! >= 0.6 ? "bg-green-400" : winRate! >= 0.4 ? "bg-yellow-400" : "bg-red-400")}
-                      style={{ width: `${Math.round(winRate! * 100)}%` }}
-                    />
-                  )}
+        <ResponsiveContainer width="100%" height={150}>
+          <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+            <XAxis dataKey="ticker" tick={<TickerAxisTick rows={rows} />} height={34} axisLine={{ stroke: "#3f3f46" }} tickLine={false} interval={0} />
+            <YAxis tick={{ fontSize: 9, fill: "#fff" }} axisLine={{ stroke: "#3f3f46" }} tickLine={false} width={44} tickFormatter={v => `$${v}`} />
+            <Tooltip content={(p) => {
+              const d = p.payload?.[0]?.payload as TickerRow | undefined
+              if (!p.active || !d) return null
+              return (
+                <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
+                  <div className="text-white font-bold">{d.ticker} · {d.count}×</div>
+                  <div className={cn("font-bold tabular-nums", d.pnl >= 0 ? "text-green-400" : "text-red-400")}>
+                    {d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(0)}
+                  </div>
                 </div>
-                <span className={cn("font-semibold tabular-nums shrink-0 w-9 text-right", wrColor)}>
-                  {winRate != null ? `${Math.round(winRate * 100)}%` : "—"}
-                </span>
-                <span className="text-muted-foreground tabular-nums shrink-0 w-6 text-right">{r.count}×</span>
-              </div>
-            )
-          })}
-        </div>
+              )
+            }} />
+            <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+              {rows.map(r => <Cell key={r.ticker} fill={r.pnl >= 0 ? "#34d399" : "#f87171"} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       )}
-    </div>
-  )
-}
-
-// ── Monthly summary (own profile) ───────────────────────────────────────────────
-
-function MonthlySummary({ posts }: { posts: TradePost[] }) {
-  const months = new Map<string, { wins: number; losses: number; pnl: number }>()
-
-  for (const post of posts) {
-    if (post.status === "OPEN") continue
-    const d = new Date(post.createdAt)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    const entry = months.get(key) ?? { wins: 0, losses: 0, pnl: 0 }
-    const pnl = post.resolvedPnl ?? 0
-    if (pnl >= 0) entry.wins++
-    else entry.losses++
-    entry.pnl += pnl
-    months.set(key, entry)
-  }
-
-  const rows = [...months.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6)
-  if (rows.length === 0) return null
-
-  return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monthly Summary</div>
-      <div className="bg-card border border-border rounded-xl divide-y divide-border">
-        {rows.map(([key, { wins, losses, pnl }]) => {
-          const [y, m] = key.split("-")
-          const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" })
-          const n = wins + losses
-          return (
-            <div key={key} className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="text-foreground font-medium">{label}</span>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <span>{wins}W / {losses}L</span>
-                <span className={cn("font-semibold", pnl >= 0 ? "text-green-400" : "text-red-400")}>
-                  {pnl >= 0 ? "+" : ""}${pnl.toFixed(0)}
-                </span>
-                <span className="text-muted-foreground">({n})</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -709,19 +693,19 @@ export default function Profile() {
       <main className="pt-14 p-5 max-w-2xl space-y-5">
 
         {!isOwnerProfile && me && (
-          <Link href="/profile/me" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
+          <Link href="/profile/me" className="text-xs text-white hover:text-foreground transition-colors shrink-0">
             ← My Profile
           </Link>
         )}
 
-        {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
+        {isLoading && <span className="text-xs text-white animate-pulse">Loading…</span>}
         {error    && <div className="text-sm text-red-400">Failed to load profile.</div>}
 
         {data && (
           <>
-            {/* ── Compact user header ── */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
+            {/* ── Compact user header + stats tags ── */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2.5 shrink-0">
                 {/* Avatar */}
                 <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0 ring-2 ring-primary/30">
                   {data.user.avatarUrl
@@ -735,21 +719,24 @@ export default function Profile() {
                     "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
                     data.user.role === "admin"
                       ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                      : "bg-secondary text-muted-foreground border-border"
+                      : "bg-secondary text-white border-border"
                   )}>
                     {data.user.role}
                   </span>
                 </div>
               </div>
 
+              {/* Compact stats tags */}
+              <StatsBar stats={data.stats} posts={data.posts} />
+
               {/* Post button */}
               {isOwnerProfile && (
                 <button
                   onClick={() => setShowForm(v => !v)}
                   className={cn(
-                    "text-xs px-3 py-1.5 rounded-lg border font-medium transition-all",
+                    "text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ml-auto shrink-0",
                     showForm
-                      ? "bg-secondary text-muted-foreground border-border"
+                      ? "bg-secondary text-white border-border"
                       : "bg-primary/15 text-primary border-primary/30 hover:bg-primary/25"
                   )}
                 >
@@ -758,17 +745,11 @@ export default function Profile() {
               )}
             </div>
 
-            {/* ── Stats bar ── */}
-            <StatsBar stats={data.stats} posts={data.posts} />
-
             {/* ── Cumulative P&L + Top Tickers ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <CumulativePnlChart posts={data.posts} />
               <TopTickers posts={data.posts} />
             </div>
-
-            {/* ── Monthly summary (own profile only) ── */}
-            {isOwnerProfile && <MonthlySummary posts={data.posts} />}
 
             {/* ── Stock Views (reflects tagged Watchlist) ── */}
             <StockViewsPanel isOwner={isOwnerProfile} profileUsername={username} />
@@ -780,13 +761,13 @@ export default function Profile() {
 
             {/* ── Trade ideas ── */}
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">
+              <div className="text-xs font-semibold text-white uppercase tracking-wider">
                 Trade Ideas
-                {data.posts.length > 0 && <span className="ml-1.5 text-muted-foreground">({data.posts.length})</span>}
+                {data.posts.length > 0 && <span className="ml-1.5 text-white">({data.posts.length})</span>}
               </div>
 
               {data.posts.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">
+                <div className="text-sm text-white text-center py-8 bg-card border border-border rounded-xl">
                   No trade ideas posted yet.
                 </div>
               ) : (
