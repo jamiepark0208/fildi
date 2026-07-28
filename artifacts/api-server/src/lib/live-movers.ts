@@ -44,10 +44,19 @@ async function fetchScreenerList(scrIds: ScrId): Promise<ScreenerMover[]> {
   if (cached) return cached;
 
   try {
-    const res = await (yahooFinance as any).screener(
-      { scrIds, count: 25 },
-      { validateResult: false },
-    );
+    let res: any;
+    try {
+      res = await (yahooFinance as any).screener(
+        { scrIds, count: 25 },
+        { validateResult: false },
+      );
+    } catch (err: any) {
+      // v3.14.1 throws FailedYahooValidationError even with validateResult:false on
+      // some lists (day_gainers), but the error object still carries the full parsed
+      // payload in .result — recover it instead of dropping the whole list.
+      if (err?.name === "FailedYahooValidationError" && err.result?.quotes) res = err.result;
+      else throw err;
+    }
     const quotes: any[] = res?.quotes ?? [];
     const movers: ScreenerMover[] = quotes.map(q => ({
       ticker: q.symbol,

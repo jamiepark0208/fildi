@@ -6,9 +6,9 @@
 **build** — last updated 2026-07-28
 
 ## Active work
-- Working: sell-put-scanner, sell-call-scoring, call-side-technical-mirror, technical-tab-side-toggle
-- In progress: side-aware-scoring-shipped-needs-browser-eyeball
-- Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
+- Working: live-tab-side-toggle, rally-hotlist-backend, side-aware-entry-verdicts, top7-options-table, regime-checkpoints-210-270-330, gainers-screener-recovery, entry-signal-restart-race-fix
+- In progress: browser-eyeball-live-tab-rally-mode-pending
+- Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)
 

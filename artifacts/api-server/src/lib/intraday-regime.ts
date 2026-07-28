@@ -18,9 +18,9 @@ import { logger } from "./logger.js";
 const yahooFinance = new YahooFinanceClass();
 
 // Every 15 min through the first hour (when trend-vs-reversal usually resolves),
-// every 30 min after that through midday — no point in 15-min granularity once
-// a trend is established.
-export const CHECKPOINTS_MIN = [15, 30, 45, 60, 90, 120, 150, 180] as const;
+// every 30 min after that through midday, then hourly through 12:00 PM PT
+// (330 min = 3:00 PM ET) — no point in 15-min granularity once a trend is established.
+export const CHECKPOINTS_MIN = [15, 30, 45, 60, 90, 120, 150, 180, 210, 270, 330] as const;
 
 // A checkpoint computed more than this long after its target time (e.g. the
 // server was down or just restarted) is reconstructed from historically-sliced

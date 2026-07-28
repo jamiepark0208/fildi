@@ -18,7 +18,7 @@ import { RSI } from "technicalindicators";
 import { and, eq, gte, inArray } from "drizzle-orm";
 import { db, appConfig, pricesHistorical } from "@workspace/db";
 import { etDateKey } from "./market-hours.js";
-import { liveHotlist } from "./live-hotlist.js";
+import { liveHotlist, type HotlistSide } from "./live-hotlist.js";
 import { readOHLCVFromDB } from "./indicators.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import {
@@ -32,7 +32,7 @@ import {
 import { logger } from "./logger.js";
 
 const FETCH_CONCURRENCY = 5; // hotlist is ≤46 tickers; chunked Yahoo chart calls, at most once per checkpoint
-const EARNINGS_CAUTION_DAYS = 5; // selling a put through earnings is a different trade — cap verdict at Wait
+const EARNINGS_CAUTION_DAYS = 5; // selling an option through earnings is a different trade — cap verdict at Wait
 
 export type EntryVerdict = "enter" | "wait" | "avoid";
 
@@ -46,6 +46,8 @@ export interface FvgZone {
 
 export interface EntrySignal {
   ticker: string;
+  /** Which hotlist this verdict is for: dip (sell puts) or rally (sell calls). Pre-side snapshots default to "dip" on read. */
+  side: HotlistSide;
   /** Last 5-min close at compute time — the reference price for forward-return grading. */
   price: number;
   direction: Direction | null;
@@ -112,7 +114,25 @@ export function bullishRsiDivergence(closes: number[]): boolean {
   return recent[iR] < prior[iP] && recentRsi[iR] > priorRsi[iP] + 2;
 }
 
-function verdictFor(direction: Direction | null, regime: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
+// Rally-side mirror: price made a higher high but RSI at that high is meaningfully
+// lower — buying pressure fading into the new high. Informational factor only.
+export function bearishRsiDivergence(closes: number[]): boolean {
+  if (closes.length < 45) return false;
+  const rsiVals = RSI.calculate({ period: 14, values: closes });
+  const aligned = closes.slice(closes.length - rsiVals.length);
+  const n = aligned.length;
+  if (n < 30) return false;
+  const recent = aligned.slice(n - 15);
+  const prior = aligned.slice(n - 30, n - 15);
+  const recentRsi = rsiVals.slice(n - 15);
+  const priorRsi = rsiVals.slice(n - 30, n - 15);
+  const iR = recent.indexOf(Math.max(...recent));
+  const iP = prior.indexOf(Math.max(...prior));
+  return recent[iR] > prior[iP] && recentRsi[iR] < priorRsi[iP] - 2;
+}
+
+function verdictFor(side: HotlistSide, direction: Direction | null, regime: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
+  if (side === "rally") return verdictForRally(direction, regime, fvg, flags);
   if (flags.fallingKnife) return { verdict: "avoid", why: "falling knife — >2 ATR below both MAs with MACD falling (nightly technicals flag)" };
   if (direction === "bearish") return { verdict: "avoid", why: "ticker is trading bearish intraday" };
   if (regime === "bearish") return { verdict: "avoid", why: "market regime is bearish — don't fight the tape" };
@@ -127,6 +147,24 @@ function verdictFor(direction: Direction | null, regime: Direction | null, fvg: 
   }
   if (direction === "bullish") return { verdict: "wait", why: "ticker bullish but market regime hasn't confirmed" };
   return { verdict: "wait", why: "no intraday lean yet" };
+}
+
+// Fade-rally (sell-call) mirror. fallingKnife is a dip-side flag and is ignored here;
+// there is no nightly "melt-up" mirror yet — future work, not invented here.
+function verdictForRally(direction: Direction | null, regime: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
+  if (direction === "bullish") return { verdict: "avoid", why: "still squeezing up intraday — don't fade momentum" };
+  if (regime === "bullish") return { verdict: "avoid", why: "market regime is bullish — don't fight the tape" };
+
+  const earningsSoon = flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS;
+  if (earningsSoon) return { verdict: "wait", why: `earnings in ${flags.earningsDaysOut}d — selling a call through earnings is a different trade` };
+
+  if (direction === "bearish" && regime === "bearish") return { verdict: "enter", why: "rally is fading and the tape agrees" };
+  // Mirror of the dip-side FVG trigger: a retrace up into an unfilled bearish gap is supply overhead.
+  if (direction === "bearish" && fvg?.type === "bearish" && fvg.inZone) {
+    return { verdict: "enter", why: "fading and price is retracing into an unfilled bearish fair-value gap" };
+  }
+  if (direction === "bearish") return { verdict: "wait", why: "rally fading but market regime hasn't confirmed" };
+  return { verdict: "wait", why: "no intraday fade yet" };
 }
 
 function fvgFactorLine(fvg: FvgZone | null): string | null {
@@ -144,29 +182,38 @@ function historyKey(dateKey: string): string {
   return `entry_signal_history_${dateKey}`;
 }
 
-async function computeOne(ticker: string, regime: Direction | null, flags: RedFlags): Promise<EntrySignal | null> {
+/** One bar/DB fetch per ticker, one EntrySignal per requested side — a ticker on both hotlists (IV overlap) gets two verdicts from the same bars. */
+async function computeOne(ticker: string, sides: HotlistSide[], regime: Direction | null, flags: RedFlags): Promise<EntrySignal[]> {
   // One DB read per ticker: last row = prior day's H/L, close series feeds divergence.
   const [bars, dailyRows] = await Promise.all([fetchTodaysBars(ticker), readOHLCVFromDB(ticker)]);
   const prior = dailyRows[dailyRows.length - 1];
   const sig = computeSymbolSignal(ticker, bars, prior?.high ?? null, prior?.low ?? null);
-  if (!sig) return null;
+  if (!sig) return [];
   const price = bars[bars.length - 1].close;
   const fvg = findActiveFvg(bars);
-  const divergence = bullishRsiDivergence(dailyRows.map(r => r.close));
-  const { verdict, why } = verdictFor(sig.direction, regime, fvg, flags);
+  const closes = dailyRows.map(r => r.close);
 
-  const factors = [symbolFactorLine(ticker, sig)];
-  const fvgLine = fvgFactorLine(fvg);
-  if (fvgLine) factors.push(fvgLine);
-  if (divergence) factors.push("Daily bullish RSI divergence — lower price low, higher RSI low (informational)");
-  if (flags.fallingKnife) factors.push("⚠ Falling knife flag from nightly technicals");
-  if (flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS) {
-    factors.push(`⚠ Earnings in ${flags.earningsDaysOut} day${flags.earningsDaysOut === 1 ? "" : "s"}`);
-  }
-  factors.push(regime ? `Market regime: ${regime}` : "Market regime: no call yet");
-  factors.push(`Verdict: ${verdict.toUpperCase()} — ${why}`);
+  return sides.map(side => {
+    const { verdict, why } = verdictFor(side, sig.direction, regime, fvg, flags);
+    const divergence = side === "rally" ? bearishRsiDivergence(closes) : bullishRsiDivergence(closes);
 
-  return { ticker, price, direction: sig.direction, score: sig.score, verdict, fvg, factors };
+    const factors = [symbolFactorLine(ticker, sig)];
+    const fvgLine = fvgFactorLine(fvg);
+    if (fvgLine) factors.push(fvgLine);
+    if (divergence) {
+      factors.push(side === "rally"
+        ? "Daily bearish RSI divergence — higher price high, lower RSI high (informational)"
+        : "Daily bullish RSI divergence — lower price low, higher RSI low (informational)");
+    }
+    if (side === "dip" && flags.fallingKnife) factors.push("⚠ Falling knife flag from nightly technicals");
+    if (flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS) {
+      factors.push(`⚠ Earnings in ${flags.earningsDaysOut} day${flags.earningsDaysOut === 1 ? "" : "s"}`);
+    }
+    factors.push(regime ? `Market regime: ${regime}` : "Market regime: no call yet");
+    factors.push(`Verdict: ${verdict.toUpperCase()} — ${why}`);
+
+    return { ticker, side, price, direction: sig.direction, score: sig.score, verdict, fvg, factors };
+  });
 }
 
 /** Recomputes entry signals for every hotlist ticker and persists today's snapshot (+history). Called by the scheduler after a regime checkpoint resolves. */
@@ -182,14 +229,30 @@ export async function runEntrySignals(): Promise<void> {
   }]));
   const noFlags: RedFlags = { fallingKnife: false, earningsDaysOut: null };
 
-  const tickers = liveHotlist.getCurrentEntries().map(e => e.ticker);
+  // The scheduler tick can fire before the manager's startup refresh has populated the
+  // hotlist (post-restart race — see 2026-07-28 "tickers: 0" snapshots): refresh first
+  // rather than computing against an empty list.
+  if (liveHotlist.getLastRefreshedAt() === null) await liveHotlist.refresh();
+
+  // Union both hotlists so a ticker on both sides is fetched once (computeOne fans out per side).
+  const sidesByTicker = new Map<string, HotlistSide[]>();
+  for (const side of ["dip", "rally"] as const) {
+    for (const e of liveHotlist.getEntries(side)) {
+      sidesByTicker.set(e.ticker, [...(sidesByTicker.get(e.ticker) ?? []), side]);
+    }
+  }
+  if (sidesByTicker.size === 0) {
+    logger.warn({ dateKey }, "entry-signals: hotlist empty, skipping snapshot (won't overwrite a good one)");
+    return;
+  }
+  const tickers = [...sidesByTicker.keys()];
   const signals: EntrySignal[] = [];
   for (let i = 0; i < tickers.length; i += FETCH_CONCURRENCY) {
     const chunk = tickers.slice(i, i + FETCH_CONCURRENCY);
-    const results = await Promise.allSettled(chunk.map(t => computeOne(t, regimeDirection, flagsByTicker.get(t) ?? noFlags)));
+    const results = await Promise.allSettled(chunk.map(t => computeOne(t, sidesByTicker.get(t) ?? ["dip"], regimeDirection, flagsByTicker.get(t) ?? noFlags)));
     results.forEach((r, j) => {
-      if (r.status === "fulfilled" && r.value) signals.push(r.value);
-      else if (r.status === "rejected") logger.warn({ ticker: chunk[j], err: String(r.reason) }, "entry-signals: ticker compute failed");
+      if (r.status === "fulfilled") signals.push(...r.value);
+      else logger.warn({ ticker: chunk[j], err: String(r.reason) }, "entry-signals: ticker compute failed");
     });
   }
 
@@ -219,10 +282,17 @@ async function appendHistory(dateKey: string, snapshot: EntrySignalsSnapshot): P
   await upsertConfig(key, { snapshots: [...existing, snapshot] });
 }
 
+// Snapshots persisted before the side split have no `side` field — they were all
+// dip-side verdicts, so default them (same idiom as normalizeCheckpoint in intraday-regime.ts).
+function normalizeSnapshot(raw: EntrySignalsSnapshot): EntrySignalsSnapshot {
+  return { ...raw, signals: raw.signals.map(s => ({ ...s, side: s.side ?? "dip" })) };
+}
+
 /** Today's persisted snapshot, or null before the first checkpoint resolves. */
 export async function getTodaysEntrySignals(): Promise<EntrySignalsSnapshot | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, configKey(etDateKey()))).limit(1);
-  return (rows[0]?.value as EntrySignalsSnapshot | undefined) ?? null;
+  const raw = rows[0]?.value as EntrySignalsSnapshot | undefined;
+  return raw ? normalizeSnapshot(raw) : null;
 }
 
 /** Last `days` of history keys (dateKey → the day's final snapshot). Used for forward-return grading. */
@@ -239,7 +309,7 @@ export async function getEntrySignalHistory(days: number): Promise<Map<string, E
     const snapshots = (row.value as { snapshots?: EntrySignalsSnapshot[] }).snapshots ?? [];
     const last = snapshots[snapshots.length - 1];
     // Grade each day by its LAST snapshot — the most informed verdict of the day.
-    if (last) out.set(row.key.slice("entry_signal_history_".length), last);
+    if (last) out.set(row.key.slice("entry_signal_history_".length), normalizeSnapshot(last));
   }
   return out;
 }
@@ -253,7 +323,11 @@ export interface VerdictStats {
 export interface EntryStatsResponse {
   days: number;
   gradedDays: number;
+  /** Back-compat alias of `dip`. */
   perVerdict: Record<EntryVerdict, VerdictStats>;
+  dip: Record<EntryVerdict, VerdictStats>;
+  /** Raw forward returns — rally Enter wants NEGATIVE fwd returns; the UI captions this, the data doesn't flip signs. */
+  rally: Record<EntryVerdict, VerdictStats>;
 }
 
 /**
@@ -265,7 +339,8 @@ export interface EntryStatsResponse {
 export async function computeEntryStats(days = 30): Promise<EntryStatsResponse> {
   const history = await getEntrySignalHistory(days);
   const emptyStats = (): { sum1: number; n1: number; sum5: number; n5: number; n: number } => ({ sum1: 0, n1: 0, sum5: 0, n5: 0, n: 0 });
-  const acc: Record<EntryVerdict, ReturnType<typeof emptyStats>> = { enter: emptyStats(), wait: emptyStats(), avoid: emptyStats() };
+  const emptyAcc = (): Record<EntryVerdict, ReturnType<typeof emptyStats>> => ({ enter: emptyStats(), wait: emptyStats(), avoid: emptyStats() });
+  const accBySide: Record<HotlistSide, ReturnType<typeof emptyAcc>> = { dip: emptyAcc(), rally: emptyAcc() };
 
   if (history.size > 0) {
     const tickers = [...new Set([...history.values()].flatMap(s => s.signals.map(sig => sig.ticker)))];
@@ -290,7 +365,7 @@ export async function computeEntryStats(days = 30): Promise<EntryStatsResponse> 
         const series = closesByTicker.get(sig.ticker);
         if (!series) continue;
         const idx = series.findIndex(p => p.date > dateKey); // first trading day AFTER the signal day
-        const a = acc[sig.verdict];
+        const a = accBySide[sig.side][sig.verdict];
         a.n += 1;
         if (idx !== -1) {
           a.sum1 += (series[idx].close / sig.price - 1) * 100;
@@ -311,9 +386,11 @@ export async function computeEntryStats(days = 30): Promise<EntryStatsResponse> 
     avgFwd1dPct: a.n1 > 0 ? round(a.sum1 / a.n1) : null,
     avgFwd5dPct: a.n5 > 0 ? round(a.sum5 / a.n5) : null,
   });
-  return {
-    days,
-    gradedDays: history.size,
-    perVerdict: { enter: toStats(acc.enter), wait: toStats(acc.wait), avoid: toStats(acc.avoid) },
-  };
+  const sideStats = (side: HotlistSide): Record<EntryVerdict, VerdictStats> => ({
+    enter: toStats(accBySide[side].enter),
+    wait: toStats(accBySide[side].wait),
+    avoid: toStats(accBySide[side].avoid),
+  });
+  const dip = sideStats("dip");
+  return { days, gradedDays: history.size, perVerdict: dip, dip, rally: sideStats("rally") };
 }

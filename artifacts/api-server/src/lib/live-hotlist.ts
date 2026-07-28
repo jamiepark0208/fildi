@@ -13,6 +13,9 @@ const ENABLE_AUTO_REFRESH = false;
 // macro-regime.ts) — priced through getLivePrices (Yahoo), which resolves them fine.
 export const MARKET_CONTEXT_SYMBOLS = ["SPY", "QQQ", "^VIX", "^TNX"];
 
+/** dip = crashed, may reverse up (sell puts). rally = squeezed, may reverse down (sell calls). */
+export type HotlistSide = "dip" | "rally";
+
 export interface HotlistEntry {
   ticker: string;
   price: number;
@@ -26,34 +29,57 @@ export interface HotlistEntry {
   tier: 1 | 2 | 3;
 }
 
-function toEntry(r: IndicatorResult): HotlistEntry {
-  return { ticker: r.ticker, price: r.price, rsi: r.rsi, mfi: r.mfi, ivCurrent: r.ivCurrent, return5d: r.return5d, stoch: r.stoch, macdCross: r.macdCross, signal: r.signal, tier: r.tier };
+// Overbought mirror of indicators.ts toSignal (which is oversold-only — including
+// inside getLiveIndicatorOverlay, so rally callers must recompute after overlaying).
+export const RALLY_RSI_THRESHOLD = 70;
+export const RALLY_MFI_THRESHOLD = 80;
+export function rallySignal(rsi: number, mfi: number): "GO" | "WATCH" | "NO" {
+  const rsiOk = rsi > RALLY_RSI_THRESHOLD;
+  const mfiOk = mfi > RALLY_MFI_THRESHOLD;
+  if (rsiOk && mfiOk) return "GO";
+  if (rsiOk || mfiOk) return "WATCH";
+  return "NO";
+}
+
+function toEntry(r: IndicatorResult, side: HotlistSide): HotlistEntry {
+  return {
+    ticker: r.ticker, price: r.price, rsi: r.rsi, mfi: r.mfi, ivCurrent: r.ivCurrent,
+    return5d: r.return5d, stoch: r.stoch, macdCross: r.macdCross,
+    signal: side === "rally" ? rallySignal(r.rsi, r.mfi) : r.signal,
+    tier: r.tier,
+  };
+}
+
+// Both sides derive from one refresh, so each side gets half the websocket budget.
+const PER_SIDE_CAP = Math.floor(HOT_LIST_CAP / 2);
+
+/** Union of top-10 per dimension. Ascending comparators surface dip extremes; rally flips all but IV (always desc). */
+function unionTopDimensions(all: IndicatorResult[], side: HotlistSide): IndicatorResult[] {
+  const flip = side === "rally" ? -1 : 1;
+  const dimensions: Array<(a: IndicatorResult, b: IndicatorResult) => number> = [
+    (a, b) => flip * (a.rsi - b.rsi),
+    (a, b) => b.ivCurrent - a.ivCurrent,
+    (a, b) => flip * ((a.return5d ?? 0) - (b.return5d ?? 0)),
+    (a, b) => flip * ((a.stoch ?? (side === "rally" ? -1 : 100)) - (b.stoch ?? (side === "rally" ? -1 : 100))),
+  ];
+  const needsField: Array<(r: IndicatorResult) => boolean> = [
+    () => true,
+    () => true,
+    r => r.return5d != null,
+    r => r.stoch != null,
+  ];
+  const byTicker = new Map<string, IndicatorResult>();
+  dimensions.forEach((cmp, i) => {
+    [...all].filter(needsField[i]).sort(cmp).slice(0, 10).forEach(r => byTicker.set(r.ticker, r));
+  });
+  return [...byTicker.values()];
 }
 
 /** Top-10-per-dimension derivation from cached daily indicators (see task doc A7). */
-export async function deriveHotList(): Promise<HotlistEntry[]> {
+export async function deriveHotList(side: HotlistSide = "dip"): Promise<HotlistEntry[]> {
   const all = await getAllCachedIndicators();
   if (all.length === 0) return [];
-
-  const byTicker = new Map<string, IndicatorResult>();
-
-  const byRsi = [...all].sort((a, b) => a.rsi - b.rsi);
-  byRsi.slice(0, 10).forEach(r => byTicker.set(r.ticker, r));
-
-  const byIv = [...all].sort((a, b) => b.ivCurrent - a.ivCurrent);
-  byIv.slice(0, 10).forEach(r => byTicker.set(r.ticker, r));
-
-  const byDrop = [...all]
-    .filter(r => r.return5d != null)
-    .sort((a, b) => (a.return5d ?? 0) - (b.return5d ?? 0));
-  byDrop.slice(0, 10).forEach(r => byTicker.set(r.ticker, r));
-
-  const byStoch = [...all]
-    .filter(r => r.stoch != null)
-    .sort((a, b) => (a.stoch ?? 100) - (b.stoch ?? 100));
-  byStoch.slice(0, 10).forEach(r => byTicker.set(r.ticker, r));
-
-  return [...byTicker.values()].slice(0, HOT_LIST_CAP).map(toEntry);
+  return unionTopDimensions(all, side).slice(0, PER_SIDE_CAP).map(r => toEntry(r, side));
 }
 
 /**
@@ -64,7 +90,8 @@ export async function deriveHotList(): Promise<HotlistEntry[]> {
  */
 export class LiveHotlistManager extends EventEmitter {
   private current = new Set<string>();
-  private entries: HotlistEntry[] = [];
+  private dipEntries: HotlistEntry[] = [];
+  private rallyEntries: HotlistEntry[] = [];
   private pinned = new Set<string>();
   private unpinned = new Set<string>();
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -76,7 +103,11 @@ export class LiveHotlistManager extends EventEmitter {
 
   /** Enriched rows (price/RSI/IV/etc) for tickers currently on the hot list — excludes market context symbols, which have no daily indicator row. */
   getCurrentEntries(): HotlistEntry[] {
-    return this.entries;
+    return this.dipEntries;
+  }
+
+  getEntries(side: HotlistSide): HotlistEntry[] {
+    return side === "rally" ? this.rallyEntries : this.dipEntries;
   }
 
   getLastRefreshedAt(): number | null {
@@ -96,9 +127,11 @@ export class LiveHotlistManager extends EventEmitter {
   }
 
   async refresh(): Promise<void> {
-    const derived = await deriveHotList();
-    const filtered = derived.filter(e => !this.unpinned.has(e.ticker));
-    const next = new Set(filtered.map(e => e.ticker));
+    // Both sides come from the same in-memory indicator scan — one refresh, two lists.
+    const [dip, rally] = await Promise.all([deriveHotList("dip"), deriveHotList("rally")]);
+    const dipFiltered = dip.filter(e => !this.unpinned.has(e.ticker));
+    const rallyFiltered = rally.filter(e => !this.unpinned.has(e.ticker));
+    const next = new Set([...dipFiltered, ...rallyFiltered].map(e => e.ticker));
     for (const t of this.pinned) next.add(t);
     for (const t of MARKET_CONTEXT_SYMBOLS) next.add(t);
 
@@ -106,7 +139,8 @@ export class LiveHotlistManager extends EventEmitter {
     const removed = [...this.current].filter(t => !next.has(t));
 
     this.lastRefreshedAt = Date.now();
-    this.entries = filtered;
+    this.dipEntries = dipFiltered;
+    this.rallyEntries = rallyFiltered;
     if (added.length === 0 && removed.length === 0) return;
 
     this.current = next;

@@ -1206,9 +1206,14 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     return ivs;
   }, [optionsMap]);
 
-  // Best option score per ticker (drives optionScore sort + stockScoreMap)
-  const bestOptionScoreMap = useMemo(() => {
-    const m = new Map<string, number>();
+  // Best option per ticker (drives optionScore/Income%/Buffer sort + column display).
+  // All three columns must come off the SAME picked strike from pickBestStrike —
+  // previously Income%/Buffer independently re-scanned every strike for its own max,
+  // which could land on a different strike/expiry than the one actually scored.
+  const { bestOptionScoreMap, bestIncomeMap, bufferMap } = useMemo(() => {
+    const scoreMap = new Map<string, number>();
+    const incomeMap = new Map<string, number>();
+    const bufMap = new Map<string, number>();
     for (const ticker of displayTickers) {
       const chains = optionsMap.get(ticker);
       const techRow = techRowMap.get(ticker);
@@ -1233,52 +1238,18 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
         isCallMode ? CALL_STRIKE_WEIGHTS : weights.optionStrike, isCallMode,
       );
-      if (picked) m.set(ticker, picked.result.optionScore);
+      if (!picked) continue;
+      scoreMap.set(ticker, picked.result.optionScore);
+      incomeMap.set(ticker, picked.result.weeklyIncome);
+      const spot = picked.chain.spot ?? 0;
+      const exactDte = picked.chain.exactDte ?? Math.max(1, picked.chain.daysToExpiry);
+      if (spot > 0 && picked.put.iv > 0 && exactDte > 0) {
+        const otm = isCallMode ? (picked.put.strike - spot) / spot : (spot - picked.put.strike) / spot;
+        bufMap.set(ticker, otm / (picked.put.iv * Math.sqrt(exactDte / 365)));
+      }
     }
-    return m;
+    return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
   }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike, isCallMode]);
-
-  // Best weekly income % per ticker (drives "Income%" sort + column display)
-  const bestIncomeMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const ticker of displayTickers) {
-      const chains = optionsMap.get(ticker);
-      if (!chains) continue;
-      let best = -1;
-      for (const c of chains) {
-        const settlementDte = Math.max(0.01, c.settlementDte ?? c.exactDte ?? c.daysToExpiry);
-        for (const p of (isCallMode ? c.calls : c.puts)) {
-          const wi = p.incomePct / (settlementDte / 7);
-          if (wi > best) best = wi;
-        }
-      }
-      if (best >= 0) m.set(ticker, best);
-    }
-    return m;
-  }, [displayTickers, optionsMap, isCallMode]);
-
-  // Best buffer (SDs OTM) per ticker (drives "Buffer" sort + column display)
-  const bufferMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const ticker of displayTickers) {
-      const chains = optionsMap.get(ticker);
-      if (!chains) continue;
-      const spot = chains[0]?.spot ?? 0;
-      if (!spot) continue;
-      let best = -1;
-      for (const c of chains) {
-        const exactDte = c.exactDte ?? Math.max(1, c.daysToExpiry);
-        for (const p of (isCallMode ? c.calls : c.puts)) {
-          if (p.iv <= 0 || exactDte <= 0) continue;
-          const otm = isCallMode ? (p.strike - spot) / spot : (spot - p.strike) / spot;
-          const sds = otm / (p.iv * Math.sqrt(exactDte / 365));
-          if (sds > best) best = sds;
-        }
-      }
-      if (best >= 0) m.set(ticker, best);
-    }
-    return m;
-  }, [displayTickers, optionsMap, isCallMode]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
