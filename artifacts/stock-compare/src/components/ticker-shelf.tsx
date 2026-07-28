@@ -147,9 +147,9 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
 
       {!isAtLimit && (
         <div className="relative w-48">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 z-10" />
           {isFetching && debouncedSearch.length >= 2 && (
-            <Loader2 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin z-10" />
+            <Loader2 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 animate-spin z-10" />
           )}
           <input
             ref={inputRef}
@@ -165,9 +165,9 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
             onKeyDown={handleKeyDown}
             placeholder="Add ticker, AAPL, MSFT…"
             className={cn(
-              "w-full h-8 pl-8 pr-8 text-sm font-mono uppercase rounded-full border border-border bg-card",
-              "text-foreground placeholder:text-muted-foreground/50",
-              "focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+              "w-full h-8 pl-8 pr-8 text-sm font-mono uppercase rounded-full border border-white/20 bg-white",
+              "text-black placeholder:text-gray-500",
+              "focus:outline-none focus:ring-2 focus:ring-primary",
               "transition-colors"
             )}
           />

@@ -1,5 +1,90 @@
 [
   {
+    "date": "7/28/2026",
+    "marketData": [
+      {
+        "symbol": "^VIX",
+        "label": "VIX",
+        "price": 18.67,
+        "change": 0.09000015,
+        "changePct": 0.48439264
+      },
+      {
+        "symbol": "SPY",
+        "label": "SPY",
+        "price": 739.09,
+        "change": 0.160034,
+        "changePct": 0.0216576
+      },
+      {
+        "symbol": "QQQ",
+        "label": "QQQ",
+        "price": 682.12,
+        "change": -2.10999,
+        "changePct": -0.308374
+      },
+      {
+        "symbol": "^TNX",
+        "label": "10Y Yield",
+        "price": 4.641,
+        "change": -0.038000107,
+        "changePct": -0.81214166
+      },
+      {
+        "symbol": "ES=F",
+        "label": "S&P Fut.",
+        "price": 7439.25,
+        "change": -9,
+        "changePct": -0.120833755
+      },
+      {
+        "symbol": "NQ=F",
+        "label": "NQ Fut.",
+        "price": 28092.75,
+        "change": -97.25,
+        "changePct": -0.34498048
+      },
+      {
+        "symbol": "GLD",
+        "label": "Gold",
+        "price": 374.63,
+        "change": 2.73001,
+        "changePct": 0.734071
+      },
+      {
+        "symbol": "UUP",
+        "label": "Dollar",
+        "price": 28.6,
+        "change": 0.0200005,
+        "changePct": 0.0699806
+      },
+      {
+        "symbol": "TLT",
+        "label": "Long Bond",
+        "price": 83.75,
+        "change": 0.5,
+        "changePct": 0.600601
+      }
+    ],
+    "content": "# Daily Portfolio Briefing | 7/28/2026\n\n## 🌍 Macro Environment\n\n- **Rates Easing Signal**: 10Y yield dropped 81bp to 4.64%, suggesting a dovish shift. For a cash-secured put seller, this *lowers* implied volatility tailwinds—expect tighter premiums on new positions. Monitor whether this is a temporary pullback or sustained fed-pivot narrative.\n- **VIX Holding Steady**: At 18.67 (+0.48%), volatility remains benign and well below the 20+ threshold where put premiums become truly attractive. This is a *seller's disadvantage*—you're collecting thin premium in a calm market.\n- **Tech Showing Cracks**: QQQ -0.31% while SPY flat (+0.02%) signals rotation *away* from your growth/tech core. With 10Y yields falling, mega-cap tech should rally, but it's not. This is a caution flag for opening new put positions at current levels.\n\n## 📊 Market Pulse\n\n- **Tech Underperformance is the Story**: NQ futures -0.34%, QQQ -0.31%, yet SPY nearly flat. Apple overtaking Nvidia as world's most valuable is a subtle but important sector shift. Your portfolio is *overweight* the underperforming side.\n- **Yield-Driven Rally Paradox**: Lower rates typically lift equities, yet tech is lagging. This suggests the market is *repricing growth expectations downward*, not celebrating cheaper capital. Risk-off undertones despite calm VIX—a dangerous mismatch for new short puts.\n- **Futures Soft**: S&P 500 futures -0.12%, NQ futures -0.34%—both slightly red despite the yield drop. Market breadth weakness. *Do not be fooled by VIX calm*—this is not a risk-on environment for aggressive put selling.\n\n## 🏭 Sector & Stock Catalysts\n\n- **PLTR at Inflection**: Oppenheimer flagging Q2 revenue beat + raised guidance coming. PLTR is one of your most liquid tech bets; this is a *positive catalyst ahead*. If earnings meet expectations mid-August, it could pop through resistance. **Watch**: Earnings date; consider selling puts after pop, not before.\n- **RKLB Inflection Play**: Just secured largest US Space Force contract. Stock climbing premarket. This is *differentiated from commercial launches*—meaningful revenue/margin catalyst. Much lower float than your mega-cap tech; premium for puts is sharper here. **Candidate for new puts** if you want to build at strength.\n- **NVDA Rotation Risk**: Apple overtaking it, rates falling (hurts AI capex case), yet NVDA still drawing analyst attention. Your NVDY position (the 1.09% fee ETF) is a *drag*—consider exiting that for direct NVDA exposure if you're bullish, or reducing tech weight if not. News cycle is skeptical.\n- **HOOD Earnings + Prediction Markets**: Q2 earnings imminent; management flagging pivot into prediction markets (regulatory wildcard). Volatile micro-cap play; premiums should be *crisp* here. Lower conviction, but decent theta candidate if you're willing to manage assignment risk.\n- **ONDS Acquisition Chatter**: Headline mentions \"potential acquirers\"—defense-tech specialist. Low-float micro-cap; M&A speculation can create binary risk. **Avoid new puts**; assignment risk is asymmetric if deal talks heat up.\n\n## ⚠️ Risks This Week\n\n- **Earnings Landmine**: PLTR, HOOD, and others approach earnings (late July/early August). Implied volatility will *spike post-earnings*, crushing your theta advantage if you're short puts into them. Expiration dates matter—roll or close short puts *before* earnings, not after.\n- **Yield Reversal**: If 10Y bounces back above 4.70% (historically likely in a \"soft landing\" narrative), tech will re-accelerate and your short puts will be tested. The -81bp move is a gift, not a trend. Position sizing accordingly.\n\n## 💼 Portfolio Implications\n\n- **VIX Too Low to Chase Premiums**: At 18.67, you're collecting 0.80–1.20% weekly on short puts (rough math). That's *below your hurdle rate* for cap allocation. **Recommendation**: Hold existing positions, do *not* open new bulk positions today. Wait for a 20–22 VIX spike (likely on earnings volatility) to reload. Patience wins here.\n\n- **Tactically: RKLB and HOOD Over NVDA/ONDS**: RKLB has positive momentum + catalyst; HOOD has upcoming earnings volatility as a IV lift event. Both offer better risk/reward for new puts than mega-cap NVDA (rotation headwinds) or ONDS (M&A binary). If you open 1–2 new positions today, these are it. Avoid ONDS entirely until chatter cools.\n\n- **Portfolio Rebalancing Signal**: Your IRA/FILDI/MOM are",
+    "generatedAt": "2026-07-28T00:36:11.628Z",
+    "tickers": [
+      "HOOY",
+      "OPEN",
+      "POET",
+      "REBN",
+      "RUM",
+      "RDW",
+      "NVDY",
+      "HOOD",
+      "PLTR",
+      "ONDS",
+      "NVDA",
+      "RKLB"
+    ],
+    "fromCache": false
+  },
+  {
     "date": "7/14/2026",
     "marketData": [
       {

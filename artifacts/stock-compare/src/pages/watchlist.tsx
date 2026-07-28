@@ -213,9 +213,9 @@ function WatchlistView() {
         {/* Search Header */}
         <div className="p-4 border-b border-border/40">
           <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 z-10" />
               {isSearching && debouncedSearch.length >= 2 && (
-                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin z-10" />
+                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 animate-spin z-10" />
               )}
               <input
                 ref={inputRef}
@@ -227,7 +227,7 @@ function WatchlistView() {
                 onBlur={handleSearchBlur}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search to add..."
-                className="w-full h-9 pl-9 pr-8 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
+                className="w-full h-9 pl-9 pr-8 text-sm bg-white border border-white/20 rounded-md text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
               />
 
               {open && debouncedSearch.length >= 2 && (

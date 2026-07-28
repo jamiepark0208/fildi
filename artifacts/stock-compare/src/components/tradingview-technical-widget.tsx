@@ -24,7 +24,7 @@ interface TradingViewTechnicalWidgetProps {
  * no client-side indicator computation, so it's cheap even with several stock breakdowns
  * open in a session — the script is only injected once the container scrolls into view.
  */
-export function TradingViewTechnicalWidget({ ticker, exchange, height = 425 }: TradingViewTechnicalWidgetProps) {
+export function TradingViewTechnicalWidget({ ticker, exchange, height = 220 }: TradingViewTechnicalWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -58,7 +58,7 @@ export function TradingViewTechnicalWidget({ ticker, exchange, height = 425 }: T
       isTransparent: true,
       height,
       symbol: toTradingViewSymbol(ticker, exchange),
-      showIntervalTabs: true,
+      showIntervalTabs: false,
       displayMode: "single",
       locale: "en",
       colorTheme: "dark",

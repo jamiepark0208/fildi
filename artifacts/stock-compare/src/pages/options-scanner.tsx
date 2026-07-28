@@ -11,7 +11,7 @@ import {
   type IndicatorResult,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles, TrendingUp, ListFilter } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles, TrendingUp, ListFilter, Search } from "lucide-react";
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
@@ -867,6 +867,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [sort,          setSort]          = useState<SortKey>("income");
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
+  const [tickerQuery,   setTickerQuery]   = useState("");
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
   const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(() => {
     try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
@@ -1165,6 +1166,11 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     return list;
   }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap]);
 
+  const filteredTickers = useMemo(() => {
+    const q = tickerQuery.trim().toLowerCase();
+    return q ? sortedTickers.filter(t => t.toLowerCase().includes(q)) : sortedTickers;
+  }, [sortedTickers, tickerQuery]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
@@ -1227,6 +1233,26 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     </div>
   );
 
+  const tickerFilterBar = (
+    <div className="relative">
+      <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
+      <input
+        type="text"
+        value={tickerQuery}
+        onChange={e => setTickerQuery(e.target.value)}
+        placeholder="Filter ticker..."
+        className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+      />
+    </div>
+  );
+
+  const controlsRow = (
+    <div className="flex items-center gap-2">
+      {filterBar}
+      {tickerFilterBar}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
         {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
@@ -1234,10 +1260,10 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         {/* Controls — hidden here and portaled into the tab bar when filterSlot is present */}
         {!filterSlot && (
           <div className="flex items-center gap-2 flex-wrap">
-            {filterBar}
+            {controlsRow}
           </div>
         )}
-        {filterSlot && createPortal(filterBar, filterSlot)}
+        {filterSlot && createPortal(controlsRow, filterSlot)}
 
         {/* Scanner table */}
         {scorecardLoading || !isLoaded ? (
@@ -1245,7 +1271,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading scorecard…
           </div>
-        ) : sortedTickers.length === 0 ? (
+        ) : filteredTickers.length === 0 ? (
           <div className="text-sm text-white py-8 text-center">
             No tickers match current filters.
           </div>
@@ -1277,7 +1303,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 </button>
               )}
             </div>
-            {sortedTickers.map(ticker => (
+            {filteredTickers.map(ticker => (
               <ScannerRow
                 key={ticker}
                 ticker={ticker}

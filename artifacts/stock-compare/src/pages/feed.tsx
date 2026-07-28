@@ -300,10 +300,10 @@ export default function Feed() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search ticker or @username"
-                  className="w-full bg-secondary border border-border rounded-full px-3.5 py-1.5 text-sm text-foreground pr-8 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-white border border-white/20 rounded-full px-3.5 py-1.5 text-sm text-black placeholder:text-gray-500 pr-8 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}

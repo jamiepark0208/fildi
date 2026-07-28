@@ -80,13 +80,13 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
           <span className="text-xs text-muted-foreground">({scores.length})</span>
         </div>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-border bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
       </div>

@@ -184,7 +184,7 @@ function MoversStrip({ movers }: { movers: WatchlistMover[] }) {
 export function MacroHighlightsPanel() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const { data, isLoading } = useQuery<HighlightsResponse>({
     queryKey: ["macro-highlights"],

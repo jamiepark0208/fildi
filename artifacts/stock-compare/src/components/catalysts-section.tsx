@@ -10,18 +10,13 @@ export function CatalystsSection({ catalysts }: CatalystsSectionProps) {
   const rest = lines.filter(l => l !== earningsLine);
 
   if (!lines.length) {
-    return (
-      <div className="bg-card border border-border/50 rounded-xl p-4">
-        <span className="text-base font-bold tracking-tight text-foreground block">Event Risk / Catalysts</span>
-        <p className="text-sm text-foreground mt-2">No upcoming catalysts identified.</p>
-      </div>
-    );
+    return <p className="text-sm text-foreground">No upcoming catalysts identified.</p>;
   }
 
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
+    <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-base font-bold tracking-tight text-foreground">Event Risk / Catalysts</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Upcoming</span>
         {earningsLine && (
           <span className="text-xs font-semibold px-2 py-0.5 rounded border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 whitespace-nowrap">
             {earningsLine}

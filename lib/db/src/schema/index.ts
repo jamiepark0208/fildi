@@ -1047,6 +1047,28 @@ export const insertEdgarFundamentalsSchema = createInsertSchema(edgarFundamental
 export type InsertEdgarFundamentals = z.infer<typeof insertEdgarFundamentalsSchema>
 export type EdgarFundamentalsRow = typeof edgarFundamentals.$inferSelect
 
+// ── edgar_statement_history ─────────────────────────────────────────────────────
+// Multi-year (up to 5 annual 10-K/FY) SEC XBRL line items per ticker, for the
+// Accounting Statements UI tab. Distinct from edgar_fundamentals above, which only
+// keeps the single latest value per concept for triangulation scoring.
+// Written by: edgar-client.ts fetchEdgarStatementHistory() → routes/edgar-statements.ts
+
+export const edgarStatementHistory = pgTable('edgar_statement_history', {
+  ticker:        text('ticker').notNull(),
+  fiscalYear:    integer('fiscal_year').notNull(),
+  statementType: text('statement_type').notNull(), // 'income' | 'balance' | 'cashflow'
+  lineItem:      text('line_item').notNull(),
+  value:         numeric('value').notNull(),
+  filedDate:     date('filed_date').notNull(),
+  fetchedAt:     timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  pk: primaryKey({ columns: [t.ticker, t.fiscalYear, t.statementType, t.lineItem] }),
+}))
+
+export const insertEdgarStatementHistorySchema = createInsertSchema(edgarStatementHistory).omit({ fetchedAt: true })
+export type InsertEdgarStatementHistory = z.infer<typeof insertEdgarStatementHistorySchema>
+export type EdgarStatementHistoryRow = typeof edgarStatementHistory.$inferSelect
+
 // ── finnhub_fundamentals ──────────────────────────────────────────────────────
 // Raw Finnhub /stock/metric?metric=all data per ticker. One row per ticker.
 // Staging/audit table only — ticker_fundamentals is the scorer's source.

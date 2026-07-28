@@ -1069,16 +1069,16 @@ export function StockDBTab() {
       {/* Ticker filter + legend */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
           <input
             type="text"
             value={tickerFilter}
             onChange={e => setTickerFilter(e.target.value)}
             placeholder="Filter tickers…"
-            className="pl-6 pr-3 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring w-44"
+            className="pl-6 pr-3 py-1 text-xs bg-white border border-white/20 text-black placeholder:text-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-primary w-44"
           />
           {tickerFilter && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
               {visibleRows}/{data.length}
             </span>
           )}

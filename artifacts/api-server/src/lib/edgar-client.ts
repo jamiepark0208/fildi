@@ -200,6 +200,100 @@ export async function fetchEdgarFundamentals(
   return result;
 }
 
+// ── Multi-year statement history (for the Accounting Statements UI tab) ────────
+// fetchEdgarFundamentals() above only keeps the single latest annual value per
+// concept (for triangulation scoring). This keeps the last ~5 annual (10-K, FY)
+// values per line item so the UI can show trends, not just a snapshot.
+
+export type EdgarStatementType = "income" | "balance" | "cashflow";
+
+export interface EdgarStatementRow {
+  statementType: EdgarStatementType;
+  lineItem: string;
+  fiscalYear: number;
+  value: number;
+  filedDate: string;
+}
+
+type XbrlAnnualFact = { form?: string; fp?: string; fy?: number; val?: number; filed?: string };
+
+// Tries each tag in order and uses the first one with data — filers don't all use the
+// same XBRL concept for the same line item (e.g. Revenues vs
+// RevenueFromContractWithCustomerExcludingAssessedTax).
+const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementType; tags: string[] }> = {
+  revenue:            { statementType: "income", tags: ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"] },
+  costOfRevenue:       { statementType: "income", tags: ["CostOfRevenue", "CostOfGoodsAndServicesSold"] },
+  grossProfit:         { statementType: "income", tags: ["GrossProfit"] },
+  operatingIncome:     { statementType: "income", tags: ["OperatingIncomeLoss"] },
+  netIncome:           { statementType: "income", tags: ["NetIncomeLoss"] },
+  epsDiluted:          { statementType: "income", tags: ["EarningsPerShareDiluted"] },
+
+  totalAssets:         { statementType: "balance", tags: ["Assets"] },
+  currentAssets:       { statementType: "balance", tags: ["AssetsCurrent"] },
+  totalLiabilities:    { statementType: "balance", tags: ["Liabilities"] },
+  currentLiabilities:  { statementType: "balance", tags: ["LiabilitiesCurrent"] },
+  stockholdersEquity:  { statementType: "balance", tags: ["StockholdersEquity"] },
+  longTermDebt:        { statementType: "balance", tags: ["LongTermDebtNoncurrent", "LongTermDebt"] },
+  cashAndEquivalents:  { statementType: "balance", tags: ["CashAndCashEquivalentsAtCarryingValue"] },
+
+  operatingCashFlow:   { statementType: "cashflow", tags: ["NetCashProvidedByUsedInOperatingActivities"] },
+  investingCashFlow:   { statementType: "cashflow", tags: ["NetCashProvidedByUsedInInvestingActivities"] },
+  financingCashFlow:   { statementType: "cashflow", tags: ["NetCashProvidedByUsedInFinancingActivities"] },
+  capex:               { statementType: "cashflow", tags: ["PaymentsToAcquirePropertyPlantAndEquipment"] },
+};
+
+/**
+ * Fetches SEC XBRL companyfacts for `ticker` and extracts up to 5 years of annual
+ * (10-K, FY) values per line item, deduping restated years by keeping the most
+ * recently filed value. Returns null if there's no CIK on file or the fetch fails.
+ * Requires getCIK(ticker) to already be populated (bootstrapCikCache / backfill-edgar).
+ */
+export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarStatementRow[] | null> {
+  const t = ticker.toUpperCase();
+  const cik = await getCIK(t);
+  if (!cik) return null;
+
+  let facts: any;
+  try {
+    facts = await fetchWithRetry(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
+  } catch (err: any) {
+    logApiCall({ source: "edgar", fn: "fetchEdgarStatementHistory", trigger: "accounting-statements route", ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "multi-year us-gaap XBRL statements" });
+    throw err;
+  }
+  if (!facts?.facts?.["us-gaap"]) return null;
+
+  const gaap: Record<string, { units?: { USD?: XbrlAnnualFact[] } }> = facts.facts["us-gaap"];
+  const rows: EdgarStatementRow[] = [];
+
+  for (const [lineItem, def] of Object.entries(STATEMENT_LINE_ITEM_TAGS)) {
+    let units: XbrlAnnualFact[] | null = null;
+    for (const tag of def.tags) {
+      const usd = gaap[tag]?.units?.USD;
+      if (Array.isArray(usd) && usd.length > 0) { units = usd; break; }
+    }
+    if (!units) continue;
+
+    const byYear = new Map<number, { value: number; filedDate: string }>();
+    for (const fact of units) {
+      if (fact.form !== "10-K" || fact.fp !== "FY" || typeof fact.val !== "number" || !fact.fy || !fact.filed) continue;
+      const existing = byYear.get(fact.fy);
+      if (!existing || fact.filed > existing.filedDate) {
+        byYear.set(fact.fy, { value: fact.val, filedDate: fact.filed });
+      }
+    }
+
+    const years = [...byYear.keys()].sort((a, b) => b - a).slice(0, 5);
+    for (const fy of years) {
+      const entry = byYear.get(fy)!;
+      rows.push({ statementType: def.statementType, lineItem, fiscalYear: fy, value: entry.value, filedDate: entry.filedDate });
+    }
+  }
+
+  const fieldsReturned = rows.length;
+  logApiCall({ source: "edgar", fn: "fetchEdgarStatementHistory", trigger: "accounting-statements route", ticker: t, outcome: "success", fieldsReturned });
+  return rows;
+}
+
 // ── Self-test block ───────────────────────────────────────────────────────────
 // Run: npx tsx artifacts/api-server/src/lib/edgar-client.ts NVDA
 if (process.argv[1]?.endsWith("edgar-client.ts") || process.argv[1]?.endsWith("edgar-client.js")) {

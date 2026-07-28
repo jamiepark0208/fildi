@@ -115,10 +115,8 @@ export function CompetitorsSection({ ticker }: CompetitorsSectionProps) {
   const subtitle = data?.groupName ?? [data?.industry, data?.sector].filter(Boolean).join(" · ");
 
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
-      <span className="text-base font-bold tracking-tight text-foreground block">Competitors</span>
-      {subtitle && <p className="text-xs text-foreground mt-0.5 mb-3">{subtitle}</p>}
-      {!subtitle && <div className="mb-3" />}
+    <div>
+      {subtitle && <p className="text-xs text-foreground mb-3">{subtitle}</p>}
 
       {isLoading ? (
         <p className="text-sm text-foreground">Loading…</p>

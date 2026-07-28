@@ -10,8 +10,10 @@ import { CompetitorsSection } from "./competitors-section";
 import { CatalystsSection } from "./catalysts-section";
 import { AnalystRatingsSection, type Recommendations, type AnalystAction, type AnalystPriceTarget, type PriceTargetRange } from "./analyst-ratings-section";
 import { MarketSentimentSection } from "./market-sentiment-section";
+import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
 import { BreakdownMetricsTable } from "./breakdown-metrics-table";
+import { TabBar, type TabBarItem } from "./ui/tab-bar";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
@@ -88,7 +90,8 @@ function overviewBullets(description: string, companyName: string | null | undef
 // than a wall of grey text. Clicking a tag opens a popup listing other watchlist
 // tickers sharing that same value.
 
-type TagType = "exchange" | "sector" | "industry" | "stockType";
+type ClassificationTagType = "exchange" | "sector" | "industry" | "stockType";
+type TagType = ClassificationTagType | "beta" | "fairValue" | "marketCap";
 
 interface WatchlistTagEntry {
   companyName?: string | null;
@@ -103,6 +106,9 @@ const TAG_STYLES: Record<TagType, string> = {
   sector:    "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
   industry:  "border-teal-500/30 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20",
   stockType: "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
+  beta:      "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
+  fairValue: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
+  marketCap: "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20",
 };
 
 function TagBadge({
@@ -158,6 +164,8 @@ function TagBadge({
   );
 }
 
+type BreakdownTab = "technical" | "analyst" | "sentiment" | "catalysts" | "peers" | "news" | "accounting";
+
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
     score >= 4 ? "text-green-400" : score >= 3 ? "text-yellow-400" : score >= 2 ? "text-orange-400" : "text-red-400";
@@ -177,7 +185,8 @@ export function StockBreakdown({
   const [, navigate] = useLocation();
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
-  const [chartPeriod, setChartPeriod] = useState<Period>("3M");
+  const [chartPeriod, setChartPeriod] = useState<Period>("1W");
+  const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>("analyst");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,7 +196,8 @@ export function StockBreakdown({
     if (propTicker) {
       setActiveTicker(propTicker);
       setInputText(propTicker);
-      setChartPeriod("3M");
+      setChartPeriod("1W");
+      setBreakdownTab("analyst");
     }
   }, [propTicker]);
 
@@ -209,7 +219,7 @@ export function StockBreakdown({
 
   const { data, isLoading, error } = useBreakdown(activeTicker);
 
-  const tagMatchesFor = useCallback((type: TagType, value: string) => {
+  const tagMatchesFor = useCallback((type: ClassificationTagType, value: string) => {
     if (!watchlistMetrics) return undefined;
     return Object.entries(watchlistMetrics)
       .filter(([, m]) => m?.[type] === value)
@@ -224,7 +234,8 @@ export function StockBreakdown({
     setInputText(upper);
     setDropdownOpen(false);
     setFocusedIdx(-1);
-    setChartPeriod("3M");
+    setChartPeriod("1W");
+    setBreakdownTab("analyst");
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,11 +279,11 @@ export function StockBreakdown({
     <div className="h-full flex flex-col overflow-hidden">
       {/* Search header — hidden when ticker is driven by parent (e.g. watchlist) */}
       {!propTicker && <div className="shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-6 py-3 z-10">
-        <div className="max-w-3xl mx-auto flex gap-2">
+        <div className="max-w-5xl mx-auto flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none z-10" />
             {isSearching && debouncedQuery.length >= 1 && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin z-10" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 animate-spin z-10" />
             )}
             <input
               type="text"
@@ -284,7 +295,7 @@ export function StockBreakdown({
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               placeholder="Enter ticker (e.g. AAPL, TSLA, MSFT)…"
-              className="w-full h-10 pl-9 pr-9 text-sm font-mono bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
+              className="w-full h-10 pl-9 pr-9 text-sm font-mono bg-white border border-white/20 text-black placeholder:text-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
             {dropdownOpen && suggestions.length > 0 && (
               <ul className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-52 overflow-y-auto">
@@ -347,7 +358,7 @@ export function StockBreakdown({
 
         {/* Error */}
         {error && (
-          <div className="max-w-3xl mx-auto px-6 pt-8">
+          <div className="max-w-5xl mx-auto px-6 pt-8">
             <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-4">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="text-sm">{error.message}</span>
@@ -357,10 +368,10 @@ export function StockBreakdown({
 
         {/* Main content */}
         {m && !isLoading && (
-          <div className="max-w-3xl mx-auto px-6 py-6 space-y-5 pb-12">
+          <div className="max-w-5xl mx-auto px-6 py-6 space-y-4 pb-12">
             {/* ── Header ── */}
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -388,79 +399,75 @@ export function StockBreakdown({
                     {m.companyName}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                  {m.exchange && (
-                    <TagBadge type="exchange" value={m.exchange} matches={tagMatchesFor("exchange", m.exchange)} onSelectTicker={commitTicker} />
-                  )}
-                  {m.sector && (
-                    <TagBadge type="sector" value={m.sector} matches={tagMatchesFor("sector", m.sector)} onSelectTicker={commitTicker} />
-                  )}
-                  {m.industry && (
-                    <TagBadge type="industry" value={m.industry} matches={tagMatchesFor("industry", m.industry)} onSelectTicker={commitTicker} />
-                  )}
-                  {m.stockType && (
-                    <TagBadge type="stockType" value={m.stockType} matches={tagMatchesFor("stockType", m.stockType)} onSelectTicker={commitTicker} />
-                  )}
-                  {m.beta != null && (
-                    <>
-                      <span className="text-[10px] text-foreground">·</span>
-                      <span className="text-[10px] text-foreground">Beta {formatNumber(m.beta)}</span>
-                    </>
-                  )}
-                  {m.fairValueEstimate != null && (
-                    <>
-                      <span className="text-[10px] text-foreground">·</span>
-                      <span className="text-[10px] text-foreground">Fair Value {formatCurrency(m.fairValueEstimate)}</span>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => { addToScannerShelf(m.ticker); navigate("/options-scanner"); }}
-                    className="flex items-center gap-1 text-[11px] font-medium text-white bg-green-600 hover:bg-green-500 rounded-md px-2.5 py-1 transition-colors"
-                  >
-                    <LineChart className="w-3 h-3" /> Open in Options Scanner
-                  </button>
-                </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => { addToScannerShelf(m.ticker); navigate("/options-scanner"); }}
+                className="flex items-center gap-1 text-[11px] font-medium text-white bg-green-600 hover:bg-green-500 rounded-md px-2.5 py-1 transition-colors shrink-0"
+              >
+                <LineChart className="w-3 h-3" /> Open Options
+              </button>
+
               <div className="text-right shrink-0">
-                <div className="text-3xl font-bold font-mono tracking-tight">
-                  {m.currentPrice != null ? `$${m.currentPrice.toFixed(2)}` : "—"}
-                </div>
-                <div
-                  className={cn(
-                    "flex items-center justify-end gap-1 text-sm font-mono font-semibold mt-0.5",
-                    dayUp ? "text-green-400" : "text-red-400",
-                  )}
-                >
-                  {dayUp ? (
-                    <TrendingUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5" />
-                  )}
-                  {dayUp ? "+" : ""}
-                  {m.dayChange?.toFixed(2)} ({dayUp ? "+" : ""}
-                  {((m.dayChangePercent ?? 0) * 100).toFixed(2)}%)
-                </div>
-                <div className="text-[11px] text-foreground mt-0.5">
-                  Mkt Cap: {formatLargeNumber(m.marketCap)}
+                <div className="flex items-baseline justify-end gap-2">
+                  <span className="text-2xl font-bold font-mono tracking-tight">
+                    {m.currentPrice != null ? `$${m.currentPrice.toFixed(2)}` : "—"}
+                  </span>
+                  <span
+                    className={cn(
+                      "flex items-center gap-1 text-sm font-mono font-semibold",
+                      dayUp ? "text-green-400" : "text-red-400",
+                    )}
+                  >
+                    {dayUp ? (
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <TrendingDown className="w-3.5 h-3.5" />
+                    )}
+                    {dayUp ? "+" : ""}
+                    {m.dayChange?.toFixed(2)} ({dayUp ? "+" : ""}
+                    {((m.dayChangePercent ?? 0) * 100).toFixed(2)}%)
+                  </span>
                 </div>
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              {m.exchange && (
+                <TagBadge type="exchange" value={m.exchange} matches={tagMatchesFor("exchange", m.exchange)} onSelectTicker={commitTicker} />
+              )}
+              {m.sector && (
+                <TagBadge type="sector" value={m.sector} matches={tagMatchesFor("sector", m.sector)} onSelectTicker={commitTicker} />
+              )}
+              {m.industry && (
+                <TagBadge type="industry" value={m.industry} matches={tagMatchesFor("industry", m.industry)} onSelectTicker={commitTicker} />
+              )}
+              {m.stockType && (
+                <TagBadge type="stockType" value={m.stockType} matches={tagMatchesFor("stockType", m.stockType)} onSelectTicker={commitTicker} />
+              )}
+              {m.beta != null && (
+                <TagBadge type="beta" value={`Beta ${formatNumber(m.beta)}`} />
+              )}
+              {m.fairValueEstimate != null && (
+                <TagBadge type="fairValue" value={`Fair Value ${formatCurrency(m.fairValueEstimate)}`} />
+              )}
+              {m.marketCap != null && (
+                <TagBadge type="marketCap" value={`Mkt Cap ${formatLargeNumber(m.marketCap)}`} />
+              )}
+            </div>
+
             {/* ── Top reward / risk summary ── */}
             {(data.bullBullets?.[0] || data.bearBullets?.[0]) && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 mt-0.5">
                 {data.bullBullets?.[0] && (
-                  <div className="flex gap-1.5 text-[12px] text-foreground leading-snug border-l-2 border-green-500/50 pl-2.5 py-0.5">
+                  <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-green-500/50 pl-2.5 py-1">
                     <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
                     {data.bullBullets[0]}
                   </div>
                 )}
                 {data.bearBullets?.[0] && (
-                  <div className="flex gap-1.5 text-[12px] text-foreground leading-snug border-l-2 border-red-500/50 pl-2.5 py-0.5">
+                  <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-red-500/50 pl-2.5 py-1">
                     <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
                     {data.bearBullets[0]}
                   </div>
@@ -546,51 +553,61 @@ export function StockBreakdown({
               />
             </div>
 
-            {/* ── TradingView Technical Analysis (lazy-loaded, single embedded iframe) ── */}
-            <div>
-              <span className="text-base font-bold tracking-tight text-foreground block mb-2">Technical Analysis</span>
-              <TradingViewTechnicalWidget ticker={m.ticker} exchange={m.exchange} />
-            </div>
+            {/* ── Below-chart detail tabs: Technical / Analyst / Sentiment / Catalysts / Peers / News ── */}
+            {(() => {
+              const hasSentiment = data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || !!data.recommendations;
+              const hasPeers = !!propTicker && !!activeTicker;
+              const hasNews = !!data.news && data.news.length > 0;
+              const tabs: TabBarItem<BreakdownTab>[] = [
+                { id: "technical" as const, label: "Technical", color: "blue" as const },
+                ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings", color: "violet" as const }] : []),
+                ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment", color: "emerald" as const }] : []),
+                { id: "catalysts" as const, label: "Catalysts", color: "amber" as const },
+                { id: "accounting" as const, label: "Accounting", color: "teal" as const },
+                ...(hasPeers ? [{ id: "peers" as const, label: "Peers", color: "cyan" as const }] : []),
+                ...(hasNews ? [{ id: "news" as const, label: "News", color: "rose" as const }] : []),
+              ];
+              const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : "analyst";
 
-            {/* ── Analyst Ratings ── */}
-            {data.recommendations && (
-              <AnalystRatingsSection
-                recs={data.recommendations}
-                metrics={m}
-                analystActions={data.analystActions ?? []}
-                analystPriceTargets={data.analystPriceTargets ?? []}
-                priceTargetRange={data.priceTargetRange ?? null}
-              />
-            )}
-
-            {/* ── Market Sentiment ── */}
-            {(data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || data.recommendations) && (
-              <MarketSentimentSection
-                recs={data.recommendations}
-                bullBullets={data.bullBullets ?? []}
-                bearBullets={data.bearBullets ?? []}
-              />
-            )}
-
-            <CatalystsSection catalysts={data.catalysts} />
-
-            {propTicker && activeTicker && (
-              <CompetitorsSection ticker={activeTicker} />
-            )}
-
-            {/* ── Recent News ── */}
-            {data.news && data.news.length > 0 && (
-              <div className="bg-card border border-border/50 rounded-xl p-4">
-                <span className="text-base font-bold tracking-tight text-foreground block mb-2">
-                  Recent News & Updates
-                </span>
-                <div className="space-y-0.5 -mx-1 mt-2">
-                  {data.news.map((item, i) => (
-                    <NewsCard key={i} item={item} />
-                  ))}
+              return (
+                <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                  <div className="px-4 pt-3 pb-2 border-b border-border/40">
+                    <TabBar tabs={tabs} active={activeTab} onChange={(id) => setBreakdownTab(id)} />
+                  </div>
+                  <div className="p-4 max-h-[440px] overflow-y-auto">
+                    {activeTab === "technical" && (
+                      <TradingViewTechnicalWidget ticker={m.ticker} exchange={m.exchange} />
+                    )}
+                    {activeTab === "analyst" && data.recommendations && (
+                      <AnalystRatingsSection
+                        recs={data.recommendations}
+                        metrics={m}
+                        analystActions={data.analystActions ?? []}
+                        analystPriceTargets={data.analystPriceTargets ?? []}
+                        priceTargetRange={data.priceTargetRange ?? null}
+                      />
+                    )}
+                    {activeTab === "sentiment" && (
+                      <MarketSentimentSection
+                        recs={data.recommendations}
+                        bullBullets={data.bullBullets ?? []}
+                        bearBullets={data.bearBullets ?? []}
+                      />
+                    )}
+                    {activeTab === "catalysts" && <CatalystsSection catalysts={data.catalysts} />}
+                    {activeTab === "accounting" && <AccountingStatementsSection ticker={m.ticker} />}
+                    {activeTab === "peers" && hasPeers && <CompetitorsSection ticker={activeTicker!} />}
+                    {activeTab === "news" && hasNews && (
+                      <div className="space-y-0.5 -mx-1">
+                        {data.news.map((item, i) => (
+                          <NewsCard key={i} item={item} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>

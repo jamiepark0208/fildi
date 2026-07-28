@@ -3,7 +3,7 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
 import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
@@ -12,6 +12,12 @@ import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-r
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
+
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: string; color: TabBarColor }[] = [
+  { id: "fundamental", label: "Fundamentals", color: "blue" },
+  { id: "technical",   label: "Technicals",   color: "violet" },
+  { id: "options",     label: "Options",      color: "emerald" },
+];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
@@ -108,55 +114,34 @@ export default function Rankings() {
 
       <main className="pt-14 min-w-0">
         <div className="p-5">
-          <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical" | "options")}>
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <TabsList className="h-11 p-1 bg-secondary/40 border border-border/60 rounded-xl">
-                <TabsTrigger
-                  value="fundamental"
-                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-300 data-[state=active]:shadow-sm data-[state=active]:shadow-blue-500/20"
-                >
-                  Fundamentals
-                </TabsTrigger>
-                <TabsTrigger
-                  value="technical"
-                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-300 data-[state=active]:shadow-sm data-[state=active]:shadow-violet-500/20"
-                >
-                  Technicals
-                </TabsTrigger>
-                <TabsTrigger
-                  value="options"
-                  className="text-sm px-5 rounded-lg font-medium text-muted-foreground transition-colors data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-500/20"
-                >
-                  Options
-                </TabsTrigger>
-              </TabsList>
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <TabBar tabs={RANKINGS_TABS} active={tab} onChange={(id) => setTab(id)} />
 
-              {/* Host for the Options tab's min-income filter — OptionsScannerContent
-                  portals its control here so it sits inline with the tabs instead of
-                  its own row; empty/inert on the other two tabs. */}
-              <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center" />
-            </div>
+            {/* Host for the Options tab's min-income filter — OptionsScannerContent
+                portals its control here so it sits inline with the tabs instead of
+                its own row; empty/inert on the other two tabs. */}
+            <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center" />
+          </div>
 
-            <TabsContent value="fundamental" className="mt-0">
-              {fundamentalRankings.length >= 2 ? (
-                <RankingsLeaderboard scores={fundamentalRankings} stocks={loadedStocks} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see fundamental rankings.</p>
-              )}
-            </TabsContent>
+          {tab === "fundamental" && (
+            fundamentalRankings.length >= 2 ? (
+              <RankingsLeaderboard scores={fundamentalRankings} stocks={loadedStocks} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see fundamental rankings.</p>
+            )
+          )}
 
-            <TabsContent value="technical" className="mt-0">
-              {technicalScores.length >= 2 ? (
-                <TechnicalLeaderboard scores={technicalScores} rowMap={technicalRowMap} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
-              )}
-            </TabsContent>
+          {tab === "technical" && (
+            technicalScores.length >= 2 ? (
+              <TechnicalLeaderboard scores={technicalScores} rowMap={technicalRowMap} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
+            )
+          )}
 
-            <TabsContent value="options" className="mt-0">
-              <OptionsScannerContent showHeader={false} />
-            </TabsContent>
-          </Tabs>
+          {tab === "options" && (
+            <OptionsScannerContent showHeader={false} />
+          )}
         </div>
       </main>
     </div>

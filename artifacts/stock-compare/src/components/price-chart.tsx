@@ -11,6 +11,23 @@ import { cn } from "@/lib/utils";
 import { computeChartZones, type DbTechnicalLevels } from "@/lib/chart-levels";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+function LegendItem({ swatch, label, explanation }: { swatch: React.ReactNode; label: string; explanation: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-help decoration-dotted underline-offset-4 hover:underline">
+          {swatch}
+          {label}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[220px] text-xs bg-card text-foreground border border-border p-2">
+        {explanation}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export type Period = "1D" | "1W" | "1M" | "3M" | "1Y";
 
@@ -379,6 +396,9 @@ export function PriceChart({
       dashed: z.label.startsWith("MA") || z.label.startsWith("BB"),
     })), [zones]);
 
+  const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
+  const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
+
   const allMarkers = useMemo(
     () => [...periodExtremaMarkers, ...zoneMarkers].sort((a, b) => a.time - b.time),
     [periodExtremaMarkers, zoneMarkers],
@@ -488,31 +508,68 @@ export function PriceChart({
           ))
         ) : (
           <>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Period low
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-[#22c55e]" /> Period high
-            </div>
+            <LegendItem
+              swatch={<span className="w-2 h-2 rounded-full bg-[#ef4444]" />}
+              label="Period low"
+              explanation="The lowest traded price within the selected time window."
+            />
+            <LegendItem
+              swatch={<span className="w-2 h-2 rounded-full bg-[#22c55e]" />}
+              label="Period high"
+              explanation="The highest traded price within the selected time window."
+            />
             {showTechnicalZones && zoneMarkers.length > 0 && (
               <>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> Swing low
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-[#a78bfa]" /> Swing high
-                </div>
+                <LegendItem
+                  swatch={<span className="w-2 h-2 rounded-full bg-[#f59e0b]" />}
+                  label="Swing low"
+                  explanation="A local reversal low the price bounced from — used to derive support levels below the current price."
+                />
+                <LegendItem
+                  swatch={<span className="w-2 h-2 rounded-full bg-[#a78bfa]" />}
+                  label="Swing high"
+                  explanation="A local reversal high the price pulled back from — used to derive resistance levels above the current price."
+                />
               </>
             )}
             {emaSeries && (
               <>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2.5 h-0.5 bg-[#eab308]" /> EMA 50
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2.5 h-0.5 bg-[#f59e0b]" /> EMA 200
-                </div>
+                <LegendItem
+                  swatch={<span className="w-2.5 h-0.5 bg-[#eab308]" />}
+                  label="EMA 50"
+                  explanation="50-period exponential moving average — a fast trend line; price crossing it often signals a short-term trend shift."
+                />
+                <LegendItem
+                  swatch={<span className="w-2.5 h-0.5 bg-[#f59e0b]" />}
+                  label="EMA 200"
+                  explanation="200-period exponential moving average — the long-term trend line; price above it is broadly bullish, below is broadly bearish."
+                />
               </>
+            )}
+            {showTechnicalZones && solidZoneLines.length > 0 && (
+              <>
+                {solidZoneLines.some(z => z.color === "#22c55e") && (
+                  <LegendItem
+                    swatch={<span className="w-2.5 h-0.5 bg-[#22c55e]" />}
+                    label="Support level"
+                    explanation="A horizontal price zone where buying has previously stepped in — a level the price has bounced off before."
+                  />
+                )}
+                {solidZoneLines.some(z => z.color === "#ef4444") && (
+                  <LegendItem
+                    swatch={<span className="w-2.5 h-0.5 bg-[#ef4444]" />}
+                    label="Resistance level"
+                    explanation="A horizontal price zone where selling has previously capped gains — a level the price has pulled back from before."
+                  />
+                )}
+              </>
+            )}
+            {showTechnicalZones && dashedZoneLines.length > 0 && (
+              <LegendItem
+                swatch={<span className="w-2.5 h-0.5 border-t-2 border-dashed border-[#a78bfa]" />}
+                label="MA / Bollinger Band"
+                explanation="Dashed lines are moving-average or Bollinger Band levels the price is testing — these act as dynamic (moving) support/resistance rather than a fixed price."
+              />
             )}
           </>
         )}

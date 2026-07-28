@@ -18,9 +18,7 @@ export function MarketSentimentSection({
   if (!hasSentiment && !hasBullets) return null;
 
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4 space-y-5">
-      <span className="text-base font-bold tracking-tight text-foreground block">Market Sentiment</span>
-
+    <div className="space-y-4">
       {/* Bullish / Neutral / Bearish bar */}
       {hasSentiment && (
         <div>

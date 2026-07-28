@@ -5,6 +5,7 @@ import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { cn } from "@/lib/utils";
 import {
@@ -61,7 +62,7 @@ import {
   stanceBadgeClass, stanceLabel, getIndicatorHighlight,
 } from "@/components/macro/macro-format";
 import { CurvePeriodButtons, VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
-import { RegimeChips, CrossTabReadRow, StatCell, VolStrip, QuickStats } from "@/components/macro/macro-regime-overview";
+import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip, QuickStats } from "@/components/macro/macro-regime-overview";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
@@ -73,13 +74,13 @@ import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/macro-tradingview-embeds";
 
-const MACRO_TABS: { id: MacroTab; label: string }[] = [
-  { id: "regime",     label: "Macro & Regime Health" },
-  { id: "liquidity",  label: "Liquidity" },
-  { id: "volatility", label: "Volatility & Sentiment" },
-  { id: "policy",     label: "Policy & Forward Guidance" },
-  { id: "heatmap",    label: "Heatmap" },
-  { id: "catalyst",   label: "Catalyst Calendar" },
+const MACRO_TABS: { id: MacroTab; label: string; color: TabBarColor }[] = [
+  { id: "regime",     label: "Macro & Regime Health",      color: "blue" },
+  { id: "liquidity",  label: "Liquidity",                  color: "emerald" },
+  { id: "volatility", label: "Volatility & Sentiment",     color: "violet" },
+  { id: "policy",     label: "Policy & Forward Guidance",  color: "amber" },
+  { id: "heatmap",    label: "Heatmap",                    color: "cyan" },
+  { id: "catalyst",   label: "Catalyst Calendar",          color: "rose" },
 ];
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
@@ -310,45 +311,9 @@ export default function MacroDashboard() {
       <TopNav />
 
       <main className="flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden">
-        {/* ── Header ─────────────────────────────────────────────────────────── */}
-        <div className="shrink-0 border-b border-border bg-background px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold tracking-tight leading-none">Macro Dashboard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Holistic financial markets monitor</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {macroData && (
-              <span className="text-xs text-muted-foreground">Updated {fmtTs(macroData.fetchedAt)}</span>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => refreshMutation.mutate()}
-                disabled={refreshMutation.isPending}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary transition-colors disabled:opacity-50"
-              >
-                {refreshMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Refresh
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* ── Sub-tabs ────────────────────────────────────────────────────────── */}
-        <div className="shrink-0 flex border-b border-border px-6 bg-background overflow-x-auto">
-          {MACRO_TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={cn(
-                "text-xs font-medium px-4 py-2.5 border-b-2 transition-colors -mb-px whitespace-nowrap rounded-t-md",
-                activeTab === t.id
-                  ? "border-primary text-foreground bg-primary/10"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="shrink-0 border-b border-border px-6 py-2 bg-background overflow-x-auto">
+          <TabBar tabs={MACRO_TABS} active={activeTab} onChange={(id) => setActiveTab(id)} />
         </div>
 
         {/* ── Tab content ─────────────────────────────────────────────────────── */}
@@ -371,19 +336,19 @@ export default function MacroDashboard() {
               />
 
               {/* Yield & credit stats */}
-              <div className="flex flex-wrap gap-2">
-                <StatCell label="10Y Yield" value={`${fmt(macroData!.yield10y.value, 3)}%`}
+              <div className="border border-border rounded-md flex flex-wrap items-center divide-x divide-border/60">
+                <CompactStat label="10Y" value={`${fmt(macroData!.yield10y.value, 3)}%`}
                   sub={macroData!.yield10y.change != null ? `${macroData!.yield10y.change > 0 ? "+" : ""}${fmt(macroData!.yield10y.change, 3)}` : undefined}
                   subColor={changeColor(macroData!.yield10y.change)} />
-                <StatCell label="2Y Yield" value={`${fmt(macroData!.yield2y.value, 3)}%`}
+                <CompactStat label="2Y" value={`${fmt(macroData!.yield2y.value, 3)}%`}
                   sub={macroData!.yield2y.change != null ? `${macroData!.yield2y.change > 0 ? "+" : ""}${fmt(macroData!.yield2y.change, 3)}` : undefined}
                   subColor={changeColor(macroData!.yield2y.change)} />
-                <StatCell label="2s10s Spread"
-                  value={macroData!.yieldSpread != null ? `${macroData!.yieldSpread.toFixed(0)} bps` : "—"}
-                  sub={macroData!.yieldSpread != null ? (macroData!.yieldSpread < 0 ? "⚠ Inverted" : "Normal") : undefined}
+                <CompactStat label="2s10s"
+                  value={macroData!.yieldSpread != null ? `${macroData!.yieldSpread.toFixed(0)}bps` : "—"}
+                  sub={macroData!.yieldSpread != null ? (macroData!.yieldSpread < 0 ? "⚠ Inv" : "Normal") : undefined}
                   subColor={macroData!.yieldSpread != null && macroData!.yieldSpread < 0 ? "text-red-400" : "text-green-400"} />
-                <StatCell label="Fed Funds" value={fmtPct(s.fedFundsRate.value)} />
-                <StatCell label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
+                <CompactStat label="Fed Funds" value={fmtPct(s.fedFundsRate.value)} />
+                <CompactStat label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
               </div>
 
               {/* Yield Curve + 10Y History */}

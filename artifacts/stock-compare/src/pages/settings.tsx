@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
-import { TabBar } from "@/components/ui/tab-bar";
+import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
@@ -688,16 +688,16 @@ export default function Settings() {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useSessionState<Tab>("fildi_settings_tab", "profile");
 
-  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
-    { id: "profile",         label: "Profile" },
-    { id: "trading",         label: "Trading" },
-    { id: "scorecard-guide", label: "Scorecard Guide" },
-    { id: "users",           label: "User Mgmt",     adminOnly: true },
-    { id: "cache",           label: "Cache Monitor",  adminOnly: true },
-    { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
-    { id: "stockdb",         label: "Stock DB" },
-    { id: "api-monitor",     label: "API Monitor",    adminOnly: true },
-    { id: "feedback",        label: "Feedback",       adminOnly: true },
+  const tabs: { id: Tab; label: string; adminOnly?: boolean; color: TabBarColor }[] = [
+    { id: "profile",         label: "Profile",         color: "blue" },
+    { id: "trading",         label: "Trading",         color: "emerald" },
+    { id: "scorecard-guide", label: "Scorecard Guide", color: "violet" },
+    { id: "users",           label: "User Mgmt",       color: "amber",   adminOnly: true },
+    { id: "cache",           label: "Cache Monitor",   color: "cyan",    adminOnly: true },
+    { id: "scheduled-tasks", label: "Scheduled Tasks", color: "rose",    adminOnly: true },
+    { id: "stockdb",         label: "Stock DB",        color: "teal" },
+    { id: "api-monitor",     label: "API Monitor",     color: "orange",  adminOnly: true },
+    { id: "feedback",        label: "Feedback",        color: "fuchsia", adminOnly: true },
   ];
 
   // Persisted tab may point at an admin-only tab from a prior admin session —

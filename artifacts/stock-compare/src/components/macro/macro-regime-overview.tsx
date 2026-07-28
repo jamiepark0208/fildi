@@ -41,16 +41,16 @@ export function RegimeChips({ macroData }: { macroData: MacroData }) {
     : { text: `Normal +${(spread).toFixed(0)}bps`, cls: "bg-green-900/50 text-green-300 border-green-700" };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       {macroData.vix && (
-        <span className={cn("text-xs px-3 py-1 rounded-full border font-medium", vixBadgeClass(macroData.vix.level))}>
+        <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", vixBadgeClass(macroData.vix.level))}>
           VIX {fmt(macroData.vix.value, 1)} · {VIX_LEVEL_LABELS[macroData.vix.level]}
         </span>
       )}
-      <span className={cn("text-xs px-3 py-1 rounded-full border font-medium", infl.cls)}>{infl.text}</span>
-      <span className={cn("text-xs px-3 py-1 rounded-full border font-medium", labor.cls)}>{labor.text}</span>
-      <span className={cn("text-xs px-3 py-1 rounded-full border font-medium", curve.cls)}>{curve.text}</span>
-      <span className="text-xs px-3 py-1 rounded-full border font-medium bg-yellow-900/50 text-yellow-300 border-yellow-700">
+      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", infl.cls)}>{infl.text}</span>
+      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", labor.cls)}>{labor.text}</span>
+      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", curve.cls)}>{curve.text}</span>
+      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight bg-yellow-900/50 text-yellow-300 border-yellow-700">
         Fed On Hold
       </span>
     </div>
@@ -101,13 +101,13 @@ export function CrossTabReadRow({
   if (!badges.length) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       {badges.map((b) => (
         <button
           key={b.label}
           onClick={() => onJump(b.tab)}
           className={cn(
-            "flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-medium transition-colors hover:brightness-125",
+            "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight transition-colors hover:brightness-125",
             b.style.badge,
           )}
           title={`Jump to ${b.tab}`}
@@ -128,6 +128,20 @@ export function StatCell({ label, value, sub, subColor }: { label: string; value
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
       <p className="text-lg font-semibold leading-tight">{value}</p>
       {sub && <p className={cn("text-[11px] mt-0.5", subColor)}>{sub}</p>}
+    </div>
+  );
+}
+
+// Single-row compact stat — same info as StatCell but inline, for banners where
+// vertical space is at a premium (e.g. the Regime tab's yield strip).
+export function CompactStat({ label, value, sub, subColor, title }: {
+  label: string; value: string; sub?: string; subColor?: string; title?: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5 px-2.5 py-1" title={title}>
+      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
+      <span className="text-sm font-semibold">{value}</span>
+      {sub && <span className={cn("text-[10px]", subColor)}>{sub}</span>}
     </div>
   );
 }

@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-24
+**build** — last updated 2026-07-28
 
 ## Active work
-- Working: live-monitor-entry-signals, regime-logic-fixes, outcome-tracking, settings-generic-jsx-fix, portfolio-analysis-charts, tradingview-widget, tag-popover-restyle
-- In progress: Portfolio tab: added Cumulative Realized P&L area chart (moved into the Reserved card slot in Row 1.1b), sourced from realizedEvents running total. Stock breakdown: lazy-loaded TradingView Technical Analysis widget (IntersectionObserver, single iframe, new tradingview-technical-widget.tsx) below price chart; tags popup (exchange/sector/industry/stockType) restyled from centered Dialog to per-tag Popover matching Live Monitor's intraday regime checkpoint style (zinc-900/amber-header). Daily Brief: Highlights section now defaults minimized; Generate Today's Brief button moved into header next to settings gear (only shown when no brief exists yet).
-- Blocked: Playwright unavailable all session — none of today's UI changes (charts, TV widget, popover restyle, daily-brief header) visually verified in browser, typecheck-only. GitHub push PAT still invalid. Awaiting user localStorage dump for watchlist colors.
+- Working: profile-redesign, accounting-tab-redesign, tradecard-compact-layout
+- In progress: none
+- Blocked: 3-trade-idea-limit-unresolved, github-push-pat-invalid
 
 ## Next tasks (priority order)
 

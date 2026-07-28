@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "strategy": "Cash-secured put seller on tech/growth stocks.",
+  "portfolios": "IRA, FILDI",
+  "macroFocus": [],
+  "watchSignals": [],
+  "riskRules": [],
+  "userNotes": "",
+  "lastUpdated": "2026-07-28"
+}

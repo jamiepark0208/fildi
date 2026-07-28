@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useMemo } from "react"
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
@@ -308,7 +309,7 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search ticker…"
-        className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        className="w-full bg-white border border-white/20 rounded px-2 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary" />
       {open && debouncedQ.length >= 1 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
           {isFetching && <div className="px-3 py-2 text-xs text-muted-foreground animate-pulse">Searching…</div>}
@@ -363,12 +364,12 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
       >
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stock Views</div>
-          <span className="text-[10px] text-muted-foreground/60">{taggedCount} tagged →</span>
+          <span className="text-[10px] text-muted-foreground">{taggedCount} tagged →</span>
         </div>
         {isLoading ? (
-          <span className="text-[10px] text-muted-foreground/40 animate-pulse">Loading…</span>
+          <span className="text-[10px] text-muted-foreground animate-pulse">Loading…</span>
         ) : taggedCount === 0 ? (
-          <span className="text-[10px] text-muted-foreground/40">No tagged tickers yet</span>
+          <span className="text-[10px] text-muted-foreground">No tagged tickers yet</span>
         ) : (
           <div className="flex flex-wrap gap-2">
             {groups.filter(g => g.tickers.length > 0).map(g => (
@@ -392,10 +393,10 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
                 <div className="flex items-center gap-1.5 text-xs font-bold">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                   {g.label}
-                  <span className="ml-auto text-[10px] font-normal text-muted-foreground/60">{g.tickers.length}</span>
+                  <span className="ml-auto text-[10px] font-normal text-muted-foreground">{g.tickers.length}</span>
                 </div>
                 {g.tickers.length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground/40">None</span>
+                  <span className="text-[10px] text-muted-foreground">None</span>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {g.tickers.map(ticker => (
@@ -415,7 +416,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {taggedCount > 0 && (
             <button
               onClick={() => openInScanner(groups.flatMap(g => g.tickers))}
-              className="w-full text-[10px] font-medium text-muted-foreground/70 hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
+              className="w-full text-[10px] font-medium text-muted-foreground hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
             >
               Open all in scanner →
             </button>
@@ -423,7 +424,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {isOwner && (
             <button
               onClick={() => navigate("/watchlist")}
-              className="w-full text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
+              className="w-full text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               Edit tags on Watchlist →
             </button>
@@ -436,37 +437,184 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
 
 // ── Compact stats bar ──────────────────────────────────────────────────────────
 
-function StatsBar({ stats }: { stats: ProfileData["stats"] }) {
+/** Most recent run of same-outcome closed trades, newest-first. Empty posts array (or all-open) → null. */
+function computeStreak(posts: TradePost[]): { n: number; win: boolean } | null {
+  const resolved = posts
+    .filter(p => p.status !== "OPEN" && p.resolvedPnl != null)
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  if (resolved.length === 0) return null
+  const first = (resolved[0]!.resolvedPnl ?? 0) >= 0
+  let n = 0
+  for (const p of resolved) {
+    const win = (p.resolvedPnl ?? 0) >= 0
+    if (win !== first) break
+    n++
+  }
+  return { n, win: first }
+}
+
+function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradePost[] }) {
   const lowSample = stats.closed < 5
-  const winRate = stats.winRate != null ? `${Math.round(stats.winRate * 100)}%` : "—"
+  const winRateColor = stats.winRate == null ? "text-muted-foreground" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
+  const pnlColor = stats.totalPnl == null ? "text-muted-foreground" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
   const pnl = stats.totalPnl != null ? (stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(0)}` : `-$${Math.abs(stats.totalPnl).toFixed(0)}`) : "—"
+  const avgPnl = stats.closed > 0 && stats.totalPnl != null ? stats.totalPnl / stats.closed : null
+  const streak = computeStreak(posts)
 
   const items = [
-    { label: "Trades",   value: String(stats.totalPosts),          color: "text-foreground", dim: false },
-    { label: "Open",     value: String(stats.openPosts),            color: "text-blue-400", dim: false },
-    { label: "Win Rate", value: winRate, color: stats.winRate == null ? "text-muted-foreground" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400", dim: lowSample },
-    { label: "P&L",      value: pnl,    color: stats.totalPnl == null ? "text-muted-foreground" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400", dim: lowSample },
-    { label: "Wins",     value: String(stats.wins),                 color: "text-green-400", dim: false },
-    { label: "Losses",   value: String(stats.losses),               color: "text-red-400", dim: false },
+    {
+      label: "Win Rate",
+      value: stats.winRate != null ? `${Math.round(stats.winRate * 100)}%` : "—",
+      sub: `${stats.wins}-${stats.losses}`,
+      color: winRateColor,
+      dim: lowSample,
+    },
+    { label: "Total P&L", value: pnl, sub: `${stats.closed} closed`, color: pnlColor, dim: lowSample },
+    {
+      label: "Avg/Trade",
+      value: avgPnl != null ? (avgPnl >= 0 ? `+$${avgPnl.toFixed(0)}` : `-$${Math.abs(avgPnl).toFixed(0)}`) : "—",
+      sub: "per closed",
+      color: avgPnl == null ? "text-muted-foreground" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
+      dim: lowSample,
+    },
+    { label: "Open", value: String(stats.openPosts), sub: `${stats.totalPosts} total`, color: "text-blue-400", dim: false },
+    {
+      label: "Streak",
+      value: streak ? `${streak.win ? "W" : "L"}${streak.n}` : "—",
+      sub: streak ? (streak.win ? "winning" : "losing") : "no closed trades",
+      color: !streak ? "text-muted-foreground" : streak.win ? "text-green-400" : "text-red-400",
+      dim: false,
+    },
   ]
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center gap-0">
-        {items.map(({ label, value, color, dim }, i) => (
+      <div className="flex items-stretch gap-0">
+        {items.map(({ label, value, sub, color, dim }, i) => (
           <div key={label} className={cn(
-            "flex-1 flex flex-col items-center py-2.5 px-1",
+            "flex-1 flex flex-col items-center py-2.5 px-1 min-w-0",
             i < items.length - 1 && "border-r border-border",
-            dim && "opacity-60"
+            dim && "opacity-70"
           )}>
-            <div className={cn("text-base font-bold leading-tight", color)}>{value}</div>
-            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mt-0.5">{label}</div>
+            <div className={cn("text-base font-bold leading-tight tabular-nums", color)}>{value}</div>
+            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mt-0.5">{label}</div>
+            <div className="text-[10px] text-muted-foreground mt-px truncate max-w-full">{sub}</div>
           </div>
         ))}
       </div>
-      <div className="text-[10px] text-muted-foreground/50 text-center py-1 border-t border-border">
-        based on {stats.closed} closed{lowSample && stats.closed > 0 ? " · low sample" : ""}
+    </div>
+  )
+}
+
+// ── Cumulative P&L chart ─────────────────────────────────────────────────────
+
+function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
+  const timeline = useMemo(() => {
+    const resolved = posts
+      .filter(p => p.status !== "OPEN" && p.resolvedPnl != null)
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    let running = 0
+    return resolved.map(p => {
+      running += p.resolvedPnl ?? 0
+      return { date: p.createdAt, cumulative: running, ticker: p.ticker }
+    })
+  }, [posts])
+
+  const total = timeline.length > 0 ? timeline[timeline.length - 1]!.cumulative : 0
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-3 space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Cumulative P&L</div>
+        {timeline.length > 0 && (
+          <span className={cn("text-xs font-bold tabular-nums", total >= 0 ? "text-green-400" : "text-red-400")}>
+            {total >= 0 ? "+" : ""}${total.toFixed(0)}
+          </span>
+        )}
       </div>
+      {timeline.length === 0 ? (
+        <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">No closed trades yet</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={120}>
+          <AreaChart data={timeline} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="profilePnlFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="date" hide />
+            <YAxis hide domain={["auto", "auto"]} />
+            <Tooltip content={(p) => {
+              const d = p.payload?.[0]?.payload as { date: string; cumulative: number; ticker: string } | undefined
+              if (!p.active || !d) return null
+              return (
+                <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
+                  <div className="text-foreground/70">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
+                  <div className={cn("font-bold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
+                    {d.cumulative >= 0 ? "+" : ""}${d.cumulative.toFixed(0)}
+                  </div>
+                </div>
+              )
+            }} />
+            <Area type="monotone" dataKey="cumulative" stroke={total >= 0 ? "#34d399" : "#f87171"} strokeWidth={1.5} fill="url(#profilePnlFill)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
+
+// ── Top tickers breakdown ────────────────────────────────────────────────────
+
+function TopTickers({ posts }: { posts: TradePost[] }) {
+  const rows = useMemo(() => {
+    const map = new Map<string, { ticker: string; count: number; wins: number; losses: number }>()
+    for (const p of posts) {
+      const entry = map.get(p.ticker) ?? { ticker: p.ticker, count: 0, wins: 0, losses: 0 }
+      entry.count++
+      if (p.status !== "OPEN" && p.resolvedPnl != null) {
+        if (p.resolvedPnl >= 0) entry.wins++
+        else entry.losses++
+      }
+      map.set(p.ticker, entry)
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 5)
+  }, [posts])
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-3 space-y-1.5">
+      <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Top Tickers</div>
+      {rows.length === 0 ? (
+        <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">No trade ideas yet</div>
+      ) : (
+        <div className="space-y-1.5">
+          {rows.map(r => {
+            const resolved = r.wins + r.losses
+            const winRate = resolved > 0 ? r.wins / resolved : null
+            const wrColor = winRate == null ? "text-muted-foreground" : winRate >= 0.6 ? "text-green-400" : winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
+            return (
+              <div key={r.ticker} className="flex items-center gap-2 text-xs">
+                <span className="font-bold text-white bg-white/10 px-1.5 py-0.5 rounded w-14 text-center shrink-0">{r.ticker}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+                  {resolved > 0 && (
+                    <div
+                      className={cn("h-full rounded-full", winRate! >= 0.6 ? "bg-green-400" : winRate! >= 0.4 ? "bg-yellow-400" : "bg-red-400")}
+                      style={{ width: `${Math.round(winRate! * 100)}%` }}
+                    />
+                  )}
+                </div>
+                <span className={cn("font-semibold tabular-nums shrink-0 w-9 text-right", wrColor)}>
+                  {winRate != null ? `${Math.round(winRate * 100)}%` : "—"}
+                </span>
+                <span className="text-muted-foreground tabular-nums shrink-0 w-6 text-right">{r.count}×</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -502,12 +650,12 @@ function MonthlySummary({ posts }: { posts: TradePost[] }) {
           return (
             <div key={key} className="flex items-center justify-between px-3 py-2 text-xs">
               <span className="text-foreground font-medium">{label}</span>
-              <div className="flex items-center gap-3 text-muted-foreground/70">
+              <div className="flex items-center gap-3 text-muted-foreground">
                 <span>{wins}W / {losses}L</span>
                 <span className={cn("font-semibold", pnl >= 0 ? "text-green-400" : "text-red-400")}>
                   {pnl >= 0 ? "+" : ""}${pnl.toFixed(0)}
                 </span>
-                <span className="text-muted-foreground/40">({n})</span>
+                <span className="text-muted-foreground">({n})</span>
               </div>
             </div>
           )
@@ -611,7 +759,13 @@ export default function Profile() {
             </div>
 
             {/* ── Stats bar ── */}
-            <StatsBar stats={data.stats} />
+            <StatsBar stats={data.stats} posts={data.posts} />
+
+            {/* ── Cumulative P&L + Top Tickers ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <CumulativePnlChart posts={data.posts} />
+              <TopTickers posts={data.posts} />
+            </div>
 
             {/* ── Monthly summary (own profile only) ── */}
             {isOwnerProfile && <MonthlySummary posts={data.posts} />}
@@ -626,9 +780,9 @@ export default function Profile() {
 
             {/* ── Trade ideas ── */}
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">
                 Trade Ideas
-                {data.posts.length > 0 && <span className="ml-1.5 text-muted-foreground/50">({data.posts.length})</span>}
+                {data.posts.length > 0 && <span className="ml-1.5 text-muted-foreground">({data.posts.length})</span>}
               </div>
 
               {data.posts.length === 0 ? (

@@ -77,12 +77,6 @@ function timeAgo(iso: string): string {
   return fmtDate(iso)
 }
 
-function weeklyIncome(premiumPerContract: number, expiry: string): string {
-  const days = (new Date(expiry).getTime() - Date.now()) / 86400000
-  if (days <= 0) return "$0/wk"
-  return `$${(premiumPerContract / (days / 7)).toFixed(2)}/wk`
-}
-
 const CONFIDENCE_LABEL: Record<number, { label: string; cls: string }> = {
   1: { label: "Speculative", cls: "text-muted-foreground" },
   2: { label: "Low",         cls: "text-orange-400" },
@@ -183,8 +177,8 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
 
   return (
     <div className={cn("border rounded-lg p-2.5 space-y-1.5", cardCls)}>
-      {/* Header — identity + ticker/status all in one compact row */}
-      <div className="flex items-center gap-2">
+      {/* Header — identity + ticker/status + trade details, all in one wrapping line */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {showUser ? (
           <Link href={`/profile/${post.username}`} className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity shrink-0">
             <AvatarInitial username={post.username} avatarUrl={post.avatarUrl} size="xs" />
@@ -196,30 +190,30 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
         </span>
         <StatusBadge status={post.status} />
         <SignalBadge signal={post.signalAtEntry} />
+
+        {/* Trade details — inline with ticker/status, wraps as one unit on narrow widths */}
+        {isEquity ? (
+          <div className="flex flex-wrap items-baseline gap-x-2.5 text-xs">
+            <span className={cn("font-bold", post.direction === "long" ? "text-green-400" : "text-red-400")}>{post.direction?.toUpperCase() ?? "—"}</span>
+            {post.entryPrice != null && <span className="text-foreground/90">${post.entryPrice}</span>}
+            {post.shares != null && <span className="text-foreground/90">{post.shares}sh</span>}
+            {post.stopLoss != null && <span className="text-red-400/80">SL ${post.stopLoss}</span>}
+            {post.targetPrice != null && <span className="text-green-400/80">TP ${post.targetPrice}</span>}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-x-2.5 text-xs text-foreground/90">
+            <span>${post.strike}<span className="text-foreground/50">strike</span></span>
+            <span>{fmtExpiry(post.expiry)}</span>
+            <span>${post.premiumPerContract}×{post.contracts}</span>
+            <span className="text-green-400 font-bold">${totalPremium.toFixed(0)}</span>
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <ConfidenceLabel value={post.confidence} />
-          <span className="text-[10px] text-muted-foreground/60">{timeAgo(post.createdAt)}</span>
+          <span className="text-[10px] text-muted-foreground">{timeAgo(post.createdAt)}</span>
         </div>
       </div>
-
-      {/* Trade details — single dense row, layout branches on trade category */}
-      {isEquity ? (
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
-          <span className={cn("font-semibold", post.direction === "long" ? "text-green-400" : "text-red-400")}>{post.direction?.toUpperCase() ?? "—"}</span>
-          {post.entryPrice != null && <span className="text-foreground">Entry <b className="font-semibold">${post.entryPrice}</b></span>}
-          {post.shares != null && <span className="text-foreground">{post.shares} sh</span>}
-          {post.stopLoss != null && <span className="text-muted-foreground">Stop ${post.stopLoss}</span>}
-          {post.targetPrice != null && <span className="text-muted-foreground">Target ${post.targetPrice}</span>}
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs text-foreground">
-          <span>Strike <b className="font-semibold">${post.strike}</b></span>
-          <span>Exp <b className="font-semibold">{fmtExpiry(post.expiry)}</b></span>
-          <span>Prem <b className="font-semibold">${post.premiumPerContract}</b>×{post.contracts}</span>
-          <span className="text-green-400 font-semibold">${totalPremium.toFixed(0)} total</span>
-          <span className="text-muted-foreground">{weeklyIncome(post.premiumPerContract, post.expiry)}</span>
-        </div>
-      )}
 
       {/* Thesis */}
       {post.notes && (
