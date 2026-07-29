@@ -202,7 +202,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
           ? otm / (best.put.iv * Math.sqrt(exactDte / 365))
           : null,
         optionScore: best.result.optionScore,
-        bid: best.put.bid,
+        bid: best.put.bid > 0 ? best.put.bid : (best.put as OptionRow).lastPrice,
         bidIsLive: (best.put as OptionRow).bidIsLive, // Opt generic infers the constraint type; the runtime row is a full OptionRow
       });
     }

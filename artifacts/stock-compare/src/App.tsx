@@ -1,4 +1,4 @@
-import { useCallback, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,7 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import { useSessionState } from "@/hooks/use-session-state";
+import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
 import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -61,6 +62,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const { user } = useAuth();
+  // Once logged in, quietly warm every other tab's JS chunk in an idle callback —
+  // JS only, never data (see prefetch-policy.ts), so it's safe regardless of which
+  // tab the user actually opens next.
+  useEffect(() => {
+    if (user) idlePrefetchRouteChunks();
+  }, [user]);
+
   const [rawTickers, setRawTickers] = useSessionState<string[]>("fildi_tickers", []);
   // Dedupe defensively: a duplicate ticker here fans out into duplicate
   // useQueries keys (home.tsx, technical.tsx, price-chart.tsx), which React

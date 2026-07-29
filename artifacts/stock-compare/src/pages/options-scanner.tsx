@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -193,6 +193,25 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
 
 // ── Strike row (one put per expiry table row) ─────────────────────────────────
 
+// Only one non-modal strike popup can be open at a time page-wide — they all render at
+// the same fixed screen position, so without this, opening a second one silently stacks
+// on top of an unclosed first.
+let openStrikeKey: string | null = null;
+const openStrikeListeners = new Set<() => void>();
+function setOpenStrikeKey(key: string | null) {
+  openStrikeKey = key;
+  openStrikeListeners.forEach(l => l());
+}
+function useOpenStrikeKey() {
+  return useSyncExternalStore(
+    (onChange) => {
+      openStrikeListeners.add(onChange);
+      return () => openStrikeListeners.delete(onChange);
+    },
+    () => openStrikeKey,
+  );
+}
+
 function StrikeRow({
   chain,
   put,
@@ -214,7 +233,13 @@ function StrikeRow({
   rowRef?: React.RefObject<HTMLDivElement | null>;
   isCall?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const rowKey = `${chain.ticker}-${chain.expiry}-${put.strike}-${isCall}`;
+  const openKey = useOpenStrikeKey();
+  const expanded = openKey === rowKey;
+  const setExpanded = (next: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof next === "function" ? next(expanded) : next;
+    setOpenStrikeKey(nextVal ? rowKey : null);
+  };
   const exactDte      = chain.exactDte ?? Math.max(1, chain.daysToExpiry);
   const settlementDte = chain.settlementDte ?? exactDte;
   const weeklyIncome  = put.incomePct / (settlementDte / 7);

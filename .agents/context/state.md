@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-28
+**build** — last updated 2026-07-29
 
 ## Active work
-- Working: live-tab-side-toggle, rally-hotlist-backend, side-aware-entry-verdicts, top7-options-table, regime-checkpoints-210-270-330, gainers-screener-recovery, entry-signal-restart-race-fix
-- In progress: browser-eyeball-live-tab-rally-mode-pending
+- Working: prod-audit-clean, bid-fallback-fix, popup-stack-fix, chunk-prefetch-fix, rankings-tables-compact, row-click-expand, tabbar-restyle
+- In progress: none
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)
