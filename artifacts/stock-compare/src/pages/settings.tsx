@@ -1,11 +1,11 @@
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
-import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut } from "lucide-react";
+import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut, UserPlus, KeyRound } from "lucide-react";
 import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
@@ -56,6 +56,13 @@ function ProfileTab() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     queryClient.removeQueries({ queryKey: ["watchlist"] });
@@ -64,39 +71,115 @@ function ProfileTab() {
     navigate("/login");
   };
 
+  const handleChangePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setPwError(null);
+    setPwSuccess(false);
+    if (newPassword !== confirmPassword) {
+      setPwError("New passwords don't match");
+      return;
+    }
+    setPwSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to change password");
+      setPwSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setPwSuccess(false), 3000);
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "Failed to change password");
+    } finally {
+      setPwSubmitting(false);
+    }
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-lg">
-      <h2 className="text-sm font-semibold mb-4">Account</h2>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Email</span>
-          <span className="text-xs font-mono">{user?.email}</span>
+    <div className="space-y-5 max-w-lg">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h2 className="text-sm font-semibold mb-4">Account</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Email</span>
+            <span className="text-xs font-mono">{user?.email}</span>
+          </div>
+          <div className="h-px bg-border/40" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Username</span>
+            <span className="text-xs font-mono">{user?.username}</span>
+          </div>
+          <div className="h-px bg-border/40" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Role</span>
+            <span className={cn(
+              "text-xs font-semibold px-2 py-0.5 rounded border",
+              user?.role === "admin"
+                ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                : "bg-secondary text-muted-foreground border-border"
+            )}>
+              {user?.role}
+            </span>
+          </div>
+          <div className="h-px bg-border/40" />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-red-400 transition-colors pt-1"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Log out
+          </button>
         </div>
-        <div className="h-px bg-border/40" />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Username</span>
-          <span className="text-xs font-mono">{user?.username}</span>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <KeyRound className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Change Password</h2>
         </div>
-        <div className="h-px bg-border/40" />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Role</span>
-          <span className={cn(
-            "text-xs font-semibold px-2 py-0.5 rounded border",
-            user?.role === "admin"
-              ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-              : "bg-secondary text-muted-foreground border-border"
-          )}>
-            {user?.role}
-          </span>
-        </div>
-        <div className="h-px bg-border/40" />
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-red-400 transition-colors pt-1"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Log out
-        </button>
+        <form onSubmit={handleChangePassword} className="space-y-3">
+          <input
+            type="password"
+            placeholder="Current password"
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+            required
+            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <input
+            type="password"
+            placeholder="New password (min 8 characters)"
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            minLength={8}
+            required
+            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <input
+            type="password"
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            minLength={8}
+            required
+            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {pwError && <p className="text-xs text-red-400">{pwError}</p>}
+          {pwSuccess && <p className="text-xs text-green-400">Password updated.</p>}
+          <button
+            type="submit"
+            disabled={pwSubmitting}
+            className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {pwSubmitting ? "Updating…" : "Update Password"}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -109,6 +192,17 @@ function UserMgmtTab() {
   const [latestCode, setLatestCode] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"member" | "admin">("member");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const [resetResult, setResetResult] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [resettingId, setResettingId] = useState<number | null>(null);
 
   const { data: users = [], isLoading: usersLoading } = useQuery<AdminUser[]>({
     queryKey: ["admin", "users"],
@@ -156,6 +250,45 @@ function UserMgmtTab() {
     queryClient.invalidateQueries({ queryKey: ["admin", "invites"] });
   }
 
+  async function createUser(e: FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: newEmail, username: newUsername, password: newPassword, role: newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create user");
+      setNewEmail("");
+      setNewUsername("");
+      setNewPassword("");
+      setNewRole("member");
+      setShowCreateForm(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create user");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function resetPassword(id: number, username: string) {
+    if (!confirm(`Reset password for ${username}? They'll need the new temporary password to log in.`)) return;
+    setResettingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}/reset-password`, { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to reset password");
+      setResetResult({ username, tempPassword: data.tempPassword });
+    } finally {
+      setResettingId(null);
+    }
+  }
+
   const pendingCount = invites.filter(i => !i.usedBy).length;
 
   return (
@@ -165,8 +298,81 @@ function UserMgmtTab() {
         <div className="flex items-center gap-2 mb-4">
           <Users className="w-4 h-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Users</h2>
-          <span className="ml-auto text-[10px] text-muted-foreground">{users.length} total</span>
+          <span className="text-[10px] text-muted-foreground">{users.length} total</span>
+          <button
+            onClick={() => { setShowCreateForm(v => !v); setCreateError(null); }}
+            className="ml-auto flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity"
+          >
+            <UserPlus className="w-3 h-3" />
+            {showCreateForm ? "Cancel" : "Create User"}
+          </button>
         </div>
+
+        {showCreateForm && (
+          <form onSubmit={createUser} className="mb-4 p-4 bg-secondary/50 border border-border rounded-lg space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <input
+                type="email"
+                placeholder="Email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                required
+                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                type="text"
+                placeholder="Username"
+                value={newUsername}
+                onChange={e => setNewUsername(e.target.value)}
+                minLength={3}
+                maxLength={20}
+                required
+                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                type="text"
+                placeholder="Password (min 8 characters)"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                minLength={8}
+                required
+                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <select
+                value={newRole}
+                onChange={e => setNewRole(e.target.value as "member" | "admin")}
+                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="member">member</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            {createError && <p className="text-xs text-red-400">{createError}</p>}
+            <button
+              type="submit"
+              disabled={creating}
+              className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {creating ? "Creating…" : "Create Account"}
+            </button>
+          </form>
+        )}
+
+        {resetResult && (
+          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">
+              New temp password for <span className="font-semibold text-foreground">{resetResult.username}</span>:
+            </span>
+            <code className="font-mono font-bold bg-secondary px-2 py-0.5 rounded">{resetResult.tempPassword}</code>
+            <button
+              onClick={() => setResetResult(null)}
+              className="ml-auto text-muted-foreground hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {usersLoading ? (
           <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
         ) : (
@@ -178,6 +384,7 @@ function UserMgmtTab() {
                 <th className="text-left py-2 font-semibold">Role</th>
                 <th className="text-right py-2 font-semibold">Joined</th>
                 <th className="text-right py-2 font-semibold">Last Login</th>
+                <th className="text-right py-2 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
@@ -202,6 +409,15 @@ function UserMgmtTab() {
                     {u.lastLoginAt
                       ? <span className="text-foreground/70">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
                       : <span className="text-muted-foreground/50 italic">never</span>}
+                  </td>
+                  <td className="text-right">
+                    <button
+                      onClick={() => resetPassword(u.id, u.username)}
+                      disabled={resettingId === u.id}
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      {resettingId === u.id ? "Resetting…" : "Reset Password"}
+                    </button>
                   </td>
                 </tr>
               ))}

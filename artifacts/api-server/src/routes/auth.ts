@@ -8,7 +8,7 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { logger } from "../lib/logger.js";
 import { authLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
-import { registerSchema, loginSchema } from "../lib/validators/auth.js";
+import { registerSchema, loginSchema, adminCreateUserSchema, changePasswordSchema } from "../lib/validators/auth.js";
 
 const router = Router();
 
@@ -88,6 +88,45 @@ router.get("/auth/me", requireAuth, async (req, res) => {
   return res.json(user);
 });
 
+// POST /auth/change-password
+router.post("/auth/change-password", requireAuth, validate(changePasswordSchema), async (req, res) => {
+  const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+
+  const [user] = await db.select().from(users).where(eq(users.id, req.session.userId!)).limit(1);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const match = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!match) return res.status(401).json({ error: "Current password is incorrect" });
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+  logger.info({ userId: user.id }, "auth: password changed");
+  return res.json({ ok: true });
+});
+
+// POST /admin/users — admin creates an account directly, no invite code needed
+router.post("/admin/users", requireAdmin, validate(adminCreateUserSchema), async (req, res) => {
+  const { email, username, password, role } = req.body as {
+    email: string; username: string; password: string; role: "admin" | "member";
+  };
+
+  const existing = await db.select({ id: users.id }).from(users)
+    .where(or(eq(users.email, email), eq(users.username, username)))
+    .limit(1);
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "Email or username already taken" });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const [newUser] = await db.insert(users).values({ email, username, passwordHash, role }).returning();
+
+  logger.info({ userId: newUser.id, createdBy: req.session.userId }, "admin: user created directly");
+  return res.status(201).json({
+    id: newUser.id, email: newUser.email, username: newUser.username, role: newUser.role,
+  });
+});
+
 // POST /admin/invite
 router.post("/admin/invite", requireAdmin, async (req, res) => {
   const code = randomBytes(4).toString("hex").toUpperCase();
@@ -127,6 +166,20 @@ router.get("/admin/users", requireAdmin, async (_req, res) => {
     .from(users)
     .orderBy(users.createdAt);
   return res.json(rows);
+});
+
+// POST /admin/users/:id/reset-password — admin sets a new temp password for a user
+router.post("/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid user id" });
+
+  const tempPassword = randomBytes(6).toString("hex");
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
+  const result = await db.update(users).set({ passwordHash }).where(eq(users.id, id)).returning({ id: users.id });
+  if (result.length === 0) return res.status(404).json({ error: "User not found" });
+
+  logger.info({ userId: id, resetBy: req.session.userId }, "admin: user password reset");
+  return res.json({ id, tempPassword });
 });
 
 // DELETE /admin/invite/:code

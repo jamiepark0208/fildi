@@ -391,7 +391,7 @@ export function buildCandidate(
 // so puts and calls share this one loop/liquidity-gate/runner-up implementation.
 
 export function pickBestStrike<
-  Opt extends { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
+  Opt extends { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number; meetsGate: boolean },
   Chain extends { spot: number; exactDte: number; settlementDte?: number; options: Opt[] },
 >(
   chains: Chain[],
@@ -408,7 +408,10 @@ export function pickBestStrike<
 
   for (const chain of chains) {
     for (const put of chain.options) {
-      if (put.bid <= 0) continue;
+      // bid alone is unreliable — Yahoo returns bid=0 for every contract when the market
+      // is closed. meetsGate is the server's fallback check (bid, else lastPrice > 0), the
+      // same gate incomePct already uses — see lib/options.ts buildRows.
+      if (!put.meetsGate) continue;
       const candidate = buildCandidate(put, chain, isCall);
       const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights, isCall);
       if (result.availableComponents < minScoredComponents) continue;

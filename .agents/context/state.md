@@ -3,10 +3,10 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-29
+**build** — last updated 2026-07-30
 
 ## Active work
-- Working: prod-audit-clean, bid-fallback-fix, popup-stack-fix, chunk-prefetch-fix, rankings-tables-compact, row-click-expand, tabbar-restyle
+- Working: admin-user-create, admin-password-reset, self-password-change, option-score-bid-gate-fix, live-tab-relabel
 - In progress: none
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 

@@ -90,13 +90,13 @@ function MarketContextChip({ quote }: { quote: MarketContextQuote }) {
   );
 }
 
-/** Dip-Buy vs Fade-Rally — page-level mode (mirrors the scanner's puts/calls toggle). */
+/** Oversold vs Overbought — page-level mode (mirrors the scanner's puts/calls toggle). */
 function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: HotlistSide) => void }) {
   return (
     <div className="inline-flex rounded-md border border-zinc-600/40 overflow-hidden text-xs font-semibold">
       {([
-        ["dip", "Dip-Buy · Sell Puts"],
-        ["rally", "Fade-Rally · Sell Calls"],
+        ["dip", "Oversold · Sell Puts"],
+        ["rally", "Overbought · Sell Calls"],
       ] as const).map(([value, label]) => (
         <button
           key={value}
