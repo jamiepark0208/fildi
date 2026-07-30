@@ -16,7 +16,9 @@ function intrinsicValue(tradeType: string, strike: number, closePrice: number): 
     : Math.max(closePrice - strike, 0)
 }
 
-async function closeOnOrBeforeExpiry(ticker: string, expiry: string): Promise<number | null> {
+// Exported for model-track-record.ts — the model-rec grader settles against the
+// same close-on-or-before-expiry convention as trade-idea resolution.
+export async function closeOnOrBeforeExpiry(ticker: string, expiry: string): Promise<number | null> {
   const rows = await db
     .select({ close: pricesHistorical.close })
     .from(pricesHistorical)

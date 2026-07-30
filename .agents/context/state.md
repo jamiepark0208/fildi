@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-30
 
 ## Active work
-- Working: admin-user-create, admin-password-reset, self-password-change, option-score-bid-gate-fix, live-tab-relabel
-- In progress: none
+- Working: option-scoring-shared-pkg, accountability-schema-3-tables, model-snapshot-job-scheduler, grading-plus-auto-tilt, track-record-api-routes
+- In progress: track-record-ui-phase6-not-started
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)

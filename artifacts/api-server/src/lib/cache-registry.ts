@@ -8,6 +8,7 @@ import { getCacheState as getBusinessCycleRegimeState, CACHE_TTL_MS as BUSINESS_
 import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
 import { tickerNewsCache } from './explain-context.js';
 import { livePriceCache } from './live-quote.js';
+import { trackRecordCache } from '../routes/track-record.js';
 import { screenerCache } from './live-movers.js';
 import { marketDataCache } from '../routes/daily-brief.js';
 import {
@@ -50,6 +51,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'live-price':              'Live Price (Golden Source)',
   'live-screener':           'Live Movers (Yahoo Screener)',
   'daily-brief-market':      'Daily Brief Market Strip',
+  'track-record':            'Model Track Record Aggregates',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -78,6 +80,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'live-price':              livePriceCache,
   'live-screener':           screenerCache,
   'daily-brief-market':      marketDataCache,
+  'track-record':            trackRecordCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),

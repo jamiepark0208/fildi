@@ -5,6 +5,7 @@ import {
   lastRetentionPrune,
   lastTradeExpiryRun, tradeExpiryRunning,
   lastRegimeCheckpointRun, regimeCheckRunning,
+  lastModelSnapshotRun, modelSnapshotRunning,
 } from "../lib/scheduler.js";
 
 const router = Router();
@@ -33,6 +34,13 @@ router.get("/admin/scheduled-tasks", requireAdmin, (_req, res) => {
         schedule: "Saturday, 02:00 UTC",
         lastRun: lastTradeExpiryRun?.toISOString() ?? null,
         running: tradeExpiryRunning,
+      },
+      {
+        name: "Model Accountability Snapshot",
+        description: "Captures the model's best sell-put/sell-call rec per watchlist ticker, hotlist GO/WATCH calls, and regime-grade stubs; graded Saturdays alongside trade-idea expiry.",
+        schedule: "Friday, 19:00 UTC (market open — live bids)",
+        lastRun: lastModelSnapshotRun?.toISOString() ?? null,
+        running: modelSnapshotRunning,
       },
       {
         name: "Intraday Regime Checkpoints",

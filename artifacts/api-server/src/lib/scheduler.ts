@@ -16,6 +16,7 @@ import { runNightlyEnrichment } from "../scripts/nightly-enrichment.js";
 import { pruneOldRows } from "./retention.js";
 import { rotateApiServerLogIfNeeded, pruneScriptLogs } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
+import { runModelSnapshot, runModelGrading } from "./model-track-record.js";
 import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
@@ -25,6 +26,7 @@ import { runEntrySignals } from "./intraday-entry-signals.js";
 const LAST_ENRICHMENT_RUN_KEY = "last_enrichment_run";
 const LAST_RETENTION_PRUNE_KEY = "last_retention_prune";
 const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
+const LAST_MODEL_SNAPSHOT_RUN_KEY = "last_model_snapshot_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -35,6 +37,8 @@ export let enrichmentRunning = false;
 export function setEnrichmentRunning(v: boolean) { enrichmentRunning = v; }
 export let lastTradeExpiryRun: Date | null = null;
 export let tradeExpiryRunning = false;
+export let lastModelSnapshotRun: Date | null = null;
+export let modelSnapshotRunning = false;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -102,6 +106,20 @@ function shouldRunTradeExpiryNow(): boolean {
   return (onSchedule || missedWindow) && !(lastTradeExpiryRun && isSameUtcDay(lastTradeExpiryRun, now));
 }
 
+// Model accountability snapshot: Friday 19:00–19:59 UTC — market is OPEN (15:00 ET),
+// so Yahoo bids are live (bid=0 for every contract when closed). Catch-up runs on
+// other days fall back to lastPrice with bidIsLive=false flagged on the row.
+const MODEL_SNAPSHOT_DAY = 5; // Friday (UTC)
+const MODEL_SNAPSHOT_HOUR = 19;
+const MODEL_SNAPSHOT_CATCHUP_DAYS = 8;
+
+function shouldRunModelSnapshotNow(): boolean {
+  const now = new Date();
+  const onSchedule = now.getUTCDay() === MODEL_SNAPSHOT_DAY && now.getUTCHours() === MODEL_SNAPSHOT_HOUR;
+  const missedWindow = daysSince(lastModelSnapshotRun) > MODEL_SNAPSHOT_CATCHUP_DAYS;
+  return (onSchedule || missedWindow) && !(lastModelSnapshotRun && isSameUtcDay(lastModelSnapshotRun, now));
+}
+
 async function runEnrichment() {
   if (enrichmentRunning) return;
   enrichmentRunning = true;
@@ -127,6 +145,10 @@ async function runTradeExpiry() {
   logger.info("scheduler: starting trade-idea expiry resolution");
   try {
     await resolveExpiredOptionTrades();
+    // Model accountability grading rides the same Saturday window — internally
+    // stage-isolated (each grader catches its own errors), so a grading failure
+    // can't mask a successful trade-idea resolution or vice versa.
+    await runModelGrading();
     lastTradeExpiryRun = new Date();
     await setConfigDate(LAST_TRADE_EXPIRY_RUN_KEY, lastTradeExpiryRun);
     logger.info("scheduler: trade-idea expiry resolution complete");
@@ -134,6 +156,22 @@ async function runTradeExpiry() {
     logger.error({ err }, "scheduler: trade-idea expiry resolution failed");
   } finally {
     tradeExpiryRunning = false;
+  }
+}
+
+async function runModelSnapshotJob() {
+  if (modelSnapshotRunning) return;
+  modelSnapshotRunning = true;
+  logger.info("scheduler: starting model accountability snapshot");
+  try {
+    await runModelSnapshot();
+    lastModelSnapshotRun = new Date();
+    await setConfigDate(LAST_MODEL_SNAPSHOT_RUN_KEY, lastModelSnapshotRun);
+    logger.info("scheduler: model accountability snapshot complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: model accountability snapshot failed");
+  } finally {
+    modelSnapshotRunning = false;
   }
 }
 
@@ -184,7 +222,7 @@ async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -197,12 +235,17 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted trade-expiry last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_MODEL_SNAPSHOT_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted model-snapshot last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
 
   setInterval(() => {
     if (shouldRunEnrichmentNow()) runEnrichment();
     if (shouldRunRetentionNow()) runRetentionPrune();
     if (shouldRunTradeExpiryNow()) runTradeExpiry();
+    if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);
@@ -215,7 +258,8 @@ export async function startScheduler(): Promise<void> {
     {
       scheduleDays: ["Sunday", "Thursday"], scheduleHourUtc: SCHEDULE_HOUR,
       tradeExpiryDay: "Saturday", tradeExpiryHourUtc: TRADE_EXPIRY_HOUR,
-      lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun,
+      modelSnapshotDay: "Friday", modelSnapshotHourUtc: MODEL_SNAPSHOT_HOUR,
+      lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun,
     },
     "scheduler: enrichment + retention + trade-expiry schedule registered",
   );
