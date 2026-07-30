@@ -1420,3 +1420,104 @@ export const feedback = pgTable('feedback', {
 export const insertFeedbackSchema = createInsertSchema(feedback).omit({ id: true, createdAt: true })
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>
 export type Feedback = typeof feedback.$inferSelect
+
+// ── model_recs ────────────────────────────────────────────────────────────────
+// Model accountability: one row per (weekly snapshot, ticker, side) — the option
+// the model would recommend SELLING that week, captured with full scoring context.
+// Graded at expiry by the Saturday resolver using prices_historical closes:
+// pnlPerShare = premium − intrinsic; WIN iff > 0. Universe = distinct watchlist
+// tickers across all users at snapshot time (never the full DB universe).
+
+export const modelRecs = pgTable('model_recs', {
+  id:              serial('id').primaryKey(),
+  snapshotDate:    date('snapshot_date').notNull(),
+  ticker:          text('ticker').notNull(),
+  side:            text('side').notNull(),            // put | call
+  expiry:          date('expiry').notNull(),
+  strike:          numeric('strike').notNull(),
+  spot:            numeric('spot').notNull(),          // stock price at rec time
+  premium:         numeric('premium').notNull(),       // bid (or lastPrice fallback when market closed)
+  bidIsLive:       boolean('bid_is_live').notNull().default(true),
+  incomePct:       numeric('income_pct'),
+  weeklyIncomePct: numeric('weekly_income_pct'),
+  delta:           numeric('delta'),
+  strikeIv:        numeric('strike_iv'),
+  dte:             numeric('dte'),
+  optionScore:     numeric('option_score').notNull(),
+  componentScores: jsonb('component_scores').notNull(), // per-component score + weight (audit trail)
+  dataQuality:     numeric('data_quality'),
+  volRegime:       text('vol_regime').notNull(),        // LOW_VOL | BASELINE | ELEVATED | EXTREME
+  macroRegime:     text('macro_regime'),                // latest market_regime.regime at rec time
+  tiltApplied:     jsonb('tilt_applied'),               // { factor, weights } actually used
+  // Grading (filled by the Saturday resolver)
+  status:          text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
+  settleClose:     numeric('settle_close'),             // close on/before expiry
+  intrinsic:       numeric('intrinsic'),
+  pnlPerShare:     numeric('pnl_per_share'),
+  pnlPct:          numeric('pnl_pct'),                  // put: /strike (CSP collateral); call: /spot
+  gradedAt:        timestamp('graded_at', { withTimezone: true }),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  snapshotUnique: unique('idx_model_recs_snapshot').on(t.snapshotDate, t.ticker, t.side),
+  pendingIdx:     index('idx_model_recs_pending').on(t.status, t.expiry),
+  tickerIdx:      index('idx_model_recs_ticker').on(t.ticker),
+}))
+
+export type ModelRec = typeof modelRecs.$inferSelect
+export type InsertModelRec = typeof modelRecs.$inferInsert
+
+// ── hotlist_snapshots ─────────────────────────────────────────────────────────
+// Weekly capture of Live-tab hotlist GO/WATCH calls ('NO' rows are not persisted).
+// Graded on the 5th trading close after snapshotDate: dip expects a bounce
+// (fwdReturn5d > 0), rally expects a fade (< 0).
+
+export const hotlistSnapshots = pgTable('hotlist_snapshots', {
+  id:           serial('id').primaryKey(),
+  snapshotDate: date('snapshot_date').notNull(),
+  ticker:       text('ticker').notNull(),
+  side:         text('side').notNull(),      // dip | rally
+  signal:       text('signal').notNull(),    // GO | WATCH
+  price:        numeric('price').notNull(),
+  rsi:          numeric('rsi'),
+  mfi:          numeric('mfi'),
+  ivCurrent:    numeric('iv_current'),
+  status:       text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
+  fwdReturn5d:  numeric('fwd_return_5d'),
+  gradedAt:     timestamp('graded_at', { withTimezone: true }),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  snapshotUnique: unique('idx_hotlist_snapshots_snapshot').on(t.snapshotDate, t.ticker, t.side),
+  statusIdx:      index('idx_hotlist_snapshots_status').on(t.status, t.snapshotDate),
+}))
+
+export type HotlistSnapshot = typeof hotlistSnapshots.$inferSelect
+export type InsertHotlistSnapshot = typeof hotlistSnapshots.$inferInsert
+
+// ── regime_grades ─────────────────────────────────────────────────────────────
+// Multi-horizon grading of business-cycle regime calls against forward SPY.
+// Deliberately NO FK to market_regime and fully denormalized: market_regime keeps
+// only the latest 90 rows, which can be pruned before the 12-week horizon matures.
+// Pending stubs (all 3 horizons) are inserted at each weekly snapshot for the last
+// market_regime row per UTC day; graded once classifiedAt + horizon has passed.
+
+export const regimeGrades = pgTable('regime_grades', {
+  id:                serial('id').primaryKey(),
+  regimeRowId:       integer('regime_row_id').notNull(), // market_regime.id (no FK — see note)
+  regime:            text('regime').notNull(),
+  confidence:        integer('confidence').notNull(),
+  classifiedAt:      timestamp('classified_at', { withTimezone: true }).notNull(),
+  horizon:           text('horizon').notNull(),           // 1w | 4w | 12w
+  expectedDirection: text('expected_direction').notNull(),// bullish | bearish | neutral
+  spyStart:          numeric('spy_start'),
+  spyEnd:            numeric('spy_end'),
+  fwdReturnPct:      numeric('fwd_return_pct'),
+  maxDrawdownPct:    numeric('max_drawdown_pct'),
+  grade:             text('grade').notNull().default('pending'), // pending | correct | partial | incorrect | no_data
+  gradedAt:          timestamp('graded_at', { withTimezone: true }),
+}, t => ({
+  rowHorizonUnique: unique('idx_regime_grades_row_horizon').on(t.regimeRowId, t.horizon),
+  classifiedIdx:    index('idx_regime_grades_classified').on(t.classifiedAt),
+}))
+
+export type RegimeGrade = typeof regimeGrades.$inferSelect
+export type InsertRegimeGrade = typeof regimeGrades.$inferInsert
