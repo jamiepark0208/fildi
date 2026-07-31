@@ -12,6 +12,7 @@ const ROUTE_CHUNKS: Record<string, ChunkLoader> = {
   portfolio: () => import("@/pages/portfolio"),
   macro: () => import("@/pages/macro"),
   live: () => import("@/pages/live"),
+  "track-record": () => import("@/pages/track-record"),
   "profile/me": () => import("@/pages/profile"),
   settings: () => import("@/pages/settings"),
   feed: () => import("@/pages/feed"),

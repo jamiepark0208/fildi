@@ -14,7 +14,7 @@ export function pct(v: number | null, digits = 1): string {
 }
 
 export function scoreColor(score: number | null): string {
-  if (score == null) return "text-muted-foreground";
+  if (score == null) return "text-amber-200/40";
   if (score >= 65) return "text-green-500";
   if (score >= 45) return "text-yellow-500";
   return "text-red-500";

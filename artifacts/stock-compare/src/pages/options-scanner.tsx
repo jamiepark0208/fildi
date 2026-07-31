@@ -17,6 +17,10 @@ import { ChevronDown, ChevronRight, RefreshCw, Loader2, X, Sparkles, TrendingUp,
 import { pickBestStrike, computeOptionScore, buildCandidate, type StockContext, type OptionScoreResult } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
+import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
+import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
+import { CredibilityBadge } from "@/components/credibility-badge";
+import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
 import { type MacroRegime, REGIME_INCOME_TARGET, REGIME_INCOME_FLOOR, CALL_STRIKE_WEIGHTS } from "@/lib/option-scorer-constants";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 import { useAuth } from "@/context/AuthContext";
@@ -612,6 +616,8 @@ function ScannerRow({
   stockScore = null,
   isCall,
 }: ScannerRowProps) {
+  const { data: tickerRecords } = useTickerTrackRecord();
+
   // Put mode: legacy per-ticker RSI/MFI threshold signal (server scorecard).
   // Call mode: V2 call-side gate (overbought + fading momentum) from `score` —
   // the legacy indicator signal is oversold-based and would be backwards here.
@@ -700,9 +706,9 @@ function ScannerRow({
     };
   }, [techRow, score, fundTotalScore]);
 
-  // Only score the side (puts or calls) this row was told to render — scoring both
-  // unconditionally on every render was wasted work when only one is ever shown.
-  const effectiveWeights = isCall ? CALL_STRIKE_WEIGHTS : strikeWeights;
+  // strikeWeights is already resolved for the active side (put/call, tilt-adjusted or
+  // user override) by the parent — no need to re-derive per row.
+  const effectiveWeights = strikeWeights;
   const newScorerBest = useMemo(() => {
     if (!optionsData || !stockCtx) return null;
     const picked = pickBestStrike(
@@ -751,13 +757,14 @@ function ScannerRow({
         onClick={onExpand}
       >
         {/* Ticker */}
-        <div className="w-[70px] shrink-0">
+        <div className="w-[70px] shrink-0 flex items-center">
           <span
             className="font-bold text-xs tracking-wide"
             style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
           >
             {ticker}
           </span>
+          <TickerRecordBadge record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]} />
         </div>
 
         {/* Price */}
@@ -1047,7 +1054,8 @@ export const OPTIONS_FILTER_SLOT_ID = "options-filter-bar-slot";
 
 export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
   const { isAdmin, user } = useAuth();
-  const { weights } = useScoringPreferences();
+  const { weights, hasCustomOptionStrike } = useScoringPreferences();
+  const { data: tilt } = useTrackRecordTilt();
 
   // sessionStorage (not localStorage) — expanded rows are tab-lifetime UI state,
   // restored on returning to this tab/sub-tab, but not meant to persist forever.
@@ -1064,6 +1072,10 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   });
   const isCallMode = scanMode === "calls";
   useEffect(() => { try { localStorage.setItem("fildi_scanner_mode", scanMode); } catch {} }, [scanMode]);
+  // Model auto-tilt applies only to untouched defaults; an explicit user override always wins.
+  const effectiveStrikeWeights = isCallMode
+    ? (tilt?.call.weights ?? CALL_STRIKE_WEIGHTS)
+    : (hasCustomOptionStrike ? weights.optionStrike : (tilt?.put.weights ?? weights.optionStrike));
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [tickerQuery,   setTickerQuery]   = useState("");
@@ -1261,7 +1273,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       const picked = pickBestStrike(
         chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
         stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
-        isCallMode ? CALL_STRIKE_WEIGHTS : weights.optionStrike, isCallMode,
+        effectiveStrikeWeights, isCallMode,
       );
       if (!picked) continue;
       scoreMap.set(ticker, picked.result.optionScore);
@@ -1274,7 +1286,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       }
     }
     return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
-  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, weights.optionStrike, isCallMode]);
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
@@ -1460,6 +1472,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const controlsRow = (
     <div className="flex items-center gap-2">
       {scanModeToggle}
+      <CredibilityBadge side={isCallMode ? "call" : "put"} />
       {filterBar}
       {tickerFilterBar}
     </div>
@@ -1535,7 +1548,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 fundTotalScore={fundScoreMap.get(ticker) ?? null}
                 macroRegime={macroRegimeData?.regime ?? "BASELINE"}
                 allWatchlistIVs={allWatchlistIVs}
-                strikeWeights={weights.optionStrike}
+                strikeWeights={effectiveStrikeWeights}
                 bestOptionScore={bestOptionScoreMap.get(ticker) ?? null}
                 bestIncome={bestIncomeMap.get(ticker) ?? null}
                 bestBuffer={bufferMap.get(ticker) ?? null}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   BarChart2, Bookmark, BriefcaseBusiness, Trophy, Globe, User, Settings as SettingsIcon,
-  Activity,
+  Activity, ShieldCheck,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +30,7 @@ const LEFT_NAV_ITEMS: NavItem[] = [
   { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy,            color: "#fbbf24" }, // gold
   { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe,             color: "#a78bfa" }, // violet
   { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose
+  { id: "track-record", href: "/track-record", label: "Track Record", icon: ShieldCheck, color: "#38bdf8" }, // sky
 ];
 
 const RIGHT_NAV_ITEMS: NavItem[] = [
@@ -137,11 +138,11 @@ export function TopNav() {
     <header className="fixed inset-x-0 top-0 h-14 bg-gradient-to-b from-[#232427] to-[#0a0a0b] border-b border-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset] flex items-center px-4 gap-1 z-50">
       <Link href="/feed">
         <div
-          className="w-8 h-8 rounded-md bg-white/10 border border-white/20 flex items-center justify-center shrink-0 cursor-pointer mr-3"
+          className="w-8 h-8 rounded-md bg-black border border-[#d4af37]/40 flex items-center justify-center shrink-0 cursor-pointer mr-3 overflow-hidden"
           title="Feed"
           onMouseEnter={() => prefetchRouteChunk("feed")}
         >
-          <BarChart2 className="w-4 h-4" style={{ color: "#f59e0b", filter: "drop-shadow(0 0 4px #f59e0b80)" }} />
+          <img src="/fildi-logo.png" alt="Fildi" className="w-full h-full object-cover" />
         </div>
       </Link>
 

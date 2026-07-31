@@ -80,10 +80,10 @@ async function fetchEntryStats(): Promise<EntryStatsResponse> {
 function MarketContextChip({ quote }: { quote: MarketContextQuote }) {
   const up = (quote.changePercent ?? 0) >= 0;
   return (
-    <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
-      <span className="text-sm font-mono font-semibold text-foreground">{quote.ticker}</span>
-      <span className="text-sm text-foreground">{quote.price != null ? quote.price.toFixed(2) : "—"}</span>
-      <span className={cn("text-xs font-medium", up ? "text-green-500" : "text-red-500")}>
+    <div className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0">
+      <span className="text-[11px] font-mono font-semibold text-white">{quote.ticker}</span>
+      <span className="text-[11px] font-mono text-sky-300/80">{quote.price != null ? quote.price.toFixed(2) : "—"}</span>
+      <span className={cn("text-[11px] font-mono font-medium", up ? "text-green-500" : "text-red-500")}>
         {pct(quote.changePercent)}
       </span>
     </div>
@@ -93,7 +93,7 @@ function MarketContextChip({ quote }: { quote: MarketContextQuote }) {
 /** Oversold vs Overbought — page-level mode (mirrors the scanner's puts/calls toggle). */
 function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: HotlistSide) => void }) {
   return (
-    <div className="inline-flex rounded-md border border-zinc-600/40 overflow-hidden text-xs font-semibold">
+    <div className="inline-flex rounded-md border border-[#d4af37]/25 overflow-hidden text-xs font-semibold">
       {([
         ["dip", "Oversold · Sell Puts"],
         ["rally", "Overbought · Sell Calls"],
@@ -104,8 +104,45 @@ function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: Hotli
           className={cn(
             "px-3 py-1.5 transition-colors",
             side === value
-              ? value === "dip" ? "bg-green-600/25 text-green-300" : "bg-red-600/25 text-red-300"
-              : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200",
+              ? value === "dip" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+              : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type SubTab = "sell" | "candidates";
+
+/** Sub-tabs inside the combined options/candidates card — labels flip with side. */
+function SubTabToggle({
+  side,
+  subTab,
+  onChange,
+  candidateCount,
+}: {
+  side: HotlistSide;
+  subTab: SubTab;
+  onChange: (t: SubTab) => void;
+  candidateCount: number;
+}) {
+  const sellLabel = side === "rally" ? "Top Calls to Sell" : "Top Puts to Sell";
+  const candidatesLabel = side === "rally" ? "Overbought" : "Oversold";
+  return (
+    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+      {([
+        ["sell", sellLabel],
+        ["candidates", `${candidatesLabel} (${candidateCount})`],
+      ] as const).map(([value, label]) => (
+        <button
+          key={value}
+          onClick={() => onChange(value)}
+          className={cn(
+            "px-2 py-1 transition-colors",
+            subTab === value ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
           )}
         >
           {label}
@@ -124,6 +161,8 @@ export default function Live() {
   });
   useEffect(() => { try { localStorage.setItem("fildi_live_side", side); } catch { /* private mode */ } }, [side]);
   const isRally = side === "rally";
+
+  const [subTab, setSubTab] = useState<SubTab>("sell");
 
   const { data, isLoading } = useQuery({
     queryKey: ["live-state"],
@@ -232,76 +271,85 @@ export default function Live() {
   const sideStats = isRally ? entryStats?.rally : entryStats?.dip;
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
       <main className="pt-14 p-6">
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">Live</h1>
-              <p className="text-sm text-muted-foreground">
-                Prototype — hot list refreshes manually for now. Last refreshed: {lastRefreshedLabel}
-              </p>
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              {data?.marketContext.map((q) => <MarketContextChip key={q.ticker} quote={q} />)}
+              {!isLoading && (data?.marketContext.length ?? 0) === 0 && (
+                <p className="text-sm text-amber-200/40">No data yet — click Refresh.</p>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <SideToggle side={side} onChange={setSide} />
-              <Button
-                onClick={() => refreshMutation.mutate()}
-                disabled={refreshMutation.isPending}
-                size="sm"
-              >
-                <RefreshCw className={cn("h-4 w-4 mr-2", refreshMutation.isPending && "animate-spin")} />
-                Refresh
-              </Button>
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3">
+                <SideToggle side={side} onChange={setSide} />
+                <Button
+                  onClick={() => refreshMutation.mutate()}
+                  disabled={refreshMutation.isPending}
+                  size="sm"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-2", refreshMutation.isPending && "animate-spin")} />
+                  Refresh
+                </Button>
+              </div>
+              <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
+              <p className="text-[10px] text-amber-200/40">Last refreshed: {lastRefreshedLabel}</p>
             </div>
           </div>
 
           <RegimeBanner checkpoints={regime} />
 
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Market Context
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {data?.marketContext.map((q) => <MarketContextChip key={q.ticker} quote={q} />)}
-              {!isLoading && (data?.marketContext.length ?? 0) === 0 && (
-                <p className="text-sm text-muted-foreground">No data yet — click Refresh.</p>
-              )}
-            </div>
+          <section className="space-y-1.5">
+            {moversLoading && !movers ? (
+              <p className="text-sm text-amber-200/40">Loading movers…</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-3">
+                  <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
+                  <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
+                  <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
+                </div>
+                {(movers?.sectors.length ?? 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+                      Sector Breakdown
+                    </h3>
+                    <SectorMoverBars groups={movers!.sectors} />
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
-          <TopOptionsTable side={isRally ? "call" : "put"} n={7} />
-
-          <section className="space-y-2">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                {isRally ? "Fade Candidates" : "Opportunities"} ({sortedHotlist.length})
-              </h2>
-              {sideStats && entryStats && entryStats.gradedDays > 0 && (
-                <span
-                  className="text-[11px] font-mono text-zinc-400"
-                  title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days). Avg next-day / next-5-day return from the signal price.${isRally ? " Rally side sells calls — Enter wants NEGATIVE forward returns here." : " This is the accountability layer — if Enter doesn't beat Wait here, don't trust the verdicts."}`}
-                >
-                  {(["enter", "wait", "avoid"] as const).map((v, i) => {
-                    const s = sideStats[v];
-                    if (!s || s.n === 0) return null;
-                    return (
-                      <span key={v}>
-                        {i > 0 && " · "}
-                        <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
-                          {VERDICT_LABEL[v]}
-                        </span>
-                        {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+          <section className="space-y-1.5">
+            {subTab === "candidates" && sideStats && entryStats && entryStats.gradedDays > 0 && (
+              <span
+                className="block text-[11px] font-mono text-sky-300/60"
+                title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days). Avg next-day / next-5-day return from the signal price.${isRally ? " Rally side sells calls — Enter wants NEGATIVE forward returns here." : " This is the accountability layer — if Enter doesn't beat Wait here, don't trust the verdicts."}`}
+              >
+                {(["enter", "wait", "avoid"] as const).map((v, i) => {
+                  const s = sideStats[v];
+                  if (!s || s.n === 0) return null;
+                  return (
+                    <span key={v}>
+                      {i > 0 && " · "}
+                      <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
+                        {VERDICT_LABEL[v]}
                       </span>
-                    );
-                  })}
-                  {isRally && <span className="text-zinc-500"> (↓ fwd = good)</span>}
-                </span>
-              )}
-            </div>
-            {sortedHotlist.length === 0 ? (
+                      {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+                    </span>
+                  );
+                })}
+                {isRally && <span className="text-amber-200/30"> (↓ fwd = good)</span>}
+              </span>
+            )}
+            {subTab === "sell" ? (
+              <TopOptionsTable side={isRally ? "call" : "put"} n={7} />
+            ) : sortedHotlist.length === 0 ? (
               !isLoading && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-amber-200/40">
                   Waiting for scanner data — click Refresh once rankings are cached.
                 </p>
               )
@@ -315,31 +363,6 @@ export default function Live() {
                 entryByTicker={entryByTicker}
                 entryAsOf={entryAsOf}
               />
-            )}
-          </section>
-
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Movers
-            </h2>
-            {moversLoading && !movers ? (
-              <p className="text-sm text-muted-foreground">Loading movers…</p>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
-                  <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
-                  <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
-                </div>
-                {(movers?.sectors.length ?? 0) > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Sector Breakdown
-                    </h3>
-                    <SectorMoverBars groups={movers!.sectors} />
-                  </div>
-                )}
-              </div>
             )}
           </section>
         </div>

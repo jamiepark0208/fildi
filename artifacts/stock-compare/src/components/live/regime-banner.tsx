@@ -32,13 +32,13 @@ export const CHECKPOINT_TIME_PT: Record<number, string> = {
 };
 
 function regimeDotColor(c: RegimeCheckpoint): string {
-  if (c.status === "pending" || c.direction == null) return "bg-muted-foreground/40";
+  if (c.status === "pending" || c.direction == null) return "bg-amber-200/30";
   if (c.direction === "mixed") return "bg-yellow-500";
   return c.direction === "bullish" ? "bg-green-500" : "bg-red-500";
 }
 
 function regimeTextColor(c: RegimeCheckpoint): string {
-  if (c.status === "pending" || c.direction == null) return "text-muted-foreground";
+  if (c.status === "pending" || c.direction == null) return "text-amber-200/40";
   if (c.direction === "mixed") return "text-yellow-500";
   return c.direction === "bullish" ? "text-green-500" : "text-red-500";
 }
@@ -63,9 +63,9 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
   const flipped = latest != null && prev != null && prev.direction !== latest.direction;
 
   return (
-    <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
-      <div className="px-3 py-1.5 border-b border-zinc-600/40 bg-zinc-800/90 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-white uppercase tracking-wide">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="px-3 py-1.5 border-b border-[#d4af37]/25 bg-black flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wide">
           Intraday Regime
         </span>
         {latest && (
@@ -73,7 +73,7 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
             <span className={cn("font-semibold", regimeTextColor(latest))}>
               Now: {regimeShortLabel(latest)}{latest.confidence != null ? ` ${latest.confidence}%` : ""}
             </span>
-            <span className="text-zinc-500">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
+            <span className="text-amber-200/40">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
             {flipped && prev && (
               <span className="text-amber-400 font-semibold">
                 ⚠ flipped from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}
@@ -88,11 +88,11 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
             <PopoverTrigger asChild>
               <button
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 border-r border-zinc-700/40 last:border-r-0",
-                  "even:bg-zinc-800/40 hover:bg-amber-500/10 transition-colors",
+                  "flex flex-col items-center gap-1 py-2 border-r border-[#d4af37]/10 last:border-r-0",
+                  "even:bg-zinc-900/70 hover:bg-amber-500/10 transition-colors",
                 )}
               >
-                <span className="text-[10px] text-zinc-400 font-mono whitespace-nowrap">
+                <span className="text-[10px] text-sky-300/70 font-mono whitespace-nowrap">
                   {CHECKPOINT_TIME_PT[c.minAfterOpen] ?? c.label}{c.computedLate ? "*" : ""}
                 </span>
                 <span className="flex items-center gap-1">
@@ -103,18 +103,18 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
                 </span>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-0 text-xs bg-zinc-900 border-zinc-600/40" align="center">
-              <div className="px-3 py-2 border-b border-amber-500/20 bg-zinc-800/90 flex items-center gap-2">
+            <PopoverContent className="w-64 p-0 text-xs bg-zinc-950 border-[#d4af37]/25" align="center">
+              <div className="px-3 py-2 border-b border-amber-500/20 bg-black flex items-center gap-2">
                 <span className={cn("h-2 w-2 rounded-full shrink-0", regimeDotColor(c))} />
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-[#d4af37]">
                   {CHECKPOINT_TIME_PT[c.minAfterOpen] ?? c.label}{c.computedLate ? " (late)" : ""}
                 </span>
               </div>
               <div className="p-3 flex flex-col gap-1.5">
                 {(c.factors ?? []).length > 0 ? (c.factors ?? []).map((f, i) => (
-                  <span key={i} className="text-zinc-300 leading-snug font-mono text-[11px]">{f}</span>
+                  <span key={i} className="text-sky-200/80 leading-snug font-mono text-[11px]">{f}</span>
                 )) : (
-                  <span className="text-zinc-500 italic">No breakdown available.</span>
+                  <span className="text-amber-200/40 italic">No breakdown available.</span>
                 )}
               </div>
             </PopoverContent>

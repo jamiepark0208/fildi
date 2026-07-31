@@ -4,7 +4,9 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TechnicalRow } from "@/lib/technical-rankings";
+import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import type { RegimeDirection } from "./regime-banner";
+import { TickerRecordBadge } from "./ticker-record-badge";
 import { num, pct, scoreColor } from "./live-format";
 
 export type HotlistSide = "dip" | "rally";
@@ -42,7 +44,7 @@ export const VERDICT_LABEL: Record<EntryVerdict, string> = { enter: "Enter", wai
 
 /** Entry-timing verdict pill + click-to-open factor breakdown, mirroring the regime banner popover. */
 function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: string | null }) {
-  if (!signal) return <span className="text-muted-foreground">—</span>;
+  if (!signal) return <span className="text-amber-200/40">—</span>;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -50,14 +52,14 @@ function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: st
           {VERDICT_LABEL[signal.verdict]}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0 text-xs bg-zinc-900 border-zinc-600/40" align="center">
-        <div className="px-3 py-2 border-b border-amber-500/20 bg-zinc-800/90 flex items-center justify-between gap-2">
-          <span className="font-semibold text-white">{signal.ticker} entry timing</span>
-          {asOf && <span className="text-zinc-500 font-mono text-[10px]">as of {asOf}</span>}
+      <PopoverContent className="w-72 p-0 text-xs bg-zinc-950 border-[#d4af37]/25" align="center">
+        <div className="px-3 py-2 border-b border-amber-500/20 bg-black flex items-center justify-between gap-2">
+          <span className="font-semibold text-[#d4af37]">{signal.ticker} entry timing</span>
+          {asOf && <span className="text-amber-200/40 font-mono text-[10px]">as of {asOf}</span>}
         </div>
         <div className="p-3 flex flex-col gap-1.5">
           {signal.factors.map((f, i) => (
-            <span key={i} className="text-zinc-300 leading-snug font-mono text-[11px]">{f}</span>
+            <span key={i} className="text-sky-200/80 leading-snug font-mono text-[11px]">{f}</span>
           ))}
         </div>
       </PopoverContent>
@@ -67,7 +69,7 @@ function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: st
 
 function SignalBadge({ signal }: { signal: HotlistEntry["signal"] }) {
   const variant = signal === "GO" ? "default" : signal === "WATCH" ? "secondary" : "outline";
-  const color = signal === "GO" ? "bg-green-600 text-white" : signal === "WATCH" ? "bg-yellow-500 text-black" : "text-muted-foreground";
+  const color = signal === "GO" ? "bg-green-600 text-white" : signal === "WATCH" ? "bg-yellow-500 text-black" : "text-amber-200/40";
   return <Badge variant={variant} className={cn("text-xs", color)}>{signal}</Badge>;
 }
 
@@ -111,20 +113,21 @@ export function HotlistTable({
   entryAsOf: string | null;
 }) {
   const isRally = side === "rally";
+  const optSide = isRally ? "call" : "put";
+  const { data: tickerRecords } = useTickerTrackRecord();
   const levelTitle = isRally
     ? "Nearest resistance above price (swing highs / pivot R1)."
     : "Nearest support below price (swing lows / pivot S1).";
   return (
-    <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
       <table className="w-full text-sm">
-        <thead className="bg-zinc-800/90 text-white">
-          <tr className="border-b border-zinc-600/40">
+        <thead className="bg-black text-[#d4af37]">
+          <tr className="border-b border-[#d4af37]/25">
             <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Ticker</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Price</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">RSI</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">IV · Rank</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">5d Return</th>
-            <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Stoch</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">{isRally ? "Resistance" : "Support"}</th>
             <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">ER</th>
             <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Fund Score</th>
@@ -133,7 +136,7 @@ export function HotlistTable({
             <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Entry</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-zinc-800">
           {entries.map((e) => {
             const fundScore = fundScoreMap.get(e.ticker) ?? null;
             const techScore = techScoreMap.get(e.ticker) ?? null;
@@ -145,10 +148,11 @@ export function HotlistTable({
             const knife = !isRally && tech?.fallingKnife === 1;
             const rsiExtreme = isRally ? e.rsi > 70 : e.rsi < 30; // the setup on each side
             return (
-              <tr key={e.ticker} className="bg-zinc-900/40 even:bg-zinc-800/40 hover:bg-zinc-700/50 transition-colors">
+              <tr key={e.ticker} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                 <td className="px-3 py-1.5 font-mono font-semibold text-white">
                   {e.ticker}
                   {knife && <span className="ml-1 text-red-500" title="Falling knife: >2 ATR below MA50 and MA200 with MACD falling">⚠</span>}
+                  <TickerRecordBadge record={tickerRecords?.[e.ticker]?.[optSide]} />
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", rsiExtreme ? "text-green-400 font-semibold" : "text-white")}>
@@ -156,16 +160,15 @@ export function HotlistTable({
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-amber-400">
                   {e.ivCurrent.toFixed(0)}%
-                  <span className={cn("ml-1", ivRank != null && ivRank >= 0.7 ? "text-amber-300 font-semibold" : "text-zinc-500")}>
+                  <span className={cn("ml-1", ivRank != null && ivRank >= 0.7 ? "text-amber-300 font-semibold" : "text-sky-300/50")}>
                     {ivRank != null ? `R${Math.round(ivRank * 100)}` : ""}
                   </span>
                 </td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", (e.return5d ?? 0) < 0 ? "text-red-400" : "text-green-400")}>
                   {pct(e.return5d)}
                 </td>
-                <td className="px-3 py-1.5 text-right font-mono text-white">{e.stoch != null ? e.stoch.toFixed(0) : "—"}</td>
                 <td
-                  className="px-3 py-1.5 text-right font-mono text-zinc-300"
+                  className="px-3 py-1.5 text-right font-mono text-sky-300/80"
                   title={level
                     ? `${levelTitle} ${level.cushioned
                         ? (isRally ? "An ~8% OTM call strike would sit ABOVE this resistance (capped before the strike)." : "An ~8% OTM put strike would sit BELOW this support (cushioned).")
@@ -187,7 +190,7 @@ export function HotlistTable({
                       {erDays}d
                     </span>
                   ) : (
-                    <span className="text-zinc-600 text-[10px]">{erDays != null ? `${erDays}d` : "—"}</span>
+                    <span className="text-amber-200/30 text-[10px]">{erDays != null ? `${erDays}d` : "—"}</span>
                   )}
                 </td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", scoreColor(fundScore))}>

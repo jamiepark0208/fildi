@@ -38,15 +38,15 @@ function MoverRow({ m, showVolume }: { m: ScreenerMover; showVolume?: boolean })
         borderLeftColor: heatBorderColor(m.changePercent),
       }}
     >
-      <span className="font-mono font-bold text-foreground w-14 shrink-0">{m.ticker}</span>
-      <span className="text-muted-foreground w-16 shrink-0">
+      <span className="font-mono font-bold text-white w-14 shrink-0">{m.ticker}</span>
+      <span className="text-sky-300/70 w-16 shrink-0">
         {m.price != null ? `$${m.price.toFixed(2)}` : "—"}
       </span>
       <span className={cn("font-bold w-14 shrink-0", up ? "text-green-500" : "text-red-500")}>
         {pct(m.changePercent)}
       </span>
       {showVolume && (
-        <span className="text-muted-foreground ml-auto">
+        <span className="text-amber-200/50 ml-auto">
           {m.volume != null ? formatVolume(m.volume) : "—"}
         </span>
       )}
@@ -64,14 +64,14 @@ export function MoverHeatmapGrid({
   showVolume?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border/60 overflow-hidden">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide bg-card px-2 py-1 border-b border-border/60">
+    <div className="rounded-lg border border-[#d4af37]/20 overflow-hidden bg-zinc-950">
+      <h3 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide bg-black px-2 py-1 border-b border-[#d4af37]/20">
         {title}
       </h3>
       {movers.length === 0 ? (
-        <p className="text-xs text-muted-foreground p-2">No data.</p>
+        <p className="text-xs text-amber-200/40 p-2">No data.</p>
       ) : (
-        <div className="divide-y divide-border/30">
+        <div className="divide-y divide-zinc-800">
           {movers.slice(0, 8).map((m) => (
             <MoverRow key={m.ticker} m={m} showVolume={showVolume} />
           ))}
@@ -91,18 +91,18 @@ export function SectorMoverBars({ groups }: { groups: SectorMoverGroup[] }) {
         return (
           <div
             key={g.sector}
-            className="rounded-lg border border-border/60 bg-card px-3 py-2 hover:border-border transition-colors"
+            className="rounded-lg border border-[#d4af37]/20 bg-zinc-950 px-3 py-2 hover:border-[#d4af37]/40 transition-colors"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm font-medium text-foreground">{g.sector}</span>
-              <span className="text-xs text-muted-foreground">{g.tickerCount} tickers</span>
+              <span className="text-sm font-medium text-white">{g.sector}</span>
+              <span className="text-xs text-sky-300/70">{g.tickerCount} tickers</span>
               <span className={cn("text-sm font-bold font-mono", up ? "text-green-500" : "text-red-500")}>
                 {pct(g.avgChangePercent)}
               </span>
             </div>
 
-            <div className="relative h-1.5 rounded-full bg-secondary overflow-hidden mb-2">
-              <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+            <div className="relative h-1.5 rounded-full bg-zinc-800 overflow-hidden mb-2">
+              <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-700" />
               <div
                 className={cn("absolute inset-y-0 rounded-full", up ? "bg-green-500" : "bg-red-500")}
                 style={up ? { left: "50%", width: `${widthPct}%` } : { right: "50%", width: `${widthPct}%` }}

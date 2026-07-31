@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { useAuth } from "@/context/AuthContext";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
+import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
 import { queryKeys } from "@/lib/query-keys";
 import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-rankings";
 import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
@@ -81,8 +82,14 @@ export interface TopOptionRow {
 export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow[]; isFetching: boolean } {
   const isCall = side === "call";
   const { user } = useAuth();
-  const { weights } = useScoringPreferences();
+  const { weights, hasCustomOptionStrike } = useScoringPreferences();
+  const { data: tilt } = useTrackRecordTilt();
   const { entries, isLoaded } = useWatchlist();
+
+  // Model auto-tilt applies only to untouched defaults; an explicit user override always wins.
+  const effectiveStrikeWeights = isCall
+    ? (tilt?.call.weights ?? CALL_STRIKE_WEIGHTS)
+    : (hasCustomOptionStrike ? weights.optionStrike : (tilt?.put.weights ?? weights.optionStrike));
 
   const displayTickers = useMemo(() => {
     let hidden = new Set<string>();
@@ -181,7 +188,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
       const best = pickBestStrike(
         chains.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
         stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
-        isCall ? CALL_STRIKE_WEIGHTS : weights.optionStrike, isCall,
+        effectiveStrikeWeights, isCall,
       );
       if (!best) continue;
       const spot = best.chain.spot ?? 0;
@@ -210,7 +217,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
     // One row per ticker (pickBestStrike already collapses to the best strike) —
     // rank across tickers by option score and keep the top n.
     return picked.sort((a, b) => b.optionScore - a.optionScore).slice(0, n);
-  }, [allTechnicalsData, batchOptionsData, fundRankingsData, macroRegimeData, weights, side, isCall, displayTickers, n]);
+  }, [allTechnicalsData, batchOptionsData, fundRankingsData, macroRegimeData, weights, effectiveStrikeWeights, side, isCall, displayTickers, n]);
 
   return { rows, isFetching };
 }

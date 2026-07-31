@@ -112,6 +112,35 @@ router.get("/track-record/summary", async (_req, res) => {
   }
 });
 
+// ── GET /track-record/by-ticker ───────────────────────────────────────────────
+// Cumulative win/loss counts per ticker per side — the accountability badge shown
+// next to a ticker in the scanner/live tables ("3W-1L").
+
+interface TickerRecord { wins: number; losses: number }
+type ByTickerResponse = Record<string, { put: TickerRecord; call: TickerRecord }>;
+
+router.get("/track-record/by-ticker", async (_req, res) => {
+  try {
+    const data = await trackRecordCache.getOrCompute("by-ticker", async () => {
+      const rows = await db.select({
+        ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status,
+      }).from(modelRecs).where(sql`${modelRecs.status} IN ('WIN', 'LOSS')`);
+
+      const out: ByTickerResponse = {};
+      for (const r of rows) {
+        const side = r.side as "put" | "call";
+        if (!out[r.ticker]) out[r.ticker] = { put: { wins: 0, losses: 0 }, call: { wins: 0, losses: 0 } };
+        if (r.status === "WIN") out[r.ticker]![side].wins++;
+        else out[r.ticker]![side].losses++;
+      }
+      return out;
+    });
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
 // ── GET /track-record/recs ────────────────────────────────────────────────────
 
 router.get("/track-record/recs", async (req, res) => {

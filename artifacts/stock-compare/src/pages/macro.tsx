@@ -63,6 +63,7 @@ import {
 } from "@/components/macro/macro-format";
 import { CurvePeriodButtons, VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
 import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip, QuickStats } from "@/components/macro/macro-regime-overview";
+import { RegimeAccuracyStrip } from "@/components/macro/regime-accuracy-strip";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
@@ -325,6 +326,7 @@ export default function MacroDashboard() {
               <RegimeBanner />
               <MacroHighlightsPanel />
               <RegimeChips macroData={macroData!} />
+              <RegimeAccuracyStrip />
               <CrossTabReadRow
                 volatilityImplications={macroCharts?.volatilityImplications}
                 liquidityImplications={macroCharts?.liquidityImplications}

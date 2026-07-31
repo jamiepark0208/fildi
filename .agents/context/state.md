@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-30
+**build** — last updated 2026-07-31
 
 ## Active work
-- Working: option-scoring-shared-pkg, accountability-schema-3-tables, model-snapshot-job-scheduler, grading-plus-auto-tilt, track-record-api-routes
-- In progress: track-record-ui-phase6-not-started
+- Working: fildi-logo-login-styling, live-tab-ui-overhaul, track-record-ui-compact, ticker-winloss-badge, track-record-by-ticker-api
+- In progress: live-tab-functionality-enhancements-pending-user-spec
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)
