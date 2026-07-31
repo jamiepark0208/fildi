@@ -316,6 +316,11 @@ function normalizeCheckpoint(raw: RegimeCheckpoint & { explanation?: string }, o
   };
 }
 
+/** Recorded checkpoints for any past date (empty if the server wasn't running that day). Exported for grading/backfill. */
+export async function getCheckpointsForDate(dateKey: string): Promise<RegimeCheckpoint[]> {
+  return loadCheckpoints(dateKey);
+}
+
 async function loadCheckpoints(dateKey: string): Promise<RegimeCheckpoint[]> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, configKey(dateKey))).limit(1);
   const value = rows[0]?.value as { checkpoints?: RegimeCheckpoint[] } | undefined;

@@ -1467,9 +1467,10 @@ export type ModelRec = typeof modelRecs.$inferSelect
 export type InsertModelRec = typeof modelRecs.$inferInsert
 
 // ── hotlist_snapshots ─────────────────────────────────────────────────────────
-// Weekly capture of Live-tab hotlist GO/WATCH calls ('NO' rows are not persisted).
-// Graded on the 5th trading close after snapshotDate: dip expects a bounce
-// (fwdReturn5d > 0), rally expects a fade (< 0).
+// Daily capture of Live-tab hotlist GO/WATCH calls ('NO' rows are not persisted).
+// Headline grade is strike safety over horizonDays: dip fails if the low breaches
+// strikeRef, rally fails if the high does. Forward returns (1d/5d/10d) are kept
+// alongside as secondary context — dip expects a bounce, rally expects a fade.
 
 export const hotlistSnapshots = pgTable('hotlist_snapshots', {
   id:           serial('id').primaryKey(),
@@ -1481,6 +1482,17 @@ export const hotlistSnapshots = pgTable('hotlist_snapshots', {
   rsi:          numeric('rsi'),
   mfi:          numeric('mfi'),
   ivCurrent:    numeric('iv_current'),
+  // Graded on two axes side by side: strike safety (did a put you'd have sold that
+  // day survive?) is the headline, forward returns are secondary context. A ticker
+  // can round-trip to a positive 5d return after breaching the strike mid-horizon —
+  // that's a loss for a put seller and a win on fwdReturn5d, hence both.
+  entryVerdict:   text('entry_verdict'),               // enter | wait | avoid, from the day's final entry-signal snapshot
+  strikeRef:      numeric('strike_ref'),               // ~30-delta strike this call is graded against, frozen at snapshot time
+  horizonDays:    integer('horizon_days').notNull().default(14),
+  maePct:         numeric('mae_pct'),                  // worst adverse excursion over the horizon
+  strikeBreached: boolean('strike_breached'),
+  fwdReturn1d:    numeric('fwd_return_1d'),
+  fwdReturn10d:   numeric('fwd_return_10d'),
   status:       text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
   fwdReturn5d:  numeric('fwd_return_5d'),
   gradedAt:     timestamp('graded_at', { withTimezone: true }),
@@ -1521,3 +1533,69 @@ export const regimeGrades = pgTable('regime_grades', {
 
 export type RegimeGrade = typeof regimeGrades.$inferSelect
 export type InsertRegimeGrade = typeof regimeGrades.$inferInsert
+
+// ── intraday_day_stats ────────────────────────────────────────────────────────
+// One row per (trading day, index symbol) capturing the shape of the session:
+// where the high/low printed and how far into the day. This is what makes
+// "reversals have been hitting around 10 AM PT" answerable — the Live tab's
+// checkpoint history records the model's CALL, this records what actually happened.
+// barsJson keeps the raw 5m series so checkpoints can be re-derived later without
+// re-hitting Yahoo (which only serves 5m bars ~60 days back).
+
+export const intradayDayStats = pgTable('intraday_day_stats', {
+  id:             serial('id').primaryKey(),
+  date:           date('date').notNull(),
+  ticker:         text('ticker').notNull(),        // SPY | QQQ
+  open:           numeric('open').notNull(),
+  high:           numeric('high').notNull(),
+  low:            numeric('low').notNull(),
+  close:          numeric('close').notNull(),
+  highAtMin:      integer('high_at_min').notNull(), // minutes after 9:30 ET
+  lowAtMin:       integer('low_at_min').notNull(),
+  closeVsOpenPct: numeric('close_vs_open_pct').notNull(),
+  rangePct:       numeric('range_pct').notNull(),
+  dayShape:       text('day_shape').notNull(),      // reversal-up | reversal-down | trend-up | trend-down | chop
+  reversalAtMin:  integer('reversal_at_min'),       // null unless dayShape is a reversal
+  barsJson:       jsonb('bars_json').notNull(),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  dayUnique:  unique('idx_intraday_day_stats_day').on(t.date, t.ticker),
+  shapeIdx:   index('idx_intraday_day_stats_shape').on(t.dayShape, t.date),
+}))
+
+export type IntradayDayStat = typeof intradayDayStats.$inferSelect
+export type InsertIntradayDayStat = typeof intradayDayStats.$inferInsert
+
+// ── intraday_checkpoint_grades ────────────────────────────────────────────────
+// Grades each intraday regime checkpoint against what the tape did afterwards.
+// The SymbolSignal inputs are flattened (rather than left in app_config JSON) so
+// pattern queries like "reversal rate when a sweep-reclaim was present" are plain SQL.
+// `reconstructed` marks rows replayed from stored bars for days the server never
+// ran: direction/score are exact, but hotlist breadth has no historical snapshot,
+// so their confidence is the pre-breadth value and must be captioned as such.
+
+export const intradayCheckpointGrades = pgTable('intraday_checkpoint_grades', {
+  id:                serial('id').primaryKey(),
+  date:              date('date').notNull(),
+  ticker:            text('ticker').notNull(),
+  minAfterOpen:      integer('min_after_open').notNull(),
+  direction:         text('direction'),              // bullish | bearish | null (no lean)
+  confidence:        integer('confidence'),
+  breakout:          text('breakout').notNull(),
+  vwapSepPct:        numeric('vwap_sep_pct').notNull(),
+  pullbackPct:       numeric('pullback_pct').notNull(),
+  priorDaySweep:     text('prior_day_sweep'),        // bullish-reclaim | bearish-reclaim | null
+  priceAtCheckpoint: numeric('price_at_checkpoint').notNull(),
+  fwd30mPct:         numeric('fwd_30m_pct'),
+  fwd60mPct:         numeric('fwd_60m_pct'),
+  fwdClosePct:       numeric('fwd_close_pct'),
+  grade:             text('grade').notNull().default('pending'), // correct | incorrect | flat | no_data | pending
+  reconstructed:     boolean('reconstructed').notNull().default(false),
+  gradedAt:          timestamp('graded_at', { withTimezone: true }),
+}, t => ({
+  checkpointUnique: unique('idx_intraday_cp_grades_checkpoint').on(t.date, t.ticker, t.minAfterOpen),
+  bucketIdx:        index('idx_intraday_cp_grades_bucket').on(t.minAfterOpen, t.direction, t.grade),
+}))
+
+export type IntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferSelect
+export type InsertIntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferInsert
