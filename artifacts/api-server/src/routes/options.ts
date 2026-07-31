@@ -50,15 +50,21 @@ router.get("/options/batch", async (req, res) => {
   if (!tickers || typeof tickers !== "string") {
     return res.status(400).json({ error: "tickers is required" });
   }
-  const keys = [...new Set(tickers.split(",").map(t => t.trim().toUpperCase()).filter(Boolean))];
-  if (keys.some(k => !/^[A-Z]{1,10}$/.test(k))) {
-    return res.status(400).json({ error: "Invalid ticker in list" });
-  }
-  if (keys.length === 0) {
+  const allKeys = [...new Set(tickers.split(",").map(t => t.trim().toUpperCase()).filter(Boolean))];
+  if (allKeys.length === 0) {
     return res.status(400).json({ error: "tickers is required" });
   }
 
+  // A malformed ticker (e.g. an index symbol like ^SPY, which the watchlist-add
+  // endpoint accepts but which has no options chain) must not 400 the whole batch —
+  // that would blank out every other valid ticker for a user who has one bad entry.
   const results: Record<string, OptionsChainResult[] | { error: string }> = {};
+  const keys = allKeys.filter(k => {
+    if (/^[A-Z]{1,10}$/.test(k)) return true;
+    results[k] = { error: "Invalid ticker format" };
+    return false;
+  });
+
   let cursor = 0;
   async function worker() {
     while (cursor < keys.length) {
