@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart
+  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart, Minus, Plus
 } from "lucide-react";
 import { PriceChart, Period } from "./price-chart";
 import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
@@ -164,7 +164,7 @@ function TagBadge({
   );
 }
 
-type BreakdownTab = "technical" | "analyst" | "sentiment" | "catalysts" | "peers" | "news" | "accounting";
+type BreakdownTab = "analyst" | "sentiment" | "catalysts" | "news" | "accounting";
 
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
@@ -187,6 +187,46 @@ export function StockBreakdown({
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
   const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>("analyst");
+
+  // Technical widget / Peers box split — user-draggable, persisted per browser.
+  const SIDE_PANEL_TOTAL = 360; // matches the h-[360px] row height below
+  const SIDE_PANEL_MIN = 60;
+  const [techBoxHeight, setTechBoxHeight] = useState<number>(() => {
+    const saved = Math.round(Number(localStorage.getItem("breakdown-tech-box-height")));
+    return saved >= SIDE_PANEL_MIN && saved <= SIDE_PANEL_TOTAL - SIDE_PANEL_MIN ? saved : 240;
+  });
+  const [dragHeight, setDragHeight] = useState<number | null>(null);
+  const dragStartRef = useRef<{ y: number; height: number } | null>(null);
+  const [techZoom, setTechZoom] = useState<number>(() => {
+    const saved = Number(localStorage.getItem("breakdown-tech-widget-zoom"));
+    return saved >= 0.5 && saved <= 2 ? saved : 1;
+  });
+  useEffect(() => {
+    localStorage.setItem("breakdown-tech-widget-zoom", String(techZoom));
+  }, [techZoom]);
+
+  const handleSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartRef.current = { y: e.clientY, height: techBoxHeight };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const handleSplitPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current) return;
+    const delta = Math.round(e.clientY - dragStartRef.current.y);
+    const next = Math.min(
+      SIDE_PANEL_TOTAL - SIDE_PANEL_MIN,
+      Math.max(SIDE_PANEL_MIN, dragStartRef.current.height + delta),
+    );
+    setDragHeight(next);
+  };
+  const handleSplitPointerUp = () => {
+    if (!dragStartRef.current) return;
+    if (dragHeight != null) {
+      setTechBoxHeight(dragHeight);
+      localStorage.setItem("breakdown-tech-box-height", String(dragHeight));
+    }
+    dragStartRef.current = null;
+    setDragHeight(null);
+  };
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,7 +318,7 @@ export function StockBreakdown({
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Search header — hidden when ticker is driven by parent (e.g. watchlist) */}
-      {!propTicker && <div className="shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-6 py-3 z-10">
+      {!propTicker && <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-900/95 backdrop-blur px-6 py-3 z-10">
         <div className="max-w-5xl mx-auto flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none z-10" />
@@ -368,7 +408,7 @@ export function StockBreakdown({
 
         {/* Main content */}
         {m && !isLoading && (
-          <div className="max-w-5xl mx-auto px-6 py-6 space-y-4 pb-12">
+          <div className="max-w-5xl mx-auto px-5 py-4 space-y-3 pb-8">
             {/* ── Header ── */}
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
@@ -541,43 +581,92 @@ export function StockBreakdown({
               ]}
             />
 
-            {/* ── Price Chart ── */}
-            <div className="overflow-hidden">
-              <PriceChart
-                tickers={[m.ticker]}
-                loadedStocks={[m]}
-                selectedPeriod={chartPeriod}
-                onPeriodChange={setChartPeriod}
-                showTechnicalZones={!!propTicker}
-                tickerForTechnicals={propTicker}
-              />
-            </div>
+            {/* ── Price Chart + Technical / Peers side boxes ── */}
+            {(() => {
+              const hasPeers = !!propTicker && !!activeTicker;
+              return (
+                <div className="grid grid-cols-4 gap-2 h-[360px] w-full">
+                  <div className="col-span-3 h-full min-w-0">
+                    <PriceChart
+                      tickers={[m.ticker]}
+                      loadedStocks={[m]}
+                      selectedPeriod={chartPeriod}
+                      onPeriodChange={setChartPeriod}
+                      showTechnicalZones={!!propTicker}
+                      tickerForTechnicals={propTicker}
+                      compact
+                    />
+                  </div>
+                  <div className="col-span-1 h-full min-w-0 flex flex-col min-h-0">
+                    <div
+                      className="relative bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 shrink-0 min-w-0 overflow-hidden flex items-center justify-center group/tech"
+                      style={{ height: dragHeight ?? techBoxHeight }}
+                    >
+                      <div style={{ zoom: techZoom }}>
+                        <TradingViewTechnicalWidget ticker={m.ticker} exchange={m.exchange} height={Math.round(Math.max(60, techBoxHeight - 16))} />
+                      </div>
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover/tech:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => setTechZoom(z => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
+                          className="w-4 h-4 flex items-center justify-center rounded bg-zinc-900/90 border border-[#d4af37]/30 text-[#d4af37]/70 hover:text-[#d4af37] hover:border-[#d4af37]/60 text-[10px] leading-none"
+                          title="Shrink widget"
+                        >
+                          <Minus className="w-2.5 h-2.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTechZoom(z => Math.min(2, Math.round((z + 0.1) * 10) / 10))}
+                          className="w-4 h-4 flex items-center justify-center rounded bg-zinc-900/90 border border-[#d4af37]/30 text-[#d4af37]/70 hover:text-[#d4af37] hover:border-[#d4af37]/60 text-[10px] leading-none"
+                          title="Enlarge widget"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      onPointerDown={handleSplitPointerDown}
+                      onPointerMove={handleSplitPointerMove}
+                      onPointerUp={handleSplitPointerUp}
+                      className="h-2 shrink-0 -my-px cursor-row-resize flex items-center justify-center touch-none select-none group"
+                      title="Drag to resize"
+                    >
+                      <div className="w-8 h-1 rounded-full bg-[#d4af37]/25 group-hover:bg-[#d4af37]/60 group-active:bg-[#d4af37] transition-colors" />
+                    </div>
+                    <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 flex-1 min-h-0 min-w-0 overflow-hidden">
+                      {hasPeers ? (
+                        <CompetitorsSection ticker={activeTicker!} />
+                      ) : (
+                        <>
+                          <div className="text-[11px] font-bold tracking-tight text-[#d4af37] mb-1">Peers</div>
+                          <span className="text-[10px] text-amber-200/50 italic">No peer data available.</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
-            {/* ── Below-chart detail tabs: Technical / Analyst / Sentiment / Catalysts / Peers / News ── */}
+            {/* ── Below-chart detail tabs: Analyst / Sentiment / Catalysts / Accounting / News ── */}
             {(() => {
               const hasSentiment = data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || !!data.recommendations;
-              const hasPeers = !!propTicker && !!activeTicker;
               const hasNews = !!data.news && data.news.length > 0;
               const tabs: TabBarItem<BreakdownTab>[] = [
-                { id: "technical" as const, label: "Technical", color: "blue" as const },
                 ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings", color: "violet" as const }] : []),
                 ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment", color: "emerald" as const }] : []),
                 { id: "catalysts" as const, label: "Catalysts", color: "amber" as const },
                 { id: "accounting" as const, label: "Accounting", color: "teal" as const },
-                ...(hasPeers ? [{ id: "peers" as const, label: "Peers", color: "cyan" as const }] : []),
                 ...(hasNews ? [{ id: "news" as const, label: "News", color: "rose" as const }] : []),
               ];
               const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : "analyst";
 
               return (
-                <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
-                  <div className="px-4 pt-3 pb-2 border-b border-border/40">
+                <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-xl overflow-hidden">
+                  <div className="px-4 pt-3 pb-2 border-b border-[#d4af37]/20 bg-black">
                     <TabBar tabs={tabs} active={activeTab} onChange={(id) => setBreakdownTab(id)} />
                   </div>
-                  <div className="p-4 max-h-[440px] overflow-y-auto">
-                    {activeTab === "technical" && (
-                      <TradingViewTechnicalWidget ticker={m.ticker} exchange={m.exchange} />
-                    )}
+                  <div className="p-4">
                     {activeTab === "analyst" && data.recommendations && (
                       <AnalystRatingsSection
                         recs={data.recommendations}
@@ -596,7 +685,6 @@ export function StockBreakdown({
                     )}
                     {activeTab === "catalysts" && <CatalystsSection catalysts={data.catalysts} />}
                     {activeTab === "accounting" && <AccountingStatementsSection ticker={m.ticker} />}
-                    {activeTab === "peers" && hasPeers && <CompetitorsSection ticker={activeTicker!} />}
                     {activeTab === "news" && hasNews && (
                       <div className="space-y-0.5 -mx-1">
                         {data.news.map((item, i) => (

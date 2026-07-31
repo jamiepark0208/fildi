@@ -1,7 +1,7 @@
 // Static / manually-maintained macro data — Fed members, SEP projections, bank research,
 // economic event calendar, and FRED series registry.
 // Update these after each FOMC meeting, SEP release, or calendar refresh.
-import type { FedMember, FedProjection, BankResearch, MacroEvent } from "./macro-data.js";
+import type { FedMember, FedProjection, BankResearch, MacroEvent } from "./macro-shared-types.js";
 
 export const FED_MEMBERS: FedMember[] = [
   // ── Voting members ──────────────────────────────────────────────────────────

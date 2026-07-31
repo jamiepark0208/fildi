@@ -3,7 +3,7 @@ name: db-patterns
 description: PostgreSQL schema and query rules for TradeDash. Read before any schema or migration work.
 ---
 
-Full schema (37 tables, with column-level comments) lives at `lib/db/src/schema/index.ts` —
+Full schema (50+ tables — run `grep -c "pgTable(" lib/db/src/schema/index.ts` for the live count, with column-level comments) lives at `lib/db/src/schema/index.ts` —
 that file is the source of truth for columns; this doc is a map of what exists and why, not
 a column mirror (column mirrors go stale, e.g. `source_ticker_map` drifted from its actual
 schema for a while — see `data-agent.md`'s changelog note).

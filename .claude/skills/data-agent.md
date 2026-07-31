@@ -6,7 +6,7 @@
 
 ## GOAL
 Own the stock DB. Maintain timely, accurate, complete data for all tickers
-in watchlist + peer universe (257 canonical tickers). Minimize API cost and tokens.
+in watchlist + peer universe (canonical set = `fmp_fundamentals` table — query it for the count, never hardcode). Minimize API cost and tokens.
 Three measures of data quality: timeliness, accuracy, completeness.
 
 ---

@@ -144,39 +144,10 @@ export interface MacroCharts {
   volatilityImplications: VolatilityImplications; // Synthesized vol regime read across VIX/term structure/VVIX/put-call/credit/MOVE
 }
 
-export interface FedMember {
-  name: string;
-  title: string;
-  voting: boolean;
-  stance: "hawkish" | "neutral" | "dovish";
-  notes: string;
-  recentChange?: string;
-  photoUrl?: string;
-  priority?: number;
-}
-
-export interface MacroEvent {
-  date: string;
-  event: string;
-  importance: "high" | "medium" | "low";
-}
-
-export interface BankResearch {
-  name: string;
-  shortName: string;
-  stance: "bullish" | "neutral" | "bearish";
-  rateView: string;
-  summary: string;
-  lastUpdated: string;
-}
-
-export interface FedProjection {
-  year: number;
-  fedRate: number | null;
-  gdp: number | null;
-  unemployment: number | null;
-  corePce: number | null;
-}
+// Moved to macro-shared-types.ts to break the macro-data ⇄ macro-static cycle;
+// re-exported here so existing imports keep working.
+import type { FedMember, MacroEvent, BankResearch, FedProjection } from "./macro-shared-types.js";
+export type { FedMember, MacroEvent, BankResearch, FedProjection } from "./macro-shared-types.js";
 
 export interface MacroData {
   fetchedAt: string;

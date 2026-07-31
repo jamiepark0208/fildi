@@ -68,5 +68,5 @@ export function TradingViewTechnicalWidget({ ticker, exchange, height = 220 }: T
     return () => { container.innerHTML = ""; };
   }, [visible, ticker, exchange, height]);
 
-  return <div className="tradingview-widget-container" ref={containerRef} style={{ height }} />;
+  return <div className="tradingview-widget-container bg-zinc-950 rounded" ref={containerRef} style={{ height }} />;
 }
