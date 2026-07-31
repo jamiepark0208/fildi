@@ -55,7 +55,7 @@ const TRADE_TYPES = [
 type TradeTypeId = typeof TRADE_TYPES[number]["id"]
 
 const CONFIDENCE_OPTS = ["Speculative", "Low", "Moderate", "High", "Strong"]
-const CONF_COLORS = ["text-white border-border bg-secondary", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
+const CONF_COLORS = ["text-amber-200/50 border-[#d4af37]/20 bg-zinc-900", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
 
 function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
   const [tradeType, setTradeType] = useState<TradeTypeId>("SELL_PUT")
@@ -140,20 +140,20 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
     } finally { setSubmitting(false) }
   }
 
-  const inp = "w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+  const inp = "w-full bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
 
   return (
-    <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-4 space-y-4 mb-4">
-      <div className="text-sm font-semibold text-foreground">New Trade Idea</div>
+    <form onSubmit={handleSubmit} className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2 mb-2">
+      <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">New Trade Idea</div>
 
       {/* Trade type tabs */}
       <div className="flex flex-wrap gap-1.5">
         {TRADE_TYPES.map(t => (
           <button key={t.id} type="button" onClick={() => { setTradeType(t.id); setSelectedStrike(null); setSelectedPremium(null); setSelectedExpiry("") }}
-            className={cn("text-xs px-2.5 py-1 rounded-full border font-medium transition-all",
+            className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all",
               tradeType === t.id
-                ? t.cat === "option" ? "bg-blue-500/20 text-blue-400 border-blue-500/40" : "bg-purple-500/20 text-purple-400 border-purple-500/40"
-                : "bg-transparent text-white border-border opacity-50 hover:opacity-80"
+                ? "bg-[#d4af37] text-black border-[#d4af37]"
+                : "bg-zinc-950 text-amber-200/50 border-[#d4af37]/20 hover:text-[#d4af37]"
             )}>
             {t.label}
           </button>
@@ -165,8 +165,8 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* ── OPTIONS: expiry tabs + strike chain ── */}
       {isOption && ticker && (
-        <div className="space-y-2">
-          {chainLoading && <p className="text-xs text-white animate-pulse">Loading chain…</p>}
+        <div className="space-y-1.5">
+          {chainLoading && <p className="text-xs text-amber-200/50 animate-pulse">Loading chain…</p>}
           {!chainLoading && expiryChains.length > 0 && (
             <>
               {/* Expiry selector */}
@@ -175,8 +175,8 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                   <button key={c.expiry} type="button" onClick={() => selectExpiry(c.expiry)}
                     className={cn("text-[10px] px-2 py-0.5 rounded border transition-all",
                       (selectedExpiry || expiryChains[0]?.expiry) === c.expiry
-                        ? "bg-primary/20 text-primary border-primary/40"
-                        : "text-white border-border hover:border-muted-foreground"
+                        ? "bg-[#d4af37] text-black border-[#d4af37]"
+                        : "text-amber-200/50 border-[#d4af37]/20 hover:text-[#d4af37]"
                     )}>
                     {c.expiry} <span className="opacity-60">{c.dte}d</span>
                   </button>
@@ -185,34 +185,34 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
               {/* Strike table */}
               {activeChain && (
-                <div className="rounded-lg border border-border overflow-hidden">
+                <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
                   <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-[10px] text-white uppercase tracking-wider border-b border-border bg-muted/20">
-                        <th className="text-left px-2 py-1.5 font-semibold">Strike</th>
-                        <th className="text-right px-2 py-1.5 font-semibold">Bid</th>
-                        <th className="text-right px-2 py-1.5 font-semibold">Ask</th>
-                        <th className="text-right px-2 py-1.5 font-semibold">Mid</th>
-                        <th className="text-right px-2 py-1.5 font-semibold">IV</th>
-                        <th className="text-right px-2 py-1.5 font-semibold">OI</th>
+                    <thead className="bg-black text-[#d4af37]">
+                      <tr className="border-b border-[#d4af37]/25">
+                        <th className="text-left font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">Strike</th>
+                        <th className="text-right font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">Bid</th>
+                        <th className="text-right font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">Ask</th>
+                        <th className="text-right font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">Mid</th>
+                        <th className="text-right font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">IV</th>
+                        <th className="text-right font-semibold text-[10px] uppercase tracking-wider px-2 py-1.5">OI</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-zinc-800">
                       {(activeChain[chainSide] ?? []).map(row => {
                         const mid = ((row.bid + row.ask) / 2).toFixed(2)
                         const isSelected = selectedStrike === row.strike
                         return (
                           <tr key={row.strike}
                             onClick={() => selectRow(row.strike, row.bid, row.ask)}
-                            className={cn("cursor-pointer border-b border-border/40 h-8 transition-colors",
-                              isSelected ? "bg-primary/15 text-primary" : "hover:bg-muted/20"
+                            className={cn("cursor-pointer h-8 transition-colors bg-zinc-900/70 even:bg-zinc-800/60",
+                              isSelected ? "bg-amber-500/15 text-[#d4af37]" : "hover:bg-amber-500/10"
                             )}>
-                            <td className="px-2 font-bold tabular-nums">{row.strike}</td>
-                            <td className="px-2 text-right tabular-nums text-white">{row.bid.toFixed(2)}</td>
-                            <td className="px-2 text-right tabular-nums text-white">{row.ask.toFixed(2)}</td>
-                            <td className="px-2 text-right tabular-nums font-semibold">{mid}</td>
-                            <td className="px-2 text-right tabular-nums text-white">{(row.iv * 100).toFixed(0)}%</td>
-                            <td className="px-2 text-right tabular-nums text-white">{row.openInterest ?? "—"}</td>
+                            <td className="px-2 font-mono font-bold text-white">{row.strike}</td>
+                            <td className="px-2 text-right font-mono text-sky-300/80">{row.bid.toFixed(2)}</td>
+                            <td className="px-2 text-right font-mono text-sky-300/80">{row.ask.toFixed(2)}</td>
+                            <td className="px-2 text-right font-mono font-semibold text-white">{mid}</td>
+                            <td className="px-2 text-right font-mono text-sky-300/80">{(row.iv * 100).toFixed(0)}%</td>
+                            <td className="px-2 text-right font-mono text-sky-300/80">{row.openInterest ?? "—"}</td>
                           </tr>
                         )
                       })}
@@ -223,12 +223,12 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
               {/* Selected summary + contracts */}
               {selectedStrike != null && (
-                <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
-                  <span className="text-xs font-bold text-primary">{tradeType.replace("_"," ")} {selectedStrike} @ ${selectedPremium}</span>
+                <div className="flex items-center gap-3 bg-amber-500/10 border border-[#d4af37]/30 rounded px-3 py-2">
+                  <span className="text-xs font-bold text-[#d4af37]">{tradeType.replace("_"," ")} {selectedStrike} @ ${selectedPremium}</span>
                   <div className="ml-auto flex items-center gap-1.5">
-                    <label className="text-xs text-white">Contracts</label>
+                    <label className="text-xs text-amber-200/50">Contracts</label>
                     <input type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)}
-                      className="w-14 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      className="w-14 bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50" />
                   </div>
                 </div>
               )}
@@ -247,7 +247,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
             { label: "Target",      val: targetPrice, set: setTargetPrice, placeholder: "optional" },
           ].map(({ label, val, set, placeholder, required, step, min }) => (
             <div key={label} className="space-y-1">
-              <label className="text-xs text-white">{label}</label>
+              <label className="text-xs text-amber-200/50">{label}</label>
               <input required={required} type="number" min={min ?? "0"} step={step ?? "0.01"}
                 value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
                 className={inp} />
@@ -258,7 +258,7 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Confidence */}
       <div className="space-y-1">
-        <label className="text-xs text-white">Confidence</label>
+        <label className="text-xs text-amber-200/50">Confidence</label>
         <div className="flex gap-1.5 flex-wrap">
           {CONFIDENCE_OPTS.map((label, i) => (
             <button key={i} type="button" onClick={() => setConf(i + 1)}
@@ -273,17 +273,17 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-white">Rationale</label>
+        <label className="text-xs text-amber-200/50">Rationale</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
           placeholder="Your rationale…"
-          className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+          className="w-full bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 resize-none" />
       </div>
 
       {error && <div className="text-xs text-red-400">{error}</div>}
       {success && <div className="text-xs text-green-400">Trade idea posted!</div>}
 
       <button type="submit" disabled={submitting || (isOption && !selectedStrike) || !ticker}
-        className="bg-primary text-primary-foreground text-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-40">
+        className="bg-[#d4af37] text-black text-sm font-semibold px-4 py-1.5 rounded hover:bg-[#d4af37]/90 transition-colors disabled:opacity-40">
         {submitting ? "Posting…" : "Post Idea"}
       </button>
     </form>
@@ -303,22 +303,22 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
   function pick(ticker: string) { onChange(ticker); setInput(ticker); setOpen(false) }
   return (
     <div className="relative space-y-1">
-      <label className="text-xs text-white">Ticker</label>
+      <label className="text-xs text-amber-200/50">Ticker</label>
       <input value={input}
         onChange={e => { setInput(e.target.value.toUpperCase()); setOpen(true) }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search ticker…"
-        className="w-full bg-white border border-white/20 rounded px-2 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary" />
+        className="w-full bg-white border border-[#d4af37]/30 rounded px-2 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50" />
       {open && debouncedQ.length >= 1 && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-          {isFetching && <div className="px-3 py-2 text-xs text-white animate-pulse">Searching…</div>}
-          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-white">No results</div>}
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-zinc-950 border border-[#d4af37]/25 rounded-md shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+          {isFetching && <div className="px-3 py-2 text-xs text-amber-200/50 animate-pulse">Searching…</div>}
+          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-amber-200/50">No results</div>}
           {results.map((r: { ticker: string; name?: string }) => (
             <button key={r.ticker} type="button" onMouseDown={() => pick(r.ticker)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40 transition-colors text-left">
-              <span className="font-bold text-foreground w-14 shrink-0">{r.ticker}</span>
-              <span className="text-white truncate">{r.name}</span>
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-amber-500/10 transition-colors text-left">
+              <span className="font-bold text-white w-14 shrink-0">{r.ticker}</span>
+              <span className="text-amber-200/50 truncate">{r.name}</span>
             </button>
           ))}
         </div>
@@ -365,16 +365,16 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
     <>
       <button
         onClick={() => setOpen(true)}
-        className="w-full text-left space-y-2 rounded-xl border border-border p-3 hover:border-border/80 transition-colors"
+        className="w-full text-left space-y-1.5 rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 hover:border-[#d4af37]/40 transition-colors"
       >
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-white uppercase tracking-wider">Stock Views</div>
-          <span className="text-[10px] text-white">{taggedCount} tagged →</span>
+          <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock Views</div>
+          <span className="text-[10px] text-amber-200/50">{taggedCount} tagged →</span>
         </div>
         {isLoading ? (
-          <span className="text-[10px] text-white animate-pulse">Loading…</span>
+          <span className="text-[10px] text-amber-200/50 animate-pulse">Loading…</span>
         ) : taggedCount === 0 ? (
-          <span className="text-[10px] text-white">No tagged tickers yet</span>
+          <span className="text-[10px] text-amber-200/50">No tagged tickers yet</span>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {groups.flatMap(g => g.tickers.map(ticker => ({ ticker, color: g.color }))).slice(0, 12).map(({ ticker, color }) => (
@@ -387,7 +387,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
               </span>
             ))}
             {taggedCount > 12 && (
-              <span className="text-xs font-bold text-white px-2 py-1 rounded-md bg-white/10">
+              <span className="text-xs font-bold text-amber-200/50 px-2 py-1 rounded-md bg-white/10">
                 +{taggedCount - 12}
               </span>
             )}
@@ -396,20 +396,20 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-zinc-950 border-[#d4af37]/25">
           <DialogHeader>
             <DialogTitle>Stock Views{!isOwner ? ` — ${profileUsername}` : ""}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {groups.map(g => (
               <div key={g.color} className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-white">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                   {g.label}
-                  <span className="ml-auto text-[10px] font-normal text-white">{g.tickers.length}</span>
+                  <span className="ml-auto text-[10px] font-normal text-amber-200/50">{g.tickers.length}</span>
                 </div>
                 {g.tickers.length === 0 ? (
-                  <span className="text-[10px] text-white">None</span>
+                  <span className="text-[10px] text-amber-200/50">None</span>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {g.tickers.map(ticker => (
@@ -429,7 +429,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {taggedCount > 0 && (
             <button
               onClick={() => openInScanner(groups.flatMap(g => g.tickers))}
-              className="w-full text-[10px] font-medium text-white hover:text-foreground border border-border/60 hover:border-border rounded px-1.5 py-1.5 transition-colors"
+              className="w-full text-[10px] font-medium text-amber-200/50 hover:text-[#d4af37] border border-[#d4af37]/20 hover:border-[#d4af37]/40 rounded px-1.5 py-1.5 transition-colors"
             >
               Open all in scanner →
             </button>
@@ -437,7 +437,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {isOwner && (
             <button
               onClick={() => navigate("/watchlist")}
-              className="w-full text-[10px] text-white hover:text-foreground transition-colors"
+              className="w-full text-[10px] text-amber-200/50 hover:text-[#d4af37] transition-colors"
             >
               Edit tags on Watchlist →
             </button>
@@ -469,8 +469,8 @@ function computeStreak(posts: TradePost[]): { n: number; win: boolean } | null {
 
 function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradePost[] }) {
   const lowSample = stats.closed < 5
-  const winRateColor = stats.winRate == null ? "text-white" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
-  const pnlColor = stats.totalPnl == null ? "text-white" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
+  const winRateColor = stats.winRate == null ? "text-amber-200/50" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
+  const pnlColor = stats.totalPnl == null ? "text-amber-200/50" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
   const pnl = stats.totalPnl != null ? (stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(0)}` : `-$${Math.abs(stats.totalPnl).toFixed(0)}`) : "—"
   const avgPnl = stats.closed > 0 && stats.totalPnl != null ? stats.totalPnl / stats.closed : null
   const streak = computeStreak(posts)
@@ -486,33 +486,28 @@ function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradeP
     {
       label: "Avg",
       value: avgPnl != null ? (avgPnl >= 0 ? `+$${avgPnl.toFixed(0)}` : `-$${Math.abs(avgPnl).toFixed(0)}`) : "—",
-      color: avgPnl == null ? "text-white" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
+      color: avgPnl == null ? "text-amber-200/50" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
       dim: lowSample,
     },
-    { label: "Open", value: String(stats.openPosts), color: "text-blue-400", dim: false },
+    { label: "Open", value: String(stats.openPosts), color: "text-sky-300/80", dim: false },
     {
       label: "Streak",
       value: streak ? `${streak.win ? "W" : "L"}${streak.n}` : "—",
-      color: !streak ? "text-white" : streak.win ? "text-green-400" : "text-red-400",
+      color: !streak ? "text-amber-200/50" : streak.win ? "text-green-400" : "text-red-400",
       dim: false,
     },
   ]
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {items.map(({ label, value, color, dim }) => (
-        <span
-          key={label}
-          className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-border bg-secondary/50 whitespace-nowrap",
-            dim && "opacity-70"
-          )}
-        >
-          <span className="text-white uppercase tracking-wide">{label}</span>
-          <span className={cn("tabular-nums", color)}>{value}</span>
+    <span className="block text-[11px] font-mono text-amber-200/40">
+      {items.map((it, i) => (
+        <span key={it.label} className={cn(it.dim && "opacity-60")}>
+          {i > 0 && " · "}
+          <span className="uppercase tracking-wide">{it.label}</span>
+          <span className={cn("tabular-nums", it.color)}>{` ${it.value}`}</span>
         </span>
       ))}
-    </div>
+    </span>
   )
 }
 
@@ -534,9 +529,9 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
   const total = timeline.length > 0 ? timeline[timeline.length - 1]!.cumulative : 0
 
   return (
-    <div className="bg-card border border-border rounded-xl p-3 space-y-1">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-1">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-white uppercase tracking-wider">Cumulative P&L</div>
+        <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Cumulative P&L</div>
         {timeline.length > 0 && (
           <span className={cn("text-xs font-bold tabular-nums", total >= 0 ? "text-green-400" : "text-red-400")}>
             {total >= 0 ? "+" : ""}${total.toFixed(0)}
@@ -544,26 +539,26 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
         )}
       </div>
       {timeline.length === 0 ? (
-        <div className="h-[120px] flex items-center justify-center text-xs text-white">No closed trades yet</div>
+        <div className="h-[120px] flex items-center justify-center text-xs text-amber-200/50">No closed trades yet</div>
       ) : (
         <ResponsiveContainer width="100%" height={150}>
           <AreaChart data={timeline} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="profilePnlFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={total >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
+                <stop offset="0%" stopColor={total >= 0 ? "#1D9E75" : "#ff4466"} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={total >= 0 ? "#1D9E75" : "#ff4466"} stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 9, fill: "#fff" }}
+              tick={{ fontSize: 9, fill: "#d4af37" }}
               tickFormatter={d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               axisLine={{ stroke: "#3f3f46" }}
               tickLine={false}
               minTickGap={30}
             />
             <YAxis
-              tick={{ fontSize: 9, fill: "#fff" }}
+              tick={{ fontSize: 9, fill: "#d4af37" }}
               domain={["auto", "auto"]}
               axisLine={{ stroke: "#3f3f46" }}
               tickLine={false}
@@ -574,15 +569,15 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
               const d = p.payload?.[0]?.payload as { date: string; cumulative: number; ticker: string } | undefined
               if (!p.active || !d) return null
               return (
-                <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
-                  <div className="text-white">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
+                <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-md px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
+                  <div className="text-amber-200/50">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
                   <div className={cn("font-bold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.cumulative >= 0 ? "+" : ""}${d.cumulative.toFixed(0)}
                   </div>
                 </div>
               )
             }} />
-            <Area type="monotone" dataKey="cumulative" stroke={total >= 0 ? "#34d399" : "#f87171"} strokeWidth={1.5} fill="url(#profilePnlFill)" />
+            <Area type="monotone" dataKey="cumulative" stroke={total >= 0 ? "#1D9E75" : "#ff4466"} strokeWidth={1.5} fill="url(#profilePnlFill)" />
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -600,7 +595,7 @@ function TickerAxisTick({ x, y, payload, rows }: { x?: number; y?: number; paylo
   return (
     <g transform={`translate(${x},${y})`}>
       <text x={0} y={0} dy={12} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700}>{payload?.value}</text>
-      <text x={0} y={0} dy={25} textAnchor="middle" fill="#fff" fontSize={9} fillOpacity={0.6}>{row?.count}×</text>
+      <text x={0} y={0} dy={25} textAnchor="middle" fill="#d4af37" fontSize={9} fillOpacity={0.7}>{row?.count}×</text>
     </g>
   )
 }
@@ -618,20 +613,20 @@ function TopTickers({ posts }: { posts: TradePost[] }) {
   }, [posts])
 
   return (
-    <div className="bg-card border border-border rounded-xl p-3 space-y-1.5">
-      <div className="text-xs font-semibold text-white uppercase tracking-wider">Top Tickers</div>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-1.5">
+      <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Top Tickers</div>
       {rows.length === 0 ? (
-        <div className="h-[150px] flex items-center justify-center text-xs text-white">No trade ideas yet</div>
+        <div className="h-[150px] flex items-center justify-center text-xs text-amber-200/50">No trade ideas yet</div>
       ) : (
         <ResponsiveContainer width="100%" height={150}>
           <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
             <XAxis dataKey="ticker" tick={<TickerAxisTick rows={rows} />} height={34} axisLine={{ stroke: "#3f3f46" }} tickLine={false} interval={0} />
-            <YAxis tick={{ fontSize: 9, fill: "#fff" }} axisLine={{ stroke: "#3f3f46" }} tickLine={false} width={44} tickFormatter={v => `$${v}`} />
+            <YAxis tick={{ fontSize: 9, fill: "#d4af37" }} axisLine={{ stroke: "#3f3f46" }} tickLine={false} width={44} tickFormatter={v => `$${v}`} />
             <Tooltip content={(p) => {
               const d = p.payload?.[0]?.payload as TickerRow | undefined
               if (!p.active || !d) return null
               return (
-                <div className="bg-popover border border-border rounded-lg px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
+                <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-md px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
                   <div className="text-white font-bold">{d.ticker} · {d.count}×</div>
                   <div className={cn("font-bold tabular-nums", d.pnl >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(0)}
@@ -640,7 +635,7 @@ function TopTickers({ posts }: { posts: TradePost[] }) {
               )
             }} />
             <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
-              {rows.map(r => <Cell key={r.ticker} fill={r.pnl >= 0 ? "#34d399" : "#f87171"} />)}
+              {rows.map(r => <Cell key={r.ticker} fill={r.pnl >= 0 ? "#1D9E75" : "#ff4466"} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -688,38 +683,38 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
-      <main className="pt-14 p-5 max-w-2xl space-y-5">
+      <main className="pt-14 p-5 max-w-2xl space-y-2">
 
         {!isOwnerProfile && me && (
-          <Link href="/profile/me" className="text-xs text-white hover:text-foreground transition-colors shrink-0">
+          <Link href="/profile/me" className="text-xs text-amber-200/50 hover:text-[#d4af37] transition-colors shrink-0">
             ← My Profile
           </Link>
         )}
 
-        {isLoading && <span className="text-xs text-white animate-pulse">Loading…</span>}
+        {isLoading && <span className="text-xs text-amber-200/50 animate-pulse">Loading…</span>}
         {error    && <div className="text-sm text-red-400">Failed to load profile.</div>}
 
         {data && (
           <>
             {/* ── Compact user header + stats tags ── */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 flex items-center gap-2.5 flex-wrap">
               <div className="flex items-center gap-2.5 shrink-0">
                 {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0 ring-2 ring-primary/30">
+                <div className="w-9 h-9 rounded-full bg-[#d4af37]/20 flex items-center justify-center text-sm font-bold text-[#d4af37] shrink-0 ring-2 ring-[#d4af37]/30">
                   {data.user.avatarUrl
                     ? <img src={data.user.avatarUrl} alt={data.user.username} className="w-9 h-9 rounded-full object-cover" />
                     : data.user.username[0]?.toUpperCase()
                   }
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-foreground leading-none">{data.user.username}</span>
+                  <span className="text-lg font-bold text-white leading-none">{data.user.username}</span>
                   <span className={cn(
                     "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
                     data.user.role === "admin"
                       ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                      : "bg-secondary text-white border-border"
+                      : "bg-zinc-900 text-amber-200/50 border-[#d4af37]/20"
                   )}>
                     {data.user.role}
                   </span>
@@ -734,10 +729,10 @@ export default function Profile() {
                 <button
                   onClick={() => setShowForm(v => !v)}
                   className={cn(
-                    "text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ml-auto shrink-0",
+                    "text-[11px] font-semibold px-3 py-1.5 rounded border transition-all ml-auto shrink-0",
                     showForm
-                      ? "bg-secondary text-white border-border"
-                      : "bg-primary/15 text-primary border-primary/30 hover:bg-primary/25"
+                      ? "bg-zinc-900 text-amber-200/50 border-[#d4af37]/20"
+                      : "bg-[#d4af37] text-black border-[#d4af37] hover:bg-[#d4af37]/90"
                   )}
                 >
                   {showForm ? "Cancel" : "+ Trade Idea"}
@@ -746,7 +741,7 @@ export default function Profile() {
             </div>
 
             {/* ── Cumulative P&L + Top Tickers ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <CumulativePnlChart posts={data.posts} />
               <TopTickers posts={data.posts} />
             </div>
@@ -761,13 +756,13 @@ export default function Profile() {
 
             {/* ── Trade ideas ── */}
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-white uppercase tracking-wider">
+              <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
                 Trade Ideas
-                {data.posts.length > 0 && <span className="ml-1.5 text-white">({data.posts.length})</span>}
+                {data.posts.length > 0 && <span className="ml-1.5 text-amber-200/50">({data.posts.length})</span>}
               </div>
 
               {data.posts.length === 0 ? (
-                <div className="text-sm text-white text-center py-8 bg-card border border-border rounded-xl">
+                <div className="text-sm text-amber-200/50 text-center py-8 rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60">
                   No trade ideas posted yet.
                 </div>
               ) : (

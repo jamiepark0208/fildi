@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/table";
 
 function DirCell({ v }: { v: boolean | "band" }) {
-  if (v === "band") return <span className="text-foreground/80 font-medium">Band</span>;
+  if (v === "band") return <span className="text-amber-200/60 font-medium">Band</span>;
   return (
-    <span className={cn("text-base font-bold", v ? "text-green-400" : "text-blue-400")}>
+    <span className={cn("text-sm font-bold", v ? "text-green-400" : "text-sky-300/80")}>
       {v ? "↑" : "↓"}
     </span>
   );
@@ -42,7 +42,7 @@ function parseWeightInput(raw: string, row: GuideMetricRow): number | null {
 function coverageCellClass(tone: CoverageTone): string {
   if (tone === "good") return "text-green-400 font-medium";
   if (tone === "partial") return "text-yellow-400 font-medium";
-  return "text-foreground/80";
+  return "text-amber-200/50";
 }
 
 type Props = {
@@ -74,41 +74,41 @@ export function GuideMetricGrid({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm mb-4">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 mb-2">
       <div className="overflow-x-auto">
         <Table>
-          <TableHeader className="sticky top-0 z-10 bg-secondary/60 backdrop-blur-sm">
-            <TableRow className="hover:bg-transparent border-border/60">
-              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 sticky left-0 bg-secondary/60 min-w-[140px]">
+          <TableHeader className="bg-black">
+            <TableRow className="hover:bg-transparent border-b border-[#d4af37]/25">
+              <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] sticky left-0 bg-black min-w-[140px]">
                 Metric
               </TableHead>
               {showFamily && (
-                <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 w-16">
+                <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-16">
                   Fam
                 </TableHead>
               )}
-              <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 text-right w-20">
+              <TableHead className="px-2.5 py-1 text-right font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-20">
                 Weight
               </TableHead>
-              <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 text-center w-12">
+              <TableHead className="px-2.5 py-1 text-center font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-12">
                 Dir
               </TableHead>
-              <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 w-24">
+              <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-24">
                 Source
               </TableHead>
-              <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 w-20">
+              <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-20">
                 Refresh
               </TableHead>
-              <TableHead className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 w-28">
+              <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] w-28">
                 Coverage
               </TableHead>
-              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 min-w-[160px]">
+              <TableHead className="px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider text-[#d4af37] min-w-[160px]">
                 Notes
               </TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((r, idx) => {
+          <TableBody className="divide-y divide-zinc-800">
+            {rows.map((r) => {
               const w = getWeightFromConfig(config, r.weightGroup, r.weightKey);
               const notes = r.notes + noteSuffix;
               const isWarning = notes.includes("proxy") || notes.includes("Excluded") || !!noteSuffix;
@@ -116,25 +116,22 @@ export function GuideMetricGrid({
                 <TableRow
                   key={r.key}
                   id={`metric-${r.key}`}
-                  className={cn(
-                    "border-border/40 hover:bg-secondary/15",
-                    idx % 2 === 1 && "bg-secondary/5",
-                  )}
+                  className="border-none bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors"
                 >
-                  <TableCell className="px-4 py-3 font-medium text-foreground sticky left-0 bg-card">
+                  <TableCell className="px-2.5 py-1 font-medium text-white sticky left-0 bg-inherit">
                     {r.label}
                   </TableCell>
                   {showFamily && (
-                    <TableCell className="px-3 py-3 text-foreground/80 capitalize">
+                    <TableCell className="px-2.5 py-1 text-amber-200/60 capitalize">
                       {r.family?.slice(0, 3)}
                     </TableCell>
                   )}
-                  <TableCell className="px-3 py-3 text-right font-mono tabular-nums text-foreground">
+                  <TableCell className="px-2.5 py-1 text-right font-mono tabular-nums text-sky-300/80">
                     {editable ? (
                       <input
                         type="number"
                         step={r.weightIsPercent || r.weightGroup === "fundamentalMetrics" ? 1 : 0.1}
-                        className="w-16 h-8 text-sm text-right bg-secondary/40 border border-border rounded-md px-2 text-foreground"
+                        className="w-16 h-6 text-xs text-right bg-zinc-900 border border-[#d4af37]/25 rounded px-1.5 text-white"
                         value={r.weightIsPercent || r.weightGroup === "fundamentalMetrics"
                           ? w
                           : Math.round(w * 1000) / 10}
@@ -142,18 +139,18 @@ export function GuideMetricGrid({
                       />
                     ) : formatWeight(w, r)}
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center">
+                  <TableCell className="px-2.5 py-1 text-center">
                     <DirCell v={r.higherIsBetter} />
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-foreground/90">{r.source}</TableCell>
-                  <TableCell className="px-3 py-3 text-foreground/90">{r.refresh}</TableCell>
-                  <TableCell className={cn("px-3 py-3", coverageCellClass(coverageTone))}>
+                  <TableCell className="px-2.5 py-1 text-amber-200/60">{r.source}</TableCell>
+                  <TableCell className="px-2.5 py-1 text-amber-200/60">{r.refresh}</TableCell>
+                  <TableCell className={cn("px-2.5 py-1", coverageCellClass(coverageTone))}>
                     {coverageLabel}
                   </TableCell>
                   <TableCell
                     className={cn(
-                      "px-4 py-3 text-foreground/75 max-w-[240px]",
-                      isWarning && "text-amber-400",
+                      "px-2.5 py-1 text-amber-200/50 max-w-[240px] truncate",
+                      isWarning && "text-yellow-400",
                     )}
                     title={notes}
                   >

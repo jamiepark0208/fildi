@@ -4,7 +4,7 @@ import type {
   LiquidityImplications, VolatilityImplications, MacroTab,
 } from "./macro-page-types";
 import {
-  fmt, fmtPct, changeColor, vixBadgeClass, VIX_LEVEL_LABELS,
+  fmt, fmtPct, changeColor, VIX_LEVEL_LABELS,
   LIQUIDITY_LEVEL_LABEL, LIQUIDITY_LEVEL_STYLE, VOLATILITY_LEVEL_LABEL, VOLATILITY_LEVEL_STYLE,
 } from "./macro-format";
 import { derivePolicySignals } from "./macro-volatility-policy";
@@ -12,48 +12,59 @@ import { getCotCrowding } from "./macro-events-cot";
 
 // ── Regime chips ────────────────────────────────────────────────────────────────
 
+const vixTextColor: Record<string, string> = {
+  low: "text-green-400", normal: "text-white", elevated: "text-yellow-400", high: "text-red-400", extreme: "text-red-400",
+};
+
 export function RegimeChips({ macroData }: { macroData: MacroData }) {
   const pct = macroData.series.corePce.yoy;
   const infl =
     pct == null
-      ? { text: "Core PCE —", cls: "text-muted-foreground bg-secondary" }
+      ? { text: "Core PCE —", cls: "text-amber-200/40" }
       : pct > 2.5
-      ? { text: `Core PCE ${fmt(pct, 1)}% ↑`, cls: "bg-red-900/50 text-red-300 border-red-700" }
+      ? { text: `Core PCE ${fmt(pct, 1)}% ↑`, cls: "text-red-400" }
       : pct < 2.0
-      ? { text: `Core PCE ${fmt(pct, 1)}% ↓`, cls: "bg-green-900/50 text-green-300 border-green-700" }
-      : { text: `Core PCE ${fmt(pct, 1)}% →`, cls: "bg-yellow-900/50 text-yellow-300 border-yellow-700" };
+      ? { text: `Core PCE ${fmt(pct, 1)}% ↓`, cls: "text-green-400" }
+      : { text: `Core PCE ${fmt(pct, 1)}% →`, cls: "text-yellow-400" };
 
   const ch = macroData.series.unemployment.change;
   const labor =
     ch == null
-      ? { text: "Labor —", cls: "text-muted-foreground bg-secondary" }
+      ? { text: "Labor —", cls: "text-amber-200/40" }
       : ch > 0.1
-      ? { text: "UR Rising ↑", cls: "bg-yellow-900/50 text-yellow-300 border-yellow-700" }
+      ? { text: "UR Rising ↑", cls: "text-yellow-400" }
       : ch < -0.1
-      ? { text: "UR Falling ↓", cls: "bg-green-900/50 text-green-300 border-green-700" }
-      : { text: "Labor Stable", cls: "bg-green-900/50 text-green-300 border-green-700" };
+      ? { text: "UR Falling ↓", cls: "text-green-400" }
+      : { text: "Labor Stable", cls: "text-green-400" };
 
   const spread = macroData.yieldSpread;
   const curve = spread == null
-    ? { text: "Curve —", cls: "text-muted-foreground bg-secondary" }
+    ? { text: "Curve —", cls: "text-amber-200/40" }
     : spread < 0
-    ? { text: `Inverted ${(spread).toFixed(0)}bps`, cls: "bg-red-900/50 text-red-300 border-red-700" }
-    : { text: `Normal +${(spread).toFixed(0)}bps`, cls: "bg-green-900/50 text-green-300 border-green-700" };
+    ? { text: `Inverted ${(spread).toFixed(0)}bps`, cls: "text-red-400" }
+    : { text: `Normal +${(spread).toFixed(0)}bps`, cls: "text-green-400" };
+
+  const chips = [
+    macroData.vix && {
+      key: "vix",
+      text: `VIX ${fmt(macroData.vix.value, 1)} · ${VIX_LEVEL_LABELS[macroData.vix.level]}`,
+      cls: vixTextColor[macroData.vix.level] ?? "text-white",
+    },
+    { key: "infl", text: infl.text, cls: infl.cls },
+    { key: "labor", text: labor.text, cls: labor.cls },
+    { key: "curve", text: curve.text, cls: curve.cls },
+    { key: "fed", text: "Fed On Hold", cls: "text-yellow-400" },
+  ].filter((c): c is { key: string; text: string; cls: string } => Boolean(c));
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {macroData.vix && (
-        <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", vixBadgeClass(macroData.vix.level))}>
-          VIX {fmt(macroData.vix.value, 1)} · {VIX_LEVEL_LABELS[macroData.vix.level]}
+    <span className="block text-[11px] font-mono">
+      {chips.map((c, i) => (
+        <span key={c.key}>
+          {i > 0 && <span className="text-amber-200/40"> · </span>}
+          <span className={c.cls}>{c.text}</span>
         </span>
-      )}
-      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", infl.cls)}>{infl.text}</span>
-      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", labor.cls)}>{labor.text}</span>
-      <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight", curve.cls)}>{curve.text}</span>
-      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight bg-yellow-900/50 text-yellow-300 border-yellow-700">
-        Fed On Hold
-      </span>
-    </div>
+      ))}
+    </span>
   );
 }
 
@@ -77,7 +88,7 @@ export function CrossTabReadRow({
     : undefined;
   const cot = mostExtremeCot ? getCotCrowding(mostExtremeCot) : undefined;
 
-  const badges: { label: string; readout: string; style: { badge: string; dot: string }; tab: MacroTab }[] = [
+  const badges: { label: string; readout: string; style: { badge: string; dot: string; text: string }; tab: MacroTab }[] = [
     volatilityImplications && {
       label: "Volatility",
       readout: VOLATILITY_LEVEL_LABEL[volatilityImplications.overall.level],
@@ -101,22 +112,20 @@ export function CrossTabReadRow({
   if (!badges.length) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {badges.map((b) => (
+    <span className="block text-[11px] font-mono">
+      {badges.map((b, i) => (
         <button
           key={b.label}
           onClick={() => onJump(b.tab)}
-          className={cn(
-            "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium leading-tight transition-colors hover:brightness-125",
-            b.style.badge,
-          )}
+          className="hover:brightness-125 transition-colors"
           title={`Jump to ${b.tab}`}
         >
-          <span className={cn("w-1.5 h-1.5 rounded-full inline-block", b.style.dot)} />
-          {b.label}: {b.readout}
+          {i > 0 && <span className="text-amber-200/40"> · </span>}
+          <span className="text-amber-200/50">{b.label} </span>
+          <span className={cn(b.style.text)}>{b.readout}</span>
         </button>
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -124,10 +133,12 @@ export function CrossTabReadRow({
 
 export function StatCell({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
   return (
-    <div className="border border-border rounded-md p-3 flex-1 min-w-[90px]">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-lg font-semibold leading-tight">{value}</p>
-      {sub && <p className={cn("text-[11px] mt-0.5", subColor)}>{sub}</p>}
+    <div className="border border-[#d4af37]/20 rounded-md px-2 py-1 flex-1 min-w-[90px] bg-zinc-950">
+      <p className="text-[10px] text-[#d4af37]/80 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-semibold leading-tight text-white font-mono">
+        {value}
+        {sub && <span className={cn("text-[10px] ml-1", subColor)}>{sub}</span>}
+      </p>
     </div>
   );
 }
@@ -138,11 +149,11 @@ export function CompactStat({ label, value, sub, subColor, title }: {
   label: string; value: string; sub?: string; subColor?: string; title?: string;
 }) {
   return (
-    <div className="flex items-baseline gap-1.5 px-2.5 py-1" title={title}>
-      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
-      <span className="text-sm font-semibold">{value}</span>
+    <span className="inline-flex items-baseline gap-1 px-1.5 font-mono" title={title}>
+      <span className="text-[10px] text-amber-200/50 uppercase tracking-wide">{label}</span>
+      <span className="text-[11px] font-semibold text-white">{value}</span>
       {sub && <span className={cn("text-[10px]", subColor)}>{sub}</span>}
-    </div>
+    </span>
   );
 }
 
@@ -157,17 +168,17 @@ const lastPointDelta = (data: ChartPoint[] | undefined): { value: number; change
 function StatChip({ label, value, change, decimals = 1, invert = false, title }: {
   label: string; value: number | null; change: number | null; decimals?: number; invert?: boolean; title?: string;
 }) {
-  const color = change == null ? "" : (invert ? -change : change) > 0 ? "text-green-400" : (invert ? -change : change) < 0 ? "text-red-400" : "text-muted-foreground";
+  const color = change == null ? "" : (invert ? -change : change) > 0 ? "text-green-400" : (invert ? -change : change) < 0 ? "text-red-400" : "text-amber-200/50";
   return (
-    <div className="flex items-baseline gap-1.5 px-2.5 py-1" title={title}>
-      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
-      <span className="text-sm font-semibold">{value != null ? value.toFixed(decimals) : "—"}</span>
+    <span className="inline-flex items-baseline gap-1 px-1.5 font-mono" title={title}>
+      <span className="text-[10px] text-amber-200/50 uppercase tracking-wide">{label}</span>
+      <span className="text-[11px] font-semibold text-white">{value != null ? value.toFixed(decimals) : "—"}</span>
       {change != null && (
         <span className={cn("text-[10px]", color)}>
           {change > 0 ? "+" : ""}{change.toFixed(decimals)}
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -181,7 +192,7 @@ export function VolStrip({ macroData, macroCharts }: {
   const fg = lastPointDelta(macroCharts?.fearGreedHistory);
 
   return (
-    <div className="border border-border rounded-md flex flex-wrap items-center divide-x divide-border/60">
+    <div className="border border-[#d4af37]/20 rounded-md flex flex-wrap items-center divide-x divide-[#d4af37]/10 bg-zinc-950 py-0.5">
       <StatChip label="VIX" value={macroData.vix.value} change={macroData.vix.change ?? null}
         title="S&P 500 30-day implied volatility — the market's headline fear gauge" />
       <StatChip label="SKEW" value={macroData.skew.value} change={macroData.skew.change ?? null}
@@ -206,7 +217,7 @@ export function QuickStats({ macroData }: { macroData: MacroData }) {
     : "—";
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       <StatCell
         label="VIX"
         value={fmt(macroData.vix.value, 1)}

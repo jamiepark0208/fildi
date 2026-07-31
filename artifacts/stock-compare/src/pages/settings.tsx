@@ -6,7 +6,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut, UserPlus, KeyRound } from "lucide-react";
-import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
@@ -102,35 +101,32 @@ function ProfileTab() {
   };
 
   return (
-    <div className="space-y-5 max-w-lg">
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-semibold mb-4">Account</h2>
-        <div className="space-y-3">
+    <div className="max-w-3xl grid grid-cols-2 gap-2">
+      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5">
+        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1.5">Account</h2>
+        <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Email</span>
-            <span className="text-xs font-mono">{user?.email}</span>
+            <span className="text-xs text-amber-200/40">Email</span>
+            <span className="text-xs font-mono text-white">{user?.email}</span>
           </div>
-          <div className="h-px bg-border/40" />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Username</span>
-            <span className="text-xs font-mono">{user?.username}</span>
+            <span className="text-xs text-amber-200/40">Username</span>
+            <span className="text-xs font-mono text-white">{user?.username}</span>
           </div>
-          <div className="h-px bg-border/40" />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Role</span>
+            <span className="text-xs text-amber-200/40">Role</span>
             <span className={cn(
               "text-xs font-semibold px-2 py-0.5 rounded border",
               user?.role === "admin"
                 ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                : "bg-secondary text-muted-foreground border-border"
+                : "bg-zinc-900 text-amber-200/50 border-[#d4af37]/20"
             )}>
               {user?.role}
             </span>
           </div>
-          <div className="h-px bg-border/40" />
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-red-400 transition-colors pt-1"
+            className="flex items-center gap-2 text-xs text-amber-200/50 hover:text-red-400 transition-colors pt-0.5"
           >
             <LogOut className="w-3.5 h-3.5" />
             Log out
@@ -138,19 +134,19 @@ function ProfileTab() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <KeyRound className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Change Password</h2>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5">
+        <div className="flex items-center gap-2 mb-1.5">
+          <KeyRound className="w-3.5 h-3.5 text-[#d4af37]/70" />
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Change Password</h2>
         </div>
-        <form onSubmit={handleChangePassword} className="space-y-3">
+        <form onSubmit={handleChangePassword} className="space-y-1.5">
           <input
             type="password"
             placeholder="Current password"
             value={currentPassword}
             onChange={e => setCurrentPassword(e.target.value)}
             required
-            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
           />
           <input
             type="password"
@@ -159,7 +155,7 @@ function ProfileTab() {
             onChange={e => setNewPassword(e.target.value)}
             minLength={8}
             required
-            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
           />
           <input
             type="password"
@@ -168,14 +164,14 @@ function ProfileTab() {
             onChange={e => setConfirmPassword(e.target.value)}
             minLength={8}
             required
-            className="w-full text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
           />
           {pwError && <p className="text-xs text-red-400">{pwError}</p>}
           {pwSuccess && <p className="text-xs text-green-400">Password updated.</p>}
           <button
             type="submit"
             disabled={pwSubmitting}
-            className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="text-xs font-semibold bg-[#d4af37] text-black px-3 py-1.5 rounded-md hover:bg-[#e0bd4a] transition-colors disabled:opacity-50"
           >
             {pwSubmitting ? "Updating…" : "Update Password"}
           </button>
@@ -292,16 +288,16 @@ function UserMgmtTab() {
   const pendingCount = invites.filter(i => !i.usedBy).length;
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-2 max-w-2xl">
       {/* Users card */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Users</h2>
-          <span className="text-[10px] text-muted-foreground">{users.length} total</span>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Users className="w-3.5 h-3.5 text-[#d4af37]/70" />
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Users</h2>
+          <span className="text-[10px] text-amber-200/40">{users.length} total</span>
           <button
             onClick={() => { setShowCreateForm(v => !v); setCreateError(null); }}
-            className="ml-auto flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity"
+            className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-[#d4af37] text-black px-3 py-1.5 rounded-md hover:bg-[#e0bd4a] transition-colors"
           >
             <UserPlus className="w-3 h-3" />
             {showCreateForm ? "Cancel" : "Create User"}
@@ -309,15 +305,15 @@ function UserMgmtTab() {
         </div>
 
         {showCreateForm && (
-          <form onSubmit={createUser} className="mb-4 p-4 bg-secondary/50 border border-border rounded-lg space-y-2.5">
-            <div className="grid grid-cols-2 gap-2.5">
+          <form onSubmit={createUser} className="mb-2 p-2 bg-zinc-900 border border-[#d4af37]/20 rounded-md space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <input
                 type="email"
                 placeholder="Email"
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
                 required
-                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="text-xs bg-zinc-950 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
               />
               <input
                 type="text"
@@ -327,7 +323,7 @@ function UserMgmtTab() {
                 minLength={3}
                 maxLength={20}
                 required
-                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="text-xs bg-zinc-950 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
               />
               <input
                 type="text"
@@ -336,12 +332,12 @@ function UserMgmtTab() {
                 onChange={e => setNewPassword(e.target.value)}
                 minLength={8}
                 required
-                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="text-xs bg-zinc-950 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
               />
               <select
                 value={newRole}
                 onChange={e => setNewRole(e.target.value as "member" | "admin")}
-                className="text-xs bg-secondary border border-border rounded-md px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="text-xs bg-zinc-950 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
               >
                 <option value="member">member</option>
                 <option value="admin">admin</option>
@@ -351,7 +347,7 @@ function UserMgmtTab() {
             <button
               type="submit"
               disabled={creating}
-              className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="text-xs font-semibold bg-[#d4af37] text-black px-3 py-1.5 rounded-md hover:bg-[#e0bd4a] transition-colors disabled:opacity-50"
             >
               {creating ? "Creating…" : "Create Account"}
             </button>
@@ -359,14 +355,14 @@ function UserMgmtTab() {
         )}
 
         {resetResult && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">
-              New temp password for <span className="font-semibold text-foreground">{resetResult.username}</span>:
+          <div className="mb-2 p-2 bg-green-500/10 border border-green-500/30 rounded-md flex items-center gap-2 text-xs">
+            <span className="text-amber-200/50">
+              New temp password for <span className="font-semibold text-white">{resetResult.username}</span>:
             </span>
-            <code className="font-mono font-bold bg-secondary px-2 py-0.5 rounded">{resetResult.tempPassword}</code>
+            <code className="font-mono font-bold bg-zinc-900 px-2 py-0.5 rounded text-white">{resetResult.tempPassword}</code>
             <button
               onClick={() => setResetResult(null)}
-              className="ml-auto text-muted-foreground hover:text-foreground"
+              className="ml-auto text-amber-200/40 hover:text-white"
             >
               Dismiss
             </button>
@@ -374,47 +370,47 @@ function UserMgmtTab() {
         )}
 
         {usersLoading ? (
-          <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+          <p className="text-xs text-amber-200/40 animate-pulse">Loading…</p>
         ) : (
           <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
-                <th className="text-left py-2 font-semibold">Username</th>
-                <th className="text-left py-2 font-semibold">Email</th>
-                <th className="text-left py-2 font-semibold">Role</th>
-                <th className="text-right py-2 font-semibold">Joined</th>
-                <th className="text-right py-2 font-semibold">Last Login</th>
-                <th className="text-right py-2 font-semibold">Actions</th>
+            <thead className="bg-black text-[#d4af37]">
+              <tr className="border-b border-[#d4af37]/25">
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Username</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Email</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Role</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Joined</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Last Login</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/40">
+            <tbody className="divide-y divide-zinc-800">
               {users.map(u => (
-                <tr key={u.id} className="h-9">
-                  <td className="font-medium text-foreground">{u.username}</td>
-                  <td className="text-muted-foreground font-mono text-[10px]">{u.email}</td>
-                  <td>
+                <tr key={u.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-white">{u.username}</td>
+                  <td className="px-2.5 py-1 text-amber-200/40 font-mono text-[10px]">{u.email}</td>
+                  <td className="px-2.5 py-1">
                     <span className={cn(
                       "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
                       u.role === "admin"
                         ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                        : "bg-secondary text-muted-foreground border-border"
+                        : "bg-zinc-900 text-amber-200/50 border-[#d4af37]/20"
                     )}>
                       {u.role}
                     </span>
                   </td>
-                  <td className="text-right text-muted-foreground tabular-nums">
+                  <td className="px-2.5 py-1 text-right text-amber-200/40 tabular-nums">
                     {new Date(u.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="text-right tabular-nums">
+                  <td className="px-2.5 py-1 text-right tabular-nums">
                     {u.lastLoginAt
-                      ? <span className="text-foreground/70">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
-                      : <span className="text-muted-foreground/50 italic">never</span>}
+                      ? <span className="text-amber-200/50 text-[10px]">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                      : <span className="text-amber-200/30 italic">never</span>}
                   </td>
-                  <td className="text-right">
+                  <td className="px-2.5 py-1 text-right">
                     <button
                       onClick={() => resetPassword(u.id, u.username)}
                       disabled={resettingId === u.id}
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      className="text-[10px] text-amber-200/50 hover:text-[#d4af37] transition-colors disabled:opacity-50"
                     >
                       {resettingId === u.id ? "Resetting…" : "Reset Password"}
                     </button>
@@ -427,10 +423,10 @@ function UserMgmtTab() {
       </div>
 
       {/* Invite Codes card */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Invite Codes</h2>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Shield className="w-3.5 h-3.5 text-[#d4af37]/70" />
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Invite Codes</h2>
           {pendingCount > 0 && (
             <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-green-500/15 text-green-400 border-green-500/30">
               {pendingCount} pending
@@ -438,11 +434,11 @@ function UserMgmtTab() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <button
             onClick={generateCode}
             disabled={generating}
-            className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="flex items-center gap-2 text-xs font-semibold bg-[#d4af37] text-black px-2.5 py-1 rounded-md hover:bg-[#e0bd4a] transition-colors disabled:opacity-50"
           >
             <Plus className="w-3 h-3" />
             {generating ? "Generating…" : "Generate Code"}
@@ -452,11 +448,11 @@ function UserMgmtTab() {
               <input
                 readOnly
                 value={latestCode}
-                className="font-mono text-sm bg-secondary border border-border rounded-md px-3 py-1.5 w-32 text-foreground focus:outline-none"
+                className="font-mono text-sm bg-zinc-900 border border-[#d4af37]/20 rounded-md px-2.5 py-1 w-32 text-white focus:outline-none"
               />
               <button
                 onClick={copyCode}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1.5 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors"
               >
                 {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                 {copied ? "Copied!" : "Copy"}
@@ -466,39 +462,39 @@ function UserMgmtTab() {
         </div>
 
         {invitesLoading ? (
-          <p className="text-xs text-muted-foreground animate-pulse">Loading codes…</p>
+          <p className="text-xs text-amber-200/40 animate-pulse">Loading codes…</p>
         ) : invites.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No invite codes yet.</p>
+          <p className="text-xs text-amber-200/40">No invite codes yet.</p>
         ) : (
           <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
-                <th className="text-left py-2 font-semibold">Code</th>
-                <th className="text-left py-2 font-semibold">Created</th>
-                <th className="text-left py-2 font-semibold">Status</th>
-                <th className="text-left py-2 font-semibold">Used By</th>
-                <th className="text-right py-2 font-semibold">Actions</th>
+            <thead className="bg-black text-[#d4af37]">
+              <tr className="border-b border-[#d4af37]/25">
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Code</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Created</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Status</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Used By</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/40">
+            <tbody className="divide-y divide-zinc-800">
               {invites.map(inv => (
-                <tr key={inv.code} className="h-8">
-                  <td className="font-mono font-bold">{inv.code}</td>
-                  <td className="text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString()}</td>
-                  <td>
+                <tr key={inv.code} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-mono font-bold text-white">{inv.code}</td>
+                  <td className="px-2.5 py-1 text-amber-200/40">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                  <td className="px-2.5 py-1">
                     {inv.usedBy ? (
-                      <span className="text-muted-foreground text-[10px]">Used</span>
+                      <span className="text-amber-200/40 text-[10px]">Used</span>
                     ) : (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-green-500/15 text-green-400 border-green-500/30">
                         Pending
                       </span>
                     )}
                   </td>
-                  <td className="text-muted-foreground font-mono text-[10px]">{inv.usedByEmail ?? "—"}</td>
-                  <td className="text-right">
+                  <td className="px-2.5 py-1 text-amber-200/40 font-mono text-[10px]">{inv.usedByEmail ?? "—"}</td>
+                  <td className="px-2.5 py-1 text-right">
                     <button
                       onClick={() => deleteCode(inv.code)}
-                      className="text-[10px] text-muted-foreground hover:text-red-400 transition-colors"
+                      className="text-[10px] text-amber-200/50 hover:text-red-400 transition-colors"
                     >
                       Delete
                     </button>
@@ -528,25 +524,26 @@ function FeedbackTab() {
 
   return (
     <div className="max-w-2xl">
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-sm font-semibold">User Feedback</h2>
-          <span className="ml-auto text-[10px] text-muted-foreground">{entries.length} total</span>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">User Feedback</h2>
+          <span className="ml-auto text-[10px] text-amber-200/40">{entries.length} total</span>
         </div>
         {isLoading ? (
-          <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+          <p className="text-xs text-amber-200/40 animate-pulse">Loading…</p>
         ) : entries.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No feedback submitted yet.</p>
+          <p className="text-xs text-amber-200/40">No feedback submitted yet.</p>
         ) : (
-          <div className="divide-y divide-border/40">
+          <div className="divide-y divide-zinc-800">
             {entries.map(e => (
-              <div key={e.id} className="py-3 space-y-1">
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <span className="font-semibold text-foreground">{e.username}</span>
-                  <span>{new Date(e.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
-                  {e.page && <span className="font-mono">{e.page}</span>}
-                </div>
-                <p className="text-xs whitespace-pre-wrap">{e.message}</p>
+              <div key={e.id} className="py-2 space-y-0.5">
+                <span className="block text-[11px] font-mono text-sky-300/60">
+                  <span className="text-white font-semibold">{e.username}</span>
+                  {" · "}
+                  {new Date(e.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                  {e.page && <>{" · "}{e.page}</>}
+                </span>
+                <p className="text-xs text-white/90 whitespace-pre-wrap">{e.message}</p>
               </div>
             ))}
           </div>
@@ -623,7 +620,7 @@ function CacheMonitorTab() {
   }
 
   function hitRateColor(rate: string) {
-    if (rate === "—") return "text-muted-foreground";
+    if (rate === "—") return "text-amber-200/40";
     const n = parseInt(rate);
     if (n >= 70) return "text-green-400";
     if (n >= 40) return "text-yellow-400";
@@ -650,13 +647,13 @@ function CacheMonitorTab() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-3xl">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold">Cache Monitor</h2>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-3xl">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Cache Monitor</h2>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
           Refresh
@@ -664,23 +661,23 @@ function CacheMonitorTab() {
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+        <p className="text-xs text-amber-200/40 animate-pulse">Loading…</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
-                <th className="w-5 py-2" />
-                <th className="text-left py-2 font-semibold">Data Type</th>
-                <th className="text-left py-2 font-semibold">TTL</th>
-                <th className="text-right py-2 font-semibold">Hits</th>
-                <th className="text-right py-2 font-semibold">Misses</th>
-                <th className="text-right py-2 font-semibold">Hit Rate</th>
-                <th className="text-right py-2 font-semibold">Cached</th>
-                <th className="text-right py-2 font-semibold">Actions</th>
+        <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
+          <table className="w-full text-sm">
+            <thead className="bg-black text-[#d4af37]">
+              <tr className="border-b border-[#d4af37]/25">
+                <th className="w-5 py-1.5" />
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Data Type</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">TTL</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Hits</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Misses</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Hit Rate</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Cached</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-800">
               {data?.caches.map(row => {
                 const isExpanded = expandedRows.has(row.name);
                 const displayName = row.displayName ?? row.name;
@@ -688,45 +685,45 @@ function CacheMonitorTab() {
                   <Fragment key={row.name}>
                     <tr
                       onClick={() => toggleRow(row.name)}
-                      className="h-9 border-b border-border/40 cursor-pointer hover:bg-muted/20 transition-colors"
+                      className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 cursor-pointer transition-colors"
                     >
-                      <td className="pl-1 pr-2">
+                      <td className="pl-2 pr-1 py-1.5">
                         {isExpanded
-                          ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                          : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                          ? <ChevronDown className="w-3 h-3 text-amber-200/50" />
+                          : <ChevronRight className="w-3 h-3 text-amber-200/50" />}
                       </td>
-                      <td className="font-medium text-foreground">{displayName}</td>
-                      <td className="text-muted-foreground" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-1.5 font-medium text-white">{displayName}</td>
+                      <td className="px-3 py-1.5 text-amber-200/40" onClick={e => e.stopPropagation()}>
                         {TTL_EDITABLE_CACHES.has(row.name) ? (
                           <select
                             value={TTL_OPTIONS.some(o => o.ms === row.ttlMs) ? row.ttlMs : ""}
                             onChange={e => ttlMutation.mutate({ name: row.name, ttlMs: Number(e.target.value) })}
                             disabled={ttlMutation.isPending}
-                            className="bg-transparent border border-border rounded px-1 py-0.5 text-xs text-foreground cursor-pointer hover:border-muted-foreground focus:outline-none disabled:opacity-50"
+                            className="bg-transparent border border-[#d4af37]/20 rounded px-1 py-0.5 text-xs text-white cursor-pointer hover:border-[#d4af37]/50 focus:outline-none disabled:opacity-50"
                           >
                             {!TTL_OPTIONS.some(o => o.ms === row.ttlMs) && (
-                              <option value="" className="bg-background">{fmtTtlHuman(row.ttlMs)}</option>
+                              <option value="" className="bg-zinc-950">{fmtTtlHuman(row.ttlMs)}</option>
                             )}
                             {TTL_OPTIONS.map(opt => (
-                              <option key={opt.ms} value={opt.ms} className="bg-background">{opt.label}</option>
+                              <option key={opt.ms} value={opt.ms} className="bg-zinc-950">{opt.label}</option>
                             ))}
                           </select>
                         ) : (
                           fmtTtlHuman(row.ttlMs)
                         )}
                       </td>
-                      <td className="text-right tabular-nums text-muted-foreground">{row.hits ?? "—"}</td>
-                      <td className="text-right tabular-nums text-muted-foreground">{row.misses ?? "—"}</td>
-                      <td className={cn("text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
-                      <td className="text-right tabular-nums text-muted-foreground">
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-200/40">{row.hits ?? "—"}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-200/40">{row.misses ?? "—"}</td>
+                      <td className={cn("px-3 py-1.5 text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-200/40">
                         {row.entryCount === 0 ? "—" : `${row.entryCount}`}
                       </td>
-                      <td className="text-right">
+                      <td className="px-3 py-1.5 text-right">
                         {row.name !== "volatility-regime" && (
                           <button
                             onClick={e => handleClear(e, row.name)}
                             disabled={clearMutation.isPending}
-                            className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1 ml-auto text-[10px] text-amber-200/50 hover:text-red-400 transition-colors disabled:opacity-50"
                           >
                             <Trash2 className="w-3 h-3" />
                             Clear
@@ -736,9 +733,9 @@ function CacheMonitorTab() {
                     </tr>
                     {isExpanded && (
                       row.entries.length === 0 ? (
-                        <tr key={`${row.name}-empty`} className="bg-muted/10 border-b border-border/20">
+                        <tr key={`${row.name}-empty`} className="bg-zinc-900/40">
                           <td />
-                          <td colSpan={7} className="py-2 pl-3 text-[10px] text-muted-foreground italic">No data cached yet</td>
+                          <td colSpan={7} className="py-1.5 pl-3 text-[10px] text-amber-200/40 italic">No data cached yet</td>
                         </tr>
                       ) : (
                         row.entries.map(entry => {
@@ -746,22 +743,22 @@ function CacheMonitorTab() {
                           const expiresMs = entry.expiresInSec * 1000;
                           const isExpiringSoon = entry.expiresInSec < 300;
                           return (
-                            <tr key={`${row.name}-${entry.key}`} className="bg-muted/10 border-b border-border/20">
+                            <tr key={`${row.name}-${entry.key}`} className="bg-zinc-900/40">
                               <td />
-                              <td colSpan={2} className="py-1.5 pl-3 font-mono text-[10px] text-foreground/70 uppercase tracking-wide">
+                              <td colSpan={2} className="py-1 pl-3 font-mono text-[10px] text-white/70 uppercase tracking-wide">
                                 {entry.key}
                                 {entry.label && (
-                                  <span className={cn("ml-2 normal-case font-sans", entry.stale ? "text-red-400 font-semibold" : "text-muted-foreground")}>
+                                  <span className={cn("ml-2 normal-case font-sans", entry.stale ? "text-red-400 font-semibold" : "text-amber-200/40")}>
                                     {entry.label}
                                   </span>
                                 )}
                               </td>
-                              <td colSpan={2} className="py-1.5 text-[10px] text-muted-foreground">
+                              <td colSpan={2} className="py-1 text-[10px] text-amber-200/40">
                                 {entry.stale ? "no data" : `${formatDuration(ageMs)} ago`}
                               </td>
                               <td colSpan={3} className={cn(
-                                "py-1.5 pr-1 text-right text-[10px] tabular-nums",
-                                entry.stale || isExpiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"
+                                "py-1 pr-3 text-right text-[10px] tabular-nums",
+                                entry.stale || isExpiringSoon ? "text-red-400 font-semibold" : "text-amber-200/40"
                               )}>
                                 {entry.stale ? "SOURCE DEAD" : `expires in ${formatDuration(expiresMs)}`}
                               </td>
@@ -775,12 +772,12 @@ function CacheMonitorTab() {
               })}
             </tbody>
           </table>
-          {data && (
-            <p className="text-[10px] text-muted-foreground mt-3">
-              Generated at {new Date(data.generatedAt).toLocaleTimeString()}
-            </p>
-          )}
         </div>
+      )}
+      {data && (
+        <p className="text-[10px] text-amber-200/40 mt-2">
+          Generated at {new Date(data.generatedAt).toLocaleTimeString()}
+        </p>
       )}
     </div>
   );
@@ -823,74 +820,58 @@ function TradingTab() {
   };
 
   return (
-    <div className="space-y-5 max-w-lg">
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-semibold mb-1">Scanner Defaults</h2>
-        <p className="text-xs text-muted-foreground mb-4">Applied when Options Scanner loads. Stored on this device.</p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Min weekly income ≥</span>
-          <div className="flex items-center gap-1 border border-border rounded-md px-2 h-7">
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              className="w-12 text-xs bg-transparent text-foreground focus:outline-none text-center"
-            />
-            <span className="text-xs text-muted-foreground">%/wk</span>
-          </div>
-          <button
-            onClick={handleSave}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
-          >
-            {saved ? "Saved" : "Save as default"}
-          </button>
-          {minWeeklyIncome !== DEFAULT_TRADER_PREFS.minWeeklyIncome && (
-            <button onClick={handleReset} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Reset
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="max-w-3xl mt-2 rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5 space-y-1.5">
+      <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Trading</h2>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-semibold mb-1">Score Weights</h2>
-        <p className="text-xs text-muted-foreground mb-3">Fundamental / technical / options weighting used across the app.</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-amber-200/40">Min weekly income ≥</span>
+        <div className="flex items-center gap-1 border border-[#d4af37]/20 rounded-md px-2 h-6">
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            className="w-10 text-xs bg-transparent text-white focus:outline-none text-center"
+          />
+          <span className="text-xs text-amber-200/40">%/wk</span>
+        </div>
+        <button
+          onClick={handleSave}
+          className="text-xs font-semibold px-2 py-1 rounded-md border border-[#d4af37]/40 text-[#d4af37] bg-transparent hover:bg-[#d4af37]/10 transition-colors"
+        >
+          {saved ? "Saved" : "Save"}
+        </button>
+        {minWeeklyIncome !== DEFAULT_TRADER_PREFS.minWeeklyIncome && (
+          <button onClick={handleReset} className="text-xs text-amber-200/50 hover:text-white transition-colors">
+            Reset
+          </button>
+        )}
+        <span className="text-amber-200/20">·</span>
         <button
           onClick={() => navigate("/scorecard-explanation")}
-          className="text-xs font-medium text-primary hover:underline"
+          className="text-xs font-medium text-[#d4af37] hover:underline"
         >
           Edit score weights → Scorecard Guide
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-semibold mb-1">Daily Brief Context</h2>
+      <div className="text-xs text-amber-200/40">
+        Daily Brief Context:{" "}
         {isAdmin ? (
-          <p className="text-xs text-muted-foreground">
-            Managed on{" "}
-            <button onClick={() => navigate("/portfolio")} className="text-primary hover:underline">
-              Portfolio
-            </button>
-            .
-          </p>
+          <>managed on <button onClick={() => navigate("/portfolio")} className="text-[#d4af37] hover:underline">Portfolio</button>.</>
         ) : (
-          <div className="text-xs text-muted-foreground space-y-1.5">
-            <p>Strategy: <span className="text-foreground/80">{briefCtx?.strategy || "—"}</span></p>
-            <p>Notes: <span className="text-foreground/80">{briefCtx?.userNotes || "—"}</span></p>
-            <p className="text-muted-foreground/60">Read-only — set by an admin.</p>
-          </div>
+          <>
+            <span className="text-white/80">{briefCtx?.strategy || "—"}</span>
+            {briefCtx?.userNotes && <> · <span className="text-white/80">{briefCtx.userNotes}</span></>}
+            {" "}<span className="text-amber-200/30">(read-only, set by admin)</span>
+          </>
         )}
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm opacity-60">
-        <h2 className="text-sm font-semibold mb-1">Alerts</h2>
-        <p className="text-xs text-muted-foreground">Coming when background job-queue is approved.</p>
-        <div className="flex items-center gap-2 mt-3">
-          <input type="checkbox" disabled className="cursor-not-allowed" />
-          <span className="text-xs text-muted-foreground">Notify on new scanner strikes matching my filters</span>
-        </div>
+      <div className="flex items-center gap-2 opacity-50">
+        <input type="checkbox" disabled className="cursor-not-allowed" />
+        <span className="text-xs text-amber-200/40">Alerts: notify on new scanner strikes matching my filters (coming soon)</span>
       </div>
     </div>
   );
@@ -898,22 +879,21 @@ function TradingTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "trading" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
+type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useSessionState<Tab>("fildi_settings_tab", "profile");
 
-  const tabs: { id: Tab; label: string; adminOnly?: boolean; color: TabBarColor }[] = [
-    { id: "profile",         label: "Profile",         color: "blue" },
-    { id: "trading",         label: "Trading",         color: "emerald" },
-    { id: "scorecard-guide", label: "Scorecard Guide", color: "violet" },
-    { id: "users",           label: "User Mgmt",       color: "amber",   adminOnly: true },
-    { id: "cache",           label: "Cache Monitor",   color: "cyan",    adminOnly: true },
-    { id: "scheduled-tasks", label: "Scheduled Tasks", color: "rose",    adminOnly: true },
-    { id: "stockdb",         label: "Stock DB",        color: "teal" },
-    { id: "api-monitor",     label: "API Monitor",     color: "orange",  adminOnly: true },
-    { id: "feedback",        label: "Feedback",        color: "fuchsia", adminOnly: true },
+  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+    { id: "profile",         label: "Profile" },
+    { id: "scorecard-guide", label: "Scorecard Guide" },
+    { id: "users",           label: "User Mgmt",       adminOnly: true },
+    { id: "cache",           label: "Cache Monitor",   adminOnly: true },
+    { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
+    { id: "stockdb",         label: "Stock DB" },
+    { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
+    { id: "feedback",        label: "Feedback",        adminOnly: true },
   ];
 
   // Persisted tab may point at an admin-only tab from a prior admin session —
@@ -926,25 +906,36 @@ export default function Settings() {
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
         {/* Header */}
-        <div className="shrink-0 border-b border-border bg-background px-6 py-4">
-          <h1 className="text-lg font-bold tracking-tight leading-none">Settings</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Account and administration</p>
+        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
+          <h1 className="text-sm font-bold tracking-tight leading-none text-white">Settings</h1>
         </div>
 
         {/* Sub-tabs */}
-        <div className="shrink-0 border-b border-border px-6 py-2 bg-background">
+        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
           {/* No explicit generic on TabBar — Replit's vite metadata plugin can't parse generic JSX call sites (`<TabBar<Tab> …>`) and corrupts the transform; T is inferred from props anyway. */}
-          <TabBar tabs={visibleTabs} active={tab} onChange={(id) => setTab(id)} />
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {visibleTabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  "px-2.5 py-1.5 transition-colors",
+                  tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {tab === "profile" && <ProfileTab />}
-          {tab === "trading" && <TradingTab />}
+        <div className="flex-1 overflow-y-auto p-4">
+          {tab === "profile" && <><ProfileTab /><TradingTab /></>}
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}

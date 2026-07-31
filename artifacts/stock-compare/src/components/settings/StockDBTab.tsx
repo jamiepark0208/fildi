@@ -177,7 +177,7 @@ const FAMILY_COLORS: Record<string, string> = {
   growth:  "text-green-400",
   quality: "text-purple-400",
   safety:  "text-amber-400",
-  meta:    "text-muted-foreground",
+  meta:    "text-amber-200/50",
 };
 
 // ── Technicals column definitions ─────────────────────────────────────────────
@@ -787,15 +787,15 @@ export function StockDBTab() {
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-48">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
     </div>
   );
 
   if (isError || !data) return (
-    <div className="flex flex-col items-center gap-3 h-48 justify-center text-sm text-muted-foreground">
+    <div className="flex flex-col items-center gap-3 h-48 justify-center text-sm text-amber-200/50">
       <AlertTriangle className="h-6 w-6 text-red-400" />
       Failed to load stock DB.
-      <button onClick={() => refetch()} className="text-xs px-3 py-1 border border-border rounded hover:bg-secondary">Retry</button>
+      <button onClick={() => refetch()} className="text-xs px-3 py-1 border border-[#d4af37]/20 rounded-md hover:text-white">Retry</button>
     </div>
   );
 
@@ -807,21 +807,21 @@ export function StockDBTab() {
 
   return (
     <>
-    <div className="space-y-4">
+    <div className="space-y-1.5">
       {/* Summary bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span><span className="text-foreground font-medium">{data.length}</span> tickers</span>
-          <span><span className="text-foreground font-medium">{data.filter(d => d.isWatchlist).length}</span> watchlist</span>
-          <span><span className="text-foreground font-medium">{data.filter(d => !d.isWatchlist).length}</span> peers only</span>
-          <span><span className={cn("font-medium", noRow > 0 ? "text-red-400" : "text-green-400")}>{noRow}</span> missing rows</span>
-          <span>Coverage <span className={cn("font-medium", coverageColor(coverage))}>{coverage}%</span></span>
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 px-3 py-2 flex items-center justify-between">
+        <div className="flex gap-4 text-xs text-amber-200/50">
+          <span><span className="text-white font-medium tabular-nums">{data.length}</span> tickers</span>
+          <span><span className="text-white font-medium tabular-nums">{data.filter(d => d.isWatchlist).length}</span> watchlist</span>
+          <span><span className="text-white font-medium tabular-nums">{data.filter(d => !d.isWatchlist).length}</span> peers only</span>
+          <span><span className={cn("font-medium tabular-nums", noRow > 0 ? "text-red-400" : "text-green-400")}>{noRow}</span> missing rows</span>
+          <span>Coverage <span className={cn("font-medium tabular-nums", coverageColor(coverage))}>{coverage}%</span></span>
         </div>
         {isAdmin && (
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 border border-border rounded hover:bg-secondary disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
             Refresh
@@ -831,21 +831,21 @@ export function StockDBTab() {
 
       {/* Pipeline health */}
       {isAdmin && latestRun && (
-        <div className="border border-border rounded-md">
+        <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
           <button
             onClick={() => setPipelineExpanded(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              {pipelineExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-              <span className="font-medium">Pipeline Health</span>
-              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", runStatusBadge(latestRun.status))}>{latestRun.status}</span>
-              <span className="text-muted-foreground">
+              {pipelineExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
+              <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[11px]">Pipeline Health</span>
+              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", runStatusBadge(latestRun.status))}>{latestRun.status}</span>
+              <span className="text-amber-200/40">
                 {new Date(latestRun.startedAt).toLocaleString()} · {latestRun.trigger} · {runDuration(latestRun)}
               </span>
             </div>
             {latestRun.coverageBefore != null && latestRun.coverageAfter != null && (
-              <span className="text-muted-foreground">
+              <span className="text-amber-200/40 tabular-nums">
                 Coverage <span className={coverageColor(Number(latestRun.coverageBefore))}>{Number(latestRun.coverageBefore).toFixed(1)}%</span>
                 {" → "}
                 <span className={cn("font-medium", coverageColor(Number(latestRun.coverageAfter)))}>{Number(latestRun.coverageAfter).toFixed(1)}%</span>
@@ -853,39 +853,39 @@ export function StockDBTab() {
             )}
           </button>
           {pipelineExpanded && (
-            <div className="border-t border-border overflow-auto max-h-64">
+            <div className="border-t border-[#d4af37]/20 overflow-auto max-h-64">
               <table className="text-xs w-full border-collapse">
-                <thead className="sticky top-0 bg-background">
-                  <tr className="text-muted-foreground">
-                    <th className="text-left font-medium px-3 py-1.5">Started</th>
-                    <th className="text-left font-medium px-3 py-1.5">Trigger</th>
-                    <th className="text-left font-medium px-3 py-1.5">Status</th>
-                    <th className="text-left font-medium px-3 py-1.5">Duration</th>
-                    <th className="text-left font-medium px-3 py-1.5">Coverage</th>
-                    <th className="text-left font-medium px-3 py-1.5">Flag audit</th>
-                    <th className="text-left font-medium px-3 py-1.5">Error</th>
+                <thead className="sticky top-0 bg-black text-[#d4af37]">
+                  <tr className="border-b border-[#d4af37]/25">
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Started</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Trigger</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Status</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Duration</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Coverage</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Flag audit</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Error</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-zinc-800">
                   {runs.map(run => (
-                    <tr key={run.id} className="border-t border-border/50">
-                      <td className="px-3 py-1.5 whitespace-nowrap">{new Date(run.startedAt).toLocaleString()}</td>
-                      <td className="px-3 py-1.5">{run.trigger}</td>
-                      <td className="px-3 py-1.5">
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", runStatusBadge(run.status))}>{run.status}</span>
+                    <tr key={run.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                      <td className="px-2.5 py-1 whitespace-nowrap text-white">{new Date(run.startedAt).toLocaleString()}</td>
+                      <td className="px-2.5 py-1 text-amber-200/50">{run.trigger}</td>
+                      <td className="px-2.5 py-1">
+                        <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", runStatusBadge(run.status))}>{run.status}</span>
                       </td>
-                      <td className="px-3 py-1.5">{runDuration(run)}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1 tabular-nums text-amber-200/50">{runDuration(run)}</td>
+                      <td className="px-2.5 py-1 tabular-nums text-amber-200/50">
                         {run.coverageBefore != null && run.coverageAfter != null
                           ? `${Number(run.coverageBefore).toFixed(1)}% → ${Number(run.coverageAfter).toFixed(1)}%`
                           : "—"}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1 tabular-nums text-amber-200/50">
                         {run.flagAuditOrphaned != null || run.flagAuditMissing != null
                           ? `${run.flagAuditOrphaned ?? 0} orphaned / ${run.flagAuditMissing ?? 0} missing`
                           : "—"}
                       </td>
-                      <td className="px-3 py-1.5 text-red-400 max-w-xs truncate" title={run.error ?? undefined}>{run.error ?? "—"}</td>
+                      <td className="px-2.5 py-1 text-red-400 max-w-xs truncate" title={run.error ?? undefined}>{run.error ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -897,48 +897,48 @@ export function StockDBTab() {
 
       {/* Divergent-field review queue — sources disagree and no admin has overridden yet */}
       {isAdmin && divergentItems.length > 0 && (
-        <div className="border border-orange-500/30 rounded-md">
+        <div className="rounded-md border border-orange-500/30 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
           <button
             onClick={() => setReviewExpanded(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              {reviewExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {reviewExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
               <TriangleAlert className="h-3 w-3 text-orange-400" />
-              <span className="font-medium">Needs Review</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-500/30">
+              <span className="font-semibold text-orange-300/90 uppercase tracking-wide text-[11px]">Needs Review</span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-orange-500/15 text-orange-400 border-orange-500/30">
                 {divergentItems.length}
               </span>
             </div>
-            <span className="text-muted-foreground">sources disagree — no override set yet</span>
+            <span className="text-amber-200/40">sources disagree — no override set yet</span>
           </button>
           {reviewExpanded && (
-            <div className="border-t border-border overflow-auto max-h-64">
+            <div className="border-t border-[#d4af37]/20 overflow-auto max-h-64">
               <table className="text-xs w-full border-collapse">
-                <thead className="sticky top-0 bg-background">
-                  <tr className="text-muted-foreground">
-                    <th className="text-left font-medium px-3 py-1.5">Ticker</th>
-                    <th className="text-left font-medium px-3 py-1.5">Field</th>
-                    <th className="text-right font-medium px-3 py-1.5">Current value</th>
-                    <th className="text-left font-medium px-3 py-1.5">Source used</th>
-                    <th className="text-left font-medium px-3 py-1.5">Age</th>
-                    <th className="text-right font-medium px-3 py-1.5"></th>
+                <thead className="sticky top-0 bg-black text-[#d4af37]">
+                  <tr className="border-b border-[#d4af37]/25">
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Ticker</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Field</th>
+                    <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Current value</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Source used</th>
+                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Age</th>
+                    <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-zinc-800">
                   {divergentItems.map(item => (
-                    <tr key={`${item.ticker}:${item.field}`} className="border-t border-border/50">
-                      <td className="px-3 py-1.5 font-mono font-semibold">{item.ticker}</td>
-                      <td className="px-3 py-1.5 font-mono">{item.field}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">
+                    <tr key={`${item.ticker}:${item.field}`} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                      <td className="px-2.5 py-1 font-mono font-semibold text-white">{item.ticker}</td>
+                      <td className="px-2.5 py-1 font-mono text-amber-200/50">{item.field}</td>
+                      <td className="px-2.5 py-1 text-right font-mono tabular-nums text-amber-200/50">
                         {item.winningValue != null ? item.winningValue.toPrecision(5) : "—"}
                       </td>
-                      <td className="px-3 py-1.5">{item.winningSource ?? "—"}</td>
-                      <td className="px-3 py-1.5">{fmtDate(item.fetchedAt)}</td>
-                      <td className="px-3 py-1.5 text-right">
+                      <td className="px-2.5 py-1 text-amber-200/50">{item.winningSource ?? "—"}</td>
+                      <td className="px-2.5 py-1 text-amber-200/50">{fmtDate(item.fetchedAt)}</td>
+                      <td className="px-2.5 py-1 text-right">
                         <button
                           onClick={e => openCell(item.ticker, item.field, e, [])}
-                          className="text-[10px] px-2 py-0.5 border border-border rounded hover:bg-secondary"
+                          className="text-[10px] px-2 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-200/50 transition-colors"
                         >
                           Review
                         </button>
@@ -953,53 +953,53 @@ export function StockDBTab() {
       )}
 
       {isAdmin && (refetchQueue.length > 0 || queueRunResult) && (
-        <div className="border border-blue-500/30 rounded-md">
+        <div className="rounded-md border border-sky-500/30 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
           <button
             onClick={() => setQueueExpanded(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-secondary/50"
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              {queueExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-              <RefreshCw className="h-3 w-3 text-blue-400" />
-              <span className="font-medium">Refetch queue</span>
+              {queueExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
+              <RefreshCw className="h-3 w-3 text-sky-400" />
+              <span className="font-semibold text-sky-300/90 uppercase tracking-wide text-[11px]">Refetch Queue</span>
               {refetchQueue.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-sky-500/15 text-sky-400 border-sky-500/30">
                   {refetchQueue.length}
                 </span>
               )}
             </div>
             {queueRunResult && (
-              <span className="text-muted-foreground">
+              <span className="text-amber-200/40">
                 last run: {queueRunResult.ok} ok, {queueRunResult.failed} failed
               </span>
             )}
           </button>
           {queueExpanded && (
-            <div className="border-t border-border">
+            <div className="border-t border-[#d4af37]/20">
               {refetchQueue.length > 0 && (
                 <div className="overflow-auto max-h-64">
                   <table className="text-xs w-full border-collapse">
-                    <thead className="sticky top-0 bg-background">
-                      <tr className="text-muted-foreground">
-                        <th className="text-left font-medium px-3 py-1.5">Ticker</th>
-                        <th className="text-left font-medium px-3 py-1.5">Field</th>
-                        <th className="text-left font-medium px-3 py-1.5">Source</th>
-                        <th className="text-left font-medium px-3 py-1.5">Status</th>
-                        <th className="text-right font-medium px-3 py-1.5"></th>
+                    <thead className="sticky top-0 bg-black text-[#d4af37]">
+                      <tr className="border-b border-[#d4af37]/25">
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Ticker</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Field</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Source</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Status</th>
+                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1"></th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-zinc-800">
                       {refetchQueue.map(item => (
-                        <tr key={item.id} className="border-t border-border/50">
-                          <td className="px-3 py-1.5 font-mono font-semibold">{item.ticker}</td>
-                          <td className="px-3 py-1.5 font-mono">{item.field}</td>
-                          <td className="px-3 py-1.5">{item.source}</td>
-                          <td className="px-3 py-1.5">{item.status}</td>
-                          <td className="px-3 py-1.5 text-right">
+                        <tr key={item.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                          <td className="px-2.5 py-1 font-mono font-semibold text-white">{item.ticker}</td>
+                          <td className="px-2.5 py-1 font-mono text-amber-200/50">{item.field}</td>
+                          <td className="px-2.5 py-1 text-amber-200/50">{item.source}</td>
+                          <td className="px-2.5 py-1 text-amber-200/50">{item.status}</td>
+                          <td className="px-2.5 py-1 text-right">
                             {item.status === "pending" && (
                               <button
                                 onClick={() => removeQueueItemMutation.mutate(item.id)}
-                                className="text-[10px] px-2 py-0.5 border border-border rounded hover:bg-secondary"
+                                className="text-[10px] px-2 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-200/50 transition-colors"
                               >
                                 Remove
                               </button>
@@ -1015,7 +1015,7 @@ export function StockDBTab() {
                 <button
                   disabled={refetchQueue.filter(i => i.status === "pending").length === 0 || runQueueMutation.isPending}
                   onClick={() => runQueueMutation.mutate()}
-                  className="text-[10px] px-3 py-1 rounded bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90"
+                  className="text-[10px] font-semibold px-3 py-1 rounded bg-[#d4af37] text-black disabled:opacity-40 hover:bg-[#d4af37]/90"
                 >
                   {runQueueMutation.isPending ? "Running…" : "Run now"}
                 </button>
@@ -1027,17 +1027,17 @@ export function StockDBTab() {
                   finish (GET only returns pending/running rows), so this is the only place
                   a per-item done/failed result is visible. Cleared on the next run. */}
               {queueRunResult && queueRunResult.items.length > 0 && (
-                <div className="border-t border-border px-3 py-2">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Last run results</div>
+                <div className="border-t border-[#d4af37]/20 px-3 py-2">
+                  <div className="text-[10px] text-amber-200/40 uppercase tracking-wide mb-1">Last run results</div>
                   <div className="flex flex-col gap-0.5 max-h-40 overflow-auto">
                     {queueRunResult.items.map((item, i) => (
                       <div key={i} className="flex items-center gap-1.5 text-[10px] font-mono">
                         <span className={item.status === "done" ? "text-green-400" : "text-red-400"}>
                           {item.status === "done" ? "✓" : "✗"}
                         </span>
-                        <span className="font-semibold">{item.ticker}</span>
-                        <span className="text-muted-foreground">{item.field}</span>
-                        <span className="text-muted-foreground">via {item.source}</span>
+                        <span className="font-semibold text-white">{item.ticker}</span>
+                        <span className="text-amber-200/40">{item.field}</span>
+                        <span className="text-amber-200/40">via {item.source}</span>
                       </div>
                     ))}
                   </div>
@@ -1048,57 +1048,58 @@ export function StockDBTab() {
         </div>
       )}
 
-      {/* View toggle */}
-      <div className="flex items-center gap-1 p-0.5 bg-muted/30 border border-border rounded-md w-fit text-xs font-medium">
-        {(["fundamentals", "technicals"] as const).map(mode => (
-          <button
-            key={mode}
-            onClick={() => setViewMode(mode)}
-            className={cn(
-              "px-3 py-1 rounded capitalize transition-colors",
-              viewMode === mode
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {mode === "fundamentals" ? "Fundamentals" : "Technicals"}
-          </button>
-        ))}
-      </div>
-
-      {/* Ticker filter + legend */}
+      {/* View toggle + filter + legend */}
       <div className="flex items-center justify-between gap-4">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
-          <input
-            type="text"
-            value={tickerFilter}
-            onChange={e => setTickerFilter(e.target.value)}
-            placeholder="Filter tickers…"
-            className="pl-6 pr-3 py-1 text-xs bg-white border border-white/20 text-black placeholder:text-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-primary w-44"
-          />
-          {tickerFilter && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
-              {visibleRows}/{data.length}
-            </span>
-          )}
+        <div className="flex items-center gap-1 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded-md w-fit text-[11px] font-semibold">
+          {(["fundamentals", "technicals"] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                "px-2.5 py-1.5 rounded capitalize transition-colors",
+                viewMode === mode
+                  ? "bg-[#d4af37] text-black"
+                  : "text-amber-200/50 hover:text-[#d4af37]",
+              )}
+            >
+              {mode === "fundamentals" ? "Fundamentals" : "Technicals"}
+            </button>
+          ))}
         </div>
-        <div className="flex gap-3 text-xs">
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/40" /> Representative</span>
+
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-amber-200/30 pointer-events-none" />
+            <input
+              type="text"
+              value={tickerFilter}
+              onChange={e => setTickerFilter(e.target.value)}
+              placeholder="Filter tickers…"
+              className="pl-6 pr-3 py-1 text-xs bg-zinc-950 border border-[#d4af37]/20 text-white placeholder:text-amber-200/30 rounded-md focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 w-44"
+            />
+            {tickerFilter && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-200/30 tabular-nums">
+                {visibleRows}/{data.length}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-3 text-xs text-amber-200/50">
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/40" /> Representative</span>
+          </div>
         </div>
       </div>
 
       {/* Grid */}
-      <div className="border border-border rounded-md overflow-auto max-h-[calc(100vh-300px)]">
+      <div className="rounded-md border border-[#d4af37]/25 overflow-auto max-h-[calc(100vh-300px)] bg-zinc-950 shadow-lg shadow-black/60">
         <table className="text-xs border-collapse min-w-max">
-          <thead className="sticky top-0 z-20 bg-background">
+          <thead className="sticky top-0 z-20 bg-black text-[#d4af37]">
             {viewMode === "fundamentals" ? (<>
               {/* Fundamentals — family header row */}
               <tr>
                 <th
-                  className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium cursor-pointer hover:bg-muted/30 select-none"
+                  className="sticky left-0 z-30 bg-black border-b border-r border-[#d4af37]/25 px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider cursor-pointer hover:bg-amber-500/10 select-none"
                   rowSpan={2}
                   onClick={() => handleSort("ticker")}
                 >
@@ -1115,10 +1116,10 @@ export function StockDBTab() {
                     <th
                       key={fam}
                       colSpan={cols.length}
-                      className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
+                      className={cn("border-b border-r border-[#d4af37]/25 px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
                     >
                       <div>{fam}</div>
-                      <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80", coverageColor(pct))}>
+                      <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80 tabular-nums", coverageColor(pct))}>
                         {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
                       </div>
                     </th>
@@ -1135,8 +1136,8 @@ export function StockDBTab() {
                       key={col.key as string}
                       onClick={() => handleSort(col.key as string)}
                       className={cn(
-                        "border-b border-border px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-muted/30 select-none",
-                        i === COLS.length - 1 ? "" : "border-r",
+                        "border-b border-[#d4af37]/25 px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-amber-500/10 select-none",
+                        i === COLS.length - 1 ? "" : "border-r border-[#d4af37]/10",
                         FAMILY_COLORS[col.family],
                       )}
                     >
@@ -1146,7 +1147,7 @@ export function StockDBTab() {
                       </div>
                       {cov && (
                         <div className={cn(
-                          "text-[9px] font-normal text-right mt-0.5",
+                          "text-[9px] font-normal text-right mt-0.5 tabular-nums",
                           pct === 0 ? "text-red-400/70" : pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-500/70"
                         )}>
                           {cov.filled}/{cov.total}
@@ -1160,7 +1161,7 @@ export function StockDBTab() {
               {/* Technicals — family header row */}
               <tr>
                 <th
-                  className="sticky left-0 z-30 bg-background border-b border-r border-border px-3 py-1.5 text-left font-medium"
+                  className="sticky left-0 z-30 bg-black border-b border-r border-[#d4af37]/25 px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider"
                   rowSpan={2}
                 >
                   Ticker
@@ -1171,7 +1172,7 @@ export function StockDBTab() {
                     <th
                       key={fam}
                       colSpan={cols.length}
-                      className={cn("border-b border-r border-border px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", TECH_FAMILY_COLORS[fam])}
+                      className={cn("border-b border-r border-[#d4af37]/25 px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", TECH_FAMILY_COLORS[fam])}
                     >
                       {fam}
                     </th>
@@ -1184,8 +1185,8 @@ export function StockDBTab() {
                   <th
                     key={col.key as string}
                     className={cn(
-                      "border-b border-border px-2 py-1 font-medium whitespace-nowrap",
-                      i < TECH_COLS.length - 1 && "border-r",
+                      "border-b border-[#d4af37]/25 px-2 py-1 font-medium whitespace-nowrap",
+                      i < TECH_COLS.length - 1 && "border-r border-[#d4af37]/10",
                       TECH_FAMILY_COLORS[col.family],
                     )}
                   >
@@ -1214,7 +1215,7 @@ export function StockDBTab() {
                           : <ChevronDown  className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
                         }
                         <span className={cn("font-bold text-[11px] uppercase tracking-widest", pal.text)}>{item.label}</span>
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", pal.badge)}>{item.count} tickers</span>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium tabular-nums", pal.badge)}>{item.count} tickers</span>
                         <div className="ml-auto flex items-center gap-2.5">
                           <div className="w-20 h-1.5 rounded-full bg-black/40 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
@@ -1238,17 +1239,17 @@ export function StockDBTab() {
                   <>
                   <tr
                     key={`group-${item.groupId}-${idx}`}
-                    className="cursor-pointer select-none hover:bg-white/[0.03] transition-colors border-b border-border/30"
+                    className="cursor-pointer select-none hover:bg-amber-500/5 transition-colors border-b border-[#d4af37]/10"
                     onClick={() => toggleGroup(item.groupId)}
                   >
                     <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
                       <div className="flex items-center gap-2.5 pl-7 pr-3 py-1.5 bg-white/[0.04]">
                         {isCollapsed
-                          ? <ChevronRight className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
-                          : <ChevronDown  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
+                          ? <ChevronRight className="h-3 w-3 text-amber-200/40 flex-shrink-0" />
+                          : <ChevronDown  className="h-3 w-3 text-amber-200/40 flex-shrink-0" />
                         }
                         <span className="text-xs font-semibold text-white/90 tracking-wide">{item.groupName}</span>
-                        <span className="text-[10px] text-muted-foreground/50 font-mono">{item.count}</span>
+                        <span className="text-[10px] text-amber-200/40 font-mono tabular-nums">{item.count}</span>
                         {/* Per-family coverage pills */}
                         <div className="flex items-center gap-1 ml-2">
                           {families.map(fam => {
@@ -1271,7 +1272,7 @@ export function StockDBTab() {
                           })}
                         </div>
                         <div className="ml-auto flex items-center gap-2">
-                          <div className="w-16 h-1 rounded-full bg-muted/40 overflow-hidden">
+                          <div className="w-16 h-1 rounded-full bg-black/40 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
                           </div>
                           <span className={cn("text-[10px] tabular-nums w-8 text-right font-medium", coverageColor(item.coverage))}>
@@ -1283,22 +1284,22 @@ export function StockDBTab() {
                   </tr>
                   {/* Per-group column sub-header when expanded */}
                   {!isCollapsed && (
-                    <tr key={`group-cols-${item.groupId}`} className="border-b border-border/40">
+                    <tr key={`group-cols-${item.groupId}`} className="border-b border-[#d4af37]/10">
                       <td className={cn(
-                        "sticky left-0 z-10 bg-background border-r border-border/40 px-3 py-0.5",
-                        "text-[9px] font-semibold text-muted-foreground/60 tracking-wide",
+                        "sticky left-0 z-10 bg-black border-r border-[#d4af37]/10 px-2.5 py-0.5",
+                        "text-[9px] font-semibold text-amber-200/40 tracking-wide",
                         pal.border, "border-l-4",
                       )}>
                         TICKER
                       </td>
                       {viewMode === "fundamentals"
                         ? COLS.map((col, i) => (
-                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < COLS.length - 1 && "border-r border-border/20", FAMILY_COLORS[col.family])}>
+                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < COLS.length - 1 && "border-r border-[#d4af37]/10", FAMILY_COLORS[col.family])}>
                             {col.label}
                           </td>
                         ))
                         : TECH_COLS.map((col, i) => (
-                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < TECH_COLS.length - 1 && "border-r border-border/20", TECH_FAMILY_COLORS[col.family])}>
+                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < TECH_COLS.length - 1 && "border-r border-[#d4af37]/10", TECH_FAMILY_COLORS[col.family])}>
                             {col.label}
                           </td>
                         ))
@@ -1319,19 +1320,19 @@ export function StockDBTab() {
                 <tr
                   key={row.ticker}
                   className={cn(
-                    "border-b border-border/50 hover:bg-muted/30 transition-colors",
+                    "border-b border-[#d4af37]/10 hover:bg-amber-500/10 transition-colors",
                     row.isWatchlist
                       ? "bg-amber-500/8 border-l-2 border-l-amber-500/50"
-                      : ri % 2 === 0 ? "" : "bg-muted/5",
+                      : ri % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60",
                   )}
                 >
                   {/* Ticker cell — sticky */}
                   <td className={cn(
-                    "sticky left-0 z-10 border-r border-border px-2.5 py-0.5 font-mono font-semibold whitespace-nowrap",
-                    row.isWatchlist ? "bg-amber-950/30" : "bg-background",
+                    "sticky left-0 z-10 border-r border-[#d4af37]/20 px-2.5 py-0.5 font-mono font-semibold whitespace-nowrap",
+                    row.isWatchlist ? "bg-amber-950/30" : "bg-zinc-950",
                   )}>
                     <div className="flex items-center gap-1.5">
-                      <span className={row.isWatchlist ? "text-amber-300" : ""}>{row.ticker}</span>
+                      <span className={row.isWatchlist ? "text-amber-300" : "text-white"}>{row.ticker}</span>
                       {row.isWatchlist && (
                         <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-sans font-medium">rep</span>
                       )}
@@ -1340,7 +1341,7 @@ export function StockDBTab() {
                       )}
                     </div>
                     {row.companyName && (
-                      <div className="text-[9px] text-muted-foreground truncate max-w-[120px]">{row.companyName}</div>
+                      <div className="text-[9px] text-amber-200/40 truncate max-w-[120px]">{row.companyName}</div>
                     )}
                   </td>
 
@@ -1371,11 +1372,11 @@ export function StockDBTab() {
                         key={col.key as string}
                         onClick={(e) => openCell(row.ticker, col.key as string, e, tooltipParts)}
                         className={cn(
-                          "px-2 py-0.5 text-right font-mono whitespace-nowrap border-border transition-colors",
+                          "px-2 py-0.5 text-right font-mono whitespace-nowrap tabular-nums border-[#d4af37]/10 transition-colors text-amber-200/70",
                           (isAdmin || tooltipParts.length > 0) && "cursor-pointer",
                           ci < COLS.length - 1 && "border-r",
-                          isActive && "ring-1 ring-inset ring-primary/50",
-                          isOptionalNull && "text-muted-foreground/40",
+                          isActive && "ring-1 ring-inset ring-[#d4af37]/60",
+                          isOptionalNull && "text-amber-200/25",
                           !isOptionalNull && isNull && "bg-red-500/15 text-red-400/70",
                           !isNull && hasFlag && "bg-sky-500/15",
                           !isNull && suspect && "ring-1 ring-inset ring-amber-500/80",
@@ -1386,7 +1387,7 @@ export function StockDBTab() {
                         )}
                         title={justRefetched ? "Re-fetched successfully" : undefined}
                       >
-                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-muted-foreground/60" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
+                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-amber-200/30" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
                       </td>
                     );
                   }) : TECH_COLS.map((col, ci) => {
@@ -1402,10 +1403,10 @@ export function StockDBTab() {
                       <td
                         key={col.key as string}
                         className={cn(
-                          "px-2 py-0.5 font-mono whitespace-nowrap border-border",
+                          "px-2 py-0.5 font-mono whitespace-nowrap tabular-nums border-[#d4af37]/10",
                           isText ? "text-center" : "text-right",
                           ci < TECH_COLS.length - 1 && "border-r",
-                          isNull ? "text-muted-foreground/30" : regimeColor ?? signalColor ?? "text-foreground",
+                          isNull ? "text-amber-200/20" : regimeColor ?? signalColor ?? "text-amber-200/70",
                         )}
                       >
                         {col.fmt(raw)}
@@ -1417,7 +1418,7 @@ export function StockDBTab() {
             })}
             {visibleRows === 0 && tickerFilter && (
               <tr>
-                <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className="py-8 text-center text-muted-foreground text-xs">
+                <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className="py-8 text-center text-amber-200/40 text-xs">
                   No tickers match "{tickerFilter}"
                 </td>
               </tr>
@@ -1442,14 +1443,14 @@ export function StockDBTab() {
       </PopoverAnchor>
 
       <PopoverContent
-        className="w-80 p-0 text-xs overflow-hidden"
+        className="w-80 p-0 text-xs overflow-hidden bg-zinc-950 border border-[#d4af37]/25 shadow-lg shadow-black/60"
         align="start"
         sideOffset={4}
         onInteractOutside={() => setActiveCell(null)}
       >
         {!isAdmin && activeCell && (
           <div className="p-3 flex flex-col gap-1.5">
-            <span className="font-semibold text-foreground">{activeCell.ticker} · {activeCell.field}</span>
+            <span className="font-semibold text-white">{activeCell.ticker} · {activeCell.field}</span>
             {activeCell.tooltipParts.map((part, i) => (
               <div key={i} className="flex items-start gap-1.5 text-amber-400">
                 <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" />
@@ -1465,21 +1466,21 @@ export function StockDBTab() {
             </div>
             <button
               onClick={() => refetchProv()}
-              className="text-[10px] px-2 py-1 border border-border rounded hover:bg-secondary self-start"
+              className="text-[10px] px-2 py-1 border border-[#d4af37]/20 rounded hover:text-white text-amber-200/50 transition-colors self-start"
             >
               Retry
             </button>
           </div>
         )}
         {isAdmin && !activeProv && !provError && (
-          <div className="p-3 text-muted-foreground flex items-center gap-2">
+          <div className="p-3 text-amber-200/40 flex items-center gap-2">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading provenance…
           </div>
         )}
         {isAdmin && activeProv && (
           <div>
-            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
-              <span className="font-semibold text-foreground">{activeCell?.ticker} · {activeCell?.field}</span>
+            <div className="px-3 py-2 border-b border-[#d4af37]/20 bg-black/40 flex items-center justify-between gap-2">
+              <span className="font-semibold text-white">{activeCell?.ticker} · {activeCell?.field}</span>
               <div className="flex items-center gap-1">
                 {activeProv.isOverride && <span title="Manual override active"><Pin className="h-3 w-3 text-amber-400" /></span>}
                 {activeProv.divergent  && <span title="Sources disagree"><TriangleAlert className="h-3 w-3 text-orange-400" /></span>}
@@ -1487,7 +1488,7 @@ export function StockDBTab() {
             </div>
 
             {activeCell && activeCell.tooltipParts.length > 0 && (
-              <div className="px-3 py-2 border-b border-border flex flex-col gap-1">
+              <div className="px-3 py-2 border-b border-[#d4af37]/20 flex flex-col gap-1">
                 {activeCell.tooltipParts.map((part, i) => (
                   <div key={i} className="flex items-start gap-1.5 text-amber-400">
                     <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" />
@@ -1497,22 +1498,22 @@ export function StockDBTab() {
               </div>
             )}
 
-            <div className="px-3 py-2 border-b border-border">
+            <div className="px-3 py-2 border-b border-[#d4af37]/20">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Winner</span>
-                <span className="font-mono font-medium">
+                <span className="text-amber-200/40">Winner</span>
+                <span className="font-mono font-medium tabular-nums text-white">
                   {activeProv.winningValue != null
                     ? activeProv.winningValue.toPrecision(5)
                     : <span className="text-red-400/70">null</span>}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <span className="text-muted-foreground">Source</span>
-                <span className="font-mono">{activeProv.winningSource ?? "—"}</span>
+                <span className="text-amber-200/40">Source</span>
+                <span className="font-mono text-amber-200/70">{activeProv.winningSource ?? "—"}</span>
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <span className="text-muted-foreground">Age</span>
-                <span className="font-mono">{fmtDate(activeProv.fetchedAt)}</span>
+                <span className="text-amber-200/40">Age</span>
+                <span className="font-mono text-amber-200/70">{fmtDate(activeProv.fetchedAt)}</span>
               </div>
               {activeProv.divergent && (
                 <div className="mt-1.5 text-[10px] text-orange-400 flex items-center gap-1">
@@ -1521,11 +1522,11 @@ export function StockDBTab() {
               )}
             </div>
 
-            <div className="px-3 py-2 border-b border-border">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">All sources</div>
+            <div className="px-3 py-2 border-b border-[#d4af37]/20">
+              <div className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1">All sources</div>
               <table className="w-full text-[10px]">
                 <thead>
-                  <tr className="text-muted-foreground">
+                  <tr className="text-amber-200/40 border-b border-[#d4af37]/10">
                     <th className="text-left font-normal pb-0.5">Source</th>
                     <th className="text-right font-normal pb-0.5">Value</th>
                     <th className="text-right font-normal pb-0.5">Age</th>
@@ -1539,22 +1540,22 @@ export function StockDBTab() {
                       q => q.ticker === activeCell?.ticker && q.field === activeCell?.field && q.source === s.source
                     );
                     return (
-                    <tr key={s.source} className={cn(s.status === "excluded" || s.status === "no_data" ? "text-muted-foreground/50" : "")}>
+                    <tr key={s.source} className={cn(s.status === "excluded" || s.status === "no_data" ? "text-amber-200/30" : "text-amber-200/70")}>
                       <td className="py-px">{s.source}</td>
-                      <td className="text-right font-mono py-px">
+                      <td className="text-right font-mono py-px tabular-nums">
                         {s.value != null ? s.value.toPrecision(4) : "—"}
                       </td>
                       <td className="text-right py-px" title={sourceAgeTitle(s)}>{sourceAgeLabel(s)}</td>
                       <td className="text-right py-px">
                         {s.status === "used"      && <span className="text-green-400">used</span>}
-                        {s.status === "available" && <span className="text-blue-400">avail</span>}
+                        {s.status === "available" && <span className="text-sky-400">avail</span>}
                         {s.status === "no_data"   && (
                           <span title={s.lastQueriedAt ? "source was queried but had no value for this field" : "this source has never been fetched for this ticker"}>
                             no data
                           </span>
                         )}
                         {s.status === "excluded"  && (
-                          <span className="text-muted-foreground/40" title={s.exclusionReason}>excl</span>
+                          <span className="text-amber-200/25" title={s.exclusionReason}>excl</span>
                         )}
                       </td>
                       <td className="text-right py-px pl-1">
@@ -1564,7 +1565,7 @@ export function StockDBTab() {
                             if (!activeCell) return;
                             queueRefetchMutation.mutate({ ticker: activeCell.ticker, field: activeCell.field, sources: [s.source] });
                           }}
-                          className="text-[9px] px-1 py-0.5 border border-border rounded hover:bg-secondary disabled:opacity-40 whitespace-nowrap"
+                          className="text-[9px] px-1 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-200/50 transition-colors disabled:opacity-40 whitespace-nowrap"
                         >
                           {queued ? "queued" : "queue re-fetch"}
                         </button>
@@ -1577,14 +1578,14 @@ export function StockDBTab() {
             </div>
 
             <div className="px-3 py-2">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">
+              <div className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1.5">
                 {activeProv.override ? "Override active" : "Override source"}
               </div>
               <div className="flex flex-col gap-1.5">
                 <select
                   value={overrideSrc}
                   onChange={e => { setOverrideSrc(e.target.value); setOverrideVal(""); }}
-                  className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1"
+                  className="w-full text-[10px] bg-zinc-950 text-white border border-[#d4af37]/20 rounded px-1.5 py-1"
                 >
                   <option value="">— pick source —</option>
                   {activeProv.sources
@@ -1598,7 +1599,7 @@ export function StockDBTab() {
                     value={overrideVal}
                     onChange={e => setOverrideVal(e.target.value)}
                     placeholder="numeric value"
-                    className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1 font-mono"
+                    className="w-full text-[10px] bg-zinc-950 text-white placeholder:text-amber-200/30 border border-[#d4af37]/20 rounded px-1.5 py-1 font-mono"
                   />
                 )}
                 <input
@@ -1606,7 +1607,7 @@ export function StockDBTab() {
                   value={overrideNote}
                   onChange={e => setOverrideNote(e.target.value)}
                   placeholder="note (optional)"
-                  className="w-full text-[10px] bg-background border border-border rounded px-1.5 py-1"
+                  className="w-full text-[10px] bg-zinc-950 text-white placeholder:text-amber-200/30 border border-[#d4af37]/20 rounded px-1.5 py-1"
                 />
                 <div className="flex gap-1.5">
                   <button
@@ -1621,7 +1622,7 @@ export function StockDBTab() {
                         note:   overrideNote || undefined,
                       });
                     }}
-                    className="flex-1 text-[10px] py-1 rounded bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90"
+                    className="flex-1 text-[10px] font-semibold py-1 rounded bg-[#d4af37] text-black disabled:opacity-40 hover:bg-[#d4af37]/90"
                   >
                     {overrideMutation.isPending ? "Saving…" : "Save"}
                   </button>
@@ -1633,7 +1634,7 @@ export function StockDBTab() {
                         clearOverrideMutation.mutate({ ticker: activeCell.ticker, field: activeCell.field });
                         setOverrideSrc(""); setOverrideVal(""); setOverrideNote("");
                       }}
-                      className="flex-1 text-[10px] py-1 rounded border border-border hover:bg-muted/50 disabled:opacity-40"
+                      className="flex-1 text-[10px] py-1 rounded border border-[#d4af37]/20 text-amber-200/50 hover:text-white transition-colors disabled:opacity-40"
                     >
                       {clearOverrideMutation.isPending ? "Clearing…" : "Clear override"}
                     </button>

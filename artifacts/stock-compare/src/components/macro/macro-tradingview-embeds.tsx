@@ -68,7 +68,7 @@ export function TradingViewMarketOverview() {
   return (
     <div
       ref={ref}
-      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      className="tradingview-widget-container rounded-md overflow-hidden border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60"
       style={{ height: 660, width: "100%" }}
     />
   );
@@ -94,7 +94,7 @@ export function TradingViewForexCrossRates() {
   return (
     <div
       ref={ref}
-      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      className="tradingview-widget-container rounded-md overflow-hidden border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60"
       style={{ height: 400, width: "100%" }}
     />
   );
@@ -123,7 +123,7 @@ export function TradingViewHeatmap() {
   return (
     <div
       ref={ref}
-      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      className="tradingview-widget-container rounded-md overflow-hidden border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60"
       style={{ height: 720, width: "100%" }}
     />
   );
@@ -149,7 +149,7 @@ export function TradingViewEconomicCalendar() {
   return (
     <div
       ref={ref}
-      className="tradingview-widget-container rounded-lg overflow-hidden border border-border"
+      className="tradingview-widget-container rounded-md overflow-hidden border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60"
       style={{ height: 560 }}
     />
   );

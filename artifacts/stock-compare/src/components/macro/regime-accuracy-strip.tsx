@@ -20,10 +20,10 @@ interface RegimeResponse {
 const HORIZONS = ["1w", "4w", "12w"] as const;
 
 function chipColor(v: number | null): string {
-  if (v == null) return "bg-white/5 text-muted-foreground border-white/10";
-  if (v >= 0.66) return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
-  if (v >= 0.4) return "bg-amber-500/15 text-amber-300 border-amber-500/30";
-  return "bg-rose-500/15 text-rose-300 border-rose-500/30";
+  if (v == null) return "text-amber-200/40";
+  if (v >= 0.66) return "text-green-400";
+  if (v >= 0.4) return "text-yellow-400";
+  return "text-red-400";
 }
 
 export function RegimeAccuracyStrip() {
@@ -42,23 +42,24 @@ export function RegimeAccuracyStrip() {
 
   return (
     <Link href="/track-record">
-      <div className="flex items-center gap-2 cursor-pointer">
-        <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Regime call accuracy</span>
-        {HORIZONS.map(h => {
+      <span className="block text-[11px] font-mono text-sky-300/60 cursor-pointer hover:text-sky-300">
+        <span className="text-[#d4af37]/80 uppercase tracking-wide">Regime accuracy </span>
+        {HORIZONS.map((h, i) => {
           const cells = data.grid.filter(c => c.horizon === h);
           const n = cells.reduce((s, c) => s + c.n, 0);
           const correct = cells.reduce((s, c) => s + c.correct, 0);
           const pct = n > 0 ? correct / n : null;
           return (
-            <span
-              key={h}
-              className={cn("text-[11px] font-medium rounded-full border px-2 py-0.5", chipColor(pct))}
-            >
-              {h} {pct != null ? `${Math.round(pct * 100)}%` : "—"} (n={n})
+            <span key={h}>
+              {i > 0 && <span className="text-amber-200/40"> · </span>}
+              <span className={cn("font-semibold", chipColor(pct))}>
+                {h} {pct != null ? `${Math.round(pct * 100)}%` : "—"}
+              </span>
+              <span className="text-amber-200/40"> (n={n})</span>
             </span>
           );
         })}
-      </div>
+      </span>
     </Link>
   );
 }

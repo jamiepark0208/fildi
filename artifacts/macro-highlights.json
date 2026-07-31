@@ -1,83 +1,73 @@
 {
-  "generatedAt": "2026-07-13T23:20:51.465Z",
-  "marketDate": "2026-07-13",
-  "headline": "Geopolitical tensions spike VIX; Fed rate hike odds rising amid inflation persistence",
+  "generatedAt": "2026-07-31T02:49:12.320Z",
+  "marketDate": "2026-07-31",
+  "headline": "Fed holds steady as markets surge; megacap earnings and rate path next focus",
   "eventsToday": [
     {
-      "date": "2026-07-13",
-      "event": "US-Iran military exchange; oil prices jump",
-      "importance": "high"
-    },
-    {
-      "date": "2026-07-13",
-      "event": "Semiconductor sector selloff led by SK Hynix",
+      "date": "2026-07-31",
+      "event": "Fed Holds Rates Steady with Three Dissents for Increase",
       "importance": "high"
     }
   ],
   "bullets": [
     {
       "id": "b1",
-      "category": "geopolitical",
-      "title": "Iran tensions spike equity selling, VIX jumps",
-      "body": "US-Iran military exchange drove broad risk-off; VIX +14.17% to 17.16 despite measured level."
+      "category": "macro",
+      "title": "Fed Freeze Holds Despite Dissent",
+      "body": "Fed held rates at 3.63% with three officials voting for increase; signals hawkish patience."
     },
     {
       "id": "b2",
-      "category": "macro",
-      "title": "Fed pivoting toward July rate hike probability",
-      "body": "CNBC reports odds rising; Warsh/Williams signal hawkish tilt amid 4.3% CPI, 3.4% Core PCE."
+      "category": "tape",
+      "title": "Risk-On Rally Crushes Volatility",
+      "body": "SPY +1.68%, QQQ +3.30%; VIX collapsed 17.28% to 17.09. Put sellers benefit from compression."
     },
     {
       "id": "b3",
-      "category": "sector",
-      "title": "Semiconductor bloodbath: SK Hynix -15%, semis lead",
-      "body": "SK Hynix collapse dragged NVDA (-3.52%), INTC (-6.12%); chip cycle concerns resurface."
+      "category": "macro",
+      "title": "Yields Spike to 19-Year Highs",
+      "body": "10Y yield +89bps to 4.663%; US borrowing costs near 2-decade peaks despite Fed hold."
     },
     {
       "id": "b4",
-      "category": "tape",
-      "title": "Tech weakness: QQQ -1.90% vs SPY -0.77%",
-      "body": "Nasdaq underperformance; growth names NVDA, TSLA, META sold; MSFT (+1.53%) sole mega-cap strength."
+      "category": "sector",
+      "title": "Tech Bifurcation: Semis Soar, Mega-Cap Split",
+      "body": "MSFT +15.51%, NVDA +2.65%; AAPL -1.41%, META -7.95%. Semiconductor rotation strengthens."
     },
     {
       "id": "b5",
-      "category": "macro",
-      "title": "10Y yield jumps 88bp; yield curve steepens",
-      "body": "10Y at 4.61%; 2Y-10Y spread widening on Fed hike expectations; puts pressure on growth valuations."
+      "category": "watchlist",
+      "title": "Semiconductor Strength Extends",
+      "body": "MRVL +12.18%, POET +14.29%, INTC +11.30%. Chip sector lead continues amid AI narrative."
     },
     {
       "id": "b6",
-      "category": "watchlist",
-      "title": "Quantum computing collapse: IONQ -9.29% today",
-      "body": "IONQ leads declines; speculative tech sectors hit hardest in risk-off environment."
+      "category": "event",
+      "title": "Megacap Earnings Week Ahead",
+      "body": "Major earnings and Fed communications could test edge; earnings surge pressures valuations."
     },
     {
       "id": "b7",
       "category": "macro",
-      "title": "Labor market stable; 4.2% unemployment supports hike",
-      "body": "June jobless rate 4.2%, payrolls 159M+; no recession signals supporting Fed confidence on rates."
+      "title": "Breadth Broadens Above 50-DMA",
+      "body": "Most S&P 500 stocks above 50-day MA for first time since February—strength verified by breadth."
     }
   ],
   "watchlistMovers": [
     {
-      "ticker": "IONQ",
-      "changePct": -9.29,
-      "blurb": "Quantum play crushed in tech selloff."
-    },
-    {
-      "ticker": "INTC",
-      "changePct": -6.12,
-      "blurb": "Semiconductor weakness amid memory chip fears."
-    },
-    {
-      "ticker": "NVDA",
-      "changePct": -3.52,
-      "blurb": "Chip sector contagion from SK Hynix collapse."
-    },
-    {
       "ticker": "MSFT",
-      "changePct": 1.53,
-      "blurb": "Outperformer; AI resilience story supported."
+      "changePct": 15.51,
+      "blurb": "Exceptional strength; mega-cap AI leader outperforms peers significantly."
+    },
+    {
+      "ticker": "MRVL",
+      "changePct": 12.18,
+      "blurb": "Semiconductor rotation; chip strength supports OTM put sellers' thesis."
+    },
+    {
+      "ticker": "META",
+      "changePct": -7.95,
+      "blurb": "Rare megacap weakness in risk-on day; potential support-testing candidate."
     }
   ]
 }

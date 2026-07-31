@@ -5,7 +5,6 @@ import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { cn } from "@/lib/utils";
 import {
@@ -75,19 +74,19 @@ import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/macro-tradingview-embeds";
 
-const MACRO_TABS: { id: MacroTab; label: string; color: TabBarColor }[] = [
-  { id: "regime",     label: "Macro & Regime Health",      color: "blue" },
-  { id: "liquidity",  label: "Liquidity",                  color: "emerald" },
-  { id: "volatility", label: "Volatility & Sentiment",     color: "violet" },
-  { id: "policy",     label: "Policy & Forward Guidance",  color: "amber" },
-  { id: "heatmap",    label: "Heatmap",                    color: "cyan" },
-  { id: "catalyst",   label: "Catalyst Calendar",          color: "rose" },
+const MACRO_TABS: { id: MacroTab; label: string }[] = [
+  { id: "regime",     label: "Macro & Regime Health" },
+  { id: "liquidity",  label: "Liquidity" },
+  { id: "volatility", label: "Volatility & Sentiment" },
+  { id: "policy",     label: "Policy & Forward Guidance" },
+  { id: "heatmap",    label: "Heatmap" },
+  { id: "catalyst",   label: "Catalyst Calendar" },
 ];
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 
-const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-muted-foreground";
-const TTD = "py-2 px-3 text-xs tabular-nums";
+const TTH = "text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5 text-[#d4af37]";
+const TTD = "px-3 py-1.5 text-sm font-mono text-white";
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -292,7 +291,7 @@ export default function MacroDashboard() {
           <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
           <button
             onClick={() => macroRefetch()}
-            className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary transition-colors"
+            className="text-xs px-3 py-1.5 rounded-md bg-zinc-950 text-amber-200/70 border border-[#d4af37]/25 hover:bg-[#d4af37] hover:text-black transition-colors"
           >
             Retry
           </button>
@@ -308,17 +307,30 @@ export default function MacroDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
 
       <main className="flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden">
         {/* ── Sub-tabs ────────────────────────────────────────────────────────── */}
-        <div className="shrink-0 border-b border-border px-6 py-2 bg-background overflow-x-auto">
-          <TabBar tabs={MACRO_TABS} active={activeTab} onChange={(id) => setActiveTab(id)} />
+        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2 overflow-x-auto">
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {MACRO_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={cn(
+                  "px-2.5 py-1.5 transition-colors",
+                  activeTab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Tab content ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
 
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
           {activeTab === "regime" && (
@@ -338,7 +350,7 @@ export default function MacroDashboard() {
               />
 
               {/* Yield & credit stats */}
-              <div className="border border-border rounded-md flex flex-wrap items-center divide-x divide-border/60">
+              <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-md flex flex-wrap items-center divide-x divide-[#d4af37]/10">
                 <CompactStat label="10Y" value={`${fmt(macroData!.yield10y.value, 3)}%`}
                   sub={macroData!.yield10y.change != null ? `${macroData!.yield10y.change > 0 ? "+" : ""}${fmt(macroData!.yield10y.change, 3)}` : undefined}
                   subColor={changeColor(macroData!.yield10y.change)} />
@@ -426,28 +438,30 @@ export default function MacroDashboard() {
               </div>
 
               {/* Economic Indicators */}
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">Economic Indicators</h2>
-                  <span className="text-[10px] text-muted-foreground italic ml-auto">Click a row to view history</span>
-                  <div className="flex items-center gap-3 text-[10px]">
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500/70 inline-block" />Recently released</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500/70 inline-block" />Upcoming this week</span>
+              <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 border-b border-[#d4af37]/20 bg-black"
+                  title="Blue dot = recently released, yellow dot = upcoming this week. Click a row to view history."
+                >
+                  <Activity className="h-3.5 w-3.5 text-[#d4af37]/60" />
+                  <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Economic Indicators</h3>
+                  <div className="flex items-center gap-3 text-[10px] ml-auto text-amber-200/40">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500/70 inline-block" />Recent</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500/70 inline-block" />Upcoming</span>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
-                        <th className="text-left px-4 py-2 font-medium">Indicator</th>
-                        <th className="text-right px-3 py-2 font-medium">Value</th>
-                        <th className="text-right px-3 py-2 font-medium">MoM / QoQ</th>
-                        <th className="text-right px-3 py-2 font-medium">YoY</th>
-                        <th className="text-right px-4 py-2 font-medium">Date</th>
+                  <table className="w-full text-sm">
+                    <thead className="bg-black text-[#d4af37]">
+                      <tr className="border-b border-[#d4af37]/25">
+                        <th className={cn(TTH, "text-left")}>Indicator</th>
+                        <th className={cn(TTH, "text-right")}>Value</th>
+                        <th className={cn(TTH, "text-right")}>MoM / QoQ</th>
+                        <th className={cn(TTH, "text-right")}>YoY</th>
+                        <th className={cn(TTH, "text-right")}>Date</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/50">
+                    <tbody className="divide-y divide-zinc-800">
                       {[
                         { key: "cpi",              label: "CPI",               series: s.cpi,               inflSign: true,  mom: s.cpi.change,              yoy: s.cpi.yoy,              value: `${fmt(s.cpi.value, 1)} idx` },
                         { key: "coreCpi",           label: "Core CPI",          series: s.coreCpi,           inflSign: true,  mom: s.coreCpi.change,          yoy: s.coreCpi.yoy,          value: `${fmt(s.coreCpi.value, 1)} idx` },
@@ -475,7 +489,7 @@ export default function MacroDashboard() {
                     </tbody>
                   </table>
                 </div>
-                <div className="border-t border-border p-4">
+                <div className="border-t border-[#d4af37]/20 p-3">
                   <IndicatorHistoryChart data={indicatorHistory} loading={indicatorLoading} />
                 </div>
               </div>
@@ -597,10 +611,6 @@ export default function MacroDashboard() {
                   yFormatter={(v: number) => v.toFixed(0)} tooltipFormatter={(v: number) => [v.toFixed(1)]}
                   referenceLines={[{ y: 90, label: "Calm", color: "#22c55e" }, { y: 140, label: "Stress", color: "#ef4444" }]} />
               </div>
-              <p className="text-[10px] text-muted-foreground/60 -mt-2" title="MOVE tracks bond-market (rates) implied volatility, not equity vol">
-                MOVE = bond-market vol, not equity vol — it often leads VIX during rate-shock-driven stress.
-              </p>
-
               {/* COT — Commodities, Crypto & FX */}
               {sentCoTs.length > 0 && (
                 <CotSection
@@ -632,16 +642,16 @@ export default function MacroDashboard() {
                 <FedFundsCurveChart data={macroCharts?.fedFundsCurve ?? []} loading={!macroCharts} period={ffPeriod} onPeriodChange={setFfPeriod} compact />
                 <RateHistoryChart title="Fed Funds Rate (History)" data={macroCharts?.fedFundsHistory ?? []} color="#4ade80" loading={!macroCharts}
                   yFormatter={(v: number) => `${v.toFixed(2)}%`} tooltipFormatter={(v: number) => [`${v.toFixed(3)}%`]} compact />
-                <div className="border border-border rounded-lg p-2.5 space-y-1.5">
+                <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-lg p-2.5 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold flex items-center gap-1.5">
-                      <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
+                    <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-[#d4af37]/60" />
                       SEP Projections
                     </h3>
-                    <div className="flex rounded-md border border-border overflow-hidden text-[9px]">
+                    <div className="flex rounded-md border border-[#d4af37]/20 overflow-hidden text-[9px]">
                       {(["fedRate", "gdp", "unemployment", "corePce"] as SepMetric[]).map((m) => (
                         <button key={m} onClick={() => setSelectedSepMetric(m)}
-                          className={cn("px-1.5 py-0.5 transition-colors", selectedSepMetric === m ? "bg-purple-600 text-white" : "hover:bg-secondary")}>
+                          className={cn("px-1.5 py-0.5 transition-colors", selectedSepMetric === m ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
                           {m === "fedRate" ? "Rate" : m === "gdp" ? "GDP" : m === "unemployment" ? "Unemp." : "PCE"}
                         </button>
                       ))}
@@ -650,7 +660,7 @@ export default function MacroDashboard() {
                   {sepData ? (
                     <SepDotsChart sepData={sepData} actuals={sepActuals} metric={selectedSepMetric} compact />
                   ) : (
-                    <div style={{ height: 120 }} className="flex items-center justify-center text-xs text-muted-foreground">
+                    <div style={{ height: 120 }} className="flex items-center justify-center text-xs text-amber-200/40">
                       <Loader2 className="h-4 w-4 animate-spin" />
                     </div>
                   )}
@@ -665,31 +675,33 @@ export default function MacroDashboard() {
 
               {/* SEP Projections table — ag-grid styled */}
               {sepData && (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/20">
-                    <h2 className="text-sm font-semibold flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-purple-400" />
+                <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+                  <div
+                    className="flex items-center justify-between px-3 py-1.5 border-b border-[#d4af37]/20 bg-black"
+                    title={`FOMC SEP ${sepData.asOf} — updated after each SEP release`}
+                  >
+                    <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-[#d4af37]/60" />
                       Fed SEP Projections
-                    </h2>
-                    <span className="text-[10px] text-muted-foreground italic">FOMC SEP {sepData.asOf} — updated after each SEP release</span>
+                    </h3>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-y border-border/40 bg-secondary/20">
+                    <table className="w-full text-sm">
+                      <thead className="bg-black text-[#d4af37]">
+                        <tr className="border-b border-[#d4af37]/25">
                           <th className={cn(TTH, "text-left")}>Metric</th>
                           {sepData.projections.map((p) => <th key={p.year} className={cn(TTH, "text-right")}>{p.year}</th>)}
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-zinc-800">
                         {([
                           { label: "Fed Rate (median dot)", get: (p: typeof sepData.projections[number]) => fmtPct(p.fedRate, 3), bold: true },
                           { label: "GDP Growth", get: (p: typeof sepData.projections[number]) => fmtPct(p.gdp, 1) },
                           { label: "Unemployment", get: (p: typeof sepData.projections[number]) => fmtPct(p.unemployment, 1) },
                           { label: "Core PCE", get: (p: typeof sepData.projections[number]) => fmtPct(p.corePce, 1) },
-                        ]).map((row, i) => (
-                          <tr key={row.label} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
-                            <td className={cn(TTD, "text-left text-muted-foreground")}>{row.label}</td>
+                        ]).map((row) => (
+                          <tr key={row.label} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                            <td className={cn(TTD, "text-left text-amber-200/60")}>{row.label}</td>
                             {sepData.projections.map((p) => (
                               <td key={p.year} className={cn(TTD, "text-right", row.bold && "font-semibold")}>{row.get(p)}</td>
                             ))}
@@ -702,22 +714,22 @@ export default function MacroDashboard() {
               )}
 
               {/* Bank Research — 2 rows of 4 */}
-              <div className="space-y-3">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-blue-400" />
+                  <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-[#d4af37]/60" />
                     Bank Research
-                  </h2>
+                  </h3>
                   {isAdmin && (
                     <button onClick={() => generateBankMutation.mutate()} disabled={generateBankMutation.isPending}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-colors disabled:opacity-50">
+                      className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-zinc-950 hover:bg-[#d4af37] hover:text-black border border-[#d4af37]/25 text-amber-200/70 transition-colors disabled:opacity-50">
                       {generateBankMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                       Refresh Stances
                     </button>
                   )}
                 </div>
                 {generateBankMutation.isPending && (
-                  <div className="flex items-center gap-2 py-3 justify-center text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 py-3 justify-center text-xs text-amber-200/40">
                     <Loader2 className="h-4 w-4 animate-spin" />Generating bank stances…
                   </div>
                 )}
@@ -729,8 +741,8 @@ export default function MacroDashboard() {
               </div>
 
               {/* Fed Members — compact hawkish↔dovish scale */}
-              <div className="border border-border rounded-lg p-4 space-y-3">
-                <h2 className="text-sm font-semibold">Fed Members</h2>
+              <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-lg p-2.5 space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Fed Members</h3>
                 <FedScaleStrip hawkish={fedByStance.hawkish} neutral={fedByStance.neutral} dovish={fedByStance.dovish} />
               </div>
             </>
@@ -738,38 +750,37 @@ export default function MacroDashboard() {
 
           {/* ── Tab 4: Heatmap ────────────────────────────────────────────────── */}
           {activeTab === "heatmap" && (
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold">S&P 500 Sector Heatmap</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">Market-cap weighted · colored by daily % change · powered by TradingView</p>
-                </div>
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="Market-cap weighted, colored by daily % change">
+                  S&P 500 Sector Heatmap
+                </h3>
                 <TradingViewHeatmap />
               </div>
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-sm font-semibold">Sector Money Flow</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">1D / 1W / 1M price performance by sector ETF — where flow is rotating.</p>
-                </div>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="1D / 1W / 1M price performance by sector ETF">
+                  Sector Money Flow
+                </h3>
                 <SectorHeatmapGrid data={sectorRotation} loading={activeTab === "heatmap" && !sectorRotation} />
               </div>
               {watchlistTickers.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Watchlist, by Sector</h3>
-                    <Button size="sm" variant="outline" onClick={() => navigate("/options-scanner")}>
+                    <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Your Watchlist, by Sector</h3>
+                    <Button size="sm" variant="outline" onClick={() => navigate("/options-scanner")}
+                      className="bg-zinc-950 text-amber-200/70 border-[#d4af37]/25 hover:bg-[#d4af37] hover:text-black">
                       Open scanner
                     </Button>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                     {watchlistBySector.map(([sector, sTickers]) => (
                       <div key={sector} className="flex items-center gap-1.5 text-xs">
-                        <span className="text-muted-foreground">{sector}:</span>
+                        <span className="text-amber-200/40">{sector}:</span>
                         {sTickers.map((ticker) => (
                           <Badge
                             key={ticker}
                             variant="secondary"
-                            className="text-xs font-mono cursor-pointer hover:bg-secondary/70"
+                            className="text-xs font-mono cursor-pointer bg-zinc-950 text-amber-200/70 border border-[#d4af37]/20 hover:bg-[#d4af37]/20"
                             onClick={() => navigate(`/watchlist?ticker=${ticker}`)}
                           >
                             {ticker}
@@ -780,18 +791,16 @@ export default function MacroDashboard() {
                   </div>
                 </div>
               )}
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold">Market Overview</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">Indices, bonds, commodities & forex · powered by TradingView</p>
-                </div>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="Indices, bonds, commodities & forex">
+                  Market Overview
+                </h3>
                 <TradingViewMarketOverview />
               </div>
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold">Forex Cross Rates</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">Major currency pairs · USD strength context · powered by TradingView</p>
-                </div>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="Major currency pairs, USD strength context">
+                  Forex Cross Rates
+                </h3>
                 <TradingViewForexCrossRates />
               </div>
             </div>
@@ -799,23 +808,20 @@ export default function MacroDashboard() {
 
           {/* ── Tab 5: Catalyst Calendar ──────────────────────────────────────── */}
           {activeTab === "catalyst" && (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Your Week — curated macro releases, clickable through to Regime tab */}
               {events && events.length > 0 && (
-                <div className="space-y-3">
-                  <div>
-                    <h2 className="text-sm font-semibold flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      Your Week
-                    </h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Curated high-signal releases only — the TradingView calendar below is the global feed and can't be
-                      filtered to your book. High-importance releases jump to their indicator history on the Regime tab.
-                    </p>
-                  </div>
+                <div className="space-y-1.5">
+                  <h3
+                    className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5"
+                    title="Curated high-signal releases — the TradingView calendar below is the global feed. High-importance releases jump to their indicator history on the Regime tab."
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-[#d4af37]/60" />
+                    Your Week
+                  </h3>
                   {thisWeekEvents.length > 0 && (
                     <div className="space-y-1.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">This Week</p>
+                      <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">This Week</p>
                       {thisWeekEvents.map((ev) => (
                         <EventRow
                           key={ev.date + ev.event}
@@ -827,8 +833,8 @@ export default function MacroDashboard() {
                     </div>
                   )}
                   {comingUpEvents.length > 0 && (
-                    <div className="space-y-1.5 mt-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Coming Up</p>
+                    <div className="space-y-1.5 mt-1">
+                      <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">Coming Up</p>
                       {comingUpEvents.map((ev) => (
                         <EventRow
                           key={ev.date + ev.event}
@@ -842,13 +848,13 @@ export default function MacroDashboard() {
                 </div>
               )}
 
-              <div className="pt-2">
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  Economic Calendar
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">US high-importance macro releases · powered by TradingView</p>
-              </div>
+              <h3
+                className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5"
+                title="US high-importance macro releases, powered by TradingView"
+              >
+                <Calendar className="h-3.5 w-3.5 text-[#d4af37]/60" />
+                Economic Calendar
+              </h3>
               <TradingViewEconomicCalendar />
             </div>
           )}

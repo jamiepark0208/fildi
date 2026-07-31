@@ -1,67 +1,53 @@
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import type { CoverageTone, GuideStatusChips } from "@/hooks/use-guide-status";
 
-function coverageBadgeClass(tone: CoverageTone): string {
-  if (tone === "good") return "bg-green-500/15 text-green-400 border-green-500/30";
-  if (tone === "partial") return "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
-  return "bg-secondary text-muted-foreground border-border";
+function coverageTextClass(tone: CoverageTone): string {
+  if (tone === "good") return "text-green-400";
+  if (tone === "partial") return "text-yellow-400";
+  return "text-amber-200/50";
 }
 
-function sourceBadgeClass(name: string, active: boolean): string {
-  if (!active) return "bg-secondary/50 text-muted-foreground border-border";
-  if (name === "FactSet") return "bg-green-500/15 text-green-400 border-green-500/30";
-  if (name === "FMP") return "bg-blue-500/15 text-blue-400 border-blue-500/30";
-  return "bg-primary/10 text-foreground border-primary/30";
+function sourceTextClass(name: string, active: boolean): string {
+  if (!active) return "text-amber-200/30";
+  if (name === "FactSet") return "text-green-400";
+  if (name === "FMP") return "text-sky-300";
+  return "text-[#d4af37]";
 }
 
-export function StatusChipRow({ chips, compact }: { chips?: GuideStatusChips; compact?: boolean }) {
+/** Single-line " · "-separated compact read — replaces the old multi-badge wrapped row. */
+export function StatusChipRow({ chips }: { chips?: GuideStatusChips; compact?: boolean }) {
   if (!chips) return null;
 
-  const size = compact ? "text-sm px-2.5 py-1" : "text-base px-3 py-1.5";
+  const items: { key: string; label: string; cls: string }[] = [];
+  if (chips.peerRanked) items.push({ key: "peer", label: "Peer-ranked", cls: "text-white" });
+  if (chips.lastRefresh) {
+    items.push({
+      key: "refresh",
+      label: chips.lastRefresh === "Live at scan" ? chips.lastRefresh : `Refresh: ${chips.lastRefresh}`,
+      cls: "text-white",
+    });
+  }
+  if (chips.coverage.label) {
+    items.push({ key: "cov", label: `Coverage: ${chips.coverage.label}`, cls: coverageTextClass(chips.coverage.tone) });
+  }
+  chips.sources.forEach(s => items.push({
+    key: s.name,
+    label: `${s.name}: ${s.active ? "Active" : "Inactive"}${s.detail ? ` (${s.detail})` : ""}`,
+    cls: sourceTextClass(s.name, s.active),
+  }));
+  if (chips.stale) items.push({ key: "stale", label: "Stale", cls: "text-amber-400 font-semibold" });
+
+  if (items.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {chips.peerRanked && (
-        <Badge variant="outline" className={cn(size, "font-medium text-foreground border-border")}>
-          Peer-ranked
-        </Badge>
-      )}
-      {chips.lastRefresh && chips.lastRefresh !== "Live at scan" && (
-        <Badge variant="outline" className={cn(size, "font-medium text-foreground border-border")}>
-          Last refresh: {chips.lastRefresh}
-        </Badge>
-      )}
-      {chips.lastRefresh === "Live at scan" && (
-        <Badge variant="outline" className={cn(size, "font-medium text-foreground border-border")}>
-          {chips.lastRefresh}
-        </Badge>
-      )}
-      {chips.coverage.label && (
-        <Badge variant="outline" className={cn(size, "font-semibold", coverageBadgeClass(chips.coverage.tone))}>
-          Coverage: {chips.coverage.label}
-        </Badge>
-      )}
-      {chips.sources.map(s => (
-        <Badge
-          key={s.name}
-          variant="outline"
-          className={cn(size, "font-semibold", sourceBadgeClass(s.name, s.active))}
-        >
-          {s.name}: {s.active ? "Active" : "Inactive"}
-          {s.detail && (
-            <span className={cn("ml-1 font-normal", s.name === "FMP" ? "text-yellow-400" : "text-foreground/80")}>
-              ({s.detail})
-            </span>
-          )}
-        </Badge>
+    <span className="block text-[11px] font-mono text-amber-200/40">
+      {items.map((it, i) => (
+        <span key={it.key}>
+          {i > 0 && " · "}
+          <span className={it.cls}>{it.label}</span>
+        </span>
       ))}
-      {chips.stale && (
-        <Badge variant="outline" className={cn(size, "font-semibold bg-amber-500/15 text-amber-400 border-amber-500/30")}>
-          Stale
-        </Badge>
-      )}
-    </div>
+    </span>
   );
 }
 
@@ -77,7 +63,7 @@ type Props = {
 export function TabStatusHeader({ chips, text, warn }: Props) {
   if (chips) {
     return (
-      <div className="mb-4">
+      <div className="mb-1">
         <StatusChipRow chips={chips} />
       </div>
     );
@@ -85,8 +71,8 @@ export function TabStatusHeader({ chips, text, warn }: Props) {
   if (text) {
     return (
       <p className={cn(
-        "text-sm font-mono tabular-nums mb-4",
-        warn ? "text-amber-400" : "text-foreground",
+        "text-xs font-mono tabular-nums mb-1",
+        warn ? "text-amber-400" : "text-amber-200/50",
       )}>
         {text}
       </p>

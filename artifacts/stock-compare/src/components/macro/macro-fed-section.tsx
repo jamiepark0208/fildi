@@ -20,23 +20,23 @@ export function FedStanceGroup({
   dovish: FedMember[];
 }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground font-medium">{title}</p>
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">{title}</p>
 
       {hawkish.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <p className="text-[10px] text-red-400 uppercase tracking-wider font-semibold">Hawkish ({hawkish.length})</p>
           {hawkish.map((m) => <FedMemberCard key={m.name} member={m} />)}
         </div>
       )}
       {neutral.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <p className="text-[10px] text-yellow-400 uppercase tracking-wider font-semibold">Neutral ({neutral.length})</p>
           {neutral.map((m) => <FedMemberCard key={m.name} member={m} />)}
         </div>
       )}
       {dovish.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <p className="text-[10px] text-green-400 uppercase tracking-wider font-semibold">Dovish ({dovish.length})</p>
           {dovish.map((m) => <FedMemberCard key={m.name} member={m} />)}
         </div>
@@ -74,20 +74,20 @@ function FedMemberDot({ member }: { member: FedMember }) {
       </TooltipTrigger>
       <TooltipContent
         side="top"
-        className="bg-popover text-popover-foreground border border-border rounded-md p-2.5 max-w-[220px] space-y-1"
+        className="bg-zinc-950 text-white border border-[#d4af37]/25 rounded-md p-2 max-w-[220px] space-y-1"
       >
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-xs font-bold">{member.name}</p>
-          <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium capitalize",
-            member.stance === "hawkish" ? "bg-red-500/15 text-red-400" :
-            member.stance === "dovish" ? "bg-green-500/15 text-green-400" :
-            "bg-yellow-500/15 text-yellow-400")}>
+          <span className={cn("px-1.5 py-0.5 rounded border text-[10px] font-semibold capitalize",
+            member.stance === "hawkish" ? "bg-red-500/15 text-red-400 border-red-500/40" :
+            member.stance === "dovish" ? "bg-green-500/15 text-green-400 border-green-500/40" :
+            "bg-yellow-500/15 text-yellow-400 border-yellow-500/40")}>
             {member.stance}
           </span>
         </div>
-        <p className="text-[10px] text-muted-foreground">{member.title} · {member.voting ? "Voting" : "Non-voting"}</p>
-        {member.notes && <p className="text-[10px] text-muted-foreground/90 italic leading-snug">{member.notes}</p>}
-        {member.recentChange && <p className="text-[10px] text-blue-300/90 leading-snug">↳ {member.recentChange}</p>}
+        <p className="text-[10px] text-amber-200/50">{member.title} · {member.voting ? "Voting" : "Non-voting"}</p>
+        {member.notes && <p className="text-[10px] text-amber-200/40 italic leading-snug">{member.notes}</p>}
+        {member.recentChange && <p className="text-[10px] text-sky-300/80 leading-snug">↳ {member.recentChange}</p>}
       </TooltipContent>
     </UiTooltip>
   );
@@ -103,8 +103,8 @@ export function FedScaleStrip({
   dovish: FedMember[];
 }) {
   return (
-    <div className="space-y-2.5">
-      <div className="grid grid-cols-3 gap-2 min-h-[28px] items-end">
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-3 gap-2 min-h-[24px] items-end">
         <div className="flex flex-wrap gap-1.5 justify-start">
           {hawkish.map((m) => <FedMemberDot key={m.name} member={m} />)}
         </div>
@@ -115,18 +115,18 @@ export function FedScaleStrip({
           {dovish.map((m) => <FedMemberDot key={m.name} member={m} />)}
         </div>
       </div>
-      <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" />
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+      <div className="h-1 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" />
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-semibold">
         <span className="text-red-400">Hawkish ({hawkish.length})</span>
         <span className="text-yellow-400">Neutral ({neutral.length})</span>
         <span className="text-green-400">Dovish ({dovish.length})</span>
       </div>
-      <div className="flex items-center gap-3 text-[9px] text-muted-foreground/70">
+      <div className="flex items-center gap-3 text-[9px] text-amber-200/40">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-slate-400 border-2 border-slate-200 inline-block" /> Voting
+          <span className="w-2 h-2 rounded-full bg-[#d4af37] border-2 border-[#d4af37]/60 inline-block" /> Voting
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-slate-950/40 border-2 border-slate-500/70 inline-block" /> Non-voting
+          <span className="w-2 h-2 rounded-full bg-zinc-950 border-2 border-[#d4af37]/30 inline-block" /> Non-voting
         </span>
       </div>
     </div>
@@ -152,32 +152,32 @@ export function FedMemberCard({ member }: { member: FedMember }) {
   const [photoFailed, setPhotoFailed] = useState(false);
 
   return (
-    <div className="border border-border rounded-md p-2.5 flex items-start gap-2.5">
+    <div className="border border-[#d4af37]/20 rounded-md p-2 flex items-start gap-2 bg-zinc-950/60">
       {member.photoUrl && !photoFailed ? (
         <img
           src={member.photoUrl}
           alt={member.name}
-          className="w-9 h-9 rounded-full object-cover shrink-0 bg-secondary"
+          className="w-7 h-7 rounded-full object-cover shrink-0 bg-secondary"
           onError={() => setPhotoFailed(true)}
         />
       ) : (
         <InitialsAvatar name={member.name} stance={member.stance} />
       )}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-bold leading-tight">{member.name}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-xs font-bold text-white leading-tight">{member.name}</p>
+          <span className="text-[10px] text-amber-200/40">· {member.title}</span>
           {member.recentChange && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700">
+            <span className="px-1.5 py-0.5 rounded border text-[9px] font-semibold bg-sky-500/10 text-sky-300 border-sky-500/40">
               Updated
             </span>
           )}
         </div>
-        <p className="text-[10px] text-muted-foreground">{member.title}</p>
         {member.notes && (
-          <p className="text-[11px] text-muted-foreground/80 italic mt-0.5 line-clamp-2">{member.notes}</p>
+          <p className="text-[10px] text-amber-200/50 italic mt-0.5 line-clamp-1">{member.notes}</p>
         )}
         {member.recentChange && (
-          <p className="text-[10px] text-blue-300/80 mt-0.5">↳ {member.recentChange}</p>
+          <p className="text-[10px] text-sky-300/80 mt-0.5 line-clamp-1">↳ {member.recentChange}</p>
         )}
       </div>
     </div>
@@ -198,72 +198,65 @@ export function BankCard({ bank }: { bank: BankResearch }) {
     gcTime: 30 * 60 * 1000,
   });
 
-  const bg =
-    bank.stance === "bullish"
-      ? "border-green-900/40 bg-green-900/5"
-      : bank.stance === "bearish"
-      ? "border-red-900/40 bg-red-900/5"
-      : "border-border";
-
   return (
-    <div className={cn("border rounded-lg overflow-hidden", bg)}>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
       <div
-        className="p-3 space-y-2 cursor-pointer hover:bg-secondary/10 transition-colors"
+        className="px-2.5 py-2 flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-500/10 transition-colors"
         onClick={() => setIsExpanded((e) => !e)}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div
-              className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold mb-1",
-                stanceBadgeClass(bank.stance)
-              )}
-            >
-              {bank.shortName.slice(0, 4)}
-            </div>
-            <p className="text-xs font-semibold leading-tight">{bank.name}</p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span
-              className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize",
-                stanceBadgeClass(bank.stance)
-              )}
-            >
-              {stanceLabel(bank.stance)}
-            </span>
-            {isExpanded ? (
-              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className={cn(
+              "w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold shrink-0",
+              stanceBadgeClass(bank.stance)
             )}
+          >
+            {bank.shortName.slice(0, 4)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white leading-tight truncate">{bank.name}</p>
+            <span className="text-[10px] text-amber-200/40">{bank.rateView}</span>
           </div>
         </div>
-        <p className="text-[10px] text-muted-foreground font-medium">{bank.rateView}</p>
-        <p className="text-[9px] text-muted-foreground/50">
-          {new Date(bank.lastUpdated + "T12:00:00").toLocaleDateString("en-US", {
-            month: "short", day: "numeric", year: "numeric",
-          })}
-        </p>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className={cn(
+              "px-1.5 py-0.5 rounded border text-[10px] font-semibold capitalize",
+              stanceBadgeClass(bank.stance)
+            )}
+          >
+            {stanceLabel(bank.stance)}
+          </span>
+          {isExpanded ? (
+            <ChevronUp className="h-3.5 w-3.5 text-[#d4af37]/60" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-[#d4af37]/60" />
+          )}
+        </div>
       </div>
 
       {/* Summary + news panel */}
       {isExpanded && (
-        <div className="border-t border-border px-3 py-2 space-y-2 bg-secondary/10">
-          <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{bank.summary}</p>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium uppercase tracking-wide pt-1">
+        <div className="border-t border-[#d4af37]/20 px-2.5 py-2 space-y-1.5">
+          <p className="text-[11px] text-amber-200/60 leading-snug">{bank.summary}</p>
+          <p className="text-[9px] text-amber-200/30">
+            Updated {new Date(bank.lastUpdated + "T12:00:00").toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+            })}
+          </p>
+          <div className="flex items-center gap-1.5 text-[10px] text-[#d4af37]/80 font-semibold uppercase tracking-wide pt-0.5">
             <Newspaper className="h-3 w-3" />
             Recent News
           </div>
           {newsLoading ? (
-            <div className="flex items-center gap-1.5 py-2">
-              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-              <span className="text-[11px] text-muted-foreground">Fetching news…</span>
+            <div className="flex items-center gap-1.5 py-1">
+              <Loader2 className="h-3 w-3 animate-spin text-[#d4af37]/60" />
+              <span className="text-[11px] text-amber-200/50">Fetching news…</span>
             </div>
           ) : !news || news.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground italic py-1">No recent articles found.</p>
+            <p className="text-[11px] text-amber-200/40 italic py-0.5">No recent articles found.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {news.map((article, i) => (
                 <a
                   key={i}
@@ -272,12 +265,12 @@ export function BankCard({ bank }: { bank: BankResearch }) {
                   rel="noopener noreferrer"
                   className="flex items-start gap-1.5 group"
                 >
-                  <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-primary" />
+                  <ExternalLink className="h-3 w-3 text-amber-200/40 shrink-0 mt-0.5 group-hover:text-[#d4af37]" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                    <p className="text-[11px] text-amber-200/70 leading-snug group-hover:text-[#d4af37] transition-colors line-clamp-2">
                       {article.title}
                     </p>
-                    <p className="text-[9px] text-muted-foreground/50">
+                    <p className="text-[9px] text-amber-200/30">
                       {article.source}
                       {article.publishedAt ? ` · ${new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                     </p>

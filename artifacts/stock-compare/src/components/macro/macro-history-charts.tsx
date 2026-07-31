@@ -40,13 +40,13 @@ export function RateHistoryChart({
   const height = compact ? 120 : 160;
 
   return (
-    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-2")}>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1">
       <div className="flex items-center justify-between">
-        <h3 className={cn("font-semibold", compact ? "text-xs" : "text-sm")}>{title}</h3>
-        <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+        <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">{title}</h3>
+        <div className="flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px]">
           {(["1m", "3m", "6m", "1y"] as HistoryPeriod[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={cn("px-2 py-0.5 transition-colors", period === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
+              className={cn("px-1.5 py-0.5 font-semibold transition-colors", period === p ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
               {p === "1y" ? "1Y" : p === "6m" ? "6M" : p === "3m" ? "3M" : "1M"}
             </button>
           ))}
@@ -54,7 +54,7 @@ export function RateHistoryChart({
       </div>
       {loading ? (
         <div style={{ height }} className="flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-amber-200/40" />
         </div>
       ) : filtered.length > 0 ? (
         <ResponsiveContainer width="100%" height={height}>
@@ -94,7 +94,7 @@ export function RateHistoryChart({
           </AreaChart>
         </ResponsiveContainer>
       ) : (
-        <div style={{ height }} className="flex items-center justify-center text-xs text-muted-foreground">
+        <div style={{ height }} className="flex items-center justify-center text-xs text-amber-200/40">
           No data
         </div>
       )}
@@ -135,15 +135,15 @@ export function BalanceSheetCard({
   const style = rrpSignal ? LIQUIDITY_LEVEL_STYLE[rrpSignal.level] : LIQUIDITY_LEVEL_STYLE.unknown;
 
   return (
-    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-3")}>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1.5">
       <div className="flex items-center justify-between flex-wrap gap-1">
-        <h2 className={cn("font-semibold flex items-center gap-1.5", compact ? "text-xs" : "text-sm gap-2")}>
-          <Landmark className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-amber-400")} />
+        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5">
+          <Landmark className="h-3.5 w-3.5 text-[#d4af37]" />
           Balance Sheet (QT/QE)
         </h2>
         {stats && !compact && (
-          <span className="text-[10px] text-muted-foreground">
-            ${stats.latestT.toFixed(2)}T total assets · {stats.isShrinking ? "" : "+"}{stats.deltaT.toFixed(2)}T over 3mo
+          <span className="text-[10px] font-mono text-sky-300/60">
+            ${stats.latestT.toFixed(2)}T · {stats.isShrinking ? "" : "+"}{stats.deltaT.toFixed(2)}T /3mo
             {stats.pctChange != null && ` (${stats.pctChange >= 0 ? "+" : ""}${stats.pctChange.toFixed(1)}%)`}
           </span>
         )}
@@ -158,16 +158,16 @@ export function BalanceSheetCard({
         compact
       />
       {stats && compact && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] font-mono text-sky-300/60">
           ${stats.latestT.toFixed(2)}T · {stats.isShrinking ? "" : "+"}{stats.deltaT.toFixed(2)}T /3mo
         </p>
       )}
       {rrpSignal && (
-        <div className={cn("rounded-md bg-muted/30 flex items-start gap-2", compact ? "p-1.5" : "p-2.5")}>
+        <div className="rounded border border-[#d4af37]/20 bg-black flex items-start gap-1.5 p-1.5">
           <span className={cn("w-1.5 h-1.5 rounded-full inline-block shrink-0 mt-1", style.dot)} />
           <div>
-            <p className={cn("font-semibold mb-0.5", style.text, compact ? "text-[11px]" : "text-xs")}>{rrpSignal.label}: {rrpSignal.readout}</p>
-            {!compact && <p className="text-[11px] text-muted-foreground leading-snug">{rrpSignal.implication}</p>}
+            <p className={cn("font-semibold text-[11px]", style.text)}>{rrpSignal.label}: {rrpSignal.readout}</p>
+            {!compact && <p className="text-[11px] text-amber-200/50 leading-snug">{rrpSignal.implication}</p>}
           </div>
         </div>
       )}
@@ -210,13 +210,13 @@ export function DualLineHistoryChart({
   })();
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+        <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">{title}</h3>
+        <div className="flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px]">
           {(["1m", "3m", "6m", "1y"] as HistoryPeriod[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={cn("px-2 py-0.5 transition-colors", period === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary")}>
+              className={cn("px-1.5 py-0.5 font-semibold transition-colors", period === p ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
               {p === "1y" ? "1Y" : p === "6m" ? "6M" : p === "3m" ? "3M" : "1M"}
             </button>
           ))}
@@ -224,7 +224,7 @@ export function DualLineHistoryChart({
       </div>
       {loading ? (
         <div className="h-[160px] flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-amber-200/40" />
         </div>
       ) : merged.length > 0 ? (
         <ResponsiveContainer width="100%" height={160}>
@@ -267,21 +267,21 @@ export function IndicatorHistoryChart({
   const color = "#38bdf8";
 
   return (
-    <div className="space-y-2">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">
+        <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
           {data ? `${data.label}${data.isYoY ? " (YoY %)" : ` (${data.unit})`}` : "Select a row above to view history"}
         </p>
         {data && (
-          <span className="text-[10px] text-muted-foreground/60">~10 year history</span>
+          <span className="text-[10px] text-amber-200/40">~10yr</span>
         )}
       </div>
       {loading ? (
         <div className="h-[160px] flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-amber-200/40" />
         </div>
       ) : !data || data.data.length === 0 ? (
-        <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
+        <div className="h-[160px] flex items-center justify-center text-xs text-amber-200/40">
           {data ? "No history data available" : "Click any indicator row above"}
         </div>
       ) : (
@@ -378,7 +378,7 @@ export function SepDotsChart({
   if (!actuals) {
     return (
       <div style={{ height }} className="flex items-center justify-center">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <Loader2 className="h-4 w-4 animate-spin text-amber-200/40" />
       </div>
     );
   }
@@ -386,11 +386,11 @@ export function SepDotsChart({
   return (
     <div className="space-y-1">
       {!compact && (
-        <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" /> Actual</span>
+        <div className="flex items-center gap-3 text-[10px] text-amber-200/50">
+          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-sky-400 inline-block" /> Actual</span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-full bg-orange-400 inline-block" style={{ width: 8, height: 8 }} />
-            SEP Projection (median)
+            <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+            SEP Projection
           </span>
         </div>
       )}
