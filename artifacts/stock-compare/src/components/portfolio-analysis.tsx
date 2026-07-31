@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
+  Cell, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
@@ -13,231 +13,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Activity, Shield, Zap, TrendingDown, Layers, BarChart2, Percent } from "lucide-react";
-
-// ── Palette ───────────────────────────────────────────────────────────────────
-
-// Dense data-grid look matching RobinhoodPortfolio's Equity Positions table.
-const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-muted-foreground";
-const TTD = "py-2 px-3 text-xs tabular-nums";
-
-// Whole strikes render without decimals; fractional strikes (e.g. 6.5) keep only as many as needed.
-function formatStrike(strike: number): string {
-  return `$${Number(strike.toFixed(2))}`;
-}
-
-const PALETTE = [
-  "#38bdf8","#fb923c","#34d399","#a78bfa",
-  "#f472b6","#fbbf24","#60a5fa","#f87171",
-  "#4ade80","#e879f9","#94a3b8","#2dd4bf",
-];
-
-// Yahoo's assetProfile has no GICS sector for these funds — they're option-income/leveraged
-// ETFs, not equities, so we label them by strategy instead of falling back to "Unknown".
-const SECTOR_OVERRIDES: Record<string, string> = {
-  NVDY: "ETF (Option Income)",
-  HOOY: "ETF (Option Income)",
-  PLTU: "Levered ETF",
-};
-
-// These pairs share the same underlying (derivative-of-underlying ETFs), so their
-// correlation is mechanically ~1 and would wash out the color scale for every other,
-// actually-informative pair in the matrix — excluded from scaling, not just from display.
-const SAME_UNDERLYING_PAIRS: [string, string][] = [
-  ["HOOD", "HOOY"],
-  ["NVDA", "NVDY"],
-  ["PLTR", "PLTU"],
-];
-function isSameUnderlyingPair(a: string, b: string): boolean {
-  return SAME_UNDERLYING_PAIRS.some(([x, y]) => (a === x && b === y) || (a === y && b === x));
-}
-
-// Beta Contribution bar colors: covered-call positions get their own color regardless of
-// contribution size (the delta adjustment already lowers their bar), everything else is
-// banded by raw contribution so the biggest single-name risk concentrations stand out.
-const BETA_BAR_LEGEND = [
-  { color: "#a78bfa", label: "Covered Call" },
-  { color: "#f97316", label: "Contribution > 0.4" },
-  { color: "#fbbf24", label: "Contribution 0.2–0.4" },
-  { color: "#34d399", label: "Contribution < 0.2" },
-];
-
-const REALIZED_UNREALIZED_LEGEND = [
-  { key: "realized",   color: "#38bdf8", label: "Realized" },
-  { key: "unrealized", color: "#a78bfa", label: "Unrealized" },
-];
-
-const TICKER_PNL_SEGMENTS = [
-  { key: "stocks",   color: "#38bdf8", label: "Stocks" },
-  { key: "dividends", color: "#34d399", label: "Dividends" },
-  { key: "sellPut",  color: "#fbbf24", label: "Sell Put" },
-  { key: "sellCall", color: "#f97316", label: "Sell Call" },
-  { key: "longCall", color: "#60a5fa", label: "Long Call" },
-  { key: "longPut",  color: "#f472b6", label: "Long Put" },
-] as const;
-
-// Blue = low correlation (good diversification), red = high correlation (concentration
-// risk) — fully opaque background fill scaled by magnitude, white text on top for
-// contrast. Alpha-blending this against the dark card background (previous version)
-// desaturated everything into a dim gray-purple; solid fills read as actual blue/red.
-const CORR_LOW_RGB  = [59, 130, 246];  // blue-500 (#3b82f6)
-const CORR_HIGH_RGB = [239, 68, 68];   // red-500  (#ef4444)
-function correlationBg(v: number, scaleMax: number): string {
-  const t = Math.min(Math.abs(v) / scaleMax, 1);
-  const [r, g, b] = CORR_LOW_RGB.map((low, idx) => Math.round(low + (CORR_HIGH_RGB[idx] - low) * t));
-  return `rgb(${r},${g},${b})`;
-}
-
-// ── Covered call detection ────────────────────────────────────────────────────
-
-interface CoveredCallPair {
-  ticker: string;
-  stockShares: number;
-  callContracts: number;
-  coveredContracts: number;
-  strikes: number[];
-}
-
-function detectCoveredCalls(entries: PortfolioEntry[]): Map<string, CoveredCallPair> {
-  const stockMap: Record<string, number>           = {};
-  const callMap:  Record<string, PortfolioEntry[]> = {};
-
-  entries.forEach(e => {
-    if (e.positionType === "stock")       stockMap[e.ticker] = (stockMap[e.ticker] ?? 0) + e.qty;
-    if (e.positionType === "short_call") {
-      if (!callMap[e.ticker]) callMap[e.ticker] = [];
-      callMap[e.ticker].push(e);
-    }
-  });
-
-  const pairs = new Map<string, CoveredCallPair>();
-  Object.entries(callMap).forEach(([ticker, calls]) => {
-    const stockShares = stockMap[ticker] ?? 0;
-    if (stockShares === 0) return;
-    const callContracts    = calls.reduce((s, c) => s + c.qty, 0);
-    const coveredContracts = Math.min(callContracts, Math.floor(stockShares / 100));
-    if (coveredContracts > 0) {
-      pairs.set(ticker, {
-        ticker, stockShares, callContracts, coveredContracts,
-        strikes: calls.map(c => c.strike ?? 0).filter(Boolean),
-      });
-    }
-  });
-  return pairs;
-}
-
-// ── Tooltips ──────────────────────────────────────────────────────────────────
-
-function ChartTooltip({ active, payload, format }: {
-  active?: boolean; payload?: any[]; format?: (v: number) => string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1">
-      {payload.map((p: any, i: number) => (
-        <div key={i} className="flex items-center gap-2 min-w-[120px]">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.fill ?? p.color }} />
-          <span className="text-muted-foreground flex-1">{p.name ?? p.dataKey}</span>
-          <span className="font-mono font-semibold">{format ? format(p.value) : p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PieTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
-  const displayValue = d.payload.signedValue ?? d.value;
-  const breakdown: { name: string; value: number; pct: number }[] | undefined = d.payload.breakdown;
-  return (
-    <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs max-w-[220px]">
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full" style={{ background: d.payload.color }} />
-        <span className="text-muted-foreground">{d.name}</span>
-      </div>
-      <div className="font-mono font-semibold mt-0.5">{formatCurrency(displayValue)}</div>
-      <div className="text-muted-foreground">{d.payload.pct?.toFixed(1)}%</div>
-      {breakdown && breakdown.length > 0 && (
-        <div className="mt-1.5 pt-1.5 border-t border-border/60 space-y-0.5">
-          {breakdown.slice(0, 8).map(b => (
-            <div key={b.name} className="flex items-center justify-between gap-3 font-mono">
-              <span className="text-muted-foreground">{b.name}</span>
-              <span>{formatCurrency(b.value)} <span className="text-muted-foreground">({b.pct.toFixed(1)}%)</span></span>
-            </div>
-          ))}
-          {breakdown.length > 8 && (
-            <div className="text-muted-foreground">+{breakdown.length - 8} more</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Donut chart ───────────────────────────────────────────────────────────────
-
-function DonutChart({ data, total, label }: {
-  data: { name: string; value: number; color: string; pct?: number; signedValue?: number; breakdown?: { name: string; value: number; pct: number }[] }[];
-  total: number; label: string;
-}) {
-  if (!data.length) return (
-    <div className="h-[180px] flex items-center justify-center text-xs text-muted-foreground">No data</div>
-  );
-  return (
-    <div className="relative">
-      <ResponsiveContainer width="100%" height={180}>
-        <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={72}
-            dataKey="value" stroke="none" paddingAngle={2}>
-            {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-          </Pie>
-          <Tooltip content={<PieTooltip />} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="text-center">
-          <div className="text-[10px] text-muted-foreground leading-none">{label}</div>
-          <div className="text-sm font-bold font-mono mt-0.5 leading-none">{formatCurrency(total)}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PieLegend({ data }: { data: { name: string; value: number; color: string; pct?: number; signedValue?: number }[] }) {
-  return (
-    <div className="space-y-1.5 mt-2">
-      {data.map((d, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-          <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
-          <span className="font-mono tabular-nums text-right">{d.pct?.toFixed(1)}%</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Risk stat ─────────────────────────────────────────────────────────────────
-
-function RiskStat({ label, value, sub, icon, color }: {
-  label: string; value: string; sub?: string; icon: React.ReactNode; color?: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/20 border border-border/50">
-      <div className={cn("mt-0.5 shrink-0", color ?? "text-muted-foreground")}>{icon}</div>
-      <div className="min-w-0">
-        <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{label}</div>
-        <div className="text-lg font-bold font-mono tabular-nums leading-tight">{value}</div>
-        {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
-      </div>
-    </div>
-  );
-}
+import {
+  TTH, TTD, formatStrike, PALETTE, SECTOR_OVERRIDES, isSameUnderlyingPair,
+  BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS, correlationBg,
+} from "./portfolio/portfolio-palette";
+import { detectCoveredCalls } from "./portfolio/covered-calls-detector";
+import { DonutChart, PieLegend } from "./portfolio/portfolio-charts";
+import {
+  computeMarginUsage, computeConcentration, computeGreeksExposure,
+  computeCorrelationScaleMax, computePortfolioRiskMetrics,
+} from "./portfolio/portfolio-risk-calc";
 
 // ── Portfolio Analysis ────────────────────────────────────────────────────────
 
-interface AccountSummary {
+export interface AccountSummary {
   account: string; nickname: string | null; totalValue: string | null;
   equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null;
   marginUsed: string | null; buyingPower: string | null;
@@ -255,7 +44,7 @@ interface TickerEarningsRow {
   dividends: string | null; stocksRealized: string | null; stocksUnrealized: string | null; totalStocks: string | null;
 }
 
-interface PortfolioRiskResult {
+export interface PortfolioRiskResult {
   tickers: string[];
   correlationMatrix: number[][];
   dailyVolatilityPct: number;
@@ -353,18 +142,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // ── Margin usage ──────────────────────────────────────────────────────────────
   // margin_used/buying_power are N/A (null) for cash-only accounts (e.g. the IRA) —
   // only accounts actually trading on margin (e.g. FILDI) carry a value here.
-  const marginUsage = useMemo(() => {
-    const scopedSummaries = activePortfolio === "All"
-      ? accountSummaries
-      : accountSummaries.filter(a => (a.nickname ?? a.account) === activePortfolio);
-    let marginUsed = 0, buyingPower = 0;
-    scopedSummaries.forEach(a => {
-      marginUsed  += parseFloat(a.marginUsed ?? "0");
-      buyingPower += parseFloat(a.buyingPower ?? "0");
-    });
-    const capacity = marginUsed + buyingPower;
-    return { marginUsed, buyingPower, pctUsed: capacity > 0 ? (marginUsed / capacity) * 100 : 0 };
-  }, [accountSummaries, activePortfolio]);
+  const marginUsage = useMemo(
+    () => computeMarginUsage(accountSummaries, activePortfolio),
+    [accountSummaries, activePortfolio],
+  );
 
   // ── Sector ──────────────────────────────────────────────────────────────────
   const sectorData = useMemo(() => {
@@ -436,28 +217,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // ── Concentration risk (HHI + top-5 tickers) ────────────────────────────────
   // HHI on a standard 0-10,000 scale (sum of squared % weights, e.g. two tickers at
   // 50% each = 5,000; fully diversified across many small positions → near 0).
-  const concentration = useMemo(() => {
-    const weights = betaData.map(d => d.weight).sort((a, b) => b - a);
-    const hhi = weights.reduce((s, w) => s + w * w, 0);
-    const top5Pct = weights.slice(0, 5).reduce((s, w) => s + w, 0);
-    const level: "Low" | "Moderate" | "High" = hhi < 1500 ? "Low" : hhi < 2500 ? "Moderate" : "High";
-    return { hhi: Math.round(hhi), top5Pct, level, topTicker: betaData[0]?.ticker, topTickerPct: betaData[0]?.weight };
-  }, [betaData]);
+  const concentration = useMemo(() => computeConcentration(betaData), [betaData]);
 
   // ── Portfolio Greeks (Vega/Gamma exposure) ──────────────────────────────────
   // Position-level sign flips for short options (selling a put/call means you're
   // short that option's gamma/vega, i.e. exposure runs opposite the raw per-contract
   // Greek) — same convention as the Delta/Theta banners elsewhere in this app.
-  const greeksExposure = useMemo(() => {
-    let netVega = 0, netGamma = 0;
-    for (const e of filtered) {
-      if (e.positionType === "stock" || e.gamma == null && e.vega == null) continue;
-      const sign = isShortPosition(e.positionType) ? -1 : 1;
-      if (e.vega != null)  netVega  += e.vega  * 100 * e.qty * sign;
-      if (e.gamma != null) netGamma += e.gamma * 100 * e.qty * sign;
-    }
-    return { netVega, netGamma };
-  }, [filtered]);
+  const greeksExposure = useMemo(() => computeGreeksExposure(filtered), [filtered]);
 
   // ── Liquidity / spread risk ──────────────────────────────────────────────────
   // CSV bid/ask are a stale snapshot from import time — same problem the options
@@ -525,18 +291,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
   // Scale bound for the correlation heatmap — excludes the diagonal (always 1.00) and
   // same-underlying pairs (mechanically ~1, would otherwise wash out real variation).
-  const correlationScaleMax = useMemo(() => {
-    if (!portfolioRisk) return 1;
-    let max = 0;
-    portfolioRisk.tickers.forEach((rowTicker, i) => {
-      portfolioRisk.correlationMatrix[i].forEach((v, j) => {
-        if (i === j) return;
-        if (isSameUnderlyingPair(rowTicker, portfolioRisk.tickers[j])) return;
-        max = Math.max(max, Math.abs(v));
-      });
-    });
-    return max > 0 ? max : 1;
-  }, [portfolioRisk]);
+  const correlationScaleMax = useMemo(
+    () => computeCorrelationScaleMax(portfolioRisk),
+    [portfolioRisk],
+  );
 
   // ── P&L: realized (from transaction history) + unrealized (from open positions) ──
   const pnlTotals = useMemo(() => {
@@ -787,100 +545,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
 
   // ── Risk metrics ─────────────────────────────────────────────────────────────
-  const risk = useMemo(() => {
-    const weightedBeta = betaData.reduce((s, d) => s + d.contribution, 0);
-
-    let premiumSum = 0, premiumDTE = 0, totalCollateral = 0;
-    filtered.forEach(e => {
-      if (isShortPosition(e.positionType) && e.expiry) {
-        const dte = daysToExpiry(e.expiry);
-        if (dte != null && dte > 0) {
-          const prem = premiumReceived(e);
-          premiumSum += prem;
-          premiumDTE += dte * prem;
-        }
-      }
-      if (e.positionType === "short_put") totalCollateral += cashCollateral(e);
-    });
-
-    const avgDTE     = premiumSum > 0 ? premiumDTE / premiumSum : 0;
-    const dailyTheta = avgDTE > 0 ? premiumSum / avgDTE : 0;
-    const maxAssign  = totalCollateral;
-    const expiringSoon = filtered.filter(e => {
-      const d = daysToExpiry(e.expiry);
-      return d !== null && d >= 0 && d <= 7;
-    }).length;
-
-    // Annualized income yield on collateral deployed
-    const incomeYield = totalCollateral > 0 && avgDTE > 0
-      ? (premiumSum / totalCollateral) * (365 / avgDTE) * 100
-      : 0;
-
-    // Net portfolio delta (approximations: stock=1.0, short_put=-0.25, short_call=+0.30)
-    let netDelta = 0;
-    filtered.forEach(e => {
-      if (e.positionType === "stock")       netDelta += e.qty * 1.0;
-      else if (e.positionType === "short_put")  netDelta -= e.qty * 100 * 0.25;
-      else if (e.positionType === "short_call") netDelta += e.qty * 100 * 0.30;
-    });
-
-    // At-risk short puts: current price within 8% above strike
-    const atRiskPositions = filtered.filter(e => {
-      if (e.positionType !== "short_put" || !e.strike) return false;
-      const price = priceMap[e.ticker];
-      return price !== undefined && price < e.strike * 1.08;
-    });
-
-    type OptionRow = {
-      ticker: string; positionType: string; strike: number;
-      premium: number; breakEven: number; qty: number;
-      currentPrice: number | null; moneyness: number | null;
-      collateral: number | null;
-    };
-
-    const putPositions: OptionRow[] = filtered
-      .filter(e => (e.positionType === "short_put" || e.positionType === "long_put") && e.strike)
-      .map(e => {
-        const price = priceMap[e.ticker] ?? null;
-        const breakEven = e.positionType === "short_put"
-          ? e.strike! - e.avgPrice
-          : e.strike! + e.avgPrice;
-        return {
-          ticker: e.ticker, positionType: e.positionType,
-          strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
-          currentPrice: price,
-          moneyness: price ? ((price / e.strike!) - 1) * 100 : null,
-          // Cash secured by the broker against assignment: strike × 100 × contracts.
-          collateral: e.positionType === "short_put" ? e.strike! * 100 * e.qty : null,
-        };
-      })
-      .sort((a, b) => (b.collateral ?? -1) - (a.collateral ?? -1));
-
-    const callPositions: OptionRow[] = filtered
-      .filter(e => (e.positionType === "short_call" || e.positionType === "long_call") && e.strike)
-      .map(e => {
-        const price = priceMap[e.ticker] ?? null;
-        const breakEven = e.positionType === "short_call"
-          ? e.strike! + e.avgPrice
-          : e.strike! - e.avgPrice;
-        return {
-          ticker: e.ticker, positionType: e.positionType,
-          strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
-          currentPrice: price,
-          // for calls: positive = ITM (bad for short, good for long)
-          moneyness: price ? ((price / e.strike!) - 1) * 100 : null,
-          // Covered-call risk is the underlying shares called away: mkt price × 100 × contracts.
-          collateral: e.positionType === "short_call" && price !== null ? price * 100 * e.qty : null,
-        };
-      })
-      .sort((a, b) => (b.collateral ?? -1) - (a.collateral ?? -1));
-
-    return {
-      weightedBeta, dailyTheta, maxAssign, expiringSoon, avgDTE,
-      incomeYield, netDelta, atRiskPositions: atRiskPositions.length,
-      putPositions, callPositions, coveredCallCount: coveredCalls.size,
-    };
-  }, [betaData, filtered, priceMap, coveredCalls]);
+  const risk = useMemo(
+    () => computePortfolioRiskMetrics(betaData, filtered, priceMap, coveredCalls),
+    [betaData, filtered, priceMap, coveredCalls],
+  );
 
   // ── Tabs ──────────────────────────────────────────────────────────────────────
   const tabs = ["All", ...portfolioNames];
