@@ -28,6 +28,7 @@ const ROW_STYLE = (idx: number) =>
               "border-border/40 bg-background/30";
 
 const FAMILY_LABEL: Record<FundamentalFamily, string> = { quality: "Quality", growth: "Growth", safety: "Safety" };
+const FAMILY_ORDER: FundamentalFamily[] = ["quality", "growth", "safety"];
 
 function parseBullets(text: string): string[] {
   return text
@@ -262,12 +263,25 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
           </span>
         </td>
 
-        <td className={GRID_TD}>
+        <td className={cn(GRID_TD, "whitespace-nowrap")}>
           <span className="font-mono font-bold text-white">{score.ticker}</span>
-          <span className="ml-1.5 text-white/40 text-[11px] truncate">{score.companyName}</span>
+          <span className="ml-1.5 text-white/40 text-[11px] inline-block max-w-[110px] align-middle truncate">{score.companyName}</span>
         </td>
 
-        <td className={cn(GRID_TD, "text-right")}>
+        {FAMILY_ORDER.map(fam => {
+          const r = familyRows.find(fr => fr.family === fam);
+          return (
+            <td key={fam} className={cn(GRID_TD, "text-right whitespace-nowrap")}>
+              {r ? (
+                <span className={cn("font-mono font-semibold", percentileColor(r.score))}>{r.score.toFixed(0)}</span>
+              ) : (
+                <span className="text-white/20">—</span>
+              )}
+            </td>
+          );
+        })}
+
+        <td className={cn(GRID_TD, "text-right whitespace-nowrap")}>
           <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
         </td>
 
@@ -296,31 +310,8 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
 
       {isExpanded && (
         <tr>
-        <td colSpan={5} className="p-0">
+        <td colSpan={8} className="p-0">
         <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/20 border-b border-border/20">
-          {/* Formula breakdown, one line: Total = Σ(family score × regime weight) */}
-          {familyRows.length > 0 && (
-            <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-[11px] font-mono">
-              <span className="text-white/30 uppercase tracking-widest text-[9px] mr-0.5">
-                {score.regime ? score.regime.replace(/_/g, " ") : "default"}
-              </span>
-              {familyRows.map((r, i) => (
-                <span key={r.family} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-white/20">+</span>}
-                  <span className={cn("w-1.5 h-1.5 rounded-sm", FAMILY_BAR_COLOR[r.family])} />
-                  <span className="text-white/60">{FAMILY_LABEL[r.family]}</span>
-                  <span className={percentileColor(r.score)}>{r.score.toFixed(0)}</span>
-                  <span className="text-white/30">×{r.weight}%</span>
-                  <span className="text-white/70">=+{r.contribution.toFixed(1)}</span>
-                </span>
-              ))}
-              <span className="text-white/20">·</span>
-              <span className="text-white/50">÷{weightSum}%</span>
-              <span className="text-white/20">=</span>
-              <span className="font-bold text-white">{score.totalScore.toFixed(1)}</span>
-            </div>
-          )}
-
           {/* Metric table: every scored metric, its value, weight, and real peer comparison */}
           {metricRows.length > 0 && (
             <div>
@@ -439,6 +430,9 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
             <tr className={GRID_HEADER}>
               <th className={cn(GRID_TH, "text-center w-8")}>#</th>
               <th className={cn(GRID_TH, "text-left")}>Ticker</th>
+              {FAMILY_ORDER.map(fam => (
+                <th key={fam} className={cn(GRID_TH, "text-right")}>{FAMILY_LABEL[fam]}</th>
+              ))}
               <th className={cn(GRID_TH, "text-right")}>Score</th>
               <th className={cn(GRID_TH, "text-left")}>Breakdown</th>
               <th className={cn(GRID_TH, "text-right")}></th>
@@ -446,7 +440,7 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+              <tr><td colSpan={8} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
             ) : (
               filtered.map((score, i) => (
                 <LeaderboardRow

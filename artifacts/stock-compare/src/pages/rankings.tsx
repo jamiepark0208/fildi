@@ -3,7 +3,6 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
-import { TabBar, type TabBarColor } from "@/components/ui/tab-bar";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
 import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
@@ -14,10 +13,10 @@ import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
 
-const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: string; color: TabBarColor }[] = [
-  { id: "fundamental", label: "Fundamentals", color: "blue" },
-  { id: "technical",   label: "Technicals",   color: "violet" },
-  { id: "options",     label: "Options",      color: "emerald" },
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: string }[] = [
+  { id: "fundamental", label: "Fundamentals" },
+  { id: "technical",   label: "Technicals" },
+  { id: "options",     label: "Options" },
 ];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
@@ -119,7 +118,20 @@ export default function Rankings() {
       <main className="pt-14 min-w-0">
         <div className="p-5">
           <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <TabBar tabs={RANKINGS_TABS} active={tab} onChange={(id) => setTab(id)} />
+            <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+              {RANKINGS_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    "px-2.5 py-1.5 transition-colors",
+                    tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
             {/* Host for the Options tab's min-income filter — OptionsScannerContent
                 portals its control here so it sits inline with the tabs instead of

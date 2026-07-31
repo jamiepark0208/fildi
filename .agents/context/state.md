@@ -6,8 +6,8 @@
 **build** — last updated 2026-07-31
 
 ## Active work
-- Working: macro-tab-restyle, profile-settings-restyle, scorecard-guide-restyle, cache-monitor-style-propagated
-- In progress: scorecard-guide-header-compacted-tabs-presets-merged-inline
+- Working: stock-breakdown-styling, rankings-tab-restyle, file-splits-committed
+- In progress: rankings-subtabs-and-stock-breakdown-subtabs-restyled-to-macro-gold-style
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
 
 ## Next tasks (priority order)

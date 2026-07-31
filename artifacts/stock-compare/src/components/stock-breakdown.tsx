@@ -13,7 +13,6 @@ import { MarketSentimentSection } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
 import { BreakdownMetricsTable } from "./breakdown-metrics-table";
-import { TabBar, type TabBarItem } from "./ui/tab-bar";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
@@ -652,19 +651,33 @@ export function StockBreakdown({
             {(() => {
               const hasSentiment = data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || !!data.recommendations;
               const hasNews = !!data.news && data.news.length > 0;
-              const tabs: TabBarItem<BreakdownTab>[] = [
-                ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings", color: "violet" as const }] : []),
-                ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment", color: "emerald" as const }] : []),
-                { id: "catalysts" as const, label: "Catalysts", color: "amber" as const },
-                { id: "accounting" as const, label: "Accounting", color: "teal" as const },
-                ...(hasNews ? [{ id: "news" as const, label: "News", color: "rose" as const }] : []),
+              const tabs: { id: BreakdownTab; label: string }[] = [
+                ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings" }] : []),
+                ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment" }] : []),
+                { id: "catalysts" as const, label: "Catalysts" },
+                { id: "accounting" as const, label: "Accounting" },
+                ...(hasNews ? [{ id: "news" as const, label: "News" }] : []),
               ];
               const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : "analyst";
 
               return (
                 <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-xl overflow-hidden">
                   <div className="px-4 pt-3 pb-2 border-b border-[#d4af37]/20 bg-black">
-                    <TabBar tabs={tabs} active={activeTab} onChange={(id) => setBreakdownTab(id)} />
+                    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+                      {tabs.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setBreakdownTab(t.id)}
+                          className={cn(
+                            "px-2.5 py-1.5 transition-colors",
+                            activeTab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="p-4">
                     {activeTab === "analyst" && data.recommendations && (
