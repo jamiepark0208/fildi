@@ -14,6 +14,7 @@ import {
   tickerTechnicals,
   edgarStatementHistory,
   type EdgarStatementHistoryRow,
+  tickerEventBullets,
 } from "@workspace/db";
 import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
@@ -807,9 +808,13 @@ router.get("/stocks/breakdown", async (req, res) => {
     // Per-analyst price targets unavailable on current FMP plan — always empty
     const analystPriceTargets: unknown[] = [];
 
-    // Metric-driven bull/bear bullets
-    const bullBullets = buildBullBullets(metrics);
-    const bearBullets = buildBearBullets(metrics);
+    // Metric-driven bull/bear bullets, with same-day event bullets (earnings beat/miss,
+    // analyst upgrade/downgrade, large price move ex-macro) from the daily trigger check
+    // (event-bullets.ts) prepended so timely info wins the capped slots over static ratios.
+    const eventBulletsRow = (await db.select().from(tickerEventBullets)
+      .where(eq(tickerEventBullets.ticker, upperTicker)).limit(1))[0];
+    const bullBullets = [...(eventBulletsRow?.bullBullets as string[] ?? []), ...buildBullBullets(metrics)].slice(0, 4);
+    const bearBullets = [...(eventBulletsRow?.bearBullets as string[] ?? []), ...buildBearBullets(metrics)].slice(0, 4);
 
     const news = ((newsRes as any).news ?? []).slice(0, 6).map((n: any) => ({
       title: n.title ?? "",

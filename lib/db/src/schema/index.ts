@@ -546,6 +546,22 @@ export const appConfig = pgTable('app_config', {
 })
 
 export type AppConfigRow = typeof appConfig.$inferSelect
+
+// ── ticker_event_bullets ─────────────────────────────────────────────────────
+// Template-generated bull/bear bullets from the daily event-trigger check
+// (earnings beat/miss, analyst upgrade/downgrade, large price move ex-macro).
+// Keyed by ticker, not user — cost/storage doesn't scale with watcher count.
+
+export const tickerEventBullets = pgTable('ticker_event_bullets', {
+  ticker:      text('ticker').primaryKey(),
+  bullBullets: jsonb('bull_bullets').notNull().default([]),
+  bearBullets: jsonb('bear_bullets').notNull().default([]),
+  triggers:    jsonb('triggers').notNull().default([]),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type TickerEventBulletsRow = typeof tickerEventBullets.$inferSelect
+
 // ── tradePosts ────────────────────────────────────────────────────────────────
 
 export const tradePosts = pgTable('trade_posts', {

@@ -20,6 +20,7 @@ import { runModelSnapshot, runModelGrading } from "./model-track-record.js";
 import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
+import { runEventBulletCheck } from "./event-bullets.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -27,6 +28,7 @@ const LAST_ENRICHMENT_RUN_KEY = "last_enrichment_run";
 const LAST_RETENTION_PRUNE_KEY = "last_retention_prune";
 const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
 const LAST_MODEL_SNAPSHOT_RUN_KEY = "last_model_snapshot_run";
+const LAST_EVENT_BULLETS_RUN_KEY = "last_event_bullets_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -39,6 +41,8 @@ export let lastTradeExpiryRun: Date | null = null;
 export let tradeExpiryRunning = false;
 export let lastModelSnapshotRun: Date | null = null;
 export let modelSnapshotRunning = false;
+export let lastEventBulletsRun: Date | null = null;
+export let eventBulletsRunning = false;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -93,6 +97,13 @@ function shouldRunEnrichmentNow(): boolean {
 function shouldRunRetentionNow(): boolean {
   const now = new Date();
   return !(lastRetentionPrune && isSameUtcDay(lastRetentionPrune, now));
+}
+
+// Once per calendar day, any hour — deliberately not a tighter cadence (event-bullets.ts
+// is DB-only so it's cheap, but the trigger design intentionally checks daily, not live).
+function shouldRunEventBulletsNow(): boolean {
+  const now = new Date();
+  return !(lastEventBulletsRun && isSameUtcDay(lastEventBulletsRun, now));
 }
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
@@ -175,6 +186,22 @@ async function runModelSnapshotJob() {
   }
 }
 
+async function runEventBulletsJob() {
+  if (eventBulletsRunning) return;
+  eventBulletsRunning = true;
+  logger.info("scheduler: starting event-bullets trigger check");
+  try {
+    await runEventBulletCheck();
+    lastEventBulletsRun = new Date();
+    await setConfigDate(LAST_EVENT_BULLETS_RUN_KEY, lastEventBulletsRun);
+    logger.info("scheduler: event-bullets trigger check complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: event-bullets trigger check failed");
+  } finally {
+    eventBulletsRunning = false;
+  }
+}
+
 // Runs at most once/day, independent of the enrichment window — table/log growth
 // from per-request activity doesn't need to wait for a biweekly job.
 async function runRetentionPrune() {
@@ -222,7 +249,7 @@ async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -239,6 +266,10 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted model-snapshot last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_EVENT_BULLETS_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted event-bullets last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
 
   setInterval(() => {
@@ -246,6 +277,7 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunRetentionNow()) runRetentionPrune();
     if (shouldRunTradeExpiryNow()) runTradeExpiry();
     if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
+    if (shouldRunEventBulletsNow()) runEventBulletsJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);
