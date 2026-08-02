@@ -1,6 +1,6 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { RSI, MFI, ATR, MACD, Stochastic } from "technicalindicators";
-import { eq, and, gte, inArray } from "drizzle-orm";
+import { eq, and, gte, inArray, desc } from "drizzle-orm";
 import { db, pricesHistorical, indicatorCache } from "@workspace/db";
 import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 import { getLivePrices } from "./live-quote.js";
@@ -291,6 +291,27 @@ export async function readOHLCVFromDB(key: string): Promise<OHLCVRow[]> {
   }));
 }
 
+// Once a ticker crosses 60 stored rows, fetchAndStoreOHLCV is only reached via
+// this staleness check — row-count alone doesn't detect a ticker whose daily
+// bars silently stopped appending (e.g. RDDT sat 7 weeks stale, causing a
+// trade-idea to settle against a June close instead of the July expiry close).
+const STALE_OHLCV_DAYS = 4; // covers weekends/a single holiday without over-fetching
+
+async function latestOHLCVDate(key: string): Promise<string | null> {
+  const rows = await db.select({ date: pricesHistorical.date })
+    .from(pricesHistorical)
+    .where(eq(pricesHistorical.ticker, key))
+    .orderBy(desc(pricesHistorical.date))
+    .limit(1);
+  return rows[0]?.date ?? null;
+}
+
+function isOHLCVStale(latestDate: string | null): boolean {
+  if (!latestDate) return true;
+  const days = (Date.now() - new Date(latestDate).getTime()) / 86_400_000;
+  return days > STALE_OHLCV_DAYS;
+}
+
 export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   const period1 = cutoffStr();
   const period2 = todayStr();
@@ -327,7 +348,7 @@ export async function getIndicators(ticker: string, refresh = false, ctx: SeedCo
   }
 
   let rows = await readOHLCVFromDB(key);
-  if (rows.length < 60) {
+  if (rows.length < 60 || isOHLCVStale(await latestOHLCVDate(key))) {
     rows = await fetchAndStoreOHLCV(key);
   }
 

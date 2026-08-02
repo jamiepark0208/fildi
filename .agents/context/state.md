@@ -6,8 +6,8 @@
 **build** — last updated 2026-08-02
 
 ## Active work
-- Working: live-tab-ai-insight-backlog, hotlist-accuracy-chip, ai-regime-insight, pattern-digest-card, unified-confidence-score
-- In progress: none-in-progress-all-shipped-and-typechecked
+- Working: trade-expiry-staleness-fix, rddt-loss-correction, sector-breakdown-removed, track-record-by-ticker-table, fixture-data-cleanup, feed-page-gold-black-restyle
+- In progress: feed.tsx-restyle-tsc-check-pending
 - Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision, new-features-not-yet-verified-in-browser
 
 ## Next tasks (priority order)

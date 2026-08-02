@@ -8,7 +8,6 @@ import {
 } from "recharts";
 import { TopNav } from "@/components/top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface SideSummary {
@@ -59,17 +58,20 @@ interface RegimeResponse {
   generatedAt: number;
 }
 
-interface ModelRec {
-  id: number;
-  snapshotDate: string;
+interface TickerSideAgg {
+  n: number;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  avgPnlPct: number | null;
+  pending: number;
+  noData: number;
+}
+
+interface TickerSummaryRow {
   ticker: string;
-  side: string;
-  expiry: string;
-  strike: string;
-  premium: string;
-  status: string;
-  pnlPct: string | null;
-  macroRegime: string | null;
+  put: TickerSideAgg;
+  call: TickerSideAgg;
 }
 
 const HORIZON_ORDER = ["1w", "4w", "12w"];
@@ -246,51 +248,63 @@ function RegimeGrid({ grid }: { grid: RegimeCell[] }) {
   );
 }
 
-function statusColor(status: string): string {
-  if (status === "WIN") return "bg-emerald-600 text-white";
-  if (status === "LOSS") return "bg-rose-600 text-white";
-  if (status === "NO_DATA") return "bg-white/10 text-amber-200/40";
-  return "bg-amber-500 text-black";
+function SideAggCells({ agg }: { agg: TickerSideAgg }) {
+  if (agg.n === 0) {
+    return (
+      <>
+        <td className="px-3 py-1.5 text-center text-amber-200/30">—</td>
+        <td className="px-3 py-1.5 text-center text-amber-200/30">—</td>
+        <td className="px-3 py-1.5 text-center text-amber-200/30">
+          {agg.pending > 0 ? `${agg.pending} pending` : "—"}
+        </td>
+      </>
+    );
+  }
+  return (
+    <>
+      <td className="px-3 py-1.5 text-center font-mono text-sky-300/80">
+        {agg.wins}W-{agg.losses}L
+      </td>
+      <td className={cn("px-3 py-1.5 text-center font-mono font-semibold", agg.winRate != null && agg.winRate >= 0.5 ? "text-green-400" : "text-red-400")}>
+        {pct(agg.winRate)}
+      </td>
+      <td className={cn("px-3 py-1.5 text-center font-mono", agg.avgPnlPct != null && agg.avgPnlPct >= 0 ? "text-green-400" : "text-red-400")}>
+        {agg.avgPnlPct != null ? signed(agg.avgPnlPct) : "—"}
+      </td>
+    </>
+  );
 }
 
-function RecentRecsTable({ recs }: { recs: ModelRec[] }) {
+function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-[#d4af37] uppercase tracking-wide">Recent Recs</h2>
-      {recs.length === 0 ? (
-        <p className="text-xs text-amber-200/40 py-4 text-center">No recs yet</p>
+      <h2 className="text-sm font-semibold text-[#d4af37] uppercase tracking-wide">By Ticker</h2>
+      {rows.length === 0 ? (
+        <p className="text-xs text-amber-200/40 py-4 text-center">No graded recs yet</p>
       ) : (
         <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-black text-[#d4af37]">
               <tr className="border-b border-[#d4af37]/25">
-                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Ticker</th>
-                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Side</th>
-                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Snapshot</th>
-                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Expiry</th>
-                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Strike</th>
-                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Premium</th>
-                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">P&L</th>
-                <th className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Status</th>
+                <th rowSpan={2} className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5 align-bottom">Ticker</th>
+                <th colSpan={3} className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-sky-300/80">Put</th>
+                <th colSpan={3} className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-amber-400">Call</th>
+              </tr>
+              <tr className="border-b border-[#d4af37]/25">
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">W-L</th>
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Win%</th>
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Avg P&L</th>
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">W-L</th>
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Win%</th>
+                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Avg P&L</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
-              {recs.map(r => (
-                <tr key={r.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+              {rows.map(r => (
+                <tr key={r.ticker} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-3 py-1.5 font-mono font-semibold text-white">{r.ticker}</td>
-                  <td className="px-3 py-1.5 capitalize font-mono text-sky-300/80">{r.side}</td>
-                  <td className="px-3 py-1.5 font-mono text-sky-300/80">{r.snapshotDate}</td>
-                  <td className="px-3 py-1.5 font-mono text-sky-300/80">{r.expiry}</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-amber-400">{parseFloat(r.strike).toFixed(2)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-white">{parseFloat(r.premium).toFixed(2)}</td>
-                  <td className={cn("px-3 py-1.5 text-right font-mono font-semibold", r.pnlPct != null && parseFloat(r.pnlPct) >= 0 ? "text-green-400" : "text-red-400")}>
-                    {r.pnlPct != null ? signed(parseFloat(r.pnlPct)) : "—"}
-                  </td>
-                  <td className="px-3 py-1.5 text-center">
-                    <Badge variant="outline" className={cn("text-[10px] border-0", statusColor(r.status))}>
-                      {r.status}
-                    </Badge>
-                  </td>
+                  <SideAggCells agg={r.put} />
+                  <SideAggCells agg={r.call} />
                 </tr>
               ))}
             </tbody>
@@ -322,11 +336,11 @@ export default function TrackRecord() {
     staleTime: 10 * 60_000,
   });
 
-  const { data: recs } = useQuery({
-    queryKey: ["track-record", "recs"],
-    queryFn: async (): Promise<ModelRec[]> => {
-      const res = await fetch("/api/track-record/recs?limit=20");
-      if (!res.ok) throw new Error("track-record recs fetch failed");
+  const { data: tickerSummary } = useQuery({
+    queryKey: ["track-record", "ticker-summary"],
+    queryFn: async (): Promise<TickerSummaryRow[]> => {
+      const res = await fetch("/api/track-record/ticker-summary");
+      if (!res.ok) throw new Error("track-record ticker-summary fetch failed");
       return res.json();
     },
     staleTime: 5 * 60_000,
@@ -353,7 +367,7 @@ export default function TrackRecord() {
 
             <RegimeGrid grid={regime?.grid ?? []} />
 
-            <RecentRecsTable recs={recs ?? []} />
+            <TickerSummaryTable rows={tickerSummary ?? []} />
           </>
         )}
       </main>

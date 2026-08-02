@@ -15,7 +15,7 @@ import {
   type EntrySignal,
   type EntryVerdict,
 } from "@/components/live/hotlist-table";
-import { MoverHeatmapGrid, SectorMoverBars, type MoversResponse } from "@/components/live/movers";
+import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers";
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { pct } from "@/components/live/live-format";
 
@@ -314,14 +314,6 @@ export default function Live() {
                   <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
                   <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
                 </div>
-                {(movers?.sectors.length ?? 0) > 0 && (
-                  <div className="space-y-1.5">
-                    <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
-                      Sector Breakdown
-                    </h3>
-                    <SectorMoverBars groups={movers!.sectors} />
-                  </div>
-                )}
               </div>
             )}
           </section>

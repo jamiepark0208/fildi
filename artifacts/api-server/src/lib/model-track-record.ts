@@ -32,7 +32,7 @@ import { readPersistedScores, computeAndPersistFundamentalScores } from "./funda
 import { deriveHotList } from "./live-hotlist.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
-import { closeOnOrBeforeExpiry } from "./trade-post-expiry.js";
+import { closeOnOrBeforeExpiryChecked } from "./trade-post-expiry.js";
 import { fetchAndStoreOHLCV } from "./indicators.js";
 import { logger } from "./logger.js";
 
@@ -319,10 +319,10 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
   let graded = 0, noData = 0, pending = 0;
   for (const rec of due) {
     try {
-      let close = await closeOnOrBeforeExpiry(rec.ticker, rec.expiry);
+      let close = (await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry))?.close ?? null;
       if (close == null) {
         await fetchAndStoreOHLCV(rec.ticker).catch(() => {});
-        close = await closeOnOrBeforeExpiry(rec.ticker, rec.expiry);
+        close = (await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry))?.close ?? null;
       }
 
       const daysPast = (Date.now() - new Date(rec.expiry).getTime()) / 86_400_000;

@@ -141,6 +141,60 @@ router.get("/track-record/by-ticker", async (_req, res) => {
   }
 });
 
+// ── GET /track-record/ticker-summary ──────────────────────────────────────────
+// One row per ticker the model has ever graded, put/call broken out into columns —
+// powers the Track Record page table (replaces the old flat 20-row "Recent Recs"
+// list, which mixed all tickers/sides together and cut off most of a large watchlist).
+
+interface TickerSideAgg {
+  n: number; wins: number; losses: number; winRate: number | null;
+  avgPnlPct: number | null; pending: number; noData: number;
+}
+interface TickerSummaryRow { ticker: string; put: TickerSideAgg; call: TickerSideAgg }
+
+function aggregateSide(rows: Array<{ status: string; pnlPct: string | null }>): TickerSideAgg {
+  const graded = rows.filter(r => r.status === "WIN" || r.status === "LOSS");
+  const wins = graded.filter(r => r.status === "WIN").length;
+  const pnls = graded.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
+  return {
+    n: graded.length,
+    wins,
+    losses: graded.length - wins,
+    winRate: graded.length > 0 ? wins / graded.length : null,
+    avgPnlPct: pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null,
+    pending: rows.filter(r => r.status === "PENDING").length,
+    noData: rows.filter(r => r.status === "NO_DATA").length,
+  };
+}
+
+router.get("/track-record/ticker-summary", async (_req, res) => {
+  try {
+    const data = await trackRecordCache.getOrCompute("ticker-summary", async () => {
+      const rows = await db.select({
+        ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
+      }).from(modelRecs);
+
+      const byTicker = new Map<string, { put: typeof rows; call: typeof rows }>();
+      for (const r of rows) {
+        const side = r.side as "put" | "call";
+        if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
+        byTicker.get(r.ticker)![side].push(r);
+      }
+
+      const out: TickerSummaryRow[] = [...byTicker.entries()].map(([ticker, sides]) => ({
+        ticker,
+        put: aggregateSide(sides.put),
+        call: aggregateSide(sides.call),
+      }));
+      out.sort((a, b) => a.ticker.localeCompare(b.ticker));
+      return out;
+    });
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
 // ── GET /track-record/recs ────────────────────────────────────────────────────
 
 router.get("/track-record/recs", async (req, res) => {

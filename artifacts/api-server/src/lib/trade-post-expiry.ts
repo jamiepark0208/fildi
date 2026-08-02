@@ -16,16 +16,30 @@ function intrinsicValue(tradeType: string, strike: number, closePrice: number): 
     : Math.max(closePrice - strike, 0)
 }
 
-// Exported for model-track-record.ts — the model-rec grader settles against the
-// same close-on-or-before-expiry convention as trade-idea resolution.
-export async function closeOnOrBeforeExpiry(ticker: string, expiry: string): Promise<number | null> {
+// A row satisfying `date <= expiry` can still be weeks stale if the ticker's
+// price history stopped refreshing (see indicators.ts staleness fix) — settling
+// a trade against that row silently uses the wrong close. This caps how far
+// back of the expiry a settlement row is trusted; anything older is treated
+// the same as "no data" so callers refetch instead of grading on it.
+const MAX_SETTLE_STALENESS_DAYS = 4 // covers weekends/a single holiday
+
+export async function closeOnOrBeforeExpiryChecked(
+  ticker: string,
+  expiry: string,
+): Promise<{ close: number; date: string } | null> {
   const rows = await db
-    .select({ close: pricesHistorical.close })
+    .select({ close: pricesHistorical.close, date: pricesHistorical.date })
     .from(pricesHistorical)
     .where(and(eq(pricesHistorical.ticker, ticker), sql`${pricesHistorical.date} <= ${expiry}`))
     .orderBy(sql`${pricesHistorical.date} DESC`)
     .limit(1)
-  return rows[0]?.close != null ? Number(rows[0].close) : null
+  const row = rows[0]
+  if (row?.close == null || row.date == null) return null
+
+  const staleDays = (new Date(expiry).getTime() - new Date(row.date).getTime()) / 86_400_000
+  if (staleDays > MAX_SETTLE_STALENESS_DAYS) return null
+
+  return { close: Number(row.close), date: row.date }
 }
 
 /**
@@ -56,16 +70,17 @@ export async function resolveExpiredOptionTrades(): Promise<void> {
 
   for (const post of expired) {
     try {
-      let closePrice = await closeOnOrBeforeExpiry(post.ticker, post.expiry)
-      if (closePrice == null) {
+      let settle = await closeOnOrBeforeExpiryChecked(post.ticker, post.expiry)
+      if (settle == null) {
         await fetchAndStoreOHLCV(post.ticker).catch(() => {})
-        closePrice = await closeOnOrBeforeExpiry(post.ticker, post.expiry)
+        settle = await closeOnOrBeforeExpiryChecked(post.ticker, post.expiry)
       }
-      if (closePrice == null) {
-        logger.warn({ ticker: post.ticker, postId: post.id }, 'trade-post-expiry: no price data, leaving OPEN')
+      if (settle == null) {
+        logger.warn({ ticker: post.ticker, postId: post.id }, 'trade-post-expiry: no fresh price data, leaving OPEN')
         skippedNoPrice++
         continue
       }
+      const closePrice = settle.close
 
       const strike    = Number(post.strike)
       const premium   = Number(post.premiumPerContract)

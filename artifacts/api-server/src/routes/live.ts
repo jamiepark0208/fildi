@@ -2,7 +2,7 @@ import { Router } from "express";
 import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, type HotlistEntry, type HotlistSide } from "../lib/live-hotlist.js";
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
-import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
+import { fetchGlobalMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
@@ -80,8 +80,7 @@ router.post("/live/refresh", async (_req, res, next) => {
 
 router.get("/live/movers", async (_req, res, next) => {
   try {
-    const [global, sectors] = await Promise.all([fetchGlobalMovers(), computeSectorMovers()]);
-    res.json({ global, sectors });
+    res.json({ global: await fetchGlobalMovers() });
   } catch (err) {
     next(err);
   }
