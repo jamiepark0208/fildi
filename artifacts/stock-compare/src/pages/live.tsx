@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-rankings";
 import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint } from "@/components/live/regime-banner";
+import { PatternDigestCard } from "@/components/live/pattern-digest-card";
 import {
   HotlistTable,
   VERDICT_LABEL,
@@ -300,6 +301,8 @@ export default function Live() {
           </div>
 
           <RegimeBanner checkpoints={regime} />
+
+          <PatternDigestCard />
 
           <section className="space-y-1.5">
             {moversLoading && !movers ? (

@@ -7,6 +7,8 @@ import type { TechnicalRow } from "@/lib/technical-rankings";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import type { RegimeDirection } from "./regime-banner";
 import { TickerRecordBadge } from "./ticker-record-badge";
+import { SignalAccuracyChip } from "./signal-accuracy-chip";
+import { useHotlistSignalAccuracy } from "@/hooks/use-hotlist-signal-accuracy";
 import { num, pct, scoreColor } from "./live-format";
 
 export type HotlistSide = "dip" | "rally";
@@ -115,6 +117,7 @@ export function HotlistTable({
   const isRally = side === "rally";
   const optSide = isRally ? "call" : "put";
   const { data: tickerRecords } = useTickerTrackRecord();
+  const { data: signalAccuracy } = useHotlistSignalAccuracy();
   const levelTitle = isRally
     ? "Nearest resistance above price (swing highs / pivot R1)."
     : "Nearest support below price (swing lows / pivot S1).";
@@ -199,7 +202,10 @@ export function HotlistTable({
                 <td className={cn("px-3 py-1.5 text-right font-mono", scoreColor(techScore))}>
                   {techScore != null ? techScore.toFixed(0) : "—"}
                 </td>
-                <td className="px-3 py-1.5 text-center"><SignalBadge signal={e.signal} /></td>
+                <td className="px-3 py-1.5 text-center">
+                  <SignalBadge signal={e.signal} />
+                  <SignalAccuracyChip stat={signalAccuracy?.get(`${side}|${e.signal}`)} />
+                </td>
                 <td className="px-3 py-1.5 text-center"><EntryCell signal={entryByTicker.get(e.ticker)} asOf={entryAsOf} /></td>
               </tr>
             );

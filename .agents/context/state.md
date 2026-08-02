@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-31
+**build** — last updated 2026-08-02
 
 ## Active work
-- Working: options-batch-single-ticker-fix
-- In progress: confirmed-fix-doesnt-affect-fundamentals-technicals
-- Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision
+- Working: live-tab-ai-insight-backlog, hotlist-accuracy-chip, ai-regime-insight, pattern-digest-card, unified-confidence-score
+- In progress: none-in-progress-all-shipped-and-typechecked
+- Blocked: playwright-chrome-binary-missing, 3-trade-idea-limit-unresolved, github-push-pat-invalid, fmp-plan-402-needs-decision, new-features-not-yet-verified-in-browser
 
 ## Next tasks (priority order)
 

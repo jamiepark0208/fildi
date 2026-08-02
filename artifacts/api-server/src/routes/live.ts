@@ -5,6 +5,8 @@ import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
+import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
 
@@ -88,6 +90,20 @@ router.get("/live/movers", async (_req, res, next) => {
 router.get("/live/regime", async (_req, res, next) => {
   try {
     res.json(await getTodaysCheckpoints());
+  } catch (err) {
+    next(err);
+  }
+});
+
+// New graded rows land at most once/session (checkpoint grading is nightly/Saturday),
+// so a long TTL avoids recomputing this aggregate on every Live tab load.
+const patternDigestCache = new TTLCache<Awaited<ReturnType<typeof getPatternDigest>>>(6 * 60 * 60 * 1000, "pattern-digest", 4);
+
+router.get("/live/pattern-digest", async (req, res, next) => {
+  try {
+    const sessionsBack = Math.min(60, Math.max(5, parseInt(String(req.query["sessions"] ?? "20"), 10) || 20));
+    const data = await patternDigestCache.getOrCompute(String(sessionsBack), () => getPatternDigest(sessionsBack));
+    res.json(data);
   } catch (err) {
     next(err);
   }

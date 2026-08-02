@@ -353,4 +353,73 @@ router.post("/explain/options", async (req, res) => {
   }
 });
 
+// ── Live regime banner surface ──────────────────────────────────────────────
+// One-line plain-English read on the intraday regime banner — narrates the
+// same checkpoint factors (sweep-reclaim, VWAP separation, breakout state)
+// already computed by intraday-regime.ts, on demand rather than pushed.
+
+interface RegimeCheckpointExtra {
+  minAfterOpen: number;
+  label: string;
+  direction: "bullish" | "bearish" | "mixed" | null;
+  confidence: number | null;
+  factors: string[];
+}
+
+interface LiveRegimeExtra {
+  checkpoints: RegimeCheckpointExtra[];
+}
+
+const MARKET_TICKER = "MARKET";
+
+function liveRegimeHash(_bundle: ContextBundle, e: LiveRegimeExtra): string {
+  const latest = e.checkpoints[e.checkpoints.length - 1];
+  const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  return `v1_${dayBucket}_${latest?.minAfterOpen ?? "na"}_${latest?.direction ?? "na"}_${latest?.confidence ?? "na"}`;
+}
+
+function buildLiveRegimePrompt(_bundle: ContextBundle, e: LiveRegimeExtra): string {
+  const lines = e.checkpoints
+    .filter(c => c.direction != null)
+    .map(c => `${c.label}: ${c.direction}${c.confidence != null ? ` (${c.confidence}%)` : ""} — ${(c.factors ?? []).join("; ") || "no factors recorded"}`)
+    .join("\n");
+
+  return `You explain today's intraday market regime checkpoints to an options trader watching the Live tab. Checkpoints so far today:
+
+${lines || "No resolved checkpoints yet."}
+
+Write exactly 1 sentence, under 30 words, calling out the most decision-relevant pattern (e.g. a sweep-reclaim setting up a reversal, a flip in direction, or confidence building/fading). No intro, no hedging, no repeating raw numbers already shown on screen.`;
+}
+
+const liveRegimeSurface: ExplainSurface<LiveRegimeExtra> = {
+  surfaceType:  "live-regime",
+  promptVersion: "v1",
+  buildPrompt:  buildLiveRegimePrompt,
+  hashInputs:   liveRegimeHash,
+};
+
+router.post("/explain/live-regime", async (req, res) => {
+  const { checkpoints } = req.body as { checkpoints?: RegimeCheckpointExtra[] };
+
+  if (!checkpoints || !Array.isArray(checkpoints) || checkpoints.length === 0) {
+    return res.status(400).json({ error: "checkpoints array is required" });
+  }
+
+  const userId = req.session.userId!;
+  const log = req.log.child({ ticker: MARKET_TICKER, surfaceType: "live-regime", userId });
+
+  try {
+    const bundle: ContextBundle = { ticker: MARKET_TICKER, stockEvent: null, marketEvent: null };
+    const result = await generateExplanation(MARKET_TICKER, liveRegimeSurface, bundle, { checkpoints }, log);
+    if (!result.cached) {
+      logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/live-regime", ticker: MARKET_TICKER, outcome: "success" });
+    }
+    recordAiUsage({ userId, ticker: MARKET_TICKER, surfaceType: "live-regime", cached: result.cached });
+    return res.json(result);
+  } catch (err) {
+    log.error({ err, step: "failed" }, "explain/live-regime error");
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;

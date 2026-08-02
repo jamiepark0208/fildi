@@ -15,14 +15,14 @@
  * Learning loop: graded put/call recs feed a bounded aggressiveness tilt
  * (see @workspace/option-scoring tilt.ts) persisted to app_config.model_tilt.
  */
-import { and, eq, lt, lte, sql, asc, gt, gte } from "drizzle-orm";
+import { and, eq, lt, lte, sql, asc, gt, gte, desc } from "drizzle-orm";
 import {
-  db, appConfig, modelRecs, hotlistSnapshots, regimeGrades,
+  db, appConfig, modelRecs, hotlistSnapshots, regimeGrades, marketRegime,
   pricesHistorical, type InsertModelRec, type InsertHotlistSnapshot,
 } from "@workspace/db";
 import {
   pickBestStrike, computeTechnicalRankingsV2, applyTilt,
-  CALL_STRIKE_WEIGHTS, EMPTY_TILT_STATE,
+  CALL_STRIKE_WEIGHTS, EMPTY_TILT_STATE, computeUnifiedScore,
   type StockContext, type TechnicalRow, type TiltState, type SideTiltStats, type MacroRegime,
 } from "@workspace/option-scoring";
 import { getOptionsChain, type OptionsChainResult, type OptionRow } from "./options.js";
@@ -130,6 +130,12 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const putTilt  = applyTilt(tiltState.put);
   const callTilt = applyTilt(tiltState.call, CALL_STRIKE_WEIGHTS);
 
+  // Single query for the unified-score's regime component — same confidence
+  // number the regime banner shows, not recomputed per ticker.
+  const [latestRegimeRow] = await db.select({ confidence: marketRegime.confidence })
+    .from(marketRegime).orderBy(desc(marketRegime.computedAt)).limit(1);
+  const regimeConfidence = latestRegimeRow?.confidence ?? null;
+
   const recRows: InsertModelRec[] = [];
   for (const [ticker, chains] of chainsByTicker) {
     const techRow = techRowMap.get(ticker);
@@ -165,6 +171,15 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
       const chain = best.chain;
       const premium = opt.bid > 0 ? opt.bid : opt.lastPrice;
       if (!(premium > 0)) continue; // nothing sellable to grade
+
+      // 1-10 blended read (technical + option + regime), stored alongside the
+      // option-scorer's own weight breakdown for this pick — see unified-score.ts.
+      const unified = computeUnifiedScore({
+        technicalScore: stockCtx.techTotalScore,
+        optionScore: best.result.optionScore,
+        regimeConfidence: regimeConfidence,
+      });
+
       recRows.push({
         snapshotDate,
         ticker,
@@ -180,7 +195,7 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         strikeIv: opt.iv > 0 ? String(opt.iv) : null,
         dte: String(chain.exactDte),
         optionScore: String(best.result.optionScore),
-        componentScores: best.result.componentScores,
+        componentScores: { ...best.result.componentScores, unifiedScore: { score: unified.score, weight: 0 } },
         dataQuality: String(best.result.dataQuality),
         volRegime,
         macroRegime: macroRegimeName,

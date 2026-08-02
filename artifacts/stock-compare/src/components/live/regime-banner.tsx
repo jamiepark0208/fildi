@@ -1,5 +1,6 @@
 // Intraday regime banner + checkpoint helpers (extracted from live.tsx).
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,56 @@ function regimeShortLabel(c: RegimeCheckpoint): string {
   if (c.status === "pending" || c.direction == null) return "—";
   if (c.direction === "mixed") return "Mix";
   return c.direction === "bullish" ? "Bull" : "Bear";
+}
+
+// User-triggered AI one-liner on the checkpoint pattern so far today — never
+// fires on its own, mirrors the options-scanner "Get AI context" pattern.
+function RegimeAiInsight({ checkpoints }: { checkpoints: RegimeCheckpoint[] }) {
+  const [requested, setRequested] = useState(false);
+  const resolved = checkpoints.filter(c => c.status === "resolved");
+  const latest = resolved[resolved.length - 1] ?? null;
+
+  const { data: insight, isLoading, isError } = useQuery({
+    queryKey: ["explain-live-regime", latest?.minAfterOpen, latest?.direction, latest?.confidence],
+    queryFn: async (): Promise<string> => {
+      const res = await fetch("/api/explain/live-regime", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkpoints: resolved.map(c => ({
+            minAfterOpen: c.minAfterOpen, label: CHECKPOINT_TIME_PT[c.minAfterOpen] ?? c.label,
+            direction: c.direction, confidence: c.confidence, factors: c.factors,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("explain/live-regime failed");
+      return (await res.json()).explanation as string;
+    },
+    enabled: requested && resolved.length > 0,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+
+  if (resolved.length === 0) return null;
+
+  return (
+    <div className="px-3 py-1.5 border-t border-[#d4af37]/10 bg-black/40 flex items-center gap-2 text-[11px]">
+      {!requested ? (
+        <button
+          className="text-sky-300/70 hover:text-sky-300 underline decoration-dotted"
+          onClick={() => setRequested(true)}
+        >
+          Get AI insight on today's pattern
+        </button>
+      ) : isLoading ? (
+        <span className="text-amber-200/40 italic">Reading today's pattern…</span>
+      ) : isError ? (
+        <span className="text-amber-200/40 italic">AI insight unavailable right now.</span>
+      ) : (
+        <span className="text-sky-200/90 font-mono">{insight}</span>
+      )}
+    </div>
+  );
 }
 
 export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] | undefined }) {
@@ -121,6 +172,7 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
           </Popover>
         ))}
       </div>
+      <RegimeAiInsight checkpoints={checkpoints} />
     </div>
   );
 }
