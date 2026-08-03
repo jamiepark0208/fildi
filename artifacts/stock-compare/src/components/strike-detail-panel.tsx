@@ -8,7 +8,7 @@ import type { OptionScoreResult } from "@/lib/option-scorer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ── Types mirrored from options-scanner (avoid circular import) ───────────────
-interface OptionRow {
+export interface OptionRow {
   strike: number;
   bid: number;
   ask: number;
@@ -22,7 +22,7 @@ interface OptionRow {
   spreadPct: number | null;
 }
 
-interface OptionsChainResult {
+export interface OptionsChainResult {
   ticker: string;
   expiry: string;
   daysToExpiry: number;
@@ -428,7 +428,7 @@ const SENTIMENT_COLOR: Record<string, string> = {
   neutral: "text-white",
 };
 
-function CreateSellPutDialog({ open, onClose, put, chain, isCall = false }: { open: boolean; onClose: () => void; put: OptionRow; chain: OptionsChainResult; isCall?: boolean }) {
+export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false }: { open: boolean; onClose: () => void; put: OptionRow; chain: OptionsChainResult; isCall?: boolean }) {
   const [contracts,  setContracts]  = useState("1");
   const [confidence, setConfidence] = useState(0);
   const [notes,      setNotes]      = useState("");

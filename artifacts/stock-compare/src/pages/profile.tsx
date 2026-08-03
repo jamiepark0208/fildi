@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react"
+import { useState, useRef, useCallback, useMemo, Fragment } from "react"
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -12,6 +12,7 @@ import { X, Search, Loader2 } from "lucide-react"
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
 import { PRESET_COLORS, COLOR_LABELS, fetchWatchlistFor } from "@/hooks/use-watchlist"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { TickerCallOptionsModal } from "@/components/TickerCallOptionsModal"
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -23,10 +24,36 @@ async function apiFeed(path: string, opts?: RequestInit) {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+interface StockHolding {
+  id: number
+  ticker: string
+  shares: number
+  costBasis: number
+  source: "PUT_ASSIGNMENT" | "LONG_TRADE" | "SHORT_TRADE"
+  status: "OPEN" | "CALLED_AWAY" | "CLOSED"
+  notes: string | null
+  openedAt: string
+  closedAt: string | null
+  realizedPnl: number | null
+  currentPrice: number | null
+  unrealizedPnl: number | null
+  availableForCall: number
+}
+
+interface TickerPnl {
+  ticker: string
+  realizedPnl: number
+  unrealizedPnl: number
+  totalPnl: number
+}
+
 interface ProfileData {
   user: { id: number; username: string; avatarUrl: string | null; role: string; createdAt: string }
-  stats: { totalPosts: number; openPosts: number; wins: number; losses: number; closed: number; winRate: number | null; totalPnl: number | null }
+  account: { cashBalance: number; buyingPower: number }
+  stats: { totalPosts: number; openPosts: number; wins: number; losses: number; closed: number; winRate: number | null; totalPnl: number | null; unrealizedPnl: number }
   posts: TradePost[]
+  holdings: StockHolding[]
+  tickerPnl: TickerPnl[]
 }
 
 interface BucketEntry {
@@ -467,7 +494,7 @@ function computeStreak(posts: TradePost[]): { n: number; win: boolean } | null {
   return { n, win: first }
 }
 
-function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradePost[] }) {
+function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; posts: TradePost[]; account: ProfileData["account"] }) {
   const lowSample = stats.closed < 5
   const winRateColor = stats.winRate == null ? "text-amber-200/50" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
   const pnlColor = stats.totalPnl == null ? "text-amber-200/50" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
@@ -496,6 +523,21 @@ function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradeP
       color: !streak ? "text-amber-200/50" : streak.win ? "text-green-400" : "text-red-400",
       dim: false,
     },
+    ...(stats.unrealizedPnl !== 0
+      ? [{
+          label: "Unrealized",
+          value: `${stats.unrealizedPnl >= 0 ? "+" : "-"}$${Math.abs(stats.unrealizedPnl).toFixed(0)}`,
+          color: stats.unrealizedPnl >= 0 ? "text-green-400" : "text-red-400",
+          dim: false,
+        }]
+      : []),
+    { label: "Cash", value: `$${account.cashBalance.toFixed(0)}`, color: "text-amber-200/60", dim: false },
+    {
+      label: "Buying Power",
+      value: `$${account.buyingPower.toFixed(0)}`,
+      color: account.buyingPower >= 0 ? "text-amber-200/60" : "text-red-400",
+      dim: false,
+    },
   ]
 
   return (
@@ -511,20 +553,165 @@ function StatsBar({ stats, posts }: { stats: ProfileData["stats"]; posts: TradeP
   )
 }
 
+// ── Holdings (wheel-strategy assigned shares) ────────────────────────────────
+
+const HOLDINGS_GRID_HEADER = "border-b border-[#d4af37]/20 bg-[#d4af37]/5"
+const HOLDINGS_GRID_TH     = "py-1 px-2.5 font-medium text-[10px] uppercase tracking-widest text-amber-200/40 whitespace-nowrap"
+const HOLDINGS_GRID_TD     = "py-1.5 px-2.5 text-xs tabular-nums"
+
+function HoldingsSection({ holdings, isOwnerProfile, onChanged }: { holdings: StockHolding[]; isOwnerProfile: boolean; onChanged: () => void }) {
+  const [expanded, setExpanded]   = useState<Set<number>>(new Set())
+  const [closingId, setClosingId] = useState<number | null>(null)
+  const [callModal, setCallModal] = useState<{ ticker: string; availableShares: number } | null>(null)
+  const open = holdings
+    .filter(h => h.status === "OPEN")
+    .slice()
+    .sort((a, b) => (b.unrealizedPnl ?? 0) - (a.unrealizedPnl ?? 0))
+  if (open.length === 0) return null
+
+  async function closeHolding(id: number) {
+    setClosingId(id)
+    try {
+      await apiFeed(`/holdings/${id}/close`, { method: "POST" })
+      onChanged()
+    } finally { setClosingId(null) }
+  }
+
+  return (
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Holdings</div>
+        <span className="text-[10px] text-amber-200/40">({open.length})</span>
+      </div>
+
+      <div className="border border-[#d4af37]/15 rounded-md overflow-hidden bg-black/30">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className={HOLDINGS_GRID_HEADER}>
+              <th className={cn(HOLDINGS_GRID_TH, "text-left")}>Ticker</th>
+              <th className={cn(HOLDINGS_GRID_TH, "text-right")}>Shares</th>
+              <th className={cn(HOLDINGS_GRID_TH, "text-right")}>Cost Basis</th>
+              <th className={cn(HOLDINGS_GRID_TH, "text-right")}>Price</th>
+              <th className={cn(HOLDINGS_GRID_TH, "text-right")}>Unrealized</th>
+              {isOwnerProfile && <th className={cn(HOLDINGS_GRID_TH, "text-right")}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {open.map((h, rowIdx) => {
+              const pnl = h.unrealizedPnl
+              const pnlColor = pnl == null ? "text-amber-200/50" : pnl >= 0 ? "text-green-400" : "text-red-400"
+              const pnlLabel = pnl == null ? "—" : `${pnl >= 0 ? "+" : "-"}$${Math.abs(pnl).toFixed(0)}`
+              const isExpanded = expanded.has(h.id)
+              return (
+                <Fragment key={h.id}>
+                  <tr
+                    className={cn(
+                      rowIdx % 2 === 0 ? "bg-transparent" : "bg-[#d4af37]/[0.02]",
+                      "border-b border-[#d4af37]/10 last:border-b-0 cursor-pointer hover:bg-[#d4af37]/5"
+                    )}
+                    onClick={() => setExpanded(prev => {
+                      const next = new Set(prev)
+                      if (next.has(h.id)) next.delete(h.id)
+                      else next.add(h.id)
+                      return next
+                    })}
+                  >
+                    <td className={HOLDINGS_GRID_TD}>
+                      <span className="text-amber-100 font-semibold font-mono">{h.ticker}</span>
+                    </td>
+                    <td className={cn(HOLDINGS_GRID_TD, "text-right text-amber-200/60")}>{h.shares}</td>
+                    <td className={cn(HOLDINGS_GRID_TD, "text-right text-amber-200/60")}>${h.costBasis.toFixed(2)}</td>
+                    <td className={cn(HOLDINGS_GRID_TD, "text-right text-amber-200/60")}>
+                      {h.currentPrice != null ? `$${h.currentPrice.toFixed(2)}` : "—"}
+                    </td>
+                    <td className={cn(HOLDINGS_GRID_TD, "text-right font-bold", pnlColor)}>{pnlLabel}</td>
+                    {isOwnerProfile && (
+                      <td className={cn(HOLDINGS_GRID_TD, "text-right")} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          {h.shares > 0 && (
+                            <button
+                              onClick={() => setCallModal({ ticker: h.ticker, availableShares: h.availableForCall })}
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-[#d4af37]/30 text-[#d4af37]/80 hover:bg-[#d4af37]/10"
+                            >
+                              Sell Call
+                            </button>
+                          )}
+                          <button
+                            onClick={() => closeHolding(h.id)}
+                            disabled={closingId === h.id}
+                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-red-500/30 text-red-400/80 hover:bg-red-500/10 disabled:opacity-40"
+                          >
+                            {closingId === h.id ? "…" : "Close"}
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                  {isExpanded && h.notes && (
+                    <tr className="border-b border-[#d4af37]/10 last:border-b-0">
+                      <td colSpan={isOwnerProfile ? 6 : 5} className="px-2.5 py-1.5 bg-black/40 text-[10px] text-amber-200/40">
+                        {h.notes}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {callModal && (
+        <TickerCallOptionsModal
+          ticker={callModal.ticker}
+          availableShares={callModal.availableShares}
+          onClose={() => setCallModal(null)}
+          onPosted={() => { setCallModal(null); onChanged() }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Cumulative P&L chart ─────────────────────────────────────────────────────
 
-function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
-  const timeline = useMemo(() => {
-    const resolved = posts
-      .filter(p => p.status !== "OPEN" && p.resolvedPnl != null)
-      .slice()
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+function CumulativePnlChart({ posts, holdings }: { posts: TradePost[]; holdings: StockHolding[] }) {
+  const { timeline, unrealizedTotal } = useMemo(() => {
+    // Realized events: closed/expired trade posts + wheel lots closed via CALLED_AWAY
+    // (that gain/loss lives on the holding, not on any trade_posts row — see trade-post-expiry.ts).
+    const events = [
+      ...posts
+        .filter(p => p.status !== "OPEN" && p.resolvedPnl != null)
+        .map(p => ({ date: p.createdAt, pnl: p.resolvedPnl ?? 0, label: p.ticker })),
+      ...holdings
+        .filter(h => h.status === "CALLED_AWAY" && h.realizedPnl != null && h.closedAt != null)
+        .map(h => ({ date: h.closedAt as string, pnl: h.realizedPnl ?? 0, label: `${h.ticker} (called away)` })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
     let running = 0
-    return resolved.map(p => {
-      running += p.resolvedPnl ?? 0
-      return { date: p.createdAt, cumulative: running, ticker: p.ticker }
+    const points = events.map(e => {
+      running += e.pnl
+      return { date: e.date, cumulative: running, ticker: e.label, unrealized: false }
     })
-  }, [posts])
+
+    // Mark-to-market: fold open wheel positions' unrealized P&L into a final point
+    // dated today, so an assigned-but-still-underwater put shows the paper loss
+    // instead of just the premium win.
+    const unrealizedTotal = holdings
+      .filter(h => h.status === "OPEN" && h.unrealizedPnl != null)
+      .reduce((sum, h) => sum + (h.unrealizedPnl ?? 0), 0)
+
+    if (unrealizedTotal !== 0) {
+      points.push({
+        date: new Date().toISOString(),
+        cumulative: running + unrealizedTotal,
+        ticker: "open positions",
+        unrealized: true,
+      })
+    }
+
+    return { timeline: points, unrealizedTotal }
+  }, [posts, holdings])
 
   const total = timeline.length > 0 ? timeline[timeline.length - 1]!.cumulative : 0
 
@@ -533,9 +720,14 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Cumulative P&L</div>
         {timeline.length > 0 && (
-          <span className={cn("text-xs font-bold tabular-nums", total >= 0 ? "text-green-400" : "text-red-400")}>
-            {total >= 0 ? "+" : ""}${total.toFixed(0)}
-          </span>
+          <div className="text-right">
+            <span className={cn("text-xs font-bold tabular-nums", total >= 0 ? "text-green-400" : "text-red-400")}>
+              {total >= 0 ? "+" : ""}${total.toFixed(0)}
+            </span>
+            {unrealizedTotal !== 0 && (
+              <div className="text-[9px] text-amber-200/40 tabular-nums">incl. {unrealizedTotal >= 0 ? "+" : "-"}${Math.abs(unrealizedTotal).toFixed(0)} unrealized</div>
+            )}
+          </div>
         )}
       </div>
       {timeline.length === 0 ? (
@@ -566,11 +758,11 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
               tickFormatter={v => `$${v}`}
             />
             <Tooltip content={(p) => {
-              const d = p.payload?.[0]?.payload as { date: string; cumulative: number; ticker: string } | undefined
+              const d = p.payload?.[0]?.payload as { date: string; cumulative: number; ticker: string; unrealized: boolean } | undefined
               if (!p.active || !d) return null
               return (
                 <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-md px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
-                  <div className="text-amber-200/50">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}</div>
+                  <div className="text-amber-200/50">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}{d.unrealized ? " (unrealized)" : ""}</div>
                   <div className={cn("font-bold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.cumulative >= 0 ? "+" : ""}${d.cumulative.toFixed(0)}
                   </div>
@@ -587,7 +779,7 @@ function CumulativePnlChart({ posts }: { posts: TradePost[] }) {
 
 // ── Top tickers breakdown ────────────────────────────────────────────────────
 
-interface TickerRow { ticker: string; count: number; pnl: number }
+interface TickerRow { ticker: string; count: number; pnl: number; unrealizedPnl: number }
 
 /** Custom XAxis tick: ticker on top line, contract quantity ("2×") below it. */
 function TickerAxisTick({ x, y, payload, rows }: { x?: number; y?: number; payload?: { value: string }; rows: TickerRow[] }) {
@@ -600,17 +792,18 @@ function TickerAxisTick({ x, y, payload, rows }: { x?: number; y?: number; paylo
   )
 }
 
-function TopTickers({ posts }: { posts: TradePost[] }) {
+function TopTickers({ posts, tickerPnl }: { posts: TradePost[]; tickerPnl: TickerPnl[] }) {
   const rows = useMemo<TickerRow[]>(() => {
-    const map = new Map<string, TickerRow>()
-    for (const p of posts) {
-      const entry = map.get(p.ticker) ?? { ticker: p.ticker, count: 0, pnl: 0 }
-      entry.count++
-      if (p.status !== "OPEN" && p.resolvedPnl != null) entry.pnl += p.resolvedPnl
-      map.set(p.ticker, entry)
-    }
-    return [...map.values()].sort((a, b) => b.pnl - a.pnl).slice(0, 6)
-  }, [posts])
+    // Count comes from post activity; P&L comes from the backend rollup (trade_posts
+    // + stock_holdings realized/unrealized combined — fixes a bug where this chart
+    // only summed resolvedPnl and missed wheel-holdings P&L entirely).
+    const counts = new Map<string, number>()
+    for (const p of posts) counts.set(p.ticker.toUpperCase(), (counts.get(p.ticker.toUpperCase()) ?? 0) + 1)
+    return tickerPnl
+      .map(t => ({ ticker: t.ticker, count: counts.get(t.ticker) ?? 0, pnl: t.totalPnl, unrealizedPnl: t.unrealizedPnl }))
+      .sort((a, b) => b.pnl - a.pnl)
+      .slice(0, 6)
+  }, [posts, tickerPnl])
 
   return (
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-1.5">
@@ -631,6 +824,11 @@ function TopTickers({ posts }: { posts: TradePost[] }) {
                   <div className={cn("font-bold tabular-nums", d.pnl >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(0)}
                   </div>
+                  {d.unrealizedPnl !== 0 && (
+                    <div className="text-[10px] text-amber-200/40 tabular-nums">
+                      incl. {d.unrealizedPnl >= 0 ? "+" : "-"}${Math.abs(d.unrealizedPnl).toFixed(0)} unrealized
+                    </div>
+                  )}
                 </div>
               )
             }} />
@@ -722,7 +920,7 @@ export default function Profile() {
               </div>
 
               {/* Compact stats tags */}
-              <StatsBar stats={data.stats} posts={data.posts} />
+              <StatsBar stats={data.stats} posts={data.posts} account={data.account} />
 
               {/* Post button */}
               {isOwnerProfile && (
@@ -740,10 +938,13 @@ export default function Profile() {
               )}
             </div>
 
+            {/* ── Holdings (wheel-strategy assigned shares) ── */}
+            <HoldingsSection holdings={data.holdings} isOwnerProfile={isOwnerProfile} onChanged={invalidate} />
+
             {/* ── Cumulative P&L + Top Tickers ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <CumulativePnlChart posts={data.posts} />
-              <TopTickers posts={data.posts} />
+              <CumulativePnlChart posts={data.posts} holdings={data.holdings} />
+              <TopTickers posts={data.posts} tickerPnl={data.tickerPnl} />
             </div>
 
             {/* ── Stock Views (reflects tagged Watchlist) ── */}

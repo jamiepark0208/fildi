@@ -1,5 +1,5 @@
-import { and, eq, lt, sql } from 'drizzle-orm'
-import { db, tradePosts, pricesHistorical } from '@workspace/db'
+import { and, asc, eq, lt, sql } from 'drizzle-orm'
+import { db, tradePosts, pricesHistorical, stockHoldings, users } from '@workspace/db'
 import { fetchAndStoreOHLCV } from './indicators.js'
 import { logger } from './logger.js'
 
@@ -85,19 +85,102 @@ export async function resolveExpiredOptionTrades(): Promise<void> {
       const strike    = Number(post.strike)
       const premium   = Number(post.premiumPerContract)
       const intrinsic = intrinsicValue(post.tradeType, strike, closePrice)
-      const isShort   = post.tradeType === 'SELL_PUT' || post.tradeType === 'SELL_CALL'
-      const pnlPerContract = isShort ? premium - intrinsic : intrinsic - premium
-      const resolvedPnl = pnlPerContract * post.contracts * 100
-      const status = resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS'
+      const shares    = post.contracts * 100
+      const assigned  = intrinsic > 0
 
-      await db.update(tradePosts).set({
-        status,
-        resolvedAt:  new Date(),
-        resolvedPnl: String(resolvedPnl),
-        updatedAt:   new Date(),
-      }).where(eq(tradePosts.id, post.id))
+      const { status, resolvedPnl } = await db.transaction(async tx => {
+        let status: string
+        let resolvedPnl: number
+        // Cash movement on resolution only — the premium (SELL_*) or cost (BUY_*)
+        // leg was already applied to users.cashBalance when the trade was opened
+        // (see POST /api/feed/posts), so this only books what changes at settlement.
+        let cashDelta = 0
 
-      if (status === 'EXPIRED_WIN') resolvedWin++
+        if (post.tradeType === 'SELL_PUT' && assigned) {
+          // Wheel-strategy assignment: the premium is kept regardless of what the
+          // stock does next, so it's booked as realized income here — NOT netted
+          // against intrinsic value like a closed position would be. The share
+          // position this creates is tracked separately in stock_holdings, marked
+          // to market on its own (see feed.ts profile route), so folding the
+          // stock's move into this trade's resolvedPnl would double-count it.
+          status = 'ASSIGNED'
+          resolvedPnl = premium * post.contracts * 100
+          cashDelta = -strike * post.contracts * 100 // buys the stock at strike
+
+          await tx.insert(stockHoldings).values({
+            userId:           post.userId,
+            ticker:           post.ticker,
+            shares,
+            costBasis:        String(strike),
+            source:           'PUT_ASSIGNMENT',
+            status:           'OPEN',
+            openedFromPostId: post.id,
+            notes:            `Assigned from put sold at $${strike} (exp ${post.expiry})`,
+          })
+        } else if (post.tradeType === 'SELL_CALL' && assigned) {
+          // Covered-call assignment: shares called away. Look up the oldest open
+          // long-source lot for this ticker/user — if one exists this is a covered
+          // call closing that lot; otherwise it's a naked call and falls back to
+          // the old closed-position math below (should only fire for pre-existing
+          // rows created before covered calls were enforced at creation time).
+          const [holding] = await tx
+            .select()
+            .from(stockHoldings)
+            .where(and(
+              eq(stockHoldings.userId, post.userId),
+              eq(stockHoldings.ticker, post.ticker),
+              eq(stockHoldings.status, 'OPEN'),
+              sql`${stockHoldings.shares} > 0`,
+            ))
+            .orderBy(asc(stockHoldings.openedAt))
+            .limit(1)
+
+          if (holding) {
+            status = 'ASSIGNED'
+            resolvedPnl = premium * post.contracts * 100
+            cashDelta = strike * post.contracts * 100 // shares sold at strike
+
+            const holdingRealizedPnl = (strike - Number(holding.costBasis)) * holding.shares
+            await tx.update(stockHoldings).set({
+              status:         'CALLED_AWAY',
+              closedByPostId: post.id,
+              realizedPnl:    String(holdingRealizedPnl),
+              closedAt:       new Date(),
+            }).where(eq(stockHoldings.id, holding.id))
+          } else {
+            const pnlPerContract = premium - intrinsic
+            resolvedPnl = pnlPerContract * post.contracts * 100
+            status = resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS'
+          }
+        } else if (post.tradeType === 'BUY_PUT' || post.tradeType === 'BUY_CALL') {
+          const pnlPerContract = intrinsic - premium
+          resolvedPnl = pnlPerContract * post.contracts * 100
+          status = resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS'
+          cashDelta = intrinsic * post.contracts * 100 // exercise payout, 0 if OTM
+        } else {
+          const isShort = post.tradeType === 'SELL_PUT' || post.tradeType === 'SELL_CALL'
+          const pnlPerContract = isShort ? premium - intrinsic : intrinsic - premium
+          resolvedPnl = pnlPerContract * post.contracts * 100
+          status = resolvedPnl > 0 ? 'EXPIRED_WIN' : 'EXPIRED_LOSS'
+        }
+
+        if (cashDelta !== 0) {
+          await tx.update(users)
+            .set({ cashBalance: sql`${users.cashBalance} + ${cashDelta}` })
+            .where(eq(users.id, post.userId))
+        }
+
+        await tx.update(tradePosts).set({
+          status,
+          resolvedAt:  new Date(),
+          resolvedPnl: String(resolvedPnl),
+          updatedAt:   new Date(),
+        }).where(eq(tradePosts.id, post.id))
+
+        return { status, resolvedPnl }
+      })
+
+      if (status === 'EXPIRED_WIN' || status === 'ASSIGNED') resolvedWin++
       else resolvedLoss++
       logger.info(
         { ticker: post.ticker, postId: post.id, expiry: post.expiry, closePrice, status, resolvedPnl },

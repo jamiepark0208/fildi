@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role:         text('role').notNull().default('member'), // 'admin' | 'member'
   avatarUrl:    text('avatar_url'),
+  cashBalance:  numeric('cash_balance').notNull().default('100000'), // paper-trading account cash
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastLoginAt:  timestamp('last_login_at', { withTimezone: true }),
 })
@@ -599,6 +600,41 @@ export const tradePosts = pgTable('trade_posts', {
 export const insertTradePostSchema = createInsertSchema(tradePosts).omit({ id: true, createdAt: true, updatedAt: true })
 export type InsertTradePost = z.infer<typeof insertTradePostSchema>
 export type TradePost = typeof tradePosts.$inferSelect
+
+// ── stock_holdings ───────────────────────────────────────────────────────────
+// Simulated share lots backing the paper-trading account. Sourced from a SELL_PUT
+// assignment (wheel strategy), a direct LONG trade, or a direct SHORT trade.
+// `shares` is SIGNED: positive = long, negative = short — this makes
+// (currentPrice - costBasis) * shares correct for both directions uniformly.
+// A PUT_ASSIGNMENT lot is closed out when a later SELL_CALL against the same
+// ticker is itself assigned (shares "called away"). LONG/SHORT lots are closed
+// manually via POST /feed/holdings/:id/close. Cost basis is the gross
+// strike/entry price — option premium is booked separately as realized P&L on
+// the originating trade_posts row, so folding it into cost basis here would
+// double-count it (see trade-post-expiry.ts).
+
+export const stockHoldings = pgTable('stock_holdings', {
+  id:               serial('id').primaryKey(),
+  userId:           integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:           text('ticker').notNull(),
+  shares:           integer('shares').notNull(), // signed: positive=long, negative=short
+  costBasis:        numeric('cost_basis').notNull(),
+  source:           text('source').notNull().default('PUT_ASSIGNMENT'), // PUT_ASSIGNMENT | LONG_TRADE | SHORT_TRADE
+  status:           text('status').notNull().default('OPEN'), // OPEN | CALLED_AWAY | CLOSED
+  openedFromPostId: integer('opened_from_post_id').references(() => tradePosts.id, { onDelete: 'set null' }),
+  closedByPostId:   integer('closed_by_post_id').references(() => tradePosts.id, { onDelete: 'set null' }),
+  realizedPnl:      numeric('realized_pnl'),
+  notes:            text('notes'),
+  openedAt:         timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+  closedAt:         timestamp('closed_at', { withTimezone: true }),
+}, t => ({
+  userIdx:   index('idx_stock_holdings_user_id').on(t.userId),
+  tickerIdx: index('idx_stock_holdings_ticker').on(t.ticker),
+}))
+
+export const insertStockHoldingSchema = createInsertSchema(stockHoldings).omit({ id: true, openedAt: true })
+export type InsertStockHolding = z.infer<typeof insertStockHoldingSchema>
+export type StockHolding = typeof stockHoldings.$inferSelect
 
 // ── likes ─────────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
-import { db, tradePosts, likes, comments, users, stockBuckets } from '@workspace/db'
+import { db, tradePosts, likes, comments, users, stockBuckets, stockHoldings, pricesHistorical } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
 import { getLatestRegime } from './regime.js'
 import { resolveExpiredOptionTrades } from '../lib/trade-post-expiry.js'
+import { getBuyingPower, getAvailableShares, InsufficientFundsError } from '../lib/buying-power.js'
+import { computeTickerPnlRollup } from '../lib/ticker-pnl.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -142,31 +144,99 @@ router.post('/feed/posts', async (req, res) => {
       return res.status(400).json({ error: 'shares: integer >= 1 required' })
   }
 
-  const [created] = await db.insert(tradePosts).values({
-    userId,
-    ticker:             ticker.trim().toUpperCase(),
-    tradeType,
-    // options (nullable for equity)
-    strike:             isOption ? String(strike) : '0',
-    expiry:             isOption ? expiry : new Date().toISOString().split('T')[0],
-    contracts:          isOption ? Number(contracts) : 0,
-    premiumPerContract: isOption ? String(premiumPerContract) : '0',
-    // equity
-    direction:          !isOption ? tradeType.toLowerCase() : null,
-    entryPrice:         !isOption && entryPrice != null ? String(entryPrice) : null,
-    shares:             !isOption && shares != null ? Number(shares) : null,
-    stopLoss:           stopLoss != null ? String(stopLoss) : null,
-    targetPrice:        targetPrice != null ? String(targetPrice) : null,
-    confidence:         Number(confidence),
-    notes:              notes ?? null,
-    ivRankAtEntry:      ivRankAtEntry != null ? String(ivRankAtEntry) : null,
-    techScoreAtEntry:   techScoreAtEntry != null ? String(techScoreAtEntry) : null,
-    regimeAtEntry:      regimeAtEntry ?? (await getLatestRegime()),
-    vixAtEntry:         vixAtEntry != null ? String(vixAtEntry) : null,
-    signalAtEntry:      signalAtEntry ?? null,
-  }).returning()
+  const normalizedTicker = ticker.trim().toUpperCase()
+  const regimeAtEntryResolved = regimeAtEntry ?? (await getLatestRegime())
 
-  return res.status(201).json(numericPostFields(created as Record<string, unknown>))
+  try {
+    const created = await db.transaction(async tx => {
+      // Lock the user row so concurrent posts can't both pass a buying-power
+      // check before either commits (classic TOCTOU on the derived buying-power read).
+      const [userRow] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
+      if (!userRow) throw new InsufficientFundsError('user not found')
+
+      let cashDelta = 0
+
+      if (tradeType === 'SELL_PUT') {
+        const collateral = Number(strike) * 100 * Number(contracts)
+        if ((await getBuyingPower(userId, tx)) - collateral < 0)
+          throw new InsufficientFundsError('insufficient buying power for cash-secured put')
+        cashDelta = Number(premiumPerContract) * 100 * Number(contracts)
+      } else if (tradeType === 'SELL_CALL') {
+        const needed = Number(contracts) * 100
+        if ((await getAvailableShares(userId, normalizedTicker, tx)) < needed)
+          throw new InsufficientFundsError('insufficient shares to cover this call')
+        cashDelta = Number(premiumPerContract) * 100 * Number(contracts)
+      } else if (tradeType === 'BUY_PUT' || tradeType === 'BUY_CALL') {
+        const cost = Number(premiumPerContract) * 100 * Number(contracts)
+        if ((await getBuyingPower(userId, tx)) < cost)
+          throw new InsufficientFundsError('insufficient buying power')
+        cashDelta = -cost
+      } else if (tradeType === 'LONG') {
+        const cost = Number(entryPrice) * Number(shares)
+        if ((await getBuyingPower(userId, tx)) < cost)
+          throw new InsufficientFundsError('insufficient buying power')
+        cashDelta = -cost
+      } else if (tradeType === 'SHORT') {
+        const notional = Number(entryPrice) * Number(shares)
+        if ((await getBuyingPower(userId, tx)) < notional)
+          throw new InsufficientFundsError('insufficient buying power to short (requires 100% cash collateral)')
+        cashDelta = notional
+      }
+
+      if (cashDelta !== 0) {
+        await tx.update(users)
+          .set({ cashBalance: sql`${users.cashBalance} + ${cashDelta}` })
+          .where(eq(users.id, userId))
+      }
+
+      const [post] = await tx.insert(tradePosts).values({
+        userId,
+        ticker:             normalizedTicker,
+        tradeType,
+        // options (nullable for equity)
+        strike:             isOption ? String(strike) : '0',
+        expiry:             isOption ? expiry : new Date().toISOString().split('T')[0],
+        contracts:          isOption ? Number(contracts) : 0,
+        premiumPerContract: isOption ? String(premiumPerContract) : '0',
+        // equity
+        direction:          !isOption ? tradeType.toLowerCase() : null,
+        entryPrice:         !isOption && entryPrice != null ? String(entryPrice) : null,
+        shares:             !isOption && shares != null ? Number(shares) : null,
+        stopLoss:           stopLoss != null ? String(stopLoss) : null,
+        targetPrice:        targetPrice != null ? String(targetPrice) : null,
+        confidence:         Number(confidence),
+        notes:              notes ?? null,
+        ivRankAtEntry:      ivRankAtEntry != null ? String(ivRankAtEntry) : null,
+        techScoreAtEntry:   techScoreAtEntry != null ? String(techScoreAtEntry) : null,
+        regimeAtEntry:      regimeAtEntryResolved,
+        vixAtEntry:         vixAtEntry != null ? String(vixAtEntry) : null,
+        signalAtEntry:      signalAtEntry ?? null,
+      }).returning()
+
+      // LONG/SHORT open a stock_holdings position immediately (unlike options, which
+      // only create one on assignment) — this is what makes "shares owned" derivable
+      // for a later covered call, and gives the position a lifecycle to close later.
+      if (tradeType === 'LONG' || tradeType === 'SHORT') {
+        await tx.insert(stockHoldings).values({
+          userId,
+          ticker:           normalizedTicker,
+          shares:           tradeType === 'LONG' ? Number(shares) : -Number(shares),
+          costBasis:        String(entryPrice),
+          source:           tradeType === 'LONG' ? 'LONG_TRADE' : 'SHORT_TRADE',
+          status:           'OPEN',
+          openedFromPostId: post.id,
+        })
+      }
+
+      return post
+    })
+
+    return res.status(201).json(numericPostFields(created as Record<string, unknown>))
+  } catch (err) {
+    if (err instanceof InsufficientFundsError)
+      return res.status(400).json({ error: err.message })
+    throw err
+  }
 })
 
 // ── GET /api/feed/posts ────────────────────────────────────────────────────────
@@ -397,7 +467,7 @@ router.get('/feed/profile/:username', async (req, res) => {
   const { username } = req.params
 
   const [user] = await db
-    .select({ id: users.id, username: users.username, avatarUrl: users.avatarUrl, role: users.role, createdAt: users.createdAt })
+    .select({ id: users.id, username: users.username, avatarUrl: users.avatarUrl, role: users.role, createdAt: users.createdAt, cashBalance: users.cashBalance })
     .from(users)
     .where(eq(users.username, username!))
 
@@ -409,7 +479,7 @@ router.get('/feed/profile/:username', async (req, res) => {
     .select({
       totalPosts: count(),
       openPosts:  sql<number>`SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END)`.mapWith(Number),
-      wins:       sql<number>`SUM(CASE WHEN (status = 'CLOSED' AND resolved_pnl > 0) OR status = 'EXPIRED_WIN' THEN 1 ELSE 0 END)`.mapWith(Number),
+      wins:       sql<number>`SUM(CASE WHEN (status = 'CLOSED' AND resolved_pnl > 0) OR status = 'EXPIRED_WIN' OR status = 'ASSIGNED' THEN 1 ELSE 0 END)`.mapWith(Number),
       losses:     sql<number>`SUM(CASE WHEN (status = 'CLOSED' AND resolved_pnl <= 0) OR status = 'EXPIRED_LOSS' THEN 1 ELSE 0 END)`.mapWith(Number),
       closed:     sql<number>`SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END)`.mapWith(Number),
       totalPnl:   sum(tradePosts.resolvedPnl),
@@ -429,8 +499,60 @@ router.get('/feed/profile/:username', async (req, res) => {
     offset:   0,
   })
 
+  // Stock holdings — shares from assigned puts + direct LONG/SHORT trades (see
+  // trade-post-expiry.ts and POST /feed/posts). Marked to the latest daily close,
+  // not a live quote (see caching-patterns.md; this reuses data already fetched
+  // for option settlement, no new API cost).
+  const holdingRows = await db
+    .select()
+    .from(stockHoldings)
+    .where(eq(stockHoldings.userId, user.id))
+    .orderBy(desc(stockHoldings.openedAt))
+
+  const openTickers = [...new Set(holdingRows.filter(h => h.status === 'OPEN').map(h => h.ticker))]
+  const latestCloseByTicker = new Map<string, number>()
+  const availableForCallByTicker = new Map<string, number>()
+  await Promise.all(openTickers.map(async ticker => {
+    const [row] = await db
+      .select({ close: pricesHistorical.close })
+      .from(pricesHistorical)
+      .where(eq(pricesHistorical.ticker, ticker))
+      .orderBy(desc(pricesHistorical.date))
+      .limit(1)
+    if (row?.close != null) latestCloseByTicker.set(ticker, Number(row.close))
+    availableForCallByTicker.set(ticker, await getAvailableShares(user.id, ticker))
+  }))
+
+  const holdings = holdingRows.map(h => {
+    const currentPrice = h.status === 'OPEN' ? (latestCloseByTicker.get(h.ticker) ?? null) : null
+    const unrealizedPnl = currentPrice != null ? (currentPrice - Number(h.costBasis)) * h.shares : null
+    return {
+      id:               h.id,
+      ticker:           h.ticker,
+      shares:           h.shares,
+      costBasis:        Number(h.costBasis),
+      source:           h.source,
+      status:           h.status,
+      notes:            h.notes,
+      openedAt:         h.openedAt,
+      closedAt:         h.closedAt,
+      realizedPnl:      h.realizedPnl != null ? Number(h.realizedPnl) : null,
+      currentPrice,
+      unrealizedPnl,
+      availableForCall: h.status === 'OPEN' && h.shares > 0 ? (availableForCallByTicker.get(h.ticker) ?? 0) : 0,
+    }
+  })
+
+  const unrealizedPnl = holdings
+    .filter(h => h.status === 'OPEN' && h.unrealizedPnl != null)
+    .reduce((sum, h) => sum + h.unrealizedPnl!, 0)
+
+  const tickerPnl = computeTickerPnlRollup(userPosts as unknown as { ticker: string; status: string; resolvedPnl: number | null }[], holdings)
+  const buyingPower = await getBuyingPower(user.id)
+
   return res.json({
     user,
+    account: { cashBalance: Number(user.cashBalance), buyingPower },
     stats: {
       totalPosts: s.totalPosts,
       openPosts:  s.openPosts  ?? 0,
@@ -439,9 +561,61 @@ router.get('/feed/profile/:username', async (req, res) => {
       closed:     s.closed     ?? 0,
       winRate,
       totalPnl,
+      unrealizedPnl,
     },
-    posts: userPosts,
+    posts:     userPosts,
+    holdings,
+    tickerPnl,
   })
+})
+
+// ── POST /api/feed/holdings/:id/close ──────────────────────────────────────────
+// Manually closes a LONG/SHORT (or, edge case, a PUT_ASSIGNMENT) stock_holdings
+// position at the latest daily close — no price entry, single click. Realized P&L
+// and the cash settlement are both derived from that close price.
+
+router.post('/feed/holdings/:id/close', async (req, res) => {
+  const userId = req.session.userId!
+  const holdingId = Number(req.params['id'])
+  if (!Number.isInteger(holdingId)) return res.status(400).json({ error: 'invalid holding id' })
+
+  const [holding] = await db.select().from(stockHoldings).where(eq(stockHoldings.id, holdingId))
+  if (!holding || holding.userId !== userId) return res.status(404).json({ error: 'holding not found' })
+  if (holding.status !== 'OPEN') return res.status(400).json({ error: 'holding is not open' })
+
+  // A long lot currently backing an OPEN covered call can't be closed out from under it —
+  // mirrors the availableShares check used when the call was created.
+  if (holding.shares > 0) {
+    const available = await getAvailableShares(userId, holding.ticker)
+    if (available < holding.shares)
+      return res.status(400).json({ error: 'cannot close shares backing an open covered call' })
+  }
+
+  const [priceRow] = await db
+    .select({ close: pricesHistorical.close })
+    .from(pricesHistorical)
+    .where(eq(pricesHistorical.ticker, holding.ticker))
+    .orderBy(desc(pricesHistorical.date))
+    .limit(1)
+  if (priceRow?.close == null) return res.status(400).json({ error: 'no recent price available to close at' })
+
+  const closePrice = Number(priceRow.close)
+  const realizedPnl = (closePrice - Number(holding.costBasis)) * holding.shares
+  const cashDelta = closePrice * holding.shares
+
+  const [updated] = await db.transaction(async tx => {
+    await tx.update(users)
+      .set({ cashBalance: sql`${users.cashBalance} + ${cashDelta}` })
+      .where(eq(users.id, userId))
+
+    return tx.update(stockHoldings).set({
+      status:      'CLOSED',
+      closedAt:    new Date(),
+      realizedPnl: String(realizedPnl),
+    }).where(eq(stockHoldings.id, holdingId)).returning()
+  })
+
+  return res.json({ ...updated, costBasis: Number(updated!.costBasis), realizedPnl: Number(updated!.realizedPnl) })
 })
 
 // ── GET /api/feed/buckets — all users' picks (public within the app) ──────────

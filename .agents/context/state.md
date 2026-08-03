@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-02
+**build** — last updated 2026-08-03
 
 ## Active work
-- Working: event-bullets-trigger-job, ticker-event-bullets-table, stocks-ts-bullet-merge, scheduler-daily-job-registered
-- In progress: none-feature-complete-and-verified
-- Blocked: breakdown-endpoint-needs-auth-to-verify-via-http, earnings-analyst-triggers-untested-live-no-current-rows, playwright-chrome-binary-missing, fmp-plan-402-needs-decision
+- Working: wheel-holdings-cumulative-pnl-merge, holdings-ag-grid-restyle, buying-power-system, stock-holdings-rename-signed-shares, sell-call-modal, toptickers-pnl-fix, holdings-close-endpoint
+- In progress: browser-verification-pending
+- Blocked: playwright-chrome-binary-missing
 
 ## Next tasks (priority order)
 
