@@ -6,7 +6,7 @@
 **build** — last updated 2026-08-03
 
 ## Active work
-- Working: wheel-holdings-cumulative-pnl-merge, holdings-ag-grid-restyle, buying-power-system, stock-holdings-rename-signed-shares, sell-call-modal, toptickers-pnl-fix, holdings-close-endpoint
+- Working: profile-feed-ui-enhance, win-rate-ag-grid, stock-views-category-boxes, white-text-pass, track-record-price-and-recs, put-call-color-differentiation, price-dod-change
 - In progress: browser-verification-pending
 - Blocked: playwright-chrome-binary-missing
 

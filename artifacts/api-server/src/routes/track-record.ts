@@ -9,6 +9,7 @@ import { and, eq, desc, sql, asc } from "drizzle-orm";
 import { db, modelRecs, hotlistSnapshots, regimeGrades, pricesHistorical } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { getLivePrices } from "../lib/live-quote.js";
 import {
   runModelSnapshot, runModelGrading, getTiltState, insertRegimeGradeStubs,
 } from "../lib/model-track-record.js";
@@ -150,9 +151,19 @@ interface TickerSideAgg {
   n: number; wins: number; losses: number; winRate: number | null;
   avgPnlPct: number | null; pending: number; noData: number;
 }
-interface TickerSummaryRow { ticker: string; put: TickerSideAgg; call: TickerSideAgg }
+/** The model's current best pick for a side — most recent snapshot not yet expired. Null once its expiry passes and no newer snapshot has replaced it. */
+interface CurrentPick {
+  strike: number; expiry: string; premium: number; incomePct: number | null; dte: number | null;
+}
+interface TickerSummaryRow {
+  ticker: string; put: TickerSideAgg; call: TickerSideAgg;
+  currentPrice: number | null; priceChangePct: number | null;
+  currentPut: CurrentPick | null; currentCall: CurrentPick | null;
+}
 
-function aggregateSide(rows: Array<{ status: string; pnlPct: string | null }>): TickerSideAgg {
+type RecRow = { status: string; pnlPct: string | null; snapshotDate: string; expiry: string; strike: string; premium: string; incomePct: string | null; dte: string | null };
+
+function aggregateSide(rows: RecRow[]): TickerSideAgg {
   const graded = rows.filter(r => r.status === "WIN" || r.status === "LOSS");
   const wins = graded.filter(r => r.status === "WIN").length;
   const pnls = graded.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
@@ -167,29 +178,58 @@ function aggregateSide(rows: Array<{ status: string; pnlPct: string | null }>): 
   };
 }
 
+/** Latest snapshot for this side, but only surfaced while its expiry (this week or next) hasn't passed yet. */
+function currentPick(rows: RecRow[], todayStr: string): CurrentPick | null {
+  const latest = rows.slice().sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+  if (!latest || latest.expiry < todayStr) return null;
+  return {
+    strike: num(latest.strike)!,
+    expiry: latest.expiry,
+    premium: num(latest.premium)!,
+    incomePct: num(latest.incomePct),
+    dte: num(latest.dte),
+  };
+}
+
 router.get("/track-record/ticker-summary", async (_req, res) => {
   try {
     const data = await trackRecordCache.getOrCompute("ticker-summary", async () => {
       const rows = await db.select({
         ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
+        snapshotDate: modelRecs.snapshotDate, expiry: modelRecs.expiry, strike: modelRecs.strike,
+        premium: modelRecs.premium, incomePct: modelRecs.incomePct, dte: modelRecs.dte,
       }).from(modelRecs);
 
-      const byTicker = new Map<string, { put: typeof rows; call: typeof rows }>();
+      const byTicker = new Map<string, { put: RecRow[]; call: RecRow[] }>();
       for (const r of rows) {
         const side = r.side as "put" | "call";
         if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
         byTicker.get(r.ticker)![side].push(r);
       }
 
-      const out: TickerSummaryRow[] = [...byTicker.entries()].map(([ticker, sides]) => ({
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const out: Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">[] = [...byTicker.entries()].map(([ticker, sides]) => ({
         ticker,
         put: aggregateSide(sides.put),
         call: aggregateSide(sides.call),
+        currentPut: currentPick(sides.put, todayStr),
+        currentCall: currentPick(sides.call, todayStr),
       }));
       out.sort((a, b) => a.ticker.localeCompare(b.ticker));
       return out;
     });
-    return res.json(data);
+
+    // Live prices are cheap (60s-cached, batched) and change constantly — fetch
+    // fresh on every request rather than baking them into the 10-min DB cache above.
+    const tickers = (data as Array<{ ticker: string }>).map(r => r.ticker);
+    const live = await getLivePrices(tickers);
+    const enriched: TickerSummaryRow[] = (data as Array<Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">>).map(r => ({
+      ...r,
+      currentPrice: live.get(r.ticker)?.price ?? null,
+      priceChangePct: live.get(r.ticker)?.changePercent ?? null,
+    }));
+
+    return res.json(enriched);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

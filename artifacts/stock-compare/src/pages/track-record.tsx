@@ -68,10 +68,31 @@ interface TickerSideAgg {
   noData: number;
 }
 
+interface CurrentPick {
+  strike: number;
+  expiry: string;
+  premium: number;
+  incomePct: number | null;
+  dte: number | null;
+}
+
 interface TickerSummaryRow {
   ticker: string;
   put: TickerSideAgg;
   call: TickerSideAgg;
+  currentPrice: number | null;
+  priceChangePct: number | null;
+  currentPut: CurrentPick | null;
+  currentCall: CurrentPick | null;
+}
+
+const PUT_BG = "bg-sky-500/10";
+const CALL_BG = "bg-orange-500/10";
+
+/** "2026-08-07" → "8/7" */
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${parseInt(m!, 10)}/${parseInt(d!, 10)}`;
 }
 
 const HORIZON_ORDER = ["1w", "4w", "12w"];
@@ -99,7 +120,7 @@ function ScoreCard({ title, summary, color }: { title: string; summary: SideSumm
   return (
     <StatChip dot={color} label={title}>
       <span className="text-sm font-bold text-white ml-auto">{pct(summary.winRate)}</span>
-      <span className="text-[11px] text-sky-300/70">
+      <span className="text-[11px] text-sky-200">
         {summary.wins}/{summary.n} · avg {signed(summary.avgPnlPct)}
       </span>
     </StatChip>
@@ -110,7 +131,7 @@ function HotlistCard({ hotlist }: { hotlist: HotlistSummary[] }) {
   const goRows = hotlist.filter(h => h.signal === "GO");
   return (
     <StatChip dot="#fb7185" label="Hotlist GO">
-      <span className="text-[11px] text-sky-300/70 ml-auto truncate">
+      <span className="text-[11px] text-sky-200 ml-auto truncate">
         {goRows.map(h => `${h.side} ${pct(h.winRate)} (${h.wins}/${h.n})`).join(" · ")}
       </span>
     </StatChip>
@@ -129,7 +150,7 @@ function RegimeCard({ grid }: { grid: RegimeCell[] }) {
   return (
     <StatChip dot="#a78bfa" label="Regime">
       <span className="text-sm font-bold text-white ml-auto">{pct(overall)}</span>
-      <span className="text-[11px] text-sky-300/70">correct</span>
+      <span className="text-[11px] text-sky-200">correct</span>
     </StatChip>
   );
 }
@@ -150,7 +171,7 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
               onClick={() => setSide(s)}
               className={cn(
                 "px-2 py-0.5 capitalize transition-colors",
-                side === s ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                side === s ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white hover:text-[#d4af37]",
               )}
             >
               {s}s
@@ -160,7 +181,7 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
       </CardHeader>
       <CardContent className="px-3 pb-2 pt-0">
         {summary.equityCurve.length === 0 ? (
-          <div className="h-[70px] flex items-center justify-center text-xs text-amber-200/40">
+          <div className="h-[70px] flex items-center justify-center text-xs text-zinc-400">
             No graded {side}s yet
           </div>
         ) : (
@@ -196,7 +217,7 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
 }
 
 function correctPctColor(v: number | null): string {
-  if (v == null) return "bg-white/5 text-amber-200/40";
+  if (v == null) return "bg-white/5 text-zinc-400";
   if (v >= 0.66) return "bg-emerald-600 text-white";
   if (v >= 0.4) return "bg-amber-500 text-black";
   return "bg-rose-600 text-white";
@@ -217,11 +238,11 @@ function RegimeGrid({ grid }: { grid: RegimeCell[] }) {
       </CardHeader>
       <CardContent className="px-3 pb-2 pt-0 space-y-1">
         {regimes.length === 0 ? (
-          <div className="text-xs text-amber-200/40 py-2 text-center">No regime grades yet</div>
+          <div className="text-xs text-zinc-400 py-2 text-center">No regime grades yet</div>
         ) : (
           regimes.map(regime => (
             <div key={regime} className="flex items-center gap-2 text-xs">
-              <span className="capitalize text-sky-300/70 w-20 shrink-0 truncate">{regime.replace(/_/g, " ")}</span>
+              <span className="capitalize text-sky-200 w-20 shrink-0 truncate">{regime.replace(/_/g, " ")}</span>
               <div className="flex items-center gap-1.5">
                 {HORIZON_ORDER.map(horizon => {
                   const cell = cellFor(regime, horizon);
@@ -248,13 +269,13 @@ function RegimeGrid({ grid }: { grid: RegimeCell[] }) {
   );
 }
 
-function SideAggCells({ agg }: { agg: TickerSideAgg }) {
+function SideAggCells({ agg, bg }: { agg: TickerSideAgg; bg: string }) {
   if (agg.n === 0) {
     return (
       <>
-        <td className="px-3 py-1.5 text-center text-amber-200/30">—</td>
-        <td className="px-3 py-1.5 text-center text-amber-200/30">—</td>
-        <td className="px-3 py-1.5 text-center text-amber-200/30">
+        <td className={cn("px-3 py-1.5 text-center text-zinc-500", bg)}>—</td>
+        <td className={cn("px-3 py-1.5 text-center text-zinc-500", bg)}>—</td>
+        <td className={cn("px-3 py-1.5 text-center text-zinc-500", bg)}>
           {agg.pending > 0 ? `${agg.pending} pending` : "—"}
         </td>
       </>
@@ -262,16 +283,42 @@ function SideAggCells({ agg }: { agg: TickerSideAgg }) {
   }
   return (
     <>
-      <td className="px-3 py-1.5 text-center font-mono text-sky-300/80">
+      <td className={cn("px-3 py-1.5 text-center font-mono text-white", bg)}>
         {agg.wins}W-{agg.losses}L
       </td>
-      <td className={cn("px-3 py-1.5 text-center font-mono font-semibold", agg.winRate != null && agg.winRate >= 0.5 ? "text-green-400" : "text-red-400")}>
+      <td className={cn("px-3 py-1.5 text-center font-mono font-semibold", bg, agg.winRate != null && agg.winRate >= 0.5 ? "text-green-400" : "text-red-400")}>
         {pct(agg.winRate)}
       </td>
-      <td className={cn("px-3 py-1.5 text-center font-mono", agg.avgPnlPct != null && agg.avgPnlPct >= 0 ? "text-green-400" : "text-red-400")}>
+      <td className={cn("px-3 py-1.5 text-center font-mono", bg, agg.avgPnlPct != null && agg.avgPnlPct >= 0 ? "text-green-400" : "text-red-400")}>
         {agg.avgPnlPct != null ? signed(agg.avgPnlPct) : "—"}
       </td>
     </>
+  );
+}
+
+function RecCell({ pick, color, bg }: { pick: CurrentPick | null; color: string; bg: string }) {
+  if (!pick) return <td className={cn("px-3 py-1.5 text-center text-zinc-500", bg)}>—</td>;
+  return (
+    <td className={cn("px-3 py-1.5 text-center font-mono text-xs whitespace-nowrap", bg)}>
+      <span className="font-bold" style={{ color }}>${pick.strike}</span>
+      <span className="text-white"> · {shortDate(pick.expiry)}</span>
+      {pick.incomePct != null && <span className="text-green-400 font-semibold"> · {pick.incomePct.toFixed(1)}%</span>}
+    </td>
+  );
+}
+
+function PriceCell({ price, changePct }: { price: number | null; changePct: number | null }) {
+  if (price == null) return <td className="px-3 py-1.5 text-center text-zinc-500">—</td>;
+  const up = changePct != null && changePct >= 0;
+  return (
+    <td className="px-3 py-1.5 text-center font-mono whitespace-nowrap">
+      <span className="text-white font-semibold">${price.toFixed(2)}</span>
+      {changePct != null && (
+        <span className={cn("ml-1.5 text-xs font-bold", up ? "text-green-400" : "text-red-400")}>
+          {up ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
+        </span>
+      )}
+    </td>
   );
 }
 
@@ -280,31 +327,37 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
     <section className="space-y-2">
       <h2 className="text-sm font-semibold text-[#d4af37] uppercase tracking-wide">By Ticker</h2>
       {rows.length === 0 ? (
-        <p className="text-xs text-amber-200/40 py-4 text-center">No graded recs yet</p>
+        <p className="text-xs text-zinc-400 py-4 text-center">No graded recs yet</p>
       ) : (
         <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-black text-[#d4af37]">
               <tr className="border-b border-[#d4af37]/25">
                 <th rowSpan={2} className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5 align-bottom">Ticker</th>
-                <th colSpan={3} className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-sky-300/80">Put</th>
-                <th colSpan={3} className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-amber-400">Call</th>
+                <th rowSpan={2} className="text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5 align-bottom">Price</th>
+                <th colSpan={4} className={cn("text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-sky-200", PUT_BG)}>Put</th>
+                <th colSpan={4} className={cn("text-center font-semibold text-[11px] uppercase tracking-wider px-3 py-1 border-b border-[#d4af37]/10 text-orange-300", CALL_BG)}>Call</th>
               </tr>
               <tr className="border-b border-[#d4af37]/25">
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">W-L</th>
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Win%</th>
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Avg P&L</th>
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">W-L</th>
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Win%</th>
-                <th className="text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1">Avg P&L</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", PUT_BG)}>W-L</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", PUT_BG)}>Win%</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", PUT_BG)}>Avg P&L</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", PUT_BG)}>This/Next Wk Rec</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", CALL_BG)}>W-L</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", CALL_BG)}>Win%</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", CALL_BG)}>Avg P&L</th>
+                <th className={cn("text-center font-semibold text-[10px] uppercase tracking-wider px-3 py-1", CALL_BG)}>This/Next Wk Rec</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {rows.map(r => (
-                <tr key={r.ticker} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                <tr key={r.ticker} className="bg-zinc-900/70 even:bg-zinc-800/60 transition-colors">
                   <td className="px-3 py-1.5 font-mono font-semibold text-white">{r.ticker}</td>
-                  <SideAggCells agg={r.put} />
-                  <SideAggCells agg={r.call} />
+                  <PriceCell price={r.currentPrice} changePct={r.priceChangePct} />
+                  <SideAggCells agg={r.put} bg={PUT_BG} />
+                  <RecCell pick={r.currentPut} color="#7dd3fc" bg={PUT_BG} />
+                  <SideAggCells agg={r.call} bg={CALL_BG} />
+                  <RecCell pick={r.currentCall} color="#fdba74" bg={CALL_BG} />
                 </tr>
               ))}
             </tbody>
@@ -353,7 +406,7 @@ export default function TrackRecord() {
         <h1 className="text-lg font-bold text-[#d4af37]">Track Record</h1>
 
         {summaryLoading || !summary ? (
-          <div className="text-xs text-amber-200/40 py-10 text-center">Loading track record…</div>
+          <div className="text-xs text-zinc-400 py-10 text-center">Loading track record…</div>
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
