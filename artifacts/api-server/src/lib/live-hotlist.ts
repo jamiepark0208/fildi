@@ -13,6 +13,10 @@ const ENABLE_AUTO_REFRESH = false;
 // macro-regime.ts) — priced through getLivePrices (Yahoo), which resolves them fine.
 export const MARKET_CONTEXT_SYMBOLS = ["SPY", "QQQ", "^VIX", "^TNX"];
 
+// Closed by the time the US session opens — getLivePrices' quote() call returns
+// each index's own last-session price/change%, i.e. "how did Asia do overnight."
+export const ASIA_INDEX_SYMBOLS = ["^KS11", "^N225", "^HSI"] as const;
+
 /** dip = crashed, may reverse up (sell puts). rally = squeezed, may reverse down (sell calls). */
 export type HotlistSide = "dip" | "rally";
 
@@ -126,7 +130,20 @@ export class LiveHotlistManager extends EventEmitter {
     }
   }
 
+  private inFlightRefresh: Promise<void> | null = null;
+
+  // /live/state and /live/entry-signals both auto-trigger a refresh when
+  // lastRefreshedAt is null (post-restart); without this guard concurrent
+  // requests race into duplicate scans (see 2026-07-28 "tickers: 0" incident).
   async refresh(): Promise<void> {
+    if (this.inFlightRefresh) return this.inFlightRefresh;
+    this.inFlightRefresh = this.doRefresh().finally(() => {
+      this.inFlightRefresh = null;
+    });
+    return this.inFlightRefresh;
+  }
+
+  private async doRefresh(): Promise<void> {
     // Both sides come from the same in-memory indicator scan — one refresh, two lists.
     const [dip, rally] = await Promise.all([deriveHotList("dip"), deriveHotList("rally")]);
     const dipFiltered = dip.filter(e => !this.unpinned.has(e.ticker));

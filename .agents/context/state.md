@@ -6,7 +6,7 @@
 **build** — last updated 2026-08-04
 
 ## Active work
-- Working: fmp-freshness-fix, fmp-shuffle-fix, finnhub-peg-added, fmp-catchup-backfill-run, merge-trusted-reran
+- Working: live-tab-null-crash-fix, live-refresh-race-fix, asia-overnight-widget, econ-calendar-extended, calendar-staleness-guard
 - In progress: fmp-alphabet-catchup-continuing-via-cron
 - Blocked: playwright-chrome-binary-missing
 

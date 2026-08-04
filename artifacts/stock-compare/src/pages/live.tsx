@@ -29,8 +29,17 @@ interface LiveState {
   hotlist: HotlistEntry[];
   rallyHotlist: HotlistEntry[];
   marketContext: MarketContextQuote[];
+  asiaContext: MarketContextQuote[];
+  hasCatalystToday: boolean;
+  catalystCalendarStale: boolean;
   lastRefreshedAt: number | null;
 }
+
+const ASIA_TICKER_LABELS: Record<string, string> = {
+  "^KS11": "KOSPI",
+  "^N225": "Nikkei",
+  "^HSI": "Hang Seng",
+};
 
 async function apiLive(path: string, opts?: RequestInit): Promise<LiveState> {
   const r = await fetch(`/api/live${path}`, { credentials: "include", ...opts });
@@ -78,14 +87,56 @@ async function fetchEntryStats(): Promise<EntryStatsResponse> {
   return r.json();
 }
 
-function MarketContextChip({ quote }: { quote: MarketContextQuote }) {
+function MarketContextChip({ quote, label }: { quote: MarketContextQuote; label?: string }) {
   const up = (quote.changePercent ?? 0) >= 0;
   return (
     <div className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0">
-      <span className="text-[11px] font-mono font-semibold text-white">{quote.ticker}</span>
+      <span className="text-[11px] font-mono font-semibold text-white">{label ?? quote.ticker}</span>
       <span className="text-[11px] font-mono text-sky-300/80">{quote.price != null ? quote.price.toFixed(2) : "—"}</span>
       <span className={cn("text-[11px] font-mono font-medium", up ? "text-green-500" : "text-red-500")}>
         {pct(quote.changePercent)}
+      </span>
+    </div>
+  );
+}
+
+/** Overnight Asia read (KOSPI/Nikkei/HSI close before the US session opens) + whether
+ * today has a scheduled high-importance US catalyst likely to dominate instead. Display-only. */
+function AsiaOvernightRow({
+  asiaContext,
+  hasCatalystToday,
+  catalystCalendarStale,
+}: {
+  asiaContext: MarketContextQuote[];
+  hasCatalystToday: boolean;
+  catalystCalendarStale: boolean;
+}) {
+  if (asiaContext.length === 0) return null;
+  const changes = asiaContext.map(q => q.changePercent).filter((v): v is number => v != null);
+  const positive = changes.filter(c => c > 0).length;
+  const negative = changes.filter(c => c < 0).length;
+  let badgeLabel = "Asia: Mixed overnight";
+  let badgeClass = "text-zinc-300";
+  if (changes.length > 0 && positive >= 2) { badgeLabel = "Asia: Risk-On overnight"; badgeClass = "text-emerald-400"; }
+  else if (changes.length > 0 && negative >= 2) { badgeLabel = "Asia: Risk-Off overnight"; badgeClass = "text-red-400"; }
+
+  // Once the macro calendar runs past its last known event, "no catalyst today"
+  // stops being a confirmed read and becomes "no data for today" — say so instead
+  // of asserting Asia is the likely driver on a day we simply haven't checked.
+  const catalystLabel = catalystCalendarStale
+    ? "— catalyst calendar needs an update, unknown"
+    : hasCatalystToday
+      ? "— US catalyst today, may dominate"
+      : "— no major US catalyst, Asia may lead";
+
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto">
+      {asiaContext.map(q => (
+        <MarketContextChip key={q.ticker} quote={q} label={ASIA_TICKER_LABELS[q.ticker] ?? q.ticker} />
+      ))}
+      <span className={cn("text-[11px] font-medium shrink-0", badgeClass)}>{badgeLabel}</span>
+      <span className={cn("text-[11px] shrink-0", catalystCalendarStale ? "text-amber-200" : "text-zinc-300")}>
+        {catalystLabel}
       </span>
     </div>
   );
@@ -278,9 +329,9 @@ export default function Live() {
         <div className="max-w-5xl mx-auto space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 overflow-x-auto">
-              {data?.marketContext.map((q) => <MarketContextChip key={q.ticker} quote={q} />)}
-              {!isLoading && (data?.marketContext.length ?? 0) === 0 && (
-                <p className="text-sm text-amber-200/40">No data yet — click Refresh.</p>
+              {data?.marketContext?.map((q) => <MarketContextChip key={q.ticker} quote={q} />)}
+              {!isLoading && (data?.marketContext?.length ?? 0) === 0 && (
+                <p className="text-sm text-amber-200">No data yet — click Refresh.</p>
               )}
             </div>
             <div className="flex flex-col items-end gap-1">
@@ -296,9 +347,15 @@ export default function Live() {
                 </Button>
               </div>
               <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
-              <p className="text-[10px] text-amber-200/40">Last refreshed: {lastRefreshedLabel}</p>
+              <p className="text-[10px] text-zinc-400">Last refreshed: {lastRefreshedLabel}</p>
             </div>
           </div>
+
+          <AsiaOvernightRow
+            asiaContext={data?.asiaContext ?? []}
+            hasCatalystToday={data?.hasCatalystToday ?? false}
+            catalystCalendarStale={data?.catalystCalendarStale ?? false}
+          />
 
           <RegimeBanner checkpoints={regime} />
 

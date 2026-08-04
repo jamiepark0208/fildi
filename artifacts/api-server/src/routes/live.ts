@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, type HotlistEntry, type HotlistSide } from "../lib/live-hotlist.js";
+import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, ASIA_INDEX_SYMBOLS, type HotlistEntry, type HotlistSide } from "../lib/live-hotlist.js";
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
+import { hasHighImportanceCatalystToday, isEconomicCalendarStale } from "../lib/macro-static.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
@@ -19,6 +20,18 @@ export interface MarketContextQuote {
 async function fetchMarketContext(): Promise<MarketContextQuote[]> {
   const live = await getLivePrices(MARKET_CONTEXT_SYMBOLS);
   return MARKET_CONTEXT_SYMBOLS.map(ticker => ({
+    ticker,
+    price: live.get(ticker)?.price ?? null,
+    changePercent: live.get(ticker)?.changePercent ?? null,
+  }));
+}
+
+// KOSPI/Nikkei/HSI close before the US session opens, so this reads as "how did
+// Asia do overnight" — same golden-source quote cache as fetchMarketContext,
+// just a different ticker set. Display-only: does not feed regime/entry logic.
+async function fetchAsiaContext(): Promise<MarketContextQuote[]> {
+  const live = await getLivePrices([...ASIA_INDEX_SYMBOLS]);
+  return ASIA_INDEX_SYMBOLS.map(ticker => ({
     ticker,
     price: live.get(ticker)?.price ?? null,
     changePercent: live.get(ticker)?.changePercent ?? null,
@@ -48,13 +61,30 @@ async function liveHotlistEntries(side: HotlistSide): Promise<HotlistEntry[]> {
   });
 }
 
-async function snapshot(): Promise<{ hotlist: HotlistEntry[]; rallyHotlist: HotlistEntry[]; marketContext: MarketContextQuote[]; lastRefreshedAt: number | null }> {
-  const [hotlist, rallyHotlist, marketContext] = await Promise.all([
+async function snapshot(): Promise<{
+  hotlist: HotlistEntry[];
+  rallyHotlist: HotlistEntry[];
+  marketContext: MarketContextQuote[];
+  asiaContext: MarketContextQuote[];
+  hasCatalystToday: boolean;
+  catalystCalendarStale: boolean;
+  lastRefreshedAt: number | null;
+}> {
+  const [hotlist, rallyHotlist, marketContext, asiaContext] = await Promise.all([
     liveHotlistEntries("dip"),
     liveHotlistEntries("rally"),
     fetchMarketContext(),
+    fetchAsiaContext(),
   ]);
-  return { hotlist, rallyHotlist, marketContext, lastRefreshedAt: liveHotlist.getLastRefreshedAt() };
+  return {
+    hotlist,
+    rallyHotlist,
+    marketContext,
+    asiaContext,
+    hasCatalystToday: hasHighImportanceCatalystToday(),
+    catalystCalendarStale: isEconomicCalendarStale(),
+    lastRefreshedAt: liveHotlist.getLastRefreshedAt(),
+  };
 }
 
 // Prototype: no background refresh loop yet (see live-hotlist.ts ENABLE_AUTO_REFRESH).
