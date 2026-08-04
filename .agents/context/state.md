@@ -6,8 +6,8 @@
 **build** — last updated 2026-08-04
 
 ## Active work
-- Working: port-squatter-guard, anyall-array-fix, intraday-table-created
-- In progress: none
+- Working: fmp-freshness-fix, fmp-shuffle-fix, finnhub-peg-added, fmp-catchup-backfill-run, merge-trusted-reran
+- In progress: fmp-alphabet-catchup-continuing-via-cron
 - Blocked: playwright-chrome-binary-missing
 
 ## Next tasks (priority order)

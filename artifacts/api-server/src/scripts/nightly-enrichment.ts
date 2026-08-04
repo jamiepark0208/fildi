@@ -196,7 +196,7 @@ async function buildFetchTargets(
     db.select({ ticker: finnhubFundamentals.ticker, fetchedAt: finnhubFundamentals.fetchedAt }).from(finnhubFundamentals).where(inArray(finnhubFundamentals.ticker, tickers)),
     db.select({ ticker: polygonFundamentals.ticker, fetchedAt: polygonFundamentals.fetchedAt }).from(polygonFundamentals).where(inArray(polygonFundamentals.ticker, tickers)),
     db.select({ ticker: avFundamentals.ticker, fetchedAt: avFundamentals.fetchedAt }).from(avFundamentals).where(inArray(avFundamentals.ticker, tickers)),
-    db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpWacc: fmpFundamentals.fmpWacc, fmpRoic: fmpFundamentals.fmpRoic }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
+    db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpPeRatio: fmpFundamentals.fmpPeRatio, fmpNetIncome: fmpFundamentals.fmpNetIncome }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
   ]);
 
   // Build staging-freshness maps: source → Set<ticker> that are fresh
@@ -212,7 +212,11 @@ async function buildFetchTargets(
   stagingFresh.set("finnhub",       freshSet(finnhubRows));
   stagingFresh.set("polygon",       freshSet(polyRows));
   stagingFresh.set("alpha_vantage", freshSet(avRows));
-  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpWacc === null && r.fmpRoic === null));
+  // Real-data check for fmp uses peRatio/netIncome, not wacc/roic — those are FMP-exclusive
+  // but legitimately null for most tickers (need a specific balance sheet shape), which made
+  // ~92% of rows look like placeholders forever and starved the budget on the same tickers
+  // every run. See backfill-fmp.ts's isRecentlyBackfilled for the same fix.
+  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpPeRatio === null && r.fmpNetIncome === null));
 
   // Load source_fundamentals for all tickers+sources in one query:
   // ticker → source → Set<sfField> that have non-null values
@@ -461,6 +465,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
   await db.insert(finnhubFundamentals).values({
     ticker, fetchedAt: new Date(),
     finnhubPeRatio:               data.finnhub_peRatio?.toString()              ?? null,
+    finnhubPegRatio:              data.finnhub_pegRatio?.toString()             ?? null,
     finnhubPbRatio:               data.finnhub_pbRatio?.toString()              ?? null,
     finnhubPsRatio:               data.finnhub_psRatio?.toString()              ?? null,
     finnhubPriceToBook:           data.finnhub_priceToBook?.toString()          ?? null,
@@ -492,6 +497,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
   } as any).onConflictDoUpdate({ target: finnhubFundamentals.ticker, set: {
     fetchedAt:                   sql`now()`,
     finnhubPeRatio:              sql`excluded.finnhub_pe_ratio`,
+    finnhubPegRatio:             sql`excluded.finnhub_peg_ratio`,
     finnhubPbRatio:              sql`excluded.finnhub_pb_ratio`,
     finnhubPsRatio:              sql`excluded.finnhub_ps_ratio`,
     finnhubPriceToBook:          sql`excluded.finnhub_price_to_book`,
@@ -685,6 +691,19 @@ export const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" 
 
 // ── Process one source ─────────────────────────────────────────────────────────
 
+// Candidate lists come out of buildFetchTargets in a stable order (alphabetical, per
+// ticker_registry's orderBy). Budget-capped sources (fmp, alpha_vantage) only ever get through
+// the first `maxTickers` of that order, so without shuffling, the same early-alphabet subset
+// eats the whole daily budget every run and everything after it never gets a turn.
+function shuffled<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 async function processSource(
   source:    string,
   tickers:   string[],
@@ -692,7 +711,8 @@ async function processSource(
 ): Promise<{ fetched: number; skippedBudget: number; failed: number; nodata: number }> {
   const callsPerTicker = CALLS_PER_TICKER[source];
   const maxTickers     = remaining === Infinity ? tickers.length : Math.floor(remaining / callsPerTicker);
-  const toFetch        = tickers.slice(0, maxTickers);
+  const candidates      = remaining === Infinity ? tickers : shuffled(tickers);
+  const toFetch        = candidates.slice(0, maxTickers);
   const skippedBudget  = tickers.length - toFetch.length;
 
   if (toFetch.length === 0) {

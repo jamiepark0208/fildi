@@ -6,8 +6,8 @@
  * per-endpoint.
  *
  * Skip logic:
- *   - Row was fetched within the last 7 days AND has at least one FMP-exclusive
- *     field (wacc or roic) that is non-null → already backfilled, skip.
+ *   - Row was fetched within the last 7 days AND has real data (peRatio or netIncome
+ *     non-null, i.e. not a placeholder empty row) → already backfilled, skip.
  *
  * Budget: 9 calls per ticker. checkFMPBudget / recordFMPCalls from fundamentals-db.
  *
@@ -50,9 +50,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type FmpRow = { ticker: string; fetchedAt: Date | null; fmpWacc: string | null; fmpRoic: string | null };
+type FmpRow = { ticker: string; fetchedAt: Date | null; fmpPeRatio: string | null; fmpNetIncome: string | null };
 
 type TickerResult = {
   ticker: string;
@@ -65,8 +74,12 @@ type TickerResult = {
 
 function isRecentlyBackfilled(row: FmpRow): boolean {
   if (!row.fetchedAt) return false;
-  // Has real FMP-exclusive data (not just a placeholder empty row)
-  if (row.fmpWacc === null && row.fmpRoic === null) return false;
+  // Has real data, not just a placeholder empty row. wacc/roic were used for this check
+  // previously, but those are legitimately null for most tickers (need a specific balance
+  // sheet shape) — that made ~92% of rows look like "placeholders" forever and starved the
+  // budget on the same handful of tickers every run. peRatio/netIncome come from the
+  // ratios/income-statement endpoints, which return data for any ticker FMP actually covers.
+  if (row.fmpPeRatio === null && row.fmpNetIncome === null) return false;
   const staleThreshold = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
   return row.fetchedAt > staleThreshold;
 }
@@ -217,13 +230,16 @@ async function main(): Promise<void> {
     .map(r => r.ticker);
 
   const stalenessRows = await db
-    .select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpWacc: fmpFundamentals.fmpWacc, fmpRoic: fmpFundamentals.fmpRoic })
+    .select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpPeRatio: fmpFundamentals.fmpPeRatio, fmpNetIncome: fmpFundamentals.fmpNetIncome })
     .from(fmpFundamentals);
   const fmpStaleMap = new Map(stalenessRows.map(r => [r.ticker, r]));
 
-  const rows: FmpRow[] = universeTickers.map(ticker =>
-    fmpStaleMap.get(ticker) ?? { ticker, fetchedAt: null, fmpWacc: null, fmpRoic: null }
-  );
+  // Shuffled so a budget stop doesn't always cut off the same alphabetical tail of the
+  // universe on every run — tickers that never return usable FMP data (rate limits, gaps)
+  // stay eligible forever and would otherwise monopolize the early slots every time.
+  const rows: FmpRow[] = shuffle(universeTickers.map(ticker =>
+    fmpStaleMap.get(ticker) ?? { ticker, fetchedAt: null, fmpPeRatio: null, fmpNetIncome: null }
+  ));
 
   appendLog(`${rows.length} canonical tickers (fetch_fundamentals=true)`);
 

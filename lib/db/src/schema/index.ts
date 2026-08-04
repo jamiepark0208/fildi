@@ -1132,6 +1132,7 @@ export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
 
   // Valuation
   finnhubPeRatio:          numeric('finnhub_pe_ratio'),
+  finnhubPegRatio:         numeric('finnhub_peg_ratio'),          // forwardPEG — forward-looking, unlike yahoo/fmp's trailing PEG
   finnhubPbRatio:          numeric('finnhub_pb_ratio'),
   finnhubPsRatio:          numeric('finnhub_ps_ratio'),
   finnhubPriceToBook:      numeric('finnhub_price_to_book'),       // pbAnnual

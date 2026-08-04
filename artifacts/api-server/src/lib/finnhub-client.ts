@@ -3,6 +3,7 @@ import { logApiCall } from "./api-logger.js";
 
 export interface FinnhubFundamentalsData {
   finnhub_peRatio?:               number;
+  finnhub_pegRatio?:              number;
   finnhub_pbRatio?:               number;
   finnhub_psRatio?:               number;
   finnhub_grossMargin?:           number;
@@ -99,6 +100,10 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
 
   const result: FinnhubFundamentalsData = {
     finnhub_peRatio:              n(m["peBasicExclExtraTTM"]) ?? n(m["peTTM"]),
+    // Finnhub only exposes forward PEG (forwardPEG) — no trailing PEG field exists on this
+    // endpoint. Kept as a lower-priority fallback in merge-trusted.ts since it's not directly
+    // comparable to yahoo/fmp's trailing PEG.
+    finnhub_pegRatio:              n(m["forwardPEG"]),
     finnhub_pbRatio:              n(m["pb"]),
     finnhub_psRatio:              n(m["psTTM"]),
     finnhub_grossMargin:          pct(m["grossMarginTTM"]),

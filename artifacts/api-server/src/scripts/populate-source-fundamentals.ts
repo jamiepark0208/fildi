@@ -92,6 +92,7 @@ const EDGAR_FIELDS: Record<string, string> = {
 
 const FINNHUB_FIELDS: Record<string, string> = {
   finnhubPeRatio:               "peRatio",
+  finnhubPegRatio:              "pegRatio",
   finnhubPbRatio:               "pbRatio",
   finnhubPsRatio:               "psRatio",
   finnhubPriceToBook:           "priceToBook",
