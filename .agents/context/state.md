@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-03
+**build** — last updated 2026-08-04
 
 ## Active work
-- Working: profile-feed-ui-enhance, win-rate-ag-grid, stock-views-category-boxes, white-text-pass, track-record-price-and-recs, put-call-color-differentiation, price-dod-change
-- In progress: browser-verification-pending
+- Working: port-squatter-guard, anyall-array-fix, intraday-table-created
+- In progress: none
 - Blocked: playwright-chrome-binary-missing
 
 ## Next tasks (priority order)
