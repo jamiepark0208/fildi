@@ -196,7 +196,7 @@ export async function getStaleTickers(allTickers: string[]): Promise<string[]> {
     .select({ ticker: tickerFundamentals.ticker })
     .from(tickerFundamentals)
     .where(
-      sql`${tickerFundamentals.ticker} = ANY(${normalized}) AND ${tickerFundamentals.fundamentalsLastFetched} > ${cutoff}`,
+      sql`${inArray(tickerFundamentals.ticker, normalized)} AND ${tickerFundamentals.fundamentalsLastFetched} > ${cutoff}`,
     );
 
   const freshSet = new Set(freshRows.map(r => r.ticker.toUpperCase()));

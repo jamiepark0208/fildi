@@ -1,21 +1,20 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import { ChevronDown, Trophy, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  type TechnicalScore, type TechnicalRow, TECHNICAL_SCORECARD_METRICS_V2, COMPONENT_EXPLAINERS,
+  type TechnicalScore, type TechnicalRow, type ScoreSide,
+  getTechnicalScorecardMetrics, getComponentExplainers,
 } from "@/lib/technical-rankings";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
 
-const COMPONENT_LABEL: Record<string, string> = Object.fromEntries(
-  TECHNICAL_SCORECARD_METRICS_V2.map(m => [m.key, m.label]),
-);
-
-function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>) {
+function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>, side: ScoreSide = "put") {
   const row = rowMap?.[score.ticker];
   const cs  = score.componentScores ?? {};
   return {
     technicalData: {
+      // Lens the score was computed under: "put" = oversold/sell-puts, "call" = overbought/sell-calls
+      side,
       totalScore:      score.totalScore,
       rank:            score.rank,
       signal:          score.signal,
@@ -47,7 +46,11 @@ function parseBullets(text: string): string[] {
     .filter(s => s.length > 8);
 }
 
-export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow> }) {
+export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow>; side?: ScoreSide }) {
+  // Side-aware labels/explainers — same component keys, direction-correct wording.
+  const metrics = getTechnicalScorecardMetrics(side);
+  const explainers = getComponentExplainers(side);
+  const componentLabel: Record<string, string> = Object.fromEntries(metrics.map(m => [m.key, m.label]));
   const { explain, getState } = useScoreExplanation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -80,31 +83,42 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
           <span className="text-xs text-muted-foreground">({scores.length})</span>
         </div>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-border bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-0.5">
+      <div className={GRID_WRAP}>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-center w-8")}>#</th>
+              <th className={cn(GRID_TH, "text-left")}>Ticker</th>
+              <th className={cn(GRID_TH, "text-right")}>Score</th>
+              <th className={cn(GRID_TH, "text-left")}>Strength</th>
+              <th className={cn(GRID_TH, "text-right")}></th>
+            </tr>
+          </thead>
+          <tbody>
         {filtered.length === 0 && (
-          <p className="text-xs text-muted-foreground py-2">No tickers match "{query}".</p>
+          <tr><td colSpan={5} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
         )}
-        {filtered.map((score) => {
+        {filtered.map((score, rowIdx) => {
           const idx = score.rank - 1;
-          const state      = getState(score.ticker, "technical");
+          const state      = getState(score.ticker, "technical", `technical-${side}`);
           const isLoading  = state.status === "loading";
           const bullets    = state.status === "done" ? parseBullets(state.text) : [];
           const isExpanded = state.status === "done" && bullets.length > 0 && !collapsed.has(score.ticker);
 
           const row = rowMap?.[score.ticker];
           const componentRows = isExpanded
-            ? TECHNICAL_SCORECARD_METRICS_V2.map(m => {
+            ? metrics.map(m => {
                 const cs = score.componentScores?.[m.key];
                 const s01 = cs?.score ?? null;
                 const weight = cs?.weight ?? m.weight;
@@ -125,26 +139,43 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
                                        "text-slate-500";
 
           return (
-            <div key={score.ticker} className={cn("rounded-md border px-3 py-1.5", rowCls(idx))}>
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0",
+            <Fragment key={score.ticker}>
+            <tr
+              className={cn(idx < 3 ? rowCls(idx) : gridRow(rowIdx), "align-middle cursor-pointer")}
+              onClick={() => {
+                if (isLoading) return;
+                if (state.status === "done") {
+                  setCollapsed(prev => {
+                    const next = new Set(prev);
+                    if (next.has(score.ticker)) next.delete(score.ticker);
+                    else next.add(score.ticker);
+                    return next;
+                  });
+                } else {
+                  explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap, side), `technical-${side}`);
+                }
+              }}
+            >
+              <td className={cn(GRID_TD, "text-center")}>
+                <span className={cn(
+                  "inline-flex w-5 h-5 rounded-full items-center justify-center font-bold text-[10px]",
                   rankBadgeCls(idx)
                 )}>
                   {score.rank}
-                </div>
+                </span>
+              </td>
 
-                <div className="w-[88px] shrink-0">
-                  <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
-                  <span className={cn("block text-[10px] font-bold", signalCls)}>{score.signal} · T{score.tier}</span>
-                </div>
+              <td className={GRID_TD}>
+                <span className="font-mono font-bold text-white">{score.ticker}</span>
+                <span className={cn("ml-1.5 text-[10px] font-bold", signalCls)}>{score.signal} · T{score.tier}</span>
+              </td>
 
-                <div className="w-[56px] shrink-0 text-right">
-                  <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
-                  <span className="text-[10px] text-slate-500"> pts</span>
-                </div>
+              <td className={cn(GRID_TD, "text-right")}>
+                <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
+              </td>
 
-                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <td className={cn(GRID_TD, "w-32")}>
+                <div className="h-1.5 w-24 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className={cn(
                       "h-full rounded-full",
@@ -153,101 +184,72 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
                     style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
                   />
                 </div>
+              </td>
 
-                <button
-                  onClick={() => {
-                    if (state.status === "done") {
-                      setCollapsed(prev => {
-                        const next = new Set(prev);
-                        if (next.has(score.ticker)) next.delete(score.ticker);
-                        else next.add(score.ticker);
-                        return next;
-                      });
-                    } else {
-                      explain(score.ticker, "technical", buildTechnicalPayload(score, rowMap));
-                    }
-                  }}
-                  disabled={isLoading}
-                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors shrink-0 disabled:opacity-50"
-                >
+              <td className={cn(GRID_TD, "text-right")}>
+                <span className={cn("inline-flex items-center gap-1 text-[11px] text-slate-400 transition-colors", isLoading && "opacity-50")}>
                   {isLoading ? "…" : "Why"}
                   <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
-                </button>
-              </div>
+                </span>
+              </td>
+            </tr>
 
               {isExpanded && (
-                <div className="mt-2.5 mb-1 pl-9 space-y-3">
-                  {/* Formula breakdown: Total = Σ(component score × weight), renormalized over available weight */}
+                <tr>
+                <td colSpan={5} className="p-0">
+                <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/20 border-b border-border/20">
+                  {/* Formula breakdown, one line: Total = Σ(component score × weight), renormalized over available weight */}
                   {componentRows.length > 0 && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
-                        Score Formula — {score.regime ?? "NEUTRAL"} regime
-                      </p>
-                      <div className={GRID_WRAP}>
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className={GRID_HEADER}>
-                              <th className={cn(GRID_TH, "text-left")}>Component</th>
-                              <th className={cn(GRID_TH, "text-right")}>Score</th>
-                              <th className={cn(GRID_TH, "text-right")}>Weight</th>
-                              <th className={cn(GRID_TH, "text-right")}>Contribution</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {componentRows.map((r, i) => (
-                              <tr key={r.key} className={gridRow(i)}>
-                                <td className={cn(GRID_TD, "text-left text-white/80")}>{r.label}</td>
-                                <td className={cn(GRID_TD, "text-right font-mono", r.score100 != null ? percentileColor(r.score100) : "text-white/30")}>
-                                  {r.score100 != null ? r.score100.toFixed(0) : "n/a"}
-                                </td>
-                                <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>{r.weightPct}%</td>
-                                <td className={cn(GRID_TD, "text-right font-mono text-white/80")}>
-                                  {r.score100 != null ? `+${r.contribution.toFixed(1)}` : "—"}
-                                </td>
-                              </tr>
-                            ))}
-                            <tr className="bg-primary/10 border-t border-border/60">
-                              <td className={cn(GRID_TD, "text-left font-semibold text-white")}>Total</td>
-                              <td className={GRID_TD}></td>
-                              <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>÷{availWeightSum}%</td>
-                              <td className={cn(GRID_TD, "text-right font-mono font-bold text-white")}>{score.totalScore.toFixed(1)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                    <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-[11px] font-mono">
+                      <span className="text-white/30 uppercase tracking-widest text-[9px] mr-0.5">{score.regime ?? "NEUTRAL"}</span>
+                      {componentRows.map((r, i) => (
+                        <span key={r.key} className="flex items-center gap-1">
+                          {i > 0 && <span className="text-white/20">+</span>}
+                          <span className="text-white/60">{r.label}</span>
+                          <span className={r.score100 != null ? percentileColor(r.score100) : "text-white/30"}>
+                            {r.score100 != null ? r.score100.toFixed(0) : "n/a"}
+                          </span>
+                          <span className="text-white/30">×{r.weightPct}%</span>
+                          <span className="text-white/70">{r.score100 != null ? `=+${r.contribution.toFixed(1)}` : ""}</span>
+                        </span>
+                      ))}
+                      <span className="text-white/20">·</span>
+                      <span className="text-white/50">÷{availWeightSum}%</span>
+                      <span className="text-white/20">=</span>
+                      <span className="font-bold text-white">{score.totalScore.toFixed(1)}</span>
                     </div>
                   )}
 
                   {/* Sub-metric breakdown: the literal inputs feeding each component score above */}
                   {row && (
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Inputs (self-relative to {score.ticker}'s own history)</p>
+                      <p className="text-[9px] uppercase tracking-widest text-white/30 mb-0.5">Inputs (self-relative to {score.ticker}'s own history)</p>
                       <div className={GRID_WRAP}>
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className={GRID_HEADER}>
-                              <th className={cn(GRID_TH, "text-left")}>Component</th>
-                              <th className={cn(GRID_TH, "text-left")}>Input</th>
-                              <th className={cn(GRID_TH, "text-right")}>Raw</th>
-                              <th className={cn(GRID_TH, "text-right")}>Mapped Score</th>
+                              <th className={cn(GRID_TH, "text-left py-0.5")}>Component</th>
+                              <th className={cn(GRID_TH, "text-left py-0.5")}>Input</th>
+                              <th className={cn(GRID_TH, "text-right py-0.5")}>Raw</th>
+                              <th className={cn(GRID_TH, "text-right py-0.5")}>Score</th>
                             </tr>
                           </thead>
                           <tbody>
                             {(() => {
                               let flatIdx = 0;
-                              return Object.entries(COMPONENT_EXPLAINERS).flatMap(([key, fn]) => {
+                              return Object.entries(explainers).flatMap(([key, fn]) => {
                                 const parts = fn(row);
                                 return parts.map((part, pi) => {
                                   const tr = (
                                     <tr key={`${key}-${pi}`} className={gridRow(flatIdx)}>
                                       {pi === 0 ? (
-                                        <td className={cn(GRID_TD, "text-left text-white/50 font-medium")} rowSpan={parts.length}>
-                                          {COMPONENT_LABEL[key] ?? key}
+                                        <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/50 font-medium")} rowSpan={parts.length}>
+                                          {componentLabel[key] ?? key}
                                         </td>
                                       ) : null}
-                                      <td className={cn(GRID_TD, "text-left text-white/70")}>{part.label}</td>
-                                      <td className={cn(GRID_TD, "text-right font-mono text-white/60")}>{part.raw}</td>
-                                      <td className={cn(GRID_TD, "text-right font-mono font-semibold", percentileColor(part.score * 100))}>
+                                      <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/70")}>{part.label}</td>
+                                      <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/60")}>{part.raw}</td>
+                                      <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono font-semibold", percentileColor(part.score * 100))}>
                                         {(part.score * 100).toFixed(0)}
                                       </td>
                                     </tr>
@@ -273,10 +275,14 @@ export function TechnicalLeaderboard({ scores, rowMap }: { scores: TechnicalScor
                   </ul>
                   <p className="text-[10px] text-slate-500">AI narrative — not a trade recommendation.</p>
                 </div>
+                </td>
+                </tr>
               )}
-            </div>
+            </Fragment>
           );
         })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

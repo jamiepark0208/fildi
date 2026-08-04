@@ -120,45 +120,46 @@ export function ApiMonitorTab() {
   });
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-4xl">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl">
+      <div className="flex items-center justify-between mb-2">
         <div>
-          <h2 className="text-sm font-semibold">API Monitor</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">API Monitor</h2>
+          <p className="text-[10px] text-amber-200/40 mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>
         </div>
         <div className="flex items-center gap-3">
-          {lastUpdated && <span className="text-[10px] text-muted-foreground/60">as of {lastUpdated}</span>}
+          {lastUpdated && <span className="text-[10px] text-amber-200/40">as of {lastUpdated}</span>}
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
           >
             {isFetching ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
 
-      <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-2 pr-4 font-medium text-muted-foreground w-32">Source</th>
-              <th className="text-left py-2 pr-6 font-medium text-muted-foreground">Limit</th>
+      <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
+        <table className="w-full text-xs">
+          <thead className="bg-black text-[#d4af37]">
+            <tr className="border-b border-[#d4af37]/25">
+              <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1 w-32">Source</th>
+              <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Limit</th>
               {dates.map(d => (
-                <th key={d.iso} className="text-right py-2 pl-4 font-medium text-muted-foreground whitespace-nowrap">
+                <th key={d.iso} className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1 whitespace-nowrap">
                   {d.label}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-zinc-800">
             {sources.map(source => {
               const meta = SOURCE_META[source] ?? { label: source, limitKind: "none" as LimitKind };
               const byDate = pivot.get(source) ?? new Map<string, number>();
 
               return (
-                <tr key={source} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-2.5 pr-4 font-medium">{meta.label}</td>
-                  <td className="py-2.5 pr-6 text-muted-foreground">
+                <tr key={source} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-white">{meta.label}</td>
+                  <td className="px-2.5 py-1 text-amber-200/40">
                     {meta.limitKind === "daily" ? (
                       <span>{meta.dailyLimit}/day</span>
                     ) : (
@@ -173,14 +174,14 @@ export function ApiMonitorTab() {
                       const limit = meta.dailyLimit!;
                       const pct = Math.min((calls / limit) * 100, 100);
                       return (
-                        <td key={d.iso} className="py-2.5 pl-4 text-right">
+                        <td key={d.iso} className="px-2.5 py-1 text-right">
                           <div className="flex flex-col items-end gap-1">
-                            <span className={cn("tabular-nums font-semibold", calls > 0 ? usageTextColor(pct) : "text-muted-foreground")}>
+                            <span className={cn("tabular-nums font-semibold", calls > 0 ? usageTextColor(pct) : "text-amber-200/40")}>
                               {calls}/{limit}
                             </span>
-                            <div className="w-16 h-1 rounded-full bg-muted overflow-hidden">
+                            <div className="w-16 h-1 rounded-full bg-zinc-800 overflow-hidden">
                               <div
-                                className={cn("h-full rounded-full transition-all", calls > 0 ? usageColor(pct) : "bg-muted")}
+                                className={cn("h-full rounded-full transition-all", calls > 0 ? usageColor(pct) : "bg-zinc-800")}
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -190,7 +191,7 @@ export function ApiMonitorTab() {
                     }
 
                     return (
-                      <td key={d.iso} className={cn("py-2.5 pl-4 text-right tabular-nums", calls === 0 ? "text-muted-foreground" : "")}>
+                      <td key={d.iso} className={cn("px-2.5 py-1 text-right tabular-nums", calls === 0 ? "text-amber-200/40" : "text-amber-200/40")}>
                         {calls === 0 ? "—" : calls}
                       </td>
                     );
@@ -200,89 +201,84 @@ export function ApiMonitorTab() {
             })}
           </tbody>
         </table>
+      </div>
 
-      <p className="text-[10px] text-muted-foreground mt-4">
+      <p className="text-[10px] text-amber-200/40 mt-2">
         FMP and AV enforce daily limits; progress bars show consumption. Polygon, Finnhub, Yahoo, and EDGAR are rate-limited per minute/second but have no enforced daily cap.
       </p>
 
       {/* ── Data Health ─────────────────────────────────────── */}
       {health && (
-        <div className="mt-6 pt-5 border-t border-border">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="text-sm font-semibold">Data Health</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Freshness and coverage across {health.totalActive} tracked tickers</p>
-            </div>
+        <div className="mt-4 pt-3 border-t border-[#d4af37]/25">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Data Health</h2>
             {health.enrichmentRunning && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 animate-pulse">Enrichment running…</span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 animate-pulse">
+                Enrichment running…
+              </span>
             )}
           </div>
 
-          {/* Freshness row */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            {[
-              { label: `Fresh (<${health.staleDaysThreshold}d)`, value: health.fresh, color: "text-green-400", bar: "bg-green-500" },
-              { label: `Stale (≥${health.staleDaysThreshold}d)`, value: health.stale, color: "text-yellow-400", bar: "bg-yellow-500" },
-              { label: "Never fetched", value: health.neverFetched, color: "text-red-400", bar: "bg-red-500" },
-            ].map(({ label, value, color, bar }) => {
-              const pct = health.totalActive > 0 ? (value / health.totalActive) * 100 : 0;
-              return (
-                <div key={label} className="bg-muted/30 rounded-lg px-3 py-2.5">
-                  <div className={cn("text-xl font-bold tabular-nums", color)}>{value}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
-                  <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
-                    <div className={cn("h-full rounded-full", bar)} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+          <span className="block text-[11px] font-mono text-sky-300/60 mb-2">
+            <span className="text-green-400">Fresh</span>{` ${health.fresh}`}
+            {" · "}
+            <span className="text-yellow-400">Stale</span>{` ${health.stale}`}
+            {" · "}
+            <span className="text-red-400">Never fetched</span>{` ${health.neverFetched}`}
+            {" · "}
+            <span className="text-amber-200/60">Tracked</span>{` ${health.totalActive}`}
+          </span>
+
+          <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
+            <table className="w-full text-xs">
+              <thead className="bg-black text-[#d4af37]">
+                <tr className="border-b border-[#d4af37]/25">
+                  <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Field</th>
+                  <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Null Count</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {health.topNullFields.map(({ field, nullCount }) => (
+                  <tr key={field} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                    <td className="px-2.5 py-1 font-mono text-white">{field}</td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">{nullCount}</td>
+                  </tr>
+                ))}
+                <tr className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-white">Divergent fields (sources disagree &gt;20%)</td>
+                  <td className="px-2.5 py-1 text-right tabular-nums">
+                    <span className={cn(health.divergentCount > 50 ? "text-orange-400" : "text-amber-200/40")}>
+                      {health.divergentCount}
+                    </span>
+                  </td>
+                </tr>
+                <tr className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-white">
+                    Polygon bronze rows
+                    {health.bronze.polygonRows === 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
+                    )}
+                  </td>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.polygonRows === 0 ? "text-red-400" : "text-amber-200/40")}>
+                    {health.bronze.polygonRows}
+                  </td>
+                </tr>
+                <tr className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-white">
+                    AV bronze rows
+                    {health.bronze.avRows === 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
+                    )}
+                  </td>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.avRows === 0 ? "text-red-400" : "text-amber-200/40")}>
+                    {health.bronze.avRows}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          {/* Worst-coverage fields + divergence */}
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Highest null count fields</p>
-              {health.topNullFields.map(({ field, nullCount }) => {
-                const pct = health.totalActive > 0 ? (nullCount / health.totalActive) * 100 : 0;
-                return (
-                  <div key={field} className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-muted-foreground w-36 truncate">{field}</span>
-                    <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full bg-red-500/60" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-[10px] tabular-nums text-muted-foreground w-12 text-right">{nullCount} null</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="w-40 shrink-0 bg-muted/30 rounded-lg px-3 py-2.5">
-              <div className={cn("text-xl font-bold tabular-nums", health.divergentCount > 50 ? "text-orange-400" : "text-muted-foreground")}>
-                {health.divergentCount}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">divergent fields</div>
-              <div className="text-[10px] text-muted-foreground/60 mt-1">(sources disagree &gt;20%)</div>
-            </div>
-          </div>
-
-          {/* Bronze table coverage */}
-          <div className="flex gap-3 mt-4">
-            {([
-              { label: "Polygon bronze rows", value: health.bronze.polygonRows },
-              { label: "AV bronze rows", value: health.bronze.avRows },
-            ] as const).map(({ label, value }) => (
-              <div key={label} className="flex-1 bg-muted/30 rounded-lg px-3 py-2.5">
-                <div className={cn("text-xl font-bold tabular-nums", value === 0 ? "text-red-400" : "text-muted-foreground")}>
-                  {value}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
-                {value === 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 mt-1 inline-block">empty</span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <p className="text-[10px] text-muted-foreground/60 mt-3">
+          <p className="text-[10px] text-amber-200/40 mt-2">
             Last enrichment: {health.lastEnrichmentRun ? new Date(health.lastEnrichmentRun).toLocaleString() : "not yet run this session"}
             {" · "}Runs Sun &amp; Thu at 02:00 UTC
           </p>

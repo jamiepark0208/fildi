@@ -3,11 +3,13 @@ import { Upload, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface UploadResult {
-  snapshotId: number
-  positionCount: number
-  optionCount: number
-  orderCount: number
+  snapshotId?: number
+  positionCount?: number
+  optionCount?: number
+  orderCount?: number
   lastUpdated: string | null
+  fileCount: number
+  formats: string[]
 }
 
 interface Props {
@@ -23,54 +25,63 @@ function extractDateFromFilename(name: string): string | null {
 }
 
 // Compact "Import CSV" button — styled like the Generate Today's Brief CTA, scaled down.
+// Accepts multiple files at once (e.g. holdings + recent txns + cumulative txns +
+// ticker-earnings-summary from one export run) — each file is POSTed independently;
+// the backend content-sniffs which of the three formats it is and ingests accordingly.
 export function PortfolioUpload({ onSuccess }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
 
-  async function upload(file: File) {
+  async function uploadOne(file: File): Promise<{ format: string; data: Record<string, unknown> }> {
+    const text = await file.text()
+    const res = await fetch('/api/portfolio/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: text,
+      credentials: 'include',
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message ?? `${file.name}: upload failed (${res.status})`)
+    return { format: data.format ?? 'unknown', data }
+  }
+
+  async function upload(files: File[]) {
     setStatus('uploading')
     setError(null)
 
     try {
-      const text = await file.text()
-      const res = await fetch('/api/portfolio/ingest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: text,
-        credentials: 'include',
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.message ?? `Upload failed (${res.status})`)
-        setStatus('error')
-        return
+      let lastResult: { format: string; data: Record<string, unknown> } | null = null
+      const formats: string[] = []
+      for (const file of files) {
+        const result = await uploadOne(file)
+        formats.push(result.format)
+        if (result.format === 'holdings') lastResult = result
       }
 
       const uploadResult: UploadResult = {
-        snapshotId:    data.snapshotId,
-        positionCount: data.positionCount,
-        optionCount:   data.optionCount,
-        orderCount:    data.orderCount,
-        lastUpdated:   extractDateFromFilename(file.name),
+        snapshotId:    lastResult?.data.snapshotId as number | undefined,
+        positionCount: lastResult?.data.positionCount as number | undefined,
+        optionCount:   lastResult?.data.optionCount as number | undefined,
+        orderCount:    lastResult?.data.orderCount as number | undefined,
+        lastUpdated:   extractDateFromFilename(files[0].name),
+        fileCount:     files.length,
+        formats,
       }
       setStatus('success')
       onSuccess?.(uploadResult)
       if (inputRef.current) inputRef.current.value = ''
       setTimeout(() => setStatus(s => (s === 'success' ? 'idle' : s)), 3000)
-    } catch {
-      setError('Network error — could not reach server.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error — could not reach server.')
       setStatus('error')
     }
   }
 
   function handleFiles(files: FileList | null) {
-    const file = files?.[0]
-    if (!file) return
-    upload(file)
+    if (!files || files.length === 0) return
+    upload(Array.from(files))
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -95,6 +106,7 @@ export function PortfolioUpload({ onSuccess }: Props) {
         ref={inputRef}
         type="file"
         accept=".csv,text/csv,text/plain"
+        multiple
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
       />
@@ -104,7 +116,7 @@ export function PortfolioUpload({ onSuccess }: Props) {
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        title="Drop a Robinhood CSV or click to browse"
+        title="Drop holdings / transactions / ticker-earnings CSVs (one or several at once) or click to browse"
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60',
           status === 'error'

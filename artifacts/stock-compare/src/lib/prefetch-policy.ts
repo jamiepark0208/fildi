@@ -9,9 +9,18 @@ const ROUTE_CHUNKS: Record<string, ChunkLoader> = {
   watchlist: () => import("@/pages/watchlist"),
   "options-scanner": () => import("@/pages/options-scanner"),
   rankings: () => import("@/pages/rankings"),
+  portfolio: () => import("@/pages/portfolio"),
+  macro: () => import("@/pages/macro"),
+  live: () => import("@/pages/live"),
+  "track-record": () => import("@/pages/track-record"),
+  "profile/me": () => import("@/pages/profile"),
+  settings: () => import("@/pages/settings"),
+  feed: () => import("@/pages/feed"),
 };
 
-const MAX_IDLE_PREFETCH = 2;
+export const ALL_ROUTE_KEYS = Object.keys(ROUTE_CHUNKS);
+
+const MAX_IDLE_PREFETCH = ALL_ROUTE_KEYS.length;
 let idlePrefetchScheduled = false;
 
 function hasSaveData(): boolean {
@@ -29,7 +38,7 @@ function runIdle(fn: () => void) {
 }
 
 // Call once after the calling page's own data has finished loading.
-export function idlePrefetchRouteChunks(routes: string[] = ["watchlist", "rankings"]) {
+export function idlePrefetchRouteChunks(routes: string[] = ALL_ROUTE_KEYS) {
   if (idlePrefetchScheduled || hasSaveData()) return;
   idlePrefetchScheduled = true;
   runIdle(() => {

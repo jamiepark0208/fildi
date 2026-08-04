@@ -12,6 +12,10 @@ export const GRID_TD     = "py-1 px-2.5 text-[13px] tabular-nums";
 export const gridRow = (i: number) =>
   cn("border-b border-border/20 last:border-0 hover:bg-secondary/10 transition-colors", i % 2 === 1 && "bg-secondary/10");
 
+// Compact detail-table cell: forces single-line content at header-row height —
+// use in expanded metric/inputs breakdowns so a data row never grows taller than its header.
+export const ROW_CELL = "py-0.5 text-[11px] whitespace-nowrap overflow-hidden text-ellipsis";
+
 export const FAMILY_BAR_COLOR: Record<"quality" | "growth" | "safety", string> = {
   quality: "bg-purple-400",
   growth:  "bg-green-400",

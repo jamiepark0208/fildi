@@ -19,7 +19,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { sql, eq, and, inArray, isNull } from "drizzle-orm";
 import {
   db,
@@ -36,7 +35,8 @@ import {
   peerGroupMembers,
   enrichmentRuns,
 } from "@workspace/db";
-import { FIELD_DEFS } from "./merge-trusted.js";
+import { FIELD_DEFS, runMergeTrusted } from "./merge-trusted.js";
+import { runPopulateSourceFundamentals } from "./populate-source-fundamentals.js";
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
 import { fetchEdgarFundamentals, bootstrapCikCache } from "../lib/edgar-client.js";
 import { fetchFinnhubFundamentals }  from "../lib/finnhub-client.js";
@@ -87,7 +87,7 @@ const SOURCE_DAILY_LIMITS: Record<string, number> = {
 };
 
 // Calls consumed per ticker-fetch (for budget math)
-const CALLS_PER_TICKER: Record<string, number> = {
+export const CALLS_PER_TICKER: Record<string, number> = {
   yahoo: 1, edgar: 1, finnhub: 1, polygon: 1, alpha_vantage: 1,
   fmp: 9,   // fetchFMPFundamentals fires 9 endpoints
 };
@@ -196,7 +196,7 @@ async function buildFetchTargets(
     db.select({ ticker: finnhubFundamentals.ticker, fetchedAt: finnhubFundamentals.fetchedAt }).from(finnhubFundamentals).where(inArray(finnhubFundamentals.ticker, tickers)),
     db.select({ ticker: polygonFundamentals.ticker, fetchedAt: polygonFundamentals.fetchedAt }).from(polygonFundamentals).where(inArray(polygonFundamentals.ticker, tickers)),
     db.select({ ticker: avFundamentals.ticker, fetchedAt: avFundamentals.fetchedAt }).from(avFundamentals).where(inArray(avFundamentals.ticker, tickers)),
-    db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpWacc: fmpFundamentals.fmpWacc, fmpRoic: fmpFundamentals.fmpRoic }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
+    db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpPeRatio: fmpFundamentals.fmpPeRatio, fmpNetIncome: fmpFundamentals.fmpNetIncome }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
   ]);
 
   // Build staging-freshness maps: source → Set<ticker> that are fresh
@@ -212,7 +212,11 @@ async function buildFetchTargets(
   stagingFresh.set("finnhub",       freshSet(finnhubRows));
   stagingFresh.set("polygon",       freshSet(polyRows));
   stagingFresh.set("alpha_vantage", freshSet(avRows));
-  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpWacc === null && r.fmpRoic === null));
+  // Real-data check for fmp uses peRatio/netIncome, not wacc/roic — those are FMP-exclusive
+  // but legitimately null for most tickers (need a specific balance sheet shape), which made
+  // ~92% of rows look like placeholders forever and starved the budget on the same tickers
+  // every run. See backfill-fmp.ts's isRecentlyBackfilled for the same fix.
+  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpPeRatio === null && r.fmpNetIncome === null));
 
   // Load source_fundamentals for all tickers+sources in one query:
   // ticker → source → Set<sfField> that have non-null values
@@ -269,8 +273,13 @@ async function buildFetchTargets(
         return false;
       }
 
-      // If staging is fresh AND source has at least some data in sf → source returned null recently
-      if (isStagingFresh.has(ticker) && sourceSfFields.size > 0) return false;
+      // Staging fresh means we attempted this source for this ticker within STALE_DAYS —
+      // whether it returned partial data or nothing at all, don't burn budget retrying
+      // it again until the staleness window passes. Previously this only skipped when
+      // sourceSfFields.size > 0, so tickers that came back with zero data (the common
+      // case for small/foreign tickers on FMP/AV) were retried every single run,
+      // starving never-tried tickers of the tiny FMP/AV daily budget.
+      if (isStagingFresh.has(ticker)) return false;
 
       return true;
     });
@@ -456,6 +465,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
   await db.insert(finnhubFundamentals).values({
     ticker, fetchedAt: new Date(),
     finnhubPeRatio:               data.finnhub_peRatio?.toString()              ?? null,
+    finnhubPegRatio:              data.finnhub_pegRatio?.toString()             ?? null,
     finnhubPbRatio:               data.finnhub_pbRatio?.toString()              ?? null,
     finnhubPsRatio:               data.finnhub_psRatio?.toString()              ?? null,
     finnhubPriceToBook:           data.finnhub_priceToBook?.toString()          ?? null,
@@ -487,6 +497,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
   } as any).onConflictDoUpdate({ target: finnhubFundamentals.ticker, set: {
     fetchedAt:                   sql`now()`,
     finnhubPeRatio:              sql`excluded.finnhub_pe_ratio`,
+    finnhubPegRatio:             sql`excluded.finnhub_peg_ratio`,
     finnhubPbRatio:              sql`excluded.finnhub_pb_ratio`,
     finnhubPsRatio:              sql`excluded.finnhub_ps_ratio`,
     finnhubPriceToBook:          sql`excluded.finnhub_price_to_book`,
@@ -669,7 +680,7 @@ async function fetchFMP(ticker: string): Promise<"ok" | "fail" | "nodata"> {
 
 // ── Per-source dispatch ────────────────────────────────────────────────────────
 
-const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" | "nodata">> = {
+export const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" | "nodata">> = {
   yahoo:         fetchYahoo,
   edgar:         fetchEdgar,
   finnhub:       fetchFinnhub,
@@ -680,6 +691,19 @@ const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" | "noda
 
 // ── Process one source ─────────────────────────────────────────────────────────
 
+// Candidate lists come out of buildFetchTargets in a stable order (alphabetical, per
+// ticker_registry's orderBy). Budget-capped sources (fmp, alpha_vantage) only ever get through
+// the first `maxTickers` of that order, so without shuffling, the same early-alphabet subset
+// eats the whole daily budget every run and everything after it never gets a turn.
+function shuffled<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 async function processSource(
   source:    string,
   tickers:   string[],
@@ -687,7 +711,8 @@ async function processSource(
 ): Promise<{ fetched: number; skippedBudget: number; failed: number; nodata: number }> {
   const callsPerTicker = CALLS_PER_TICKER[source];
   const maxTickers     = remaining === Infinity ? tickers.length : Math.floor(remaining / callsPerTicker);
-  const toFetch        = tickers.slice(0, maxTickers);
+  const candidates      = remaining === Infinity ? tickers : shuffled(tickers);
+  const toFetch        = candidates.slice(0, maxTickers);
   const skippedBudget  = tickers.length - toFetch.length;
 
   if (toFetch.length === 0) {
@@ -983,29 +1008,35 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
     return;
   }
 
-  // 10. Repopulate source_fundamentals from staging tables
-  log("\nRunning populate-source-fundamentals…");
-  const scriptDir = path.resolve(new URL(import.meta.url).pathname, "..");
+  // 10 + 11. Materialize staging → source_fundamentals → ticker_fundamentals.
+  //
+  // These run IN-PROCESS (direct function calls), not as `npx tsx` subprocesses.
+  // The old execFileSync approach spawned npx inside the long-lived api-server and
+  // swallowed any failure as a WARN — in production that spawn failed silently, so
+  // freshly-fetched staging never flowed downstream and coverage regressed as the
+  // flagged universe grew. A failure here now marks the run `partial` instead of
+  // masquerading as a clean success. Both runners are careful never to process.exit.
+  let pipelineError: string | null = null;
+
+  log("\nRunning populate-source-fundamentals (in-process)…");
   try {
-    execFileSync("npx", ["tsx", path.join(scriptDir, "populate-source-fundamentals.ts")], {
-      stdio: "inherit",
-      cwd: path.resolve(scriptDir, "../.."),
-      timeout: 120_000,
-    });
+    await runPopulateSourceFundamentals();
   } catch (err: any) {
-    log(`WARN: populate-source-fundamentals failed: ${err?.message}`);
+    pipelineError = `populate-source-fundamentals failed: ${err?.message ?? String(err)}`;
+    log(`ERROR: ${pipelineError}`);
   }
 
-  // 11. Merge into ticker_fundamentals
-  log("\nRunning merge-trusted…");
-  try {
-    execFileSync("npx", ["tsx", path.join(scriptDir, "merge-trusted.ts")], {
-      stdio: "inherit",
-      cwd: path.resolve(scriptDir, "../.."),
-      timeout: 120_000,
-    });
-  } catch (err: any) {
-    log(`WARN: merge-trusted failed: ${err?.message}`);
+  // Merge is the step that writes ticker_fundamentals — skip it if populate threw,
+  // since merging on half-populated source_fundamentals would just persist a
+  // partial/regressed snapshot.
+  if (!pipelineError) {
+    log("\nRunning merge-trusted (in-process)…");
+    try {
+      await runMergeTrusted();
+    } catch (err: any) {
+      pipelineError = `merge-trusted failed: ${err?.message ?? String(err)}`;
+      log(`ERROR: ${pipelineError}`);
+    }
   }
 
   const coverageAfter = await computeCoveragePercent().catch((err: any) => {
@@ -1014,10 +1045,11 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
   });
   const anomaly = await detectNodataAnomaly(totals).catch(() => null);
   const regressed = coverageBefore != null && coverageAfter != null && coverageAfter < coverageBefore;
-  const status: "success" | "partial" = (anomaly || regressed) ? "partial" : "success";
+  const status: "success" | "partial" = (pipelineError || anomaly || regressed) ? "partial" : "success";
+  if (pipelineError) log(`WARN: enrichment pipeline degraded — ${pipelineError}`);
   if (anomaly)   log(`WARN: nodata anomaly detected — ${anomaly}`);
   if (regressed) log(`WARN: coverage dropped ${coverageBefore}% → ${coverageAfter}%`);
-  await recordRun({ startedAt: runStartedAt, status, trigger, perSource: totals, coverageBefore, coverageAfter });
+  await recordRun({ startedAt: runStartedAt, status, trigger, perSource: totals, coverageBefore, coverageAfter, error: pipelineError ?? undefined });
 
   log("\nnightly-enrichment complete.");
 }

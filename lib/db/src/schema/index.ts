@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role:         text('role').notNull().default('member'), // 'admin' | 'member'
   avatarUrl:    text('avatar_url'),
+  cashBalance:  numeric('cash_balance').notNull().default('100000'), // paper-trading account cash
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastLoginAt:  timestamp('last_login_at', { withTimezone: true }),
 })
@@ -36,12 +37,13 @@ export type InviteCode = typeof inviteCodes.$inferSelect
 // ── watchlist ─────────────────────────────────────────────────────────────────
 
 export const watchlist = pgTable('watchlist', {
-  userId:  integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  ticker:  text('ticker').notNull(),
-  tier:    integer('tier').notNull(),
-  status:  text('status').notNull(),  // want_to_own | assigned | monitoring | closed
-  addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
-  notes:   text('notes'),
+  userId:   integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:   text('ticker').notNull(),
+  tier:     integer('tier').notNull(),
+  status:   text('status').notNull(),  // want_to_own | assigned | monitoring | closed
+  addedAt:  timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+  notes:    text('notes'),
+  colorTag: text('color_tag').notNull().default(''),  // hex color from PRESET_COLORS, '' = untagged
 }, t => ({
   pk:        primaryKey({ columns: [t.userId, t.ticker] }),
   userIdx:   index('idx_watchlist_user_id').on(t.userId),
@@ -239,6 +241,10 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   fundamentalsLastFetched:    timestamp('fundamentals_last_fetched', { withTimezone: true }),
   // comma-separated list of fields where FMP vs Yahoo diverged >20%
   discrepancyFlags:           text('discrepancy_flags'),
+  // comma-separated list of fields currently resolved via manual_overrides (admin picked a
+  // non-default source after analysis) — lets the grid outline those cells without a
+  // per-cell provenance fetch, same pattern as discrepancyFlags.
+  overrideFlags:              text('override_flags'),
   fmpCoveragePercent:         numeric('fmp_coverage_percent'),
 
   // Replaces Yahoo financialData + defaultKeyStatistics modules
@@ -541,6 +547,22 @@ export const appConfig = pgTable('app_config', {
 })
 
 export type AppConfigRow = typeof appConfig.$inferSelect
+
+// ── ticker_event_bullets ─────────────────────────────────────────────────────
+// Template-generated bull/bear bullets from the daily event-trigger check
+// (earnings beat/miss, analyst upgrade/downgrade, large price move ex-macro).
+// Keyed by ticker, not user — cost/storage doesn't scale with watcher count.
+
+export const tickerEventBullets = pgTable('ticker_event_bullets', {
+  ticker:      text('ticker').primaryKey(),
+  bullBullets: jsonb('bull_bullets').notNull().default([]),
+  bearBullets: jsonb('bear_bullets').notNull().default([]),
+  triggers:    jsonb('triggers').notNull().default([]),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type TickerEventBulletsRow = typeof tickerEventBullets.$inferSelect
+
 // ── tradePosts ────────────────────────────────────────────────────────────────
 
 export const tradePosts = pgTable('trade_posts', {
@@ -578,6 +600,41 @@ export const tradePosts = pgTable('trade_posts', {
 export const insertTradePostSchema = createInsertSchema(tradePosts).omit({ id: true, createdAt: true, updatedAt: true })
 export type InsertTradePost = z.infer<typeof insertTradePostSchema>
 export type TradePost = typeof tradePosts.$inferSelect
+
+// ── stock_holdings ───────────────────────────────────────────────────────────
+// Simulated share lots backing the paper-trading account. Sourced from a SELL_PUT
+// assignment (wheel strategy), a direct LONG trade, or a direct SHORT trade.
+// `shares` is SIGNED: positive = long, negative = short — this makes
+// (currentPrice - costBasis) * shares correct for both directions uniformly.
+// A PUT_ASSIGNMENT lot is closed out when a later SELL_CALL against the same
+// ticker is itself assigned (shares "called away"). LONG/SHORT lots are closed
+// manually via POST /feed/holdings/:id/close. Cost basis is the gross
+// strike/entry price — option premium is booked separately as realized P&L on
+// the originating trade_posts row, so folding it into cost basis here would
+// double-count it (see trade-post-expiry.ts).
+
+export const stockHoldings = pgTable('stock_holdings', {
+  id:               serial('id').primaryKey(),
+  userId:           integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticker:           text('ticker').notNull(),
+  shares:           integer('shares').notNull(), // signed: positive=long, negative=short
+  costBasis:        numeric('cost_basis').notNull(),
+  source:           text('source').notNull().default('PUT_ASSIGNMENT'), // PUT_ASSIGNMENT | LONG_TRADE | SHORT_TRADE
+  status:           text('status').notNull().default('OPEN'), // OPEN | CALLED_AWAY | CLOSED
+  openedFromPostId: integer('opened_from_post_id').references(() => tradePosts.id, { onDelete: 'set null' }),
+  closedByPostId:   integer('closed_by_post_id').references(() => tradePosts.id, { onDelete: 'set null' }),
+  realizedPnl:      numeric('realized_pnl'),
+  notes:            text('notes'),
+  openedAt:         timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+  closedAt:         timestamp('closed_at', { withTimezone: true }),
+}, t => ({
+  userIdx:   index('idx_stock_holdings_user_id').on(t.userId),
+  tickerIdx: index('idx_stock_holdings_ticker').on(t.ticker),
+}))
+
+export const insertStockHoldingSchema = createInsertSchema(stockHoldings).omit({ id: true, openedAt: true })
+export type InsertStockHolding = z.infer<typeof insertStockHoldingSchema>
+export type StockHolding = typeof stockHoldings.$inferSelect
 
 // ── likes ─────────────────────────────────────────────────────────────────────
 
@@ -813,6 +870,67 @@ export const portfolioOrders = pgTable('portfolio_orders', {
 export type PortfolioOrder = typeof portfolioOrders.$inferSelect
 export type InsertPortfolioOrder = typeof portfolioOrders.$inferInsert
 
+// ── portfolio_transactions ──────────────────────────────────────────────────────
+// The flat txn-export format (export_rbh_transactions.py), NOT tied to a
+// portfolio_snapshots row — unlike holdings (which fully replace on each import,
+// so "latest snapshot" = current state), transaction history accumulates across
+// imports. txnId is the dedupe key: a "recent" export (small, latest activity)
+// and a "cumulative" export (full history) both upsert into this same table via
+// ON CONFLICT (txn_id) — whichever runs first wins no duplicates, and importing
+// cumulative after recent (or vice versa) just backfills whatever's missing.
+
+export const portfolioTransactions = pgTable('portfolio_transactions', {
+  id:         serial('id').primaryKey(),
+  txnId:      text('txn_id').notNull(),
+  account:    text('account').notNull(),
+  symbol:     text('symbol').notNull(),
+  txnType:    text('txn_type'),      // 'equity_order' | 'option_order' | 'assignment_buy' | 'assignment_sell' | 'realized_close' | 'dividend'
+  category:   text('category'),      // 'Stocks (capital gains)' | 'Sell Puts' | 'Sell Calls' | 'Options — Put (close)' | 'Options — Call (close)' | 'Long Calls' | 'Dividends' | 'cash_bonus'
+  side:       text('side'),          // 'buy' | 'sell'
+  quantity:   numeric('quantity'),
+  price:      numeric('price'),
+  amount:     numeric('amount'),
+  txnDate:    timestamp('txn_date', { withTimezone: true }),
+  source:     text('source'),        // e.g. 'get_equity_orders', 'get_option_orders'
+  confidence: text('confidence'),
+  importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  txnIdUnique: unique('portfolio_transactions_txn_id_unique').on(t.txnId),
+  symbolIdx:   index('portfolio_transactions_symbol_idx').on(t.symbol),
+}))
+
+export type PortfolioTransaction = typeof portfolioTransactions.$inferSelect
+export type InsertPortfolioTransaction = typeof portfolioTransactions.$inferInsert
+
+// ── portfolio_ticker_earnings ───────────────────────────────────────────────────
+// ticker-earnings-summary export — cumulative YTD realized/unrealized P&L broken
+// out per ticker per account, already computed upstream by the export script.
+// Each import supersedes the prior figures for that (account, ticker) pair via
+// ON CONFLICT DO UPDATE (the export is always cumulative-to-date, never a delta).
+
+export const portfolioTickerEarnings = pgTable('portfolio_ticker_earnings', {
+  id:                serial('id').primaryKey(),
+  account:           text('account').notNull(),   // account nickname, e.g. 'FILDI', or 'TOTAL'
+  ticker:            text('ticker').notNull(),
+  totalUnrealized:   numeric('total_unrealized'),
+  totalRealized:     numeric('total_realized'),
+  totalEarned:       numeric('total_earned'),
+  sellPut:           numeric('sell_put'),
+  sellCall:          numeric('sell_call'),
+  longCall:          numeric('long_call'),
+  longPut:           numeric('long_put'),
+  dividends:         numeric('dividends'),
+  stocksRealized:    numeric('stocks_realized'),
+  stocksUnrealized:  numeric('stocks_unrealized'),
+  totalStocks:       numeric('total_stocks'),
+  importedAt:        timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  accountTickerUnique: unique('portfolio_ticker_earnings_account_ticker_unique').on(t.account, t.ticker),
+}))
+
+export type PortfolioTickerEarning = typeof portfolioTickerEarnings.$inferSelect
+export type InsertPortfolioTickerEarning = typeof portfolioTickerEarnings.$inferInsert
+
 // ── market_regime ─────────────────────────────────────────────────────────────
 // Classifier output: one row per run. Keep latest 90 rows; prune manually via
 //   DELETE FROM market_regime WHERE id NOT IN (SELECT id FROM market_regime ORDER BY computed_at DESC LIMIT 90)
@@ -981,6 +1099,28 @@ export const insertEdgarFundamentalsSchema = createInsertSchema(edgarFundamental
 export type InsertEdgarFundamentals = z.infer<typeof insertEdgarFundamentalsSchema>
 export type EdgarFundamentalsRow = typeof edgarFundamentals.$inferSelect
 
+// ── edgar_statement_history ─────────────────────────────────────────────────────
+// Multi-year (up to 5 annual 10-K/FY) SEC XBRL line items per ticker, for the
+// Accounting Statements UI tab. Distinct from edgar_fundamentals above, which only
+// keeps the single latest value per concept for triangulation scoring.
+// Written by: edgar-client.ts fetchEdgarStatementHistory() → routes/edgar-statements.ts
+
+export const edgarStatementHistory = pgTable('edgar_statement_history', {
+  ticker:        text('ticker').notNull(),
+  fiscalYear:    integer('fiscal_year').notNull(),
+  statementType: text('statement_type').notNull(), // 'income' | 'balance' | 'cashflow'
+  lineItem:      text('line_item').notNull(),
+  value:         numeric('value').notNull(),
+  filedDate:     date('filed_date').notNull(),
+  fetchedAt:     timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  pk: primaryKey({ columns: [t.ticker, t.fiscalYear, t.statementType, t.lineItem] }),
+}))
+
+export const insertEdgarStatementHistorySchema = createInsertSchema(edgarStatementHistory).omit({ fetchedAt: true })
+export type InsertEdgarStatementHistory = z.infer<typeof insertEdgarStatementHistorySchema>
+export type EdgarStatementHistoryRow = typeof edgarStatementHistory.$inferSelect
+
 // ── finnhub_fundamentals ──────────────────────────────────────────────────────
 // Raw Finnhub /stock/metric?metric=all data per ticker. One row per ticker.
 // Staging/audit table only — ticker_fundamentals is the scorer's source.
@@ -992,6 +1132,7 @@ export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
 
   // Valuation
   finnhubPeRatio:          numeric('finnhub_pe_ratio'),
+  finnhubPegRatio:         numeric('finnhub_peg_ratio'),          // forwardPEG — forward-looking, unlike yahoo/fmp's trailing PEG
   finnhubPbRatio:          numeric('finnhub_pb_ratio'),
   finnhubPsRatio:          numeric('finnhub_ps_ratio'),
   finnhubPriceToBook:      numeric('finnhub_price_to_book'),       // pbAnnual
@@ -1296,3 +1437,218 @@ export const enrichmentRuns = pgTable('enrichment_runs', {
 }));
 
 export type EnrichmentRunRow = typeof enrichmentRuns.$inferSelect
+
+// ── fetch_queue ───────────────────────────────────────────────────────────────
+// Ad-hoc re-fetch requests queued from the Stock DB tab popup (e.g. admin sees a
+// null/suspect cell and wants a specific source refetched now, without waiting
+// for nightly enrichment). field is stored for display only — the fetch
+// functions operate per (ticker, source), so processing dedupes on that pair.
+export const fetchQueue = pgTable('fetch_queue', {
+  id:          serial('id').primaryKey(),
+  ticker:      text('ticker').notNull(),
+  field:       text('field').notNull(),
+  source:      text('source').notNull(), // yahoo | edgar | finnhub | polygon | alpha_vantage | fmp
+  status:      text('status').notNull().default('pending'), // pending | running | done | failed
+  queuedAt:    timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  error:       text('error'),
+}, (t) => ({
+  statusIdx: index('fetch_queue_status_idx').on(t.status),
+}));
+
+export type FetchQueueRow = typeof fetchQueue.$inferSelect
+
+// ── feedback ──────────────────────────────────────────────────────────────────
+
+export const feedback = pgTable('feedback', {
+  id:        serial('id').primaryKey(),
+  userId:    integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message:   text('message').notNull(),
+  page:      text('page'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  createdAtIdx: index('idx_feedback_created_at').on(t.createdAt),
+}))
+
+export const insertFeedbackSchema = createInsertSchema(feedback).omit({ id: true, createdAt: true })
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>
+export type Feedback = typeof feedback.$inferSelect
+
+// ── model_recs ────────────────────────────────────────────────────────────────
+// Model accountability: one row per (weekly snapshot, ticker, side) — the option
+// the model would recommend SELLING that week, captured with full scoring context.
+// Graded at expiry by the Saturday resolver using prices_historical closes:
+// pnlPerShare = premium − intrinsic; WIN iff > 0. Universe = distinct watchlist
+// tickers across all users at snapshot time (never the full DB universe).
+
+export const modelRecs = pgTable('model_recs', {
+  id:              serial('id').primaryKey(),
+  snapshotDate:    date('snapshot_date').notNull(),
+  ticker:          text('ticker').notNull(),
+  side:            text('side').notNull(),            // put | call
+  expiry:          date('expiry').notNull(),
+  strike:          numeric('strike').notNull(),
+  spot:            numeric('spot').notNull(),          // stock price at rec time
+  premium:         numeric('premium').notNull(),       // bid (or lastPrice fallback when market closed)
+  bidIsLive:       boolean('bid_is_live').notNull().default(true),
+  incomePct:       numeric('income_pct'),
+  weeklyIncomePct: numeric('weekly_income_pct'),
+  delta:           numeric('delta'),
+  strikeIv:        numeric('strike_iv'),
+  dte:             numeric('dte'),
+  optionScore:     numeric('option_score').notNull(),
+  componentScores: jsonb('component_scores').notNull(), // per-component score + weight (audit trail)
+  dataQuality:     numeric('data_quality'),
+  volRegime:       text('vol_regime').notNull(),        // LOW_VOL | BASELINE | ELEVATED | EXTREME
+  macroRegime:     text('macro_regime'),                // latest market_regime.regime at rec time
+  tiltApplied:     jsonb('tilt_applied'),               // { factor, weights } actually used
+  // Grading (filled by the Saturday resolver)
+  status:          text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
+  settleClose:     numeric('settle_close'),             // close on/before expiry
+  intrinsic:       numeric('intrinsic'),
+  pnlPerShare:     numeric('pnl_per_share'),
+  pnlPct:          numeric('pnl_pct'),                  // put: /strike (CSP collateral); call: /spot
+  gradedAt:        timestamp('graded_at', { withTimezone: true }),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  snapshotUnique: unique('idx_model_recs_snapshot').on(t.snapshotDate, t.ticker, t.side),
+  pendingIdx:     index('idx_model_recs_pending').on(t.status, t.expiry),
+  tickerIdx:      index('idx_model_recs_ticker').on(t.ticker),
+}))
+
+export type ModelRec = typeof modelRecs.$inferSelect
+export type InsertModelRec = typeof modelRecs.$inferInsert
+
+// ── hotlist_snapshots ─────────────────────────────────────────────────────────
+// Daily capture of Live-tab hotlist GO/WATCH calls ('NO' rows are not persisted).
+// Headline grade is strike safety over horizonDays: dip fails if the low breaches
+// strikeRef, rally fails if the high does. Forward returns (1d/5d/10d) are kept
+// alongside as secondary context — dip expects a bounce, rally expects a fade.
+
+export const hotlistSnapshots = pgTable('hotlist_snapshots', {
+  id:           serial('id').primaryKey(),
+  snapshotDate: date('snapshot_date').notNull(),
+  ticker:       text('ticker').notNull(),
+  side:         text('side').notNull(),      // dip | rally
+  signal:       text('signal').notNull(),    // GO | WATCH
+  price:        numeric('price').notNull(),
+  rsi:          numeric('rsi'),
+  mfi:          numeric('mfi'),
+  ivCurrent:    numeric('iv_current'),
+  // Graded on two axes side by side: strike safety (did a put you'd have sold that
+  // day survive?) is the headline, forward returns are secondary context. A ticker
+  // can round-trip to a positive 5d return after breaching the strike mid-horizon —
+  // that's a loss for a put seller and a win on fwdReturn5d, hence both.
+  entryVerdict:   text('entry_verdict'),               // enter | wait | avoid, from the day's final entry-signal snapshot
+  strikeRef:      numeric('strike_ref'),               // ~30-delta strike this call is graded against, frozen at snapshot time
+  horizonDays:    integer('horizon_days').notNull().default(14),
+  maePct:         numeric('mae_pct'),                  // worst adverse excursion over the horizon
+  strikeBreached: boolean('strike_breached'),
+  fwdReturn1d:    numeric('fwd_return_1d'),
+  fwdReturn10d:   numeric('fwd_return_10d'),
+  status:       text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
+  fwdReturn5d:  numeric('fwd_return_5d'),
+  gradedAt:     timestamp('graded_at', { withTimezone: true }),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  snapshotUnique: unique('idx_hotlist_snapshots_snapshot').on(t.snapshotDate, t.ticker, t.side),
+  statusIdx:      index('idx_hotlist_snapshots_status').on(t.status, t.snapshotDate),
+}))
+
+export type HotlistSnapshot = typeof hotlistSnapshots.$inferSelect
+export type InsertHotlistSnapshot = typeof hotlistSnapshots.$inferInsert
+
+// ── regime_grades ─────────────────────────────────────────────────────────────
+// Multi-horizon grading of business-cycle regime calls against forward SPY.
+// Deliberately NO FK to market_regime and fully denormalized: market_regime keeps
+// only the latest 90 rows, which can be pruned before the 12-week horizon matures.
+// Pending stubs (all 3 horizons) are inserted at each weekly snapshot for the last
+// market_regime row per UTC day; graded once classifiedAt + horizon has passed.
+
+export const regimeGrades = pgTable('regime_grades', {
+  id:                serial('id').primaryKey(),
+  regimeRowId:       integer('regime_row_id').notNull(), // market_regime.id (no FK — see note)
+  regime:            text('regime').notNull(),
+  confidence:        integer('confidence').notNull(),
+  classifiedAt:      timestamp('classified_at', { withTimezone: true }).notNull(),
+  horizon:           text('horizon').notNull(),           // 1w | 4w | 12w
+  expectedDirection: text('expected_direction').notNull(),// bullish | bearish | neutral
+  spyStart:          numeric('spy_start'),
+  spyEnd:            numeric('spy_end'),
+  fwdReturnPct:      numeric('fwd_return_pct'),
+  maxDrawdownPct:    numeric('max_drawdown_pct'),
+  grade:             text('grade').notNull().default('pending'), // pending | correct | partial | incorrect | no_data
+  gradedAt:          timestamp('graded_at', { withTimezone: true }),
+}, t => ({
+  rowHorizonUnique: unique('idx_regime_grades_row_horizon').on(t.regimeRowId, t.horizon),
+  classifiedIdx:    index('idx_regime_grades_classified').on(t.classifiedAt),
+}))
+
+export type RegimeGrade = typeof regimeGrades.$inferSelect
+export type InsertRegimeGrade = typeof regimeGrades.$inferInsert
+
+// ── intraday_day_stats ────────────────────────────────────────────────────────
+// One row per (trading day, index symbol) capturing the shape of the session:
+// where the high/low printed and how far into the day. This is what makes
+// "reversals have been hitting around 10 AM PT" answerable — the Live tab's
+// checkpoint history records the model's CALL, this records what actually happened.
+// barsJson keeps the raw 5m series so checkpoints can be re-derived later without
+// re-hitting Yahoo (which only serves 5m bars ~60 days back).
+
+export const intradayDayStats = pgTable('intraday_day_stats', {
+  id:             serial('id').primaryKey(),
+  date:           date('date').notNull(),
+  ticker:         text('ticker').notNull(),        // SPY | QQQ
+  open:           numeric('open').notNull(),
+  high:           numeric('high').notNull(),
+  low:            numeric('low').notNull(),
+  close:          numeric('close').notNull(),
+  highAtMin:      integer('high_at_min').notNull(), // minutes after 9:30 ET
+  lowAtMin:       integer('low_at_min').notNull(),
+  closeVsOpenPct: numeric('close_vs_open_pct').notNull(),
+  rangePct:       numeric('range_pct').notNull(),
+  dayShape:       text('day_shape').notNull(),      // reversal-up | reversal-down | trend-up | trend-down | chop
+  reversalAtMin:  integer('reversal_at_min'),       // null unless dayShape is a reversal
+  barsJson:       jsonb('bars_json').notNull(),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  dayUnique:  unique('idx_intraday_day_stats_day').on(t.date, t.ticker),
+  shapeIdx:   index('idx_intraday_day_stats_shape').on(t.dayShape, t.date),
+}))
+
+export type IntradayDayStat = typeof intradayDayStats.$inferSelect
+export type InsertIntradayDayStat = typeof intradayDayStats.$inferInsert
+
+// ── intraday_checkpoint_grades ────────────────────────────────────────────────
+// Grades each intraday regime checkpoint against what the tape did afterwards.
+// The SymbolSignal inputs are flattened (rather than left in app_config JSON) so
+// pattern queries like "reversal rate when a sweep-reclaim was present" are plain SQL.
+// `reconstructed` marks rows replayed from stored bars for days the server never
+// ran: direction/score are exact, but hotlist breadth has no historical snapshot,
+// so their confidence is the pre-breadth value and must be captioned as such.
+
+export const intradayCheckpointGrades = pgTable('intraday_checkpoint_grades', {
+  id:                serial('id').primaryKey(),
+  date:              date('date').notNull(),
+  ticker:            text('ticker').notNull(),
+  minAfterOpen:      integer('min_after_open').notNull(),
+  direction:         text('direction'),              // bullish | bearish | null (no lean)
+  confidence:        integer('confidence'),
+  breakout:          text('breakout').notNull(),
+  vwapSepPct:        numeric('vwap_sep_pct').notNull(),
+  pullbackPct:       numeric('pullback_pct').notNull(),
+  priorDaySweep:     text('prior_day_sweep'),        // bullish-reclaim | bearish-reclaim | null
+  priceAtCheckpoint: numeric('price_at_checkpoint').notNull(),
+  fwd30mPct:         numeric('fwd_30m_pct'),
+  fwd60mPct:         numeric('fwd_60m_pct'),
+  fwdClosePct:       numeric('fwd_close_pct'),
+  grade:             text('grade').notNull().default('pending'), // correct | incorrect | flat | no_data | pending
+  reconstructed:     boolean('reconstructed').notNull().default(false),
+  gradedAt:          timestamp('graded_at', { withTimezone: true }),
+}, t => ({
+  checkpointUnique: unique('idx_intraday_cp_grades_checkpoint').on(t.date, t.ticker, t.minAfterOpen),
+  bucketIdx:        index('idx_intraday_cp_grades_bucket').on(t.minAfterOpen, t.direction, t.grade),
+}))
+
+export type IntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferSelect
+export type InsertIntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferInsert

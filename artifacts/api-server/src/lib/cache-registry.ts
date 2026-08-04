@@ -1,13 +1,14 @@
 import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache } from '../routes/stocks.js';
-import { provenanceCache } from './provenance-cache.js';
 import { peersCache, profileCache } from '../lib/peer-resolver.js';
 import { classifyCache } from './peer-classifier.js';
 import { optionsCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_REGIME_TTL } from '../routes/macro-regime.js';
+import { getCacheState as getBusinessCycleRegimeState, CACHE_TTL_MS as BUSINESS_CYCLE_REGIME_TTL } from '../routes/regime.js';
 import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
 import { tickerNewsCache } from './explain-context.js';
 import { livePriceCache } from './live-quote.js';
+import { trackRecordCache } from '../routes/track-record.js';
 import { screenerCache } from './live-movers.js';
 import { marketDataCache } from '../routes/daily-brief.js';
 import {
@@ -36,13 +37,13 @@ const DISPLAY_NAMES: Record<string, string> = {
   options:          'Options Chain',
   'options-expiry': 'Options Calendar',
   'volatility-regime': 'Volatility Regime (VIX)',
+  'business-cycle-regime': 'Business Cycle Regime',
   'macro-data':     'Macro Data (FRED + Yahoo)',
   'macro-charts':   'Macro Charts (VIX/Rates/Sentiment)',
   'macro-cot':      'COT Positioning (CFTC)',
   'peer-map':       'Peer Map',
   'peer-profile':   'Peer Profile',
   'ticker-classify': 'Peer Group Classification',
-  'provenance':     'Field Provenance',
   'macro-indicator-history': 'Macro Indicator History',
   'macro-sep-actuals':       'SEP Actuals',
   'macro-sector-rotation':   'Sector Rotation Heatmap',
@@ -50,6 +51,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'live-price':              'Live Price (Golden Source)',
   'live-screener':           'Live Movers (Yahoo Screener)',
   'daily-brief-market':      'Daily Brief Market Strip',
+  'track-record':            'Model Track Record Aggregates',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -71,7 +73,6 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'peer-map':       peersCache,
   'peer-profile':   profileCache,
   'ticker-classify': classifyCache,
-  'provenance':     provenanceCache,
   'macro-indicator-history': indicatorHistoryCache,
   'macro-sep-actuals':       sepActualsCache,
   'macro-sector-rotation':   sectorRotationCache,
@@ -79,6 +80,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'live-price':              livePriceCache,
   'live-screener':           screenerCache,
   'daily-brief-market':      marketDataCache,
+  'track-record':            trackRecordCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -123,7 +125,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, provenanceCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 
@@ -160,6 +162,14 @@ export function getAllCaches(): CacheStats[] {
       entryCount: macroRegimeEntry ? 1 : 0,
       hits: null, misses: null, hitRate: '—',
       entries: fileEntry(macroRegimeEntry?.fetchedAt ?? null, MACRO_REGIME_TTL, 'market-data', now),
+    },
+    {
+      name: 'business-cycle-regime',
+      displayName: DISPLAY_NAMES['business-cycle-regime']!,
+      ttlMs: BUSINESS_CYCLE_REGIME_TTL,
+      entryCount: getBusinessCycleRegimeState() ? 1 : 0,
+      hits: null, misses: null, hitRate: '—',
+      entries: fileEntry(getBusinessCycleRegimeState()?.cachedAt ?? null, BUSINESS_CYCLE_REGIME_TTL, 'business-cycle', now),
     },
     {
       name: 'macro-data',

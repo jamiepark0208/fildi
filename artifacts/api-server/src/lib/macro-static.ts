@@ -1,7 +1,8 @@
 // Static / manually-maintained macro data — Fed members, SEP projections, bank research,
 // economic event calendar, and FRED series registry.
 // Update these after each FOMC meeting, SEP release, or calendar refresh.
-import type { FedMember, FedProjection, BankResearch, MacroEvent } from "./macro-data.js";
+import type { FedMember, FedProjection, BankResearch, MacroEvent } from "./macro-shared-types.js";
+import { etDateKey } from "./market-hours.js";
 
 export const FED_MEMBERS: FedMember[] = [
   // ── Voting members ──────────────────────────────────────────────────────────
@@ -243,9 +244,53 @@ export const ECONOMIC_EVENTS: MacroEvent[] = [
   { date: "2026-07-08", event: "JOLTS (May)", importance: "high" },
   { date: "2026-07-10", event: "CPI (June)", importance: "high" },
   { date: "2026-07-11", event: "U of Mich Consumer Sentiment (prelim)", importance: "medium" },
+  { date: "2026-07-28", event: "FOMC Meeting Day 1", importance: "high" },
   { date: "2026-07-29", event: "FOMC Rate Decision", importance: "high" },
   { date: "2026-07-30", event: "PCE (June)", importance: "high" },
+  { date: "2026-08-07", event: "Nonfarm Payrolls / Unemployment Rate (July)", importance: "high" },
+  { date: "2026-08-12", event: "CPI Inflation (July)", importance: "high" },
+  { date: "2026-08-26", event: "PCE Price Index (July) + Personal Income/Spending", importance: "high" },
+  { date: "2026-09-11", event: "CPI Inflation (August)", importance: "high" },
+  { date: "2026-09-15", event: "FOMC Meeting Day 1", importance: "high" },
+  { date: "2026-09-16", event: "FOMC Rate Decision + Powell Press Conference", importance: "high" },
+  { date: "2026-10-27", event: "FOMC Meeting Day 1", importance: "high" },
+  { date: "2026-10-28", event: "FOMC Rate Decision + Powell Press Conference", importance: "high" },
+  { date: "2026-12-08", event: "FOMC Meeting Day 1", importance: "high" },
+  { date: "2026-12-09", event: "FOMC Rate Decision + Powell Press Conference", importance: "high" },
+  // October CPI was not published (government-shutdown disruption); November CPI
+  // release was pushed to this date instead of its usual mid-December slot.
+  { date: "2026-12-18", event: "CPI Inflation (November, delayed)", importance: "high" },
 ];
+
+// Sourced from Fed's official 2026 meeting calendar + BLS/BEA release schedules
+// (web-verified 2026-08-04). FOMC dates are fixed well in advance and reliable;
+// CPI/NFP/PCE beyond the entries above were not independently confirmed and are
+// deliberately omitted rather than guessed — extend this list as those dates
+// are published, rather than estimating a "usual" day of month.
+const LAST_KNOWN_EVENT_DATE = ECONOMIC_EVENTS.reduce((max, e) => (e.date > max ? e.date : max), "");
+let loggedStaleWarning = false;
+
+/**
+ * True if `now` is past the last date this calendar covers — callers should
+ * treat "no catalyst" results as unreliable rather than a confirmed empty day
+ * once this flips true. Exists because the calendar previously went stale
+ * silently for weeks (only extended through 2026-07-30) with no signal that
+ * "no catalyst today" had quietly become "no data for today."
+ */
+export function isEconomicCalendarStale(now: Date = new Date()): boolean {
+  const stale = etDateKey(now) > LAST_KNOWN_EVENT_DATE;
+  if (stale && !loggedStaleWarning) {
+    loggedStaleWarning = true;
+    // eslint-disable-next-line no-console
+    console.warn(`macro-static: ECONOMIC_EVENTS calendar is stale — last entry ${LAST_KNOWN_EVENT_DATE}, today is ${etDateKey(now)}. Extend ECONOMIC_EVENTS.`);
+  }
+  return stale;
+}
+
+export function hasHighImportanceCatalystToday(now: Date = new Date()): boolean {
+  const todayKey = etDateKey(now);
+  return ECONOMIC_EVENTS.some(e => e.date === todayKey && e.importance === "high");
+}
 
 export const INDICATOR_SERIES: Record<string, { id: string; label: string; unit: string; isYoY?: boolean }> = {
   cpi:               { id: "CPIAUCSL",        label: "CPI",              unit: "Index", isYoY: true },

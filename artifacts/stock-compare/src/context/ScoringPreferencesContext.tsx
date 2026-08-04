@@ -13,6 +13,9 @@ type Ctx = {
   isSaving: boolean;
   saveConfig: (config: ScoringWeightsConfig) => Promise<string | null>;
   resetDefaults: () => Promise<string | null>;
+  /** True once the user has explicitly saved optionStrike weights — model auto-tilt
+   *  only applies to the untouched defaults, never overriding an explicit choice. */
+  hasCustomOptionStrike: boolean;
 };
 
 const ScoringPreferencesContext = createContext<Ctx | null>(null);
@@ -33,6 +36,7 @@ export function ScoringPreferencesProvider({ children }: { children: React.React
   });
 
   const weights = useMemo(() => mergeScoringWeights(stored), [stored]);
+  const hasCustomOptionStrike = stored?.optionStrike != null;
 
   const saveMut = useMutation({
     mutationFn: async (config: ScoringWeightsConfig) => {
@@ -87,7 +91,8 @@ export function ScoringPreferencesProvider({ children }: { children: React.React
     isSaving: saveMut.isPending || resetMut.isPending,
     saveConfig,
     resetDefaults,
-  }), [weights, isLoading, saveMut.isPending, resetMut.isPending, saveConfig, resetDefaults]);
+    hasCustomOptionStrike,
+  }), [weights, isLoading, saveMut.isPending, resetMut.isPending, saveConfig, resetDefaults, hasCustomOptionStrike]);
 
   return (
     <ScoringPreferencesContext.Provider value={value}>
@@ -105,6 +110,7 @@ export function useScoringPreferences(): Ctx {
       isSaving: false,
       saveConfig: async () => "Scoring preferences not loaded",
       resetDefaults: async () => "Scoring preferences not loaded",
+      hasCustomOptionStrike: false,
     };
   }
   return ctx;

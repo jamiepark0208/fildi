@@ -39,7 +39,7 @@ verifier = tsc + lint + tests | data-agent = fetch/cache | ui-agent = React comp
 Full catalog: .agents/AGENTS.md
 
 ## CODEGRAPH
-Use before touching any source file. codegraph auto-runs on Edit/Write via hook.
+Use before touching any source file (call it yourself — no hook runs codegraph automatically; the Read-guard hook only warns on untargeted reads).
 - codegraph context "<task>" — symbols + callers before any edit; use `maxNodes:10` to limit output
 - codegraph impact <symbol> — what breaks before changing a function
 - For a specific symbol body: `codegraph_node` with `includeCode:true`; for broad mapping: `includeCode:false`
@@ -63,9 +63,9 @@ Use before touching any source file. codegraph auto-runs on Edit/Write via hook.
 - Shared cache utility: `lib/ttl-cache.ts` — all caches use this; see `.claude/skills/caching-patterns.md` for TTL table + registry rules
 - Auth validators: `lib/validators/auth.ts` (Zod schemas for register/login)
 - Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD), `routes/fundamentals-provenance.ts` (provenance + overrides)
-- Fundamentals pipeline: `scripts/merge-trusted.ts` (FIELD_DEFS — single source of truth for field priority), `lib/provenance-cache.ts`, `lib/fundamentals-db.ts`
+- Fundamentals pipeline: `scripts/merge-trusted.ts` (FIELD_DEFS — single source of truth for field priority), `lib/fundamentals-db.ts`
 - Full API catalog: `.agents/context/api-endpoints.md`
-- DB canonical universe: `fmp_fundamentals` table (257 tickers) — **never hardcode a ticker count**
+- DB canonical universe: `fmp_fundamentals` table — **never hardcode a ticker count**; query the table for the live count
 
 ## HOT FILE INDEX — grep before Read, never load whole file
 These files are edited frequently. Always `grep -n "<pattern>" <file>` to get line numbers, then `Read offset+limit`.
@@ -78,11 +78,10 @@ These files are edited frequently. Always `grep -n "<pattern>" <file>` to get li
 | `api-server/src/lib/macro-data.ts` | fetchMacroData body | `grep -n "fetchMacroData\|ismManufacturing"` |
 | `api-server/src/lib/macro-static.ts` | INDICATOR_SERIES entries | `grep -n "INDICATOR_SERIES\|ismManufacturing"` |
 | `stock-compare/src/pages/macro.tsx` | regime tab charts section | `grep -n "HY Credit\|IG/HY\|NFCI\|DXY\|Economic Indicators"` |
-| `stock-compare/src/pages/macro.tsx` | imports from MacroComponents | `grep -n "DualLine\|RateHistory\|import {"` |
-| `stock-compare/src/components/macro/MacroComponents.tsx` | DualLineHistoryChart | `grep -n "DualLine\|export function"` |
-| `stock-compare/src/components/macro/MacroComponents.tsx` | RateHistoryChart props | `grep -n "RateHistoryChart\|referenceLines"` |
+| `stock-compare/src/pages/macro.tsx` | macro component imports | `grep -n "DualLine\|RateHistory\|import {"` |
+| `stock-compare/src/components/macro/macro-history-charts.tsx` | DualLineHistoryChart / RateHistoryChart | `grep -n "DualLine\|RateHistoryChart\|referenceLines"` |
 | `stock-compare/src/components/macro/macro-page-types.ts` | MacroCharts / MacroData types | `grep -n "MacroCharts\|MacroData\|igSpread\|nfci"` |
-| `lib/db/src/schema/index.ts` | any table definition | `grep -n "pgTable\|market_regime"` |
+| `lib/db/src/schema/index.ts` (repo root, NOT under artifacts/) | any table definition | `grep -n "pgTable\|market_regime"` |
 | `api-server/src/scripts/merge-trusted.ts` | FIELD_DEFS priority table | `grep -n "FIELD_DEFS\|tfCol\|priority"` |
 | `api-server/src/scripts/nightly-enrichment.ts` | per-source fetchX() write bodies — check for dropped fields vs the source's *-client.ts interface before trusting coverage numbers | `grep -n "^async function fetch"` |
 | `api-server/src/lib/cache-registry.ts` | registered cache names | `grep -n "DISPLAY_NAMES\|getAllCaches"` |

@@ -8,7 +8,10 @@ description: What to fetch, how often, what to cache. Read before writing any fe
   Historical OHLCV → PostgreSQL `prices_historical`, INSERT OR IGNORE on (ticker, date)
   RSI/MFI signal   → PostgreSQL `indicator_cache` (renamed from `scorecard_cache` — if you see
                      the old name anywhere it's stale), upsert on (ticker, scored_date)
-  Fundamentals     → PostgreSQL `ticker_fundamentals` (Bronze→Silver→Gold pipeline, see db-patterns.md)
+  Fundamentals     → PostgreSQL `ticker_fundamentals` (Bronze→Silver→Gold pipeline, see db-patterns.md).
+                     Refreshed by nightly-enrichment.ts on a biweekly schedule (Sun + Thu 02:00 UTC,
+                     lib/scheduler.ts) — gap-fills nulls from all 6 sources within budget, then
+                     populate+merge IN-PROCESS. NOT a boot-time seed. Run history in `enrichment_runs`.
   Technicals (V2)  → PostgreSQL `ticker_technicals`, 55+ cols, see technical-scorecard.md
   Ticker metadata  → PostgreSQL `watchlist` / `ticker_registry`, fetch on init only
   RSI thresholds   → hardcoded in `src/lib/constants.ts` (31-ticker legacy tier map — NOT the

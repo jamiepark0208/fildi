@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-07-21T01:02:54.624Z",
+  "fetchedAt": "2026-07-31T17:41:07.469Z",
   "vix": {
-    "value": 18.65,
-    "change": -0.12000084,
-    "changePct": -0.6393225,
+    "value": 16.51,
+    "change": -0.5799999,
+    "changePct": -3.3957841,
     "level": "low-mid"
   },
   "yield10y": {
-    "value": 4.598,
-    "change": 0.05700016,
-    "changePct": 1.2552336
+    "value": 4.737,
+    "change": 0.07399988,
+    "changePct": 1.5876397
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 112.79999999999997,
+  "yieldSpread": 126.69999999999999,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -107,124 +107,124 @@
       "threeMonthAgo": 4.86
     }
   ],
-  "usDebt": 39065421,
+  "usDebt": null,
   "skew": {
-    "value": 146.05,
-    "change": -1.2299957,
-    "changePct": -0.83514106
+    "value": 139.9,
+    "change": 0,
+    "changePct": 0
   },
   "vxn": {
-    "value": 28.53,
-    "change": -0.5,
-    "changePct": -1.7223562
+    "value": 26.5,
+    "change": -1.0499992,
+    "changePct": -3.8112495
   },
   "series": {
     "cpi": {
-      "value": 332.568,
-      "prev": 333.979,
-      "change": -1.4110000000000014,
-      "changePct": -0.42248165303806573,
-      "yoy": 3.7265298484186826,
-      "date": "2026-06-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "coreCpi": {
-      "value": 336.065,
-      "prev": 336.121,
-      "change": -0.055999999999983174,
-      "changePct": -0.016660666843185394,
-      "yoy": 2.805811075795452,
-      "date": "2026-06-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "corePce": {
-      "value": 130.082,
-      "prev": 129.667,
-      "change": 0.41499999999999204,
-      "changePct": 0.3200505911295796,
-      "yoy": 3.412035932904036,
-      "date": "2026-05-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "unemployment": {
-      "value": 4.2,
-      "prev": 4.3,
-      "change": -0.09999999999999964,
-      "changePct": -2.3255813953488293,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-06-01",
+      "date": null,
       "unit": "%"
     },
     "nonfarmPayrolls": {
-      "value": 158984,
-      "prev": 158927,
-      "change": 57,
-      "changePct": 0.035865523164723426,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-06-01",
+      "date": null,
       "unit": "thousands"
     },
     "jolts": {
-      "value": 7594,
-      "prev": 7585,
-      "change": 9,
-      "changePct": 0.11865524060646013,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-05-01",
+      "date": null,
       "unit": "thousands"
     },
     "gdp": {
-      "value": 2.1,
-      "prev": 0.5,
-      "change": 1.6,
-      "changePct": 320,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-01-01",
+      "date": null,
       "unit": "%"
     },
     "ppi": {
-      "value": 286.827,
-      "prev": 290.489,
-      "change": -3.6619999999999777,
-      "changePct": -1.2606329327444337,
-      "yoy": 10.110138162162997,
-      "date": "2026-06-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "%"
     },
     "retailSales": {
-      "value": 666056,
-      "prev": 664439,
-      "change": 1617,
-      "changePct": 0.24336319812653984,
-      "yoy": 7.190838367875065,
-      "date": "2026-06-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "$ billions"
     },
     "consumerSentiment": {
-      "value": 44.8,
-      "prev": 49.8,
-      "change": -5,
-      "changePct": -10.040160642570282,
-      "yoy": -14.17624521072798,
-      "date": "2026-05-01",
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
+      "yoy": null,
+      "date": null,
       "unit": "index"
     },
     "fedFundsRate": {
-      "value": 3.63,
-      "prev": 3.63,
-      "change": 0,
-      "changePct": 0,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-07-17",
+      "date": null,
       "unit": "%"
     },
     "sofr": {
-      "value": 3.59,
-      "prev": 3.62,
-      "change": -0.03000000000000025,
-      "changePct": -0.8287292817679627,
+      "value": null,
+      "prev": null,
+      "change": null,
+      "changePct": null,
       "yoy": null,
-      "date": "2026-07-17",
+      "date": null,
       "unit": "%"
     },
     "ismManufacturing": {

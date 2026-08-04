@@ -15,6 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { validateScoringWeights, SCORING_PRESETS, type ScoringWeightsConfig } from "@/lib/scoring-weights";
 import { BookOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function ScorecardGuideContent({ showHeader = true }: { showHeader?: boolean }) {
   const status = useGuideStatus();
@@ -90,11 +91,11 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
   return (
     <>
         {showHeader && (
-          <div className="px-6 py-4 border-b border-border/50 sticky top-14 bg-background/95 backdrop-blur z-40">
-            <div className="flex items-start gap-3">
-              <BookOpen className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+          <div className="px-4 py-2 border-b border-[#d4af37]/20 sticky top-14 bg-zinc-950/95 backdrop-blur z-40">
+            <div className="flex items-start gap-2">
+              <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold leading-tight tracking-tight">Scorecard Guide</h1>
+                <h1 className="text-sm font-bold leading-tight tracking-tight text-white">Scorecard Guide</h1>
                 <DataTransparencyBar
                   chips={status.headerChips?.()}
                   factset={status.sources.factset}
@@ -106,42 +107,45 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           </div>
         )}
 
-        <div className="p-6 max-w-6xl pb-24">
-          <p className="text-sm text-foreground/90 mb-5 leading-relaxed">
-            Scores are peer-relative within your watchlist. Each metric is normalized, weighted, and combined into a 0–100 score.
-          </p>
-
-          {isAdmin && (
-            <div className="flex items-center gap-2 mb-5">
-              <span className="text-xs text-muted-foreground mr-1">Presets:</span>
-              {Object.entries(SCORING_PRESETS).map(([key, p]) => (
-                <Button
-                  key={key}
-                  size="sm"
-                  variant={preset === key ? "default" : "outline"}
-                  className="text-xs h-7"
-                  onClick={() => applyPreset(key)}
-                >
-                  {p.label}
-                </Button>
-              ))}
-            </div>
-          )}
-
+        <div className="p-4 max-w-6xl pb-20">
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="h-10 mb-4">
-              <TabsTrigger value="fundamental" className="text-sm px-4">Fundamental</TabsTrigger>
-              <TabsTrigger value="technical" className="text-sm px-4">Technical</TabsTrigger>
-              <TabsTrigger value="options" className="text-sm px-4">Options</TabsTrigger>
-            </TabsList>
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-hidden">
+                <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
+                <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
+                <TabsTrigger value="options" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Options</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="fundamental" className="mt-0">
+              {isAdmin && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-amber-200/40">Presets:</span>
+                  <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden">
+                    {Object.entries(SCORING_PRESETS).map(([key, p]) => (
+                      <button
+                        key={key}
+                        onClick={() => applyPreset(key)}
+                        className={cn(
+                          "text-[11px] font-semibold px-2 h-6 transition-colors",
+                          preset === key
+                            ? "bg-[#d4af37] text-black"
+                            : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <TabsContent value="fundamental" className="mt-0 space-y-2">
               <TabStatusHeader
                 chips={status.chipsFor?.("fundamentals")}
                 text={status.stripFor("fundamentals")}
                 warn={status.fundStale}
               />
-              <p className="text-sm font-semibold text-foreground mb-2">Family blend weights</p>
+              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Family blend weights</p>
               <GuideMetricGrid
                 rows={FUNDAMENTAL_FAMILY_GUIDE_ROWS}
                 coverageLabel={fundCov.label}
@@ -151,7 +155,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 editable={isAdmin}
                 onConfigChange={onDraftChange}
               />
-              <p className="text-sm font-semibold text-foreground mb-2">Metric intra-family weights</p>
+              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Metric intra-family weights</p>
               <GuideMetricGrid
                 rows={FUNDAMENTAL_GUIDE_ROWS}
                 coverageLabel={fundCov.label}
@@ -164,7 +168,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
               />
             </TabsContent>
 
-            <TabsContent value="technical" className="mt-0">
+            <TabsContent value="technical" className="mt-0 space-y-2">
               <TabStatusHeader
                 chips={status.chipsFor?.("technicals")}
                 text={status.stripFor("technicals")}
@@ -181,13 +185,13 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
               />
             </TabsContent>
 
-            <TabsContent value="options" className="mt-0 space-y-3">
+            <TabsContent value="options" className="mt-0 space-y-2">
               <TabStatusHeader
                 chips={status.chipsFor?.("options")}
                 text={status.stripFor("options")}
               />
-              <p className="text-sm text-foreground/90">Rank stocks → score strikes → liquidity gate + macro regime</p>
-              <p className="text-sm font-semibold text-foreground">Stock rank layer</p>
+              <p className="text-xs text-amber-200/50">Rank stocks → score strikes → liquidity gate + macro regime</p>
+              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock rank layer</p>
               <GuideMetricGrid
                 rows={OPTIONS_STOCK_ROWS}
                 coverageLabel="DB daily/weekly"
@@ -195,7 +199,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 editable={isAdmin}
                 onConfigChange={onDraftChange}
               />
-              <p className="text-sm font-semibold text-foreground pt-1">Strike pick layer (BEST)</p>
+              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Strike pick layer (BEST)</p>
               <GuideMetricGrid
                 rows={OPTIONS_STRIKE_ROWS}
                 coverageLabel="On scan"
@@ -207,22 +211,22 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           </Tabs>
 
           {isAdmin && dirty && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-6 py-3 border-t border-border bg-background/95 backdrop-blur">
-              <Button size="sm" className="text-sm" disabled={isSaving} onClick={handleSave}>
+            <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-4 py-2 border-t border-[#d4af37]/25 bg-zinc-950/95 backdrop-blur">
+              <Button size="sm" className="text-xs h-7 bg-[#d4af37] text-black hover:bg-[#d4af37]/90" disabled={isSaving} onClick={handleSave}>
                 {isSaving ? "Saving…" : "Save weights"}
               </Button>
-              <Button size="sm" variant="outline" className="text-sm" disabled={isSaving} onClick={handleReset}>
+              <Button size="sm" variant="outline" className="text-xs h-7 border-[#d4af37]/25 text-amber-200/70 hover:bg-amber-500/10" disabled={isSaving} onClick={handleReset}>
                 Reset defaults
               </Button>
-              {error && <span className="text-sm text-red-400">{error}</span>}
+              {error && <span className="text-xs text-red-400">{error}</span>}
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground mt-4">
+          <p className="text-[11px] text-amber-200/40 mt-2">
             Relative to watchlist. Missing data → 0.
           </p>
-          <p className="text-xs mt-2">
-            <button className="text-primary hover:underline" onClick={() => navigate("/options-scanner")}>
+          <p className="text-[11px] mt-1">
+            <button className="text-[#d4af37] hover:underline" onClick={() => navigate("/options-scanner")}>
               See scores on Scanner →
             </button>
           </p>
@@ -233,7 +237,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
 
 export default function ScorecardExplanation() {
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-[#040c18] text-white">
       <TopNav />
       <main className="pt-14 min-w-0">
         <ScorecardGuideContent />

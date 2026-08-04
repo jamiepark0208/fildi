@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-07-21
+**build** — last updated 2026-08-04
 
 ## Active work
-- Working: fundamentals-sector-relative-scoring, options-scanner-columns, context-window-optimization, secrets-remediation
-- In progress: No code changed this session. Investigated onboarding Ed/Chandler for app access without full public publish.
-- Blocked: Secrets remediation (rotate keys, move fully to Replit Secrets UI, purge git history) must happen before onboarding anyone; awaiting user to act on provider dashboards + Replit UI, both outside Claude Code's reach
+- Working: live-tab-null-crash-fix, live-refresh-race-fix, asia-overnight-widget, econ-calendar-extended, calendar-staleness-guard
+- In progress: fmp-alphabet-catchup-continuing-via-cron
+- Blocked: playwright-chrome-binary-missing
 
 ## Next tasks (priority order)
 
@@ -42,12 +42,34 @@
 ## RSI / MFI thresholds
 Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI threshold: 25 (all tickers).
 
-## Fundamentals pipeline state (2026-07-13)
-- Universe: ticker_registry WHERE fetch_fundamentals=true (257 tickers) — golden source for all scripts
-- Bronze tables: fmp(257), yahoo(280), finnhub(280), edgar(280), polygon(162), av(14)
-- Silver: source_fundamentals 23,158 rows (fresh — re-ran 2026-07-13, 118 rejected)
-- Gold: ticker_fundamentals 269 tickers merged, field_provenance 9,259 rows (fresh — re-ran 2026-07-13). Fields null >20% of tickers: peRatio (64/283), pegRatio (59/283) — worth investigating if these matter for scoring.
-- All 7 backfill scripts now read from ticker_registry WHERE fetch_fundamentals=true
-- populate-source-fundamentals.ts now handles all 6 sources including Polygon (source='polygon') and AV (source='alpha_vantage')
-- merge-trusted.ts FIELD_DEFS: Polygon + AV added as lowest-priority fallbacks across applicable fields
-- Backfill safe order: check api_usage budget → backfill-fmp (250/day) → backfill-polygon (no cap) → populate-source-fundamentals → merge-trusted → backfill-av (25/day)
+## Fundamentals pipeline state (2026-07-23)
+- Universe: ticker_registry WHERE fetch_fundamentals=true (335 tickers after removing SKHYV+ADYEN)
+- Gold coverage: ~92.8% (335 active tickers × VALID_FIELD_DEFS). Was 77.6% pre-session — the
+  regression was the subprocess-spawn bug (below), not real data loss.
+- Only 2 flagged tickers now lack a ticker_fundamentals row (down from 61): both are peer-expansion
+  edge cases; the 59 recovered were blue-chips (GS/MA/BAC/ASML/KLAC…) whose fetched staging data
+  was never being merged.
+
+### This session's changes (all in merge-trusted.ts / nightly-enrichment.ts / populate-source-fundamentals.ts)
+1. **Subprocess bug FIXED**: nightly-enrichment ran populate+merge as `npx tsx` subprocesses via
+   execFileSync and swallowed failures as WARN — silently failing in the long-lived prod server.
+   Now runs them in-process (`runPopulateSourceFundamentals()`, `runMergeTrusted()` exported;
+   process.exit only in CLI guards). A failure marks enrichment_runs `partial`.
+2. **EDGAR → last-resort** in every FIELD_DEFS chain (was winning totalStockholdersEquity /
+   interestExpense despite being annual/lagging).
+3. **Divergence redesign** (isMaterialDivergence): winner-vs-fallback, period-aware, materiality
+   tolerances → "Needs Review" 2208 → ~1017. Reads GET /fundamentals/divergent.
+4. **Definitional alignment**: cashAndEquivalents = yahoo totalCash only (cash+STI concept);
+   totalDebt = yahoo→fmp only; revenueGrowthYoY/epsGrowth on annual basis. NOTE: revenueGrowthYoY
+   VALUES shifted (quarterly→annual, e.g. AAPL 16.6%→6.4%) and affect the growth score.
+5. Removed SKHYV (pre-IPO→SKHY) + ADYEN (foreign) from registry + all fundamentals tables.
+6. finnhub debtToEquity parser fix + override_flags column plumbing (from prior session, still uncommitted).
+
+### Still open / next
+- **Rebuild+restart to deploy** (deferred by user) — see Active work note.
+- Production hardening not yet done: process.on(uncaughtException/unhandledRejection) in index.ts;
+  frozen log-date bug (nightly log filename fixed at server-start date).
+- Residual ~1017 Needs Review is genuine vendor disagreement (lease inclusion, price-snapshot
+  timing, growth basis) — driving lower needs looser tolerances or per-field comparable curation.
+- Backfill safe order: check api_usage budget → backfill-fmp → backfill-polygon → (populate+merge
+  now automatic via nightly-enrichment) → backfill-av.

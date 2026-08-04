@@ -3,20 +3,29 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
-import { OptionsScannerContent } from "@/pages/options-scanner";
+import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
 import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
+import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
+
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: string }[] = [
+  { id: "fundamental", label: "Fundamentals" },
+  { id: "technical",   label: "Technicals" },
+  { id: "options",     label: "Options" },
+];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
   const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options">("fildi_rankings_tab", "fundamental");
+  // Technical tab lens: oversold (sell puts) vs overbought (sell calls) — mirrors the
+  // Options tab's page-level Sell Puts/Sell Calls toggle, persisted independently.
+  const [techSide, setTechSide] = useSessionState<"puts" | "calls">("fildi_technical_side", "puts");
   const { weights } = useScoringPreferences();
   const { tickers: watchlistTickers } = useWatchlist();
 
@@ -94,8 +103,8 @@ export default function Rankings() {
 
   const technicalScores = useMemo(() => {
     if (!allTechnicalsData?.length) return [];
-    return computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical);
-  }, [allTechnicalsData, weights.technical]);
+    return computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, techSide === "calls" ? "call" : "put");
+  }, [allTechnicalsData, weights.technical, techSide]);
 
   const technicalRowMap = useMemo(
     () => allTechnicalsData ? Object.fromEntries(allTechnicalsData.map(r => [r.ticker, r])) : undefined,
@@ -108,48 +117,79 @@ export default function Rankings() {
 
       <main className="pt-14 min-w-0">
         <div className="p-5">
-          <Tabs value={tab} onValueChange={v => setTab(v as "fundamental" | "technical" | "options")}>
-            <TabsList className="h-10 mb-4">
-              <TabsTrigger
-                value="fundamental"
-                className="text-sm px-4 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
-              >
-                Fundamentals
-              </TabsTrigger>
-              <TabsTrigger
-                value="technical"
-                className="text-sm px-4 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-300"
-              >
-                Technicals
-              </TabsTrigger>
-              <TabsTrigger
-                value="options"
-                className="text-sm px-4 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300"
-              >
-                Options
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+              {RANKINGS_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    "px-2.5 py-1.5 transition-colors",
+                    tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            <TabsContent value="fundamental" className="mt-0">
-              {fundamentalRankings.length >= 2 ? (
-                <RankingsLeaderboard scores={fundamentalRankings} stocks={loadedStocks} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see fundamental rankings.</p>
-              )}
-            </TabsContent>
+            {/* Host for the Options tab's min-income filter — OptionsScannerContent
+                portals its control here so it sits inline with the tabs instead of
+                its own row; empty/inert on the other two tabs. */}
+            <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center" />
+          </div>
 
-            <TabsContent value="technical" className="mt-0">
-              {technicalScores.length >= 2 ? (
-                <TechnicalLeaderboard scores={technicalScores} rowMap={technicalRowMap} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
-              )}
-            </TabsContent>
+          {tab === "fundamental" && (
+            fundamentalRankings.length >= 2 ? (
+              <RankingsLeaderboard scores={fundamentalRankings} stocks={loadedStocks} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see fundamental rankings.</p>
+            )
+          )}
 
-            <TabsContent value="options" className="mt-0">
-              <OptionsScannerContent showHeader={false} />
-            </TabsContent>
-          </Tabs>
+          {tab === "technical" && (
+            technicalScores.length >= 2 ? (
+              <>
+                {/* Lens toggle — same styling as the Options tab's Sell Puts/Sell Calls */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-xs h-7 shrink-0">
+                    <button
+                      onClick={() => setTechSide("puts")}
+                      className={cn(
+                        "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                        techSide === "puts" ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+                      )}
+                    >
+                      Sell Puts
+                    </button>
+                    <button
+                      onClick={() => setTechSide("calls")}
+                      className={cn(
+                        "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                        techSide === "calls" ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+                      )}
+                    >
+                      Sell Calls
+                    </button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {techSide === "puts" ? "Oversold lens — best put-selling setups" : "Overbought lens — best call-selling setups"}
+                  </span>
+                </div>
+                <TechnicalLeaderboard
+                  scores={technicalScores}
+                  rowMap={technicalRowMap}
+                  side={techSide === "calls" ? "call" : "put"}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
+            )
+          )}
+
+          {tab === "options" && (
+            <OptionsScannerContent showHeader={false} />
+          )}
         </div>
       </main>
     </div>

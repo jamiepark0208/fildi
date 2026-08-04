@@ -334,7 +334,7 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
   const [generating,   setGenerating]   = useState(false);
   const [checking,     setChecking]     = useState(true);
   const [error,        setError]        = useState<string | null>(null);
-  const [expanded,     setExpanded]     = useState(true);
+  const [expanded,     setExpanded]     = useState(false);
   const [showContext,  setShowContext]   = useState(false);
   const [history,      setHistory]      = useState<DailyBriefData[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -431,6 +431,16 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
                 <Clock className="w-3 h-3" />cached {genTime}
               </span>
             )}
+            {isAdmin && noData && !generating && (
+              <button
+                onClick={generate}
+                title="Generate today's brief"
+                className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Generate Today's Brief
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setShowContext(v => !v)}
@@ -485,21 +495,12 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
             </div>
           )}
 
-          {/* No data — generate CTA (admin only) */}
+          {/* No data — CTA lives in the header now, next to the settings icon */}
           {!checking && noData && !generating && expanded && (
-            <div className="px-4 py-6 flex flex-col items-center gap-3 text-center border-t border-border/20">
+            <div className="px-4 py-6 flex flex-col items-center gap-1 text-center border-t border-border/20">
               <p className="text-sm text-muted-foreground">No brief generated for today yet.</p>
               {isAdmin && (
-                <>
-                  <button
-                    onClick={generate}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Generate Today's Brief
-                  </button>
-                  <p className="text-[11px] text-muted-foreground/60">~15 seconds · live market data · saved for future sessions</p>
-                </>
+                <p className="text-[11px] text-muted-foreground/60">Click "Generate Today's Brief" above · ~15 seconds · live market data</p>
               )}
             </div>
           )}

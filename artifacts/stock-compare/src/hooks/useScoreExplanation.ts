@@ -22,8 +22,11 @@ export function useScoreExplanation() {
     ticker: string,
     scoreType: "fundamental" | "technical",
     payload: Record<string, unknown>,
+    // Extra cache discriminator for the same scoreType (e.g. technical put vs call lens).
+    // Only affects local cache keys — the server still receives scoreType unchanged.
+    cacheScope?: string,
   ) => {
-    const key = cacheKey(ticker, scoreType);
+    const key = cacheKey(ticker, cacheScope ?? scoreType);
 
     // In-memory hit (same session, already fetched)
     const cached = memCache.get(key);
@@ -50,8 +53,8 @@ export function useScoreExplanation() {
     }
   }, []);
 
-  const getState = useCallback((ticker: string, scoreType: string): ExplainState => {
-    const key = cacheKey(ticker, scoreType);
+  const getState = useCallback((ticker: string, scoreType: string, cacheScope?: string): ExplainState => {
+    const key = cacheKey(ticker, cacheScope ?? scoreType);
     // Seed from mem cache if state not yet set (e.g. component remounted)
     const cached = memCache.get(key);
     if (cached && !states[key]) return { text: cached, status: "done" };

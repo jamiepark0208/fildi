@@ -48,11 +48,11 @@ function fmtSignal(key: string) {
 function ConfidenceBar({ value }: { value: number }) {
   const color = value >= 60 ? "bg-emerald-500" : value >= 35 ? "bg-yellow-500" : "bg-orange-500";
   return (
-    <div className="flex items-center gap-2 mt-1">
-      <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
+    <div className="flex items-center gap-1.5 mt-0.5">
+      <div className="h-1 w-14 bg-zinc-800 rounded-full overflow-hidden shrink-0">
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${value}%` }} />
       </div>
-      <span className="text-[11px] text-muted-foreground">{value}% confidence</span>
+      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{value}% conf.</span>
     </div>
   );
 }
@@ -67,7 +67,7 @@ export function RegimeBanner() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 animate-pulse h-20" />
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 animate-pulse h-11" />
     );
   }
 
@@ -79,45 +79,46 @@ export function RegimeBanner() {
   const hasVolEvent = data.conflictingSignals?.includes("high_vol_event_pending");
 
   return (
-    <div className={cn("rounded-lg border p-4 space-y-2.5", meta.bg, meta.border)}>
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <Icon className={cn("h-5 w-5 shrink-0", meta.color)} />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className={cn("text-sm font-bold tracking-wide", meta.color)}>{meta.label}</span>
-              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">regime</span>
-            </div>
-            <ConfidenceBar value={data.confidence} />
+    <div className={cn("rounded-lg border px-4 py-2 flex items-center gap-4", meta.bg, meta.border)}>
+      {/* Left half — regime badge (icon, label, confidence), all inline */}
+      <div className="flex items-center gap-2 w-[42%] shrink-0 min-w-0">
+        <Icon className={cn("h-4 w-4 shrink-0", meta.color)} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={cn("text-xs font-bold tracking-wide", meta.color)}>{meta.label}</span>
+            <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest">regime</span>
+            <span className="text-[10px] text-muted-foreground">
+              · {new Date(data.computedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
           </div>
+          <ConfidenceBar value={data.confidence} />
         </div>
-        <span className="text-[10px] text-muted-foreground shrink-0 pt-0.5">
-          {new Date(data.computedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-        </span>
       </div>
 
-      {/* AI explanation */}
-      <p className="text-[12px] text-muted-foreground leading-relaxed">{meta.description}</p>
+      {/* Divider */}
+      <div className={cn("w-px self-stretch shrink-0", meta.border)} />
 
-      {/* Confirming signals */}
-      {confirming.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {confirming.map((s) => (
-            <span key={s} className={cn("text-[10px] font-medium px-2 py-0.5 rounded border", meta.bg, meta.color, meta.border)}>
-              ✓ {fmtSignal(s)}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Conflict / vol event warning */}
-      {hasVolEvent && (
-        <div className="flex items-center gap-1.5 text-[11px] text-yellow-300">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          High-impact macro event within 10 days — regime may shift
-        </div>
-      )}
+      {/* Right half — the 3 detail lines: description, confirming signals, conflict warning */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 py-0.5">
+        <p className="text-[11px] text-muted-foreground leading-snug truncate" title={meta.description}>
+          {meta.description}
+        </p>
+        {confirming.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {confirming.map((s) => (
+              <span key={s} className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded border leading-none", meta.bg, meta.color, meta.border)}>
+                ✓ {fmtSignal(s)}
+              </span>
+            ))}
+          </div>
+        )}
+        {hasVolEvent && (
+          <div className="flex items-center gap-1 text-[10px] text-yellow-300">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            High-impact macro event within 10 days — regime may shift
+          </div>
+        )}
+      </div>
     </div>
   );
 }

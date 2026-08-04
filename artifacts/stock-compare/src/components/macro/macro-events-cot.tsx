@@ -22,20 +22,20 @@ export function EventRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md border border-border text-sm",
-        isToday && "border-l-2 border-l-primary bg-primary/5",
-        indicatorKey && "cursor-pointer hover:bg-secondary/40 transition-colors"
+        "flex items-center gap-2 px-2 py-1 rounded border border-[#d4af37]/20 bg-zinc-950 text-xs",
+        isToday && "border-l-2 border-l-[#d4af37] bg-[#d4af37]/5",
+        indicatorKey && "cursor-pointer hover:bg-amber-500/10 transition-colors"
       )}
       onClick={indicatorKey ? () => onJumpToIndicator!(indicatorKey) : undefined}
       title={indicatorKey ? "View indicator history on Regime tab" : undefined}
     >
-      <span className="text-[11px] text-muted-foreground font-medium w-12 shrink-0">
+      <span className="text-[11px] font-mono text-amber-200/50 w-12 shrink-0">
         {fmtDate(event.date)}
       </span>
-      <span className="flex-1 text-xs">{event.event}</span>
+      <span className="flex-1 text-white">{event.event}</span>
       <span
         className={cn(
-          "text-[10px] px-2 py-0.5 rounded-full font-medium capitalize",
+          "text-[10px] px-1.5 py-0.5 rounded border font-semibold capitalize",
           importanceBadgeClass(event.importance)
         )}
       >
@@ -70,29 +70,18 @@ function CotPositioningRead({ selected }: { selected: COTSummary }) {
 
   const { direction } = getCotCrowding(selected);
   const flowVerb = net === 0 || chg === 0 ? null
-    : Math.sign(chg) === Math.sign(net) ? "adding to" : "trimming";
+    : Math.sign(chg) === Math.sign(net) ? "adding" : "trimming";
 
-  const crowding = absZ > 1.5 ? "historically stretched" : absZ > 1 ? "moderately elevated" : "within a typical range";
-
-  const implication = absZ > 1.5
-    ? (net >= 0
-        ? "That's a crowded long — a level from which hedge funds have historically been forced to unwind quickly, which can accelerate a selloff if sentiment turns."
-        : "That's a crowded short — a level from which short-covering has historically sparked sharp rallies if the market turns higher.")
-    : absZ > 1
-      ? "Positioning is building in one direction but hasn't reached a historically crowded extreme yet."
-      : "No unusual crowding either direction right now — positioning alone isn't a strong signal here.";
+  const crowding = absZ > 1.5 ? "stretched" : absZ > 1 ? "elevated" : "typical";
 
   return (
-    <div className="rounded-lg bg-muted/20 border border-border p-3">
-      <p className="text-xs leading-relaxed">
-        <span className="font-semibold">{selected.displayName}: </span>
-        Hedge funds (leveraged money — the fast-moving speculative crowd tracked by the CFTC) are net{" "}
-        <span className={cn("font-semibold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
-          {direction} {fmtCot(Math.abs(net))} contracts
-        </span>
-        {pctOfOI != null && <> (~{pctOfOI.toFixed(0)}% of {fmtCot(oi)} total open interest)</>} as of {selected.latest.date}
-        {flowVerb && <>, {flowVerb} the position by {fmtCot(Math.abs(chg))} over the past week</>}.{" "}
-        That's <span className="font-semibold">{crowding}</span> versus its 1-year range (Z = {z >= 0 ? "+" : ""}{z.toFixed(2)}σ). {implication}
+    <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-2.5 py-1.5">
+      <p className="text-[11px] font-mono text-sky-300/60">
+        <span className="text-amber-200/50">{selected.displayName}</span>{" "}
+        <span className={net >= 0 ? "text-green-400" : "text-red-400"}>{direction} {fmtCot(Math.abs(net))}</span>
+        {pctOfOI != null && <> (~{pctOfOI.toFixed(0)}% OI)</>}
+        {flowVerb && <> · {flowVerb} {fmtCot(Math.abs(chg))} WoW</>}
+        {" · "}Z <span className={absZ > 1.5 ? "text-yellow-400" : "text-sky-300/60"}>{z >= 0 ? "+" : ""}{z.toFixed(2)}σ ({crowding})</span>
       </p>
     </div>
   );
@@ -114,18 +103,18 @@ export function CotSection({
   const extremes = [...summaries].sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore));
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/20">
-        <Activity className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-[10px] text-muted-foreground/60 ml-auto">CFTC · weekly</span>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
+        <Activity className="h-3.5 w-3.5 text-[#d4af37]/80" />
+        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">{title}</h2>
+        <span className="text-[10px] text-amber-200/40 ml-auto">CFTC · weekly</span>
       </div>
-      <div className="p-4 space-y-4">
+      <div className="p-2 space-y-1.5">
 
         {/* Instrument selector — continuously scrolling one-row ticker, pauses on hover so chips stay clickable */}
-        <div className="rounded-md border border-border overflow-hidden group">
+        <div className="rounded-md border border-[#d4af37]/20 overflow-hidden group bg-zinc-950">
           <div className="flex overflow-hidden">
-            <div className="flex animate-marquee group-hover:animate-marquee-paused py-1.5">
+            <div className="flex animate-marquee group-hover:animate-marquee-paused py-1">
               {[...summaries, ...summaries].map((s, i) => {
                 const net = s.latest.levMoneyNet;
                 const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
@@ -137,23 +126,23 @@ export function CotSection({
                     onClick={() => onSelectInstrument(s.instrument)}
                     title="Hedge fund (leveraged money) net position and week-over-week change — click to see full detail below"
                     className={cn(
-                      "flex items-center gap-2 text-left rounded-md border px-2.5 py-1 mx-0.5 whitespace-nowrap shrink-0 transition-all",
-                      isSelected ? "border-primary/60 bg-primary/10" : "border-border hover:border-border/80 hover:bg-card/80"
+                      "flex items-center gap-2 text-left rounded border px-2 py-1 mx-0.5 whitespace-nowrap shrink-0 transition-all",
+                      isSelected ? "border-[#d4af37]/60 bg-[#d4af37]/10" : "border-[#d4af37]/20 hover:border-[#d4af37]/40 hover:bg-amber-500/5"
                     )}
                   >
-                    <span className="text-[11px] font-semibold">{s.displayName}</span>
-                    <span className={cn("text-xs font-bold", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    <span className="text-[11px] font-semibold text-white">{s.displayName}</span>
+                    <span className={cn("text-xs font-bold font-mono", net >= 0 ? "text-green-400" : "text-red-400")}>
                       {net >= 0 ? "+" : ""}{fmtCot(net)}
                     </span>
-                    <span className={cn("text-[10px]", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    <span className={cn("text-[10px] font-mono", chg > 0 ? "text-green-400" : chg < 0 ? "text-red-400" : "text-amber-200/40")}>
                       {chg >= 0 ? "+" : ""}{fmtCot(chg)} WoW
                     </span>
                     {absZ >= 1 && (
                       <span className={cn(
                         "text-[9px] px-1 rounded font-semibold shrink-0",
                         absZ > 1.5
-                          ? s.zScore > 0 ? "text-emerald-300" : "text-red-300"
-                          : "text-yellow-300"
+                          ? s.zScore > 0 ? "text-green-400" : "text-red-400"
+                          : "text-yellow-400"
                       )}>
                         {s.zScore > 0 ? "X-LONG" : "X-SHORT"}
                       </span>
@@ -169,20 +158,17 @@ export function CotSection({
         {selected && (
           <>
           <CotPositioningRead selected={selected} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5">
 
             {/* History chart */}
-            <div className="lg:col-span-2 border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-xs font-semibold">{selected.displayName} — Net Positioning</p>
-                  <p className="text-[10px] text-muted-foreground">as of {selected.latest.date}</p>
-                </div>
+            <div className="lg:col-span-2 rounded-md border border-[#d4af37]/25 bg-zinc-950 p-2">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] font-semibold text-white">{selected.displayName} — Net Positioning <span className="text-amber-200/40 font-normal">as of {selected.latest.date}</span></p>
                 <div className="flex gap-1">
                   {([12, 26, 52] as const).map((w) => (
                     <button key={w} onClick={() => setCotWeeks(w)}
-                      className={cn("text-[10px] px-2 py-1 rounded font-medium transition-colors",
-                        cotWeeks === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                      className={cn("px-2 py-0.5 transition-colors text-[10px] font-semibold rounded border border-[#d4af37]/20",
+                        cotWeeks === w ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
                       {w}W
                     </button>
                   ))}
@@ -190,7 +176,7 @@ export function CotSection({
               </div>
               {historyForSelected ? (
                 <>
-                  <ResponsiveContainer width="100%" height={160}>
+                  <ResponsiveContainer width="100%" height={150}>
                     <LineChart
                       data={historyForSelected.slice(-cotWeeks).map((r) => ({
                         date: r.date.slice(5),
@@ -203,34 +189,29 @@ export function CotSection({
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#cbd5e1" }} tickLine={false} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 10, fill: "#cbd5e1" }} tickLine={false} axisLine={false} tickFormatter={fmtCot} width={48} />
-                      <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 11 }}
+                      <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 6, fontSize: 11 }}
                         formatter={(v: number, name: string) => [fmtCot(v), name]} />
-                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                       <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
-                      <Line type="monotone" dataKey="Lev. Money" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="Lev. Money" stroke="#d4af37" strokeWidth={2} dot={false} isAnimationActive={false} />
                       <Line type="monotone" dataKey="Asset Mgr"  stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false} />
                       <Line type="monotone" dataKey="Dealer"     stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
-                    <div title="Hedge funds and other leveraged speculators — the fastest-moving, most trend-following positioning"><span className="inline-block w-2 h-0.5 bg-amber-400 mr-1 align-middle" />Lev. Money = hedge funds</div>
-                    <div title="Pensions, mutual funds, and other institutional managers — typically slower, more structural positioning"><span className="inline-block w-2 h-0.5 bg-blue-400 mr-1 align-middle" />Asset Mgr = institutions</div>
-                    <div title="Banks and market makers hedging client flow — usually the mirror image of speculative positioning"><span className="inline-block w-2 h-0.5 bg-violet-400 mr-1 align-middle" />Dealer = market makers</div>
-                  </div>
                 </>
               ) : (
-                <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
+                <div className="h-[150px] flex items-center justify-center text-xs text-amber-200/40">
                   <Loader2 className="h-3 w-3 animate-spin mr-2" />Loading history…
                 </div>
               )}
             </div>
 
             {/* Category breakdown + quick stats */}
-            <div className="space-y-3">
+            <div className="space-y-1.5">
               {/* Quick stats — the numbers behind the read-out above, for this instrument */}
-              <div className="border border-border rounded-lg p-3">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">{selected.displayName} — Raw Figures</p>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-2">
+                <p className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1">{selected.displayName} — Raw Figures</p>
+                <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { label: "Open Interest", val: fmtCot(selected.latest.openInterest),
                     title: `Total open ${selected.displayName} futures contracts across all trader types — the size of this market. Rising OI alongside a price move confirms new money is driving it; falling OI suggests a move is just positions closing out` },
@@ -242,18 +223,17 @@ export function CotSection({
                     title: "How extreme current hedge fund positioning is vs. its 1-year range. |Z| > 1.5 = crowded trade, prone to a sharp reversal if it unwinds" },
                 ].map(({ label, val, title }) => (
                   <div key={label} title={title}>
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</div>
-                    <div className="text-sm font-semibold">{val}</div>
+                    <div className="text-[10px] text-amber-200/40 uppercase tracking-wide">{label}</div>
+                    <div className="text-sm font-semibold text-white font-mono">{val}</div>
                   </div>
                 ))}
                 </div>
               </div>
 
               {/* Position breakdown bar chart */}
-              <div className="border border-border rounded-lg p-3">
-                <p className="text-xs font-semibold mb-0.5">Position Breakdown</p>
-                <p className="text-[11px] text-muted-foreground mb-2">Long vs short by category</p>
-                <ResponsiveContainer width="100%" height={130}>
+              <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-2">
+                <p className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1">Position Breakdown — Long vs Short</p>
+                <ResponsiveContainer width="100%" height={120}>
                   <BarChart
                     data={[
                       { name: "Lev. Money", Long: selected.latest.levMoneyLong, Short: -selected.latest.levMoneyShort },
@@ -278,63 +258,62 @@ export function CotSection({
         )}
 
         {/* Positioning extremes table */}
-        <div className="border border-border rounded-lg overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border bg-secondary/10">
-            <p className="text-xs font-semibold">Positioning Extremes</p>
-            <p className="text-[11px] text-muted-foreground">Ranked by Z-score vs 52-week range · hedge fund (leveraged money) positioning, with institutional and dealer net shown for context</p>
+        <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+          <div className="px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
+            <p className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide">Positioning Extremes — ranked by Z-score vs 52-week range</p>
           </div>
           <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border text-[11px] text-muted-foreground uppercase tracking-wider">
-                <th className="text-left px-4 py-2">Instrument</th>
-                <th className="text-right px-3 py-2" title="Total open futures contracts — market participation/liquidity">Open Int.</th>
-                <th className="text-right px-3 py-2" title="Hedge fund (leveraged money) net position">HF Net</th>
-                <th className="text-right px-3 py-2" title="Week-over-week change in hedge fund net positioning">WoW Chg</th>
-                <th className="text-right px-3 py-2" title="Institutional (asset manager) net position — typically slower, more structural money">Asset Mgr Net</th>
-                <th className="text-right px-3 py-2" title="Dealer/market-maker net position — usually the mirror image of speculative flow">Dealer Net</th>
-                <th className="text-right px-4 py-2" title="How extreme hedge fund positioning is vs. its 1-year range. |Z| > 1.5 = crowded trade">Z-Score</th>
+          <table className="w-full text-sm">
+            <thead className="bg-black text-[#d4af37]">
+              <tr className="border-b border-[#d4af37]/25">
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5">Instrument</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="Total open futures contracts — market participation/liquidity">Open Int.</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="Hedge fund (leveraged money) net position">HF Net</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="Week-over-week change in hedge fund net positioning">WoW Chg</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="Institutional (asset manager) net position — typically slower, more structural money">Asset Mgr Net</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="Dealer/market-maker net position — usually the mirror image of speculative flow">Dealer Net</th>
+                <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-3 py-1.5" title="How extreme hedge fund positioning is vs. its 1-year range. |Z| > 1.5 = crowded trade">Z-Score</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-800">
               {extremes.map((s) => {
                 const net = s.latest.levMoneyNet;
                 const chg = s.latest.levMoneyLongChg - s.latest.levMoneyShortChg;
                 return (
                   <tr key={s.instrument} onClick={() => onSelectInstrument(s.instrument)}
-                    className="border-b border-border/50 hover:bg-white/5 cursor-pointer transition-colors">
-                    <td className="px-4 py-2 font-medium">
+                    className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 cursor-pointer transition-colors">
+                    <td className="px-3 py-1.5 font-medium text-white">
                       <div className="flex items-center gap-2">
                         {s.displayName}
                         {Math.abs(s.zScore) >= 1 && (
                           <span className={cn("text-[10px] px-1 py-0.5 rounded border font-semibold",
                             Math.abs(s.zScore) > 1.5
-                              ? s.zScore > 0 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"
-                              : "bg-yellow-500/15 text-yellow-300 border-yellow-500/20")}>
+                              ? s.zScore > 0 ? "bg-green-600/20 text-green-400 border-green-600/40" : "bg-red-600/20 text-red-400 border-red-600/40"
+                              : "bg-yellow-500/15 text-yellow-400 border-yellow-500/40")}>
                             {s.zScore > 0 ? "Extreme Long" : "Extreme Short"}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                    <td className="px-3 py-1.5 text-right font-mono text-sky-300/60">
                       {fmtCot(s.latest.openInterest)}
                     </td>
-                    <td className={cn("px-3 py-2 text-right font-mono", net >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    <td className={cn("px-3 py-1.5 text-right font-mono", net >= 0 ? "text-green-400" : "text-red-400")}>
                       {net >= 0 ? "+" : ""}{fmtCot(net)}
                     </td>
-                    <td className={cn("px-3 py-2 text-right font-mono", chg > 0 ? "text-emerald-400" : chg < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    <td className={cn("px-3 py-1.5 text-right font-mono", chg > 0 ? "text-green-400" : chg < 0 ? "text-red-400" : "text-amber-200/40")}>
                       {chg >= 0 ? "+" : ""}{fmtCot(chg)}
                     </td>
-                    <td className={cn("px-3 py-2 text-right font-mono", s.latest.assetMgrNet >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    <td className={cn("px-3 py-1.5 text-right font-mono", s.latest.assetMgrNet >= 0 ? "text-green-400" : "text-red-400")}>
                       {s.latest.assetMgrNet >= 0 ? "+" : ""}{fmtCot(s.latest.assetMgrNet)}
                     </td>
-                    <td className={cn("px-3 py-2 text-right font-mono", s.latest.dealerNet >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    <td className={cn("px-3 py-1.5 text-right font-mono", s.latest.dealerNet >= 0 ? "text-green-400" : "text-red-400")}>
                       {s.latest.dealerNet >= 0 ? "+" : ""}{fmtCot(s.latest.dealerNet)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-3 py-1.5 text-right">
                       <span className={cn("font-mono font-semibold",
-                        Math.abs(s.zScore) > 1.5 ? s.zScore > 0 ? "text-emerald-400" : "text-red-400"
-                        : Math.abs(s.zScore) > 1 ? "text-yellow-400" : "text-muted-foreground")}>
+                        Math.abs(s.zScore) > 1.5 ? s.zScore > 0 ? "text-green-400" : "text-red-400"
+                        : Math.abs(s.zScore) > 1 ? "text-yellow-400" : "text-amber-200/40")}>
                         {s.zScore >= 0 ? "+" : ""}{s.zScore.toFixed(2)}σ
                       </span>
                     </td>

@@ -153,35 +153,37 @@ export function AnalystRatingsSection({
     : null;
 
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
+    <div>
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between mb-4 group"
+        className="w-full flex items-center justify-between mb-3 group"
       >
-        <span className="text-base font-bold tracking-tight text-foreground">Analyst Ratings</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">
+          {expanded ? "Hide" : "Show"} rating history &amp; price targets
+        </span>
         <span className="text-foreground group-hover:text-foreground transition-colors">
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
 
       {/* Always-visible: donut + consensus target */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
         <AnalystDonut recs={recs} />
         {m.analystTargetPrice != null && m.currentPrice != null && (
-          <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border/40 pt-4 sm:pt-0 sm:pl-6">
-            <div className="text-[10px] text-foreground uppercase tracking-widest mb-3">Consensus Price Target</div>
-            <div className="flex items-end gap-3">
+          <div className="flex-1 min-w-0 border-t sm:border-t-0 sm:border-l border-border/40 pt-3 sm:pt-0 sm:pl-6">
+            <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">Consensus Price Target</div>
+            <div className="flex items-end gap-2 flex-wrap">
               <div>
                 <div className="text-[10px] text-foreground mb-1">Current</div>
-                <div className="text-xl font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
+                <div className="text-lg font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
               </div>
-              <div className="text-foreground text-lg mb-1">→</div>
+              <div className="text-foreground text-base mb-1">→</div>
               <div>
                 <div className="text-[10px] text-foreground mb-1">12M Target</div>
-                <div className="text-xl font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
+                <div className="text-lg font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
               </div>
-              <div className={cn("text-base font-bold font-mono mb-0.5",
+              <div className={cn("text-sm font-bold font-mono mb-0.5 whitespace-nowrap",
                 m.analystTargetPrice > m.currentPrice ? "text-green-400" : "text-red-400")}>
                 {((m.analystTargetPrice / m.currentPrice - 1) * 100) >= 0 ? "+" : ""}
                 {((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%

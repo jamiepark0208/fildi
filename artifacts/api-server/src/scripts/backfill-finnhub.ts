@@ -74,6 +74,7 @@ async function processTicker(ticker: string, freshSet: Set<string>): Promise<Res
         ticker,
         fetchedAt: new Date(),
         finnhubPeRatio:               data.finnhub_peRatio?.toString()              ?? null,
+        finnhubPegRatio:              data.finnhub_pegRatio?.toString()             ?? null,
         finnhubPbRatio:               data.finnhub_pbRatio?.toString()              ?? null,
         finnhubPsRatio:               data.finnhub_psRatio?.toString()              ?? null,
         finnhubPriceToBook:           data.finnhub_priceToBook?.toString()          ?? null,
@@ -108,6 +109,7 @@ async function processTicker(ticker: string, freshSet: Set<string>): Promise<Res
         set: {
           fetchedAt:                   sql`now()`,
           finnhubPeRatio:              sql`excluded.finnhub_pe_ratio`,
+          finnhubPegRatio:             sql`excluded.finnhub_peg_ratio`,
           finnhubPbRatio:              sql`excluded.finnhub_pb_ratio`,
           finnhubPsRatio:              sql`excluded.finnhub_ps_ratio`,
           finnhubPriceToBook:          sql`excluded.finnhub_price_to_book`,

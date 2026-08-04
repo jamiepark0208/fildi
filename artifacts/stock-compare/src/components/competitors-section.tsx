@@ -70,15 +70,15 @@ function CompetitorRow({ row }: { row: CompetitorRanked }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="grid grid-cols-[1fr_56px_56px_56px] items-center gap-2 py-1.5 px-1 rounded-md hover:bg-white/5 transition-colors cursor-default">
-          <span className="font-mono font-semibold text-sm text-foreground">{row.ticker}</span>
-          <span className={cn("text-right font-mono text-xs font-bold", scoreColor(row.combinedScore))}>
+        <div className="grid grid-cols-[minmax(0,1fr)_28px_28px_28px] items-center gap-1 py-0.5 px-1 rounded hover:bg-white/5 transition-colors cursor-default">
+          <span className="font-mono font-semibold text-[11px] text-foreground truncate">{row.ticker}</span>
+          <span className={cn("text-right font-mono text-[10px] font-bold", scoreColor(row.combinedScore))}>
             {row.combinedScore != null ? row.combinedScore.toFixed(0) : "—"}
           </span>
-          <span className={cn("text-right font-mono text-xs", scoreColor(row.fundScore))}>
+          <span className={cn("text-right font-mono text-[10px]", scoreColor(row.fundScore))}>
             {row.fundScore != null ? row.fundScore.toFixed(0) : "—"}
           </span>
-          <span className={cn("text-right font-mono text-xs", scoreColor(row.techScore))}>
+          <span className={cn("text-right font-mono text-[10px]", scoreColor(row.techScore))}>
             {row.techScore != null ? row.techScore.toFixed(0) : "—"}
           </span>
         </div>
@@ -115,22 +115,18 @@ export function CompetitorsSection({ ticker }: CompetitorsSectionProps) {
   const subtitle = data?.groupName ?? [data?.industry, data?.sector].filter(Boolean).join(" · ");
 
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4">
-      <span className="text-base font-bold tracking-tight text-foreground block">Competitors</span>
-      {subtitle && <p className="text-xs text-foreground mt-0.5 mb-3">{subtitle}</p>}
-      {!subtitle && <div className="mb-3" />}
-
+    <div>
       {isLoading ? (
         <p className="text-sm text-foreground">Loading…</p>
       ) : !data || data.ranked.length === 0 ? (
         <p className="text-sm text-foreground">No peers found for this ticker yet.</p>
       ) : (
-        <div className="space-y-0.5">
-          <div className="grid grid-cols-[1fr_56px_56px_56px] gap-2 px-1 pb-1 border-b border-border/40">
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wide">Ticker</span>
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wide text-right">Total</span>
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wide text-right">Fund</span>
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wide text-right">Tech</span>
+        <div className="space-y-0">
+          <div className="grid grid-cols-[minmax(0,1fr)_28px_28px_28px] gap-1 px-1 pb-0.5 border-b border-[#d4af37]/20">
+            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide truncate">Peers</span>
+            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tot</span>
+            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Fnd</span>
+            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tch</span>
           </div>
           {data.ranked.map(row => (
             <CompetitorRow key={row.ticker} row={row} />

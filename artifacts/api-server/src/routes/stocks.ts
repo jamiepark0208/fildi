@@ -1,7 +1,7 @@
 import { Router } from "express";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
@@ -12,6 +12,9 @@ import {
   indicatorCache,
   tickerFundamentals,
   tickerTechnicals,
+  edgarStatementHistory,
+  type EdgarStatementHistoryRow,
+  tickerEventBullets,
 } from "@workspace/db";
 import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
@@ -22,6 +25,7 @@ import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
+import { fetchEdgarStatementHistory } from "../lib/edgar-client.js";
 
 const router = Router();
 
@@ -530,20 +534,18 @@ async function fetchQuoteSummary(ticker: string) {
 
 async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
-  const cached = quoteCache.get(key);
-  if (cached) return cached;
-
-  const [q, fmpRow, regRow] = await Promise.all([
-    fetchQuoteSummary(key),
-    readFundamentalsRow(key),
-    readRegistryRow(key),
-  ]);
-  // assetProfile carries sector/industry — price/summaryDetail/financialData/
-  // defaultKeyStatistics never do, so quote.sector was always undefined without it.
-  const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-  const metrics = { ...buildMetrics(merged, fmpRow, key, regRow), earningsDate: parseEarningsDate(q, null) };
-  quoteCache.set(key, metrics);
-  return metrics;
+  // getOrCompute coalesces concurrent misses for the same ticker into one Yahoo call.
+  return quoteCache.getOrCompute(key, async () => {
+    const [q, fmpRow, regRow] = await Promise.all([
+      fetchQuoteSummary(key),
+      readFundamentalsRow(key),
+      readRegistryRow(key),
+    ]);
+    // assetProfile carries sector/industry — price/summaryDetail/financialData/
+    // defaultKeyStatistics never do, so quote.sector was always undefined without it.
+    const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
+    return { ...buildMetrics(merged, fmpRow, key, regRow), earningsDate: parseEarningsDate(q, null) };
+  });
 }
 
 // Overlays the golden-source live price (same cache Live Monitor reads) onto a metrics
@@ -740,12 +742,11 @@ router.get("/stocks/breakdown", async (req, res) => {
   }
   const upperTicker = ticker.toUpperCase();
   const key = `${upperTicker}:v${BREAKDOWN_CACHE_VER}`;
-  const cached = breakdownCache.get(key) as BreakdownPayload | undefined;
-  if (cached) {
-    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(cached)));
-  }
 
   try {
+    // getOrCompute coalesces concurrent misses for the same ticker into one build
+    // (breakdown is the heaviest fan-out: Yahoo summary + news + peers + fundamentals).
+    const payload = (await breakdownCache.getOrCompute(key, async () => {
     const analystFresh = await isAnalystDataFresh(upperTicker);
     const modules = ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
     if (!analystFresh) modules.push("upgradeDowngradeHistory");
@@ -807,9 +808,13 @@ router.get("/stocks/breakdown", async (req, res) => {
     // Per-analyst price targets unavailable on current FMP plan — always empty
     const analystPriceTargets: unknown[] = [];
 
-    // Metric-driven bull/bear bullets
-    const bullBullets = buildBullBullets(metrics);
-    const bearBullets = buildBearBullets(metrics);
+    // Metric-driven bull/bear bullets, with same-day event bullets (earnings beat/miss,
+    // analyst upgrade/downgrade, large price move ex-macro) from the daily trigger check
+    // (event-bullets.ts) prepended so timely info wins the capped slots over static ratios.
+    const eventBulletsRow = (await db.select().from(tickerEventBullets)
+      .where(eq(tickerEventBullets.ticker, upperTicker)).limit(1))[0];
+    const bullBullets = [...(eventBulletsRow?.bullBullets as string[] ?? []), ...buildBullBullets(metrics)].slice(0, 4);
+    const bearBullets = [...(eventBulletsRow?.bearBullets as string[] ?? []), ...buildBearBullets(metrics)].slice(0, 4);
 
     const news = ((newsRes as any).news ?? []).slice(0, 6).map((n: any) => ({
       title: n.title ?? "",
@@ -828,7 +833,7 @@ router.get("/stocks/breakdown", async (req, res) => {
 
     const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
 
-    const payload = attachCatalysts({
+    return attachCatalysts({
       metrics,
       recommendations,
       analystActions,
@@ -843,14 +848,207 @@ router.get("/stocks/breakdown", async (req, res) => {
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,
     });
-    breakdownCache.set(key, payload);
-    return res.json(await overlayBreakdownPrice(upperTicker, payload));
+    })) as BreakdownPayload;
+    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(payload)));
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
       return res.status(404).json({ error: `Ticker not found: ${upperTicker}` });
     }
     return res.status(500).json({ error: `Failed to fetch stock data: ${msg}` });
+  }
+});
+
+// GET /stocks/edgar-statements/:ticker — multi-year income/balance/cash-flow
+// statements from SEC EDGAR (edgar-client.ts fetchEdgarStatementHistory), an
+// independent free source from the FMP-derived fundamentals used elsewhere, plus
+// rule-based trend findings and a cross-check against the FMP numbers already
+// shown on the breakdown tab.
+const EDGAR_STATEMENTS_STALE_MS = 100 * 24 * 60 * 60 * 1000; // ~1 quarter — 10-Ks refresh annually
+
+interface EdgarFinding { text: string; tone: "positive" | "negative" | "neutral"; }
+
+function cagr(first: number, last: number, years: number): number | null {
+  if (first <= 0 || years <= 0) return null;
+  return Math.pow(last / first, 1 / years) - 1;
+}
+
+function computeEdgarFindings(
+  rows: EdgarStatementHistoryRow[],
+  fmpRow: TickerFundamentalsRow | null,
+): EdgarFinding[] {
+  const findings: EdgarFinding[] = [];
+  const byItem = (lineItem: string) => rows
+    .filter(r => r.lineItem === lineItem)
+    .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
+    .sort((a, b) => a.year - b.year);
+
+  const revenue = byItem("revenue");
+  const netIncome = byItem("netIncome");
+  const grossProfit = byItem("grossProfit");
+  const operatingIncome = byItem("operatingIncome");
+  const operatingCF = byItem("operatingCashFlow");
+  const capex = byItem("capex");
+  const longTermDebt = byItem("longTermDebt");
+  const equity = byItem("stockholdersEquity");
+
+  if (revenue.length >= 2) {
+    const c = cagr(revenue[0].value, revenue[revenue.length - 1].value, revenue.length - 1);
+    if (c != null) {
+      findings.push({
+        text: `Revenue ${c >= 0 ? "grew" : "declined"} at a ${(c * 100).toFixed(1)}% annual rate over the last ${revenue.length} filed years (SEC 10-K).`,
+        tone: c > 0.03 ? "positive" : c < -0.03 ? "negative" : "neutral",
+      });
+    }
+  }
+
+  if (grossProfit.length >= 2 && revenue.length >= 2) {
+    const marginAt = (year: number) => {
+      const gp = grossProfit.find(g => g.year === year)?.value;
+      const rev = revenue.find(r => r.year === year)?.value;
+      return gp != null && rev ? gp / rev : null;
+    };
+    const first = marginAt(grossProfit[0].year);
+    const last = marginAt(grossProfit[grossProfit.length - 1].year);
+    if (first != null && last != null) {
+      const delta = last - first;
+      findings.push({
+        text: `Gross margin ${delta >= 0 ? "expanded" : "compressed"} from ${(first * 100).toFixed(1)}% to ${(last * 100).toFixed(1)}% over the filed history.`,
+        tone: delta > 0.005 ? "positive" : delta < -0.005 ? "negative" : "neutral",
+      });
+    }
+  }
+
+  if (operatingCF.length > 0 && netIncome.length > 0) {
+    const latestYear = Math.max(...operatingCF.map(o => o.year));
+    const opCF = operatingCF.find(o => o.year === latestYear)?.value;
+    const capexVal = Math.abs(capex.find(c => c.year === latestYear)?.value ?? 0);
+    const ni = netIncome.find(n => n.year === latestYear)?.value;
+    if (opCF != null && ni != null) {
+      const fcf = opCF - capexVal;
+      const gap = ni !== 0 ? (fcf - ni) / Math.abs(ni) : 0;
+      if (gap < -0.25) {
+        findings.push({
+          text: `FY${latestYear} free cash flow ($${(fcf / 1e6).toFixed(0)}M) is well below reported net income ($${(ni / 1e6).toFixed(0)}M) — an earnings-quality flag worth digging into (accruals, working-capital swings, or capex timing).`,
+          tone: "negative",
+        });
+      } else if (gap > 0.1) {
+        findings.push({
+          text: `FY${latestYear} free cash flow ($${(fcf / 1e6).toFixed(0)}M) comfortably exceeds net income ($${(ni / 1e6).toFixed(0)}M) — earnings are being backed by real cash generation.`,
+          tone: "positive",
+        });
+      }
+    }
+  }
+
+  if (longTermDebt.length >= 2 && equity.length >= 2) {
+    const ratioAt = (year: number) => {
+      const d = longTermDebt.find(x => x.year === year)?.value;
+      const e = equity.find(x => x.year === year)?.value;
+      return d != null && e ? d / e : null;
+    };
+    const first = ratioAt(longTermDebt[0].year);
+    const last = ratioAt(longTermDebt[longTermDebt.length - 1].year);
+    if (first != null && last != null) {
+      const delta = last - first;
+      if (Math.abs(delta) > 0.1) {
+        findings.push({
+          text: `Long-term debt / equity ${delta > 0 ? "rose" : "fell"} from ${first.toFixed(2)}x to ${last.toFixed(2)}x over the filed history.`,
+          tone: delta > 0 ? "negative" : "positive",
+        });
+      }
+    }
+  }
+
+  // Cross-check against the FMP-derived numbers already shown elsewhere in the app —
+  // this is the actual "second layer of validation" against the existing pipeline.
+  if (fmpRow && revenue.length > 0) {
+    const latest = revenue[revenue.length - 1];
+    const fmpRevenue = fmpRow.totalRevenue != null ? Number(fmpRow.totalRevenue) : null;
+    if (fmpRevenue && fmpRevenue > 0) {
+      const diff = Math.abs(latest.value - fmpRevenue) / fmpRevenue;
+      if (diff > 0.05) {
+        findings.push({
+          text: `Data discrepancy: SEC-filed FY${latest.year} revenue ($${(latest.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
+          tone: "negative",
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+function groupStatementRows(rows: EdgarStatementHistoryRow[]) {
+  const group = (type: string) => {
+    const byLineItem = new Map<string, { fiscalYear: number; value: number }[]>();
+    for (const r of rows.filter(x => x.statementType === type)) {
+      const arr = byLineItem.get(r.lineItem) ?? [];
+      arr.push({ fiscalYear: r.fiscalYear, value: Number(r.value) });
+      byLineItem.set(r.lineItem, arr);
+    }
+    return Object.fromEntries(
+      [...byLineItem.entries()].map(([k, v]) => [k, v.sort((a, b) => b.fiscalYear - a.fiscalYear)]),
+    );
+  };
+  return { income: group("income"), balance: group("balance"), cashflow: group("cashflow") };
+}
+
+export const edgarStatementsCache = new TTLCache<object>(60 * 60 * 1000, 'edgar-statements', 500);
+
+router.get("/stocks/edgar-statements/:ticker", async (req, res) => {
+  const upperTicker = String(req.params["ticker"] ?? "").toUpperCase();
+  if (!upperTicker) return res.status(400).json({ error: "ticker required" });
+
+  try {
+    const payload = await edgarStatementsCache.getOrCompute(upperTicker, async () => {
+      let rows: EdgarStatementHistoryRow[] = await db
+        .select()
+        .from(edgarStatementHistory)
+        .where(eq(edgarStatementHistory.ticker, upperTicker));
+
+      const isStale = rows.length === 0 || rows.every(
+        r => Date.now() - new Date(r.fetchedAt).getTime() > EDGAR_STATEMENTS_STALE_MS,
+      );
+
+      if (isStale) {
+        const fresh = await fetchEdgarStatementHistory(upperTicker);
+        if (fresh && fresh.length > 0) {
+          await db.insert(edgarStatementHistory)
+            .values(fresh.map(r => ({
+              ticker: upperTicker,
+              fiscalYear: r.fiscalYear,
+              statementType: r.statementType,
+              lineItem: r.lineItem,
+              value: String(r.value),
+              filedDate: r.filedDate,
+            })))
+            .onConflictDoUpdate({
+              target: [edgarStatementHistory.ticker, edgarStatementHistory.fiscalYear, edgarStatementHistory.statementType, edgarStatementHistory.lineItem],
+              set: { value: sql`excluded.value`, filedDate: sql`excluded.filed_date`, fetchedAt: sql`now()` },
+            });
+          rows = await db
+            .select()
+            .from(edgarStatementHistory)
+            .where(eq(edgarStatementHistory.ticker, upperTicker));
+        }
+      }
+
+      if (rows.length === 0) {
+        return { available: false, income: {}, balance: {}, cashflow: {}, findings: [], asOf: null };
+      }
+
+      const fmpRow = await readFundamentalsRow(upperTicker);
+      const findings = computeEdgarFindings(rows, fmpRow);
+      const asOf = rows.reduce((max, r) => (r.filedDate > max ? r.filedDate : max), rows[0].filedDate);
+
+      return { available: true, ...groupStatementRows(rows), findings, asOf };
+    });
+
+    return res.json(payload);
+  } catch (err: any) {
+    logger.error({ ticker: upperTicker, err: String(err?.message ?? err) }, "edgar-statements route failed");
+    return res.status(500).json({ error: `Failed to fetch EDGAR statements: ${String(err?.message ?? err)}` });
   }
 });
 

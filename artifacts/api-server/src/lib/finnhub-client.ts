@@ -3,6 +3,7 @@ import { logApiCall } from "./api-logger.js";
 
 export interface FinnhubFundamentalsData {
   finnhub_peRatio?:               number;
+  finnhub_pegRatio?:              number;
   finnhub_pbRatio?:               number;
   finnhub_psRatio?:               number;
   finnhub_grossMargin?:           number;
@@ -99,6 +100,10 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
 
   const result: FinnhubFundamentalsData = {
     finnhub_peRatio:              n(m["peBasicExclExtraTTM"]) ?? n(m["peTTM"]),
+    // Finnhub only exposes forward PEG (forwardPEG) — no trailing PEG field exists on this
+    // endpoint. Kept as a lower-priority fallback in merge-trusted.ts since it's not directly
+    // comparable to yahoo/fmp's trailing PEG.
+    finnhub_pegRatio:              n(m["forwardPEG"]),
     finnhub_pbRatio:              n(m["pb"]),
     finnhub_psRatio:              n(m["psTTM"]),
     finnhub_grossMargin:          pct(m["grossMarginTTM"]),
@@ -109,7 +114,10 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_roic:                 pct(m["roicTTM"]),
     finnhub_revenueGrowth:        pct(m["revenueGrowthTTMYoy"]),
     finnhub_epsGrowth:            pct(m["epsGrowthTTMYoy"]),
-    finnhub_debtToEquity:         pct(m["totalDebt/totalEquityAnnual"]),
+    // totalDebt/totalEquityAnnual (and its long-term/net variants) are plain ratios from
+    // Finnhub, like pb/currentRatioAnnual — not percentages. pct() was wrongly dividing
+    // them by 100, producing values ~100x too small vs fmp's debtToEquity.
+    finnhub_debtToEquity:         n(m["totalDebt/totalEquityAnnual"]),
     finnhub_currentRatio:         n(m["currentRatioAnnual"]),
     finnhub_quickRatio:           n(m["quickRatioAnnual"]),
     finnhub_fcfMargin:            pct(m["fcfMargin"]),
@@ -119,8 +127,8 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_beta:                 n(m["beta"]),
     finnhub_eps:                  n(m["eps"]),
     finnhub_ebitPerShare:         n(m["ebitPerShare"]),
-    finnhub_longTermDebtToEquity: pct(m["longtermDebtTotalEquity"]),
-    finnhub_netDebtToEquity:      pct(m["netDebtToTotalEquity"]),
+    finnhub_longTermDebtToEquity: n(m["longtermDebtTotalEquity"]),
+    finnhub_netDebtToEquity:      n(m["netDebtToTotalEquity"]),
     finnhub_earningsPerShare:     n(m["epsBasicExclExtraItemsTTM"]),
     finnhub_priceToBook:          n(m["pbAnnual"]),
     finnhub_52weekHigh:           n(m["52WeekHigh"]),

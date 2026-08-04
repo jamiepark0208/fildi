@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { fetchJsonWithRetry } from "./http-client.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,9 +135,7 @@ async function fetchInstrumentHistory(
 ): Promise<Record<string, unknown>[]> {
   const encoded = encodeURIComponent(`market_and_exchange_names like '%${searchTerm}%'`);
   const endpoint = `${url}?$where=${encoded}&$order=report_date_as_yyyy_mm_dd DESC&$limit=${weeks}`;
-  const res = await fetch(endpoint);
-  if (!res.ok) throw new Error(`CFTC fetch failed: ${res.status}`);
-  return res.json() as Promise<Record<string, unknown>[]>;
+  return fetchJsonWithRetry<Record<string, unknown>[]>(endpoint, { provider: "CFTC", timeoutMs: 20_000 });
 }
 
 function loadCache(): CotCache | null {

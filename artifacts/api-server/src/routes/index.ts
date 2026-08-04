@@ -8,6 +8,7 @@ import dailyBriefRouter from "./daily-brief";
 import macroRouter from "./macro";
 import fundamentalsRouter from "./fundamentals";
 import fundamentalsProvenanceRouter from "./fundamentals-provenance";
+import fundamentalsRefetchQueueRouter from "./fundamentals-refetch-queue";
 import technicalsRouter from "./technicals";
 import explainRouter from "./explain";
 import sdmRouter from "./sdm";
@@ -24,8 +25,11 @@ import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
 import enrichmentRunsRouter from "./enrichment-runs";
+import scheduledTasksRouter from "./scheduled-tasks";
 import positionsRouter from "./positions";
+import feedbackRouter from "./feedback";
 import liveRouter from "./live";
+import trackRecordRouter from "./track-record";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { explainLimiter } from "../middleware/rateLimiter.js";
 
@@ -40,6 +44,7 @@ router.use(dailyBriefRouter);
 router.use("/macro", macroRouter);
 router.use(fundamentalsRouter);
 router.use(fundamentalsProvenanceRouter);
+router.use(fundamentalsRefetchQueueRouter);
 router.use(technicalsRouter);
 router.use(macroRegimeRouter);
 router.use(adminCacheRouter);
@@ -50,6 +55,7 @@ router.use(regimeRouter);
 router.use(apiUsageRouter);
 router.use(dataHealthRouter);
 router.use(enrichmentRunsRouter);
+router.use(scheduledTasksRouter);
 
 // bug/1: vendor-cost routes (Yahoo/Anthropic/SDM on cache miss) had zero
 // auth. Path-scoped directly on the parent router — NOT a blanket
@@ -59,7 +65,7 @@ router.use(enrichmentRunsRouter);
 // A no-path `.use(requireAuth)` in that position becomes a global gate for
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
-router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live"], requireAuth);
+router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record"], requireAuth);
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);
@@ -70,6 +76,7 @@ router.use(technicalRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
 router.use(liveRouter);
+router.use(trackRecordRouter);
 
 // watchlist.ts, feed.ts, and positions.ts each have their own internal
 // blanket `router.use(requireAuth)` (all-user-specific routes, intentional),
@@ -85,5 +92,6 @@ router.use(liveRouter);
 router.use(watchlistRouter);
 router.use(feedRouter);
 router.use(positionsRouter);
+router.use(feedbackRouter);
 
 export default router;

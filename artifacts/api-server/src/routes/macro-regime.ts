@@ -55,11 +55,11 @@ function classifyDirection(spxChange: number | null, ndxChange: number | null): 
 export let _cache: MacroRegimeResult | null = null;
 export const CACHE_TTL_MS = 30 * 60 * 1000;
 
-// ── Route ─────────────────────────────────────────────────────────────────────
+// ── Shared fetch (route + model-track-record snapshot job) ────────────────────
 
-router.get("/volatility/regime", async (_req, res) => {
+export async function getMacroRegimeResult(): Promise<MacroRegimeResult> {
   if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) {
-    return res.json(_cache);
+    return _cache;
   }
 
   try {
@@ -83,7 +83,7 @@ router.get("/volatility/regime", async (_req, res) => {
     const indexDirection = classifyDirection(spxChange1d, ndxChange1d);
 
     _cache = { vix, spxChange1d, ndxChange1d, rutChange1d, regime, indexDirection, fetchedAt: Date.now() };
-    return res.json(_cache);
+    return _cache;
   } catch (err: any) {
     logger.warn({ err: String(err?.message ?? err) }, "macro-regime: fetch failed, returning baseline");
     const fallback: MacroRegimeResult = {
@@ -93,8 +93,14 @@ router.get("/volatility/regime", async (_req, res) => {
       fetchedAt: Date.now(),
     };
     _cache = fallback;
-    return res.json(fallback);
+    return fallback;
   }
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
+router.get("/volatility/regime", async (_req, res) => {
+  return res.json(await getMacroRegimeResult());
 });
 
 export default router;

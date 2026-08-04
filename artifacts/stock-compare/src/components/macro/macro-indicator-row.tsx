@@ -39,40 +39,40 @@ export function MacroRow({
   const yoyColor = inflSign ? inflColor(yoy ?? null) : changeColor(yoy ?? null);
 
   const rowBg = isSelected
-    ? "bg-primary/10"
+    ? "bg-amber-500/10"
     : highlight === "recent"
-    ? "bg-blue-900/10"
+    ? "bg-sky-500/10"
     : highlight === "upcoming"
-    ? "bg-yellow-900/10"
-    : "";
+    ? "bg-yellow-500/10"
+    : "bg-zinc-900/70 even:bg-zinc-800/60";
 
   const labelColor =
     highlight === "recent"
-      ? "text-blue-300"
+      ? "text-sky-300"
       : highlight === "upcoming"
-      ? "text-yellow-300"
-      : "text-muted-foreground";
+      ? "text-yellow-400"
+      : "text-amber-200/50";
 
   return (
     <tr
-      className={cn("hover:bg-secondary/30 cursor-pointer transition-colors", rowBg)}
+      className={cn("hover:bg-amber-500/10 cursor-pointer transition-colors", rowBg)}
       onClick={onSelect}
     >
-      <td className={cn("px-4 py-2", labelColor)}>
+      <td className={cn("px-3 py-1.5", labelColor)}>
         <span className="flex items-center gap-1.5">
           {label}
           {highlight === "recent" && (
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shrink-0" title="Recently released" />
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block shrink-0" title="Recently released" />
           )}
           {highlight === "upcoming" && (
             <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block shrink-0" title="Upcoming this week" />
           )}
         </span>
       </td>
-      <td className="px-3 py-2 text-right font-medium">{value}</td>
-      <td className={cn("px-3 py-2 text-right", momColor)}>{momDisplay}</td>
-      <td className={cn("px-3 py-2 text-right", yoyColor)}>{yoyDisplay}</td>
-      <td className="px-4 py-2 text-right text-muted-foreground/70">
+      <td className="px-3 py-1.5 text-right font-medium font-mono text-white">{value}</td>
+      <td className={cn("px-3 py-1.5 text-right font-mono", momColor)}>{momDisplay}</td>
+      <td className={cn("px-3 py-1.5 text-right font-mono", yoyColor)}>{yoyDisplay}</td>
+      <td className="px-3 py-1.5 text-right font-mono text-amber-200/40">
         {date ? fmtMonthYear(date) : "—"}
       </td>
     </tr>

@@ -15,14 +15,14 @@ export function CurvePeriodButtons({
   onChange: (p: CurvePeriod) => void;
 }) {
   return (
-    <div className="flex rounded-md border border-border overflow-hidden text-[10px]">
+    <div className="flex gap-1">
       {(["current", "1wk", "1mo", "3mo"] as CurvePeriod[]).map((p) => (
         <button
           key={p}
           onClick={() => onChange(p)}
           className={cn(
-            "px-2 py-0.5 transition-colors",
-            period === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+            "px-2 py-1 transition-colors text-[11px] font-semibold rounded border border-[#d4af37]/20",
+            p === period ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
           )}
         >
           {p === "current" ? "Live" : p}
@@ -54,28 +54,26 @@ export function VixCurveChart({
     period === "1wk" ? "1 Wk Ago" : period === "1mo" ? "1 Mo Ago" : period === "3mo" ? "3 Mo Ago" : "";
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Activity className="h-4 w-4 text-yellow-400" />
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+          <Activity className="h-3.5 w-3.5 text-[#d4af37]/80" />
           VIX Curve
-        </h3>
+        </span>
+        {period !== "current" && (
+          <span className="text-[10px] font-mono text-amber-200/40">
+            <span className="text-[#d4af37]">Current</span> · <span className="text-sky-300/60">{periodLabel}</span>
+          </span>
+        )}
         <CurvePeriodButtons period={period} onChange={onPeriodChange} />
       </div>
-      {period !== "current" && (
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-yellow-400 inline-block" /> Current</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-400 inline-block" style={{ borderBottom: "1px dashed #fb923c", background: "none" }} /> {periodLabel}</span>
-        </div>
-      )}
       {loading ? (
         <div className="h-[160px] flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]/60" />
         </div>
       ) : !hasData ? (
-        <div className="h-[160px] flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
-          <span>VIX term structure unavailable</span>
-          <span className="text-[10px]">^VXST / ^VIX3M / ^VIX6M / ^VIX1Y data not found</span>
+        <div className="h-[160px] flex items-center justify-center text-xs text-amber-200/40">
+          VIX term structure unavailable
         </div>
       ) : (
         <>
@@ -113,22 +111,23 @@ export function VixCurveChart({
               )}
             </LineChart>
           </ResponsiveContainer>
-          {/* Spread changes per tenor */}
           {period !== "current" && (
-            <div className="flex gap-1 flex-wrap">
-              {vixCurve.map((pt) => {
+            <span className="block text-[11px] font-mono text-sky-300/60">
+              {vixCurve.map((pt, i) => {
                 const comp = getPeriodValue(pt);
                 const spread = pt.value != null && comp != null ? pt.value - comp : null;
                 return (
-                  <div key={pt.tenor} className="text-[10px] text-center px-1.5 py-0.5 rounded bg-secondary/50">
-                    <div className="text-muted-foreground">{pt.tenor}</div>
-                    <div className={cn("font-medium", spread == null ? "" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-muted-foreground")}>
+                  <span key={pt.tenor}>
+                    {i > 0 && " · "}
+                    <span className="text-amber-200/40">{pt.tenor}</span>
+                    {" "}
+                    <span className={spread == null ? "text-amber-200/40" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-amber-200/40"}>
                       {spread != null ? `${spread > 0 ? "+" : ""}${spread.toFixed(2)}` : "—"}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 );
               })}
-            </div>
+            </span>
           )}
         </>
       )}
@@ -152,23 +151,22 @@ export function YieldCurveChart({
     period === "1wk" ? "1 Wk Ago" : period === "1mo" ? "1 Mo Ago" : period === "3mo" ? "3 Mo Ago" : "";
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <TrendingDown className="h-4 w-4 text-blue-400" />
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+          <TrendingDown className="h-3.5 w-3.5 text-[#d4af37]/80" />
           Treasury Yield Curve
-        </h3>
+        </span>
+        {period !== "current" && (
+          <span className="text-[10px] font-mono text-amber-200/40">
+            <span className="text-[#d4af37]">Current</span> · <span className="text-sky-300/60">{periodLabel}</span>
+          </span>
+        )}
         <CurvePeriodButtons period={period} onChange={onPeriodChange} />
       </div>
-      {period !== "current" && (
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" /> Current</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-400 inline-block" /> {periodLabel}</span>
-        </div>
-      )}
       {!hasData ? (
         <div className="h-[160px] flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]/60" />
         </div>
       ) : (
         <>
@@ -197,21 +195,23 @@ export function YieldCurveChart({
             </LineChart>
           </ResponsiveContainer>
           {period !== "current" && (
-            <div className="flex gap-1 flex-wrap">
-              {yieldCurve.map((pt) => {
+            <span className="block text-[11px] font-mono text-sky-300/60">
+              {yieldCurve.map((pt, i) => {
                 const comp =
                   period === "1wk" ? pt.weekAgo : period === "1mo" ? pt.monthAgo : pt.threeMonthAgo;
                 const spread = pt.current != null && comp != null ? pt.current - comp : null;
                 return (
-                  <div key={pt.maturity} className="text-[10px] text-center px-1.5 py-0.5 rounded bg-secondary/50">
-                    <div className="text-muted-foreground">{pt.maturity}</div>
-                    <div className={cn("font-medium", spread == null ? "" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-muted-foreground")}>
+                  <span key={pt.maturity}>
+                    {i > 0 && " · "}
+                    <span className="text-amber-200/40">{pt.maturity}</span>
+                    {" "}
+                    <span className={spread == null ? "text-amber-200/40" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-amber-200/40"}>
                       {spread != null ? `${spread > 0 ? "+" : ""}${(spread * 100).toFixed(0)}bp` : "—"}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 );
               })}
-            </div>
+            </span>
           )}
         </>
       )}
@@ -239,27 +239,22 @@ export function FedFundsCurveChart({
   const height = compact ? 120 : 160;
 
   return (
-    <div className={cn("border border-border rounded-lg space-y-1.5", compact ? "p-2.5" : "p-4 space-y-2")}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={cn("font-semibold flex items-center gap-1.5", compact ? "text-xs" : "text-sm gap-2")}>
-            <DollarSign className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-green-400")} />
-            Fed Funds Curve
-          </h3>
-          {isProxy && !compact && (
-            <p className="text-[9px] text-muted-foreground/60 italic">T-bill proxy (ZQ futures unavailable)</p>
-          )}
-        </div>
+    <div className={cn("rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 space-y-1.5", compact ? "p-2" : "p-2")}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+          <DollarSign className="h-3.5 w-3.5 text-[#d4af37]/80" />
+          Fed Funds Curve
+          {isProxy && <span className="normal-case font-normal text-amber-200/40">(T-bill proxy)</span>}
+        </span>
         <CurvePeriodButtons period={period} onChange={onPeriodChange} />
       </div>
       {loading ? (
         <div style={{ height }} className="flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]/60" />
         </div>
       ) : !hasData ? (
-        <div style={{ height }} className="flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
-          <span>Fed Funds futures data unavailable</span>
-          {!compact && <span className="text-[10px]">ZQ futures not found on this feed</span>}
+        <div style={{ height }} className="flex items-center justify-center text-xs text-amber-200/40">
+          Fed Funds futures data unavailable
         </div>
       ) : (
         <>
@@ -292,21 +287,23 @@ export function FedFundsCurveChart({
             </LineChart>
           </ResponsiveContainer>
           {period !== "current" && !compact && (
-            <div className="flex gap-1 flex-wrap">
-              {data.map((pt) => {
+            <span className="block text-[11px] font-mono text-sky-300/60">
+              {data.map((pt, i) => {
                 const comp =
                   period === "1wk" ? pt.weekAgo : period === "1mo" ? pt.monthAgo : pt.threeMonthAgo;
                 const spread = pt.impliedRate != null && comp != null ? pt.impliedRate - comp : null;
                 return (
-                  <div key={pt.label} className="text-[10px] text-center px-1.5 py-0.5 rounded bg-secondary/50">
-                    <div className="text-muted-foreground">{pt.label}</div>
-                    <div className={cn("font-medium", spread == null ? "" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-muted-foreground")}>
+                  <span key={pt.label}>
+                    {i > 0 && " · "}
+                    <span className="text-amber-200/40">{pt.label}</span>
+                    {" "}
+                    <span className={spread == null ? "text-amber-200/40" : spread > 0 ? "text-red-400" : spread < 0 ? "text-green-400" : "text-amber-200/40"}>
                       {spread != null ? `${spread > 0 ? "+" : ""}${(spread * 100).toFixed(0)}bp` : "—"}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 );
               })}
-            </div>
+            </span>
           )}
         </>
       )}

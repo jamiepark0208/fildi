@@ -46,8 +46,8 @@ export function SectorHeatmapGrid({
 
   if (loading || !data) {
     return (
-      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-[280px]">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 flex items-center justify-center h-[200px]">
+        <Loader2 className="h-5 w-5 animate-spin text-amber-200/40" />
       </div>
     );
   }
@@ -58,26 +58,21 @@ export function SectorHeatmapGrid({
   const weightOf = (s: SectorRotationPoint) => Math.max(0.35, Math.abs(s[timeframe.key] ?? 0));
 
   return (
-    <div className="border border-border rounded-lg p-3">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sector Performance</h3>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
+        <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Sector Performance</h3>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: RED_STEPS[4] }} />
-            down
-            <span className="w-2.5 h-2.5 rounded-sm ml-2" style={{ background: FLAT_COLOR }} />
-            flat
-            <span className="w-2.5 h-2.5 rounded-sm ml-2" style={{ background: GREEN_STEPS[4] }} />
-            up
-          </div>
+          <span className="text-[10px] text-amber-200/40">
+            <span style={{ color: RED_STEPS[4] }}>down</span> · flat · <span style={{ color: GREEN_STEPS[4] }}>up</span>
+          </span>
           <div className="flex gap-1">
             {HEATMAP_TIMEFRAMES.map((tf) => (
               <button
                 key={tf.id}
                 onClick={() => setTimeframe(tf)}
                 className={cn(
-                  "px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
-                  timeframe.id === tf.id ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/70",
+                  "px-2 py-1 transition-colors text-[11px] font-semibold rounded border border-[#d4af37]/20",
+                  timeframe.id === tf.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
                 )}
               >
                 {tf.label}
@@ -87,25 +82,25 @@ export function SectorHeatmapGrid({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1 p-1.5">
         {data.map((s) => {
           const val = s[timeframe.key];
           return (
             <div
               key={s.ticker}
-              className="rounded-md p-2.5 flex flex-col justify-between min-h-[100px]"
-              style={{ background: heatColor(val, timeframe.scaleMax), flex: `${weightOf(s)} 1 170px` }}
+              className="rounded p-2 flex flex-col justify-between min-h-[76px]"
+              style={{ background: heatColor(val, timeframe.scaleMax), flex: `${weightOf(s)} 1 150px` }}
               title={`${s.label} (${s.ticker}) ${timeframe.label}: ${fmtPct(val)}`}
             >
-              <div>
+              <div className="flex items-baseline justify-between gap-1">
                 <p className="text-xs font-semibold text-white leading-tight drop-shadow-sm">{s.label}</p>
                 <p className="text-[10px] text-white/70 font-mono">{s.ticker}</p>
               </div>
-              <p className="text-xl font-bold text-white tabular-nums drop-shadow-sm">
+              <p className="text-lg font-bold text-white tabular-nums drop-shadow-sm font-mono">
                 {fmtPct(val)}
               </p>
               {s.topMovers?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
+                <div className="flex flex-wrap gap-1">
                   {s.topMovers.map((m) => {
                     const mv = m[timeframe.key];
                     return (
@@ -124,9 +119,6 @@ export function SectorHeatmapGrid({
           );
         })}
       </div>
-      <p className="text-[10px] text-slate-500 mt-2">
-        Price-based sector ETF performance (XLK, XLF, etc.) — a proxy, not measured fund flow. Box size = magnitude of move.
-      </p>
     </div>
   );
 }
@@ -166,35 +158,22 @@ function SectorMoversStrip({ data }: { data: SectorRotationPoint[] }) {
     .filter((d) => d.rs1d != null)
     .sort((a, b) => b.rs1d! - a.rs1d!);
   if (sorted.length === 0) return null;
-  const maxAbs = Math.max(1, ...sorted.map((d) => Math.abs(d.rs1d!)));
 
   return (
-    <div className="mb-3">
-      <p className="text-xs font-medium text-slate-300 mb-1.5">Today's movers vs SPY</p>
-      <div className="flex flex-wrap gap-1.5">
-        {sorted.map((d) => {
+    <div className="mb-1.5">
+      <p className="text-[11px] font-mono text-sky-300/60">
+        {sorted.map((d, i) => {
           const up = d.rs1d! >= 0;
-          const widthPct = Math.max(10, (Math.abs(d.rs1d!) / maxAbs) * 100);
           return (
-            <div
-              key={d.ticker}
-              className="relative overflow-hidden rounded-md px-2.5 py-1.5 min-w-[92px] bg-muted/30"
-              title={`${d.label}: ${up ? "+" : ""}${d.rs1d!.toFixed(1)}% vs SPY today`}
-            >
-              <div
-                className="absolute inset-y-0 left-0 opacity-25"
-                style={{ width: `${widthPct}%`, background: up ? "#22c55e" : "#ef4444" }}
-              />
-              <div className="relative flex items-center justify-between gap-2">
-                <span className="text-xs font-medium">{d.label}</span>
-                <span className={cn("text-xs font-mono font-semibold", up ? "text-green-400" : "text-red-400")}>
-                  {up ? "+" : ""}{d.rs1d!.toFixed(1)}%
-                </span>
-              </div>
-            </div>
+            <span key={d.ticker}>
+              {i > 0 && " · "}
+              <span className="text-amber-200/50">{d.label}</span>
+              {" "}
+              <span className={up ? "text-green-400" : "text-red-400"}>{up ? "+" : ""}{d.rs1d!.toFixed(1)}%</span>
+            </span>
           );
         })}
-      </div>
+      </p>
     </div>
   );
 }
@@ -207,8 +186,8 @@ export function SectorRotationBubbles({
 }) {
   if (loading || !data) {
     return (
-      <div className="border border-border rounded-lg p-4 flex items-center justify-center h-[320px]">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 flex items-center justify-center h-[240px]">
+        <Loader2 className="h-5 w-5 animate-spin text-amber-200/40" />
       </div>
     );
   }
@@ -219,13 +198,13 @@ export function SectorRotationBubbles({
   const leaders = data.filter((d) => d.quadrant === "leading").map((d) => d.label);
 
   return (
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center justify-between mb-2">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Sector Rotation vs SPY</h2>
+          <TrendingUp className="h-3.5 w-3.5 text-[#d4af37]/80" />
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Sector Rotation vs SPY</h2>
         </div>
-        <div className="flex items-center gap-2.5 text-xs text-slate-300">
+        <div className="flex items-center gap-2.5 text-[10px] text-amber-200/50">
           {(["leading", "improving", "lagging", "weakening"] as const).map((q) => (
             <span key={q} className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full inline-block" style={{ background: QUADRANT_COLOR[q] }} />
@@ -235,6 +214,7 @@ export function SectorRotationBubbles({
         </div>
       </div>
 
+      <div className="px-2 pt-1.5">
       <SectorMoversStrip data={data} />
 
       <div className="relative">
@@ -269,15 +249,14 @@ export function SectorRotationBubbles({
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as SectorRotationPoint;
                 return (
-                  <div className="bg-popover border border-border rounded-md px-2.5 py-2 text-xs max-w-[230px]">
-                    <p className="font-semibold text-sm">{p.label}</p>
+                  <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-2.5 py-2 text-xs max-w-[230px] shadow-lg shadow-black/60">
+                    <p className="font-semibold text-sm text-white">{p.label}</p>
                     <p style={{ color: QUADRANT_COLOR[p.quadrant ?? ""] }} className="font-medium">
                       {QUADRANT_LABEL[p.quadrant ?? ""]} — {QUADRANT_IMPLICATION[p.quadrant ?? ""]}
                     </p>
-                    <p className="mt-1.5">Today: {p.rs1d != null ? `${p.rs1d > 0 ? "+" : ""}${p.rs1d}%` : "—"} · 1m: {p.rs1m! > 0 ? "+" : ""}{p.rs1m}% · 3m: {p.rs3m! > 0 ? "+" : ""}{p.rs3m}%</p>
+                    <p className="mt-1 font-mono text-sky-300/70">Today: {p.rs1d != null ? `${p.rs1d > 0 ? "+" : ""}${p.rs1d}%` : "—"} · 1m: {p.rs1m! > 0 ? "+" : ""}{p.rs1m}% · 3m: {p.rs3m! > 0 ? "+" : ""}{p.rs3m}%</p>
                     {p.topMovers?.length > 0 && (
-                      <div className="mt-1.5 pt-1.5 border-t border-border/50">
-                        <p className="text-slate-400 mb-0.5">Bellwethers (1m vs SPY):</p>
+                      <div className="mt-1 pt-1 border-t border-[#d4af37]/20 font-mono text-amber-200/50">
                         {p.topMovers.map((m) => (
                           <span key={m.ticker} className="inline-block mr-2">
                             {m.ticker} {m.rs1m != null ? `${m.rs1m > 0 ? "+" : ""}${m.rs1m}%` : "—"}
@@ -305,14 +284,11 @@ export function SectorRotationBubbles({
         </ResponsiveContainer>
       </div>
       {leaders.length > 0 && (
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-xs">
-          <span className="text-slate-400">Leading:</span>
-          <span className="font-medium text-slate-200">{leaders.join(", ")}</span>
-        </div>
+        <p className="text-[11px] font-mono text-sky-300/60 px-1 pb-1.5">
+          <span className="text-amber-200/50">Leading</span> {leaders.join(", ")}
+        </p>
       )}
-      <p className="text-xs text-slate-500 mt-2">
-        Dot size = size of 1m move vs SPY. Price-based proxy, not measured fund flow.
-      </p>
+      </div>
     </div>
   );
 }

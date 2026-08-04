@@ -19,6 +19,13 @@ node .claude/scripts/session-wrap.js \
   --next "what to do next session" \
   --note "one sentence summary of today"
 ```
+**--working/--progress/--blocked/--next are comma-split into array items** — each item must
+be a short tag (~90 chars max, no internal commas). A full sentence with its own commas gets
+silently shredded into disconnected fragments instead of staying one entry (session-wrap.js
+now warns on this, but write short tags in the first place: `"chart-render-bug,pat-invalid"`
+not `"the chart doesn't render because X, and also the PAT is invalid"`). Put narrative detail
+in `--note` instead — it's preserved in full in `.agents/sessions/claude-*.md` and the commit
+body, neither of which gets resent every prompt.
 ## Git commit + push
 The script handles this automatically — no manual git step needed.
 Fallback (if script fails): `git add -A && git commit -m "chore: session checkpoint — [brief note, <=72 chars]" -m "[full note as body]"`

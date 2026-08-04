@@ -11,6 +11,23 @@ import { cn } from "@/lib/utils";
 import { computeChartZones, type DbTechnicalLevels } from "@/lib/chart-levels";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+function LegendItem({ swatch, label, explanation }: { swatch: React.ReactNode; label: string; explanation: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-help decoration-dotted underline-offset-4 hover:underline">
+          {swatch}
+          {label}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[220px] text-xs bg-card text-foreground border border-border p-2">
+        {explanation}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export type Period = "1D" | "1W" | "1M" | "3M" | "1Y";
 
@@ -21,6 +38,8 @@ interface PriceChartProps {
   onPeriodChange: (period: Period) => void;
   showTechnicalZones?: boolean;
   tickerForTechnicals?: string;
+  /** Compact black/gold styling with no legend and full-text chart labels — used in the stock breakdown view. */
+  compact?: boolean;
 }
 
 function assignYAxes(stocks: StockMetrics[]): Record<string, "left" | "right"> {
@@ -291,6 +310,7 @@ export function PriceChart({
   onPeriodChange,
   showTechnicalZones = false,
   tickerForTechnicals,
+  compact = false,
 }: PriceChartProps) {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -356,10 +376,10 @@ export function PriceChart({
       if ((b.high ?? b.close) > (highBar.high ?? highBar.close)) highBar = b;
     }
     return [
-      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: "L" },
-      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: "H" },
+      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: compact ? "Period Low" : "L" },
+      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: compact ? "Period High" : "H" },
     ];
-  }, [tickers, historyByTicker]);
+  }, [tickers, historyByTicker, compact]);
 
   const zoneMarkers = useMemo((): LWMarker[] => zones
     .filter(z => z.renderAs === "marker" && z.date)
@@ -367,8 +387,8 @@ export function PriceChart({
       time: toUnixTime(z.date!),
       price: z.price,
       color: z.kind === "support" ? "#f59e0b" : "#a78bfa",
-      text: z.kind === "support" ? "SL" : "SH",
-    })), [zones]);
+      text: z.kind === "support" ? (compact ? "Swing Low" : "SL") : (compact ? "Swing High" : "SH"),
+    })), [zones, compact]);
 
   const zonePriceLines = useMemo((): LWPriceLine[] => zones
     .filter(z => z.renderAs === "line")
@@ -378,6 +398,9 @@ export function PriceChart({
       title: z.label,
       dashed: z.label.startsWith("MA") || z.label.startsWith("BB"),
     })), [zones]);
+
+  const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
+  const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
 
   const allMarkers = useMemo(
     () => [...periodExtremaMarkers, ...zoneMarkers].sort((a, b) => a.time - b.time),
@@ -401,10 +424,10 @@ export function PriceChart({
 
   const chartSeries = useMemo((): LWSeriesSpec[] => tickers.map((ticker, i) => ({
     ticker,
-    color: STOCK_COLORS[i % STOCK_COLORS.length],
+    color: compact ? "#d4af37" : STOCK_COLORS[i % STOCK_COLORS.length],
     scaleId: yAxes[ticker] || "left",
     data: (historyByTicker[ticker] ?? []).map(b => ({ time: toUnixTime(b.date), value: b.close })),
-  })).filter(s => s.data.length > 0), [tickers, historyByTicker, yAxes]);
+  })).filter(s => s.data.length > 0), [tickers, historyByTicker, yAxes, compact]);
 
   const handleRefresh = useCallback(async () => {
     if (!techTicker) return;
@@ -435,10 +458,15 @@ export function PriceChart({
   }, [techTicker, tickers, selectedPeriod, queryClient]);
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm mb-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <div className={compact
+      ? "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-3 h-full flex flex-col"
+      : "bg-card border border-border rounded-xl p-4 shadow-sm mb-4"}
+    >
+      <div className={cn("flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4", compact ? "mb-2" : "mb-6")}>
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold tracking-tight">Price History</h2>
+          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-[#d4af37]" : "text-lg font-bold tracking-tight"}>
+            Price History
+          </h2>
           {isError && (
             <div className="flex items-center gap-1.5 text-xs text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full font-medium">
               <AlertCircle className="w-3.5 h-3.5" />
@@ -453,22 +481,28 @@ export function PriceChart({
               onClick={handleRefresh}
               disabled={refreshing}
               title="Refresh support/resistance levels"
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60 disabled:opacity-50"
+              className={cn(
+                "flex items-center gap-1 rounded-md border font-medium disabled:opacity-50",
+                compact
+                  ? "px-1.5 py-1 text-[10px] border-[#d4af37]/20 text-amber-200/60 hover:text-[#d4af37] hover:bg-[#d4af37]/10"
+                  : "px-2 py-1.5 text-xs border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+              )}
             >
               <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
               Levels
             </button>
           )}
-          <div className="flex items-center bg-secondary/60 rounded-lg p-1 border border-border/50">
+          <div className={cn("flex items-center rounded-lg", compact ? "bg-black border border-[#d4af37]/20 p-0.5" : "bg-secondary/60 p-1 border border-border/50")}>
             {PERIODS.map(p => (
               <button
                 key={p}
                 onClick={() => onPeriodChange(p)}
                 className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-md transition-colors",
+                  "font-bold rounded-md transition-colors",
+                  compact ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
                   selectedPeriod === p
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+                    ? compact ? "bg-[#d4af37] text-black shadow-sm" : "bg-primary text-primary-foreground shadow-sm"
+                    : compact ? "text-amber-200/50 hover:text-[#d4af37] hover:bg-[#d4af37]/10" : "text-muted-foreground hover:text-foreground hover:bg-background/50",
                 )}
               >
                 {p}
@@ -478,7 +512,7 @@ export function PriceChart({
         </div>
       </div>
 
-      <div className="flex items-center gap-4 mb-3 flex-wrap">
+      {!compact && <div className="flex items-center gap-4 mb-3 flex-wrap">
         {tickers.length > 1 ? (
           chartSeries.map(s => (
             <div key={s.ticker} className="flex items-center gap-1.5 text-xs font-medium">
@@ -488,37 +522,74 @@ export function PriceChart({
           ))
         ) : (
           <>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Period low
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-[#22c55e]" /> Period high
-            </div>
+            <LegendItem
+              swatch={<span className="w-2 h-2 rounded-full bg-[#ef4444]" />}
+              label="Period low"
+              explanation="The lowest traded price within the selected time window."
+            />
+            <LegendItem
+              swatch={<span className="w-2 h-2 rounded-full bg-[#22c55e]" />}
+              label="Period high"
+              explanation="The highest traded price within the selected time window."
+            />
             {showTechnicalZones && zoneMarkers.length > 0 && (
               <>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> Swing low
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-[#a78bfa]" /> Swing high
-                </div>
+                <LegendItem
+                  swatch={<span className="w-2 h-2 rounded-full bg-[#f59e0b]" />}
+                  label="Swing low"
+                  explanation="A local reversal low the price bounced from — used to derive support levels below the current price."
+                />
+                <LegendItem
+                  swatch={<span className="w-2 h-2 rounded-full bg-[#a78bfa]" />}
+                  label="Swing high"
+                  explanation="A local reversal high the price pulled back from — used to derive resistance levels above the current price."
+                />
               </>
             )}
             {emaSeries && (
               <>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2.5 h-0.5 bg-[#eab308]" /> EMA 50
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-2.5 h-0.5 bg-[#f59e0b]" /> EMA 200
-                </div>
+                <LegendItem
+                  swatch={<span className="w-2.5 h-0.5 bg-[#eab308]" />}
+                  label="EMA 50"
+                  explanation="50-period exponential moving average — a fast trend line; price crossing it often signals a short-term trend shift."
+                />
+                <LegendItem
+                  swatch={<span className="w-2.5 h-0.5 bg-[#f59e0b]" />}
+                  label="EMA 200"
+                  explanation="200-period exponential moving average — the long-term trend line; price above it is broadly bullish, below is broadly bearish."
+                />
               </>
+            )}
+            {showTechnicalZones && solidZoneLines.length > 0 && (
+              <>
+                {solidZoneLines.some(z => z.color === "#22c55e") && (
+                  <LegendItem
+                    swatch={<span className="w-2.5 h-0.5 bg-[#22c55e]" />}
+                    label="Support level"
+                    explanation="A horizontal price zone where buying has previously stepped in — a level the price has bounced off before."
+                  />
+                )}
+                {solidZoneLines.some(z => z.color === "#ef4444") && (
+                  <LegendItem
+                    swatch={<span className="w-2.5 h-0.5 bg-[#ef4444]" />}
+                    label="Resistance level"
+                    explanation="A horizontal price zone where selling has previously capped gains — a level the price has pulled back from before."
+                  />
+                )}
+              </>
+            )}
+            {showTechnicalZones && dashedZoneLines.length > 0 && (
+              <LegendItem
+                swatch={<span className="w-2.5 h-0.5 border-t-2 border-dashed border-[#a78bfa]" />}
+                label="MA / Bollinger Band"
+                explanation="Dashed lines are moving-average or Bollinger Band levels the price is testing — these act as dynamic (moving) support/resistance rather than a fixed price."
+              />
             )}
           </>
         )}
-      </div>
+      </div>}
 
-      <div className="h-[320px] w-full relative">
+      <div className={compact ? "flex-1 min-h-[220px] w-full relative" : "h-[320px] w-full relative"}>
         {isLoading && !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center bg-card/50 backdrop-blur-sm z-10 rounded-lg border border-border/50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

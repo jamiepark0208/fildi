@@ -9,6 +9,7 @@ import {
   StockMetrics
 } from "@workspace/api-client-react";
 import { StockBreakdown } from "@/components/stock-breakdown";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 // Loader2 used in search dropdown
 import { useDebounce } from "@/hooks/use-debounce";
@@ -136,9 +137,11 @@ function WatchlistView() {
     return entries.filter(e => e.colorTag === filterColor);
   }, [entries, filterColor]);
 
+  // Fetched for the full watchlist (not just filteredEntries) so the tag-click popup in
+  // StockBreakdown can list matching tickers regardless of the active color filter.
   const tickerKey = useMemo(
-    () => [...filteredEntries.map(e => e.ticker)].sort().join(","),
-    [filteredEntries],
+    () => [...entries.map(e => e.ticker)].sort().join(","),
+    [entries],
   );
 
   const { data: quotesData } = useQuery({
@@ -185,6 +188,17 @@ function WatchlistView() {
     return sorted;
   }, [filteredEntries, quoteMap, sortField, sortDir]);
 
+  const watchlistTagMetrics = useMemo(() => {
+    const m: Record<string, { companyName?: string | null; exchange?: string | null; sector?: string | null; industry?: string | null; stockType?: string | null } | undefined> = {};
+    for (const e of entries) {
+      const q = quotesData?.[e.ticker];
+      if (q && !("error" in q)) {
+        m[e.ticker] = { companyName: q.companyName, exchange: q.exchange, sector: q.sector, industry: q.industry, stockType: q.stockType };
+      }
+    }
+    return m;
+  }, [entries, quotesData]);
+
   const usedColors = useMemo(() => {
     const colors = new Set<string>();
     entries.forEach(e => { if (e.colorTag) colors.add(e.colorTag); });
@@ -194,15 +208,15 @@ function WatchlistView() {
   if (!isLoaded) return null;
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels" className="flex-1 overflow-hidden">
       {/* Left Panel */}
-      <div className="w-[300px] border-r border-border flex flex-col shrink-0 bg-sidebar/30">
+      <ResizablePanel defaultSize={16} minSize={11} maxSize={32} className="flex flex-col bg-zinc-950">
         {/* Search Header */}
-        <div className="p-4 border-b border-border/40">
+        <div className="p-2.5 border-b border-[#d4af37]/20">
           <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 z-10" />
               {isSearching && debouncedSearch.length >= 2 && (
-                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin z-10" />
+                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 animate-spin z-10" />
               )}
               <input
                 ref={inputRef}
@@ -214,15 +228,15 @@ function WatchlistView() {
                 onBlur={handleSearchBlur}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search to add..."
-                className="w-full h-9 pl-9 pr-8 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
+                className="w-full h-8 pl-7 pr-7 text-xs bg-white border border-white/20 rounded-md text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37] transition-colors"
               />
 
               {open && debouncedSearch.length >= 2 && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-md shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-zinc-950 border border-[#d4af37]/25 rounded-md shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                   {isSearching && (!searchResults || searchResults.length === 0) ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+                    <div className="px-3 py-2 text-xs text-amber-200/40">Searching...</div>
                   ) : visibleResults.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No results found</div>
+                    <div className="px-3 py-2 text-xs text-amber-200/40">No results found</div>
                   ) : (
                     <ul className="py-1">
                       {visibleResults.map((r, i) => (
@@ -233,12 +247,12 @@ function WatchlistView() {
                             selectTickerForAdd(r.ticker);
                           }}
                           className={cn(
-                            "px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-primary/10",
-                            i === focusedIndex && "bg-primary/10"
+                            "px-2.5 py-1.5 text-xs cursor-pointer flex items-center justify-between hover:bg-[#d4af37]/10",
+                            i === focusedIndex && "bg-[#d4af37]/10"
                           )}
                         >
-                          <span className="font-mono font-bold">{r.ticker}</span>
-                          <span className="text-muted-foreground text-xs truncate ml-2 max-w-[150px]">{r.name}</span>
+                          <span className="font-mono font-bold text-white">{r.ticker}</span>
+                          <span className="text-amber-200/40 text-[11px] truncate ml-2 max-w-[150px]">{r.name}</span>
                         </li>
                       ))}
                     </ul>
@@ -247,13 +261,13 @@ function WatchlistView() {
               )}
             </div>
 
-          {/* Filter Chips */}
-          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {/* Filter Chips — hover a dot for its tag meaning, no separate legend needed */}
+          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
             <button
               onClick={() => setFilterColor(null)}
               className={cn(
-                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors border",
-                !filterColor ? "bg-primary/20 text-primary border-primary/30" : "bg-transparent text-muted-foreground border-transparent hover:bg-secondary"
+                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors border shrink-0",
+                !filterColor ? "bg-[#d4af37]/20 text-[#d4af37] border-[#d4af37]/40" : "bg-transparent text-amber-200/40 border-transparent hover:bg-white/5"
               )}
             >
               All
@@ -264,35 +278,25 @@ function WatchlistView() {
                 onClick={() => setFilterColor(filterColor === c ? null : c)}
                 title={COLOR_LABELS[c] ?? undefined}
                 className={cn(
-                  "w-4 h-4 rounded-full flex-shrink-0 transition-transform border border-transparent",
-                  filterColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-background"
+                  "w-3.5 h-3.5 rounded-full flex-shrink-0 transition-transform border border-transparent",
+                  filterColor === c && "ring-2 ring-[#d4af37] ring-offset-1 ring-offset-zinc-950"
                 )}
                 style={{ backgroundColor: c }}
               />
             ))}
           </div>
-          {usedColors.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-              {usedColors.filter(c => COLOR_LABELS[c]).map(c => (
-                <span key={c} className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c }} />
-                  {COLOR_LABELS[c]}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 py-2.5 border-b border-border/40 text-xs font-bold text-white uppercase tracking-wider sticky top-0 bg-sidebar/30 backdrop-blur-md z-10">
+        <div className="grid grid-cols-[14px_1fr_1fr_1fr_1fr] items-center gap-1 px-2.5 py-1.5 border-b border-[#d4af37]/20 text-[10px] font-bold text-[#d4af37] uppercase tracking-wider sticky top-0 bg-zinc-950/95 backdrop-blur-md z-10">
           <div />
           {(["symbol", "last", "chg", "chgPct"] as SortField[]).map((field, i) => (
             <button
               key={field}
               onClick={() => handleSort(field)}
-              className={cn("flex items-center gap-0.5 hover:text-foreground transition-colors select-none", i > 0 && "justify-end")}
+              className={cn("flex items-center gap-0.5 hover:text-amber-200 transition-colors select-none", i > 0 && "justify-end")}
             >
-              {field === "symbol" ? "Symbol" : field === "last" ? "Last" : field === "chg" ? "Chg" : "Chg%"}
+              {field === "symbol" ? "Sym" : field === "last" ? "Last" : field === "chg" ? "Chg" : "Chg%"}
               <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
             </button>
           ))}
@@ -301,12 +305,12 @@ function WatchlistView() {
         {/* Table Body */}
         <div className="flex-1 overflow-y-auto">
           {visibleEntries.length === 0 ? (
-            <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+            <div className="p-6 text-center text-xs text-amber-200/40 space-y-2">
               {entries.length === 0 ? (
                 <>
                   <p>No tickers in watchlist.</p>
                   <p>
-                    <Link href="/options-scanner" className="text-primary hover:underline">
+                    <Link href="/options-scanner" className="text-[#d4af37] hover:underline">
                       Add from scanner GO list
                     </Link>
                   </p>
@@ -316,7 +320,7 @@ function WatchlistView() {
               )}
             </div>
           ) : (
-            <div className="divide-y divide-border/20">
+            <div className="divide-y divide-[#d4af37]/10">
               {visibleEntries.map((entry) => {
                 const quote = quoteMap[entry.ticker];
                 const isSelected = selectedTicker === entry.ticker;
@@ -329,19 +333,19 @@ function WatchlistView() {
 
                 const isTagging = colorPickerTicker === entry.ticker;
                 return (
-                  <div key={entry.ticker} className={cn("transition-colors", isSelected ? "bg-primary/10" : "hover:bg-secondary/40")}>
+                  <div key={entry.ticker} className={cn("transition-colors", isSelected ? "bg-[#d4af37]/15" : "hover:bg-[#d4af37]/10")}>
                     {/* Main row */}
                     <div
                       onClick={() => setSelectedTicker(entry.ticker)}
-                      className="grid grid-cols-[16px_1fr_1fr_1fr_1fr] items-center px-4 h-[36px] text-xs cursor-pointer group relative"
+                      className="grid grid-cols-[14px_1fr_1fr_1fr_1fr] items-center gap-1 px-2.5 h-[28px] text-[11px] cursor-pointer group relative"
                     >
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setColorPickerTicker(isTagging ? null : entry.ticker);
                         }}
-                        title="Set color tag"
-                        className="flex items-center justify-center w-4 h-4 rounded-full hover:ring-1 hover:ring-white/40 transition-all"
+                        title={entry.colorTag ? (COLOR_LABELS[entry.colorTag] ?? "Set color tag") : "Set color tag"}
+                        className="flex items-center justify-center w-3.5 h-3.5 rounded-full hover:ring-1 hover:ring-white/40 transition-all"
                       >
                         {entry.colorTag ? (
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.colorTag }} />
@@ -349,7 +353,7 @@ function WatchlistView() {
                           <div className="w-2 h-2 rounded-full bg-white/20 hover:bg-white/40" />
                         )}
                       </button>
-                      <div className="font-mono font-bold" style={{ color: entry.colorTag || 'inherit' }}>
+                      <div className="font-mono font-bold truncate" style={{ color: entry.colorTag || 'white' }}>
                         {entry.ticker}
                       </div>
                       <div className="text-right font-mono tabular-nums text-white">
@@ -368,27 +372,27 @@ function WatchlistView() {
                           if (selectedTicker === entry.ticker) setSelectedTicker(null);
                           if (colorPickerTicker === entry.ticker) setColorPickerTicker(null);
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-background/80 rounded-md transition-all text-muted-foreground hover:text-foreground"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 hover:bg-black/60 rounded transition-all text-amber-200/40 hover:text-white"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                     {/* Inline color picker */}
                     {isTagging && (
-                      <div className="px-4 pb-2 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                        <span className="text-[10px] text-white/50">Tag:</span>
+                      <div className="px-2.5 pb-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                        <span className="text-[10px] text-amber-200/40">Tag:</span>
                         {PRESET_COLORS.map(c => (
                           <button
                             key={c}
                             onClick={() => { updateColorTag(entry.ticker, c); setColorPickerTicker(null); }}
                             title={COLOR_LABELS[c] ?? undefined}
-                            className={cn("w-4 h-4 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-background")}
+                            className={cn("w-3.5 h-3.5 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-zinc-950")}
                             style={{ backgroundColor: c }}
                           />
                         ))}
                         <button
                           onClick={() => { updateColorTag(entry.ticker, ""); setColorPickerTicker(null); }}
-                          className="w-4 h-4 rounded-full border border-dashed border-white/30 hover:border-white/60 transition-colors shrink-0"
+                          className="w-3.5 h-3.5 rounded-full border border-dashed border-white/30 hover:border-white/60 transition-colors shrink-0"
                           title="Remove tag"
                         />
                       </div>
@@ -399,22 +403,24 @@ function WatchlistView() {
             </div>
           )}
         </div>
-      </div>
+      </ResizablePanel>
+
+      <ResizableHandle className="bg-[#d4af37]/15 hover:bg-[#d4af37]/40 transition-colors w-[3px]" />
 
       {/* Right Panel — full StockBreakdown when a ticker is selected */}
-      <div className="flex-1 bg-background overflow-hidden flex flex-col">
+      <ResizablePanel defaultSize={84} className="bg-zinc-900 overflow-hidden flex flex-col">
         {!selectedTicker ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground/60 space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
+          <div className="h-full flex flex-col items-center justify-center text-amber-200/30 space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-950 flex items-center justify-center border border-dashed border-[#d4af37]/25">
               <BarChart2 className="w-8 h-8" />
             </div>
             <p className="text-sm font-medium">Select a security from your watchlist</p>
           </div>
         ) : (
-          <StockBreakdown ticker={selectedTicker} />
+          <StockBreakdown ticker={selectedTicker} watchlistMetrics={watchlistTagMetrics} />
         )}
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
 
@@ -422,7 +428,7 @@ function WatchlistView() {
 
 export default function Watchlist() {
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-zinc-900 text-foreground">
       <TopNav />
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
         <WatchlistView />

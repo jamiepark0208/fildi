@@ -1,4 +1,4 @@
-import { useCallback, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,8 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import { useSessionState } from "@/hooks/use-session-state";
+import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
 import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -23,6 +25,7 @@ const Profile = lazy(() => import("@/pages/profile"));
 const Feed = lazy(() => import("@/pages/feed"));
 const Sentiment = lazy(() => import("@/pages/sentiment"));
 const Live = lazy(() => import("@/pages/live"));
+const TrackRecord = lazy(() => import("@/pages/track-record"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +63,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const { user } = useAuth();
+  // Once logged in, quietly warm every other tab's JS chunk in an idle callback —
+  // JS only, never data (see prefetch-policy.ts), so it's safe regardless of which
+  // tab the user actually opens next.
+  useEffect(() => {
+    if (user) idlePrefetchRouteChunks();
+  }, [user]);
+
   const [rawTickers, setRawTickers] = useSessionState<string[]>("fildi_tickers", []);
   // Dedupe defensively: a duplicate ticker here fans out into duplicate
   // useQueries keys (home.tsx, technical.tsx, price-chart.tsx), which React
@@ -119,6 +130,9 @@ function Router() {
       <Route path="/live">
         <ProtectedRoute><Live /></ProtectedRoute>
       </Route>
+      <Route path="/track-record">
+        <ProtectedRoute><TrackRecord /></ProtectedRoute>
+      </Route>
       <Route>
         <Suspense fallback={<PageSkeleton />}>
           <NotFound />
@@ -137,6 +151,7 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
+          <FeedbackWidget />
           <Toaster />
         </TooltipProvider>
         </ScoringPreferencesProvider>

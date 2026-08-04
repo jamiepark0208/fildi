@@ -1,8 +1,13 @@
 import { Router } from "express";
-import { liveHotlist, MARKET_CONTEXT_SYMBOLS, type HotlistEntry } from "../lib/live-hotlist.js";
+import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, ASIA_INDEX_SYMBOLS, type HotlistEntry, type HotlistSide } from "../lib/live-hotlist.js";
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
-import { fetchGlobalMovers, computeSectorMovers } from "../lib/live-movers.js";
+import { fetchGlobalMovers } from "../lib/live-movers.js";
+import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
+import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
+import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
+import { hasHighImportanceCatalystToday, isEconomicCalendarStale } from "../lib/macro-static.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 
 const router = Router();
 
@@ -21,9 +26,21 @@ async function fetchMarketContext(): Promise<MarketContextQuote[]> {
   }));
 }
 
+// KOSPI/Nikkei/HSI close before the US session opens, so this reads as "how did
+// Asia do overnight" — same golden-source quote cache as fetchMarketContext,
+// just a different ticker set. Display-only: does not feed regime/entry logic.
+async function fetchAsiaContext(): Promise<MarketContextQuote[]> {
+  const live = await getLivePrices([...ASIA_INDEX_SYMBOLS]);
+  return ASIA_INDEX_SYMBOLS.map(ticker => ({
+    ticker,
+    price: live.get(ticker)?.price ?? null,
+    changePercent: live.get(ticker)?.changePercent ?? null,
+  }));
+}
+
 /** Overlay live price + intraday-refreshed RSI/MFI/Stoch/MACD/signal onto the daily-derived hot list. */
-async function liveHotlistEntries(): Promise<HotlistEntry[]> {
-  const entries = liveHotlist.getCurrentEntries();
+async function liveHotlistEntries(side: HotlistSide): Promise<HotlistEntry[]> {
+  const entries = liveHotlist.getEntries(side);
   if (entries.length === 0) return entries;
 
   const tickers = entries.map(e => e.ticker);
@@ -32,17 +49,40 @@ async function liveHotlistEntries(): Promise<HotlistEntry[]> {
     getLiveIndicatorOverlay(tickers),
   ]);
 
-  return entries.map(e => ({
-    ...e,
-    price: live.get(e.ticker)?.price ?? e.price,
-    ...indicatorOverlay.get(e.ticker),
-  }));
+  return entries.map(e => {
+    const merged = {
+      ...e,
+      price: live.get(e.ticker)?.price ?? e.price,
+      ...indicatorOverlay.get(e.ticker),
+    };
+    // The overlay's signal is oversold-based; recompute for the rally side from overlaid values.
+    if (side === "rally") merged.signal = rallySignal(merged.rsi, merged.mfi);
+    return merged;
+  });
 }
 
-async function snapshot(): Promise<{ hotlist: HotlistEntry[]; marketContext: MarketContextQuote[]; lastRefreshedAt: number | null }> {
+async function snapshot(): Promise<{
+  hotlist: HotlistEntry[];
+  rallyHotlist: HotlistEntry[];
+  marketContext: MarketContextQuote[];
+  asiaContext: MarketContextQuote[];
+  hasCatalystToday: boolean;
+  catalystCalendarStale: boolean;
+  lastRefreshedAt: number | null;
+}> {
+  const [hotlist, rallyHotlist, marketContext, asiaContext] = await Promise.all([
+    liveHotlistEntries("dip"),
+    liveHotlistEntries("rally"),
+    fetchMarketContext(),
+    fetchAsiaContext(),
+  ]);
   return {
-    hotlist: await liveHotlistEntries(),
-    marketContext: await fetchMarketContext(),
+    hotlist,
+    rallyHotlist,
+    marketContext,
+    asiaContext,
+    hasCatalystToday: hasHighImportanceCatalystToday(),
+    catalystCalendarStale: isEconomicCalendarStale(),
     lastRefreshedAt: liveHotlist.getLastRefreshedAt(),
   };
 }
@@ -70,8 +110,45 @@ router.post("/live/refresh", async (_req, res, next) => {
 
 router.get("/live/movers", async (_req, res, next) => {
   try {
-    const [global, sectors] = await Promise.all([fetchGlobalMovers(), computeSectorMovers()]);
-    res.json({ global, sectors });
+    res.json({ global: await fetchGlobalMovers() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/regime", async (_req, res, next) => {
+  try {
+    res.json(await getTodaysCheckpoints());
+  } catch (err) {
+    next(err);
+  }
+});
+
+// New graded rows land at most once/session (checkpoint grading is nightly/Saturday),
+// so a long TTL avoids recomputing this aggregate on every Live tab load.
+const patternDigestCache = new TTLCache<Awaited<ReturnType<typeof getPatternDigest>>>(6 * 60 * 60 * 1000, "pattern-digest", 4);
+
+router.get("/live/pattern-digest", async (req, res, next) => {
+  try {
+    const sessionsBack = Math.min(60, Math.max(5, parseInt(String(req.query["sessions"] ?? "20"), 10) || 20));
+    const data = await patternDigestCache.getOrCompute(String(sessionsBack), () => getPatternDigest(sessionsBack));
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/entry-signals", async (_req, res, next) => {
+  try {
+    res.json(await getTodaysEntrySignals());
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/live/entry-stats", async (_req, res, next) => {
+  try {
+    res.json(await computeEntryStats(30));
   } catch (err) {
     next(err);
   }

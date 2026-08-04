@@ -30,26 +30,19 @@ export const COLOR_LABELS: Record<string, string> = {
 /** Distinct slate tag for auto-added competitor tickers */
 export const COMPETITOR_TAG_COLOR = "#64748b";
 
-// Scoped per user so multiple users on same browser don't clobber each other's tags
-function colorKey(userId: number | undefined): string {
-  return userId ? `fildi_watchlist_colors_${userId}` : "fildi_watchlist_colors";
-}
-
-function loadColorMap(userId: number | undefined): Record<string, string> {
-  try {
-    const s = localStorage.getItem(colorKey(userId));
-    return s ? JSON.parse(s) : {};
-  } catch { return {}; }
-}
-
-function saveColorMap(map: Record<string, string>, userId: number | undefined) {
-  try { localStorage.setItem(colorKey(userId), JSON.stringify(map)); } catch {}
-}
-
 const WATCHLIST_QUERY_BASE = "watchlist" as const;
 
-async function fetchWatchlist(): Promise<{ ticker: string; addedAt: string }[]> {
+type WatchlistRow = { ticker: string; addedAt: string; colorTag: string };
+
+async function fetchWatchlist(): Promise<WatchlistRow[]> {
   const res = await fetch("/api/watchlist", { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+/** Another user's tagged watchlist, for profile viewing. colorTag is server-persisted (not localStorage). */
+export async function fetchWatchlistFor(username: string): Promise<WatchlistRow[]> {
+  const res = await fetch(`/api/watchlist/user/${encodeURIComponent(username)}`, { credentials: "include" });
   if (!res.ok) return [];
   return res.json();
 }
@@ -68,11 +61,9 @@ export function useWatchlist() {
     enabled: !!userId,
   });
 
-  const colorMap = loadColorMap(userId);
-
   const entries: WatchlistEntry[] = data.map(row => ({
     ticker: row.ticker,
-    colorTag: colorMap[row.ticker] ?? "",
+    colorTag: row.colorTag ?? "",
     addedAt: new Date(row.addedAt).getTime(),
   }));
 
@@ -81,7 +72,7 @@ export function useWatchlist() {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker }),
+      body: JSON.stringify({ ticker, colorTag }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string };
@@ -92,57 +83,41 @@ export function useWatchlist() {
       });
       return;
     }
-    if (colorTag) {
-      const map = loadColorMap(userId);
-      map[ticker] = colorTag;
-      saveColorMap(map, userId);
-    }
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient, userId]);
-
-  const tagCompetitorsLocally = useCallback((tickers: string[]) => {
-    const map = loadColorMap(userId);
-    let changed = false;
-    for (const raw of tickers) {
-      const upper = raw.trim().toUpperCase();
-      if (!upper || map[upper]) continue;
-      map[upper] = COMPETITOR_TAG_COLOR;
-      changed = true;
-    }
-    if (changed) {
-      saveColorMap(map, userId);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-    }
-  }, [queryClient, userId]);
+  }, [queryClient]);
 
   const removeEntry = useCallback(async (ticker: string) => {
     await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
       method: "DELETE",
       credentials: "include",
     });
-    const map = loadColorMap(userId);
-    delete map[ticker];
-    saveColorMap(map, userId);
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient, userId]);
+  }, [queryClient]);
 
-  const updateColorTag = useCallback((ticker: string, colorTag: string) => {
-    const map = loadColorMap(userId);
-    if (colorTag) {
-      map[ticker] = colorTag;
-    } else {
-      delete map[ticker];
+  const updateColorTag = useCallback(async (ticker: string, colorTag: string) => {
+    const res = await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colorTag }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      toast({
+        title: "Couldn't update tag",
+        description: body.error ?? "Unknown error",
+        variant: "destructive",
+      });
+      return;
     }
-    saveColorMap(map, userId);
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient, userId]);
+  }, [queryClient]);
 
   return {
     entries,
     tickers: entries.map(e => e.ticker),
     isLoaded: !isLoading,
     addEntry,
-    tagCompetitorsLocally,
     removeEntry,
     updateColorTag,
   };

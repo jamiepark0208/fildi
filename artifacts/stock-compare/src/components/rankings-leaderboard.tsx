@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useEffect } from "react";
+import { Fragment, memo, useMemo, useState, useEffect } from "react";
 import { StockScore } from "@/lib/rankings";
 import { StockMetrics } from "@workspace/api-client-react";
 import { Trophy, ChevronDown, Search } from "lucide-react";
@@ -8,7 +8,7 @@ import {
   FUNDAMENTAL_METRIC_BY_KEY, FundamentalFamily, familyWeightsForRegime, formatMetricValue,
   SECTOR_WEIGHT, MIN_SECTOR_PEERS,
 } from "@/lib/fundamental-scoring-meta";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -28,6 +28,7 @@ const ROW_STYLE = (idx: number) =>
               "border-border/40 bg-background/30";
 
 const FAMILY_LABEL: Record<FundamentalFamily, string> = { quality: "Quality", growth: "Growth", safety: "Safety" };
+const FAMILY_ORDER: FundamentalFamily[] = ["quality", "growth", "safety"];
 
 function parseBullets(text: string): string[] {
   return text
@@ -214,6 +215,7 @@ interface ExplainState { text: string; status: "idle" | "loading" | "done" | "er
 interface RowProps {
   score: StockScore;
   idx: number;
+  rowIdx: number;
   maxScore: number;
   allScores: StockScore[];
   stocks?: StockMetrics[];
@@ -227,7 +229,7 @@ function shortenBullet(text: string): string {
   return sentence.length > 160 ? sentence.slice(0, 157) + "…" : sentence;
 }
 
-const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allScores, stocks, explainState, explain }: RowProps) {
+const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxScore, allScores, stocks, explainState, explain }: RowProps) {
   const state = explainState;
   const [open, setOpen] = useState(false);
 
@@ -243,130 +245,116 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
   const bullets = isExpanded ? parseBullets(state.text).map(shortenBullet).filter(Boolean) : [];
 
   return (
-    <div className={cn("rounded-md border px-3 py-1.5", ROW_STYLE(idx))}>
-      <div className="flex items-center gap-3">
-        <div className={cn(
-          "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0",
-          RANK_STYLE(idx)
-        )}>
-          {score.rank}
-        </div>
+    <Fragment>
+      <tr
+        className={cn(idx < 3 ? ROW_STYLE(idx) : gridRow(rowIdx), "align-middle cursor-pointer")}
+        onClick={() => {
+          if (state.status === "loading") return;
+          if (state.status === "done") setOpen(o => !o);
+          else explain(score.ticker, "fundamental", buildFundamentalPayload(score, allScores, stocks));
+        }}
+      >
+        <td className={cn(GRID_TD, "text-center")}>
+          <span className={cn(
+            "inline-flex w-5 h-5 rounded-full items-center justify-center font-bold text-[10px]",
+            RANK_STYLE(idx)
+          )}>
+            {score.rank}
+          </span>
+        </td>
 
-        <div className="w-[88px] shrink-0">
-          <span className="font-mono font-bold text-sm text-white">{score.ticker}</span>
-          <span className="block text-xs text-white/60 truncate max-w-[84px]">{score.companyName}</span>
-        </div>
+        <td className={cn(GRID_TD, "whitespace-nowrap")}>
+          <span className="font-mono font-bold text-white">{score.ticker}</span>
+          <span className="ml-1.5 text-white/40 text-[11px] inline-block max-w-[110px] align-middle truncate">{score.companyName}</span>
+        </td>
 
-        <div className="w-[56px] shrink-0 text-right">
-          <span className="font-mono font-bold text-sm text-white">{score.totalScore.toFixed(1)}</span>
-          <span className="text-xs text-white/50"> pts</span>
-        </div>
+        {FAMILY_ORDER.map(fam => {
+          const r = familyRows.find(fr => fr.family === fam);
+          return (
+            <td key={fam} className={cn(GRID_TD, "text-right whitespace-nowrap")}>
+              {r ? (
+                <span className={cn("font-mono font-semibold", percentileColor(r.score))}>{r.score.toFixed(0)}</span>
+              ) : (
+                <span className="text-white/20">—</span>
+              )}
+            </td>
+          );
+        })}
 
-        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
-          {familyRows.map(r => (
-            <div
-              key={r.family}
-              className={cn("h-full", FAMILY_BAR_COLOR[r.family])}
-              style={{ width: `${(r.contribution / maxScore) * 100}%` }}
-            />
-          ))}
-        </div>
+        <td className={cn(GRID_TD, "text-right whitespace-nowrap")}>
+          <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
+        </td>
 
-        <button
-          onClick={() => {
-            if (state.status === "done") setOpen(!open);
-            else explain(score.ticker, "fundamental", buildFundamentalPayload(score, allScores, stocks));
-          }}
-          disabled={state.status === "loading"}
-          className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white transition-colors shrink-0 disabled:opacity-50"
-        >
-          {state.status === "loading" ? "…" : "Why"}
-          <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
-        </button>
-      </div>
+        <td className={cn(GRID_TD, "w-32")}>
+          <div className="h-1.5 w-24 bg-slate-800 rounded-full overflow-hidden flex">
+            {familyRows.map(r => (
+              <div
+                key={r.family}
+                className={cn("h-full", FAMILY_BAR_COLOR[r.family])}
+                style={{ width: `${(r.contribution / maxScore) * 100}%` }}
+              />
+            ))}
+          </div>
+        </td>
+
+        <td className={cn(GRID_TD, "text-right")}>
+          <span className={cn(
+            "inline-flex items-center gap-1.5 text-xs font-semibold text-white/80 transition-colors",
+            state.status === "loading" && "opacity-50",
+          )}>
+            {state.status === "loading" ? "…" : "Why"}
+            <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
+          </span>
+        </td>
+      </tr>
 
       {isExpanded && (
-        <div className="mt-2.5 mb-1 pl-9 space-y-3">
-          {/* Formula breakdown: Total = Σ(family score × regime weight) */}
-          {familyRows.length > 0 && (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
-                Score Formula — {score.regime ? score.regime.replace(/_/g, " ") : "default"} regime weights
-              </p>
-              <div className={GRID_WRAP}>
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className={GRID_HEADER}>
-                      <th className={cn(GRID_TH, "text-left")}>Pillar</th>
-                      <th className={cn(GRID_TH, "text-right")}>Score</th>
-                      <th className={cn(GRID_TH, "text-right")}>Weight</th>
-                      <th className={cn(GRID_TH, "text-right")}>Contribution</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {familyRows.map((r, i) => (
-                      <tr key={r.family} className={gridRow(i)}>
-                        <td className={cn(GRID_TD, "text-left text-white/80")}>{FAMILY_LABEL[r.family]}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono", percentileColor(r.score))}>{r.score.toFixed(1)}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>{r.weight}%</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/80")}>+{r.contribution.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-primary/10 border-t border-border/60">
-                      <td className={cn(GRID_TD, "text-left font-semibold text-white")}>Total</td>
-                      <td className={GRID_TD}></td>
-                      <td className={cn(GRID_TD, "text-right font-mono text-white/50")}>÷{weightSum}%</td>
-                      <td className={cn(GRID_TD, "text-right font-mono font-bold text-white")}>{score.totalScore.toFixed(1)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
+        <tr>
+        <td colSpan={8} className="p-0">
+        <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/20 border-b border-border/20">
           {/* Metric table: every scored metric, its value, weight, and real peer comparison */}
           {metricRows.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
-                Peer group: {score.peerGroupName
-                  ? <span className="text-white/70 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} tickers)</span>
-                  : <span className="text-white/50 normal-case tracking-normal">unclassified — scored vs full {allScores.length}-ticker market only</span>}
+              <p className="text-[9px] uppercase tracking-widest text-white/30 mb-0.5">
+                {score.peerGroupName
+                  ? <span className="text-white/50 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} peers)</span>
+                  : <span className="text-white/40 normal-case tracking-normal">unclassified — vs full {allScores.length}-ticker market</span>}
               </p>
               <div className={GRID_WRAP}>
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className={GRID_HEADER}>
-                      <th className={cn(GRID_TH, "text-left")}>Metric</th>
-                      <th className={cn(GRID_TH, "text-right")}>Value</th>
-                      <th className={cn(GRID_TH, "text-right")}>Wt</th>
-                      <th className={cn(GRID_TH, "text-right")}>Percentile</th>
-                      <th className={cn(GRID_TH, "text-right")}>Sector Median</th>
-                      <th className={cn(GRID_TH, "text-right")}>Sector Range</th>
-                      <th className={cn(GRID_TH, "text-right")}>Market Median</th>
-                      <th className={cn(GRID_TH, "text-right")}>z</th>
+                      <th className={cn(GRID_TH, "text-left py-0.5")}>Metric</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>Value</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>Wt</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>Percentile</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>Sector med (range)</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>Mkt med</th>
+                      <th className={cn(GRID_TH, "text-right py-0.5")}>z</th>
                     </tr>
                   </thead>
                   <tbody>
                     {metricRows.map((row, i) => (
                       <tr key={row.key} className={gridRow(i)}>
-                        <td className={cn(GRID_TD, "text-left text-white/80")}>{row.label}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white font-semibold")}>{row.valueStr}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.weight}</td>
-                        <td className="py-1.5 px-2.5 text-right">
-                          <span className={cn("inline-block px-1.5 py-0.5 rounded border text-[10px] font-mono font-semibold", percentileBadge(row.percentile))}>
-                            {row.percentile}th · #{row.rankPos}/{row.n}
+                        <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/80")}>{row.label}</td>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white font-semibold")}>{row.valueStr}</td>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/40")}>{row.weight}</td>
+                        <td className={cn(ROW_CELL, "py-0.5 px-2.5 text-right")}>
+                          <span className={cn("inline-block px-1 rounded border text-[10px] font-mono font-semibold", percentileBadge(row.percentile))}>
+                            {row.percentile}th·#{row.rankPos}/{row.n}
                           </span>
-                          <span className="block text-[9px] text-white/30 mt-0.5">{Math.round(row.sectorWeight * 100)}% sector</span>
+                          <span className="text-white/30 text-[9px] ml-1">({Math.round(row.sectorWeight * 100)}%)</span>
                         </td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/70")}>
-                          {row.groupMedian ?? <span className="text-white/25 italic">n/a</span>}
-                          {row.groupN != null && <span className="block text-[9px] text-white/30">n={row.groupN}</span>}
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/60")}>
+                          {row.groupMedian != null ? (
+                            <>
+                              {row.groupMedian}
+                              {row.groupMin != null && <span className="text-white/30"> ({row.groupMin}–{row.groupMax}{row.groupN != null ? `,n${row.groupN}` : ""})</span>}
+                            </>
+                          ) : <span className="text-white/25 italic">n/a</span>}
                         </td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>
-                          {row.groupMin != null ? `${row.groupMin} – ${row.groupMax}` : <span className="text-white/25 italic">n/a</span>}
-                        </td>
-                        <td className={cn(GRID_TD, "text-right font-mono text-white/40")}>{row.peerMedian}</td>
-                        <td className={cn(GRID_TD, "text-right font-mono font-semibold", zScoreColor(row.zScore))}>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/40")}>{row.peerMedian}</td>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono font-semibold", zScoreColor(row.zScore))}>
                           {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}
                         </td>
                       </tr>
@@ -378,18 +366,20 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, maxScore, allS
           )}
 
           {/* AI narrative — key numbers highlighted */}
-          <ul className="space-y-1">
+          <ul className="space-y-0">
             {bullets.map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-white/70 leading-relaxed">
-                <span className="text-white/30 shrink-0 mt-0.5">•</span>
+              <li key={i} className="flex items-start gap-1.5 text-xs text-white/70 leading-snug">
+                <span className="text-white/30 shrink-0">•</span>
                 <span>{highlightBullet(b)}</span>
               </li>
             ))}
           </ul>
           <p className="text-[10px] text-white/30">AI narrative — not a trade recommendation.</p>
         </div>
+        </td>
+        </tr>
       )}
-    </div>
+    </Fragment>
   );
 });
 
@@ -423,34 +413,51 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
           ))}
         </div>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-border bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-0.5">
-        {filtered.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">No tickers match "{query}".</p>
-        ) : (
-          filtered.map((score) => (
-            <LeaderboardRow
-              allScores={scores}
-              explainState={getState(score.ticker, "fundamental")}
-              key={score.ticker}
-              score={score}
-              idx={score.rank - 1}
-              maxScore={maxScore}
-              stocks={stocks}
-              explain={explain}
-            />
-          ))
-        )}
+      <div className={GRID_WRAP}>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-center w-8")}>#</th>
+              <th className={cn(GRID_TH, "text-left")}>Ticker</th>
+              {FAMILY_ORDER.map(fam => (
+                <th key={fam} className={cn(GRID_TH, "text-right")}>{FAMILY_LABEL[fam]}</th>
+              ))}
+              <th className={cn(GRID_TH, "text-right")}>Score</th>
+              <th className={cn(GRID_TH, "text-left")}>Breakdown</th>
+              <th className={cn(GRID_TH, "text-right")}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={8} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+            ) : (
+              filtered.map((score, i) => (
+                <LeaderboardRow
+                  allScores={scores}
+                  explainState={getState(score.ticker, "fundamental")}
+                  key={score.ticker}
+                  score={score}
+                  idx={score.rank - 1}
+                  rowIdx={i}
+                  maxScore={maxScore}
+                  stocks={stocks}
+                  explain={explain}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
