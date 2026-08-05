@@ -21,6 +21,7 @@ import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
 import { runEventBulletCheck } from "./event-bullets.js";
+import { runEarningsHistoryBackfill } from "./earnings-history.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -29,6 +30,7 @@ const LAST_RETENTION_PRUNE_KEY = "last_retention_prune";
 const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
 const LAST_MODEL_SNAPSHOT_RUN_KEY = "last_model_snapshot_run";
 const LAST_EVENT_BULLETS_RUN_KEY = "last_event_bullets_run";
+const LAST_EARNINGS_BACKFILL_RUN_KEY = "last_earnings_backfill_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -43,6 +45,8 @@ export let lastModelSnapshotRun: Date | null = null;
 export let modelSnapshotRunning = false;
 export let lastEventBulletsRun: Date | null = null;
 export let eventBulletsRunning = false;
+export let lastEarningsBackfillRun: Date | null = null;
+export let earningsBackfillRunning = false;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -104,6 +108,15 @@ function shouldRunRetentionNow(): boolean {
 function shouldRunEventBulletsNow(): boolean {
   const now = new Date();
   return !(lastEventBulletsRun && isSameUtcDay(lastEventBulletsRun, now));
+}
+
+// Once per calendar day — proactively refreshes stale earnings history (30d+ or
+// never-fetched) for the whole ticker universe, capped at MAX_PER_RUN per run
+// (earnings-history.ts), so stock-breakdown reads DB-only instead of triggering
+// FMP/Finnhub on a user's first click.
+function shouldRunEarningsBackfillNow(): boolean {
+  const now = new Date();
+  return !(lastEarningsBackfillRun && isSameUtcDay(lastEarningsBackfillRun, now));
 }
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
@@ -202,6 +215,22 @@ async function runEventBulletsJob() {
   }
 }
 
+async function runEarningsBackfillJob() {
+  if (earningsBackfillRunning) return;
+  earningsBackfillRunning = true;
+  logger.info("scheduler: starting earnings history backfill");
+  try {
+    await runEarningsHistoryBackfill("scheduled");
+    lastEarningsBackfillRun = new Date();
+    await setConfigDate(LAST_EARNINGS_BACKFILL_RUN_KEY, lastEarningsBackfillRun);
+    logger.info("scheduler: earnings history backfill complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: earnings history backfill failed");
+  } finally {
+    earningsBackfillRunning = false;
+  }
+}
+
 // Runs at most once/day, independent of the enrichment window — table/log growth
 // from per-request activity doesn't need to wait for a biweekly job.
 async function runRetentionPrune() {
@@ -249,7 +278,7 @@ async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun, lastEarningsBackfillRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -270,6 +299,10 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted event-bullets last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_EARNINGS_BACKFILL_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted earnings-backfill last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
 
   setInterval(() => {
@@ -278,6 +311,7 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunTradeExpiryNow()) runTradeExpiry();
     if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
     if (shouldRunEventBulletsNow()) runEventBulletsJob();
+    if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);

@@ -9,6 +9,7 @@ import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
 import { CompetitorsSection } from "./competitors-section";
 import { CatalystsSection } from "./catalysts-section";
 import { AnalystRatingsSection, type Recommendations, type AnalystAction, type AnalystPriceTarget, type PriceTargetRange } from "./analyst-ratings-section";
+import { EarningsHistorySection, type EarningsQuarter } from "./earnings-history-section";
 import { MarketSentimentSection } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
@@ -42,6 +43,7 @@ interface BreakdownData {
   bearBullets: string[];
   news: NewsItem[];
   earningsDate?: string | null;
+  earningsHistory?: EarningsQuarter[];
   catalysts?: string[];
   peers?: string[];
   peerIndustry?: string | null;
@@ -163,7 +165,7 @@ function TagBadge({
   );
 }
 
-type BreakdownTab = "analyst" | "sentiment" | "catalysts" | "news" | "accounting";
+type BreakdownTab = "analyst" | "earnings" | "sentiment" | "catalysts" | "news" | "accounting";
 
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
@@ -651,14 +653,16 @@ export function StockBreakdown({
             {(() => {
               const hasSentiment = data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || !!data.recommendations;
               const hasNews = !!data.news && data.news.length > 0;
+              const hasEarnings = !!data.earningsHistory && data.earningsHistory.length > 0;
               const tabs: { id: BreakdownTab; label: string }[] = [
                 ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings" }] : []),
+                ...(hasEarnings ? [{ id: "earnings" as const, label: "Earnings" }] : []),
                 ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment" }] : []),
                 { id: "catalysts" as const, label: "Catalysts" },
                 { id: "accounting" as const, label: "Accounting" },
                 ...(hasNews ? [{ id: "news" as const, label: "News" }] : []),
               ];
-              const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : "analyst";
+              const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : (tabs[0]?.id ?? "analyst");
 
               return (
                 <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-xl overflow-hidden">
@@ -688,6 +692,9 @@ export function StockBreakdown({
                         analystPriceTargets={data.analystPriceTargets ?? []}
                         priceTargetRange={data.priceTargetRange ?? null}
                       />
+                    )}
+                    {activeTab === "earnings" && (
+                      <EarningsHistorySection history={data.earningsHistory ?? []} />
                     )}
                     {activeTab === "sentiment" && (
                       <MarketSentimentSection

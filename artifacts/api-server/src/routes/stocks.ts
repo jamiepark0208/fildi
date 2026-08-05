@@ -23,6 +23,7 @@ import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
+import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import { fetchEdgarStatementHistory } from "../lib/edgar-client.js";
@@ -706,6 +707,7 @@ type BreakdownPayload = {
   news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null }>;
   snowflake: unknown;
   earningsDate?: string | null;
+  earningsHistory?: EarningsQuarter[];
   catalysts?: string[];
   peers?: string[];
   peerIndustry?: string | null;
@@ -722,7 +724,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 5;
+const BREAKDOWN_CACHE_VER = 6;
 
 // Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
 // payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
@@ -796,6 +798,38 @@ router.get("/stocks/breakdown", async (req, res) => {
       });
     }
 
+    // Historical EPS actual-vs-estimate — DB-first when fresh (<30d), else live
+    // FMP (falling back to Finnhub for tickers FMP's plan 402s on) + write-through.
+    // The nightly runEarningsHistoryBackfill job (scheduler.ts) proactively keeps the
+    // whole ticker universe fresh, so this live path is a rare cold-start/edge case,
+    // not the normal way the tab gets populated.
+    let earningsHistory: EarningsQuarter[] = [];
+    if (await isEarningsDataFresh(upperTicker)) {
+      earningsHistory = await readEarningsHistoryFromDb(upperTicker);
+    } else {
+      const liveRows = await fetchLiveEarningsHistory(upperTicker, "breakdown");
+      if (liveRows.length > 0) {
+        writeEarningsHistory(upperTicker, liveRows).catch(err => {
+          logger.warn({ ticker: upperTicker, err }, "earnings history write-through failed");
+        });
+      }
+      earningsHistory = liveRows
+        .filter(r => r.epsActual != null)
+        .map(r => ({
+          reportDate: r.reportDate,
+          epsEstimate: r.epsEstimate,
+          epsActual: r.epsActual,
+          surprisePct: r.epsActual != null && r.epsEstimate != null && r.epsEstimate !== 0
+            ? ((r.epsActual - r.epsEstimate) / Math.abs(r.epsEstimate)) * 100
+            : null,
+        }))
+        .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
+        .slice(0, 8);
+      if (earningsHistory.length === 0) {
+        earningsHistory = await readEarningsHistoryFromDb(upperTicker);
+      }
+    }
+
     // Aggregate price target range from financialData
     const fd = (summary as any).financialData ?? {};
     const priceTargetRange = {
@@ -844,6 +878,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       news,
       snowflake,
       earningsDate,
+      earningsHistory,
       peers: peersPayload.peers.slice(0, 8),
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,

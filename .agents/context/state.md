@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-04
+**build** — last updated 2026-08-05
 
 ## Active work
-- Working: live-tab-null-crash-fix, live-refresh-race-fix, asia-overnight-widget, econ-calendar-extended, calendar-staleness-guard
-- In progress: fmp-alphabet-catchup-continuing-via-cron
-- Blocked: playwright-chrome-binary-missing
+- Working: earnings-finnhub-fallback, earnings-nightly-backfill-cron, bash-permission-allowlist-broadened
+- In progress: none-in-flight-feature-shipped-and-verified
+- Blocked: playwright-chrome-binary-still-missing
 
 ## Next tasks (priority order)
 

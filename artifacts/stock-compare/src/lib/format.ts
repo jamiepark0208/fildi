@@ -34,3 +34,14 @@ export function formatLargeNumber(value?: number | null) {
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
   return formatCurrency(value);
 }
+
+// Compact axis label, e.g. $14.5K / -$2.3M — for chart ticks, not tooltips.
+export function formatCompactCurrency(value?: number | null) {
+  if (value === null || value === undefined) return "-";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}

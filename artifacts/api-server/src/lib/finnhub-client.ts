@@ -76,6 +76,39 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   }
 }
 
+export interface FinnhubEarningsQuarter {
+  reportDate: string;
+  epsEstimate: number | null;
+  epsActual: number | null;
+}
+
+// FMP-earnings fallback for tickers FMP's free/current plan gates behind a premium
+// paywall (HTTP 402 "Premium Query Parameter") — /stable/earnings 402s for some
+// well-known small/mid-caps (e.g. AAOI, GME) despite the ticker having public
+// earnings history. Finnhub's /stock/earnings covers the same actual-vs-estimate
+// data on the free tier.
+export async function fetchFinnhubEarningsHistory(ticker: string, trigger = "unknown"): Promise<FinnhubEarningsQuarter[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
+
+  const t = ticker.toUpperCase();
+  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+
+  try {
+    const raw = await fetchWithRetry(url);
+    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
+      reportDate: r.period,
+      epsEstimate: n(r.estimate) ?? null,
+      epsActual: n(r.actual) ?? null,
+    })).filter(r => !!r.reportDate);
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
+    return rows;
+  } catch (err: any) {
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/earnings" });
+    throw err;
+  }
+}
+
 export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubFundamentalsData> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
