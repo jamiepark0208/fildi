@@ -1,11 +1,12 @@
 import { inArray, sql, eq, and, isNotNull } from "drizzle-orm";
 import { db, earningsCalendar, fmpFundamentals } from "@workspace/db";
 import { fetchFMPEarningsHistory } from "./fmp-client.js";
-import { fetchFinnhubEarningsHistory } from "./finnhub-client.js";
+import { fetchFinnhubEarningsHistory, fetchFinnhubUpcomingEarnings } from "./finnhub-client.js";
 import { logger } from "./logger.js";
 
 const STALE_DAYS = 30; // earnings only report ~4x/year — no need to re-fetch often
-const MAX_QUARTERS = 8;
+const UPCOMING_STALE_DAYS = 3; // consensus EPS estimates move more often than reported actuals
+const MAX_QUARTERS = 9; // 8 past + room for 1 upcoming without dropping a reported quarter
 
 export interface EarningsQuarter {
   reportDate: string;
@@ -27,24 +28,39 @@ interface RawEarningsQuarter {
 // AAOI, GME — "Premium Query Parameter", not a data-availability issue, a plan-tier
 // gate). Only fall back when FMP returned nothing usable, so a ticker FMP already
 // serves correctly never burns a second-source call.
+//
+// FMP's /earnings already includes the next scheduled (unreported) quarter with a
+// consensus estimate and a null actual. Finnhub's /stock/earnings (the fallback path)
+// does NOT — it's past-actuals-only — so when we land on that fallback we separately
+// pull the forward row from Finnhub's /calendar/earnings and merge it in, so the
+// fallback path shows an upcoming-quarter estimate too, not just reported history.
 export async function fetchLiveEarningsHistory(ticker: string, trigger: string): Promise<RawEarningsQuarter[]> {
+  let rows: RawEarningsQuarter[] = [];
   const fmpKey = process.env["FMP_API_KEY"];
   if (fmpKey) {
     try {
-      const rows = await fetchFMPEarningsHistory(ticker, fmpKey, trigger);
-      if (rows.some(r => r.epsActual != null)) return rows;
+      const fmpRows = await fetchFMPEarningsHistory(ticker, fmpKey, trigger);
+      if (fmpRows.some(r => r.epsActual != null)) rows = fmpRows;
     } catch (err) {
       logger.warn({ ticker, err }, "fetchFMPEarningsHistory failed, falling back to Finnhub");
     }
   }
-  if (process.env["FINNHUB_API_KEY"]) {
+  if (rows.length === 0 && process.env["FINNHUB_API_KEY"]) {
     try {
-      return await fetchFinnhubEarningsHistory(ticker, trigger);
+      rows = await fetchFinnhubEarningsHistory(ticker, trigger);
     } catch (err) {
       logger.warn({ ticker, err }, "fetchFinnhubEarningsHistory fallback failed");
     }
   }
-  return [];
+
+  const hasUpcoming = rows.some(r => r.epsActual == null);
+  if (!hasUpcoming && process.env["FINNHUB_API_KEY"]) {
+    const upcoming = await fetchFinnhubUpcomingEarnings(ticker, trigger);
+    const known = new Set(rows.map(r => r.reportDate));
+    for (const u of upcoming) if (!known.has(u.reportDate)) rows.push(u);
+  }
+
+  return rows;
 }
 
 /** Tickers with no earnings_calendar row (with an actual reported quarter) fetched within STALE_DAYS. */
@@ -105,7 +121,7 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
   });
 }
 
-/** Read past reported quarters (actual != null) for a ticker, most recent first, capped to MAX_QUARTERS. */
+/** Read reported + upcoming quarters for a ticker, most recent/soonest first, capped to MAX_QUARTERS. */
 export async function readEarningsHistoryFromDb(ticker: string): Promise<EarningsQuarter[]> {
   const rows = await db
     .select({
@@ -115,7 +131,7 @@ export async function readEarningsHistoryFromDb(ticker: string): Promise<Earning
       surprisePct: earningsCalendar.surprisePct,
     })
     .from(earningsCalendar)
-    .where(and(eq(earningsCalendar.ticker, ticker.toUpperCase()), isNotNull(earningsCalendar.epsActual)))
+    .where(eq(earningsCalendar.ticker, ticker.toUpperCase()))
     .orderBy(sql`${earningsCalendar.reportDate} DESC`)
     .limit(MAX_QUARTERS);
 
@@ -125,6 +141,29 @@ export async function readEarningsHistoryFromDb(ticker: string): Promise<Earning
     epsActual: r.epsActual != null ? Number(r.epsActual) : null,
     surprisePct: r.surprisePct != null ? Number(r.surprisePct) : null,
   }));
+}
+
+// The main 30-day staleness check (getStaleEarningsTickers) only tracks reported
+// actuals, since those rarely change. It intentionally doesn't gate on "is there an
+// upcoming-quarter row" — a ticker with no scheduled date yet would stay permanently
+// "stale" under that rule and get re-fetched forever. Instead: only ever fetch the
+// upcoming row when the ticker has NONE in the DB (cheap, self-limiting — once one
+// exists it stays until its report date passes, at which point a normal actuals
+// refresh naturally supersedes it). Called from the DB-fresh branch in the
+// stock-breakdown route, where fetchLiveEarningsHistory's own upcoming-merge (used on
+// the stale/live-fetch branch) never runs.
+export async function ensureUpcomingEarnings(ticker: string, trigger: string): Promise<void> {
+  const upperTicker = ticker.toUpperCase();
+  const today = new Date().toISOString().slice(0, 10);
+  const [futureRow] = await db
+    .select({ reportDate: earningsCalendar.reportDate })
+    .from(earningsCalendar)
+    .where(and(eq(earningsCalendar.ticker, upperTicker), sql`${earningsCalendar.reportDate} >= ${today}`))
+    .limit(1);
+  if (futureRow || !process.env["FINNHUB_API_KEY"]) return;
+
+  const upcoming = await fetchFinnhubUpcomingEarnings(upperTicker, trigger);
+  if (upcoming.length > 0) await writeEarningsHistory(upperTicker, upcoming);
 }
 
 function sleep(ms: number): Promise<void> {

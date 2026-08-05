@@ -1,5 +1,5 @@
 import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell,
+  ResponsiveContainer, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
 
 export interface EarningsQuarter {
@@ -10,8 +10,12 @@ export interface EarningsQuarter {
 }
 
 const BEAT_COLOR = "#34d399";
-const MISS_COLOR = "#f87171";
 const ESTIMATE_COLOR = "#d4af37";
+// Bright solid dot for actual EPS — a single fixed color, not beat/miss-coded, since
+// green/red on a bar read as "good/bad absolute result" when it actually meant
+// "beat/missed estimate" (misleading on tickers like AAOI where EPS is negative
+// every quarter but still beats a more-negative estimate).
+const ACTUAL_COLOR = "#e2e8f0";
 
 function formatQuarterLabel(dateStr: string): string {
   const d = new Date(dateStr);
@@ -69,14 +73,18 @@ export function EarningsHistorySection({ history }: { history: EarningsQuarter[]
             }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="actual" name="Actual EPS" radius={[3, 3, 0, 0]}>
-            {chartData.map((d, i) => (
-              <Cell key={i} fill={d.actual == null ? "#333" : d.beat ? BEAT_COLOR : MISS_COLOR} />
-            ))}
-          </Bar>
           <Line
             type="monotone" dataKey="estimate" name="Est. EPS"
-            stroke={ESTIMATE_COLOR} strokeWidth={2} dot={{ r: 3, fill: ESTIMATE_COLOR }}
+            stroke="none"
+            dot={{ r: 5, fill: "transparent", stroke: ESTIMATE_COLOR, strokeWidth: 2 }}
+            activeDot={{ r: 6, fill: "transparent", stroke: ESTIMATE_COLOR, strokeWidth: 2 }}
+            connectNulls
+          />
+          <Line
+            type="monotone" dataKey="actual" name="Actual EPS"
+            stroke="none"
+            dot={{ r: 5, fill: ACTUAL_COLOR, stroke: ACTUAL_COLOR }}
+            activeDot={{ r: 6, fill: ACTUAL_COLOR, stroke: ACTUAL_COLOR }}
             connectNulls
           />
         </ComposedChart>

@@ -74,7 +74,7 @@ export function SortableHeader({ label, sortKey, active, width, onClick }: {
       onClick={() => onClick(sortKey)}
       className={cn(
         `${width} shrink-0 text-left transition-colors`,
-        active ? "text-primary" : "text-white hover:text-white/80",
+        active ? "text-[#d4af37]" : "text-amber-200/70 hover:text-[#d4af37]",
       )}
     >
       {label}{active ? " ▾" : ""}

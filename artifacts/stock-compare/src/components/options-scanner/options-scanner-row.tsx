@@ -30,6 +30,7 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
 
 interface ScannerRowProps {
   ticker: string;
+  rowIndex: number;
   colorTag: string;
   indicator: ScorecardRow | null;
   score: TechnicalScore | null;
@@ -53,10 +54,16 @@ interface ScannerRowProps {
   bestBuffer?: number | null;
   stockScore?: number | null;
   isCall: boolean;
+  // Today's Live-tab hotlist membership — dip hotlist = oversold (sell-put setup),
+  // rally hotlist = overbought (sell-call setup). Surfaced here so a ticker flagged
+  // there isn't missed in this table too.
+  isOversold?: boolean;
+  isOverbought?: boolean;
 }
 
 export function ScannerRow({
   ticker,
+  rowIndex,
   colorTag,
   indicator,
   score,
@@ -79,6 +86,8 @@ export function ScannerRow({
   bestBuffer = null,
   stockScore = null,
   isCall,
+  isOversold = false,
+  isOverbought = false,
 }: ScannerRowProps) {
   const { data: tickerRecords } = useTickerTrackRecord();
 
@@ -212,11 +221,29 @@ export function ScannerRow({
 
   const borderColor = colorTag || "transparent";
 
+  const oversoldOverboughtBadge = isCall
+    ? isOverbought && (
+        <span
+          className="ml-1.5 px-1 py-0 rounded border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] text-[9px] font-bold leading-none"
+          title="In today's Live tab overbought (rally) hotlist"
+        >
+          OB
+        </span>
+      )
+    : isOversold && (
+        <span
+          className="ml-1.5 px-1 py-0 rounded border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] text-[9px] font-bold leading-none"
+          title="In today's Live tab oversold (dip) hotlist"
+        >
+          OS
+        </span>
+      );
+
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div className={cn("border-b border-zinc-800 last:border-b-0", rowIndex % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60")}>
       {/* Collapsed header row */}
       <div
-        className="flex items-center gap-2 px-3 py-0.5 cursor-pointer hover:bg-secondary/30 transition-colors select-none"
+        className="flex items-center gap-2 px-3 py-0.5 cursor-pointer hover:bg-amber-500/10 transition-colors select-none"
         style={{ borderLeft: `4px solid ${borderColor}` }}
         onClick={onExpand}
       >
@@ -228,7 +255,7 @@ export function ScannerRow({
           >
             {ticker}
           </span>
-          <TickerRecordBadge record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]} />
+          {oversoldOverboughtBadge}
         </div>
 
         {/* Price */}
@@ -243,6 +270,11 @@ export function ScannerRow({
           {callWarnings.length > 0 && (
             <span className="text-amber-400 text-[10px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
           )}
+        </div>
+
+        {/* Win/loss track record — its own column, separate from ticker identity */}
+        <div className="w-[64px] shrink-0">
+          <TickerRecordBadge record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]} className="" />
         </div>
 
         {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.).

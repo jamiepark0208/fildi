@@ -23,7 +23,7 @@ import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
-import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, type EarningsQuarter } from "../lib/earnings-history.js";
+import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import { fetchEdgarStatementHistory } from "../lib/edgar-client.js";
@@ -805,6 +805,12 @@ router.get("/stocks/breakdown", async (req, res) => {
     // not the normal way the tab gets populated.
     let earningsHistory: EarningsQuarter[] = [];
     if (await isEarningsDataFresh(upperTicker)) {
+      // Reported actuals are fresh, but that check doesn't cover the upcoming
+      // (unreported) quarter — top that up separately (cheap no-op once a future
+      // row already exists) so the tab always shows through the next scheduled report.
+      await ensureUpcomingEarnings(upperTicker, "breakdown").catch(err => {
+        logger.warn({ ticker: upperTicker, err }, "ensureUpcomingEarnings failed");
+      });
       earningsHistory = await readEarningsHistoryFromDb(upperTicker);
     } else {
       const liveRows = await fetchLiveEarningsHistory(upperTicker, "breakdown");
@@ -814,7 +820,6 @@ router.get("/stocks/breakdown", async (req, res) => {
         });
       }
       earningsHistory = liveRows
-        .filter(r => r.epsActual != null)
         .map(r => ({
           reportDate: r.reportDate,
           epsEstimate: r.epsEstimate,
@@ -824,7 +829,7 @@ router.get("/stocks/breakdown", async (req, res) => {
             : null,
         }))
         .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
-        .slice(0, 8);
+        .slice(0, 9);
       if (earningsHistory.length === 0) {
         earningsHistory = await readEarningsHistoryFromDb(upperTicker);
       }

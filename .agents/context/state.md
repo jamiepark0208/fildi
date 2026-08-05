@@ -6,8 +6,8 @@
 **build** — last updated 2026-08-05
 
 ## Active work
-- Working: earnings-finnhub-fallback, earnings-nightly-backfill-cron, bash-permission-allowlist-broadened
-- In progress: none-in-flight-feature-shipped-and-verified
+- Working: aaoi-earnings-verified, earnings-upcoming-quarter, earnings-dots-chart, options-rankings-restyle
+- In progress: none-in-flight-all-shipped
 - Blocked: playwright-chrome-binary-still-missing
 
 ## Next tasks (priority order)

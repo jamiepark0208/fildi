@@ -178,6 +178,27 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     return m;
   }, [displayTickers, batchOptionsFetching, batchOptionsData, refreshedOptions]);
 
+  // ── Today's oversold/overbought hotlist membership (Live tab) — surfaced as a
+  // badge in this table so a ticker flagged there isn't missed here too.
+  const { data: liveHotlists } = useQuery({
+    queryKey: ["live-state"],
+    queryFn: async (): Promise<{ hotlist: { ticker: string }[]; rallyHotlist: { ticker: string }[] }> => {
+      const res = await fetch("/api/live/state", { credentials: "include" });
+      if (!res.ok) throw new Error("live/state fetch failed");
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const oversoldSet = useMemo(
+    () => new Set((liveHotlists?.hotlist ?? []).map(e => e.ticker)),
+    [liveHotlists],
+  );
+  const overboughtSet = useMemo(
+    () => new Set((liveHotlists?.rallyHotlist ?? []).map(e => e.ticker)),
+    [liveHotlists],
+  );
+
   // ── Volatility regime (VIX-band, intraday) — for Option Scorer overlay ───────
   // Distinct from the business-cycle "macro-regime" used on home.tsx.
   const { data: macroRegimeData } = useQuery({
@@ -493,12 +514,13 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
             No tickers match current filters.
           </div>
         ) : (
-          <div className="rounded-md border border-border overflow-hidden">
+          <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
             {/* Column headers */}
-            <div className="flex items-center gap-2 px-3 py-1 border-b border-border bg-slate-900/80 text-xs font-bold tracking-wider uppercase text-white" style={{ borderLeft: "4px solid transparent" }}>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#d4af37]/25 bg-black text-[11px] font-semibold tracking-wider uppercase text-[#d4af37]" style={{ borderLeft: "4px solid transparent" }}>
               <div className="w-[70px] shrink-0">Ticker</div>
               <div className="w-[80px] shrink-0">Price</div>
               <div className="w-[56px] shrink-0">Signal</div>
+              <div className="w-[64px] shrink-0" title="Graded sell-put/sell-call win-loss record for this ticker">Record</div>
               <div className="w-[48px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
               <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
               <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
@@ -508,7 +530,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
               <div className="flex-1" />
               {isAdmin && (
                 <button
-                  className="flex items-center gap-1.5 text-xs normal-case font-normal tracking-normal text-white transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-xs normal-case font-normal tracking-normal text-amber-200/70 transition-colors shrink-0"
                   onClick={handleGlobalRefresh}
                   disabled={scorecardLoading}
                 >
@@ -520,10 +542,11 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 </button>
               )}
             </div>
-            {filteredTickers.map(ticker => (
+            {filteredTickers.map((ticker, i) => (
               <ScannerRow
                 key={ticker}
                 ticker={ticker}
+                rowIndex={i}
                 colorTag={colorMap.get(ticker) ?? ""}
                 indicator={scorecardMap.get(ticker) ?? null}
                 score={rankings.get(ticker) ?? null}
@@ -546,6 +569,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 bestBuffer={bufferMap.get(ticker) ?? null}
                 stockScore={stockScoreMap.get(ticker) ?? null}
                 isCall={isCallMode}
+                isOversold={oversoldSet.has(ticker)}
+                isOverbought={overboughtSet.has(ticker)}
               />
             ))}
           </div>
