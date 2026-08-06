@@ -22,6 +22,7 @@ import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
 import { runEventBulletCheck } from "./event-bullets.js";
 import { runEarningsHistoryBackfill } from "./earnings-history.js";
+import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -31,6 +32,7 @@ const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
 const LAST_MODEL_SNAPSHOT_RUN_KEY = "last_model_snapshot_run";
 const LAST_EVENT_BULLETS_RUN_KEY = "last_event_bullets_run";
 const LAST_EARNINGS_BACKFILL_RUN_KEY = "last_earnings_backfill_run";
+const LAST_FMP_ANALYST_FEED_RUN_KEY = "last_fmp_analyst_feed_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -47,6 +49,8 @@ export let lastEventBulletsRun: Date | null = null;
 export let eventBulletsRunning = false;
 export let lastEarningsBackfillRun: Date | null = null;
 export let earningsBackfillRunning = false;
+export let lastFmpAnalystFeedRun: Date | null = null;
+export let fmpAnalystFeedRunning = false;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -117,6 +121,15 @@ function shouldRunEventBulletsNow(): boolean {
 function shouldRunEarningsBackfillNow(): boolean {
   const now = new Date();
   return !(lastEarningsBackfillRun && isSameUtcDay(lastEarningsBackfillRun, now));
+}
+
+// Once per calendar day — FMP's grades/price-target "latest news" feeds are global,
+// unfilterable tapes (verified: page/limit locked on our plan), so there's no per-ticker
+// on-demand fetch possible. Daily is plenty since this is best-effort archival, not a
+// live lookup — see fmp-analyst-feed.ts header for the full rationale.
+function shouldRunFmpAnalystFeedNow(): boolean {
+  const now = new Date();
+  return !(lastFmpAnalystFeedRun && isSameUtcDay(lastFmpAnalystFeedRun, now));
 }
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
@@ -231,6 +244,22 @@ async function runEarningsBackfillJob() {
   }
 }
 
+async function runFmpAnalystFeedJob() {
+  if (fmpAnalystFeedRunning) return;
+  fmpAnalystFeedRunning = true;
+  logger.info("scheduler: starting fmp analyst feed poll");
+  try {
+    const result = await runFmpAnalystFeedPoll();
+    lastFmpAnalystFeedRun = new Date();
+    await setConfigDate(LAST_FMP_ANALYST_FEED_RUN_KEY, lastFmpAnalystFeedRun);
+    logger.info(result, "scheduler: fmp analyst feed poll complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: fmp analyst feed poll failed");
+  } finally {
+    fmpAnalystFeedRunning = false;
+  }
+}
+
 // Runs at most once/day, independent of the enrichment window — table/log growth
 // from per-request activity doesn't need to wait for a biweekly job.
 async function runRetentionPrune() {
@@ -278,7 +307,7 @@ async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun, lastEarningsBackfillRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -303,6 +332,10 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted earnings-backfill last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_FMP_ANALYST_FEED_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted fmp-analyst-feed last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
 
   setInterval(() => {
@@ -312,6 +345,7 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
     if (shouldRunEventBulletsNow()) runEventBulletsJob();
     if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
+    if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);

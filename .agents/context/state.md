@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-05
+**build** — last updated 2026-08-06
 
 ## Active work
-- Working: aaoi-earnings-verified, earnings-upcoming-quarter, earnings-dots-chart, options-rankings-restyle
-- In progress: none-in-flight-all-shipped
+- Working: fmp-analyst-poller, headline-parser, analyst-target-price-ui, analyst-events-schema
+- In progress: browser-verify-earnings-dots-and-upcoming-qtrs, browser-verify-options-rankings-restyle, browser-verify-analyst-target-price
 - Blocked: playwright-chrome-binary-still-missing
 
 ## Next tasks (priority order)

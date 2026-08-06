@@ -186,11 +186,15 @@ export type YahooAnalystAction = typeof yahooAnalystActions.$inferSelect
 export const analystEvents = pgTable('analyst_events', {
   ticker:      text('ticker').notNull(),
   firm:        text('firm').notNull(),
-  source:      text('source').notNull().default('yahoo'),
-  action:      text('action').notNull(),           // upgrade | downgrade | initiate | maintain | reiterate
+  source:      text('source').notNull().default('yahoo'), // yahoo | fmp-grade | fmp-target
+  action:      text('action').notNull(),           // upgrade | downgrade | initiate | maintain | reiterate | price-target
   fromGrade:   text('from_grade'),
   toGrade:     text('to_grade'),
   eventDate:   date('event_date').notNull(),
+  // Per-firm price target — only populated for fmp-target rows (FMP's grades feed and
+  // price-target feed are separate un-mergeable streams; see analyst-price-target skill note).
+  priceTarget: numeric('price_target'),
+  newsTitle:   text('news_title'),
   fetchedAt:   timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({
   pk:         primaryKey({ columns: [t.ticker, t.firm, t.eventDate, t.source] }),

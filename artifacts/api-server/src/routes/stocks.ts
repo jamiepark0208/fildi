@@ -22,7 +22,8 @@ import { buildCatalysts, parseEarningsDate } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
-import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
+import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents, readFmpAnalystEventsFromDb } from "../lib/analyst-events.js";
+import { parseAnalystHeadlines } from "../lib/analyst-headline-parser.js";
 import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
@@ -699,8 +700,14 @@ export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdow
 type BreakdownPayload = {
   metrics: unknown;
   recommendations: unknown;
-  analystActions: Array<{ firm: string; toGrade: string; fromGrade: string; action: string; date: string | null }>;
-  analystPriceTargets: unknown;
+  analystActions: Array<{
+    firm: string; toGrade: string; fromGrade: string; action: string; date: string | null;
+    priceTarget?: number | null; source?: "yahoo" | "fmp" | "headline";
+  }>;
+  analystPriceTargets: Array<{
+    firm: string; analyst: string | null; priceTarget: number | null; date: string | null;
+    priceWhenPosted: number | null; newsTitle: string | null; source: "fmp" | "headline";
+  }>;
   priceTargetRange: unknown;
   bullBullets: string[];
   bearBullets: string[];
@@ -724,7 +731,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 6;
+const BREAKDOWN_CACHE_VER = 7;
 
 // Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
 // payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
@@ -755,7 +762,7 @@ router.get("/stocks/breakdown", async (req, res) => {
 
     const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload] = await Promise.all([
       yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
-      yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+      yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
       readRegistryRow(upperTicker),
       db.select({ earningsDate: indicatorCache.earningsDate })
@@ -844,8 +851,58 @@ router.get("/stocks/breakdown", async (req, res) => {
       median: safeNum(fd.targetMedianPrice) ?? null,
     };
 
-    // Per-analyst price targets unavailable on current FMP plan — always empty
-    const analystPriceTargets: unknown[] = [];
+    // Merge in FMP's daily-archived per-firm rows (fmp-grade/fmp-target — see
+    // fmp-analyst-feed.ts for why they're two separate row types) plus a heuristic
+    // pass over the news headlines already fetched above. Both are best-effort
+    // supplements to the Yahoo-sourced analystActions above, not replacements —
+    // tagged with `source` so the UI can show a confidence indicator.
+    const fmpEvents = await readFmpAnalystEventsFromDb(upperTicker);
+    const fmpTargetByFirmDate = new Map(
+      fmpEvents.filter(e => e.priceTarget != null).map(e => [`${e.firm}|${e.eventDate}`, e.priceTarget]),
+    );
+
+    const yahooActionsTagged = analystActions.map(a => ({ ...a, source: "yahoo" as const }));
+
+    const fmpGradeActions = fmpEvents
+      .filter(e => e.action !== "price-target")
+      .map(e => ({
+        firm: e.firm,
+        toGrade: e.toGrade ?? "",
+        fromGrade: e.fromGrade ?? "",
+        action: e.action,
+        date: e.eventDate,
+        priceTarget: fmpTargetByFirmDate.get(`${e.firm}|${e.eventDate}`) ?? null,
+        source: "fmp" as const,
+      }));
+
+    const headlineEvents = parseAnalystHeadlines(
+      ((newsRes as any).news ?? []).map((n: any) => ({
+        title: n.title ?? "",
+        publishedAt: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null,
+      })),
+    );
+    const headlineActions = headlineEvents
+      .filter(e => e.action !== "price-target")
+      .map(e => ({
+        firm: e.firm, toGrade: e.toGrade ?? "", fromGrade: e.fromGrade ?? "", action: e.action,
+        date: e.date, priceTarget: e.priceTarget, source: "headline" as const,
+      }));
+
+    analystActions = [...yahooActionsTagged, ...fmpGradeActions, ...headlineActions];
+
+    const fmpPriceTargets = fmpEvents
+      .filter(e => e.action === "price-target" && e.priceTarget != null)
+      .map(e => ({
+        firm: e.firm, analyst: null, priceTarget: e.priceTarget, date: e.eventDate,
+        priceWhenPosted: null, newsTitle: null, source: "fmp" as const,
+      }));
+    const headlinePriceTargets = headlineEvents
+      .filter(e => e.action === "price-target" && e.priceTarget != null)
+      .map(e => ({
+        firm: e.firm, analyst: null, priceTarget: e.priceTarget, date: e.date,
+        priceWhenPosted: null, newsTitle: null, source: "headline" as const,
+      }));
+    const analystPriceTargets = [...fmpPriceTargets, ...headlinePriceTargets];
 
     // Metric-driven bull/bear bullets, with same-day event bullets (earnings beat/miss,
     // analyst upgrade/downgrade, large price move ex-macro) from the daily trigger check
