@@ -25,6 +25,7 @@ export function viableOptionStrikes(
     .flatMap(c => {
       const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
       return (isCall ? c.calls : c.puts)
+        .filter(p => p.meetsGate) // no live bid = not sellable, exclude from rankings entirely
         .map(p => ({ chain: c, put: p, weeklyIncome: p.incomePct / (settlementDte / 7) }))
         .filter(x => x.weeklyIncome >= minWeeklyIncome);
     });

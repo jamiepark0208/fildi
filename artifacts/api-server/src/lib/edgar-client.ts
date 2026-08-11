@@ -115,16 +115,34 @@ export async function getCIK(ticker: string): Promise<string | null> {
 
 // ── XBRL concept fetcher ──────────────────────────────────────────────────────
 
-type GaapEntry = { val: number; end: string; form: string };
+type GaapEntry = { val: number; end: string; start?: string; form: string; fp?: string; filed?: string };
 type GaapFacts = Record<string, { units?: { USD?: GaapEntry[]; shares?: GaapEntry[] } }>;
 
-function latestAnnual(gaap: GaapFacts, concept: string, unit: "USD" | "shares" = "USD"): number | undefined {
-  const entries = gaap[concept]?.units?.[unit];
-  if (!entries?.length) return undefined;
-  const annual = entries
-    .filter(e => e.form === "10-K")
-    .sort((a, b) => b.end.localeCompare(a.end));
-  return annual[0]?.val;
+// Some concepts carry quarterly footnote disclosures (e.g. "selected quarterly data" tables)
+// tagged under the same form="10-K", so filtering on form alone can pick up a non-annual
+// value. Require a genuine ~1-year period when start is available. Accepts multiple synonym
+// concepts (companies retag over time, e.g. MSFT's Revenues -> RevenueFromContractWith...
+// in 2018) and picks the single most-recently-*filed* entry across ALL of them — not just
+// the first concept with any data, which can lock onto a long-retired tag whose newest
+// annual entry is years stale even after a company has moved on to a different tag.
+function latestAnnual(gaap: GaapFacts, concepts: string | string[], unit: "USD" | "shares" = "USD"): number | undefined {
+  const list = Array.isArray(concepts) ? concepts : [concepts];
+  let best: GaapEntry | null = null;
+  for (const concept of list) {
+    const entries = gaap[concept]?.units?.[unit];
+    if (!entries?.length) continue;
+    for (const e of entries) {
+      if (e.form !== "10-K") continue;
+      if (e.start) {
+        const days = (new Date(e.end).getTime() - new Date(e.start).getTime()) / 86400000;
+        if (days < 340 || days > 386) continue;
+      }
+      if (!best || e.end > best.end || (e.end === best.end && (e.filed ?? "") > (best.filed ?? ""))) {
+        best = e;
+      }
+    }
+  }
+  return best?.val;
 }
 
 // ── Main fetch function ───────────────────────────────────────────────────────
@@ -153,10 +171,10 @@ export async function fetchEdgarFundamentals(
 
   const gaap: GaapFacts = facts.facts?.["us-gaap"] ?? {};
 
-  function annual(concept: string) { return latestAnnual(gaap, concept, "USD"); }
+  function annual(concepts: string | string[]) { return latestAnnual(gaap, concepts, "USD"); }
   function annualShares(concept: string) { return latestAnnual(gaap, concept, "shares"); }
 
-  const totalRevenue  = annual("Revenues") ?? annual("RevenueFromContractWithCustomerExcludingAssessedTax");
+  const totalRevenue  = annual(["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"]);
   const grossProfit   = annual("GrossProfit");
   const netIncome     = annual("NetIncomeLoss");
   const ebit          = annual("OperatingIncomeLoss");
@@ -164,7 +182,7 @@ export async function fetchEdgarFundamentals(
   const rawCapex      = annual("PaymentsToAcquirePropertyPlantAndEquipment");
   const capex         = rawCapex != null ? Math.abs(rawCapex) : undefined;
   const cash          = annual("CashAndCashEquivalentsAtCarryingValue");
-  const totalDebt     = annual("LongTermDebt");
+  const totalDebt     = annual(["LongTermDebtNoncurrent", "LongTermDebt"]);
   const totalEquity   = annual("StockholdersEquity");
   const rawIntExp     = annual("InterestExpense");
   const shares        = annualShares("CommonStockSharesOutstanding")
@@ -215,18 +233,20 @@ export interface EdgarStatementRow {
   filedDate: string;
 }
 
-type XbrlAnnualFact = { form?: string; fp?: string; fy?: number; val?: number; filed?: string };
+type XbrlAnnualFact = { form?: string; fp?: string; fy?: number; val?: number; filed?: string; start?: string; end?: string };
 
 // Tries each tag in order and uses the first one with data — filers don't all use the
 // same XBRL concept for the same line item (e.g. Revenues vs
 // RevenueFromContractWithCustomerExcludingAssessedTax).
-const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementType; tags: string[] }> = {
+const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementType; tags: string[]; unit?: string }> = {
   revenue:            { statementType: "income", tags: ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"] },
   costOfRevenue:       { statementType: "income", tags: ["CostOfRevenue", "CostOfGoodsAndServicesSold"] },
   grossProfit:         { statementType: "income", tags: ["GrossProfit"] },
   operatingIncome:     { statementType: "income", tags: ["OperatingIncomeLoss"] },
   netIncome:           { statementType: "income", tags: ["NetIncomeLoss"] },
-  epsDiluted:          { statementType: "income", tags: ["EarningsPerShareDiluted"] },
+  // Per-share facts are reported under unit "USD/shares", not "USD" — every other line
+  // item here is a dollar amount so USD is the default.
+  epsDiluted:          { statementType: "income", tags: ["EarningsPerShareDiluted"], unit: "USD/shares" },
 
   totalAssets:         { statementType: "balance", tags: ["Assets"] },
   currentAssets:       { statementType: "balance", tags: ["AssetsCurrent"] },
@@ -262,27 +282,60 @@ export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarS
   }
   if (!facts?.facts?.["us-gaap"]) return null;
 
-  const gaap: Record<string, { units?: { USD?: XbrlAnnualFact[] } }> = facts.facts["us-gaap"];
-  const rows: EdgarStatementRow[] = [];
+  const gaap: Record<string, { units?: Record<string, XbrlAnnualFact[]> }> = facts.facts["us-gaap"];
+  const perLineItemYears = new Map<string, Map<number, { value: number; filedDate: string }>>();
 
   for (const [lineItem, def] of Object.entries(STATEMENT_LINE_ITEM_TAGS)) {
-    let units: XbrlAnnualFact[] | null = null;
-    for (const tag of def.tags) {
-      const usd = gaap[tag]?.units?.USD;
-      if (Array.isArray(usd) && usd.length > 0) { units = usd; break; }
-    }
-    if (!units) continue;
-
+    // Companies retag line items over time (e.g. MSFT: Revenues -> RevenueFromContract...
+    // in 2018 for ASC 606). Merge facts from ALL synonym tags instead of stopping at the
+    // first tag with any data — otherwise a long-retired tag whose last 10-K FY entry is
+    // years stale (or whose only "FY" facts are actually quarterly footnote disclosures)
+    // silently wins and blocks the active tag from ever being tried.
     const byYear = new Map<number, { value: number; filedDate: string }>();
-    for (const fact of units) {
-      if (fact.form !== "10-K" || fact.fp !== "FY" || typeof fact.val !== "number" || !fact.fy || !fact.filed) continue;
-      const existing = byYear.get(fact.fy);
-      if (!existing || fact.filed > existing.filedDate) {
-        byYear.set(fact.fy, { value: fact.val, filedDate: fact.filed });
+    for (const tag of def.tags) {
+      const usd = gaap[tag]?.units?.[def.unit ?? "USD"];
+      if (!Array.isArray(usd)) continue;
+      for (const fact of usd) {
+        if (fact.form !== "10-K" || fact.fp !== "FY" || typeof fact.val !== "number" || !fact.end || !fact.filed) continue;
+        // Some tags carry quarterly footnote data mislabeled fp="FY" — require a genuine
+        // ~1-year period so those don't get treated as annual figures.
+        if (fact.start) {
+          const days = (new Date(fact.end).getTime() - new Date(fact.start).getTime()) / 86400000;
+          if (days < 340 || days > 386) continue;
+        }
+        // Key by the year the reporting PERIOD actually ended, not fact.fy — fact.fy is the
+        // fiscal year of the FILING, and a single 10-K discloses 2-3 years of comparatives
+        // all stamped with the same fy. Grouping by fact.fy collides distinct periods (e.g.
+        // MSFT's FY2026 10-K tags both its FY2026 figure AND its FY2024/FY2025 comparatives
+        // as fy=2026), silently overwriting the real year's value with a prior year's.
+        const periodYear = new Date(fact.end).getUTCFullYear();
+        const existing = byYear.get(periodYear);
+        if (!existing || fact.filed > existing.filedDate) {
+          byYear.set(periodYear, { value: fact.val, filedDate: fact.filed });
+        }
       }
     }
+    if (byYear.size > 0) perLineItemYears.set(lineItem, byYear);
+  }
 
-    const years = [...byYear.keys()].sort((a, b) => b - a).slice(0, 5);
+  // Anchor the "last 5 years" window to the ticker's actual current reporting year, not to
+  // whatever years happen to exist for each field in isolation. Some companies retire a
+  // concept entirely (e.g. Amazon hasn't tagged "GrossProfit" since its FY2009 10-K — their
+  // income statement format has no gross-profit subtotal) rather than switch to a synonym.
+  // Without this anchor, that field's own "top 5" would surface 2007-2009 sitting next to
+  // every other field's 2021-2025 — badly stale data masquerading as current.
+  let anchorYear = 0;
+  for (const byYear of perLineItemYears.values()) {
+    for (const year of byYear.keys()) anchorYear = Math.max(anchorYear, year);
+  }
+
+  const rows: EdgarStatementRow[] = [];
+  for (const [lineItem, byYear] of perLineItemYears) {
+    const def = STATEMENT_LINE_ITEM_TAGS[lineItem]!;
+    const years = [...byYear.keys()]
+      .filter(y => y > anchorYear - 5)
+      .sort((a, b) => b - a)
+      .slice(0, 5);
     for (const fy of years) {
       const entry = byYear.get(fy)!;
       rows.push({ statementType: def.statementType, lineItem, fiscalYear: fy, value: entry.value, filedDate: entry.filedDate });
