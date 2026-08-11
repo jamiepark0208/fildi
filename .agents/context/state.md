@@ -6,9 +6,9 @@
 **build** — last updated 2026-08-11
 
 ## Active work
-- Working: options-nobid-gate, edgar-tag-merge, edgar-eps-unit, edgar-fy-keying, edgar-anchor-window
-- In progress: browser-verify-options-scanner, browser-verify-accounting-tab
-- Blocked: playwright-chrome-binary-still-missing
+- Working: peer-group-overrides-schema, peer-classifier-override-logic, peer-overrides-routes, sector-peers-settings-tab
+- In progress: browser-verify-sector-peers-tab
+- Blocked: playwright-chrome-binary-still-missing, mockup-sandbox-squatting-port-8081
 
 ## Next tasks (priority order)
 

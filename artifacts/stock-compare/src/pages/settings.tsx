@@ -7,6 +7,7 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut, UserPlus, KeyRound } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
+import { PeerGroupsTab } from "@/components/settings/PeerGroupsTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
@@ -879,7 +880,7 @@ function TradingTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
+type Tab = "profile" | "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -892,6 +893,7 @@ export default function Settings() {
     { id: "cache",           label: "Cache Monitor",   adminOnly: true },
     { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
     { id: "stockdb",         label: "Stock DB" },
+    { id: "peer-groups",     label: "Sector Peers",    adminOnly: true },
     { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
     { id: "feedback",        label: "Feedback",        adminOnly: true },
   ];
@@ -941,6 +943,7 @@ export default function Settings() {
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
           {tab === "scheduled-tasks" && isAdmin && <ScheduledTasksTab />}
           {tab === "stockdb"     && <StockDBTab />}
+          {tab === "peer-groups" && isAdmin && <PeerGroupsTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
           {tab === "feedback"    && isAdmin && <FeedbackTab />}
         </div>

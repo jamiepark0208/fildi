@@ -27,7 +27,7 @@ import { parseAnalystHeadlines } from "../lib/analyst-headline-parser.js";
 import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
-import { fetchEdgarStatementHistory } from "../lib/edgar-client.js";
+import { fetchEdgarStatementHistory, fetchFiscalYearEnd } from "../lib/edgar-client.js";
 
 const router = Router();
 
@@ -975,10 +975,16 @@ function computeEdgarFindings(
   fmpRow: TickerFundamentalsRow | null,
 ): EdgarFinding[] {
   const findings: EdgarFinding[] = [];
-  const byItem = (lineItem: string) => rows
-    .filter(r => r.lineItem === lineItem)
-    .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
-    .sort((a, b) => a.year - b.year);
+  // rows can carry 6 fiscal years per item (5 displayed + 1 extra as a YoY baseline for
+  // the oldest displayed year — see fetchEdgarStatementHistory). Drop that extra oldest
+  // year here so findings describe the same 5-year window the UI shows.
+  const byItem = (lineItem: string) => {
+    const arr = rows
+      .filter(r => r.lineItem === lineItem)
+      .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
+      .sort((a, b) => a.year - b.year);
+    return arr.length > 5 ? arr.slice(1) : arr;
+  };
 
   const revenue = byItem("revenue");
   const netIncome = byItem("netIncome");
@@ -1060,13 +1066,20 @@ function computeEdgarFindings(
   // Cross-check against the FMP-derived numbers already shown elsewhere in the app —
   // this is the actual "second layer of validation" against the existing pipeline.
   if (fmpRow && revenue.length > 0) {
-    const latest = revenue[revenue.length - 1];
     const fmpRevenue = fmpRow.totalRevenue != null ? Number(fmpRow.totalRevenue) : null;
     if (fmpRevenue && fmpRevenue > 0) {
-      const diff = Math.abs(latest.value - fmpRevenue) / fmpRevenue;
+      // FMP's figure can lag one fiscal year behind EDGAR's most recently filed 10-K (e.g.
+      // MSFT's FY ends in June — EDGAR reflects the new FY within weeks of filing, but FMP's
+      // annual revenue can still show the prior FY for a while). Compare against whichever of
+      // the last two EDGAR years is the closer match so a one-year lag isn't misreported as a
+      // genuine data-quality issue.
+      const candidates = revenue.slice(-2);
+      const best = candidates.reduce((a, b) =>
+        Math.abs(a.value - fmpRevenue) <= Math.abs(b.value - fmpRevenue) ? a : b);
+      const diff = Math.abs(best.value - fmpRevenue) / fmpRevenue;
       if (diff > 0.05) {
         findings.push({
-          text: `Data discrepancy: SEC-filed FY${latest.year} revenue ($${(latest.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
+          text: `Data discrepancy: SEC-filed FY${best.year} revenue ($${(best.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
           tone: "negative",
         });
       }
@@ -1132,14 +1145,15 @@ router.get("/stocks/edgar-statements/:ticker", async (req, res) => {
       }
 
       if (rows.length === 0) {
-        return { available: false, income: {}, balance: {}, cashflow: {}, findings: [], asOf: null };
+        return { available: false, income: {}, balance: {}, cashflow: {}, findings: [], asOf: null, fiscalYearEnd: null };
       }
 
       const fmpRow = await readFundamentalsRow(upperTicker);
       const findings = computeEdgarFindings(rows, fmpRow);
       const asOf = rows.reduce((max, r) => (r.filedDate > max ? r.filedDate : max), rows[0].filedDate);
+      const fiscalYearEnd = await fetchFiscalYearEnd(upperTicker).catch(() => null);
 
-      return { available: true, ...groupStatementRows(rows), findings, asOf };
+      return { available: true, ...groupStatementRows(rows), findings, asOf, fiscalYearEnd };
     });
 
     return res.json(payload);

@@ -113,6 +113,20 @@ export async function getCIK(ticker: string): Promise<string | null> {
   return rows[0]?.cik ?? null;
 }
 
+// Statement rows are keyed by the calendar year each fiscal period ENDS in (see the
+// periodYear comment in fetchEdgarStatementHistory below), so "FY2026" for a company
+// whose fiscal year doesn't end in December can look like it's describing the current,
+// still-in-progress calendar year when it's actually a closed, filed year. Surfacing the
+// company's real fiscal year end (e.g. BlackBerry: "02-28") lets the UI disambiguate that.
+export async function fetchFiscalYearEnd(ticker: string): Promise<string | null> {
+  const cik = await getCIK(ticker);
+  if (!cik) return null;
+  const data = await fetchWithRetry(`https://data.sec.gov/submissions/CIK${cik}.json`);
+  const raw: string | undefined = data?.fiscalYearEnd; // "MMDD", e.g. "0228"
+  if (!raw || raw.length !== 4) return null;
+  return `${raw.slice(0, 2)}-${raw.slice(2)}`;
+}
+
 // ── XBRL concept fetcher ──────────────────────────────────────────────────────
 
 type GaapEntry = { val: number; end: string; start?: string; form: string; fp?: string; filed?: string };
@@ -263,9 +277,10 @@ const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementTy
 };
 
 /**
- * Fetches SEC XBRL companyfacts for `ticker` and extracts up to 5 years of annual
- * (10-K, FY) values per line item, deduping restated years by keeping the most
- * recently filed value. Returns null if there's no CIK on file or the fetch fails.
+ * Fetches SEC XBRL companyfacts for `ticker` and extracts up to 6 years of annual
+ * (10-K, FY) values per line item (5 for display + 1 as a YoY baseline for the oldest
+ * displayed year), deduping restated years by keeping the most recently filed value.
+ * Returns null if there's no CIK on file or the fetch fails.
  * Requires getCIK(ticker) to already be populated (bootstrapCikCache / backfill-edgar).
  */
 export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarStatementRow[] | null> {
@@ -318,24 +333,27 @@ export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarS
     if (byYear.size > 0) perLineItemYears.set(lineItem, byYear);
   }
 
-  // Anchor the "last 5 years" window to the ticker's actual current reporting year, not to
+  // Anchor the "last N years" window to the ticker's actual current reporting year, not to
   // whatever years happen to exist for each field in isolation. Some companies retire a
   // concept entirely (e.g. Amazon hasn't tagged "GrossProfit" since its FY2009 10-K — their
   // income statement format has no gross-profit subtotal) rather than switch to a synonym.
-  // Without this anchor, that field's own "top 5" would surface 2007-2009 sitting next to
+  // Without this anchor, that field's own "top N" would surface 2007-2009 sitting next to
   // every other field's 2021-2025 — badly stale data masquerading as current.
   let anchorYear = 0;
   for (const byYear of perLineItemYears.values()) {
     for (const year of byYear.keys()) anchorYear = Math.max(anchorYear, year);
   }
 
+  // Fetch 6 years, not 5: the UI displays only the most recent 5, but keeps 1 extra
+  // (oldest) year purely as a YoY baseline so the oldest *displayed* year can still show
+  // a % change instead of reading as "no prior year exists."
   const rows: EdgarStatementRow[] = [];
   for (const [lineItem, byYear] of perLineItemYears) {
     const def = STATEMENT_LINE_ITEM_TAGS[lineItem]!;
     const years = [...byYear.keys()]
-      .filter(y => y > anchorYear - 5)
+      .filter(y => y > anchorYear - 6)
       .sort((a, b) => b - a)
-      .slice(0, 5);
+      .slice(0, 6);
     for (const fy of years) {
       const entry = byYear.get(fy)!;
       rows.push({ statementType: def.statementType, lineItem, fiscalYear: fy, value: entry.value, filedDate: entry.filedDate });
