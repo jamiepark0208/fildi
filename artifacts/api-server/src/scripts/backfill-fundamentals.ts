@@ -269,7 +269,7 @@ async function backfillTicker(item: WorkItem, fmpAllowed: boolean): Promise<Fill
   // ── Persist merged result ─────────────────────────────────────────────────
   if (sources.length > 0) {
     try {
-      await writeFundamentalsRow(ticker, base, [], null);
+      await writeFundamentalsRow(ticker, base, []);
     } catch (err) {
       return { ticker, filled: 0, sources, error: `persist failed: ${String(err)}` };
     }

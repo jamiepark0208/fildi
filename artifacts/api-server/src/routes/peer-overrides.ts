@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { and, eq, isNull } from "drizzle-orm";
-import { db, peerGroups, peerGroupMembers, peerGroupOverrides } from "@workspace/db";
+import { db, peerGroups, peerGroupMembers, peerGroupOverrides, tickerRegistry } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
   classifyTicker, classifyTickerDefault, setPeerGroupOverride, clearPeerGroupOverride,
@@ -24,12 +24,25 @@ async function groupSummary(groupId: string | null) {
   return rows[0] ?? null;
 }
 
+// A member is "representative" when its own scoring cohort (ticker_registry.primary_peer_group_id)
+// is this group — i.e. it's actually grouped with the rest of this roster for fundamental
+// percentile scoring, not just displayed here for comparison (see computeAndPersistFundamentalScores,
+// which groups strictly by primary_peer_group_id and never reads peer_group_members).
 async function memberRoster(groupId: string | null) {
   if (!groupId || groupId === "__global__") return [];
-  const rows = await db.select({ ticker: peerGroupMembers.ticker, source: peerGroupMembers.source })
+  const rows = await db.select({
+    ticker: peerGroupMembers.ticker,
+    source: peerGroupMembers.source,
+    primaryPeerGroupId: tickerRegistry.primaryPeerGroupId,
+  })
     .from(peerGroupMembers)
+    .leftJoin(tickerRegistry, eq(tickerRegistry.ticker, peerGroupMembers.ticker))
     .where(and(eq(peerGroupMembers.groupId, groupId), isNull(peerGroupMembers.removedAt)));
-  return rows;
+  return rows.map(r => ({
+    ticker: r.ticker,
+    source: r.source,
+    isRepresentative: r.primaryPeerGroupId === groupId,
+  }));
 }
 
 // ── GET /peers/groups — all peer groups for a reassignment dropdown ────────────

@@ -13,7 +13,7 @@ import { getLivePrices } from "../lib/live-quote.js";
 import {
   runModelSnapshot, runModelGrading, getTiltState, insertRegimeGradeStubs,
 } from "../lib/model-track-record.js";
-import { applyTilt, tiltFactor, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_ANCHOR_WIN_RATE } from "@workspace/option-scoring";
+import { applyTilt, tiltFactor, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_ANCHOR_PNL_PCT, TILT_SPAN_PNL_PCT } from "@workspace/option-scoring";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -318,7 +318,10 @@ router.get("/track-record/tilt", async (_req, res) => {
       put: { factor: put.factor, weights: put.weights },
       call: { factor: call.factor, weights: call.weights },
       minN: TILT_MIN_N,
-      anchorWinRate: TILT_ANCHOR_WIN_RATE,
+      // The tilt is driven by avgPnlPct, not winRate — see tilt.ts. Exposing the
+      // anchor/span so the UI can explain what moved the factor.
+      anchorPnlPct: TILT_ANCHOR_PNL_PCT,
+      spanPnlPct: TILT_SPAN_PNL_PCT,
     });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

@@ -45,6 +45,7 @@ import { fetchAVOverview }           from "../lib/alpha-vantage-client.js";
 import { fetchFMPFundamentals }      from "../lib/fmp-client.js";
 import { recordApiUsage }            from "../lib/api-usage.js";
 import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { classifyTicker } from "../lib/peer-classifier.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -801,6 +802,44 @@ async function computeCoveragePercent(): Promise<number> {
   return Math.round((nonNull / totalCells) * 1000) / 10; // one decimal place
 }
 
+// ── Peer-group backfill ──────────────────────────────────────────────────────
+
+// Any ticker in the scoring universe (ticker_fundamentals) whose registry row has no
+// primary_peer_group_id gets run through the normal 3-tier auto-classifier
+// (peer overlap → sector/industry keyword map → unmapped). Persisting is exactly what
+// classifyTicker does for a never-seen ticker; this just stops it being lazy.
+async function classifyUngroupedTickers(): Promise<void> {
+  try {
+    const ungrouped = (await db
+      .select({ ticker: tickerFundamentals.ticker })
+      .from(tickerFundamentals)
+      .leftJoin(tickerRegistry, eq(tickerRegistry.ticker, tickerFundamentals.ticker))
+      .where(isNull(tickerRegistry.primaryPeerGroupId)))
+      .map(r => r.ticker);
+
+    if (ungrouped.length === 0) return;
+    log(`peer-group backfill: ${ungrouped.length} scored ticker(s) with no peer group`);
+
+    let mapped = 0;
+    for (const ticker of ungrouped) {
+      try {
+        const res = await classifyTicker(ticker);
+        if (res.groupId && res.groupId !== "__global__") {
+          mapped++;
+          log(`  ${ticker} → ${res.groupId} (${res.confidence})`);
+        } else {
+          log(`  ${ticker} → still unmapped (needs a manual peer-group override)`);
+        }
+      } catch (err: any) {
+        log(`  WARN: ${ticker} classify failed: ${err?.message ?? String(err)}`);
+      }
+    }
+    log(`peer-group backfill: ${mapped}/${ungrouped.length} newly mapped`);
+  } catch (err: any) {
+    log(`WARN: peer-group backfill failed: ${err?.message ?? String(err)}`);
+  }
+}
+
 // ── Run accountability ───────────────────────────────────────────────────────
 // Writes one enrichment_runs row per invocation so run history is queryable
 // instead of living only in the per-day log file. Never throws — a failure to
@@ -1038,6 +1077,17 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
       log(`ERROR: ${pipelineError}`);
     }
   }
+
+  // Classify any scored ticker still missing a peer group. Nothing else does this
+  // proactively: classifyTicker() is lazy (called from request paths), while scoring
+  // reads ticker_registry.primary_peer_group_id directly. A ticker added to the
+  // registry outside the curated sector_taxonomy.json import therefore stayed NULL
+  // forever, and a NULL peer group silently means "no sector-relative percentile" —
+  // that ticker's metrics get scored 100% universe-wide while its peers are scored
+  // 55-70% sector-relative (see SECTOR_WEIGHT in fundamentals-db.ts).
+  // Runs AFTER the fetch loop so sector/industry just pulled this run is available
+  // to the keyword-map tier of the classifier.
+  await classifyUngroupedTickers();
 
   const coverageAfter = await computeCoveragePercent().catch((err: any) => {
     log(`WARN: failed to compute post-run coverage snapshot: ${err?.message}`);

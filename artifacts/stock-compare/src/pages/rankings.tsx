@@ -55,7 +55,10 @@ export default function Rankings() {
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
-      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }>; peerGroupId?: string | null; peerGroupName?: string | null; peerGroupSize?: number }>>;
+      // Scores are nullable: null = too little data to score honestly. The server gates
+      // on coverage and shrinks toward neutral (see FAMILY_MIN_COVERAGE in fundamentals-db.ts),
+      // and `ranked: false` means the ticker is deliberately off the leaderboard.
+      return res.json() as Promise<Array<{ ticker: string; totalScore: number | null; qualityScore: number | null; growthScore: number | null; safetyScore: number | null; coverage: { quality: number; growth: number; safety: number; total: number }; ranked: boolean; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }>; peerGroupId?: string | null; peerGroupName?: string | null; peerGroupSize?: number }>>;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -65,11 +68,14 @@ export default function Rankings() {
     if (!serverRankings?.length) return [];
     const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
     return [...serverRankings]
+      // Unranked tickers (coverage too thin) are dropped rather than shown at rank 0 —
+      // this is what kept WTR at #1 of 558 off the strength of a single metric.
+      .filter(r => r.ranked && r.totalScore !== null)
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
         companyName:  stockByTicker.get(r.ticker)?.companyName ?? r.ticker,
-        totalScore:   r.totalScore,
+        totalScore:   r.totalScore as number,
         maxPossible:  100,
         rank:         r.rank,
         metricScores: Object.fromEntries(
@@ -77,10 +83,12 @@ export default function Rankings() {
         ),
         reason:       "",
         familyScores: {
-          value:   { score: 50,             coverage: 0, lowCoverage: true },
-          quality: { score: r.qualityScore, coverage: 1, lowCoverage: false },
-          growth:  { score: r.growthScore,  coverage: 1, lowCoverage: false },
-          safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
+          // No valuation metrics are scored server-side yet, so `value` stays a
+          // zero-coverage placeholder rather than pretending to be a real 50.
+          value:   { score: 50, coverage: 0, lowCoverage: true },
+          quality: { score: r.qualityScore ?? 50, coverage: r.coverage.quality, lowCoverage: r.qualityScore == null },
+          growth:  { score: r.growthScore  ?? 50, coverage: r.coverage.growth,  lowCoverage: r.growthScore  == null },
+          safety:  { score: r.safetyScore  ?? 50, coverage: r.coverage.safety,  lowCoverage: r.safetyScore  == null },
         },
         regime: r.regime,
         peerGroupId:   r.peerGroupId ?? undefined,

@@ -907,6 +907,17 @@ export default function Profile() {
     invalidate()
   }
 
+  const [resetting, setResetting] = useState(false)
+  async function handleReset() {
+    if (!confirm("Reset your paper-trading account? Any gain on open holdings will be locked in as cash; losses are forgiven. Cash and holdings reset — your trade ideas, win rate, and streak stay exactly as they are."))
+      return
+    setResetting(true)
+    try {
+      await apiFeed("/portfolio/reset", { method: "POST" })
+      invalidate()
+    } finally { setResetting(false) }
+  }
+
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
@@ -947,19 +958,29 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* Post button */}
+                {/* Reset + Post buttons */}
                 {isOwnerProfile && (
-                  <button
-                    onClick={() => setShowForm(v => !v)}
-                    className={cn(
-                      "text-[11px] font-semibold px-3 py-1.5 rounded border transition-all ml-auto shrink-0",
-                      showForm
-                        ? "bg-zinc-900 text-white/70 border-[#d4af37]/20"
-                        : "bg-[#d4af37] text-black border-[#d4af37] hover:bg-[#d4af37]/90"
-                    )}
-                  >
-                    {showForm ? "Cancel" : "+ Trade Idea"}
-                  </button>
+                  <div className="flex items-center gap-2 ml-auto shrink-0">
+                    <button
+                      onClick={handleReset}
+                      disabled={resetting}
+                      title="Reset cash and holdings — trade ideas, win rate, and streak are preserved"
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded border border-[#d4af37]/20 bg-zinc-900 text-white/70 hover:text-red-400 hover:border-red-400/40 transition-all disabled:opacity-40"
+                    >
+                      {resetting ? "Resetting…" : "Reset Account"}
+                    </button>
+                    <button
+                      onClick={() => setShowForm(v => !v)}
+                      className={cn(
+                        "text-[11px] font-semibold px-3 py-1.5 rounded border transition-all shrink-0",
+                        showForm
+                          ? "bg-zinc-900 text-white/70 border-[#d4af37]/20"
+                          : "bg-[#d4af37] text-black border-[#d4af37] hover:bg-[#d4af37]/90"
+                      )}
+                    >
+                      {showForm ? "Cancel" : "+ Trade Idea"}
+                    </button>
+                  </div>
                 )}
               </div>
 

@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-11
+**build** — last updated 2026-08-27
 
 ## Active work
-- Working: peer-group-overrides-schema, peer-classifier-override-logic, peer-overrides-routes, sector-peers-settings-tab
-- In progress: browser-verify-sector-peers-tab
-- Blocked: playwright-chrome-binary-still-missing, mockup-sandbox-squatting-port-8081
+- Working: regime-at-score-cache-fix, tilt-objective-avgpnlpct, coverage-gating-shrinkage, feed-n+1-collapse, portfolio-reset-all-or-nothing, api-endpoints-script-fix, peer-group-backfill-added
+- In progress: scoring-quality-remediation-see-agents-context-scoring-backlog-md
+- Blocked: pnpm-typecheck-red-scripts-missing-yahoo-finance2, ticker-fundamentals-history-has-1-row, peer-group-backfill-not-yet-executed
 
 ## Next tasks (priority order)
 

@@ -14,6 +14,8 @@ import { MarketSentimentSection } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
 import { BreakdownMetricsTable } from "./breakdown-metrics-table";
+import { PeerGroupEditor } from "./settings/PeerGroupEditor";
+import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
@@ -165,7 +167,7 @@ function TagBadge({
   );
 }
 
-type BreakdownTab = "analyst" | "earnings" | "sentiment" | "catalysts" | "news" | "accounting";
+type BreakdownTab = "analyst" | "earnings" | "sentiment" | "catalysts" | "news" | "accounting" | "peers";
 
 function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
   const color =
@@ -184,6 +186,7 @@ export function StockBreakdown({
   watchlistMetrics,
 }: { ticker?: string; watchlistMetrics?: Record<string, WatchlistTagEntry | undefined> } = {}) {
   const [, navigate] = useLocation();
+  const { isAdmin } = useAuth();
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
@@ -661,6 +664,7 @@ export function StockBreakdown({
                 { id: "catalysts" as const, label: "Catalysts" },
                 { id: "accounting" as const, label: "Accounting" },
                 ...(hasNews ? [{ id: "news" as const, label: "News" }] : []),
+                ...(isAdmin ? [{ id: "peers" as const, label: "Peers" }] : []),
               ];
               const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : (tabs[0]?.id ?? "analyst");
 
@@ -705,6 +709,7 @@ export function StockBreakdown({
                     )}
                     {activeTab === "catalysts" && <CatalystsSection catalysts={data.catalysts} />}
                     {activeTab === "accounting" && <AccountingStatementsSection ticker={m.ticker} />}
+                    {activeTab === "peers" && isAdmin && <PeerGroupEditor ticker={m.ticker} />}
                     {activeTab === "news" && hasNews && (
                       <div className="space-y-0.5 -mx-1">
                         {data.news.map((item, i) => (

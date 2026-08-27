@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { eq, and, sql, count, sum, desc, asc, ilike } from 'drizzle-orm'
+import { eq, and, sql, count, sum, desc, asc, ilike, inArray } from 'drizzle-orm'
 import { db, tradePosts, likes, comments, users, stockBuckets, stockHoldings, pricesHistorical } from '@workspace/db'
 import { requireAuth } from '../middleware/requireAuth.js'
 import { getLatestRegime } from './regime.js'
@@ -9,6 +9,9 @@ import { computeTickerPnlRollup } from '../lib/ticker-pnl.js'
 
 const router = Router()
 router.use(requireAuth)
+
+// Paper-trading starting balance — matches users.cash_balance's DB default for new accounts.
+const STARTING_CASH = 100_000
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -509,19 +512,50 @@ router.get('/feed/profile/:username', async (req, res) => {
     .where(eq(stockHoldings.userId, user.id))
     .orderBy(desc(stockHoldings.openedAt))
 
+  // Previously this ran 3 queries PER ticker (latest close + the 2 inside
+  // getAvailableShares) — 60 round-trips for a 20-ticker portfolio. Collapsed to 3
+  // set-based queries total; getAvailableShares stays for the single-holding paths.
   const openTickers = [...new Set(holdingRows.filter(h => h.status === 'OPEN').map(h => h.ticker))]
   const latestCloseByTicker = new Map<string, number>()
   const availableForCallByTicker = new Map<string, number>()
-  await Promise.all(openTickers.map(async ticker => {
-    const [row] = await db
-      .select({ close: pricesHistorical.close })
-      .from(pricesHistorical)
-      .where(eq(pricesHistorical.ticker, ticker))
-      .orderBy(desc(pricesHistorical.date))
-      .limit(1)
-    if (row?.close != null) latestCloseByTicker.set(ticker, Number(row.close))
-    availableForCallByTicker.set(ticker, await getAvailableShares(user.id, ticker))
-  }))
+
+  if (openTickers.length > 0) {
+    const [priceRows, ownedRows, committedRows] = await Promise.all([
+      db.execute(sql`
+        SELECT DISTINCT ON (ticker) ticker, close
+        FROM ${pricesHistorical}
+        WHERE ticker IN (${sql.join(openTickers.map(t => sql`${t}`), sql`, `)})
+        ORDER BY ticker, date DESC
+      `),
+      db.select({ ticker: stockHoldings.ticker, total: sql<string | null>`SUM(${stockHoldings.shares})` })
+        .from(stockHoldings)
+        .where(and(
+          eq(stockHoldings.userId, user.id),
+          eq(stockHoldings.status, 'OPEN'),
+          sql`${stockHoldings.shares} > 0`,
+          inArray(stockHoldings.ticker, openTickers),
+        ))
+        .groupBy(stockHoldings.ticker),
+      db.select({ ticker: tradePosts.ticker, total: sql<string | null>`SUM(${tradePosts.contracts} * 100)` })
+        .from(tradePosts)
+        .where(and(
+          eq(tradePosts.userId, user.id),
+          eq(tradePosts.tradeType, 'SELL_CALL'),
+          eq(tradePosts.status, 'OPEN'),
+          inArray(tradePosts.ticker, openTickers),
+        ))
+        .groupBy(tradePosts.ticker),
+    ])
+
+    for (const r of priceRows as unknown as Array<{ ticker: string; close: string | null }>) {
+      if (r.close != null) latestCloseByTicker.set(r.ticker, Number(r.close))
+    }
+    const ownedByTicker = new Map(ownedRows.map(r => [r.ticker, Number(r.total ?? 0)]))
+    const committedByTicker = new Map(committedRows.map(r => [r.ticker, Number(r.total ?? 0)]))
+    for (const ticker of openTickers) {
+      availableForCallByTicker.set(ticker, (ownedByTicker.get(ticker) ?? 0) - (committedByTicker.get(ticker) ?? 0))
+    }
+  }
 
   const holdings = holdingRows.map(h => {
     const currentPrice = h.status === 'OPEN' ? (latestCloseByTicker.get(h.ticker) ?? null) : null
@@ -616,6 +650,99 @@ router.post('/feed/holdings/:id/close', async (req, res) => {
   })
 
   return res.json({ ...updated, costBasis: Number(updated!.costBasis), realizedPnl: Number(updated!.realizedPnl) })
+})
+
+// ── POST /api/feed/portfolio/reset ──────────────────────────────────────────────
+// Resets a user's paper-trading account: every OPEN stock_holdings position is
+// closed out at the latest daily close (same math as /holdings/:id/close, applied
+// in bulk) so its true realized P&L is recorded, then cash_balance is reset to the
+// starting balance — plus any net gain from that closeout, so a profitable reset
+// carries the win forward instead of erasing it. A net loss is absorbed (cash still
+// lands on the flat starting balance) rather than digging the account into a hole.
+// trade_posts (trade ideas, win rate, streak, resolved P&L) are never touched —
+// those are the user's track record and outlive any number of resets.
+// All-or-nothing: if ANY open holding can't be cleanly closed, nothing changes and the
+// blockers come back as 409. A partial reset leaves the account incoherent — cash lands
+// on the flat starting balance while un-closed lots stay OPEN, so the user keeps the
+// position AND gets its money back. Two blockers exist:
+//   - no recent close price (can't mark to market without guessing)
+//   - the lot backs an OPEN SELL_CALL (trade_posts are never touched here, so closing
+//     the lot out from under the call would leave it naked — the same invariant
+//     POST /feed/holdings/:id/close enforces via getAvailableShares)
+router.post('/feed/portfolio/reset', async (req, res) => {
+  const userId = req.session.userId!
+
+  const openHoldings = await db.select().from(stockHoldings)
+    .where(and(eq(stockHoldings.userId, userId), eq(stockHoldings.status, 'OPEN')))
+
+  if (openHoldings.length === 0) {
+    await db.update(users).set({ cashBalance: String(STARTING_CASH) }).where(eq(users.id, userId))
+    return res.json({ closedHoldings: 0, realizedPnl: 0, cashBalance: STARTING_CASH })
+  }
+
+  const tickers = [...new Set(openHoldings.map(h => h.ticker))]
+
+  // Latest close per ticker in ONE query (DISTINCT ON) rather than one round-trip each.
+  const priceRows = await db.execute(sql`
+    SELECT DISTINCT ON (ticker) ticker, close
+    FROM ${pricesHistorical}
+    WHERE ticker IN (${sql.join(tickers.map(t => sql`${t}`), sql`, `)})
+    ORDER BY ticker, date DESC
+  `)
+  const closeByTicker = new Map<string, number>()
+  for (const r of priceRows as unknown as Array<{ ticker: string; close: string | null }>) {
+    if (r.close != null) closeByTicker.set(r.ticker, Number(r.close))
+  }
+
+  const blockedNoPrice = tickers.filter(t => !closeByTicker.has(t))
+
+  // Shares committed to OPEN SELL_CALLs, per ticker — one grouped query.
+  const committedRows = await db
+    .select({ ticker: tradePosts.ticker, contracts: sql<string | null>`SUM(${tradePosts.contracts} * 100)` })
+    .from(tradePosts)
+    .where(and(
+      eq(tradePosts.userId, userId),
+      eq(tradePosts.tradeType, 'SELL_CALL'),
+      eq(tradePosts.status, 'OPEN'),
+      inArray(tradePosts.ticker, tickers),
+    ))
+    .groupBy(tradePosts.ticker)
+  const blockedByCall = committedRows.filter(r => Number(r.contracts ?? 0) > 0).map(r => r.ticker)
+
+  if (blockedNoPrice.length > 0 || blockedByCall.length > 0) {
+    return res.status(409).json({
+      error: 'cannot reset while some positions cannot be closed',
+      blockedNoPrice,
+      blockedByOpenCoveredCall: blockedByCall,
+    })
+  }
+
+  const closes = openHoldings.map(h => ({
+    id: h.id,
+    realizedPnl: (closeByTicker.get(h.ticker)! - Number(h.costBasis)) * h.shares,
+  }))
+
+  const totalRealizedPnl = closes.reduce((sum, c) => sum + c.realizedPnl, 0)
+  // A profitable reset carries the win forward; a net loss is absorbed rather than
+  // digging the account into a hole. NOTE: this asymmetry is a one-way ratchet —
+  // see the review notes on making resets rate-limited or fully symmetric.
+  const newCashBalance = STARTING_CASH + Math.max(totalRealizedPnl, 0)
+
+  await db.transaction(async tx => {
+    // Single UPDATE with a CASE rather than one round-trip per holding.
+    await tx.update(stockHoldings).set({
+      status:      'CLOSED',
+      closedAt:    new Date(),
+      realizedPnl: sql`CASE ${sql.join(
+        closes.map(c => sql`WHEN ${stockHoldings.id} = ${c.id} THEN ${String(c.realizedPnl)}::numeric`),
+        sql` `,
+      )} END`,
+    }).where(inArray(stockHoldings.id, closes.map(c => c.id)))
+
+    await tx.update(users).set({ cashBalance: String(newCashBalance) }).where(eq(users.id, userId))
+  })
+
+  return res.json({ closedHoldings: closes.length, realizedPnl: totalRealizedPnl, cashBalance: newCashBalance })
 })
 
 // ── GET /api/feed/buckets — all users' picks (public within the app) ──────────
