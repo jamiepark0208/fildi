@@ -3,6 +3,9 @@ import { db, tickerFundamentals, tickerRegistry, peerGroups, fmpApiUsage, type T
 import { recordApiUsage, checkDailyBudget } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
 import { logger } from "./logger.js";
+import {
+  NEUTRAL_SCORE, FAMILY_MIN_COVERAGE, TOTAL_MIN_COVERAGE, shrinkToNeutral,
+} from "./fundamentals-scoring-math.js";
 
 const STALE_DAYS = 7;
 
@@ -60,11 +63,15 @@ export function checkTriangulation(
 }
 
 // Upsert a fundamentals row. Called by the refresh job.
+// NOTE: this is the DATA FETCH path and deliberately does not touch regime_at_score.
+// That column records the regime a *score* was computed under and is owned solely by
+// computeAndPersistFundamentalScores(). Writing it here (as this function used to)
+// clobbered the scorer's value with the fetch-time regime — or with null from the
+// backfill script — which silently disabled the persisted-score cache entirely.
 export async function writeFundamentalsRow(
   ticker: string,
   data: FMPFundamentalsData,
   discrepancyFlags: string[],
-  regimeAtScore?: string | null,
 ): Promise<void> {
   const expectedFields = 30; // approximate count of optional numeric fields
   const nonNullCount = Object.values(data).filter(v => v !== undefined).length;
@@ -113,7 +120,6 @@ export async function writeFundamentalsRow(
       quarterlyOperatingCashFlow: num(data.quarterlyOperatingCashFlow),
       sharesOutstanding:          num(data.sharesOutstanding),
       sharesOutstandingPrior:     num(data.sharesOutstandingPrior),
-      regimeAtScore:              regimeAtScore ?? null,
     })
     .onConflictDoUpdate({
       target: tickerFundamentals.ticker,
@@ -157,7 +163,6 @@ export async function writeFundamentalsRow(
         quarterlyOperatingCashFlow: num(data.quarterlyOperatingCashFlow),
         sharesOutstanding:          num(data.sharesOutstanding),
         sharesOutstandingPrior:     num(data.sharesOutstandingPrior),
-        regimeAtScore:              regimeAtScore ?? null,
       },
     });
 }
@@ -258,12 +263,20 @@ export async function recordFMPCalls(calls: number): Promise<void> {
 
 // ── Fundamental score computation ─────────────────────────────────────────────
 
+export type FamilyCoverage = { quality: number; growth: number; safety: number; total: number };
+
 export type FundScoreResult = {
   ticker: string;
-  totalScore: number;
-  qualityScore: number;
-  growthScore: number;
-  safetyScore: number;
+  // null = not enough data to score honestly (see FAMILY_MIN_COVERAGE / TOTAL_MIN_COVERAGE).
+  // Render as "n/a", never as a number — a placeholder 50 reads as a real middling score.
+  totalScore: number | null;
+  qualityScore: number | null;
+  growthScore: number | null;
+  safetyScore: number | null;
+  // Fraction of each family's metric weight actually present for this ticker, [0,1].
+  coverage: FamilyCoverage;
+  // false → excluded from the leaderboard entirely (rank 0).
+  ranked: boolean;
   rank: number;
   regime: string;
   computedAt: string;
@@ -335,6 +348,9 @@ const SECTOR_WEIGHT: Record<string, number> = {
 };
 const MIN_SECTOR_PEERS = 3; // below this, a sector percentile is too noisy to trust — fall back to universe-only
 
+// Coverage gating + shrinkage constants live in fundamentals-scoring-math.ts (pure,
+// unit-tested — see fundamentals-coverage.test.ts).
+
 function percentileRanks(vals: (number | null)[], higherBetter: boolean): (number | null)[] {
   const nonNull = vals.filter((v): v is number => v !== null);
   if (nonNull.length === 0) return vals.map(() => null);
@@ -384,6 +400,33 @@ function computeBlendedPctRanks(
     });
   });
 }
+
+// Per-family metric-weight coverage for each ticker, [0,1]. Shared by the compute path
+// and the cached-read path so the coverage shown alongside a score always matches the
+// coverage that produced it. Coverage is presence of the raw metric VALUE — the same
+// basis computePerMetricScores uses, which (like it) does not apply peer-group metric
+// exclusions; an excluded metric therefore reads as "present but unscored" here.
+function computeCoverageByTicker(rows: TickerFundamentalsRow[]): Map<string, FamilyCoverage> {
+  const FAMS: Family[] = ['quality', 'growth', 'safety'];
+  const out = new Map<string, FamilyCoverage>();
+  rows.forEach(row => {
+    const cov: FamilyCoverage = { quality: 0, growth: 0, safety: 0, total: 0 };
+    let present = 0, total = 0;
+    FAMS.forEach(fam => {
+      const fm = SCORING_METRICS.filter(m => m.family === fam);
+      const famTotal = fm.reduce((s, m) => s + m.weight, 0);
+      const famPresent = fm.reduce((s, m) => s + (m.getValue(row) !== null ? m.weight : 0), 0);
+      cov[fam] = famTotal > 0 ? parseFloat((famPresent / famTotal).toFixed(4)) : 0;
+      present += famPresent;
+      total   += famTotal;
+    });
+    cov.total = total > 0 ? parseFloat((present / total).toFixed(4)) : 0;
+    out.set(row.ticker, cov);
+  });
+  return out;
+}
+
+const EMPTY_COVERAGE: FamilyCoverage = { quality: 0, growth: 0, safety: 0, total: 0 };
 
 function computePerMetricScores(
   rows: TickerFundamentalsRow[],
@@ -462,33 +505,59 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   const FAMILIES: Family[] = ['quality', 'growth', 'safety'];
   const computedAt = new Date();
 
+  const round2 = (v: number) => parseFloat(v.toFixed(2));
+
   const rawResults = rows.map((row, ri) => {
-    const familyScores: Record<Family, number> = { quality: 50, growth: 50, safety: 50 };
+    const familyScores: Record<Family, number | null> = { quality: null, growth: null, safety: null };
+    const familyCoverage: Record<Family, number> = { quality: 0, growth: 0, safety: 0 };
     let totalNum = 0, totalDen = 0;
+    let weightPresent = 0, weightTotal = 0;
+
     FAMILIES.forEach(fam => {
       const famMetrics = SCORING_METRICS.map((m, mi) => ({ m, mi })).filter(({ m }) => m.family === fam);
+      const famWeightTotal = famMetrics.reduce((s, { m }) => s + m.weight, 0);
       let famNum = 0, famDen = 0;
       famMetrics.forEach(({ m, mi }) => {
         const pct = pctRanks[mi][ri];
         if (pct !== null) { famNum += pct * m.weight; famDen += m.weight; }
       });
-      if (famDen > 0) {
-        familyScores[fam] = (famNum / famDen) * 100;
-        totalNum += (famNum / famDen) * familyWeights[fam];
-        totalDen += familyWeights[fam];
-      }
+
+      weightPresent += famDen;
+      weightTotal   += famWeightTotal;
+
+      const coverage = famWeightTotal > 0 ? famDen / famWeightTotal : 0;
+      familyCoverage[fam] = parseFloat(coverage.toFixed(4));
+
+      // Too thin to be worth a number at all — stays null and contributes nothing
+      // to the total (rather than silently voting with a placeholder 50).
+      if (famDen === 0) return;
+      const shrunk = shrinkToNeutral((famNum / famDen) * 100, coverage);
+      if (shrunk === null) return;
+      familyScores[fam] = shrunk;
+      totalNum += shrunk * familyWeights[fam];
+      totalDen += familyWeights[fam];
     });
+
+    const totalCoverage = weightTotal > 0 ? weightPresent / weightTotal : 0;
+    const ranked = totalCoverage >= TOTAL_MIN_COVERAGE && totalDen > 0;
+
     return {
       ticker: row.ticker,
-      totalScore: parseFloat((totalDen > 0 ? (totalNum / totalDen) * 100 : 0).toFixed(2)),
-      qualityScore: parseFloat(familyScores.quality.toFixed(2)),
-      growthScore:  parseFloat(familyScores.growth.toFixed(2)),
-      safetyScore:  parseFloat(familyScores.safety.toFixed(2)),
+      totalScore:   ranked ? round2(totalNum / totalDen) : null,
+      qualityScore: familyScores.quality !== null ? round2(familyScores.quality) : null,
+      growthScore:  familyScores.growth  !== null ? round2(familyScores.growth)  : null,
+      safetyScore:  familyScores.safety  !== null ? round2(familyScores.safety)  : null,
+      coverage: { ...familyCoverage, total: parseFloat(totalCoverage.toFixed(4)) },
+      ranked,
     };
   });
 
-  // Rank by totalScore descending (1 = best)
-  const sorted = [...rawResults].sort((a, b) => b.totalScore - a.totalScore);
+  // Rank by totalScore descending (1 = best). Unranked tickers (insufficient coverage)
+  // are excluded from the ordering entirely and carry rank 0 — they must not occupy a
+  // leaderboard slot on the strength of one or two metrics.
+  const sorted = rawResults
+    .filter(r => r.ranked && r.totalScore !== null)
+    .sort((a, b) => (b.totalScore as number) - (a.totalScore as number));
   const rankMap = new Map(sorted.map((r, i) => [r.ticker, i + 1]));
 
   const perMetric = computePerMetricScores(rows, familyWeights, peerGroupByTicker);
@@ -514,12 +583,21 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   await db.insert(tickerFundamentals)
     .values(results.map(r => ({
       ticker:              r.ticker,
-      fundTotalScore:      String(r.totalScore),
-      fundQualityScore:    String(r.qualityScore),
-      fundGrowthScore:     String(r.growthScore),
-      fundSafetyScore:     String(r.safetyScore),
+      // null (insufficient coverage) must persist as SQL NULL, not the string "null".
+      fundTotalScore:      r.totalScore   != null ? String(r.totalScore)   : null,
+      fundQualityScore:    r.qualityScore != null ? String(r.qualityScore) : null,
+      fundGrowthScore:     r.growthScore  != null ? String(r.growthScore)  : null,
+      fundSafetyScore:     r.safetyScore  != null ? String(r.safetyScore)  : null,
       fundRank:            r.rank,
       fundScoreComputedAt: computedAt,
+      // regime_at_score is the regime THIS SCORE was computed under — it is the key
+      // readPersistedScores() compares against to decide the cache is still valid.
+      // It must be written here, by the scorer. It was previously only ever written by
+      // writeFundamentalsRow() (the FMP *data fetch* path, which defaults it to null),
+      // so it sat NULL for 552/554 rows and the `regimeAtScore !== currentRegime`
+      // staleness check below never passed — every read fell through to a full
+      // cross-sectional recompute of the whole universe.
+      regimeAtScore:       regime ?? null,
     })))
     .onConflictDoUpdate({
       target: tickerFundamentals.ticker,
@@ -530,6 +608,7 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
         fundSafetyScore:     sql`excluded.fund_safety_score`,
         fundRank:            sql`excluded.fund_rank`,
         fundScoreComputedAt: sql`excluded.fund_score_computed_at`,
+        regimeAtScore:       sql`excluded.regime_at_score`,
       },
     });
 
@@ -556,8 +635,10 @@ export async function readPersistedScores(currentRegime: string | null): Promise
 
   if (rows.length === 0) return null;
 
-  const anyNull = rows.some(r => r.fundTotalScore == null || r.fundScoreComputedAt == null);
-  if (anyNull) return null;
+  // A NULL fundTotalScore is now a legitimate, intentional result (insufficient
+  // coverage — see FAMILY_MIN_COVERAGE), so it must NOT invalidate the whole cache.
+  // Only a missing computedAt means "this row was never scored".
+  if (rows.some(r => r.fundScoreComputedAt == null)) return null;
 
   // Stale if oldest score is >48h old or regime changed
   const oldest = rows.reduce((min, r) => {
@@ -588,13 +669,20 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   const familyWeights: Record<Family, number> =
     (currentRegime && REGIME_WEIGHTS[currentRegime]) ? REGIME_WEIGHTS[currentRegime] : DEFAULT_WEIGHTS;
   const perMetric = computePerMetricScores(rawRows, familyWeights, peerGroupByTicker);
+  const coverageByTicker = computeCoverageByTicker(rawRows);
+
+  // A persisted NULL means "insufficient coverage to score" and must stay null all the
+  // way to the UI. The old `?? "50"` turned that into a real-looking middling score.
+  const numOrNull = (v: string | null) => (v == null ? null : parseFloat(v));
 
   return rows.map(r => ({
     ticker:       r.ticker,
-    totalScore:   parseFloat(r.fundTotalScore!),
-    qualityScore: parseFloat(r.fundQualityScore ?? "50"),
-    growthScore:  parseFloat(r.fundGrowthScore  ?? "50"),
-    safetyScore:  parseFloat(r.fundSafetyScore  ?? "50"),
+    totalScore:   numOrNull(r.fundTotalScore),
+    qualityScore: numOrNull(r.fundQualityScore),
+    growthScore:  numOrNull(r.fundGrowthScore),
+    safetyScore:  numOrNull(r.fundSafetyScore),
+    coverage:     coverageByTicker.get(r.ticker) ?? EMPTY_COVERAGE,
+    ranked:       r.fundTotalScore != null && (r.fundRank ?? 0) > 0,
     rank:         r.fundRank ?? 0,
     regime:       r.regimeAtScore ?? currentRegime ?? "unknown",
     computedAt:   r.fundScoreComputedAt!.toISOString(),

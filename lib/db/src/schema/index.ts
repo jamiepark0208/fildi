@@ -186,11 +186,15 @@ export type YahooAnalystAction = typeof yahooAnalystActions.$inferSelect
 export const analystEvents = pgTable('analyst_events', {
   ticker:      text('ticker').notNull(),
   firm:        text('firm').notNull(),
-  source:      text('source').notNull().default('yahoo'),
-  action:      text('action').notNull(),           // upgrade | downgrade | initiate | maintain | reiterate
+  source:      text('source').notNull().default('yahoo'), // yahoo | fmp-grade | fmp-target
+  action:      text('action').notNull(),           // upgrade | downgrade | initiate | maintain | reiterate | price-target
   fromGrade:   text('from_grade'),
   toGrade:     text('to_grade'),
   eventDate:   date('event_date').notNull(),
+  // Per-firm price target — only populated for fmp-target rows (FMP's grades feed and
+  // price-target feed are separate un-mergeable streams; see analyst-price-target skill note).
+  priceTarget: numeric('price_target'),
+  newsTitle:   text('news_title'),
   fetchedAt:   timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({
   pk:         primaryKey({ columns: [t.ticker, t.firm, t.eventDate, t.source] }),
@@ -461,14 +465,37 @@ export type InsertPeerGroup = typeof peerGroups.$inferInsert
 // records which group is canonical for scoring.
 
 export const peerGroupMembers = pgTable('peer_group_members', {
-  groupId: text('group_id').notNull().references(() => peerGroups.id, { onDelete: 'cascade' }),
-  ticker:  text('ticker').notNull(),
+  groupId:   text('group_id').notNull().references(() => peerGroups.id, { onDelete: 'cascade' }),
+  ticker:    text('ticker').notNull(),
+  source:    text('source').notNull().default('taxonomy'),      // 'taxonomy' | 'manual'
+  removedAt: timestamp('removed_at', { withTimezone: true }),   // soft-delete: non-null = not an active peer
 }, t => ({
   pk: primaryKey({ columns: [t.groupId, t.ticker] }),
 }))
 
 export type PeerGroupMember = typeof peerGroupMembers.$inferSelect
 export type InsertPeerGroupMember = typeof peerGroupMembers.$inferInsert
+
+// ── peer_group_overrides ────────────────────────────────────────────────────────
+// Manual reassignment of a ticker to a different peer group than the auto-classifier
+// (peer-classifier.ts) would pick. Presence of a row here is what distinguishes a
+// user override from an auto/keyword-matched assignment; deleting the row reverts
+// the ticker to auto-classification.
+
+export const peerGroupOverrides = pgTable('peer_group_overrides', {
+  ticker:          text('ticker').primaryKey(),
+  groupId:         text('group_id').notNull().references(() => peerGroups.id),
+  // The ticker's primary_peer_group_id at the moment the override was first
+  // created (null if it was unmapped) — lets a revert restore the exact prior
+  // value instead of re-running peer-overlap/keyword classification, which can
+  // land on a different group than the ticker was originally mapped to.
+  previousGroupId: text('previous_group_id'),
+  note:            text('note'),
+  createdAt:       timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type PeerGroupOverride = typeof peerGroupOverrides.$inferSelect
+export type InsertPeerGroupOverride = typeof peerGroupOverrides.$inferInsert
 
 // ── ticker_registry ───────────────────────────────────────────────────────────
 // Master list of tracked tickers with metadata, peers, and index memberships.

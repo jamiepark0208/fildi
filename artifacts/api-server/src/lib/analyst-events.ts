@@ -143,3 +143,40 @@ export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystA
     date: r.eventDate,
   }));
 }
+
+export interface FmpAnalystEventRow {
+  firm: string;
+  action: string;
+  fromGrade: string | null;
+  toGrade: string | null;
+  eventDate: string;
+  priceTarget: number | null;
+}
+
+/** FMP-archived rows (source fmp-grade/fmp-target) — see fmp-analyst-feed.ts for why
+ *  these are two separate row types rather than one merged event. */
+export async function readFmpAnalystEventsFromDb(ticker: string): Promise<FmpAnalystEventRow[]> {
+  const rows = await db
+    .select({
+      firm: analystEvents.firm,
+      source: analystEvents.source,
+      action: analystEvents.action,
+      fromGrade: analystEvents.fromGrade,
+      toGrade: analystEvents.toGrade,
+      eventDate: analystEvents.eventDate,
+      priceTarget: analystEvents.priceTarget,
+    })
+    .from(analystEvents)
+    .where(sql`${analystEvents.ticker} = ${ticker.toUpperCase()} AND ${analystEvents.source} IN ('fmp-grade', 'fmp-target')`)
+    .orderBy(sql`${analystEvents.eventDate} DESC`)
+    .limit(30);
+
+  return rows.map(r => ({
+    firm: r.firm,
+    action: r.action,
+    fromGrade: r.fromGrade,
+    toGrade: r.toGrade,
+    eventDate: r.eventDate,
+    priceTarget: r.priceTarget != null ? parseFloat(r.priceTarget as unknown as string) : null,
+  }));
+}

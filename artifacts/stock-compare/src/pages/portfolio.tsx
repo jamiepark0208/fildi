@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { DailyBrief } from "@/components/daily-brief";
 import { MarketTickerBanner } from "@/components/MarketTickerBanner";
-import { RobinhoodPortfolioTables } from "@/components/RobinhoodPortfolio";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { useAuth } from "@/context/AuthContext";
 
@@ -897,20 +896,7 @@ export default function Portfolio() {
 
       <main className="pt-14 min-w-0">
         {/* Header */}
-        <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
-          <div className="flex items-baseline gap-2.5 min-w-0">
-            <h1 className="text-lg font-bold tracking-tight leading-none shrink-0">Portfolio</h1>
-            <p className="text-xs text-muted-foreground truncate">
-              {entries.length === 0
-                ? "No positions yet"
-                : `${entries.length} position${entries.length !== 1 ? "s" : ""} across ${uniqueTickers.length} ticker${uniqueTickers.length !== 1 ? "s" : ""} · ${portfolioNames.length} portfolio${portfolioNames.length !== 1 ? "s" : ""}`}
-              {isAdmin && rhData?.snapshot?.importedAt && (
-                <span className="text-muted-foreground/60">
-                  {" "}· Last import: {new Date(rhData.snapshot.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              )}
-            </p>
-          </div>
+        <div className="px-5 py-3 border-b border-border/50 flex items-center justify-end gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
           <div className="flex items-center gap-2 shrink-0">
             {/* Manual-entry portfolios are a non-admin concept — admins get theirs from the RH CSV import */}
             {!isAdmin && (
@@ -918,7 +904,8 @@ export default function Portfolio() {
                 <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
               </Button>
             )}
-            {isAdmin && (
+            {/* Once there's data, the upload control lives next to the All/FILDI/IRA filter in Portfolio Analysis instead */}
+            {isAdmin && entries.length === 0 && (
               <PortfolioUpload onSuccess={() => refetchRh()} />
             )}
           </div>
@@ -946,57 +933,6 @@ export default function Portfolio() {
             </div>
           ) : (
             <>
-              {/* Compact summary strip — styled to match the market ticker banner below */}
-              {rhData?.snapshot && (() => { const snapshot = rhData.snapshot!; return (
-                <div className="rounded-xl border border-border bg-card overflow-hidden group">
-                  <div className="flex overflow-hidden">
-                    <div className="flex animate-marquee group-hover:animate-marquee-paused py-2">
-                      {['a', 'b'].map(prefix => (
-                        <div key={prefix} className="flex items-center shrink-0">
-                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
-                            <span className="text-[10px] text-white font-bold tracking-wide">Portfolio Value</span>
-                            <span className="text-xs font-bold font-mono tabular-nums text-white">
-                              {snapshot.totalValue ? formatCurrency(parseFloat(snapshot.totalValue)) : '—'}
-                            </span>
-                            {dodChange && (
-                              <span className={cn('text-[10px] font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
-                                ({dodChange.pct >= 0 ? '+' : ''}{dodChange.pct.toFixed(2)}%)
-                              </span>
-                            )}
-                            <span className="text-border/60 ml-1">·</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
-                            <span className="text-[10px] text-white font-bold tracking-wide">Locked Collateral</span>
-                            <span className="text-xs font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
-                            <span className="text-border/60 ml-1">·</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
-                            <span className="text-[10px] text-white font-bold tracking-wide">Premium Expected This Wk</span>
-                            <span className="text-xs font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
-                            <span className="text-border/60 ml-1">·</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 px-3 whitespace-nowrap shrink-0">
-                            <span className="text-[10px] text-white font-bold tracking-wide">Top Movers</span>
-                            {topMovers.length === 0 && <span className="text-xs font-mono text-white/50">—</span>}
-                          </div>
-                          {topMovers.map(m => (
-                            <div key={m.ticker} className="flex items-center gap-1.5 px-3 whitespace-nowrap shrink-0">
-                              <span className={cn('text-xs font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
-                                {m.ticker} {m.pct >= 0 ? '+' : ''}{m.pct.toFixed(1)}%
-                              </span>
-                              <span className="text-border/60">·</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ); })()}
-
               {/* Market ticker tape — VIX/SPY/QQQ/etc, scrolls as one row at any width */}
               <MarketTickerBanner />
 
@@ -1005,7 +941,7 @@ export default function Portfolio() {
 
               {isAdmin ? (
                 <>
-                  {/* Portfolio Analysis — driven by Robinhood snapshot, above the holdings tables */}
+                  {/* Portfolio Analysis — driven by Robinhood snapshot; holdings tables live in its sub-tabs */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis
                       entries={entries}
@@ -1015,11 +951,9 @@ export default function Portfolio() {
                       accountSummaries={rhData?.accountSummaries ?? []}
                       realizedEvents={rhData?.realizedEvents ?? []}
                       tickerEarnings={rhData?.tickerEarnings ?? []}
+                      onUploadSuccess={() => refetchRh()}
                     />
                   )}
-
-                  {/* Equity + option holdings tables */}
-                  <RobinhoodPortfolioTables />
                 </>
               ) : (
                 // Regular-user manual entry view — server-backed via use-portfolio.ts (bug/14).
@@ -1051,6 +985,42 @@ export default function Portfolio() {
                   )}
                 </div>
               )}
+
+              {/* Compact snapshot summary — static (no more marquee), at the bottom out of the way */}
+              {rhData?.snapshot && (() => { const snapshot = rhData.snapshot!; return (
+                <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 px-4 py-2.5">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Portfolio Value</span>
+                      <span className="text-xs font-bold font-mono tabular-nums text-white">
+                        {snapshot.totalValue ? formatCurrency(parseFloat(snapshot.totalValue)) : '—'}
+                      </span>
+                      {dodChange && (
+                        <span className={cn('text-[10px] font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                          ({dodChange.pct >= 0 ? '+' : ''}{dodChange.pct.toFixed(2)}%)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Locked Collateral</span>
+                      <span className="text-xs font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Premium Expected This Wk</span>
+                      <span className="text-xs font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Top Movers</span>
+                      {topMovers.length === 0 && <span className="text-xs font-mono text-white/50">—</span>}
+                      {topMovers.map(m => (
+                        <span key={m.ticker} className={cn('text-xs font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                          {m.ticker} {m.pct >= 0 ? '+' : ''}{m.pct.toFixed(1)}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ); })()}
             </>
           )}
         </div>

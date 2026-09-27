@@ -76,6 +76,66 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   }
 }
 
+export interface FinnhubEarningsQuarter {
+  reportDate: string;
+  epsEstimate: number | null;
+  epsActual: number | null;
+}
+
+// FMP-earnings fallback for tickers FMP's free/current plan gates behind a premium
+// paywall (HTTP 402 "Premium Query Parameter") — /stable/earnings 402s for some
+// well-known small/mid-caps (e.g. AAOI, GME) despite the ticker having public
+// earnings history. Finnhub's /stock/earnings covers the same actual-vs-estimate
+// data on the free tier.
+export async function fetchFinnhubEarningsHistory(ticker: string, trigger = "unknown"): Promise<FinnhubEarningsQuarter[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
+
+  const t = ticker.toUpperCase();
+  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+
+  try {
+    const raw = await fetchWithRetry(url);
+    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
+      reportDate: r.period,
+      epsEstimate: n(r.estimate) ?? null,
+      epsActual: n(r.actual) ?? null,
+    })).filter(r => !!r.reportDate);
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
+    return rows;
+  } catch (err: any) {
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/earnings" });
+    throw err;
+  }
+}
+
+// /stock/earnings only carries past reported quarters — no forward row. /calendar/earnings
+// is Finnhub's separate forward-looking calendar (free tier), used to surface the next
+// scheduled report date + consensus EPS estimate even before it's happened.
+export async function fetchFinnhubUpcomingEarnings(ticker: string, trigger = "unknown"): Promise<FinnhubEarningsQuarter[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
+
+  const t = ticker.toUpperCase();
+  const from = new Date().toISOString().slice(0, 10);
+  const to = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+
+  try {
+    const raw = await fetchWithRetry(url);
+    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw?.earningsCalendar) ? raw.earningsCalendar : []).map((r: any) => ({
+      reportDate: r.date,
+      epsEstimate: n(r.epsEstimate) ?? null,
+      epsActual: n(r.epsActual) ?? null,
+    })).filter((r: FinnhubEarningsQuarter) => !!r.reportDate);
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubUpcomingEarnings", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
+    return rows;
+  } catch (err: any) {
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubUpcomingEarnings", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "calendar/earnings" });
+    return [];
+  }
+}
+
 export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubFundamentalsData> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) throw new Error("FINNHUB_API_KEY not set");

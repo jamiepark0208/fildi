@@ -22,10 +22,12 @@ import { buildCatalysts, parseEarningsDate } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
-import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents } from "../lib/analyst-events.js";
+import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents, readFmpAnalystEventsFromDb } from "../lib/analyst-events.js";
+import { parseAnalystHeadlines } from "../lib/analyst-headline-parser.js";
+import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
-import { fetchEdgarStatementHistory } from "../lib/edgar-client.js";
+import { fetchEdgarStatementHistory, fetchFiscalYearEnd } from "../lib/edgar-client.js";
 
 const router = Router();
 
@@ -698,14 +700,21 @@ export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdow
 type BreakdownPayload = {
   metrics: unknown;
   recommendations: unknown;
-  analystActions: Array<{ firm: string; toGrade: string; fromGrade: string; action: string; date: string | null }>;
-  analystPriceTargets: unknown;
+  analystActions: Array<{
+    firm: string; toGrade: string; fromGrade: string; action: string; date: string | null;
+    priceTarget?: number | null; source?: "yahoo" | "fmp" | "headline";
+  }>;
+  analystPriceTargets: Array<{
+    firm: string; analyst: string | null; priceTarget: number | null; date: string | null;
+    priceWhenPosted: number | null; newsTitle: string | null; source: "fmp" | "headline";
+  }>;
   priceTargetRange: unknown;
   bullBullets: string[];
   bearBullets: string[];
   news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null }>;
   snowflake: unknown;
   earningsDate?: string | null;
+  earningsHistory?: EarningsQuarter[];
   catalysts?: string[];
   peers?: string[];
   peerIndustry?: string | null;
@@ -722,7 +731,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 5;
+const BREAKDOWN_CACHE_VER = 7;
 
 // Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
 // payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
@@ -753,7 +762,7 @@ router.get("/stocks/breakdown", async (req, res) => {
 
     const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload] = await Promise.all([
       yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
-      yahooFinance.search(upperTicker, { newsCount: 6, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+      yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
       readRegistryRow(upperTicker),
       db.select({ earningsDate: indicatorCache.earningsDate })
@@ -796,6 +805,43 @@ router.get("/stocks/breakdown", async (req, res) => {
       });
     }
 
+    // Historical EPS actual-vs-estimate — DB-first when fresh (<30d), else live
+    // FMP (falling back to Finnhub for tickers FMP's plan 402s on) + write-through.
+    // The nightly runEarningsHistoryBackfill job (scheduler.ts) proactively keeps the
+    // whole ticker universe fresh, so this live path is a rare cold-start/edge case,
+    // not the normal way the tab gets populated.
+    let earningsHistory: EarningsQuarter[] = [];
+    if (await isEarningsDataFresh(upperTicker)) {
+      // Reported actuals are fresh, but that check doesn't cover the upcoming
+      // (unreported) quarter — top that up separately (cheap no-op once a future
+      // row already exists) so the tab always shows through the next scheduled report.
+      await ensureUpcomingEarnings(upperTicker, "breakdown").catch(err => {
+        logger.warn({ ticker: upperTicker, err }, "ensureUpcomingEarnings failed");
+      });
+      earningsHistory = await readEarningsHistoryFromDb(upperTicker);
+    } else {
+      const liveRows = await fetchLiveEarningsHistory(upperTicker, "breakdown");
+      if (liveRows.length > 0) {
+        writeEarningsHistory(upperTicker, liveRows).catch(err => {
+          logger.warn({ ticker: upperTicker, err }, "earnings history write-through failed");
+        });
+      }
+      earningsHistory = liveRows
+        .map(r => ({
+          reportDate: r.reportDate,
+          epsEstimate: r.epsEstimate,
+          epsActual: r.epsActual,
+          surprisePct: r.epsActual != null && r.epsEstimate != null && r.epsEstimate !== 0
+            ? ((r.epsActual - r.epsEstimate) / Math.abs(r.epsEstimate)) * 100
+            : null,
+        }))
+        .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
+        .slice(0, 9);
+      if (earningsHistory.length === 0) {
+        earningsHistory = await readEarningsHistoryFromDb(upperTicker);
+      }
+    }
+
     // Aggregate price target range from financialData
     const fd = (summary as any).financialData ?? {};
     const priceTargetRange = {
@@ -805,8 +851,58 @@ router.get("/stocks/breakdown", async (req, res) => {
       median: safeNum(fd.targetMedianPrice) ?? null,
     };
 
-    // Per-analyst price targets unavailable on current FMP plan — always empty
-    const analystPriceTargets: unknown[] = [];
+    // Merge in FMP's daily-archived per-firm rows (fmp-grade/fmp-target — see
+    // fmp-analyst-feed.ts for why they're two separate row types) plus a heuristic
+    // pass over the news headlines already fetched above. Both are best-effort
+    // supplements to the Yahoo-sourced analystActions above, not replacements —
+    // tagged with `source` so the UI can show a confidence indicator.
+    const fmpEvents = await readFmpAnalystEventsFromDb(upperTicker);
+    const fmpTargetByFirmDate = new Map(
+      fmpEvents.filter(e => e.priceTarget != null).map(e => [`${e.firm}|${e.eventDate}`, e.priceTarget]),
+    );
+
+    const yahooActionsTagged = analystActions.map(a => ({ ...a, source: "yahoo" as const }));
+
+    const fmpGradeActions = fmpEvents
+      .filter(e => e.action !== "price-target")
+      .map(e => ({
+        firm: e.firm,
+        toGrade: e.toGrade ?? "",
+        fromGrade: e.fromGrade ?? "",
+        action: e.action,
+        date: e.eventDate,
+        priceTarget: fmpTargetByFirmDate.get(`${e.firm}|${e.eventDate}`) ?? null,
+        source: "fmp" as const,
+      }));
+
+    const headlineEvents = parseAnalystHeadlines(
+      ((newsRes as any).news ?? []).map((n: any) => ({
+        title: n.title ?? "",
+        publishedAt: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null,
+      })),
+    );
+    const headlineActions = headlineEvents
+      .filter(e => e.action !== "price-target")
+      .map(e => ({
+        firm: e.firm, toGrade: e.toGrade ?? "", fromGrade: e.fromGrade ?? "", action: e.action,
+        date: e.date, priceTarget: e.priceTarget, source: "headline" as const,
+      }));
+
+    analystActions = [...yahooActionsTagged, ...fmpGradeActions, ...headlineActions];
+
+    const fmpPriceTargets = fmpEvents
+      .filter(e => e.action === "price-target" && e.priceTarget != null)
+      .map(e => ({
+        firm: e.firm, analyst: null, priceTarget: e.priceTarget, date: e.eventDate,
+        priceWhenPosted: null, newsTitle: null, source: "fmp" as const,
+      }));
+    const headlinePriceTargets = headlineEvents
+      .filter(e => e.action === "price-target" && e.priceTarget != null)
+      .map(e => ({
+        firm: e.firm, analyst: null, priceTarget: e.priceTarget, date: e.date,
+        priceWhenPosted: null, newsTitle: null, source: "headline" as const,
+      }));
+    const analystPriceTargets = [...fmpPriceTargets, ...headlinePriceTargets];
 
     // Metric-driven bull/bear bullets, with same-day event bullets (earnings beat/miss,
     // analyst upgrade/downgrade, large price move ex-macro) from the daily trigger check
@@ -844,6 +940,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       news,
       snowflake,
       earningsDate,
+      earningsHistory,
       peers: peersPayload.peers.slice(0, 8),
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,
@@ -878,10 +975,16 @@ function computeEdgarFindings(
   fmpRow: TickerFundamentalsRow | null,
 ): EdgarFinding[] {
   const findings: EdgarFinding[] = [];
-  const byItem = (lineItem: string) => rows
-    .filter(r => r.lineItem === lineItem)
-    .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
-    .sort((a, b) => a.year - b.year);
+  // rows can carry 6 fiscal years per item (5 displayed + 1 extra as a YoY baseline for
+  // the oldest displayed year — see fetchEdgarStatementHistory). Drop that extra oldest
+  // year here so findings describe the same 5-year window the UI shows.
+  const byItem = (lineItem: string) => {
+    const arr = rows
+      .filter(r => r.lineItem === lineItem)
+      .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
+      .sort((a, b) => a.year - b.year);
+    return arr.length > 5 ? arr.slice(1) : arr;
+  };
 
   const revenue = byItem("revenue");
   const netIncome = byItem("netIncome");
@@ -963,13 +1066,20 @@ function computeEdgarFindings(
   // Cross-check against the FMP-derived numbers already shown elsewhere in the app —
   // this is the actual "second layer of validation" against the existing pipeline.
   if (fmpRow && revenue.length > 0) {
-    const latest = revenue[revenue.length - 1];
     const fmpRevenue = fmpRow.totalRevenue != null ? Number(fmpRow.totalRevenue) : null;
     if (fmpRevenue && fmpRevenue > 0) {
-      const diff = Math.abs(latest.value - fmpRevenue) / fmpRevenue;
+      // FMP's figure can lag one fiscal year behind EDGAR's most recently filed 10-K (e.g.
+      // MSFT's FY ends in June — EDGAR reflects the new FY within weeks of filing, but FMP's
+      // annual revenue can still show the prior FY for a while). Compare against whichever of
+      // the last two EDGAR years is the closer match so a one-year lag isn't misreported as a
+      // genuine data-quality issue.
+      const candidates = revenue.slice(-2);
+      const best = candidates.reduce((a, b) =>
+        Math.abs(a.value - fmpRevenue) <= Math.abs(b.value - fmpRevenue) ? a : b);
+      const diff = Math.abs(best.value - fmpRevenue) / fmpRevenue;
       if (diff > 0.05) {
         findings.push({
-          text: `Data discrepancy: SEC-filed FY${latest.year} revenue ($${(latest.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
+          text: `Data discrepancy: SEC-filed FY${best.year} revenue ($${(best.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
           tone: "negative",
         });
       }
@@ -1035,14 +1145,15 @@ router.get("/stocks/edgar-statements/:ticker", async (req, res) => {
       }
 
       if (rows.length === 0) {
-        return { available: false, income: {}, balance: {}, cashflow: {}, findings: [], asOf: null };
+        return { available: false, income: {}, balance: {}, cashflow: {}, findings: [], asOf: null, fiscalYearEnd: null };
       }
 
       const fmpRow = await readFundamentalsRow(upperTicker);
       const findings = computeEdgarFindings(rows, fmpRow);
       const asOf = rows.reduce((max, r) => (r.filedDate > max ? r.filedDate : max), rows[0].filedDate);
+      const fiscalYearEnd = await fetchFiscalYearEnd(upperTicker).catch(() => null);
 
-      return { available: true, ...groupStatementRows(rows), findings, asOf };
+      return { available: true, ...groupStatementRows(rows), findings, asOf, fiscalYearEnd };
     });
 
     return res.json(payload);

@@ -92,7 +92,13 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   let fundScoreMap = new Map<string, number>();
   try {
     const scores = (await readPersistedScores(macroRegimeName)) ?? (await computeAndPersistFundamentalScores(macroRegimeName));
-    fundScoreMap = new Map(scores.map(s => [s.ticker, s.totalScore]));
+    // totalScore is null when coverage is too thin to score honestly. Omit those
+    // tickers rather than substituting a number — downstream treats an absent
+    // fundamental score as "unknown", which is what it actually is.
+    fundScoreMap = new Map(
+      scores.filter((s): s is typeof s & { totalScore: number } => s.totalScore != null)
+            .map(s => [s.ticker, s.totalScore]),
+    );
   } catch (err) {
     logger.warn({ err }, "model-track-record: fundamentals scores unavailable, scoring without them");
   }

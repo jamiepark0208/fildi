@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -83,16 +84,32 @@ export function DonutChart({ data, total, label }: {
   );
 }
 
+// Compact dot-strip that expands into the full breakdown on hover — replaces
+// the old always-visible multi-row legend, which ate 4-6 lines per card.
 export function PieLegend({ data }: { data: { name: string; value: number; color: string; pct?: number; signedValue?: number }[] }) {
+  const [open, setOpen] = useState(false);
+  if (!data.length) return null;
   return (
-    <div className="space-y-1.5 mt-2">
-      {data.map((d, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-          <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
-          <span className="font-mono tabular-nums text-right">{d.pct?.toFixed(1)}%</span>
+    <div className="relative mt-2" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <div className="flex items-center gap-1 flex-wrap cursor-default">
+        {data.map((d, i) => (
+          <div key={i} className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
+        ))}
+        <span className="text-[10px] text-muted-foreground ml-1">
+          {data.length} · hover for detail
+        </span>
+      </div>
+      {open && (
+        <div className="absolute z-20 top-full left-0 mt-1 bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1.5 min-w-[180px]">
+          {data.map((d, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
+              <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
+              <span className="font-mono tabular-nums text-right">{d.pct?.toFixed(1)}%</span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

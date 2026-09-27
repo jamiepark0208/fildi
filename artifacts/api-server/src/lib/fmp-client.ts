@@ -205,3 +205,38 @@ export async function fetchFMPFundamentals(
     throw err;
   }
 }
+
+export interface FMPEarningsQuarter {
+  reportDate: string;
+  epsEstimate: number | null;
+  epsActual: number | null;
+  revenueEstimate: number | null;
+  revenueActual: number | null;
+}
+
+// /stable/earnings returns both past (with actual figures) and upcoming (actual = null)
+// quarters for a ticker, newest first. No date range param — always returns the full
+// available history, so we just slice client-side.
+export async function fetchFMPEarningsHistory(
+  ticker: string,
+  apiKey: string,
+  trigger = "unknown",
+): Promise<FMPEarningsQuarter[]> {
+  const t = ticker.toUpperCase();
+  const url = `${FMP_BASE}/earnings?symbol=${t}&apikey=${apiKey}`;
+  try {
+    const raw = await fetchWithRetry(url);
+    const rows: FMPEarningsQuarter[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
+      reportDate: r.date,
+      epsEstimate: fmpN(r.epsEstimated) ?? null,
+      epsActual: fmpN(r.epsActual) ?? null,
+      revenueEstimate: fmpN(r.revenueEstimated) ?? null,
+      revenueActual: fmpN(r.revenueActual) ?? null,
+    })).filter(r => !!r.reportDate);
+    logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
+    return rows;
+  } catch (err: any) {
+    logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "earnings" });
+    throw err;
+  }
+}

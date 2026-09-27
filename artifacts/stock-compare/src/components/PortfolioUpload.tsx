@@ -51,12 +51,15 @@ export function PortfolioUpload({ onSuccess }: Props) {
     setStatus('uploading')
     setError(null)
 
+    let lastResult: { format: string; data: Record<string, unknown> } | null = null
+    const formats: string[] = []
+    let succeeded = 0
+
     try {
-      let lastResult: { format: string; data: Record<string, unknown> } | null = null
-      const formats: string[] = []
       for (const file of files) {
         const result = await uploadOne(file)
         formats.push(result.format)
+        succeeded++
         if (result.format === 'holdings') lastResult = result
       }
 
@@ -74,7 +77,9 @@ export function PortfolioUpload({ onSuccess }: Props) {
       if (inputRef.current) inputRef.current.value = ''
       setTimeout(() => setStatus(s => (s === 'success' ? 'idle' : s)), 3000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error — could not reach server.')
+      const base = e instanceof Error ? e.message : 'Network error — could not reach server.'
+      const prefix = succeeded > 0 ? `${succeeded}/${files.length} files imported, then failed: ` : ''
+      setError(prefix + base)
       setStatus('error')
     }
   }
@@ -93,7 +98,7 @@ export function PortfolioUpload({ onSuccess }: Props) {
   const label = status === 'uploading' ? 'Importing…'
     : status === 'success' ? 'Imported'
     : status === 'error' ? 'Retry'
-    : 'Import CSV'
+    : 'Import CSVs'
 
   const Icon = status === 'uploading' ? Loader2
     : status === 'success' ? CheckCircle2
@@ -116,7 +121,7 @@ export function PortfolioUpload({ onSuccess }: Props) {
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        title="Drop holdings / transactions / ticker-earnings CSVs (one or several at once) or click to browse"
+        title="Select all 4 export files at once (holdings + recent txns + cumulative txns + ticker-earnings) — hold Ctrl/Cmd to multi-select in the file picker, or drag-and-drop them together"
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60',
           status === 'error'

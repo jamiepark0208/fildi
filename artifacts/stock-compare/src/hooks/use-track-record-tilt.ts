@@ -20,7 +20,11 @@ export interface TrackRecordTiltResponse {
   put: TiltSideResult;
   call: TiltSideResult;
   minN: number;
-  anchorWinRate: number;
+  // The tilt is driven by avgPnlPct (signed, percent units), NOT winRate — selling
+  // OTM premium wins ~90% of the time by construction, so win rate can't tell a
+  // profitable seller from a reckless one. winRate above is display-only.
+  anchorPnlPct: number;
+  spanPnlPct: number;
 }
 
 export function useTrackRecordTilt() {

@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  ResponsiveContainer, LineChart, Line, LabelList, XAxis, YAxis, CartesianGrid, Tooltip,
+} from "recharts";
 import { Loader2, AlertCircle, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatLargeNumber } from "@/lib/format";
+import { formatLargeNumber, formatCompactCurrency } from "@/lib/format";
 
 interface StatementPoint {
   fiscalYear: number;
@@ -15,6 +19,13 @@ interface EdgarStatementsPayload {
   cashflow: Record<string, StatementPoint[]>;
   findings: { text: string; tone: "positive" | "negative" | "neutral" }[];
   asOf: string | null;
+  fiscalYearEnd: string | null; // "MM-DD", e.g. "02-28" for BlackBerry
+}
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatFiscalYearEnd(mmdd: string): string {
+  const [mm, dd] = mmdd.split("-").map(Number);
+  return `${MONTH_NAMES[mm - 1]} ${dd}`;
 }
 
 function useEdgarStatements(ticker: string) {
@@ -83,10 +94,9 @@ const LINE_ITEM_LABELS: Record<string, string> = {
   capex: "Capital Expenditures",
 };
 
-// Which direction of YoY change reads as "good" for each line item. Omitted keys
-// (costOfRevenue, currentAssets, investingCashFlow, financingCashFlow, capex) are
-// too context-dependent (e.g. rising capex can be growth investment, not a red flag)
-// to color one direction as unambiguously good — left neutral rather than guessing.
+// Which direction of YoY change reads as "good" for each line item. Some of these
+// (e.g. rising capex can be growth investment, not a red flag) are context-dependent —
+// picked the conventional reading for consistency rather than leaving them uncolored.
 const GOOD_DIRECTION: Record<string, "up" | "down"> = {
   revenue: "up",
   grossProfit: "up",
@@ -97,9 +107,14 @@ const GOOD_DIRECTION: Record<string, "up" | "down"> = {
   stockholdersEquity: "up",
   cashAndEquivalents: "up",
   operatingCashFlow: "up",
+  investingCashFlow: "up",
+  financingCashFlow: "up",
+  currentAssets: "up",
   totalLiabilities: "down",
   currentLiabilities: "down",
   longTermDebt: "down",
+  costOfRevenue: "down",
+  capex: "down",
 };
 
 const STATEMENT_ROW_ORDER: Record<"income" | "balance" | "cashflow", string[]> = {
@@ -123,7 +138,11 @@ function StatementTable({
   const rows = STATEMENT_ROW_ORDER[statementType].filter(k => data[k]?.length);
   if (rows.length === 0) return null;
 
-  const years = [...new Set(rows.flatMap(k => data[k].map(p => p.fiscalYear)))].sort((a, b) => b - a);
+  // allYears can include one extra (oldest) year beyond what's displayed — fetched only as
+  // a YoY baseline for the oldest displayed year (see fetchEdgarStatementHistory). Show at
+  // most 5 columns; prevYear lookups below still reach into that hidden extra year.
+  const allYears = [...new Set(rows.flatMap(k => data[k].map(p => p.fiscalYear)))].sort((a, b) => b - a);
+  const years = allYears.slice(0, 5);
 
   return (
     <div className="rounded-lg border border-border/60 overflow-hidden">
@@ -146,7 +165,7 @@ function StatementTable({
                 <td className="px-3 py-1.5 text-foreground font-medium">{LINE_ITEM_LABELS[k] ?? k}</td>
                 {years.map((y, i) => {
                   const point = data[k].find(p => p.fiscalYear === y);
-                  const prevYear = years[i + 1];
+                  const prevYear = allYears[i + 1];
                   const prevPoint = prevYear != null ? data[k].find(p => p.fiscalYear === prevYear) : undefined;
                   const pctChange = point && prevPoint && prevPoint.value !== 0
                     ? (point.value - prevPoint.value) / Math.abs(prevPoint.value)
@@ -162,8 +181,11 @@ function StatementTable({
                       )}
                     >
                       <div className="flex items-baseline justify-end gap-1.5">
-                        {pctChange != null && intent && (
-                          <span className={cn("flex items-center text-[10px] font-bold", intent === "good" ? "text-green-400" : "text-red-400")}>
+                        {pctChange != null && (
+                          <span className={cn(
+                            "flex items-center text-[10px] font-bold",
+                            intent === "good" ? "text-green-400" : intent === "bad" ? "text-red-400" : "text-foreground/50",
+                          )}>
                             {pctChange >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
                             {Math.abs(pctChange * 100).toFixed(0)}%
                           </span>
@@ -225,8 +247,85 @@ function SectorPeersStrip({ ticker }: { ticker: string }) {
   );
 }
 
+const REVENUE_LINE_COLOR = "#5eead4"; // teal-300, matches this section's accent color
+const GROWTH_UP_COLOR = "#34d399";
+const GROWTH_DOWN_COLOR = "#f87171";
+const GROWTH_NEUTRAL_COLOR = "#52525b";
+
+/** Single revenue line; each dot is labeled with its $ value and YoY % change directly above it. */
+function RevenueTrendChart({ points }: { points: StatementPoint[] }) {
+  // points can include one extra (oldest) year beyond what's displayed — fetched only as a
+  // YoY baseline for the oldest displayed year (see fetchEdgarStatementHistory). Compute %
+  // change against it, then drop it so the chart shows the same 5 years as the table above.
+  const sorted = [...points].sort((a, b) => a.fiscalYear - b.fiscalYear);
+  const withPct = sorted.map((p, i) => {
+    const prev = sorted[i - 1];
+    const pctChange = prev && prev.value !== 0 ? ((p.value - prev.value) / Math.abs(prev.value)) * 100 : null;
+    return { year: `FY${p.fiscalYear}`, revenue: p.value, pctChange };
+  });
+  const chartData = withPct.length > 5 ? withPct.slice(1) : withPct;
+
+  if (chartData.length === 0) return null;
+
+  const renderDotLabel = (props: any) => {
+    const { x, y, index } = props;
+    const d = chartData[index];
+    if (!d) return null;
+    const pctText = d.pctChange == null ? null : `${d.pctChange >= 0 ? "+" : ""}${d.pctChange.toFixed(1)}%`;
+    const pctColor = d.pctChange == null ? GROWTH_NEUTRAL_COLOR : d.pctChange >= 0 ? GROWTH_UP_COLOR : GROWTH_DOWN_COLOR;
+    return (
+      <g>
+        <text x={x} y={y - 22} textAnchor="middle" fontSize={11} fontWeight={600} fill="#e5e7eb">
+          {formatLargeNumber(d.revenue)}
+        </text>
+        {pctText && (
+          <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={700} fill={pctColor}>
+            {pctText}
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-border/60 p-3 space-y-2">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300">
+        Revenue Trend — {chartData.length}-Year
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={chartData} margin={{ top: 36, right: 20, left: -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+          <XAxis dataKey="year" tick={{ fontSize: 10, fill: "#cbd5e1" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#cbd5e1" }} tickFormatter={(v: number) => formatCompactCurrency(v)} />
+          <Tooltip
+            contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
+            formatter={(v: unknown, _name: string, item: any) => {
+              const pct = item?.payload?.pctChange;
+              const pctText = pct == null ? "n/a" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% YoY`;
+              return [`${formatLargeNumber(v as number)} (${pctText})`, "Revenue"];
+            }}
+          />
+          <Line type="monotone" dataKey="revenue" name="Revenue" stroke={REVENUE_LINE_COLOR} strokeWidth={2} dot={{ r: 4, fill: REVENUE_LINE_COLOR }} activeDot={{ r: 6 }}>
+            <LabelList dataKey="revenue" content={renderDotLabel} />
+          </Line>
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+type AccountingSubTab = "summary" | "income" | "balance" | "cashflow";
+
+const ACCOUNTING_SUB_TABS: { id: AccountingSubTab; label: string }[] = [
+  { id: "summary", label: "Summary" },
+  { id: "income", label: "Income Statement" },
+  { id: "balance", label: "Balance Sheet" },
+  { id: "cashflow", label: "Cash Flow" },
+];
+
 export function AccountingStatementsSection({ ticker }: { ticker: string }) {
   const { data, isLoading, error } = useEdgarStatements(ticker);
+  const [subTab, setSubTab] = useState<AccountingSubTab>("summary");
 
   if (isLoading) {
     return (
@@ -260,32 +359,63 @@ export function AccountingStatementsSection({ ticker }: { ticker: string }) {
         {data.asOf && <> Most recent filing: {data.asOf}.</>}
       </div>
 
-      <SectorPeersStrip ticker={ticker} />
-
-      {data.findings.length > 0 && (
-        <div className="space-y-1.5">
-          {data.findings.map((f, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex gap-2 text-[12px] leading-relaxed rounded-md px-2.5 py-1.5 border",
-                f.tone === "positive" && "bg-green-500/[0.06] border-green-500/20 text-green-100",
-                f.tone === "negative" && "bg-red-500/[0.06] border-red-500/20 text-red-100",
-                f.tone === "neutral" && "bg-secondary/30 border-border/40 text-foreground/80",
-              )}
-            >
-              <FindingIcon tone={f.tone} />
-              {f.text}
-            </div>
-          ))}
+      {data.fiscalYearEnd && data.fiscalYearEnd !== "12-31" && (
+        <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
+          {ticker}'s fiscal year ends {formatFiscalYearEnd(data.fiscalYearEnd)}, not Dec 31 — "FY" columns are labeled by the
+          calendar year each period ended in, not calendar-year performance. Only fully closed years with a filed 10-K appear
+          here; nothing is estimated or partial.
         </div>
       )}
 
-      <div className="space-y-3">
-        <StatementTable title="Income Statement" data={data.income} statementType="income" />
-        <StatementTable title="Balance Sheet" data={data.balance} statementType="balance" />
-        <StatementTable title="Cash Flow Statement" data={data.cashflow} statementType="cashflow" />
+      <div className="inline-flex rounded border border-teal-500/20 overflow-hidden text-[11px] font-semibold">
+        {ACCOUNTING_SUB_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setSubTab(t.id)}
+            className={cn(
+              "px-2.5 py-1.5 transition-colors",
+              subTab === t.id ? "bg-teal-500 text-black" : "bg-secondary/30 text-foreground/60 hover:text-teal-300",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {subTab === "summary" && (
+        <div className="space-y-4">
+          <SectorPeersStrip ticker={ticker} />
+
+          {data.findings.length > 0 && (
+            <div className="space-y-1.5">
+              {data.findings.map((f, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex gap-2 text-[12px] leading-relaxed rounded-md px-2.5 py-1.5 border",
+                    f.tone === "positive" && "bg-green-500/[0.06] border-green-500/20 text-green-100",
+                    f.tone === "negative" && "bg-red-500/[0.06] border-red-500/20 text-red-100",
+                    f.tone === "neutral" && "bg-secondary/30 border-border/40 text-foreground/80",
+                  )}
+                >
+                  <FindingIcon tone={f.tone} />
+                  {f.text}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === "income" && (
+        <div className="space-y-3">
+          <StatementTable title="Income Statement" data={data.income} statementType="income" />
+          <RevenueTrendChart points={data.income.revenue ?? []} />
+        </div>
+      )}
+      {subTab === "balance" && <StatementTable title="Balance Sheet" data={data.balance} statementType="balance" />}
+      {subTab === "cashflow" && <StatementTable title="Cash Flow Statement" data={data.cashflow} statementType="cashflow" />}
     </div>
   );
 }

@@ -72,7 +72,7 @@ async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
     const dataToWrite = fmpData.beta == null && yahooBeta !== null
       ? { ...fmpData, beta: yahooBeta }
       : fmpData;
-    await writeFundamentalsRow(ticker, dataToWrite, discrepancyFlags, regime);
+    await writeFundamentalsRow(ticker, dataToWrite, discrepancyFlags);
     if (fmpData.beta == null && yahooBeta !== null) {
       logger.debug({ ticker, yahooBeta }, "fundamentals: beta filled from Yahoo fallback");
     }

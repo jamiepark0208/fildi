@@ -17,6 +17,8 @@ export interface AnalystAction {
   fromGrade: string;
   action: string;
   date: string | null;
+  priceTarget?: number | null;
+  source?: "yahoo" | "fmp" | "headline";
 }
 
 export interface AnalystPriceTarget {
@@ -26,6 +28,28 @@ export interface AnalystPriceTarget {
   date: string | null;
   priceWhenPosted: number | null;
   newsTitle: string | null;
+  source?: "fmp" | "headline";
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  fmp: "FMP",
+  headline: "News-derived",
+};
+
+function SourceBadge({ source }: { source?: string }) {
+  if (!source || source === "yahoo") return null;
+  const label = SOURCE_LABEL[source] ?? source;
+  return (
+    <span
+      className={cn(
+        "text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded",
+        source === "headline" ? "bg-yellow-500/15 text-yellow-400" : "bg-primary/15 text-primary",
+      )}
+      title={source === "headline" ? "Parsed from a news headline — lower confidence" : "Archived from FMP's analyst feed"}
+    >
+      {label}
+    </span>
+  );
 }
 
 export interface PriceTargetRange {
@@ -238,6 +262,7 @@ export function AnalystRatingsSection({
                     <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Entity</th>
                     <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
                     <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Notes</th>
+                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Target</th>
                     <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5">Last Updated</th>
                   </tr>
                 </thead>
@@ -249,9 +274,17 @@ export function AnalystRatingsSection({
                       : (a.toGrade || "—");
                     return (
                       <tr key={i} className="border-b border-border/20 last:border-0">
-                        <td className="py-1.5 pr-2 text-xs font-medium text-foreground whitespace-nowrap">{a.firm}</td>
+                        <td className="py-1.5 pr-2 text-xs font-medium text-foreground whitespace-nowrap">
+                          <span className="flex items-center gap-1.5">
+                            {a.firm}
+                            <SourceBadge source={a.source} />
+                          </span>
+                        </td>
                         <td className={cn("py-1.5 pr-2 text-xs font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
                         <td className="py-1.5 pr-2 text-[13px] text-foreground leading-snug">{actionBullets(a)[0]}</td>
+                        <td className="py-1.5 pr-2 text-xs font-mono text-foreground text-right whitespace-nowrap">
+                          {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
+                        </td>
                         <td className="py-1.5 text-xs text-foreground text-right whitespace-nowrap">{a.date ?? "—"}</td>
                       </tr>
                     );
@@ -280,6 +313,7 @@ export function AnalystRatingsSection({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-foreground">{t.firm}</span>
                         {t.analyst && <span className="text-[11px] text-foreground">({t.analyst})</span>}
+                        <SourceBadge source={t.source} />
                         {t.priceTarget != null && (
                           <span className="ml-auto font-mono font-bold text-sm text-foreground">
                             ${t.priceTarget.toFixed(2)}
@@ -313,7 +347,7 @@ export function AnalystRatingsSection({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground italic">Per-analyst price targets not available on current data plan.</p>
+            <p className="text-sm text-foreground italic">No per-firm price targets archived yet for this ticker.</p>
           )}
         </div>
       )}

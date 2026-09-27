@@ -1,5 +1,5 @@
-import { eq, inArray, count, desc } from "drizzle-orm";
-import { db, tickerRegistry, peerGroupMembers, peerGroups, unmappedTickers } from "@workspace/db";
+import { eq, inArray, count, desc, isNull, and } from "drizzle-orm";
+import { db, tickerRegistry, peerGroupMembers, peerGroups, unmappedTickers, peerGroupOverrides } from "@workspace/db";
 import { resolvePeers } from "./peer-resolver.js";
 import { logger } from "./logger.js";
 import { readFile, writeFile, mkdir } from "fs/promises";
@@ -14,7 +14,7 @@ const OVERRIDES_FILE = join(ROOT, "config", "ticker-mapping-overrides.json");
 
 export type PeerGroupClassification = {
   groupId: string;
-  confidence: "mapped" | "auto" | "unmapped";
+  confidence: "override" | "mapped" | "auto" | "unmapped";
   metricExclusions?: string[];
 };
 
@@ -146,7 +146,8 @@ export async function getTaxonomyPeers(ticker: string, limit = 15): Promise<Taxo
 
   const [groupRow, memberRows] = await Promise.all([
     db.select({ name: peerGroups.name }).from(peerGroups).where(eq(peerGroups.id, classification.groupId)).limit(1),
-    db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers).where(eq(peerGroupMembers.groupId, classification.groupId)),
+    db.select({ ticker: peerGroupMembers.ticker }).from(peerGroupMembers)
+      .where(and(eq(peerGroupMembers.groupId, classification.groupId), isNull(peerGroupMembers.removedAt))),
   ]);
 
   const peers = memberRows.map(r => r.ticker.toUpperCase()).filter(t => t !== key).slice(0, limit);
@@ -159,8 +160,14 @@ export async function getTaxonomyPeers(ticker: string, limit = 15): Promise<Taxo
 // full peer overlap + keyword-match path for unmapped tickers) every time.
 export const classifyCache = new TTLCache<PeerGroupClassification>(24 * 60 * 60 * 1000, "ticker-classify", 1000); // key = ticker
 
+async function getOverride(key: string): Promise<{ groupId: string } | null> {
+  const rows = await db.select({ groupId: peerGroupOverrides.groupId })
+    .from(peerGroupOverrides).where(eq(peerGroupOverrides.ticker, key)).limit(1);
+  return rows[0] ?? null;
+}
+
 /** Classify a ticker to its best-fit peer group.
- *  Priority: DB primary → peer overlap (≥2) → keyword map → unmapped */
+ *  Priority: manual override → DB primary → peer overlap (≥2) → keyword map → unmapped */
 export async function classifyTicker(ticker: string): Promise<PeerGroupClassification> {
   const key = ticker.toUpperCase();
 
@@ -173,6 +180,13 @@ export async function classifyTicker(ticker: string): Promise<PeerGroupClassific
 }
 
 async function classifyTickerUncached(key: string): Promise<PeerGroupClassification> {
+  // 0. Manual override always wins
+  const override = await getOverride(key);
+  if (override) {
+    const metricExclusions = await fetchMetricExclusions(override.groupId);
+    return { groupId: override.groupId, confidence: "override", metricExclusions };
+  }
+
   // 1. Already mapped in registry
   const regRows = await db
     .select({ primaryPeerGroupId: tickerRegistry.primaryPeerGroupId, sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })
@@ -185,6 +199,19 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
     return { groupId: reg.primaryPeerGroupId, confidence: "mapped", metricExclusions };
   }
 
+  return computeAutoClassification(key, reg ?? null, { persist: true });
+}
+
+/** Peer-overlap + keyword-map classification, ignoring any manual override or
+ *  cached primaryPeerGroupId. Used both to bootstrap a never-seen ticker
+ *  (persist: true — writes the result back to ticker_registry) and to preview
+ *  "what the system default would be" for a ticker that currently has a
+ *  manual override (persist: false — read-only). */
+async function computeAutoClassification(
+  key: string,
+  reg: { sector: string | null; industryGroup: string | null } | null,
+  opts: { persist: boolean },
+): Promise<PeerGroupClassification> {
   // 2. Peer overlap — fetch peers then count group membership overlaps
   try {
     const peersPayload = await resolvePeers(key);
@@ -194,16 +221,18 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
       const overlapRows = await db
         .select({ groupId: peerGroupMembers.groupId, cnt: count() })
         .from(peerGroupMembers)
-        .where(inArray(peerGroupMembers.ticker, peerList))
+        .where(and(inArray(peerGroupMembers.ticker, peerList), isNull(peerGroupMembers.removedAt)))
         .groupBy(peerGroupMembers.groupId)
         .orderBy(desc(count()))
         .limit(1);
 
       const best = overlapRows[0];
       if (best && Number(best.cnt) >= 2) {
-        await upsertPrimaryGroup(key, best.groupId);
-        await appendOverride(key, best.groupId);
-        logger.info({ ticker: key, groupId: best.groupId, overlap: best.cnt }, "peer-classifier: auto-classified via peer overlap");
+        if (opts.persist) {
+          await upsertPrimaryGroup(key, best.groupId);
+          await appendOverride(key, best.groupId);
+          logger.info({ ticker: key, groupId: best.groupId, overlap: best.cnt }, "peer-classifier: auto-classified via peer overlap");
+        }
         const metricExclusions = await fetchMetricExclusions(best.groupId);
         return { groupId: best.groupId, confidence: "auto", metricExclusions };
       }
@@ -214,9 +243,11 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
     const industry = peersPayload.industry ?? reg?.industryGroup ?? null;
     const matched = keywordMatch(sector, industry);
     if (matched) {
-      await upsertPrimaryGroup(key, matched);
-      await appendOverride(key, matched);
-      logger.info({ ticker: key, groupId: matched, sector, industry }, "peer-classifier: auto-classified via keyword map");
+      if (opts.persist) {
+        await upsertPrimaryGroup(key, matched);
+        await appendOverride(key, matched);
+        logger.info({ ticker: key, groupId: matched, sector, industry }, "peer-classifier: auto-classified via keyword map");
+      }
       const metricExclusions = await fetchMetricExclusions(matched);
       return { groupId: matched, confidence: "auto", metricExclusions };
     }
@@ -225,6 +256,81 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
   }
 
   // 4. Unmapped
-  await recordUnmapped(key).catch(() => {});
+  if (opts.persist) await recordUnmapped(key).catch(() => {});
   return { groupId: "__global__", confidence: "unmapped" };
+}
+
+/** What the auto-classifier would pick for this ticker, ignoring any manual
+ *  override (peer_group_overrides) and without touching the DB. Used by the
+ *  admin UI to show "default" alongside the current (possibly overridden) group. */
+export async function classifyTickerDefault(ticker: string): Promise<PeerGroupClassification> {
+  const key = ticker.toUpperCase();
+  const regRows = await db
+    .select({ sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.ticker, key))
+    .limit(1);
+  return computeAutoClassification(key, regRows[0] ?? null, { persist: false });
+}
+
+/** Set (or replace) a manual peer-group override for a ticker. Writes through to
+ *  ticker_registry.primary_peer_group_id so scoring (which reads that column
+ *  directly, bypassing classifyTicker) picks it up immediately. */
+export async function setPeerGroupOverride(ticker: string, groupId: string, note?: string | null): Promise<void> {
+  const key = ticker.toUpperCase();
+
+  // Only capture previousGroupId on first creation of the override — if the
+  // ticker already has an override and is being reassigned again, keep the
+  // originally-recorded pre-override value so a later revert goes all the way
+  // back to the true default, not to an intermediate override.
+  const existing = await db.select({ previousGroupId: peerGroupOverrides.previousGroupId })
+    .from(peerGroupOverrides).where(eq(peerGroupOverrides.ticker, key)).limit(1);
+
+  let previousGroupId: string | null;
+  if (existing[0]) {
+    previousGroupId = existing[0].previousGroupId;
+  } else {
+    const regRows = await db.select({ primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+      .from(tickerRegistry).where(eq(tickerRegistry.ticker, key)).limit(1);
+    previousGroupId = regRows[0]?.primaryPeerGroupId ?? null;
+  }
+
+  await db.insert(peerGroupOverrides)
+    .values({ ticker: key, groupId, previousGroupId, note: note ?? null })
+    .onConflictDoUpdate({ target: peerGroupOverrides.ticker, set: { groupId, note: note ?? null, createdAt: new Date() } });
+  await upsertPrimaryGroup(key, groupId);
+  classifyCache.delete(key);
+}
+
+/** Remove a manual override, restoring the ticker's pre-override group exactly
+ *  (from peer_group_overrides.previous_group_id) rather than re-running
+ *  auto-classification, which can land on a different group than the ticker
+ *  was originally mapped to. Only falls back to a fresh auto-classification
+ *  when the ticker had no prior group (was unmapped before the override). */
+export async function clearPeerGroupOverride(ticker: string): Promise<PeerGroupClassification> {
+  const key = ticker.toUpperCase();
+
+  const overrideRows = await db.select({ previousGroupId: peerGroupOverrides.previousGroupId })
+    .from(peerGroupOverrides).where(eq(peerGroupOverrides.ticker, key)).limit(1);
+  await db.delete(peerGroupOverrides).where(eq(peerGroupOverrides.ticker, key));
+
+  const previousGroupId = overrideRows[0]?.previousGroupId ?? null;
+  if (previousGroupId) {
+    await db.update(tickerRegistry).set({ primaryPeerGroupId: previousGroupId }).where(eq(tickerRegistry.ticker, key));
+    classifyCache.delete(key);
+    const metricExclusions = await fetchMetricExclusions(previousGroupId);
+    return { groupId: previousGroupId, confidence: "mapped", metricExclusions };
+  }
+
+  const regRows = await db
+    .select({ sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.ticker, key))
+    .limit(1);
+  const result = await computeAutoClassification(key, regRows[0] ?? null, { persist: true });
+  if (result.confidence === "unmapped") {
+    await db.update(tickerRegistry).set({ primaryPeerGroupId: null }).where(eq(tickerRegistry.ticker, key));
+  }
+  classifyCache.delete(key);
+  return result;
 }

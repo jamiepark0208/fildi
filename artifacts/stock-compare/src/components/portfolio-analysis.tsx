@@ -10,7 +10,7 @@ import {
 } from "@/hooks/use-portfolio";
 import { type StockMetrics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatCompactCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Activity, Shield, Zap, TrendingDown, Layers, BarChart2, Percent } from "lucide-react";
 import {
@@ -23,6 +23,8 @@ import {
   computeMarginUsage, computeConcentration, computeGreeksExposure,
   computeCorrelationScaleMax, computePortfolioRiskMetrics,
 } from "./portfolio/portfolio-risk-calc";
+import { useSnapshotQuery, EquityTable, OptionsTable } from "./RobinhoodPortfolio";
+import { PortfolioUpload } from "./PortfolioUpload";
 
 // ── Portfolio Analysis ────────────────────────────────────────────────────────
 
@@ -60,9 +62,10 @@ interface PortfolioAnalysisProps {
   accountSummaries?: AccountSummary[];
   realizedEvents?: RealizedEvent[];
   tickerEarnings?: TickerEarningsRow[];
+  onUploadSuccess?: () => void;
 }
 
-export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [] }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], onUploadSuccess }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
   const filtered = useMemo(() =>
     (activePortfolio === "All"
@@ -489,6 +492,29 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   const [tickersTab, setTickersTab] = useState<AccountTabKey>("FILDI");
   const [summaryTab, setSummaryTab] = useState<AccountTabKey>("FILDI");
 
+  // ── Detail panel — Top Tickers / Summary / Income / Health / Equity / Options,
+  // shown as one sub-tabbed card (live tab's SubTabToggle styling) instead of stacked rows.
+  const DETAIL_TABS = [
+    { key: "tickers", label: "Top Tickers" },
+    { key: "summary", label: "Cumulative Summary" },
+    { key: "income", label: "Options Income" },
+    { key: "health", label: "Position Health" },
+    { key: "equity", label: "Equity Holdings" },
+    { key: "options", label: "Options Holdings" },
+  ] as const;
+  type DetailTabKey = typeof DETAIL_TABS[number]["key"];
+  const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
+
+  // Same queryKey as the page-level snapshot query — react-query dedupes, no extra request.
+  const { data: snapshotData, isLoading: snapshotLoading, error: snapshotError } = useSnapshotQuery();
+  const holdingsPositions = snapshotData?.positions ?? [];
+  const holdingsOptions = snapshotData?.options ?? [];
+  const holdingsAccountMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of holdingsPositions) { if (p.accountNickname) m.set(p.account, p.accountNickname); }
+    return m;
+  }, [holdingsPositions]);
+
   // ── Options income timeline — YTD bi-weekly realized P&L (sold calls + sold puts,
   // expired worthless or closed early) plus a projection to year-end off the YTD run rate ──
   const optionsIncomeTimeline = useMemo(() => {
@@ -560,34 +586,37 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       {/* Header + filter */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-bold tracking-tight">Portfolio Analysis</h2>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <h2 className="text-sm font-bold tracking-tight text-[#d4af37]">Portfolio Analysis</h2>
+          <p className="text-[11px] text-amber-200/50 mt-0.5">
             Allocation · Sector · Risk · Delta · Income Yield
             {risk.coveredCallCount > 0 && ` · ${risk.coveredCallCount} covered call${risk.coveredCallCount > 1 ? "s" : ""} detected`}
           </p>
         </div>
-        <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
-          {tabs.map(t => (
-            <button key={t} onClick={() => setActivePortfolio(t)}
-              className={cn("px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                activePortfolio === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-2.5">
+          {onUploadSuccess && <PortfolioUpload onSuccess={onUploadSuccess} />}
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {tabs.map(t => (
+              <button key={t} onClick={() => setActivePortfolio(t)}
+                className={cn("px-2.5 py-1 transition-colors",
+                  activePortfolio === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Row 1: Allocation + Sector + Tickers + Risk */}
       <div className="grid grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Capital Allocation</CardTitle>
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Capital Allocation</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <DonutChart data={allocationData} total={totalValue} label="Net Value" />
             <PieLegend data={allocationData} />
             {allocationMarginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-border/40 text-[10px] text-muted-foreground">
+              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 text-[10px] text-muted-foreground">
                 Net of <span className="font-mono font-semibold text-yellow-400">{formatCurrency(allocationMarginUsed)}</span> margin used —
                 Sector Exposure/Ticker Holdings show gross stock notional, so their totals run higher on this account.
               </div>
@@ -595,9 +624,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-center justify-between">
               <span>Sector Exposure</span>
               <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded normal-case tracking-normal",
                 concentration.level === "High" ? "bg-red-500/15 text-red-400"
@@ -610,7 +639,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           <CardContent className="px-4 pb-4">
             <DonutChart data={sectorData.items} total={sectorData.total} label="Notional" />
             <PieLegend data={sectorData.items.slice(0, 6)} />
-            <div className="mt-2 pt-2 border-t border-border/40 grid grid-cols-3 gap-x-2 text-[10px]">
+            <div className="mt-2 pt-2 border-t border-[#d4af37]/15 grid grid-cols-3 gap-x-2 text-[10px]">
               <div>
                 <div className="text-muted-foreground uppercase tracking-wide">HHI</div>
                 <div className="font-mono font-semibold">{concentration.hhi}</div>
@@ -627,7 +656,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </div>
             </div>
             {marginUsage.marginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px]">
+              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
                 <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
                 <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
               </div>
@@ -635,15 +664,15 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ticker Holdings</CardTitle>
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Ticker Holdings</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <DonutChart data={tickerData.items} total={tickerData.total} label="Notional" />
             <PieLegend data={tickerData.items.slice(0, 6)} />
             {marginUsage.marginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px]">
+              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
                 <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
                 <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
               </div>
@@ -651,9 +680,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Risk Metrics</CardTitle>
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Risk Metrics</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 mt-3">
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -685,9 +714,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
       {/* Row 1.1a: Beta contribution + Cumulative P&L by trade type */}
       <div className="grid grid-cols-2 gap-4">
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
               Beta Contribution
             </CardTitle>
             <p className="text-[10px] text-white/70">
@@ -699,7 +728,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 13, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} />
@@ -728,7 +757,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </ResponsiveContainer>
             )}
             {topBetaData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
                 {BETA_BAR_LEGEND.map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5 text-[10px] text-white">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
@@ -740,9 +769,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
               Cumulative P&amp;L by Trade Type
             </CardTitle>
             <p className="text-[10px] text-white/70">realized + unrealized, YTD</p>
@@ -752,10 +781,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="category" interval={0} tick={{ fontSize: 11, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => formatCurrency(v)} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrency(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
@@ -764,7 +793,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                         <div className="font-semibold">{d.category}</div>
                         <div className="flex justify-between gap-4"><span className="text-white/70">Realized</span><span className="font-mono font-semibold">{formatCurrency(d.realized)}</span></div>
                         <div className="flex justify-between gap-4"><span className="text-white/70">Unrealized</span><span className="font-mono font-semibold">{formatCurrency(d.unrealized)}</span></div>
-                        <div className="flex justify-between gap-4 pt-1 border-t border-border/60"><span className="text-white/70">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/70">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -774,7 +803,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </ResponsiveContainer>
             )}
             {tradeTypeChartData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
                 {REALIZED_UNREALIZED_LEGEND.map(({ key, color, label }) => (
                   <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
@@ -789,9 +818,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
       {/* Row 1.1b: Cumulative P&L top tickers + (reserved) */}
       <div className="grid grid-cols-2 gap-4">
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
               Cumulative P&amp;L — Top Tickers
             </CardTitle>
             <p className="text-[10px] text-white/70">all accounts, YTD</p>
@@ -801,10 +830,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => formatCurrency(v)} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrency(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
@@ -814,7 +843,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                         {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
                           <div key={key} className="flex justify-between gap-4"><span className="text-white/70">{label}</span><span className="font-mono">{formatCurrency(d[key])}</span></div>
                         ))}
-                        <div className="flex justify-between gap-4 pt-1 border-t border-border/60"><span className="text-white/70">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/70">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -825,7 +854,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </ResponsiveContainer>
             )}
             {topTickersPnlChartData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
                 {TICKER_PNL_SEGMENTS.map(({ key, color, label }) => (
                   <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
@@ -837,11 +866,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
+                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                   Cumulative Realized P&amp;L
                 </CardTitle>
                 <p className="text-[10px] text-white/70">stock + options + dividends, full transaction history</p>
@@ -859,7 +888,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={cumulativePnlTimeline} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <AreaChart data={cumulativePnlTimeline} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="cumPnlFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#34d399" stopOpacity={0.35} />
@@ -871,7 +900,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     axisLine={false} tickLine={false}
                     tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })} />
                   <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false}
-                    width={52} tickFormatter={(v) => formatCurrency(v)} />
+                    width={44} tickFormatter={(v) => formatCompactCurrency(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
@@ -895,12 +924,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </Card>
       </div>
 
-      {/* Row 1.2: Correlation matrix + parametric VaR/CVaR (95%, 1-day) */}
+      {/* Row 1.2: Correlation matrix + P&L, two boxes in line */}
+      <div className="grid grid-cols-2 gap-4">
       {portfolioRisk && portfolioRisk.tickers.length > 1 && (
-        <Card>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                 Correlation &amp; Value-at-Risk
               </CardTitle>
               <div className="flex items-center gap-5">
@@ -932,7 +962,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-y border-border/40 bg-secondary/20">
+                  <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
                     <th className={TTD}></th>
                     {portfolioRisk.tickers.map(t => (
                       <th key={t} className={cn(TTD, "text-center font-bold")}>{t}</th>
@@ -973,9 +1003,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       )}
 
       {/* Row 1.5: P&L — realized + unrealized, stock vs. short/long options */}
-      <Card>
+      <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
         <CardHeader className="px-4 pt-4 pb-0">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
             P&amp;L
           </CardTitle>
         </CardHeader>
@@ -1001,7 +1031,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   ))}
                 </tr>
               ))}
-              <tr className="border-t border-border/40">
+              <tr className="border-t border-[#d4af37]/15">
                 <td className="py-1.5 px-2 font-bold">Total</td>
                 {[pnlTotals.grandTotal.realized, pnlTotals.grandTotal.unrealized, pnlTotals.grandTotal.total].map((v, i) => (
                   <td key={i} className={cn("py-1.5 px-2 text-right font-mono tabular-nums font-bold text-base",
@@ -1014,25 +1044,66 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </table>
         </CardContent>
       </Card>
+      </div>
 
-      {/* Row 1.6: Top tickers by trade frequency, net realized P&L YTD — FILDI/IRA tabs */}
-      <Card className="overflow-hidden">
+      {/* Row 1.6+: Top Tickers / Cumulative Summary / Options Income / Position Health /
+          Equity Holdings / Options Holdings — one sub-tabbed card, live tab's toggle styling */}
+      <Card className="overflow-hidden bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
         <CardHeader className="px-4 pt-4 pb-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Top Tickers <span className="normal-case font-normal">— by frequency, net realized P&amp;L YTD</span>
-            </CardTitle>
-            <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
-              {ACCOUNT_TABS.map(t => (
-                <button key={t.key} onClick={() => setTickersTab(t.key)}
-                  className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
-                    tickersTab === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-1.5">
+            <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
+              {DETAIL_TABS.map(t => (
+                <button key={t.key} onClick={() => setDetailTab(t.key)}
+                  className={cn("px-2.5 py-1 transition-colors whitespace-nowrap",
+                    detailTab === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
                   {t.label}
                 </button>
               ))}
             </div>
+            {(detailTab === "tickers" || detailTab === "summary") && (
+              <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
+                {ACCOUNT_TABS.map(t => (
+                  <button key={t.key} onClick={() => detailTab === "tickers" ? setTickersTab(t.key) : setSummaryTab(t.key)}
+                    className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
+                      (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          <p className="text-[10px] text-muted-foreground normal-case pt-1.5">
+            {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD"}
+            {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends, YTD"}
+            {detailTab === "income" && "Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1"}
+            {detailTab === "health" && "Option Position Health — break-even, moneyness, and assignment/exercise risk per leg"}
+            {detailTab === "equity" && "Equity Holdings — grouped by account"}
+            {detailTab === "options" && "Options Holdings — grouped by account, active contracts"}
+          </p>
+          {detailTab === "income" && (
+            <div className="flex items-center gap-5 pt-2 pb-1">
+              <div>
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">YTD Earned</div>
+                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.ytdActual >= 0 ? "text-green-400" : "text-red-400")}>
+                  {optionsIncomeTimeline.ytdActual >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.ytdActual)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">Avg Monthly</div>
+                <div className="text-sm font-bold font-mono tabular-nums text-white">
+                  {formatCurrency(optionsIncomeTimeline.avgMonthlyEarned)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">Projected Annual</div>
+                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "text-green-400" : "text-red-400")}>
+                  {optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.projectedAnnualTotal)}
+                </div>
+              </div>
+            </div>
+          )}
         </CardHeader>
+        {detailTab === "tickers" && (
         <CardContent className="px-0 pb-0">
           {topTickersByAccount[tickersTab].length === 0 ? (
             <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
@@ -1041,7 +1112,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-y border-border/40 bg-secondary/20">
+                <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
                   <th className={TTH}>#</th>
                   <th className={cn(TTH, "text-left")}>Ticker</th>
                   <th className={cn(TTH, "text-right")}>Puts Sold</th>
@@ -1070,26 +1141,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             </table>
           )}
         </CardContent>
-      </Card>
+        )}
 
-      {/* Row 1.7: Cumulative summary per ticker — mirrors the YTD-export SUMMARY tables, FILDI/IRA tabs */}
-      <Card className="overflow-hidden">
-        <CardHeader className="px-4 pt-4 pb-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Cumulative Summary <span className="normal-case font-normal">— realized + unrealized + dividends, YTD</span>
-            </CardTitle>
-            <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
-              {ACCOUNT_TABS.map(t => (
-                <button key={t.key} onClick={() => setSummaryTab(t.key)}
-                  className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
-                    summaryTab === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </CardHeader>
+        {detailTab === "summary" && (
         <CardContent className="px-0 pb-0">
           {cumulativeSummaryByAccount[summaryTab].length === 0 ? (
             <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
@@ -1099,7 +1153,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-y border-border/40 bg-secondary/20">
+                  <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
                     <th className={cn(TTH, "text-left")}>Ticker</th>
                     <th className={cn(TTH, "text-right")}>Unrealized</th>
                     <th className={cn(TTH, "text-right")}>Realized</th>
@@ -1145,51 +1199,18 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             </div>
           )}
         </CardContent>
-      </Card>
+        )}
 
-      {/* Row 2: Options income timeline — YTD actual (bi-weekly) + year-end projection */}
-      <Card>
-        <CardHeader className="px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="text-xs font-semibold text-white uppercase tracking-wide">
-                Options Income Timeline
-              </CardTitle>
-              <p className="text-[10px] text-white/70">
-                sold calls + sold puts · net gain/loss (expired worthless or closed early) · bi-weekly since 1/1
-              </p>
-            </div>
-            <div className="flex items-center gap-5">
-              <div className="text-right">
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">YTD Earned</div>
-                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.ytdActual >= 0 ? "text-green-400" : "text-red-400")}>
-                  {optionsIncomeTimeline.ytdActual >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.ytdActual)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">Avg Monthly</div>
-                <div className="text-sm font-bold font-mono tabular-nums text-white">
-                  {formatCurrency(optionsIncomeTimeline.avgMonthlyEarned)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">Projected Annual</div>
-                <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "text-green-400" : "text-red-400")}>
-                  {optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.projectedAnnualTotal)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
+        {detailTab === "income" && (
         <CardContent className="px-4 pb-4">
           {optionsIncomeTimeline.chartData.length === 0 ? (
             <div className="h-[220px] flex items-center justify-center text-xs text-white/70">No data</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={optionsIncomeTimeline.chartData} barSize={12} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+              <BarChart data={optionsIncomeTimeline.chartData} barSize={12} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                 <XAxis dataKey="label" interval={2} tick={{ fontSize: 10, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false} width={44} tickFormatter={(v) => formatCurrency(v)} />
+                <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => formatCompactCurrency(v)} />
                 <Tooltip content={(p) => {
                   const d = p.payload?.[0]?.payload;
                   if (!p.active || !d) return null;
@@ -1213,7 +1234,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </BarChart>
             </ResponsiveContainer>
           )}
-          <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-4 gap-y-1.5">
+          <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
             {[
               { color: "#34d399", label: "Earned (actual)" },
               { color: "#f87171", label: "Loss (actual)" },
@@ -1226,18 +1247,16 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             ))}
           </div>
         </CardContent>
-      </Card>
+        )}
 
-      {/* Row 3: Option position health */}
-      {(risk.putPositions.length > 0 || risk.callPositions.length > 0) && (
-        <Card>
-          <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5" /> Option Position Health
-            </CardTitle>
-            <p className="text-[10px] text-muted-foreground">break-even, moneyness, and assignment/exercise risk per leg</p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-4">
+        {detailTab === "health" && risk.putPositions.length === 0 && risk.callPositions.length === 0 && (
+        <CardContent className="px-4 pb-4">
+          <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">No open option positions</div>
+        </CardContent>
+        )}
+
+        {detailTab === "health" && (risk.putPositions.length > 0 || risk.callPositions.length > 0) && (
+        <CardContent className="px-4 pb-4 space-y-4">
             {[
               { label: "Puts", rows: risk.putPositions, isPut: true },
               { label: "Calls", rows: risk.callPositions, isPut: false },
@@ -1250,7 +1269,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-y border-border/40 bg-secondary/20">
+                      <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
                         {["Ticker", "Type", "Qty", "Strike", "Premium", "Break-Even", "Current", isPut ? "OTM %" : "ITM %", "Collateral", "Status"].map((h, hi) => (
                           <th key={h} className={cn(TTH, hi === 0 || hi === 1 ? "text-left" : "text-right")}>{h}</th>
                         ))}
@@ -1326,9 +1345,28 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <p className="text-[10px] text-muted-foreground/50">
               Puts OTM% = (price/strike−1)×100 · Calls ITM% = (price/strike−1)×100 · At Risk: short within 8% of strike
             </p>
-          </CardContent>
-        </Card>
-      )}
+        </CardContent>
+        )}
+
+        {(detailTab === "equity" || detailTab === "options") && (
+        <CardContent className="px-0 pb-0">
+          {snapshotLoading && (
+            <p className="text-xs text-amber-200/40 animate-pulse px-3 py-3">Loading portfolio…</p>
+          )}
+          {!!snapshotError && (
+            <p className="text-xs text-red-400 px-3 py-3">Failed to load portfolio data.</p>
+          )}
+          {!snapshotLoading && !snapshotError && !snapshotData?.snapshot && (
+            <p className="text-xs text-amber-200/40 px-3 py-3">No snapshot yet — upload a Robinhood CSV above.</p>
+          )}
+          {!snapshotLoading && !snapshotError && snapshotData?.snapshot && (
+            detailTab === "equity"
+              ? <EquityTable positions={holdingsPositions} />
+              : <OptionsTable options={holdingsOptions} accountMap={holdingsAccountMap} />
+          )}
+        </CardContent>
+        )}
+      </Card>
     </div>
   );
 }

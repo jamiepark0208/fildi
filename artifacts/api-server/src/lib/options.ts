@@ -262,7 +262,10 @@ function buildRows(
       return {
         strike, bid, ask, lastPrice, iv, volume, openInterest,
         incomePct: Math.round(incomePct * 1000) / 1000,
-        meetsGate: priceForIncome > 0,
+        // No live bid means no real market to sell into — a stale lastPrice fallback isn't
+        // a sellable price, so it must never qualify for ranking/gating even though we still
+        // compute incomePct for display context on the raw chain.
+        meetsGate: bid > 0,
         bidIsLive: bid > 0,
         delta,
         spreadPct,

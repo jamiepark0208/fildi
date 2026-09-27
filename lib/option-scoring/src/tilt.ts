@@ -11,8 +11,8 @@
 import { W_INCOME, W_BUFFER } from "./option-scorer-constants.ts";
 
 export interface SideTiltStats {
-  winRate: number | null;   // [0,1] over the trailing window
-  avgPnlPct: number | null; // mean pnlPct of graded recs (informational)
+  winRate: number | null;   // [0,1] over the trailing window — DISPLAY ONLY, never drives the tilt
+  avgPnlPct: number | null; // mean pnlPct (percent units) of graded recs — THIS drives the tilt
   n: number;                // graded recs in the trailing window
   updatedAt: string | null; // ISO timestamp of last recompute
 }
@@ -22,18 +22,35 @@ export interface TiltState {
   call: SideTiltStats;
 }
 
-export const TILT_MIN_N = 8;             // below this → no tilt
-export const TILT_ANCHOR_WIN_RATE = 0.70; // design target win rate for a premium seller
-export const TILT_SPAN = 0.20;            // winRate ± span maps to factor ±1
+// Why this keys off average P&L and NOT win rate (changed 2026-08-27):
+//
+// Selling OTM premium wins ~85-90% of the time BY CONSTRUCTION — that is what a
+// ~0.15 delta means. Win rate therefore measures the strike distance we chose, not
+// whether the choice made money; the losses are the whole story and they are
+// asymmetric. Under the old winRate/0.70-anchor rule both sides sat at ~0.89-0.90
+// and pinned the factor at its +1 maximum. That included the CALL side, which was
+// running avgPnlPct -0.068 (i.e. losing money) — the loop was leaning hardest into
+// the one side that was bleeding, and shifting weight buffer -> income makes strikes
+// closer to the money, which is exactly the wrong response to losses.
+//
+// avgPnlPct is in PERCENT units (pnlPerShare / basis * 100; see settleRec) and is
+// signed, so 0 is the natural anchor: positive expectancy leans into income,
+// negative expectancy backs off toward buffer. A mean of P&L is noisier than a
+// win rate and one tail loss can swing it — that sensitivity is the point, but it
+// is why TILT_MIN_N is higher here than the old win-rate rule needed.
+export const TILT_MIN_N = 20;             // below this → no tilt (a P&L mean needs more n than a rate)
+export const TILT_ANCHOR_PNL_PCT = 0;     // break-even expectancy is the neutral point
+export const TILT_SPAN_PNL_PCT = 0.25;    // avgPnlPct ± this (percent) maps to factor ±1
 export const TILT_MAX_SHIFT = 0.25;       // max relative change to income/buffer weights
 
 export const EMPTY_SIDE_STATS: SideTiltStats = { winRate: null, avgPnlPct: null, n: 0, updatedAt: null };
 export const EMPTY_TILT_STATE: TiltState = { put: EMPTY_SIDE_STATS, call: EMPTY_SIDE_STATS };
 
-/** Aggressiveness factor in [-1, 1]. Positive = winning above anchor → lean into income. */
+/** Aggressiveness factor in [-1, 1]. Positive = positive expectancy → lean into income.
+ *  Negative = losing money → back off toward buffer (further-OTM strikes). */
 export function tiltFactor(stats: SideTiltStats | null | undefined): number {
-  if (!stats || stats.n < TILT_MIN_N || stats.winRate == null) return 0;
-  const a = (stats.winRate - TILT_ANCHOR_WIN_RATE) / TILT_SPAN;
+  if (!stats || stats.n < TILT_MIN_N || stats.avgPnlPct == null) return 0;
+  const a = (stats.avgPnlPct - TILT_ANCHOR_PNL_PCT) / TILT_SPAN_PNL_PCT;
   return Math.max(-1, Math.min(1, a));
 }
 
