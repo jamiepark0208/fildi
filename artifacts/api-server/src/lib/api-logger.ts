@@ -1,7 +1,18 @@
 import { logger } from "./logger.js";
 import { recordApiUsage } from "./api-usage.js";
 
-export type ApiSource = "fmp" | "polygon" | "av" | "finnhub" | "yahoo" | "edgar" | "fred" | "cnn" | "nyfed" | "anthropic";
+export type ApiSource =
+  | "fmp"
+  | "polygon"
+  | "av"
+  | "finnhub"
+  | "yahoo"
+  | "edgar"
+  | "fred"
+  | "cnn"
+  | "nyfed"
+  | "anthropic"
+  | "factset";
 
 export interface ApiCallParams {
   source: ApiSource;

@@ -3,8 +3,8 @@ import { sql, inArray, eq } from "drizzle-orm";
 import { db, yahooAnalystActions, analystEvents } from "@workspace/db";
 import { yahooEpochToMs, yahooEpochToDateStr, type CatalystAnalystAction } from "./catalysts.js";
 import { logger } from "./logger.js";
+import { STALE_DAYS } from "./data-ops-config.js";
 
-const STALE_DAYS = 7;
 const CUTOFF_DAYS = 365;
 const MAX_ACTIONS = 10;
 

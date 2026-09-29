@@ -520,7 +520,7 @@ router.get('/feed/profile/:username', async (req, res) => {
   const availableForCallByTicker = new Map<string, number>()
 
   if (openTickers.length > 0) {
-    const [priceRows, ownedRows, committedRows] = await Promise.all([
+    const [priceResult, ownedRows, committedRows] = await Promise.all([
       db.execute(sql`
         SELECT DISTINCT ON (ticker) ticker, close
         FROM ${pricesHistorical}
@@ -547,7 +547,10 @@ router.get('/feed/profile/:username', async (req, res) => {
         .groupBy(tradePosts.ticker),
     ])
 
-    for (const r of priceRows as unknown as Array<{ ticker: string; close: string | null }>) {
+    // db.execute (node-pg) returns QueryResult { rows }, not a bare array
+    const priceRows = (priceResult as { rows?: Array<{ ticker: string; close: string | null }> }).rows
+      ?? (Array.isArray(priceResult) ? priceResult as Array<{ ticker: string; close: string | null }> : [])
+    for (const r of priceRows) {
       if (r.close != null) latestCloseByTicker.set(r.ticker, Number(r.close))
     }
     const ownedByTicker = new Map(ownedRows.map(r => [r.ticker, Number(r.total ?? 0)]))
@@ -683,14 +686,16 @@ router.post('/feed/portfolio/reset', async (req, res) => {
   const tickers = [...new Set(openHoldings.map(h => h.ticker))]
 
   // Latest close per ticker in ONE query (DISTINCT ON) rather than one round-trip each.
-  const priceRows = await db.execute(sql`
+  const priceResult = await db.execute(sql`
     SELECT DISTINCT ON (ticker) ticker, close
     FROM ${pricesHistorical}
     WHERE ticker IN (${sql.join(tickers.map(t => sql`${t}`), sql`, `)})
     ORDER BY ticker, date DESC
   `)
+  const priceRows = (priceResult as { rows?: Array<{ ticker: string; close: string | null }> }).rows
+    ?? (Array.isArray(priceResult) ? priceResult as Array<{ ticker: string; close: string | null }> : [])
   const closeByTicker = new Map<string, number>()
-  for (const r of priceRows as unknown as Array<{ ticker: string; close: string | null }>) {
+  for (const r of priceRows) {
     if (r.close != null) closeByTicker.set(r.ticker, Number(r.close))
   }
 

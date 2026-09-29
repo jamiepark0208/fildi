@@ -21,14 +21,14 @@ import { sql, lt, and, isNotNull, eq } from "drizzle-orm";
 import { db, fmpFundamentals, tickerRegistry } from "@workspace/db";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
 import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { STALE_DAYS, CALLS_PER_TICKER as DATA_OPS_CALLS } from "../lib/data-ops-config.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const FMP_API_KEY = process.env.FMP_API_KEY ?? "";
 
-const CALLS_PER_TICKER = 9; // fetchFMPFundamentals fires 9 endpoints in parallel
-const STALE_DAYS = 7;       // re-fetch after this many days
+const CALLS_PER_TICKER = DATA_OPS_CALLS.fmp;
 
 // ── Log file ───────────────────────────────────────────────────────────────────
 

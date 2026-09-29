@@ -19,11 +19,11 @@ import { sql, eq } from "drizzle-orm";
 import { db, tickerRegistry, yahooFundamentals } from "@workspace/db";
 import { fetchYahooFundamentals, type YahooFundamentalsData } from "../lib/yahoo-client.js";
 import { logger } from "../lib/logger.js";
+import { STALE_DAYS } from "../lib/data-ops-config.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const MAX_CONCURRENT = 3;
-const STALE_DAYS     = 7;
 
 // Fields where 0 is not a valid value — treat as null before writing
 const ZERO_AS_NULL_FIELDS: (keyof YahooFundamentalsData)[] = [

@@ -28,6 +28,7 @@ interface SourceMeta {
 }
 
 const SOURCE_META: Record<string, SourceMeta> = {
+  factset:{ label: "FactSet",      limitKind: "daily",   dailyLimit: 500, rateNote: "500/day (referee)" },
   fmp:    { label: "FMP",          limitKind: "daily",   dailyLimit: 250, rateNote: "250/day" },
   av:     { label: "Alpha Vantage",limitKind: "daily",   dailyLimit: 25,  rateNote: "25/day"  },
   polygon:{ label: "Polygon",      limitKind: "per-min", rateNote: "5 req/min" },
@@ -41,15 +42,24 @@ const SOURCE_META: Record<string, SourceMeta> = {
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["fmp", "av", "polygon", "finnhub", "yahoo", "edgar", "anthropic"];
+const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "finnhub", "yahoo", "edgar", "anthropic"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function localIsoDate(d: Date): string {
+  // Local calendar day — NOT toISOString() (UTC), which flips "Today" after 5pm PT.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function buildDateLabels(days: number): { iso: string; label: string }[] {
   return Array.from({ length: days }, (_, i) => {
     const d = new Date();
+    d.setHours(12, 0, 0, 0); // noon avoids DST edge weirdness
     d.setDate(d.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = localIsoDate(d);
     const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : iso.slice(5); // MM-DD
     return { iso, label };
   });

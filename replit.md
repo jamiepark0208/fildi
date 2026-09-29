@@ -1,117 +1,161 @@
-# TradeDash
+# REPLIT.md — Working Alongside Claude Code on TradeDash
 
-A personal trading dashboard for stock analysis, options scanning, portfolio tracking, and intraday market monitoring. Authentication-gated; users log in to access their watchlist, ranked signals, technicals, portfolio P&L, and a live intraday monitor.
+> Read this once at the start of any session where you're reviewing code, operating the
+> production server, coding, or troubleshooting bugs/security issues on this repo. It exists
+> so you (Replit's agent) and Claude Code operate on the same facts instead of drifting —
+> most of the pain in a two-agent setup comes from stale assumptions, not bad reasoning.
 
-## Run & Operate
+## 1. The one thing to get right before touching the backend
 
-### Dev (Replit workspace)
-The two managed workflows run automatically when you Start the Replit app. Never start them by hand — they require secrets injected by Replit's supervisor.
+**The managed Replit workflow runs `start.sh` → `node dist/index.mjs`. It does NOT hot-reload.**
 
-| Service | Port | Log | Hot-reload? |
-|---|---|---|---|
-| `stock-compare` (Vite frontend) | 8081 | `/tmp/vite-dev.log` | **Yes** — edit src, browser updates instantly |
-| `api-server` (Express backend) | 8080 | `/tmp/api-server.log` | **No** — must rebuild + restart manually |
+Confirmed live (re-verify anytime with the commands below):
+```
+pgrep -af start.sh        # expect exactly 2: api-server/start.sh, stock-compare/start.sh
+pgrep -af dist/index.mjs  # expect exactly 1
+```
 
-**After any backend (`artifacts/api-server/src/**`) change:**
+`artifacts/api-server/start.sh` builds once via `node build.mjs`, then loops
+`PORT=8080 node --enable-source-maps dist/index.mjs` in a crash-restart loop. Editing
+`api-server/src/**` does **nothing** to the running server until you rebuild and restart —
+see §2.
+
+**Do not treat a `tsx watch` process as evidence the managed workflow hot-reloads.** You may
+occasionally see one in `ps aux` (PID varies) — that's `pnpm run dev:watch`, a manual
+convenience for a bare terminal session *outside* `.replit`'s supervisors (documented in
+`.claude/skills/build-and-run.md`). It is not part of the managed workflow and may be a stray
+leftover from a prior session. If you see one, don't assume it means edits are live; verify
+against `pgrep -af start.sh` instead.
+
+Frontend (`stock-compare`, Vite on port 8081) is the opposite — it genuinely hot-reloads.
+Only the API server needs the manual rebuild cycle.
+
+## 2. Backend rebuild + restart procedure
+
+Full reference: `.claude/skills/build-and-run.md` (read it before any `api-server/src/**`
+change — it also covers 502 diagnosis and log locations).
+
 ```bash
-cd /home/runner/workspace/artifacts/api-server && node build.mjs
-pkill -f "node --enable-source-maps dist/index.mjs"
-sleep 3 && curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/daily-brief
-# expect 200 or 401
+cd artifacts/api-server && node build.mjs                              # Step 1: build
+pkill -f "node --enable-source-maps dist/index.mjs"                    # Step 2: kill the CHILD only
+sleep 3
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/daily-brief   # Step 3: expect 200/401
 ```
-Kill only the child (`node dist/index.mjs`), never the `start.sh` supervisor — it auto-relaunches the child with secrets attached. Never kill any process whose parent is PID 24 (Replit's platform supervisor).
 
-### Prod (published Replit deployment)
-The production app runs the same `start.sh` → `node dist/index.mjs` process but with production secrets and its **own isolated DATABASE_URL**. Updates reach prod only via Replit's **Publish** button — there are no manual prod deploy commands.
+**Never kill `start.sh` itself, and never kill anything with `ppid 24`** (Replit's own
+platform supervisor — it launches processes outside the two `.replit` workflow tasks that
+look redundant but may not be). Killing the wrong thing has taken down the entire workflow
+before (both supervisors, not just the target) — see the incident writeup in
+`.claude/skills/build-and-run.md` under "NEVER kill a process whose parent is PID 24" for
+exactly what went wrong and why "looks like a safe stray" was the wrong call. If
+`pgrep -af start.sh` ever shows fewer than 2 processes, you cannot recover it yourself —
+report it and ask for a Stop/Run from Replit's UI, don't hand-construct a replacement process
+(it won't have the injected secrets).
 
-**Dev/prod separation rules:**
-- `pnpm --filter @workspace/db run push` — dev DB only. Never run against prod.
-- Schema migrations for prod: apply the equivalent raw SQL via the production DB connection (use the database skill to confirm prod DB state first).
-- Never curl localhost to verify prod — check the published deployment URL or use Replit's deployment logs.
-- `SESSION_SECRET` and `DATABASE_URL` differ between environments; Replit injects the correct values per environment automatically.
+## 3. Persistent context — where the facts live
 
-### Other useful commands
+| File | What it is | Freshness |
+|---|---|---|
+| `CLAUDE.md` | Project conventions, hot-file index, response style | Stable — read once, re-check if it feels stale |
+| `.claude/state.json` | Session handoff: phase, working/blocked/next as **short tags** | Rewritten every session — always current, but only as good as the last wrap |
+| `.claude/skills/*.md` | Task-specific playbooks (build-and-run, systematic-debugging, api-design-patterns, db-patterns, caching-patterns, etc.) | Durable — load the one relevant to your task before starting |
+| `.agents/memory/` | Durable cross-session lessons (port conflicts, route ordering, library gotchas) | Durable — separate from Claude's own memory, keep your own additions here too if you want them to persist for you specifically |
+| `.agents/sessions/claude-*.md` | Full session log, one file per day, untruncated | Historical — use for "what happened on date X," not current state |
+| `.agents/AGENTS.md` | Agent roster and handoff protocol (which agent owns what) | Stable |
+| `git log` | Ground truth for what actually shipped | Always current |
+
+Read order at session start: `CLAUDE.md` → `.claude/state.json` → the one skill file for
+your task category → `git log --oneline -5` to confirm state.json isn't stale relative to
+what's actually committed.
+
+## 4. Codegraph — use it before opening any file
+
+Codegraph is installed and indexed (383 files, 5,691 nodes as of this writing) and available
+via shell:
+
 ```bash
-pnpm run typecheck                             # full TS check across all packages
-pnpm run build                                 # typecheck + esbuild bundle
-pnpm --filter @workspace/api-spec run codegen  # regenerate API hooks + Zod schemas from OpenAPI spec
-npx tsc -b lib/db                              # rebuild lib/db declarations (required after schema edits, before typecheck)
-node .claude/scripts/rehydrate.js              # inject session state (run at start of every agent session)
-codegraph context "<task description>"         # find entry points before reading source files
+codegraph status                       # confirm index freshness
+codegraph context "<task description>" # symbols + callers/callees before touching anything
+codegraph impact <symbol>              # what breaks if you change this
 ```
 
-## Stack
+This is not optional polish — reading whole files speculatively instead of getting targeted
+entry points first is the specific failure mode that has caused analysis errors in this repo.
+Treat "I don't know where X lives" as a `codegraph context` call, not a `grep -r` fishing
+expedition or a full-file read.
 
-- **Monorepo**: pnpm workspaces, Node.js 24, TypeScript 5.9
-- **Frontend**: React 18, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Wouter
-- **Backend**: Express 5, esbuild (ESM bundle → `dist/index.mjs`)
-- **DB**: PostgreSQL + Drizzle ORM (`lib/db/src/schema/index.ts` is the source of truth for all tables)
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API contract**: OpenAPI spec → Orval codegen (hooks + Zod schemas)
-- **Caching**: in-process `TTLCache` only — no Redis, no shared cache
+## 5. File-reading discipline
 
-## Where things live
+Full rule set: `.claude/skills/file-reading-strategy.md`. The short version:
 
+1. **Never read a `.ts`/`.tsx`/`.js` file in full.** `codegraph` or `grep` first, always.
+2. If `grep` returns nothing, trust that — don't open the file "just to check."
+3. Only read with a line number in hand, using a tight `offset`/`limit` window (~20-30 lines)
+   centered on it.
+4. Uncertainty is not a reason to read speculatively — if codegraph and grep both come up
+   empty, ask rather than opening files hoping to stumble onto the answer.
+
+Also never read: `node_modules/**`, `dist/**`, compiled `.mjs`, `pnpm-lock.yaml`,
+`package-lock.json`, `lib/*/dist/**`, `*.map`, `.cache/**`, `artifacts/*.json` (live data
+caches — use the API instead).
+
+## 6. What you have that Claude Code doesn't (use these — they're genuinely better here)
+
+- **Workflows/Restart** — controlled restart with timeout, cleaner than Claude's manual
+  `pkill` + `sleep` + curl-poll loop.
+- **Screenshot / live browser access** — Claude currently has no visual verification path
+  (Playwright is disabled by user preference; verification is manual via Replit preview).
+  This is a real gap on Claude's side — if you're touching UI, you can close the loop Claude
+  can't.
+- **A broad-sweep explore subagent** — better than a single `codegraph_context` call for
+  open-ended "how does this whole area work" questions spanning many files.
+- **Your own memory store** — keep it separate from `.agents/memory/`; don't try to merge
+  them, they're independent per-agent stores that happen to describe the same codebase.
+
+## 7. What's genuinely not replicable, and the workaround
+
+Claude Code's `UserPromptSubmit` hook (`.claude/scripts/rehydrate.js`) auto-injects
+`state.json` + `git log` + `codegraph status` into context on **every single prompt**,
+without being asked. There's no equivalent plugin hook available to you, so the workaround is
+discipline, not architecture: run this at the start of every session, not just when you
+remember to —
+
+```bash
+node .claude/scripts/rehydrate.js
+codegraph sync && codegraph status
 ```
-artifacts/api-server/src/
-  app.ts              — Express app (middleware, router mounts)
-  index.ts            — process entry (port bind, scheduler start, seeder)
-  routes/             — route files (no /api prefix inside files; prefix added in app.ts)
-  lib/
-    ttl-cache.ts      — shared TTLCache utility
-    cache-registry.ts — all 22+ named caches must be registered here
-    scheduler.ts      — nightly jobs (enrichment, AV backfill, etc.)
-    indicators.ts     — V1 RSI/MFI scoring (indicatorCache → indicator_cache table)
-    technical-scorecard.ts — V2 55-col scorer (→ ticker_technicals table)
-    constants.ts      — RSI thresholds, tier configs (31-ticker legacy map)
 
-artifacts/stock-compare/src/
-  App.tsx             — router + providers
-  pages/              — one file per route (rankings, watchlist, technical, portfolio,
-                        options-scanner, macro, sentiment, live, feed, settings, profile)
-  context/            — AuthContext, ScoringPreferencesContext
-  lib/                — client-side helpers, option-scorer, rankings helpers
+then read `.claude/state.json` and skim `.agents/memory/MEMORY.md`. Treat *not having done
+this yet in the current session* as a reason to be more conservative before restarting
+processes or touching shared state — Claude doesn't need that caution because the hook
+guarantees it never starts blind; you do, until the manual step is habitual.
 
-lib/db/src/schema/index.ts   — source of truth for all 37 DB tables (Drizzle)
-artifacts/api-server/openapi.yaml — API contract (source for Orval codegen)
-```
+The permission allowlist in `.claude/settings.local.json` (Claude Code's explicit bash
+command whitelist) also has no equivalent for you — you run with broader access in this
+environment, which is expected and fine, just worth being aware the two agents operate under
+different constraint models on the same repo.
 
-## Architecture decisions
+## 8. Review / security / production-troubleshooting specifics
 
-1. **Two independent scoring systems, both rendered**: V1 (RSI/MFI → `indicator_cache`) is the simple GO/WATCH/NO signal. V2 (55+ cols → `ticker_technicals`) is the full technical scorecard. They run independently; neither replaces the other.
-2. **All Yahoo Finance / FMP / AV calls go through TTLCache** — never call external APIs in React renders or on every request. Every new cache instance must be registered in `cache-registry.ts`.
-3. **Drizzle returns numeric columns as strings** — always `parseFloat()` (or `Number()`) before returning numeric values from API routes.
-4. **Express route ordering is critical** — declare specific routes (e.g. `/options/position-quote`) before wildcard routes (e.g. `/options/:ticker`) or the wildcard swallows them.
-5. **Bronze→Silver→Gold fundamentals pipeline** — 257-ticker universe in `fmp_fundamentals` (168 canonical + 89 peer group). Refreshed biweekly by `nightly-enrichment.ts`, not at boot. See `.claude/skills/db-patterns.md` for details.
+- **Bug investigation**: follow `.claude/skills/systematic-debugging.md` — root cause before
+  any fix, no exceptions. Its Iron Law: no fix proposals until Phase 1 (reproduce + trace) is
+  complete.
+- **Security-sensitive surfaces** (per `CLAUDE.md`'s key files list): rate limiting
+  (`middleware/rateLimiter.ts`), error handling (`middleware/errorHandler.ts`), input
+  validation (`middleware/validate.ts`), auth validators (`lib/validators/auth.ts`), admin
+  endpoints (`routes/admin-cache.ts`, `routes/auth.ts`, `routes/fundamentals-provenance.ts`).
+- **Never read `/proc/<pid>/environ` or probe individual secret env var presence** — both leak
+  secret information into the conversation transcript. Use the health endpoint to confirm
+  secrets are loaded instead of inspecting them directly.
+- **API route conventions**: route files omit the `/api` prefix (added once at mount time in
+  `src/index.ts`); specific routes must be declared before wildcard routes on the same base
+  path (e.g. `/options/position-quote` before `/options/:ticker`) or the wildcard will shadow
+  them.
+- Full endpoint catalog: `.agents/context/api-endpoints.md`.
 
-## Product
+## 9. A note on `replit.md`
 
-Pages accessible after login:
-- **Rankings** — scored stock list with V1/V2 signal badges
-- **Watchlist** — personal ticker list with live quotes and tag management
-- **Technical** — per-ticker scorecard with indicators, price chart, TradingView widget
-- **Portfolio** — imported positions/orders, realized P&L charts, broker integration
-- **Options Scanner** — cash-secured put screener with income%, DTE, and delta filters
-- **Macro** — macro indicators, COT data, economic calendar
-- **Sentiment** — market sentiment indicators
-- **Live** — intraday monitor (Phase 1: WebSocket candles + hotlist, shipped 2026-07-15)
-- **Feed / Daily Brief** — AI-generated market summary
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-- **Never kill a ppid-24 process** — Replit's platform supervisor owns those; killing one can cascade and take down both workflows (incident: 2026-07-10).
-- **After any `lib/db/src/schema/index.ts` edit** run `npx tsc -b lib/db` before typechecking — stale declarations cause false "no exported member" errors downstream.
-- **`drizzle-kit push` fails non-interactively** when the DB has any unmanaged table (`session`, owned by connect-pg-simple). Apply new tables as raw SQL instead; see `.agents/memory/drizzle-schema-build-gotchas.md`.
-- **Generic JSX syntax crashes Vite** — the Replit metadata plugin can't parse `<Comp<T> ...>`. Never use explicit generics in JSX; let TS infer from props.
-- **`pnpm run dev`** in `api-server` is an alias for `dev:watch` (tsx watch) — this is for manual local sessions only, not the Replit managed workflow. The workflow always runs `start.sh` → `node dist/index.mjs`.
-
-## Pointers
-
-- `.claude/skills/` — domain skills: `build-and-run`, `data-architecture`, `db-patterns`, `api-design-patterns`, `caching-patterns`, `trader-context`
-- `.claude/state.json` — current working/in-progress/blocked state; run `node .claude/scripts/rehydrate.js` to read it
-- `.agents/memory/MEMORY.md` — durable cross-session lessons (port conflicts, route ordering, drizzle gotchas, etc.)
-- `pnpm-workspace` skill — workspace structure, TypeScript project references, cross-package patterns
+There's a separate, still-unpopulated `replit.md` (lowercase) at repo root — a generic
+scaffold template, not this document. Don't conflate the two; this file is the
+Claude-Code-workflow-parity doc, that one is a different (currently empty) project-overview
+template.

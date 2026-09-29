@@ -17,9 +17,9 @@ import path from "node:path";
 import { sql, eq } from "drizzle-orm";
 import { db, tickerRegistry, edgarFundamentals } from "@workspace/db";
 import { bootstrapCikCache, fetchEdgarFundamentals } from "../lib/edgar-client.js";
+import { STALE_DAYS } from "../lib/data-ops-config.js";
 
 const MAX_CONCURRENT = 3;
-const STALE_DAYS     = 7;
 const BATCH_SLEEP_MS = 500;
 
 // ── Log file ──────────────────────────────────────────────────────────────────

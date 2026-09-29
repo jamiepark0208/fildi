@@ -92,7 +92,7 @@ const EDGAR_FIELDS: Record<string, string> = {
 
 const FINNHUB_FIELDS: Record<string, string> = {
   finnhubPeRatio:               "peRatio",
-  finnhubPegRatio:              "pegRatio",
+  finnhubPegRatio:              "forwardPeg", // Finnhub forwardPEG — not trailing pegRatio
   finnhubPbRatio:               "pbRatio",
   finnhubPsRatio:               "psRatio",
   finnhubPriceToBook:           "priceToBook",
@@ -291,8 +291,12 @@ export async function runPopulateSourceFundamentals() {
   console.log(`  → ${edgar.tickers} tickers, ${edgar.totalFields} fields, ${edgar.rejected} rejected`);
 
   console.log("Populating from finnhub_fundamentals …");
-  // Finnhub reports dividendYield as a percentage (1.47 = 1.47%); convert to decimal to match all other sources.
-  const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt", { dividendYield: v => v / 100 });
+  // Finnhub is inconsistent: most tickers are already decimal (0.0287 = 2.87%),
+  // but some (e.g. AAPL) store percent points (0.35 = 0.35%). Values >20% as a
+  // fraction are rare in our universe — treat those as percent points.
+  const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt", {
+    dividendYield: (v) => (v > 0.2 ? v / 100 : v),
+  });
   console.log(`  → ${finnhub.tickers} tickers, ${finnhub.totalFields} fields, ${finnhub.rejected} rejected`);
 
   console.log("Populating from fmp_fundamentals …");
@@ -317,6 +321,31 @@ export async function runPopulateSourceFundamentals() {
   console.log(`  polygon:       ${polygon.tickers} tickers, ${polygon.totalFields} fields`);
   console.log(`  alpha_vantage: ${av.tickers} tickers, ${av.totalFields} fields`);
   console.log(`  TOTAL:         ${totalFields} rows written, ${totalRejected} rejected`);
+
+  // Fill missing per-source PEG from that source's own PE + epsGrowth (same idea as
+  // deriving FactSet P/E from price/EPS). Does NOT overwrite a vendor-published PEG.
+  console.log("\nDeriving missing source pegRatio from peRatio÷epsGrowth …");
+  await db.execute(sql`
+    INSERT INTO source_fundamentals (ticker, source, field, value, fetched_at)
+    SELECT
+      pe.ticker,
+      pe.source,
+      'pegRatio',
+      (pe.value::double precision / (g.value::double precision * 100)),
+      NOW()
+    FROM source_fundamentals pe
+    INNER JOIN source_fundamentals g
+      ON g.ticker = pe.ticker AND g.source = pe.source AND g.field = 'epsGrowth'
+    LEFT JOIN source_fundamentals peg
+      ON peg.ticker = pe.ticker AND peg.source = pe.source AND peg.field = 'pegRatio'
+    WHERE pe.field = 'peRatio'
+      AND peg.ticker IS NULL
+      AND pe.value::double precision > 0
+      AND g.value::double precision > 0.05
+      AND g.value::double precision < 3
+    ON CONFLICT (ticker, source, field) DO NOTHING
+  `);
+  console.log("  → fill-in complete (only where source had PE+growth but no PEG)");
 }
 
 // CLI entrypoint only — when imported (e.g. by nightly-enrichment running in the

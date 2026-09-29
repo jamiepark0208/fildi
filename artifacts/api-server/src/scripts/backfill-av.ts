@@ -26,15 +26,15 @@ import { sql, eq } from "drizzle-orm";
 import { db, tickerRegistry, avFundamentals } from "@workspace/db";
 import { recordApiUsage } from "../lib/api-usage.js";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
+import { STALE_DAYS, AV_MAX_DAILY_CALLS } from "../lib/data-ops-config.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const AV_API_KEY = process.env.ALPHA_VANTAGE_API_KEY ?? "";
-const MAX_DAILY_CALLS = 25;
+const MAX_DAILY_CALLS = AV_MAX_DAILY_CALLS;
 // 12s between requests: stays within 5 req/min free tier soft limit
 const INTER_REQUEST_DELAY_MS = 12_000;
-const STALE_DAYS = 7;
 
 // ── Cursor file (quota + resume state) ────────────────────────────────────────
 

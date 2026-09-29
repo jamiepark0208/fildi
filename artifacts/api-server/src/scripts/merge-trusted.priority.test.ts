@@ -31,10 +31,10 @@ function resolveFromIndex(
 // ── Priority definitions mirroring FIELD_DEFS (lock test — update if intentionally changed) ─
 
 const PRIORITY_LOCKS: Record<string, string[]> = {
-  peRatio:         ["yahoo", "finnhub", "fmp", "alpha_vantage"],
-  forwardPe:       ["yahoo", "fmp", "alpha_vantage"],
-  grossMargin:     ["yahoo", "finnhub", "fmp", "polygon"],
-  netMargin:       ["yahoo", "finnhub", "fmp", "alpha_vantage"],
+  peRatio:         ["yahoo", "finnhub", "fmp", "alpha_vantage", "factset"],
+  forwardPe:       ["yahoo", "fmp", "alpha_vantage", "factset"],
+  grossMargin:     ["yahoo", "finnhub", "fmp", "polygon", "factset"],
+  netMargin:       ["yahoo", "finnhub", "fmp", "alpha_vantage", "factset"],
   analystTargetPrice: ["fmp", "alpha_vantage"],
   dividendYield:   ["yahoo", "finnhub", "fmp"],
   beta:            ["yahoo", "fmp"],
@@ -113,8 +113,8 @@ describe("FIELD_DEFS priority order locks", () => {
       "fmp must come before alpha_vantage for analystTargetPrice");
   });
 
-  it("grossMargin has polygon as last fallback", () => {
+  it("grossMargin has factset as last-resort referee", () => {
     const sources = PRIORITY_LOCKS["grossMargin"]!;
-    assert.equal(sources[sources.length - 1], "polygon");
+    assert.equal(sources[sources.length - 1], "factset");
   });
 });
