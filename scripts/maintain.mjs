@@ -14,10 +14,20 @@
  *   node scripts/maintain.mjs --restart-stale-days=7
  *     restart API if process uptime ≥ N days (weekly hygiene)
  *   node scripts/maintain.mjs --enrich-if-due
- *     (a) always enrich tickers with fetch_fundamentals but no gold row (new adds)
- *     (b) if enrichment_runs last success > 4 days ago, spawn full nightly-enrichment
+ *     Daily (bounded, not full-universe):
+ *       (a) missing-gold tickers (--max=30)
+ *       (b) earnings-window stale (±1/+2d, --max=40)
+ *       (c) FactSet drain-nr ≤40 when remaining ≥60 (default with --enrich-if-due)
+ *       (d) peer-health-check heal
+ *       (e) merge-trusted + fund_score recompute (0 API)
+ *       (f) budget / anomaly snapshot → report
+ *     Full nightly-enrichment ONLY if last enrichment_runs success ≥ 4 days
  *   node scripts/maintain.mjs --drain-nr[=40]
- *     FactSet referee + merge if factset remaining ≥ max+20 (no free-source re-fetch)
+ *     FactSet referee + merge if factset remaining ≥ max+20 (override / force)
+ *   node scripts/maintain.mjs --no-drain-nr
+ *     Disable default drain when using --enrich-if-due
+ *
+ * Technicals / options: NOT in this job — ad-hoc on UI click (correct).
  *
  * Always-on for local Mac preview should stay at TWO node processes:
  *   API :8080 + Vite :8081  (+ Postgres.app). Nothing else.
@@ -37,16 +47,22 @@ const LOG_DIR = "/tmp/fildi-logs";
 const REPORT = join(LOG_DIR, "maintain-last.json");
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB → gzip + keep .1.gz
 const ENRICH_DUE_DAYS = 4;
+const DEFAULT_DRAIN_NR = 40;
 
 const args = new Set(process.argv.slice(2));
 const restartIfUnhealthy = args.has("--restart-if-unhealthy");
 const enrichIfDue = args.has("--enrich-if-due");
+const noDrainNr = args.has("--no-drain-nr");
 const staleArg = [...args].find((a) => a.startsWith("--restart-stale-days="));
 const staleDays = staleArg ? Number(staleArg.split("=")[1]) : 0;
 const drainArg = [...args].find((a) => a === "--drain-nr" || a.startsWith("--drain-nr="));
-const drainNr = drainArg
-  ? (drainArg.includes("=") ? Number(drainArg.split("=")[1]) : 40)
+let drainNr = drainArg
+  ? (drainArg.includes("=") ? Number(drainArg.split("=")[1]) : DEFAULT_DRAIN_NR)
   : 0;
+// Daily enrich path includes a bounded FactSet drain unless explicitly disabled.
+if (enrichIfDue && !noDrainNr && drainNr === 0) {
+  drainNr = DEFAULT_DRAIN_NR;
+}
 
 function sh(cmd) {
   try {
@@ -191,6 +207,59 @@ function runDrainNr(max) {
   return runApiTsx("src/scripts/drain-needs-review.ts", [`--max=${max}`]);
 }
 
+/** Budget / coverage / anomaly snapshot for the maintain report (0 API). */
+function budgetSnapshot() {
+  const src = sh(`psql "$DATABASE_URL" -tAc "
+    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (
+      SELECT name, calls_today, daily_limit,
+             (daily_limit - calls_today) AS remaining,
+             CASE WHEN daily_limit > 0
+               THEN ROUND(100.0 * calls_today / daily_limit, 1)
+               ELSE 0 END AS pct_used
+      FROM data_sources
+      ORDER BY name
+    ) t
+  "`);
+  const nr = sh(`psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM field_provenance WHERE divergent"`);
+  const gold = sh(`psql "$DATABASE_URL" -tAc "
+    SELECT COUNT(*) FILTER (WHERE tf.fundamentals_last_fetched IS NOT NULL)::int || '/' ||
+           COUNT(*)::int
+    FROM ticker_registry r
+    LEFT JOIN ticker_fundamentals tf ON tf.ticker = r.ticker
+    WHERE r.fetch_fundamentals = true
+  "`);
+  const scored = sh(`psql "$DATABASE_URL" -tAc "
+    SELECT COUNT(*) FILTER (WHERE fund_total_score IS NOT NULL)::int || '/' || COUNT(*)::int
+    FROM ticker_fundamentals
+  "`);
+  const earnWin = sh(`psql "$DATABASE_URL" -tAc "
+    SELECT COUNT(DISTINCT UPPER(ticker))
+    FROM earnings_calendar
+    WHERE report_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 2
+  "`);
+  let sources = [];
+  try {
+    sources = JSON.parse(src || "[]");
+  } catch {
+    sources = [];
+  }
+  const anomalies = [];
+  for (const s of sources) {
+    if (Number(s.pct_used) >= 90) anomalies.push(`${s.name}_budget_≥90%`);
+    if (s.name === "factset" && Number(s.remaining) < 20) anomalies.push("factset_remaining_<20");
+  }
+  const nrN = Number(String(nr).trim());
+  if (Number.isFinite(nrN) && nrN > 500) anomalies.push(`needs_review_${nrN}`);
+  return {
+    sources,
+    needsReview: Number.isFinite(nrN) ? nrN : null,
+    goldCoverage: String(gold).trim() || null,
+    fundScoreCoverage: String(scored).trim() || null,
+    earningsWindowTickers: Number(String(earnWin).trim()) || 0,
+    anomalies,
+  };
+}
+
 async function main() {
   mkdirSync(LOG_DIR, { recursive: true });
   // Load .env.local into process for psql DATABASE_URL
@@ -233,11 +302,28 @@ async function main() {
 
   let enrich = null;
   let enrichMissing = null;
+  let enrichEarnings = null;
+  let peerHealth = null;
+  let postMerge = null;
+
+  /** Enrich scripts print JSON; skipped:true ⇒ no enrichAndMerge (no merge). */
+  function ranEnrichMerge(r) {
+    if (!r || r.status !== 0) return false;
+    const t = r.stdoutTail || "";
+    if (/["']skipped["']\s*:\s*true/.test(t)) return false;
+    return true;
+  }
+
   if (enrichIfDue) {
-    // New watchlist / registry adds: always fill missing gold (don't wait for 4d full run).
+    // (a) New watchlist / registry adds — don't wait for 4d full run.
     enrichMissing = runApiTsx("src/scripts/enrich-missing-fundamentals.ts", ["--max=30"]);
     actions.push(`enrich_missing_exit_${enrichMissing.status}`);
 
+    // (b) Earnings-window stale refresh (bounded) — every weekday when due.
+    enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
+    actions.push(`enrich_earnings_exit_${enrichEarnings.status}`);
+
+    // Full nightly only if ≥4 days since last success/partial.
     const age = daysSinceEnrichment();
     if (age >= ENRICH_DUE_DAYS) {
       enrich = runEnrichmentCatchup();
@@ -248,14 +334,44 @@ async function main() {
   }
 
   let drain = null;
+  let drainMerged = false;
   if (drainNr > 0) {
     const rem = factsetRemaining();
     if (rem >= drainNr + 20) {
       drain = runDrainNr(drainNr);
       actions.push(`drain_nr_${drainNr}_rem_${rem}_exit_${drain.status}`);
+      drainMerged = drain.status === 0;
     } else {
       actions.push(`drain_nr_skipped_rem_${rem}_need_${drainNr + 20}`);
     }
+  }
+
+  if (enrichIfDue) {
+    // (d) Peer roster heal (ETF quarantine, primary membership, null primary classify).
+    peerHealth = runApiTsx("src/scripts/peer-health-check.ts");
+    actions.push(`peer_health_exit_${peerHealth.status}`);
+
+    // (e) Avoid double merge: enrichAndMergeTickers + drain + nightly already merge.
+    //     - If any of those wrote → --scores-only
+    //     - If nothing wrote → --scores-only anyway (peer primary may have changed; skip full merge)
+    //     - Full merge only if we have no upstream merge but still need gold rebuild (shouldn't happen daily)
+    const upstreamMerged =
+      drainMerged ||
+      ranEnrichMerge(enrichMissing) ||
+      ranEnrichMerge(enrichEarnings) ||
+      (enrich != null && enrich.status === 0);
+    const scoreArgs = ["--scores-only"];
+    postMerge = runApiTsx("src/scripts/post-merge-scores.ts", scoreArgs);
+    actions.push(
+      `post_merge_scores_exit_${postMerge.status}_scores_only` +
+        (upstreamMerged ? "" : "_no_upstream_write"),
+    );
+  }
+
+  // (f) Budget / anomaly snapshot — always when enriching, else light.
+  const budget = budgetSnapshot();
+  if (budget.anomalies.length) {
+    actions.push(`anomalies:${budget.anomalies.join("|")}`);
   }
 
   const report = {
@@ -272,7 +388,11 @@ async function main() {
     actions,
     enrich,
     enrichMissing,
+    enrichEarnings,
     drain,
+    peerHealth,
+    postMerge,
+    budget,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
 
@@ -281,6 +401,12 @@ async function main() {
   if (report.failedChecks.length) console.log(`  failed: ${report.failedChecks.join(", ")}`);
   console.log(`  api pid=${apiPid ?? "—"} age_days=${report.apiAgeDays ?? "—"}  vite pid=${vitePid ?? "—"}`);
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
+  if (budget.goldCoverage) {
+    console.log(
+      `  gold=${budget.goldCoverage} scores=${budget.fundScoreCoverage} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
+    );
+  }
+  if (budget.anomalies.length) console.log(`  anomalies: ${budget.anomalies.join(", ")}`);
   if (actions.length) console.log(`  actions: ${actions.join(", ")}`);
   console.log(`  report: ${REPORT}`);
 

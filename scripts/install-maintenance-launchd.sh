@@ -35,6 +35,7 @@ cat > "$PLIST" <<EOF
     <string>${NODE}</string>
     <string>${ROOT}/scripts/maintain.mjs</string>
     <string>--enrich-if-due</string>
+    <string>--drain-nr=40</string>
     <string>--restart-if-unhealthy</string>
     <string>--restart-stale-days=7</string>
   </array>
@@ -53,13 +54,17 @@ EOF
 
 launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Installed ${LABEL} → daily 10:30 local + --enrich-if-due"
+echo "Installed ${LABEL} → daily 10:30 local"
+echo "  args: --enrich-if-due --drain-nr=40 --restart-if-unhealthy --restart-stale-days=7"
+echo "  daily: missing-gold ≤30, earnings-window ≤40, FactSet drain ≤40 (if rem≥60),"
+echo "         peer-health, merge+fund_score, budget snapshot"
+echo "  full nightly-enrichment only if last success ≥4d (not every day)"
+echo "  technicals/options: NOT scheduled — ad-hoc on UI click"
 echo "  plist: $PLIST"
-echo "  logs:  /tmp/fildi-logs/maintain-launchd.{out,err}"
+echo "  logs:  /tmp/fildi-logs/maintain-launchd.{out,err} + maintain-last.json"
 echo "  one-shot now: node ${ROOT}/scripts/maintain.mjs --enrich-if-due"
 echo "  uninstall: $0 --uninstall"
 echo ""
 echo "Note: lid closed (sleep) → launchd runs missed job on wake."
-echo "      Mac fully powered off at 10:30 → next day Mac is on; missing-fundamentals"
-echo "      catch-up still runs daily when Mac is on; full enrich if last success ≥4d."
+echo "      Mac fully powered off at 10:30 → next day Mac is on."
 echo "      For always-on reliability use a small VPS / always-on Mac mini."
