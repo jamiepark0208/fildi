@@ -14,7 +14,8 @@
  *   node scripts/maintain.mjs --restart-stale-days=7
  *     restart API if process uptime ≥ N days (weekly hygiene)
  *   node scripts/maintain.mjs --enrich-if-due
- *     if enrichment_runs last success > 4 days ago, spawn nightly-enrichment once
+ *     (a) always enrich tickers with fetch_fundamentals but no gold row (new adds)
+ *     (b) if enrichment_runs last success > 4 days ago, spawn full nightly-enrichment
  *   node scripts/maintain.mjs --drain-nr[=40]
  *     FactSet referee + merge if factset remaining ≥ max+20 (no free-source re-fetch)
  *
@@ -231,7 +232,12 @@ async function main() {
   }
 
   let enrich = null;
+  let enrichMissing = null;
   if (enrichIfDue) {
+    // New watchlist / registry adds: always fill missing gold (don't wait for 4d full run).
+    enrichMissing = runApiTsx("src/scripts/enrich-missing-fundamentals.ts", ["--max=30"]);
+    actions.push(`enrich_missing_exit_${enrichMissing.status}`);
+
     const age = daysSinceEnrichment();
     if (age >= ENRICH_DUE_DAYS) {
       enrich = runEnrichmentCatchup();
@@ -265,6 +271,7 @@ async function main() {
     logs,
     actions,
     enrich,
+    enrichMissing,
     drain,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));

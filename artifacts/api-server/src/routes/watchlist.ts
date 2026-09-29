@@ -4,6 +4,7 @@ import { db, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspa
 import { requireAuth } from "../middleware/requireAuth.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
 import { isExcludedEtf } from "../lib/etf-exclusions.js";
+import { enrichAndMergeTickers } from "../lib/enrich-and-merge.js";
 
 const router = Router();
 
@@ -116,6 +117,16 @@ router.post("/watchlist", async (req, res) => {
     }
   } else {
     peerGroup = { id: groups[0]!.groupId, confidence: "mapped" };
+  }
+
+  // Kick off fundamentals for new names immediately (don't wait for 4d full nightly).
+  if (!etf) {
+    void enrichAndMergeTickers([normalized], { respectMutex: true })
+      .then((r) => {
+        if (r.skipped) console.warn(`[watchlist] enrich skipped for ${normalized}: ${r.reason}`);
+        else console.log(`[watchlist] enrich ${normalized}: fetched=${r.fetched} failed=${r.failed}`);
+      })
+      .catch((err) => console.warn(`[watchlist] enrich failed for ${normalized}:`, err));
   }
 
   return res.status(201).json({
