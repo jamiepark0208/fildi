@@ -4,7 +4,7 @@
 **Resume:** Read **APPENDIX I** in the canonical plan first (current production scoring), then implementation phases.
 
 ## Docs (single source of truth)
-- **`.cursor/context/plans/fundamental-sector-scoring.md`** — full plan + APPENDIX I (current fundamental/technical methodology)
+- **`.agents/context/plans/fundamental-sector-scoring.md`** — full plan + APPENDIX I (current fundamental/technical methodology)
 - **`.cursor/context/cursor-state.md`** — phase, next tasks (injected on new chat)
 - Robinhood JSON (external): `/Users/jamiepark/rbh_scripts/fundamental_scoring_guide.json`, `sector_taxonomy.json`
 

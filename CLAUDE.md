@@ -1,5 +1,7 @@
+@AGENTS.md
+
 # TradeDash — Claude Code Config
-> Claude Code only. Full project context in .agents/. State restored on every prompt via rehydrate hook.
+> Claude Code only. Shared product/ops SoT: `.agents/context/INDEX.md` (also root `AGENTS.md`). State restored on every prompt via rehydrate hook.
 
 ## RESPONSE STYLE
 Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
@@ -9,6 +11,7 @@ Be concise. Never echo back code just written or commands just run — the user 
 Run once per session: `node .claude/scripts/validate-workflow.js`
 First time only: read .claude/skills/replit-setup.md and follow the steps
 Build/restart questions → `.claude/skills/build-and-run.md` (has the correct restart procedure — don't improvise)
+Shared retrieval map → `.agents/context/INDEX.md` (do not load all context files)
 
 ## SKILLS (load one at a time — never all at once)
 | Need | Skill |

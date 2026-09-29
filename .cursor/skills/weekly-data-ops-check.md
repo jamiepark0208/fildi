@@ -3,8 +3,8 @@
 Token-efficient weekly (or on-demand) agent job. **Do not** re-explore the pipeline.
 
 ## READ ONLY THESE (in order)
-1. `.cursor/plans/stock-db-best-realistic.md` — targets + non-interference rules
-2. `.cursor/context/data-ops-value-log.md` — last value proofs (tail)
+1. `.agents/context/stock-db-best-realistic.md` — targets + non-interference rules
+2. `.agents/context/data-ops-value-log.md` — last value proofs (tail)
 3. Run output of the check script below
 
 Do **not** codegraph-sweep merge-trusted / enrich unless the script fails.

@@ -62,7 +62,7 @@ Institutional-grade **put-selling research** tool. Surfaces CSP/wheel candidates
 | Technical | `computeTechnicalRankingsV2` — `technical-rankings.ts` | 6 components (oversold, reversal, vol, trend, options flow, volume) |
 | Stock (L1) | `computeStockScore` — `stock-scorer.ts` | tech + fund + relative move + best option + tag |
 | Option | options scanner | Strike-level `computeOptionScore` |
-| Planned | `.cursor/context/plans/fundamental-sector-scoring.md` | Sector-relative peers (~558 Robinhood universe) — not shipped |
+| Planned | `.agents/context/plans/fundamental-sector-scoring.md` | Sector-relative peers — partial land; see cursor-state |
 
 ### Data sources
 

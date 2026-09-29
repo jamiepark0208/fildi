@@ -58,10 +58,16 @@ If stuck for >15 min or hitting an architectural decision: stop, write current s
 
 | What | Where |
 |---|---|
+| Shared retrieval map | `.agents/context/INDEX.md` (+ root `AGENTS.md` ToC) |
+| Agentic floors | `.agents/context/agentic-floors.md` |
+| Stock DB / cadence / earnings ops | `.agents/context/stock-db-best-realistic.md`, `fundamentals-refresh-cadence.md`, `event-driven-refresh.md` |
+| Sector scoring plan | `.agents/context/plans/fundamental-sector-scoring.md` |
 | Project architecture | `.agents/context/project.md` |
 | Workflow + build rules | `.agents/context/workflow.md` |
-| Current phase + tasks | `.agents/context/state.md` |
-| Technical lessons | `.agents/memory/` (see MEMORY.md) |
+| Current phase (Claude) | `.agents/context/state.md` — Claude writes; Cursor read-only |
+| Current phase (Cursor) | `.cursor/context/cursor-state.md` — Cursor writes |
+| Technical lessons (Claude) | `.agents/memory/` (see MEMORY.md) |
+| Dev lessons (Cursor) | `.cursor/context/lessons.md` |
 | Active task files | `.agents/tasks/` |
 | Session history | `.agents/sessions/INDEX.md` |
 | Detailed skills | `.claude/skills/` |

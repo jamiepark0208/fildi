@@ -64,7 +64,7 @@ function buildBanner() {
   const s = readCursorState();
   const c = readCursorSession();
   const g = git();
-  const planPath = '.cursor/context/plans/fundamental-sector-scoring-v1.md';
+  const planPath = '.agents/context/plans/fundamental-sector-scoring.md';
   const lines = [
     `TRADEDASH (Cursor) | Phase: ${s.phase}`,
     s.tasks.length ? `Next: ${s.tasks.join(', ')}` : null,
@@ -80,7 +80,7 @@ function buildBanner() {
 const banner = buildBanner();
 if (process.argv.includes('--json')) {
   process.stdout.write(JSON.stringify({
-    additional_context: `[Session context]\n${banner}\n\nFollow CURSOR.md. Fundamental scoring: READ .cursor/context/plans/fundamental-sector-scoring-v1.md — score vs peer_group_members in DB, NEVER vs user watchlist or FUNDAMENTAL_WATCHLIST (31-name legacy hack).`,
+    additional_context: `[Session context]\n${banner}\n\nFollow AGENTS.md + CURSOR.md + .agents/context/INDEX.md. After plan confirmation, execute (do not stay plan-only). Sector scoring: READ .agents/context/plans/fundamental-sector-scoring.md — score vs primary_peer_group_id / peer_group_members, NEVER vs user watchlist. FUNDAMENTAL_WATCHLIST is removed from code (do not re-add).`,
   }));
 } else {
   console.log(`\n${banner}\n`);

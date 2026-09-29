@@ -1,69 +1,78 @@
 # TradeDash — Cursor Config
-> Cursor only. Full project context in `.agents/`. Session state restored on new chat via `sessionStart` hook.
+> Cursor only. Shared product/ops SoT lives in `.agents/`. Session state via `sessionStart` hook.
+> After the user confirms a plan (or says implement/proceed), **execute** — do not stay in plan-only mode.
 
 ## STARTUP (every new chat)
 1. Context is auto-injected by `.cursor/hooks/session-start.js` (phase, tasks, git, codegraph)
 2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js`
-3. For task-specific code context: **codegraph** MCP → `context` tool (or `codegraph context "<task>"`)
+3. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
+4. Task code context: **codegraph** MCP
 
-## PROJECT RULES (auto-loaded from `.cursor/rules/`)
-| Rule | Purpose |
-|---|---|
-| `codegraph.mdc` | Codegraph before multi-file reads or refactors |
-| `token-efficiency.mdc` | Compress long prompts/responses safely |
+## PROJECT RULES (`.cursor/rules/`)
+**Policy:** default `alwaysApply: false`. A **4th** always-on rule needs explicit user approval (R1).
 
-Do not duplicate these in chat. Load **one** skill at a time when needed (see below).
+| Rule | alwaysApply | Purpose | Invoke |
+|---|---|---|---|
+| `cursor.mdc` | Y | Thin entry → CURSOR.md | auto |
+| `codegraph.mdc` | Y | Codegraph before multi-file reads/refactors | auto |
+| `token-efficiency.mdc` | Y | Compress long prompts/responses | auto |
+| `lessons-learned.mdc` | N | Grep lessons before repeating infra mistakes | say “check lessons” |
+| `product-manager.mdc` | N | Backlog / task writing | say “PM mode” |
+| `task-reviewer.mdc` | N | PRD/DoR review of `.cursor/tasks` | say “review this task” |
 
-## MCP (`.cursor/mcp.json`)
+Floors: `.agents/context/agentic-floors.md`.
+
+## AGENTS (routing)
+Root ToC: [`AGENTS.md`](AGENTS.md). Subagent catalog: [`.agents/AGENTS.md`](.agents/AGENTS.md).  
+Use Task `verifier` / `data-agent` / `ui-agent` when scoped — not an orchestrator fan-out (R3).
+
+## MCP
 | Server | Use |
 |---|---|
-| `codegraph` | `context`, `search`, `callers`, `node`, `explore` — before reading source files |
-
-Reload MCP in Cursor Settings if codegraph is missing after clone.
+| `codegraph` | `explore` / `search` / `callers` / `node` |
 
 ## SESSION CONTEXT
-| Scope | Where | What |
-|---|---|---|
-| **Cursor-only** | `.cursor/context/session.md` | Hooks/rules/MCP changes, Cursor workflow notes |
-| **Cursor-only** | `.cursor/context/cursor-state.md` | Phase, active work, next tasks — **Cursor writes here** |
-| **Cursor-only** | `.cursor/context/plans/*.md` | Detailed implementation plans (read on topic) |
-| **All agents (read-only in Cursor)** | `.agents/context/state.md` | Claude Code project state — do not edit from Cursor |
-| Architecture | `.agents/context/project.md` | |
-| Build/routing | `.agents/context/workflow.md` | |
-| Session history | `.agents/sessions/INDEX.md` | Claude/Kiro session logs |
-
-New chat reads `session.md` + `cursor-state.md` via `sessionStart` hook.
+Prefer **`.agents/context/INDEX.md`**. Always-injected: `cursor-state.md` + `session.md`. Cursor **never** writes `.agents/context/state.md`.
 
 ## END OF SESSION
-1. `node .cursor/scripts/session-wrap-cursor.js "what we did"` — session log
-2. Update `.cursor/context/cursor-state.md` — phase, active work, next tasks
-3. **Do not** edit `.agents/context/state.md` from Cursor (merge conflicts with Claude Code)
+1. `node .cursor/scripts/session-wrap-cursor.js "what we did"`
+2. Update `.cursor/context/cursor-state.md`
+3. Never edit `.agents/context/state.md`
 
-## SKILLS (load one at a time — never all at once)
-Same files as Claude Code — read `.claude/skills/<name>.md` when relevant:
+## SKILLS (load **one** at a time)
+Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `session-wrap` skill.
 
 | Need | Skill |
 |---|---|
-| Build + restart server | `build-and-run.md` |
-| Data fetch and cache | `data-architecture.md` |
-| Options chain fetch | `options-pricer.md` |
-| RSI/MFI/filter logic | `signal-filters.md` |
+| Build + restart | `build-and-run.md` |
+| Local Mac / LaunchAgent | `local-mac-dev.md` |
+| Data fetch / tiers / TTL | `data-architecture.md` |
+| Yahoo / TTLCache | `caching-patterns.md` |
+| API route / middleware | `api-design-patterns.md` |
+| Options chain | `options-pricer.md` |
+| RSI/MFI filters | `signal-filters.md` |
 | UI components | `ui-components.md` |
-| DB schema and queries | `db-patterns.md` |
-| Trader strategy/scoring | `trader-context.md` |
+| DB schema / queries | `db-patterns.md` |
+| Trader strategy | `trader-context.md` |
 | Technical scorecard | `technical-scorecard.md` |
 | Feature planning | `feature-planner.md` |
+| Implementation plans | `writing-plans.md` |
 | Debugging | `systematic-debugging.md` |
+| Large files / PDFs | `file-reading-strategy.md` |
+| Yahoo/Redis scaffolding | `data-agent.md` |
+| Weekly data-ops audit | `data-ops-auditor.md` (+ `.cursor/skills/weekly-data-ops-check.md`) |
+| Dev tools (codegraph/madge) | `startup.md` |
+| Replit-only setup | `replit-setup.md` (skip on Mac unless needed) |
+| Claude session wrap | `session-wrap.md` — Claude only |
 
 ## CODEGRAPH
-Before touching source files:
-- MCP: `context` with your task description
-- CLI: `codegraph context "<task>"` · `codegraph impact <symbol>` · `codegraph sync` after bulk edits
+MCP: prefer `explore` with a tight query. CLI: `codegraph context` · `impact` · `sync`.
 
 ## CURSOR vs CLAUDE
 | | Cursor | Claude Code |
 |---|---|---|
-| Entry | `CURSOR.md` + `.cursor/rules/` | `CLAUDE.md` + `.claude/settings.local.json` |
-| Hooks | `.cursor/hooks.json` | `.claude/settings.local.json` |
-| Ephemeral state | `.cursor/state.json` (local) | `.claude/state.json` (local) |
-| Cross-agent state | `.agents/` (git) — **read only in Cursor** | `.agents/` (git) |
+| Shared ToC | `AGENTS.md` + `.agents/context/INDEX.md` | same |
+| Entry adapter | `CURSOR.md` + `.cursor/rules/` | `CLAUDE.md` |
+| Phase state | `cursor-state.md` (write) | `state.md` (write) |
+| Cross-agent ops SoT | `.agents/context/*` (shared write OK) | same |
+| `state.md` | **read-only** | write |

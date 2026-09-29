@@ -2,6 +2,16 @@
 > Cursor-only. **Not** always-injected. Grep by topic before repeating a class of error.
 > Max **15 active** entries; archive oldest to `lessons-archive.md` when full.
 
+## Memory map (do not merge these stores)
+
+| Store | Path | Who writes | Contents |
+|---|---|---|---|
+| Cursor lessons | `.cursor/context/lessons.md` | Cursor agents | Dev mistake → guardrail (capped 15) |
+| Claude memory | `.agents/memory/*` | Claude Code | Topic tips / gotchas for Claude |
+| Trader journal / P&L | product surfaces (not lessons) | App / future ai/13 | Never copy into lessons |
+
+Before `add`: grep this file **and** skim `.agents/memory/MEMORY.md` so we don’t duplicate Claude-only tips as Cursor lessons. Archive: `lessons-archive.md` (grep tip: also check archive if active miss).
+
 ## When to add (strict — avoid noise)
 
 Add a lesson **only if all true:**
@@ -10,7 +20,7 @@ Add a lesson **only if all true:**
 3. Fix is a **concrete guardrail** (grep pattern, file to read, defer rule)
 4. Not already covered — run `node .cursor/scripts/session-lesson-cursor.js grep "<topic>"` first
 
-**Do not add:** preferences, style nits, one-line typos, or lessons that duplicate `data-agent.md` / existing rules.
+**Do not add:** preferences, style nits, one-line typos, lessons that duplicate skills/rules, trade P&L, journal tags, API keys, `.env` values, passwords.
 
 ## When to read
 

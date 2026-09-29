@@ -1,34 +1,30 @@
 # Cursor State
-> Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code / shared). Update this file at end of Cursor sessions.
+> Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code). Update at end of Cursor sessions.
 
 **Last updated:** 2026-09-29
 
 ## Phase
-**build** — Peer-group auto-classify + quantum cohort + ETF exclusion + winsorized sector percentiles
+**build** — shared context Phase A+B landed; maintain + peer scoring continue
 
 ## READ FIRST
-**Peer scoring:** score vs `ticker_registry.primary_peer_group_id` (never watchlist). ETF deny-list SoT: `@workspace/db` `etf-exclusions.ts` (seed + API). Outliers: **2nd/98th winsorize** inside peer groups.
-**Canonical plan:** `.cursor/context/plans/fundamental-sector-scoring.md`
-**Stock DB plan:** `.cursor/plans/stock-db-best-realistic.md`
+**Shared map:** `.agents/context/INDEX.md` (+ root `AGENTS.md`)  
+**Peer scoring:** `primary_peer_group_id` + winsorize; ETF deny-list `@workspace/db`  
+**Sector plan:** `.agents/context/plans/fundamental-sector-scoring.md`  
+**Stock DB:** `.agents/context/stock-db-best-realistic.md`
 
 ## Active work
-- Peer groups: seed in `scripts/src/seed-peer-groups.ts` (DB is runtime SoT; Robinhood JSON is historical input)
-- New group: `speculative_thematic.quantum_computing` = IONQ, RGTI, QBTS, QUBT, QSI
-- Live mis-cat fix: Settings → Peer Group → **Reassign** (`peer_group_overrides` + score recompute). Do not star-toggle.
-- `artifacts/config/ticker-mapping-overrides.json` is legacy/empty — do not write auto-classify there
+- Shared ops SoT under `.agents/context/` (Cursor + Claude); private phase in this file
+- Daily maintain: bounded enrich + drain + peer-health + scores-only; full nightly only if ≥4d
+- Peers: quantum group; Reassign for mis-cats; `FUNDAMENTAL_WATCHLIST` gone
 
 ## Next tasks
-1. Weekly agent: run skill — summarize value log **including Peers line**
+1. Weekly data-ops skill + value log (Peers line)
 2. When NR ≤250 + §1 green 7d → unify scorers
-3. Review `/tmp/fildi-logs/peer-health-last.json` keywordMismatch flags after each weekly run
-
-## Key decisions
-- Scoring cohort = all non-ETF tickers sharing `primary_peer_group_id`, winsorized — **not** a curated representative subset
-- Vendor peers (Finnhub/FMP) for discovery/auto-classify only; curated peer groups remain scoring SoT
-- Admin Reassign is the live correction path for wrong sectors
-- Weekly `peer-health-check.ts` heals gaps + classifies new names; mismatches stay human-reviewed
+3. Review `maintain-last.json` / `peer-health-last.json` after runs
+4. Always-on Mac if 10:30 often missed
+5. knip on `test-*.ts` one-offs (confirm before delete)
 
 ## Do not
 - Edit `.agents/context/state.md` from Cursor
 - Put ETFs in peer scoring cohorts
-- Treat PeerGroupEditor stars as scoring controls (removed)
+- Stop after CreatePlan when user said implement/proceed — execute

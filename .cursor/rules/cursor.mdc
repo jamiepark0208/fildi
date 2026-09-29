@@ -5,10 +5,11 @@ alwaysApply: true
 
 # Cursor entry
 
-Follow **CURSOR.md** (repo root) for TradeDash Cursor workflows.
+Follow **CURSOR.md** (repo root). Shared ToC: **AGENTS.md** + **`.agents/context/INDEX.md`**.
 
-- **New chat:** `.cursor/context/session.md` + `.cursor/context/cursor-state.md` via `sessionStart` hook (read `.agents/context/state.md` only — never write)
+- **New chat:** `.cursor/context/session.md` + `.cursor/context/cursor-state.md` via `sessionStart` (read `.agents/context/state.md` only — never write)
+- **After plan confirm / “implement” / “proceed”:** execute the plan — do not stop at planning
 - **Rules:** `.cursor/rules/` (codegraph, token-efficiency)
 - **MCP:** codegraph in `.cursor/mcp.json`
-- **Skills:** `.claude/skills/<name>.md` — one at a time, on demand
+- **Skills:** `.claude/skills/<name>.md` — one at a time
 - **End session:** `node .cursor/scripts/session-wrap-cursor.js "summary"` then update `.cursor/context/cursor-state.md` — **never** `.agents/context/state.md`
