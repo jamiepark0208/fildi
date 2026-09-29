@@ -174,9 +174,16 @@ export const SCORECARD_METRICS_V2: MetricDefV2[] = [
   { key: "ps",            label: "Price / Sales",     family: "value",   intraWeight: 1.5, higherIsBetter: false,
     getValue: s => (s.totalRevenue != null && s.totalRevenue <= 0) ? null : safeDiv(s.marketCap, s.totalRevenue) },
   { key: "peg",           label: "PEG Ratio",         family: "value",   intraWeight: 2, higherIsBetter: false,
-    // Clamp to null for negative earnings or non-positive growth — negative PEG is misleading
-    getValue: s => (s.epsGrowth != null && s.epsGrowth <= 0) || (s.netIncome != null && s.netIncome < 0)
-      ? null : s.pegRatio },
+    // Prefer stored gold (merge-derived). Fallback: pe÷(epsGrowth×100) so stale/null
+    // pegRatio never silently uses a vendor 5yr PEG. Null when growth non-positive.
+    getValue: s => {
+      if ((s.epsGrowth != null && s.epsGrowth <= 0) || (s.netIncome != null && s.netIncome < 0)) return null;
+      if (s.pegRatio != null && isFinite(s.pegRatio)) return s.pegRatio;
+      if (s.peRatio != null && s.peRatio > 0 && s.epsGrowth != null && s.epsGrowth > 0.05 && s.epsGrowth < 3) {
+        return s.peRatio / (s.epsGrowth * 100);
+      }
+      return null;
+    }},
   { key: "fwdpe",   label: "Forward P/E",     family: "value",   intraWeight: 2, higherIsBetter: false,
     getValue: s => (s.netIncome != null && s.netIncome < 0) ? null : (s.forwardPe ?? null) },
   { key: "evEbitda", label: "EV/EBITDA",      family: "value",   intraWeight: 2, higherIsBetter: false,

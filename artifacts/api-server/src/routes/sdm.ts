@@ -69,7 +69,8 @@ router.get("/sdm/tickers", async (_req, res) => {
 });
 
 // POST /sdm/refresh/:ticker  (admin only — ?admin=true)
-// Forces a fresh fetch for a ticker, bypassing cache.
+// Forces enrich→populate→merge for one ticker (same gold path as nightly).
+// Does NOT use the legacy single-source waterfall.
 router.post("/sdm/refresh/:ticker", async (req, res) => {
   if (req.query["admin"] !== "true") {
     return res.status(403).json({ error: "Admin access required" });

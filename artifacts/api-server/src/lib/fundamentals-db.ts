@@ -4,10 +4,15 @@ import { recordApiUsage, checkDailyBudget } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
 import { logger } from "./logger.js";
 import {
-  NEUTRAL_SCORE, FAMILY_MIN_COVERAGE, TOTAL_MIN_COVERAGE, shrinkToNeutral,
+  NEUTRAL_SCORE, FAMILY_MIN_COVERAGE, TOTAL_MIN_COVERAGE, shrinkToNeutral, winsorizeValues,
 } from "./fundamentals-scoring-math.js";
+import { isExcludedEtf } from "./etf-exclusions.js";
+import {
+  FMP_MAX_DAILY_CALLS,
+  STALE_DAYS as DATA_OPS_STALE_DAYS,
+} from "./data-ops-config.js";
 
-const STALE_DAYS = 7;
+const STALE_DAYS = DATA_OPS_STALE_DAYS;
 
 // Triangulation candidates: fields where we compare FMP vs Yahoo and flag >20% divergence.
 // The Yahoo values are passed in from the existing quoteSummary response at query time.
@@ -232,11 +237,9 @@ function num(v: number | undefined): string | null {
 }
 
 // ── FMP API daily budget guard ────────────────────────────────────────────────
-// Free tier limit: ~250 calls/day. Each ticker refresh = 7 endpoints.
-// MAX_DAILY_CALLS set conservatively at 220 to leave headroom.
+// Free tier ~250 calls/day. Each full FMP ticker fetch = DATA_OPS_CALLS.fmp endpoints.
 
-const MAX_DAILY_CALLS = 220;
-const CALLS_PER_TICKER = 7;
+const MAX_DAILY_CALLS = FMP_MAX_DAILY_CALLS;
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -366,6 +369,8 @@ function percentileRanks(vals: (number | null)[], higherBetter: boolean): (numbe
 // Blends each metric's whole-universe percentile with its same-sector percentile per
 // SECTOR_WEIGHT, so e.g. gross margin is judged mostly against sector peers while cash
 // runway is judged mostly against the full universe.
+// Within each peer group, values are winsorized at 2nd/98th before ranking (scoring guide)
+// so one extreme outlier cannot dominate the cohort distribution.
 function computeBlendedPctRanks(
   rows: TickerFundamentalsRow[],
   values: (number | null)[][],
@@ -373,6 +378,7 @@ function computeBlendedPctRanks(
 ): (number | null)[][] {
   const sectorGroups = new Map<string, number[]>();
   rows.forEach((row, ri) => {
+    if (isExcludedEtf(row.ticker)) return;
     const sec = sectorByTicker.get(row.ticker) ?? null;
     if (sec === null) return;
     if (!sectorGroups.has(sec)) sectorGroups.set(sec, []);
@@ -386,13 +392,14 @@ function computeBlendedPctRanks(
     const sectorPct: (number | null)[] = vals.map(() => null);
     sectorGroups.forEach(indices => {
       if (indices.length < MIN_SECTOR_PEERS) return;
-      const sectorVals = indices.map(ri => vals[ri]);
+      const sectorVals = winsorizeValues(indices.map(ri => vals[ri]));
       const ranks = percentileRanks(sectorVals, m.higherBetter);
       indices.forEach((ri, k) => { sectorPct[ri] = ranks[k]; });
     });
 
     const sectorWeight = SECTOR_WEIGHT[m.key] ?? 0.5;
     return vals.map((_, ri) => {
+      if (isExcludedEtf(rows[ri]!.ticker)) return null;
       const u = universePct[ri];
       if (u === null) return null;
       const s = sectorPct[ri];
@@ -465,7 +472,11 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   // primaryPeerGroupId (e.g. "technology.semiconductors_design") is populated for 273/276
   // tickers via the curated sector_taxonomy.json import — tickerRegistry.sector itself is
   // only set for ~17, so peer group is the field to group by, not the flat sector column.
-  const tickers = rows.map(r => r.ticker);
+  const tickers = rows.map(r => r.ticker).filter(t => !isExcludedEtf(t));
+  // Exclude ETFs from the scoring universe entirely (no peer percentiles, no leaderboard).
+  const scoreRows = rows.filter(r => !isExcludedEtf(r.ticker));
+  if (scoreRows.length === 0) return [];
+
   const regRows = await db
     .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
     .from(tickerRegistry)
@@ -485,8 +496,8 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   });
 
   // Raw metric values with peer-group exclusions and ROE structural null applied
-  const values = SCORING_METRICS.map(m => rows.map(r => m.getValue(r)));
-  rows.forEach((row, ri) => {
+  const values = SCORING_METRICS.map(m => scoreRows.map(r => m.getValue(r)));
+  scoreRows.forEach((row, ri) => {
     const groupId = peerGroupByTicker.get(row.ticker);
     const excl = groupId ? (exclusionsByGroup.get(groupId) ?? new Set<string>()) : new Set<string>();
     SCORING_METRICS.forEach((m, mi) => {
@@ -500,14 +511,14 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
   });
 
   // Percentile ranks per metric (blended universe-wide + peer-group-relative, see SECTOR_WEIGHT)
-  const pctRanks = computeBlendedPctRanks(rows, values, peerGroupByTicker);
+  const pctRanks = computeBlendedPctRanks(scoreRows, values, peerGroupByTicker);
 
   const FAMILIES: Family[] = ['quality', 'growth', 'safety'];
   const computedAt = new Date();
 
   const round2 = (v: number) => parseFloat(v.toFixed(2));
 
-  const rawResults = rows.map((row, ri) => {
+  const rawResults = scoreRows.map((row, ri) => {
     const familyScores: Record<Family, number | null> = { quality: null, growth: null, safety: null };
     const familyCoverage: Record<Family, number> = { quality: 0, growth: 0, safety: 0 };
     let totalNum = 0, totalDen = 0;
@@ -560,7 +571,7 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     .sort((a, b) => (b.totalScore as number) - (a.totalScore as number));
   const rankMap = new Map(sorted.map((r, i) => [r.ticker, i + 1]));
 
-  const perMetric = computePerMetricScores(rows, familyWeights, peerGroupByTicker);
+  const perMetric = computePerMetricScores(scoreRows, familyWeights, peerGroupByTicker);
 
   const results: FundScoreResult[] = rawResults.map(r => ({
     ...r,

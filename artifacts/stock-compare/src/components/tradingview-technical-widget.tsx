@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const TV_SCRIPT_SRC = "https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js";
 
-// Maps common exchange labels (yfinance/FMP) to TradingView's exchange prefix. Falls back to
-// a bare ticker — TradingView's technical-analysis widget resolves major US tickers on its own.
+/** Maps yfinance/FMP exchange labels to TradingView prefixes. Bare ticker works for major US names. */
 function toTradingViewSymbol(ticker: string, exchange?: string | null): string {
   const e = (exchange ?? "").toLowerCase();
   if (e.includes("nasdaq")) return `NASDAQ:${ticker}`;
@@ -16,23 +15,36 @@ function toTradingViewSymbol(ticker: string, exchange?: string | null): string {
 interface TradingViewTechnicalWidgetProps {
   ticker: string;
   exchange?: string | null;
+  /** Fixed viewport height of the box (px). */
   height?: number;
+  /**
+   * Visual size of the gauge inside the fixed box.
+   * 1 = fit; &gt;1 enlarges (may clip); &lt;1 shrinks.
+   */
+  zoom?: number;
 }
 
 /**
- * Lazy-loaded TradingView Technical Analysis widget. It's a single embedded iframe with
- * no client-side indicator computation, so it's cheap even with several stock breakdowns
- * open in a session — the script is only injected once the container scrolls into view.
+ * Lazy-loaded TradingView Technical Analysis embed.
+ * Box size is fixed; `zoom` CSS-scales the widget content so +/- changes gauge size.
  */
-export function TradingViewTechnicalWidget({ ticker, exchange, height = 220 }: TradingViewTechnicalWidgetProps) {
+export function TradingViewTechnicalWidget({
+  ticker,
+  exchange,
+  height = 220,
+  zoom = 1,
+}: TradingViewTechnicalWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const safeZoom = Math.min(1.5, Math.max(0.55, zoom));
 
   useEffect(() => {
     if (visible || !containerRef.current) return;
     const el = containerRef.current;
     const observer = new IntersectionObserver(
-      entries => { if (entries[0]?.isIntersecting) setVisible(true); },
+      (entries) => {
+        if (entries[0]?.isIntersecting) setVisible(true);
+      },
       { rootMargin: "200px" },
     );
     observer.observe(el);
@@ -46,6 +58,8 @@ export function TradingViewTechnicalWidget({ ticker, exchange, height = 220 }: T
 
     const widgetDiv = document.createElement("div");
     widgetDiv.className = "tradingview-widget-container__widget";
+    widgetDiv.style.width = "100%";
+    widgetDiv.style.height = "100%";
     container.appendChild(widgetDiv);
 
     const script = document.createElement("script");
@@ -65,8 +79,23 @@ export function TradingViewTechnicalWidget({ ticker, exchange, height = 220 }: T
     });
     container.appendChild(script);
 
-    return () => { container.innerHTML = ""; };
+    return () => {
+      container.innerHTML = "";
+    };
   }, [visible, ticker, exchange, height]);
 
-  return <div className="tradingview-widget-container bg-zinc-950 rounded" ref={containerRef} style={{ height }} />;
+  return (
+    <div className="w-full overflow-hidden bg-zinc-950 rounded" style={{ height }}>
+      <div
+        className="tradingview-widget-container"
+        ref={containerRef}
+        style={{
+          width: "100%",
+          height,
+          transform: `scale(${safeZoom})`,
+          transformOrigin: "top center",
+        }}
+      />
+    </div>
+  );
 }

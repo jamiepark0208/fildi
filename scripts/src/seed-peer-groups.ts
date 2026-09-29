@@ -1,9 +1,4 @@
-import { db, peerGroups, peerGroupMembers, tickerRegistry } from "@workspace/db";
-
-// ── ETF exclusions — never seeded as members ──────────────────────────────────
-const ETF_EXCLUSIONS = new Set([
-  "SMH","SOXX","IWM","QQQ","SPY","BIZD","JBBB","NVDY","SPCK","PSUS","HOOY","ARKG","CANE",
-]);
+import { db, peerGroups, peerGroupMembers, tickerRegistry, ETF_EXCLUSIONS } from "@workspace/db";
 
 // ── Dual-membership primary overrides ─────────────────────────────────────────
 // For tickers that appear in multiple groups, this sets the canonical scoring group.
@@ -79,7 +74,8 @@ const GROUPS: GroupDef[] = [
   { id: "telecom.telecommunications",                  name: "Telecommunications",                 scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["VZ","TMUS","LUMN","T","CHTR","CMCSA","DISH"] },
   { id: "speculative_thematic.space_aerospace_tech",   name: "Space & Aerospace Tech",             scoringMode: "speculative_pre_revenue", metricExclusions: ["pe_ratio","peg","earningsYield","roe","ev_ebitda","pb_ratio"], lowConfidence: false, tickers: ["RKLB","JOBY","ACHR","LUNR","ASTS","RDW","SPCE","SPCX"] },
   { id: "speculative_thematic.crypto_digital_assets",  name: "Crypto & Digital Assets",            scoringMode: "speculative_crypto",      metricExclusions: ["pe_ratio","peg","roe"],                                 lowConfidence: false, tickers: ["MARA","RIOT","CLSK","MSTR","COIN","HUT","BITF","IREN"] },
-  { id: "speculative_thematic.speculative_small_cap",  name: "Speculative Small Cap",              scoringMode: "speculative_pre_revenue", metricExclusions: ["pe_ratio","peg","earningsYield","roe","ev_ebitda","pb_ratio"], lowConfidence: true,  tickers: ["DDD","BB","RUM","SOUN","POET","QSI","TEM","REBN","BULL","ONDS","LDI","SG","PN","LQDA","SUPX"] },
+  { id: "speculative_thematic.quantum_computing",      name: "Quantum Computing",                  scoringMode: "speculative_pre_revenue", metricExclusions: ["pe_ratio","peg","earningsYield","roe","ev_ebitda","pb_ratio"], lowConfidence: true,  tickers: ["IONQ","RGTI","QBTS","QUBT","QSI"] },
+  { id: "speculative_thematic.speculative_small_cap",  name: "Speculative Small Cap",              scoringMode: "speculative_pre_revenue", metricExclusions: ["pe_ratio","peg","earningsYield","roe","ev_ebitda","pb_ratio"], lowConfidence: true,  tickers: ["DDD","BB","RUM","SOUN","POET","TEM","REBN","BULL","ONDS","LDI","SG","PN","LQDA","SUPX"] },
 ];
 
 async function main() {
@@ -104,12 +100,16 @@ async function main() {
   }
   console.log(`✓ ${GROUPS.length} groups upserted`);
 
-  // 2. Upsert members (skip ETFs)
+  // 2. Upsert members (skip ETFs). Revive soft-deleted rows on re-seed.
   let memberCount = 0;
   for (const g of GROUPS) {
     const eligible = g.tickers.filter(t => !ETF_EXCLUSIONS.has(t));
     for (const ticker of eligible) {
-      await db.insert(peerGroupMembers).values({ groupId: g.id, ticker }).onConflictDoNothing();
+      await db.insert(peerGroupMembers).values({ groupId: g.id, ticker, source: "taxonomy", removedAt: null })
+        .onConflictDoUpdate({
+          target: [peerGroupMembers.groupId, peerGroupMembers.ticker],
+          set: { removedAt: null, source: "taxonomy" },
+        });
       memberCount++;
     }
   }

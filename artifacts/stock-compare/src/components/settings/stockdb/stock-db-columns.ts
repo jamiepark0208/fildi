@@ -14,7 +14,7 @@ export interface ColDef {
 }
 
 // Fields where distribution is right-skewed — log-transform before z-score
-export const LOG_TRANSFORM_COLS = new Set(["peRatio", "forwardPe", "pegRatio", "priceToBook", "priceToSales", "evEbitda", "evRevenue"]);
+export const LOG_TRANSFORM_COLS = new Set(["peRatio", "forwardPe", "pegRatio", "forwardPeg", "priceToBook", "priceToSales", "evEbitda", "evRevenue"]);
 
 // Growth fields where a value > 10× (1000%) indicates a near-zero prior-period base
 export const NM_GROWTH_COLS = new Set(["epsGrowth", "revenueGrowthYoY", "revenueGrowthYoyPrior"]);
@@ -24,6 +24,7 @@ export const COLS: ColDef[] = [
   { key: "peRatio",             label: "P/E",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
   { key: "pegRatio",            label: "PEG",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
   { key: "forwardPe",           label: "Fwd P/E",    family: "value",   fmt: "ratio",  suspect: v => v < 0 },
+  { key: "forwardPeg",          label: "Fwd PEG",    family: "value",   fmt: "ratio",  suspect: v => v < 0 },
   { key: "priceToBook",         label: "P/B",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
   { key: "priceToSales",        label: "P/S",        family: "value",   fmt: "ratio",  suspect: v => v < 0 },
   { key: "evEbitda",            label: "EV/EBITDA",  family: "value",   fmt: "ratio",  suspect: v => v < -200 },

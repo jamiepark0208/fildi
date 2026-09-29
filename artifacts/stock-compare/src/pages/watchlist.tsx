@@ -79,10 +79,10 @@ function WatchlistView() {
 
   const visibleResults = open && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
-  const selectTickerForAdd = useCallback((ticker: string) => {
+  const selectTickerForAdd = useCallback(async (ticker: string) => {
     const upper = ticker.toUpperCase();
-    addEntry(upper);
-    setColorPickerTicker(upper);
+    const ok = await addEntry(upper);
+    if (ok) setColorPickerTicker(upper);
     setInputText("");
     setOpen(false);
     setFocusedIndex(-1);

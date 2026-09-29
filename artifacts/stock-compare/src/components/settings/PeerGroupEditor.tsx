@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { X, Plus, RotateCcw, Star } from "lucide-react";
+import { X, Plus, RotateCcw } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface GroupRef { id: string; name: string }
-// isRepresentative: this peer's own scoring cohort (primary_peer_group_id) is this
-// group — i.e. it's actually grouped in for fundamental percentile scoring, not just
-// shown here for comparison.
-interface Member { ticker: string; source: "taxonomy" | "manual"; isRepresentative: boolean }
+/** scoredHere = ticker's primary_peer_group_id is this group (used in sector percentiles). */
+interface Member { ticker: string; source: "taxonomy" | "manual" | "auto"; isRepresentative: boolean }
 type Confidence = "override" | "mapped" | "auto" | "unmapped";
 
 interface PeerData {
@@ -40,7 +38,7 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = {
 // ── Component ────────────────────────────────────────────────────────────────
 
 /** Editable peer-group membership for a single ticker — reassign group, add/remove peer tags. */
-export function PeerGroupEditor({ ticker }: { ticker: string }) {
+export function PeerGroupEditor({ ticker, compact = false }: { ticker: string; compact?: boolean }) {
   const qc = useQueryClient();
   const [reassignTo, setReassignTo] = useState("");
   const [reassignNote, setReassignNote] = useState("");
@@ -112,36 +110,105 @@ export function PeerGroupEditor({ ticker }: { ticker: string }) {
     onError: (e: Error) => setError(e.message),
   });
 
-  // Marking a peer representative reassigns *that peer's own* scoring group to this
-  // group (same mechanism as the "Reassign" control above); un-marking clears its
-  // override and lets it fall back to its default classification.
-  const setRepresentativeMutation = useMutation({
-    mutationFn: async (peerTicker: string) => {
-      if (!data?.currentGroup) throw new Error("no active group");
-      const r = await fetch(`/api/peers/${peerTicker}/group`, {
-        method: "PUT", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId: data.currentGroup.id, note: "marked representative via peer tag" }),
-      });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
-      return r.json();
-    },
-    onSuccess: () => { invalidate(); setError(null); },
-    onError: (e: Error) => setError(e.message),
-  });
-
-  const unsetRepresentativeMutation = useMutation({
-    mutationFn: async (peerTicker: string) => {
-      const r = await fetch(`/api/peers/${peerTicker}/group`, { method: "DELETE", credentials: "include" });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
-      return r.json();
-    },
-    onSuccess: () => { invalidate(); setError(null); },
-    onError: (e: Error) => setError(e.message),
-  });
-
   if (isLoading || !data) {
     return <div className="text-xs text-amber-200/40">Loading {ticker}…</div>;
+  }
+
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-1.5 text-[10px]">
+        {error && <div className="text-red-400">{error}</div>}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-bold text-white font-mono">{data.ticker}</span>
+          <span className={cn("font-semibold px-1 py-0.5 rounded border text-[9px]", CONFIDENCE_BADGE[data.confidence])}>
+            {CONFIDENCE_LABEL[data.confidence]}
+          </span>
+          <span className="text-amber-200/50">·</span>
+          <span className="text-amber-200/70 truncate">
+            {data.currentGroup?.name ?? "unmapped"}
+          </span>
+          {data.isOverridden && (
+            <button
+              onClick={() => resetMutation.mutate()}
+              disabled={resetMutation.isPending}
+              className="text-[9px] text-amber-200/50 hover:text-[#d4af37] underline"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <select
+            value={reassignTo}
+            onChange={e => setReassignTo(e.target.value)}
+            className="text-[10px] bg-zinc-900 border border-[#d4af37]/25 rounded px-1.5 py-0.5 text-white max-w-[40%] focus:outline-none"
+          >
+            <option value="">Reassign…</option>
+            {data.availableGroups.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => reassignTo && reassignMutation.mutate({ groupId: reassignTo, note: reassignNote })}
+            disabled={!reassignTo || reassignMutation.isPending}
+            className="text-[10px] px-2 py-0.5 rounded bg-[#d4af37] text-black font-semibold disabled:opacity-40"
+          >
+            Go
+          </button>
+          {!addingPeer ? (
+            <button
+              type="button"
+              onClick={() => setAddingPeer(true)}
+              className="text-[9px] text-amber-200/50 hover:text-[#d4af37] ml-auto"
+            >
+              + peer
+            </button>
+          ) : (
+            <input
+              autoFocus
+              value={newPeerTicker}
+              onChange={e => setNewPeerTicker(e.target.value.toUpperCase())}
+              onKeyDown={e => {
+                if (e.key === "Enter" && newPeerTicker.trim()) {
+                  addMemberMutation.mutate(newPeerTicker.trim());
+                  setNewPeerTicker("");
+                  setAddingPeer(false);
+                }
+                if (e.key === "Escape") setAddingPeer(false);
+              }}
+              placeholder="TICKER"
+              className="text-[10px] bg-zinc-900 border border-[#d4af37]/25 rounded px-1.5 py-0.5 text-white w-16 ml-auto focus:outline-none"
+            />
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {data.members.slice(0, 24).map(m => (
+            <span
+              key={m.ticker}
+              title={m.isRepresentative ? "Scored in this group" : "Display peer only (scored in its own primary group)"}
+              className={cn(
+                "inline-flex items-center gap-0.5 pl-1.5 pr-1 py-0.5 rounded border font-mono text-[9px]",
+                m.isRepresentative
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                  : "bg-zinc-900 border-zinc-700 text-amber-100/60",
+              )}
+            >
+              {m.ticker}
+              <button
+                onClick={() => removeMemberMutation.mutate(m.ticker)}
+                className="p-0.5 hover:text-red-400"
+                title="Remove from roster"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+          {data.members.length > 24 && (
+            <span className="text-[9px] text-amber-200/40 self-center">+{data.members.length - 24}</span>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -222,10 +289,10 @@ export function PeerGroupEditor({ ticker }: { ticker: string }) {
           {data.currentGroup && (
             <div className="flex items-center gap-3 text-[10px] text-amber-200/40">
               <span className="flex items-center gap-1">
-                <Star className="h-2.5 w-2.5 fill-emerald-400 text-emerald-400" /> Representative (used in scoring)
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" /> Scored here
               </span>
               <span className="flex items-center gap-1">
-                <Star className="h-2.5 w-2.5 text-amber-200/30" /> Display only
+                <span className="inline-block w-2 h-2 rounded-full bg-zinc-500" /> Display only
               </span>
             </div>
           )}
@@ -242,24 +309,14 @@ export function PeerGroupEditor({ ticker }: { ticker: string }) {
             {data.members.map(m => (
               <span
                 key={m.ticker}
-                title={`${m.source === "manual" ? "manually added" : "from taxonomy"} · ${m.isRepresentative ? "used in this group's fundamental scoring" : "display peer only — scored against its own group"}`}
+                title={`${m.source} · ${m.isRepresentative ? "scored in this group" : "display only — scored in its own primary group"}`}
                 className={cn(
-                  "inline-flex items-center gap-1 pl-1 pr-1 py-1 rounded-full border text-xs font-medium",
+                  "inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-full border text-xs font-medium",
                   m.isRepresentative
                     ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
                     : "bg-zinc-900 border-zinc-700 text-amber-100/60",
                 )}
               >
-                <button
-                  onClick={() => (m.isRepresentative
-                    ? unsetRepresentativeMutation.mutate(m.ticker)
-                    : setRepresentativeMutation.mutate(m.ticker))}
-                  disabled={setRepresentativeMutation.isPending || unsetRepresentativeMutation.isPending}
-                  className="rounded-full hover:bg-emerald-500/20 p-0.5 disabled:opacity-30"
-                  title={m.isRepresentative ? "Remove representative status" : "Mark as representative (used in scoring)"}
-                >
-                  <Star className={cn("h-3 w-3", m.isRepresentative ? "fill-emerald-400 text-emerald-400" : "text-amber-200/30")} />
-                </button>
                 {m.ticker}
                 <button
                   onClick={() => removeMemberMutation.mutate(m.ticker)}
@@ -306,9 +363,16 @@ export function PeerGroupEditor({ ticker }: { ticker: string }) {
           </div>
         )}
         {data.currentGroup && (
-          <div className="text-[11px] text-amber-200/30 pt-1">
-            Added tickers will see this group's members as their own peers too. Only representative peers
-            are grouped together for fundamental scoring — the rest are shown for comparison only.
+          <div className="text-[11px] text-amber-200/30 pt-1 space-y-1">
+            <p>
+              Green = scored in this group (sector percentiles). Grey = shown for comparison only.
+              Group assignment is auto (sector/industry + peer overlap); use Reassign only to correct mistakes.
+            </p>
+            <p>
+              Live fix for a wrong peer: Reassign above (writes a durable override + recomputes fund scores).
+              Reset restores the previous/auto group. Roster add/remove only changes display peers unless
+              you reassign the ticker&apos;s primary group.
+            </p>
           </div>
         )}
       </div>

@@ -7,6 +7,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load local secrets if present (never commit .env.local)
+if [[ -f "$ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env.local"
+  set +a
+fi
 API_PORT="${API_PORT:-8080}"
 VITE_PORT="${VITE_PORT:-8081}"
 BASE_PATH="${BASE_PATH:-/}"

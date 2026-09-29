@@ -81,37 +81,42 @@ export function useWatchlist() {
         description: body.error ?? "Unknown error",
         variant: "destructive",
       });
-      return;
+      return false;
     }
-    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    return true;
+  }, [queryClient, userId]);
 
   const removeEntry = useCallback(async (ticker: string) => {
     await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
       method: "DELETE",
       credentials: "include",
     });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient, userId]);
 
   const updateColorTag = useCallback(async (ticker: string, colorTag: string) => {
-    const res = await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colorTag }),
-    });
+    const url = `/api/watchlist/${encodeURIComponent(ticker.toUpperCase())}`;
+    const body = JSON.stringify({ colorTag });
+    const headers = { "Content-Type": "application/json" };
+
+    let res = await fetch(url, { method: "PATCH", credentials: "include", headers, body });
+    // Race: color picker can open while POST /watchlist is still committing.
+    if (res.status === 404) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await fetch(url, { method: "PATCH", credentials: "include", headers, body });
+    }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { error?: string };
+      const errBody = await res.json().catch(() => ({})) as { error?: string };
       toast({
         title: "Couldn't update tag",
-        description: body.error ?? "Unknown error",
+        description: errBody.error ?? "Unknown error",
         variant: "destructive",
       });
       return;
     }
-    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }, [queryClient]);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient, userId]);
 
   return {
     entries,

@@ -1,16 +1,9 @@
-import { eq, inArray, count, desc, isNull, and } from "drizzle-orm";
+import { eq, inArray, count, desc, isNull, and, isNotNull } from "drizzle-orm";
 import { db, tickerRegistry, peerGroupMembers, peerGroups, unmappedTickers, peerGroupOverrides } from "@workspace/db";
 import { resolvePeers } from "./peer-resolver.js";
 import { logger } from "./logger.js";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 import { TTLCache } from "./ttl-cache.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const ROOT = join(__dirname, "..", "..");
-const OVERRIDES_FILE = join(ROOT, "config", "ticker-mapping-overrides.json");
+import { isExcludedEtf } from "./etf-exclusions.js";
 
 export type PeerGroupClassification = {
   groupId: string;
@@ -28,6 +21,7 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["information technology services"],      groupId: "technology.enterprise_software_cloud" },
   { keywords: ["consumer electronics"],                 groupId: "technology.big_tech_platforms" },
   { keywords: ["computer hardware", "electronic components", "communication equipment", "networking"], groupId: "technology.it_hardware_networking" },
+  { keywords: ["quantum"],                              groupId: "speculative_thematic.quantum_computing" },
   // Communication Services
   { keywords: ["internet content", "internet retail", "entertainment"],  groupId: "technology.consumer_internet_digital_media" },
   { keywords: ["telecom"],                              groupId: "telecom.telecommunications" },
@@ -67,9 +61,10 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["solar", "renewable", "clean energy"],   groupId: "energy.clean_energy_renewables" },
   // Materials
   { keywords: ["gold", "silver", "precious metals"],    groupId: "materials.precious_metals_mining" },
-  { keywords: ["copper", "aluminum", "base metals"],    groupId: "materials.base_metals_mining" },
+  { keywords: ["copper", "aluminum", "base metals", "industrial metals", "other industrial metals", "uranium", "rare earth", "mining"], groupId: "materials.base_metals_mining" },
   { keywords: ["steel"],                                groupId: "materials.steel_industrial_metals" },
   { keywords: ["chemicals", "agricultural chemicals"],  groupId: "materials.chemicals" },
+  { keywords: ["basic materials"],                      groupId: "materials.base_metals_mining" },
   // Real Estate
   { keywords: ["reit—specialty", "reit-specialty", "data center reit", "tower"],  groupId: "real_estate.reits_data_center_tower" },
   { keywords: ["reit"],                                 groupId: "real_estate.reits_diversified" },
@@ -89,21 +84,12 @@ function keywordMatch(sector: string | null, industry: string | null): string | 
   return null;
 }
 
-async function appendOverride(ticker: string, groupId: string): Promise<void> {
-  try {
-    await mkdir(dirname(OVERRIDES_FILE), { recursive: true });
-    let existing: Record<string, string> = {};
-    try {
-      const raw = await readFile(OVERRIDES_FILE, "utf-8");
-      existing = JSON.parse(raw);
-    } catch {
-      // file missing or invalid — start fresh
-    }
-    existing[ticker] = groupId;
-    await writeFile(OVERRIDES_FILE, JSON.stringify(existing, null, 2) + "\n", "utf-8");
-  } catch (err) {
-    logger.warn({ ticker, err: String(err) }, "peer-classifier: failed to write overrides file");
-  }
+/** Public: sector/industry → peer group suggestion (no DB). Used by peer-health-check. */
+export function suggestGroupFromSectorIndustry(
+  sector: string | null,
+  industry: string | null,
+): string | null {
+  return keywordMatch(sector, industry);
 }
 
 async function upsertPrimaryGroup(ticker: string, groupId: string): Promise<void> {
@@ -112,6 +98,25 @@ async function upsertPrimaryGroup(ticker: string, groupId: string): Promise<void
     .onConflictDoUpdate({
       target: tickerRegistry.ticker,
       set: { primaryPeerGroupId: groupId },
+    });
+  // Keep the curated roster in sync with scoring assignment. Without this, auto-classified
+  // tickers get a primary_peer_group_id but never appear in peer_group_members — so competitors /
+  // PeerGroupEditor / getTaxonomyPeers silently omit them from the sector roster.
+  await ensureGroupMembership(ticker, groupId, "auto");
+}
+
+/** Upsert an active roster row. Soft-deleted rows are revived. */
+async function ensureGroupMembership(
+  ticker: string,
+  groupId: string,
+  source: "taxonomy" | "manual" | "auto",
+): Promise<void> {
+  if (!groupId || groupId === "__global__") return;
+  await db.insert(peerGroupMembers)
+    .values({ groupId, ticker, source, removedAt: null })
+    .onConflictDoUpdate({
+      target: [peerGroupMembers.groupId, peerGroupMembers.ticker],
+      set: { removedAt: null, source },
     });
 }
 
@@ -171,6 +176,11 @@ async function getOverride(key: string): Promise<{ groupId: string } | null> {
 export async function classifyTicker(ticker: string): Promise<PeerGroupClassification> {
   const key = ticker.toUpperCase();
 
+  // ETFs never join stock peer cohorts or relative fundamental scoring.
+  if (isExcludedEtf(key)) {
+    return { groupId: "__global__", confidence: "unmapped" };
+  }
+
   const cached = classifyCache.get(key);
   if (cached) return cached;
 
@@ -187,7 +197,7 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
     return { groupId: override.groupId, confidence: "override", metricExclusions };
   }
 
-  // 1. Already mapped in registry
+  // 1. Already mapped in registry — keep roster in sync (heal primary_not_in_roster).
   const regRows = await db
     .select({ primaryPeerGroupId: tickerRegistry.primaryPeerGroupId, sector: tickerRegistry.sector, industryGroup: tickerRegistry.industryGroup })
     .from(tickerRegistry)
@@ -195,6 +205,7 @@ async function classifyTickerUncached(key: string): Promise<PeerGroupClassificat
     .limit(1);
   const reg = regRows[0];
   if (reg?.primaryPeerGroupId) {
+    await ensureGroupMembership(key, reg.primaryPeerGroupId, "auto");
     const metricExclusions = await fetchMetricExclusions(reg.primaryPeerGroupId);
     return { groupId: reg.primaryPeerGroupId, confidence: "mapped", metricExclusions };
   }
@@ -212,12 +223,13 @@ async function computeAutoClassification(
   reg: { sector: string | null; industryGroup: string | null } | null,
   opts: { persist: boolean },
 ): Promise<PeerGroupClassification> {
-  // 2. Peer overlap — fetch peers then count group membership overlaps
+  // 2. Peer overlap — fetch peers then count group membership / primary overlaps
   try {
     const peersPayload = await resolvePeers(key);
     const peerList = peersPayload.peers.slice(0, 20);
 
     if (peerList.length > 0) {
+      // Prefer curated roster membership (stronger signal).
       const overlapRows = await db
         .select({ groupId: peerGroupMembers.groupId, cnt: count() })
         .from(peerGroupMembers)
@@ -230,7 +242,6 @@ async function computeAutoClassification(
       if (best && Number(best.cnt) >= 2) {
         if (opts.persist) {
           await upsertPrimaryGroup(key, best.groupId);
-          await appendOverride(key, best.groupId);
           logger.info({ ticker: key, groupId: best.groupId, overlap: best.cnt }, "peer-classifier: auto-classified via peer overlap");
         }
         const metricExclusions = await fetchMetricExclusions(best.groupId);
@@ -239,25 +250,77 @@ async function computeAutoClassification(
     }
 
     // 3. Keyword map via sector/industry from peers payload or registry
-    const sector = peersPayload.sector ?? reg?.sector ?? null;
-    const industry = peersPayload.industry ?? reg?.industryGroup ?? null;
+    let sector = peersPayload.sector ?? reg?.sector ?? null;
+    let industry = peersPayload.industry ?? reg?.industryGroup ?? null;
+
+    // If subject has no profile meta, borrow majority sector/industry from peers.
+    if ((!sector || !industry) && peerList.length > 0) {
+      const peerMeta = await db
+        .select({
+          sector: tickerRegistry.sector,
+          industryGroup: tickerRegistry.industryGroup,
+        })
+        .from(tickerRegistry)
+        .where(inArray(tickerRegistry.ticker, peerList));
+      if (!sector) {
+        sector = majorityString(peerMeta.map(r => r.sector).filter((s): s is string => !!s));
+      }
+      if (!industry) {
+        industry = majorityString(peerMeta.map(r => r.industryGroup).filter((s): s is string => !!s));
+      }
+    }
+
     const matched = keywordMatch(sector, industry);
     if (matched) {
       if (opts.persist) {
         await upsertPrimaryGroup(key, matched);
-        await appendOverride(key, matched);
         logger.info({ ticker: key, groupId: matched, sector, industry }, "peer-classifier: auto-classified via keyword map");
       }
       const metricExclusions = await fetchMetricExclusions(matched);
       return { groupId: matched, confidence: "auto", metricExclusions };
     }
+
+    // 4. Soft peer vote — ≥1 peer already mapped (Finnhub thematic clusters).
+    if (peerList.length > 0) {
+      const primaryVote = await db
+        .select({ groupId: tickerRegistry.primaryPeerGroupId, cnt: count() })
+        .from(tickerRegistry)
+        .where(and(inArray(tickerRegistry.ticker, peerList), isNotNull(tickerRegistry.primaryPeerGroupId)))
+        .groupBy(tickerRegistry.primaryPeerGroupId)
+        .orderBy(desc(count()))
+        .limit(1);
+      const bestVote = primaryVote[0];
+      if (bestVote?.groupId && Number(bestVote.cnt) >= 1) {
+        if (opts.persist) {
+          await upsertPrimaryGroup(key, bestVote.groupId);
+          logger.info(
+            { ticker: key, groupId: bestVote.groupId, vote: bestVote.cnt },
+            "peer-classifier: auto-classified via peer primary vote",
+          );
+        }
+        const metricExclusions = await fetchMetricExclusions(bestVote.groupId);
+        return { groupId: bestVote.groupId, confidence: "auto", metricExclusions };
+      }
+    }
   } catch (err) {
     logger.warn({ ticker: key, err: String(err) }, "peer-classifier: classification error");
   }
 
-  // 4. Unmapped
+  // 5. Unmapped
   if (opts.persist) await recordUnmapped(key).catch(() => {});
   return { groupId: "__global__", confidence: "unmapped" };
+}
+
+function majorityString(values: string[]): string | null {
+  if (values.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [v, n] of counts) {
+    if (n > bestN) { best = v; bestN = n; }
+  }
+  return best;
 }
 
 /** What the auto-classifier would pick for this ticker, ignoring any manual
@@ -278,6 +341,9 @@ export async function classifyTickerDefault(ticker: string): Promise<PeerGroupCl
  *  directly, bypassing classifyTicker) picks it up immediately. */
 export async function setPeerGroupOverride(ticker: string, groupId: string, note?: string | null): Promise<void> {
   const key = ticker.toUpperCase();
+  if (isExcludedEtf(key)) {
+    throw new Error(`${key} is an ETF — cannot assign to a stock peer scoring group`);
+  }
 
   // Only capture previousGroupId on first creation of the override — if the
   // ticker already has an override and is being reassigned again, keep the

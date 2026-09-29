@@ -28,8 +28,128 @@ import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, f
 import { logger } from "../lib/logger.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import { fetchEdgarStatementHistory, fetchFiscalYearEnd } from "../lib/edgar-client.js";
+import {
+  resolvePegGrowth,
+  isUsablePegGrowth,
+  computeCanonicalPeg,
+  computeForwardPeg,
+} from "../lib/derived-metrics.js";
 
 const router = Router();
+
+/** Z-score of subject's PEG growth vs peer-group gold EPS growth (higher = better). */
+async function pegGrowthPeerZScore(
+  ticker: string,
+  pegGrowth: number | null | undefined,
+): Promise<{
+  z: number | null;
+  n: number;
+  groupName: string | null;
+  mean: number | null;
+  std: number | null;
+  members: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
+  display: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
+}> {
+  const empty = {
+    z: null as number | null,
+    n: 0,
+    groupName: null as string | null,
+    mean: null as number | null,
+    std: null as number | null,
+    members: [] as Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>,
+    display: [] as Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>,
+  };
+  if (pegGrowth == null || !isFinite(pegGrowth)) return empty;
+
+  const taxonomy = await getTaxonomyPeers(ticker, 500);
+  if (!taxonomy || taxonomy.peers.length < 3) {
+    return { ...empty, groupName: taxonomy?.groupName ?? null };
+  }
+
+  const subject = ticker.toUpperCase();
+  const tickers = [subject, ...taxonomy.peers.map((t) => t.toUpperCase())];
+  const rows = await db
+    .select({
+      ticker: tickerFundamentals.ticker,
+      epsGrowth: tickerFundamentals.epsGrowth,
+      totalRevenue: tickerFundamentals.totalRevenue,
+    })
+    .from(tickerFundamentals)
+    .where(inArray(tickerFundamentals.ticker, tickers));
+
+  type Raw = { ticker: string; growth: number; isSubject: boolean; size: number | null };
+  const raw: Raw[] = [];
+  for (const r of rows) {
+    const upper = r.ticker.toUpperCase();
+    const size = fmpNum(r.totalRevenue);
+    if (upper === subject) {
+      raw.push({ ticker: upper, growth: pegGrowth, isSubject: true, size });
+      continue;
+    }
+    const v = fmpNum(r.epsGrowth);
+    if (v != null && isFinite(v)) {
+      raw.push({ ticker: upper, growth: v, isSubject: false, size });
+    }
+  }
+  if (raw.length < 4) {
+    return { ...empty, n: raw.length, groupName: taxonomy.groupName };
+  }
+
+  const vals = raw.map((r) => r.growth);
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+  const std = Math.sqrt(variance);
+  const zOf = (g: number) => (std > 1e-12 ? (g - mean) / std : 0);
+  const members = raw
+    .map((r) => ({
+      ticker: r.ticker,
+      growth: r.growth,
+      z: zOf(r.growth),
+      isSubject: r.isSubject,
+      marketCap: r.size, // size proxy = total revenue (gold has no marketCap)
+    }))
+    .sort((a, b) => a.growth - b.growth);
+
+  const subjectZ = zOf(pegGrowth);
+  // Representatives when the peer set is large: subject + growth extremes + largest names
+  const display = pickPeerGrowthRepresentatives(members, 9);
+
+  return {
+    z: subjectZ,
+    n: members.length,
+    groupName: taxonomy.groupName,
+    mean,
+    std,
+    members,
+    display,
+  };
+}
+
+/** Subject + lowest/highest growth + largest-revenue peers (cap labeled points). */
+function pickPeerGrowthRepresentatives<
+  T extends { ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null },
+>(members: T[], max = 9): T[] {
+  if (members.length <= max) return members;
+  const byGrowth = [...members].sort((a, b) => a.growth - b.growth);
+  const bySize = [...members]
+    .filter((m) => !m.isSubject)
+    .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
+  const picked = new Map<string, T>();
+  const add = (m: T | undefined) => {
+    if (m && !picked.has(m.ticker)) picked.set(m.ticker, m);
+  };
+  add(byGrowth.find((m) => m.isSubject));
+  add(byGrowth[0]);
+  add(byGrowth[byGrowth.length - 1]);
+  add(byGrowth[Math.floor(byGrowth.length * 0.25)]);
+  add(byGrowth[Math.floor(byGrowth.length * 0.5)]);
+  add(byGrowth[Math.floor(byGrowth.length * 0.75)]);
+  for (const m of bySize) {
+    if (picked.size >= max) break;
+    add(m);
+  }
+  return [...picked.values()].sort((a, b) => a.growth - b.growth);
+}
 
 export const searchCache = new TTLCache<object[]>(24 * 60 * 60 * 1000, 'search', 2000);
 export const compareCache = new TTLCache<object>(60 * 60 * 1000, 'compare', 2000); // key = "TICKER1:TICKER2", combinatorial — cap well above realistic pair traffic
@@ -249,7 +369,13 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     ?? safeNum(quote.trailingPE)
     ?? safeNum(quote.forwardPE);
 
-  const pegRatio = fmpNum(fmp?.pegRatio) ?? safeNum(quote.pegRatio);
+  const pegRatio = fmpNum(fmp?.pegRatio) ?? (() => {
+    // Prefer gold-derived PEG; never Yahoo quote pegRatio (5yr expected — different metric).
+    const pe = fmpNum(fmp?.peRatio) ?? safeNum(quote.trailingPE);
+    const g = fmpNum(fmp?.epsGrowth);
+    if (pe != null && g != null && g > 0.05 && g < 3 && pe > 0) return pe / (g * 100);
+    return null;
+  })();
 
   const priceToBook  = fmpNum(fmp?.priceToBook)  ?? safeNum(quote.priceToBook);
   const priceToSales = fmpNum(fmp?.priceToSales) ?? safeNum(quote.priceToSalesTrailing12Months);
@@ -268,15 +394,37 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
   // revenueGrowthProjected has no FMP equivalent — Yahoo earningsGrowth is the proxy
   const revenueGrowthProjected = safeNum(quote.earningsGrowth);
 
-  // EPS growth: prefer FMP; fall back to computed trailing→forward delta from Yahoo
-  const epsGrowth = fmpNum(fmp?.epsGrowth) ?? (() => {
-    const eps = safeNum(quote.trailingEps);
-    const fwd = safeNum(quote.forwardEps);
-    return eps !== null && fwd !== null && eps > 0 ? (fwd - eps) / Math.abs(eps) : null;
-  })();
-
+  // EPS growth: prefer gold; fall back to computed trailing→forward delta from Yahoo
+  const goldEpsGrowth = fmpNum(fmp?.epsGrowth);
   const earningsPerShare = fmpNum(fmp?.earningsPerShare)
     ?? safeNum(quote.trailingEps);
+  const forwardEps =
+    safeNum(quote.forwardEps) ??
+    (() => {
+      // Reverse from gold forwardPe when Yahoo forwardEps missing
+      const fp = fmpNum(fmp?.forwardPe);
+      if (fp != null && currentPrice != null && fp !== 0) return currentPrice / fp;
+      return null;
+    })();
+  const epsGrowth = goldEpsGrowth ?? (() => {
+    const eps = earningsPerShare;
+    const fwd = forwardEps;
+    return eps !== null && fwd !== null && eps !== 0
+      ? (fwd - eps) / Math.abs(eps)
+      : null;
+  })();
+  // Same resolver merge-trusted / FactSet use for PEG — expose for UI explainability
+  const pegGrowth = resolvePegGrowth({
+    epsGrowth: goldEpsGrowth,
+    trailingEps: earningsPerShare,
+    forwardEps,
+  });
+  const pegGrowthSource: "trailing_yoy" | "forward_implied" | null =
+    isUsablePegGrowth(goldEpsGrowth)
+      ? "trailing_yoy"
+      : pegGrowth != null
+        ? "forward_implied"
+        : null;
 
   // ── Income statement — FMP primary, Yahoo fallback ───────────────────────────
   const totalRevenue = fmpNum(fmp?.totalRevenue) ?? safeNum(quote.totalRevenue);
@@ -300,9 +448,20 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
 
   // ── Phase 4 value / acceleration fields — FMP only ──────────────────────────
   const forwardPe               = fmpNum(fmp?.forwardPe);
+  const forwardPeg              = fmpNum(fmp?.forwardPeg)
+    ?? computeForwardPeg(forwardPe, pegGrowth);
+  const derivedPeg              = fmpNum(fmp?.pegRatio)
+    ?? computeCanonicalPeg(peRatio, pegGrowth);
   const evEbitda                = fmpNum(fmp?.evEbitda);
   const evRevenue               = fmpNum(fmp?.evRevenue);
   const revenueGrowthYoyPrior   = fmpNum(fmp?.revenueGrowthYoyPrior);
+
+  const pegGrowthExplain =
+    pegGrowthSource === "trailing_yoy" && pegGrowth != null
+      ? `PEG uses trailing YoY EPS growth (${(pegGrowth * 100).toFixed(1)}%). Formula: PEG = P/E ÷ (growth × 100). This matches FactSet Full-Ratio style — what the company already earned, not Street 5yr forecasts.`
+      : pegGrowthSource === "forward_implied" && pegGrowth != null
+        ? `Trailing YoY growth was missing or zero, so PEG falls back to near-term Street growth: (forward EPS − trailing EPS) ÷ |trailing EPS| = ${(pegGrowth * 100).toFixed(1)}%. That embeds consensus estimates for the next year, not a long-term CAGR.`
+        : `No usable EPS growth yet — PEG stays empty until we have trailing YoY growth or both trailing and forward EPS.`;
 
   // ── New Phase 3 Safety/Quality fields — FMP only ─────────────────────────────
   const wacc                    = fmpNum(fmp?.wacc);
@@ -334,7 +493,7 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     currentPrice,
     marketCap,
     peRatio,
-    pegRatio,
+    pegRatio: pegRatio ?? derivedPeg,
     priceToBook,
     priceToSales,
     leverageRatio,
@@ -346,7 +505,11 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     netIncome,
     ebitda,
     earningsPerShare,
+    forwardEps,
     epsGrowth,
+    pegGrowth,
+    pegGrowthSource,
+    pegGrowthExplain,
     freeCashFlow,
     dividendYield,
     returnOnEquity,
@@ -370,6 +533,7 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     dayChange:        safeNum(quote.regularMarketChange),
     dayChangePercent: safeNum(quote.regularMarketChangePercent),
     forwardPe,
+    forwardPeg,
     evEbitda,
     evRevenue,
     // New FMP-sourced fields
@@ -731,7 +895,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 7;
+const BREAKDOWN_CACHE_VER = 10;
 
 // Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
 // payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
@@ -782,7 +946,23 @@ router.get("/stocks/breakdown", async (req, res) => {
       ...summary.defaultKeyStatistics,
       ...summary.assetProfile,
     };
-    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow);
+    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow) as ReturnType<typeof buildMetrics> & {
+      pegGrowthPeerZ?: number | null;
+      pegGrowthPeerN?: number;
+      pegGrowthPeerGroup?: string | null;
+      pegGrowthPeerMean?: number | null;
+      pegGrowthPeerStd?: number | null;
+      pegGrowthPeerMembers?: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
+      pegGrowthPeerDisplay?: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
+    };
+    const peerZ = await pegGrowthPeerZScore(upperTicker, metrics.pegGrowth);
+    metrics.pegGrowthPeerZ = peerZ.z;
+    metrics.pegGrowthPeerN = peerZ.n;
+    metrics.pegGrowthPeerGroup = peerZ.groupName;
+    metrics.pegGrowthPeerMean = peerZ.mean;
+    metrics.pegGrowthPeerStd = peerZ.std;
+    metrics.pegGrowthPeerMembers = peerZ.members;
+    metrics.pegGrowthPeerDisplay = peerZ.display;
 
     const recTrend = (summary as any).recommendationTrend?.trend?.[0];
     const recommendations = recTrend ? {

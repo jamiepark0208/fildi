@@ -53,7 +53,15 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
+# Secrets (never commit)
+.env
+.env.*
+!.env.example
+.local-admin-credentials
+
 # Replit
 .cache/
 .local/
-.replit
+.replit.local-admin-credentials
+*.dump
+*.xlsx

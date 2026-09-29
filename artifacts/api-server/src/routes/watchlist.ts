@@ -2,6 +2,8 @@ import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { db, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { classifyTicker } from "../lib/peer-classifier.js";
+import { isExcludedEtf } from "../lib/etf-exclusions.js";
 
 const router = Router();
 
@@ -62,35 +64,63 @@ router.post("/watchlist", async (req, res) => {
     .values({ userId: req.session.userId!, ticker: normalized, tier: 1, status: "monitoring", colorTag: colorTag ?? "" })
     .onConflictDoNothing();
 
-  // Ensure ticker is in ticker_registry with fetch_fundamentals=true.
-  // Uses upsert so a brand-new ticker gets a registry row automatically.
-  await db.insert(tickerRegistry)
-    .values({ ticker: normalized, isActive: true, fetchFundamentals: true })
-    .onConflictDoUpdate({
-      target: tickerRegistry.ticker,
-      set: { fetchFundamentals: true },
-    });
+  // Registry upsert is best-effort: watchlist membership must not fail if registry
+  // write hits a transient error (migration drift, lock). Enrichment peers the flag later.
+  // ETFs may sit on a watchlist for price tracking but never enter stock peer scoring.
+  const etf = isExcludedEtf(normalized);
+  try {
+    await db.insert(tickerRegistry)
+      .values({ ticker: normalized, isActive: true, fetchFundamentals: !etf })
+      .onConflictDoUpdate({
+        target: tickerRegistry.ticker,
+        set: { fetchFundamentals: !etf },
+      });
+  } catch (err) {
+    console.warn(`[watchlist] ticker_registry upsert failed for ${normalized}:`, err);
+  }
 
   // bug/9: peers used to get fetchFundamentals=true synchronously here, which meant
   // one watchlist add could flag an entire peer group (up to hundreds of tickers)
   // for fundamentals fetch on every request. Peers still need fetchFundamentals=true
   // for peer-relative scoring to work — that flip now happens in nightly-enrichment.ts,
   // budget-gated, instead of unbounded on the request path.
-  const groups = await db
-    .select({ groupId: peerGroupMembers.groupId })
-    .from(peerGroupMembers)
-    .where(eq(peerGroupMembers.ticker, normalized));
+  let groups: { groupId: string }[] = [];
+  try {
+    groups = await db
+      .select({ groupId: peerGroupMembers.groupId })
+      .from(peerGroupMembers)
+      .where(eq(peerGroupMembers.ticker, normalized));
+  } catch (err) {
+    console.warn(`[watchlist] peer lookup failed for ${normalized}:`, err);
+  }
 
   const warnings: string[] = [];
+  let peerGroup: { id: string; confidence: string } | null = null;
 
-  if (groups.length === 0) {
-    // No peer group: backfills will fetch this ticker alone. Needs manual peer group assignment.
-    warnings.push(`${normalized} has no peer group — add it to a peer group and re-run to flag peers`);
-    console.warn(`[watchlist] ${normalized} added with no peer group membership`);
+  if (etf) {
+    warnings.push(`${normalized} is an ETF — excluded from stock peer relative scoring`);
+  } else if (groups.length === 0) {
+    try {
+      const cls = await classifyTicker(normalized);
+      if (cls.groupId && cls.groupId !== "__global__" && cls.confidence !== "unmapped") {
+        peerGroup = { id: cls.groupId, confidence: cls.confidence };
+        groups = [{ groupId: cls.groupId }];
+        console.log(`[watchlist] ${normalized} auto-classified → ${cls.groupId} (${cls.confidence})`);
+      } else {
+        warnings.push(`${normalized} could not be auto-mapped to a peer group — review Unmapped in Settings`);
+        console.warn(`[watchlist] ${normalized} added but still unmapped`);
+      }
+    } catch (err) {
+      warnings.push(`${normalized} peer auto-classify failed — will retry on nightly`);
+      console.warn(`[watchlist] classify failed for ${normalized}:`, err);
+    }
+  } else {
+    peerGroup = { id: groups[0]!.groupId, confidence: "mapped" };
   }
 
   return res.status(201).json({
     ticker: normalized,
+    ...(peerGroup ? { peerGroup } : {}),
     ...(warnings.length > 0 ? { warnings } : {}),
   });
 });
@@ -101,9 +131,12 @@ router.patch("/watchlist/:ticker", async (req, res) => {
   if (typeof colorTag !== "string" || !COLOR_TAG_RE.test(colorTag)) {
     return res.status(400).json({ error: "colorTag must be a 6-digit hex color or empty" });
   }
+  const ticker = String(req.params["ticker"] ?? "").trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: "ticker required" });
+
   const result = await db.update(watchlist)
     .set({ colorTag })
-    .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, req.params["ticker"]!)))
+    .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, ticker)))
     .returning({ ticker: watchlist.ticker });
   if (result.length === 0) return res.status(404).json({ error: "Ticker not in watchlist" });
   return res.json({ ok: true });
@@ -111,8 +144,10 @@ router.patch("/watchlist/:ticker", async (req, res) => {
 
 // DELETE /watchlist/:ticker
 router.delete("/watchlist/:ticker", async (req, res) => {
+  const ticker = String(req.params["ticker"] ?? "").trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: "ticker required" });
   await db.delete(watchlist)
-    .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, req.params["ticker"]!)));
+    .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, ticker)));
   return res.json({ ok: true });
 });
 

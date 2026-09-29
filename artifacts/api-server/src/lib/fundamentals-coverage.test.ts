@@ -5,7 +5,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  shrinkToNeutral, NEUTRAL_SCORE, FAMILY_MIN_COVERAGE, TOTAL_MIN_COVERAGE,
+  shrinkToNeutral, NEUTRAL_SCORE, FAMILY_MIN_COVERAGE, TOTAL_MIN_COVERAGE, winsorizeValues,
 } from "./fundamentals-scoring-math.ts";
 
 describe("shrinkToNeutral", () => {
@@ -53,5 +53,22 @@ describe("shrinkToNeutral", () => {
   test("thresholds keep their intended ordering", () => {
     assert.ok(TOTAL_MIN_COVERAGE < FAMILY_MIN_COVERAGE,
       "a ticker can be ranked on fewer families than any single family needs");
+  });
+});
+
+describe("winsorizeValues", () => {
+  test("leaves short series unchanged", () => {
+    const vals = [1, 2, 100, null];
+    assert.deepEqual(winsorizeValues(vals), vals);
+  });
+
+  test("clamps extremes at ~2nd/98th for longer series", () => {
+    const vals = Array.from({ length: 50 }, (_, i) => i + 1); // 1..50
+    vals[0] = -1000;
+    vals[49] = 10000;
+    const out = winsorizeValues(vals);
+    assert.ok((out[0] as number) > -1000);
+    assert.ok((out[49] as number) < 10000);
+    assert.equal(out[25], 26);
   });
 });

@@ -1,46 +1,41 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import YahooFinanceClass from "yahoo-finance2";
 import { getUnionWatchlistTickers } from "../lib/watchlist-tickers.js";
-import { fetchFMPFundamentals } from "../lib/fmp-client.js";
-import { writeFundamentalsRow, checkTriangulation, getStaleTickers, getAllFundamentalsStatus, checkFMPBudget, recordFMPCalls, getAllFundamentalsRows, computeAndPersistFundamentalScores, readPersistedScores } from "../lib/fundamentals-db.js";
+import {
+  getStaleTickers,
+  getAllFundamentalsStatus,
+  checkFMPBudget,
+  getAllFundamentalsRows,
+  computeAndPersistFundamentalScores,
+  readPersistedScores,
+} from "../lib/fundamentals-db.js";
+import { CALLS_PER_TICKER } from "../lib/data-ops-config.js";
+import { enrichAndMergeTickers } from "../lib/enrich-and-merge.js";
 import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
 import { StockDataManager, type HistoryCSVRow } from "../lib/stock-data-manager.js";
 import { db, unmappedTickers, tickerRegistry, peerGroups, peerGroupMembers, tickerFundamentals, tickerTechnicals, indicatorCache } from "@workspace/db";
-import { desc, inArray, sql } from "drizzle-orm";
+import { desc, inArray, sql, eq } from "drizzle-orm";
 
 const router = Router();
-const yahooFinance = new YahooFinanceClass();
 
-// Refresh FMP fundamentals for a list of tickers.
-// Exported so index.ts can call it on startup for stale tickers.
+const FMP_CALLS = CALLS_PER_TICKER.fmp;
+
+/**
+ * Refresh fundamentals via the canonical enrich → populate → merge path.
+ * Do not write gold from FMP alone (legacy single-source path removed).
+ */
 export async function refreshFundamentals(tickers: string[]): Promise<void> {
-  const apiKey = process.env["FMP_API_KEY"];
-  if (!apiKey) {
-    logger.warn("FMP_API_KEY not set — fundamentals refresh skipped");
-    return;
+  logger.info({ count: tickers.length }, "fundamentals: starting enrich+merge refresh");
+
+  const result = await enrichAndMergeTickers(tickers);
+  if (!result.ok) {
+    logger.warn({ reason: result.reason, tickers: tickers.length }, "fundamentals: enrich+merge incomplete");
   }
 
-  logger.info({ count: tickers.length }, "fundamentals: starting refresh");
+  logger.info({ count: tickers.length, fetched: result.fetched, failed: result.failed }, "fundamentals: refresh complete");
 
-  // Process tickers in batches of 5 to avoid hammering FMP
-  const CALLS_PER_TICKER = 7;
-  const BATCH = 5;
-  for (let i = 0; i < tickers.length; i += BATCH) {
-    const batch = tickers.slice(i, i + BATCH);
-    await Promise.all(batch.map(ticker => refreshOneTicker(ticker, apiKey)));
-    await recordFMPCalls(batch.length * CALLS_PER_TICKER);
-    // Small pause between batches to stay well within rate limits
-    if (i + BATCH < tickers.length) {
-      await new Promise(r => setTimeout(r, 500));
-    }
-  }
-
-  logger.info({ count: tickers.length }, "fundamentals: refresh complete");
-
-  // Recompute and persist cross-sectional scores now that underlying metrics have changed
   try {
     const regime = await getLatestRegime();
     await computeAndPersistFundamentalScores(regime);
@@ -49,44 +44,11 @@ export async function refreshFundamentals(tickers: string[]): Promise<void> {
   }
 }
 
-async function refreshOneTicker(ticker: string, apiKey: string): Promise<void> {
-  try {
-    const fmpData = await fetchFMPFundamentals(ticker, apiKey, "fundamentals-refresh route");
-
-    // Fetch Yahoo data for triangulation comparison only (not as primary source).
-    let discrepancyFlags: string[] = [];
-    let yahooBeta: number | null = null;
-    try {
-      const yahoo = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
-        modules: ["financialData", "defaultKeyStatistics"] as any,
-      }, { validateResult: false });
-      const yahooResult = yahoo as { financialData?: unknown; defaultKeyStatistics?: unknown };
-      const yahooQuote = { ...(yahooResult.financialData ?? {}), ...(yahooResult.defaultKeyStatistics ?? {}) } as Record<string, unknown>;
-      discrepancyFlags = checkTriangulation(fmpData, yahooQuote);
-      if (yahooQuote["beta"] != null) yahooBeta = Number(yahooQuote["beta"]);
-    } catch (err) {
-      logger.warn({ ticker, err: String(err) }, "fundamentals: Yahoo triangulation fetch failed, skipping");
-    }
-
-    const regime = await getLatestRegime();
-    const dataToWrite = fmpData.beta == null && yahooBeta !== null
-      ? { ...fmpData, beta: yahooBeta }
-      : fmpData;
-    await writeFundamentalsRow(ticker, dataToWrite, discrepancyFlags);
-    if (fmpData.beta == null && yahooBeta !== null) {
-      logger.debug({ ticker, yahooBeta }, "fundamentals: beta filled from Yahoo fallback");
-    }
-    logger.debug({ ticker }, "fundamentals: ticker refreshed");
-  } catch (err: any) {
-    logger.warn({ ticker, err: String(err?.message ?? err) }, "fundamentals: ticker refresh failed");
-  }
-}
-
-// POST /fundamentals/refresh — refresh all 31 watchlist tickers from FMP.
-// Checks daily API budget before starting. Returns 202 if budget allows, 429 if not.
+// POST /fundamentals/refresh — enrich+merge for watchlist universe (budget gates FMP slice).
 router.post("/fundamentals/refresh", requireAdmin, async (_req, res) => {
   const unionTickers = await getUnionWatchlistTickers();
-  const callsNeeded = unionTickers.length * 7;
+  // Budget check uses FMP cost as the scarce ceiling; Yahoo/EDGAR still run inside enrich.
+  const callsNeeded = Math.min(unionTickers.length, 25) * FMP_CALLS;
   const budget = await checkFMPBudget(callsNeeded);
   if (!budget.allowed) {
     logger.warn({ callsNeeded, callsToday: budget.callsToday, remaining: budget.remaining },
@@ -98,8 +60,12 @@ router.post("/fundamentals/refresh", requireAdmin, async (_req, res) => {
       remaining: budget.remaining,
     });
   }
-  res.status(202).json({ message: "Fundamentals refresh started", tickers: unionTickers.length, budgetRemaining: budget.remaining });
-  refreshFundamentals(unionTickers).catch(err =>
+  res.status(202).json({
+    message: "Fundamentals enrich+merge started",
+    tickers: unionTickers.length,
+    budgetRemaining: budget.remaining,
+  });
+  refreshFundamentals(unionTickers).catch((err) =>
     logger.error({ err }, "fundamentals: background refresh crashed"),
   );
   return;
@@ -185,15 +151,19 @@ router.get("/fundamentals/rankings", async (_req, res) => {
 });
 
 // GET /fundamentals/unmapped — admin only; returns tickers that failed peer-group classification.
-// GET /fundamentals/stock-db — any signed-in user (view-only); every row in ticker_fundamentals.
-// Shows all tickers we have data for, regardless of watchlist membership. Mutating actions
-// (refresh, import-history, overrides) stay requireAdmin.
+// GET /fundamentals/stock-db — active fundamentals universe only (fetch_fundamentals).
+// Quarantined/delisted rows stay in ticker_fundamentals for history but must not
+// dilute Stock DB coverage denominators.
 router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
   try {
     const watchlistSet = new Set((await getUnionWatchlistTickers()).map((t: string) => t.toUpperCase()));
 
     const [fundRows, regRows, groupRows, techRows, signalResult] = await Promise.all([
-      db.select().from(tickerFundamentals),
+      db
+        .select({ fund: tickerFundamentals, fetchFundamentals: tickerRegistry.fetchFundamentals })
+        .from(tickerFundamentals)
+        .innerJoin(tickerRegistry, eq(tickerFundamentals.ticker, tickerRegistry.ticker))
+        .where(eq(tickerRegistry.fetchFundamentals, true)),
       db.select({ ticker: tickerRegistry.ticker, name: tickerRegistry.name, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId }).from(tickerRegistry),
       db.select({ id: peerGroups.id, name: peerGroups.name }).from(peerGroups),
       db.select().from(tickerTechnicals),
@@ -209,7 +179,7 @@ router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
     const techByTicker   = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
     const signalByTicker = new Map(signalResult.rows.map(r => [r.ticker.toUpperCase(), r.signal]));
 
-    const result = fundRows.map(row => {
+    const result = fundRows.map(({ fund: row }) => {
       const reg     = regByTicker.get(row.ticker.toUpperCase());
       const groupId = reg?.primaryPeerGroupId ?? null;
       return {

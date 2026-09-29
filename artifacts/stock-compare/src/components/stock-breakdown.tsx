@@ -1,19 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart, Minus, Plus
+  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart
 } from "lucide-react";
 import { PriceChart, Period } from "./price-chart";
 import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
 import { CompetitorsSection } from "./competitors-section";
-import { CatalystsSection } from "./catalysts-section";
 import { AnalystRatingsSection, type Recommendations, type AnalystAction, type AnalystPriceTarget, type PriceTargetRange } from "./analyst-ratings-section";
 import { EarningsHistorySection, type EarningsQuarter } from "./earnings-history-section";
 import { MarketSentimentSection } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
 import { BreakdownMetricsTable } from "./breakdown-metrics-table";
+import { PegGrowthDistChart } from "./peg-growth-dist-chart";
 import { PeerGroupEditor } from "./settings/PeerGroupEditor";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
@@ -21,7 +21,6 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -167,15 +166,40 @@ function TagBadge({
   );
 }
 
-type BreakdownTab = "analyst" | "earnings" | "sentiment" | "catalysts" | "news" | "accounting" | "peers";
+type BreakdownPanelProps = {
+  title: string;
+  children?: ReactNode;
+  empty?: string;
+  /** Span both columns in the 2-col grid. */
+  fullWidth?: boolean;
+  /** Taller min height for chart panels (earnings / growth). */
+  tall?: boolean;
+  /** Let children own vertical scroll (charts need flex fill, not scroll clip). */
+  fillBody?: boolean;
+};
 
-function ScoreBadge({ score, max = 5 }: { score: number; max?: number }) {
-  const color =
-    score >= 4 ? "text-green-400" : score >= 3 ? "text-yellow-400" : score >= 2 ? "text-orange-400" : "text-red-400";
+function BreakdownPanel({ title, children, empty, fullWidth, tall, fillBody }: BreakdownPanelProps) {
   return (
-    <span className={cn("font-bold font-mono tabular-nums text-sm", color)}>
-      {score}/{max}
-    </span>
+    <div
+      className={cn(
+        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col overflow-hidden",
+        fullWidth ? "col-span-2 min-h-[280px] max-h-[420px]" : tall ? "min-h-[300px] h-[320px]" : "min-h-[220px] max-h-[280px]",
+      )}
+    >
+      <div className="flex items-center justify-between mb-1.5 shrink-0">
+        <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">{title}</span>
+      </div>
+      <div
+        className={cn(
+          "flex-1 min-h-0 overflow-x-hidden",
+          fillBody ? "flex flex-col overflow-hidden" : "overflow-y-auto",
+        )}
+      >
+        {children ?? (
+          <p className="text-[10px] text-amber-200/40 italic">{empty ?? "No data available."}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -190,24 +214,21 @@ export function StockBreakdown({
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
-  const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>("analyst");
 
   // Technical widget / Peers box split — user-draggable, persisted per browser.
-  const SIDE_PANEL_TOTAL = 360; // matches the h-[360px] row height below
-  const SIDE_PANEL_MIN = 60;
+  const SIDE_PANEL_TOTAL = 440; // matches the h-[440px] row height below
+  const SIDE_PANEL_MIN = 80;
   const [techBoxHeight, setTechBoxHeight] = useState<number>(() => {
     const saved = Math.round(Number(localStorage.getItem("breakdown-tech-box-height")));
-    return saved >= SIDE_PANEL_MIN && saved <= SIDE_PANEL_TOTAL - SIDE_PANEL_MIN ? saved : 240;
+    if (saved >= 160 && saved <= SIDE_PANEL_TOTAL - SIDE_PANEL_MIN) return saved;
+    return 280;
+  });
+  const [tvZoom, setTvZoom] = useState<number>(() => {
+    const saved = Number(localStorage.getItem("breakdown-tv-zoom"));
+    return saved >= 0.55 && saved <= 1.5 ? saved : 1;
   });
   const [dragHeight, setDragHeight] = useState<number | null>(null);
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
-  const [techZoom, setTechZoom] = useState<number>(() => {
-    const saved = Number(localStorage.getItem("breakdown-tech-widget-zoom"));
-    return saved >= 0.5 && saved <= 2 ? saved : 1;
-  });
-  useEffect(() => {
-    localStorage.setItem("breakdown-tech-widget-zoom", String(techZoom));
-  }, [techZoom]);
 
   const handleSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartRef.current = { y: e.clientY, height: techBoxHeight };
@@ -231,6 +252,13 @@ export function StockBreakdown({
     dragStartRef.current = null;
     setDragHeight(null);
   };
+  const nudgeTvZoom = (delta: number) => {
+    setTvZoom((prev) => {
+      const next = Math.round(Math.min(1.5, Math.max(0.55, prev + delta)) * 100) / 100;
+      localStorage.setItem("breakdown-tv-zoom", String(next));
+      return next;
+    });
+  };
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,7 +269,6 @@ export function StockBreakdown({
       setActiveTicker(propTicker);
       setInputText(propTicker);
       setChartPeriod("1W");
-      setBreakdownTab("analyst");
     }
   }, [propTicker]);
 
@@ -279,7 +306,6 @@ export function StockBreakdown({
     setDropdownOpen(false);
     setFocusedIdx(-1);
     setChartPeriod("1W");
-    setBreakdownTab("analyst");
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -417,13 +443,21 @@ export function StockBreakdown({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <h1 className="text-2xl font-bold font-mono tracking-tight shrink-0 cursor-help decoration-dotted underline-offset-4 hover:underline">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-2xl font-bold font-mono tracking-tight shrink-0 cursor-pointer decoration-dotted underline-offset-4 hover:underline text-left"
+                        title="Company overview"
+                      >
                         {m.ticker}
-                      </h1>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="start" className="max-w-sm bg-card text-foreground border border-border p-3">
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="bottom"
+                      align="start"
+                      className="max-w-sm w-[min(24rem,calc(100vw-2rem))] bg-card text-foreground border border-border p-3 z-[80]"
+                    >
                       <span className="text-xs font-bold tracking-tight text-foreground block mb-1.5">Company Overview</span>
                       {m.description ? (
                         <ul className="space-y-1.5">
@@ -435,10 +469,10 @@ export function StockBreakdown({
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-xs text-foreground">No description available.</p>
+                        <p className="text-xs text-muted-foreground">No description available.</p>
                       )}
-                    </TooltipContent>
-                  </Tooltip>
+                    </PopoverContent>
+                  </Popover>
                   <span className="text-base text-foreground font-medium truncate">
                     {m.companyName}
                   </span>
@@ -501,23 +535,55 @@ export function StockBreakdown({
               )}
             </div>
 
-            {/* ── Top reward / risk summary ── */}
-            {(data.bullBullets?.[0] || data.bearBullets?.[0]) && (
-              <div className="grid grid-cols-2 gap-3 mt-0.5">
-                {data.bullBullets?.[0] && (
-                  <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-green-500/50 pl-2.5 py-1">
-                    <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
-                    {data.bullBullets[0]}
-                  </div>
-                )}
-                {data.bearBullets?.[0] && (
-                  <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-red-500/50 pl-2.5 py-1">
-                    <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
-                    {data.bearBullets[0]}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ── Highlights: catalysts + top reward / risk ── */}
+            {(() => {
+              const catalysts = data.catalysts ?? [];
+              const earns = catalysts.find((l) => /^(Earnings|Next earnings)/i.test(l));
+              const otherCats = catalysts.filter((l) => l !== earns);
+              const hasHighlights =
+                !!earns || otherCats.length > 0 || !!data.bullBullets?.[0] || !!data.bearBullets?.[0];
+              if (!hasHighlights) return null;
+              return (
+                <div className="mt-0.5 space-y-1.5">
+                  {(earns || otherCats.length > 0) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-200/45">
+                        Catalysts
+                      </span>
+                      {earns && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 whitespace-nowrap">
+                          {earns}
+                        </span>
+                      )}
+                      {otherCats.map((line, i) => (
+                        <span
+                          key={i}
+                          className="text-[11px] text-muted-foreground px-2 py-0.5 rounded border border-[#d4af37]/15 bg-zinc-900/80"
+                        >
+                          {line}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {(data.bullBullets?.[0] || data.bearBullets?.[0]) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {data.bullBullets?.[0] && (
+                        <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-green-500/50 pl-2.5 py-1">
+                          <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
+                          {data.bullBullets[0]}
+                        </div>
+                      )}
+                      {data.bearBullets?.[0] && (
+                        <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-red-500/50 pl-2.5 py-1">
+                          <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
+                          {data.bearBullets[0]}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Metrics table ── */}
             <BreakdownMetricsTable
@@ -554,8 +620,30 @@ export function StockBreakdown({
                   score: data.snowflake.growth,
                   rows: [
                     { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined },
-                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
+                    { label: "EPS Growth (display)", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
+                    {
+                      label: "PEG growth (peer z)",
+                      value: m.pegGrowth != null
+                        ? `${formatPercent(m.pegGrowth)}${
+                            m.pegGrowthPeerZ != null
+                              ? ` · ${m.pegGrowthPeerZ >= 0 ? "+" : ""}${(m.pegGrowthPeerZ as number).toFixed(1)}σ`
+                              : ""
+                          }`
+                        : "—",
+                      good: m.pegGrowthPeerZ != null
+                        ? (m.pegGrowthPeerZ as number) >= 0.5
+                          ? true
+                          : (m.pegGrowthPeerZ as number) <= -0.5
+                            ? false
+                            : undefined
+                        : m.pegGrowth != null
+                          ? m.pegGrowth > 0
+                          : undefined,
+                    },
                     { label: "EPS (Trailing)", value: formatCurrency(m.earningsPerShare) },
+                    { label: "EPS (Forward / Street)", value: formatCurrency(m.forwardEps) },
+                    { label: "Forward P/E", value: formatNumber(m.forwardPe) },
+                    { label: "Forward PEG", value: formatNumber(m.forwardPeg), good: m.forwardPeg != null ? m.forwardPeg < 1.5 : undefined },
                     { label: "Total Revenue", value: formatLargeNumber(m.totalRevenue) },
                     { label: "EBITDA", value: formatLargeNumber(m.ebitda) },
                   ],
@@ -589,8 +677,8 @@ export function StockBreakdown({
             {(() => {
               const hasPeers = !!propTicker && !!activeTicker;
               return (
-                <div className="grid grid-cols-4 gap-2 h-[360px] w-full">
-                  <div className="col-span-3 h-full min-w-0">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 h-[440px] w-full">
+                  <div className="h-full min-w-0">
                     <PriceChart
                       tickers={[m.ticker]}
                       loadedStocks={[m]}
@@ -601,32 +689,40 @@ export function StockBreakdown({
                       compact
                     />
                   </div>
-                  <div className="col-span-1 h-full min-w-0 flex flex-col min-h-0">
+                  <div className="h-full min-w-0 flex flex-col min-h-0">
                     <div
-                      className="relative bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 shrink-0 min-w-0 overflow-hidden flex items-center justify-center group/tech"
+                      className="relative bg-zinc-950 border border-[#d4af37]/20 rounded-lg shrink-0 min-w-0 overflow-hidden"
                       style={{ height: dragHeight ?? techBoxHeight }}
                     >
-                      <div style={{ zoom: techZoom }}>
-                        <TradingViewTechnicalWidget ticker={m.ticker} exchange={m.exchange} height={Math.round(Math.max(60, techBoxHeight - 16))} />
-                      </div>
-                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover/tech:opacity-100 transition-opacity">
+                      <div className="absolute top-1 right-1 z-10 flex items-center gap-0.5 rounded border border-[#d4af37]/30 bg-zinc-950/90 shadow-sm">
                         <button
                           type="button"
-                          onClick={() => setTechZoom(z => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
-                          className="w-4 h-4 flex items-center justify-center rounded bg-zinc-900/90 border border-[#d4af37]/30 text-[#d4af37]/70 hover:text-[#d4af37] hover:border-[#d4af37]/60 text-[10px] leading-none"
-                          title="Shrink widget"
+                          aria-label="Zoom out technical widget"
+                          title="Zoom out"
+                          onClick={() => nudgeTvZoom(-0.1)}
+                          className="px-1.5 py-0.5 text-[11px] font-bold text-amber-200/70 hover:text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors"
                         >
-                          <Minus className="w-2.5 h-2.5" />
+                          −
                         </button>
+                        <span className="text-[9px] font-mono text-amber-200/40 px-0.5 tabular-nums min-w-[2.25rem] text-center">
+                          {Math.round(tvZoom * 100)}%
+                        </span>
                         <button
                           type="button"
-                          onClick={() => setTechZoom(z => Math.min(2, Math.round((z + 0.1) * 10) / 10))}
-                          className="w-4 h-4 flex items-center justify-center rounded bg-zinc-900/90 border border-[#d4af37]/30 text-[#d4af37]/70 hover:text-[#d4af37] hover:border-[#d4af37]/60 text-[10px] leading-none"
-                          title="Enlarge widget"
+                          aria-label="Zoom in technical widget"
+                          title="Zoom in"
+                          onClick={() => nudgeTvZoom(0.1)}
+                          className="px-1.5 py-0.5 text-[11px] font-bold text-amber-200/70 hover:text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors"
                         >
-                          <Plus className="w-2.5 h-2.5" />
+                          +
                         </button>
                       </div>
+                      <TradingViewTechnicalWidget
+                        ticker={m.ticker}
+                        exchange={m.exchange}
+                        height={Math.max(120, dragHeight ?? techBoxHeight)}
+                        zoom={tvZoom}
+                      />
                     </div>
                     <div
                       onPointerDown={handleSplitPointerDown}
@@ -652,72 +748,92 @@ export function StockBreakdown({
               );
             })()}
 
-            {/* ── Below-chart detail tabs: Analyst / Sentiment / Catalysts / Accounting / News ── */}
+            {/* ── Detail panels ── */}
             {(() => {
-              const hasSentiment = data.bullBullets?.length > 0 || data.bearBullets?.length > 0 || !!data.recommendations;
+              const hasPeers = !!propTicker && !!activeTicker;
+              const hasSentiment =
+                (data.bullBullets?.length ?? 0) > 0 ||
+                (data.bearBullets?.length ?? 0) > 0 ||
+                !!data.recommendations;
               const hasNews = !!data.news && data.news.length > 0;
               const hasEarnings = !!data.earningsHistory && data.earningsHistory.length > 0;
-              const tabs: { id: BreakdownTab; label: string }[] = [
-                ...(data.recommendations ? [{ id: "analyst" as const, label: "Analyst Ratings" }] : []),
-                ...(hasEarnings ? [{ id: "earnings" as const, label: "Earnings" }] : []),
-                ...(hasSentiment ? [{ id: "sentiment" as const, label: "Sentiment" }] : []),
-                { id: "catalysts" as const, label: "Catalysts" },
-                { id: "accounting" as const, label: "Accounting" },
-                ...(hasNews ? [{ id: "news" as const, label: "News" }] : []),
-                ...(isAdmin ? [{ id: "peers" as const, label: "Peers" }] : []),
-              ];
-              const activeTab: BreakdownTab = tabs.some(t => t.id === breakdownTab) ? breakdownTab : (tabs[0]?.id ?? "analyst");
+              const hasGrowth =
+                m.pegGrowth != null &&
+                m.pegGrowthPeerMean != null &&
+                m.pegGrowthPeerStd != null &&
+                (m.pegGrowthPeerDisplay?.length ?? m.pegGrowthPeerMembers?.length ?? 0) >= 2;
+              const hasAnalyst = !!data.recommendations;
 
               return (
-                <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-xl overflow-hidden">
-                  <div className="px-4 pt-3 pb-2 border-b border-[#d4af37]/20 bg-black">
-                    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
-                      {tabs.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setBreakdownTab(t.id)}
-                          className={cn(
-                            "px-2.5 py-1.5 transition-colors",
-                            activeTab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-                          )}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    {activeTab === "analyst" && data.recommendations && (
+                <div className="grid grid-cols-2 gap-2">
+                  <BreakdownPanel title="Analyst Ratings" empty="No analyst ratings yet." tall>
+                    {hasAnalyst ? (
                       <AnalystRatingsSection
-                        recs={data.recommendations}
+                        recs={data.recommendations!}
                         metrics={m}
                         analystActions={data.analystActions ?? []}
                         analystPriceTargets={data.analystPriceTargets ?? []}
                         priceTargetRange={data.priceTargetRange ?? null}
                       />
-                    )}
-                    {activeTab === "earnings" && (
-                      <EarningsHistorySection history={data.earningsHistory ?? []} />
-                    )}
-                    {activeTab === "sentiment" && (
+                    ) : null}
+                  </BreakdownPanel>
+
+                  <BreakdownPanel title="Earnings" empty="No earnings history yet." tall fillBody>
+                    {hasEarnings ? (
+                      <EarningsHistorySection history={data.earningsHistory ?? []} compact />
+                    ) : null}
+                  </BreakdownPanel>
+
+                  <BreakdownPanel title="Growth (PEG)" empty="Peer growth sample unavailable." tall fillBody>
+                    {hasGrowth ? (
+                      <PegGrowthDistChart
+                        mean={m.pegGrowthPeerMean}
+                        std={m.pegGrowthPeerStd}
+                        subjectGrowth={m.pegGrowth}
+                        subjectZ={m.pegGrowthPeerZ ?? null}
+                        pegGrowthSource={m.pegGrowthSource}
+                        pegGrowthExplain={m.pegGrowthExplain}
+                        display={m.pegGrowthPeerDisplay ?? m.pegGrowthPeerMembers ?? []}
+                        members={m.pegGrowthPeerMembers ?? m.pegGrowthPeerDisplay ?? []}
+                        groupName={m.pegGrowthPeerGroup}
+                      />
+                    ) : null}
+                  </BreakdownPanel>
+
+                  <BreakdownPanel title="Sentiment" empty="No sentiment data yet." tall fillBody>
+                    {hasSentiment ? (
                       <MarketSentimentSection
                         recs={data.recommendations}
                         bullBullets={data.bullBullets ?? []}
                         bearBullets={data.bearBullets ?? []}
                       />
-                    )}
-                    {activeTab === "catalysts" && <CatalystsSection catalysts={data.catalysts} />}
-                    {activeTab === "accounting" && <AccountingStatementsSection ticker={m.ticker} />}
-                    {activeTab === "peers" && isAdmin && <PeerGroupEditor ticker={m.ticker} />}
-                    {activeTab === "news" && hasNews && (
-                      <div className="space-y-0.5 -mx-1">
-                        {data.news.map((item, i) => (
-                          <NewsCard key={i} item={item} />
+                    ) : null}
+                  </BreakdownPanel>
+
+                  <BreakdownPanel title="Accounting" empty="No EDGAR statements yet." fullWidth>
+                    <AccountingStatementsSection ticker={m.ticker} />
+                  </BreakdownPanel>
+
+                  <BreakdownPanel title="News" empty="No recent news.">
+                    {hasNews ? (
+                      <div className="space-y-0.5 -mx-0.5">
+                        {data.news.slice(0, 6).map((item, i) => (
+                          <NewsCard key={i} item={item} compact />
                         ))}
                       </div>
-                    )}
-                  </div>
+                    ) : null}
+                  </BreakdownPanel>
+
+                  <BreakdownPanel
+                    title={isAdmin ? "Peer Group" : "Peers"}
+                    empty="No peer group data."
+                  >
+                    {isAdmin ? (
+                      <PeerGroupEditor ticker={m.ticker} compact />
+                    ) : hasPeers && activeTicker ? (
+                      <CompetitorsSection ticker={activeTicker} />
+                    ) : null}
+                  </BreakdownPanel>
                 </div>
               );
             })()}

@@ -353,19 +353,14 @@ export function AccountingStatementsSection({ ticker }: { ticker: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-[11px] text-foreground/60">
-        Source: SEC EDGAR (10-K filings, annual figures) — independent of the FMP-sourced metrics used elsewhere on this page.
-        {data.asOf && <> Most recent filing: {data.asOf}.</>}
+    <div className="space-y-3">
+      <div className="text-[10px] text-foreground/50 leading-snug">
+        SEC EDGAR 10-K (annual)
+        {data.asOf && <> · filed {data.asOf}</>}
+        {data.fiscalYearEnd && data.fiscalYearEnd !== "12-31" && (
+          <> · FY ends {formatFiscalYearEnd(data.fiscalYearEnd)}</>
+        )}
       </div>
-
-      {data.fiscalYearEnd && data.fiscalYearEnd !== "12-31" && (
-        <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
-          {ticker}'s fiscal year ends {formatFiscalYearEnd(data.fiscalYearEnd)}, not Dec 31 — "FY" columns are labeled by the
-          calendar year each period ended in, not calendar-year performance. Only fully closed years with a filed 10-K appear
-          here; nothing is estimated or partial.
-        </div>
-      )}
 
       <div className="inline-flex rounded border border-teal-500/20 overflow-hidden text-[11px] font-semibold">
         {ACCOUNTING_SUB_TABS.map((t) => (
@@ -384,9 +379,8 @@ export function AccountingStatementsSection({ ticker }: { ticker: string }) {
       </div>
 
       {subTab === "summary" && (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
           <SectorPeersStrip ticker={ticker} />
-
           {data.findings.length > 0 && (
             <div className="space-y-1.5">
               {data.findings.map((f, i) => (

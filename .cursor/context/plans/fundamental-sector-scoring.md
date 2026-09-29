@@ -40,6 +40,8 @@ isProject: false
 
 # Sector-Relative Fundamental Scoring — Implementation Plan
 
+> **Status 2026-09-29 (partial land):** Runtime SoT is DB + `scripts/src/seed-peer-groups.ts` (not live JSON). ETF deny-list SoT: `@workspace/db` `etf-exclusions.ts` (seed + API; DRAM in, SPCX out — not an ETF). Outliers: **winsorize 2nd/98th** inside peer cohorts. New group `speculative_thematic.quantum_computing` (IONQ/RGTI/QBTS/QUBT/QSI). Live mis-cats → Settings Peer Group **Reassign** (`peer_group_overrides`). Weekly + nightly: `peer-health-check.ts` heals roster/ETF/unmapped and flags keyword mismatches. Legacy `ticker-mapping-overrides.json` emptied.
+
 ## Problem and outcome
 
 **Today:** `[computeRankingsV2](artifacts/stock-compare/src/lib/rankings.ts)` sets `stockGroupKeys = "__global__"` — all loaded tickers normalized in one pool. `[home.tsx](artifacts/stock-compare/src/pages/home.tsx)` has a hardcoded preload list (`FUNDAMENTAL_WATCHLIST`) — a **bug workaround only**, not a design input. Scanner uses a different percentile scorer in `[fundamentals.ts](artifacts/api-server/src/routes/fundamentals.ts)`.
@@ -114,7 +116,7 @@ At runtime (user adds any ticker):
 - `[sector_taxonomy.json](/Users/jamiepark/rbh_scripts/sector_taxonomy.json)` → `peer_group_id` = dot path (e.g. `technology.semiconductors_design`), members from `**all_tickers` only**
 - `[fundamental_scoring_guide.json](/Users/jamiepark/rbh_scripts/fundamental_scoring_guide.json)` → `metric_profile` JSONB via guide ID map (32 scoring profiles mapped to taxonomy groups)
 - For **every unique ticker** in union of all `all_tickers`: upsert `ticker_registry` with `primary_peer_group_id` (dual-membership table overrides default)
-- Exclude ETFs: `SMH, SOXX, IWM, QQQ, SPY, BIZD, JBBB, NVDY, SPCX, PSUS`
+- Exclude ETFs: `SMH, SOXX, IWM, QQQ, SPY, BIZD, JBBB, NVDY, PSUS` (+ DRAM/HOOY/ARKG/CANE/SPCK — SoT `@workspace/db` `etf-exclusions.ts`; SPCX is **not** an ETF)
 
 **Taxonomy path → guide ID → scoring_mode**
 

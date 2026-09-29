@@ -1,0 +1,35 @@
+---
+description: Grep lessons before repeating infra/vendor/task-scope mistakes — not always loaded
+alwaysApply: false
+---
+
+# Learn from mistakes (Cursor lessons)
+
+**Store:** `.cursor/context/lessons.md` (max 15 active; archive in `lessons-archive.md`)
+
+## When to grep (do not read whole file unless hits)
+
+| Task type | Command |
+|---|---|
+| Infra / cache / queue / CI proposals | `node .cursor/scripts/session-lesson-cursor.js grep "infra\|cache\|redis"` |
+| New vendor API or FMP endpoint | `grep -i "fmp\|vendor" .cursor/context/lessons.md` |
+| PM backlog or "implement the plan" | `grep -i "task\|audit\|scope" .cursor/context/lessons.md` |
+| Catalysts / analyst / breakdown | `grep -i "catalyst\|analyst" .cursor/context/lessons.md` |
+
+## When to add a lesson (session wrap)
+
+Only if **user corrected us** or **codebase evidence** disproved an assumption — and the fix is a repeatable guardrail.
+
+```bash
+node .cursor/scripts/session-lesson-cursor.js add \
+  --title "..." --trigger "..." --mistake "..." --fix "..." [--verify "..."]
+node .cursor/scripts/session-wrap-cursor.js "summary" --lessons L-YYYY-MM-DD-NN
+```
+
+**Do not** add lessons for style, typos, or anything already in `data-agent.md` / existing rules.
+
+## Context budget
+
+- sessionStart banner: last 2 **Fix** lines only (via rehydrate)
+- Full lesson bodies: read only matching entries after grep
+- Never promote lessons to `alwaysApply` rules without user approval

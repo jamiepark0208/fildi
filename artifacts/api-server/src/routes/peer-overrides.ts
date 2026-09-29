@@ -24,10 +24,10 @@ async function groupSummary(groupId: string | null) {
   return rows[0] ?? null;
 }
 
-// A member is "representative" when its own scoring cohort (ticker_registry.primary_peer_group_id)
-// is this group — i.e. it's actually grouped with the rest of this roster for fundamental
-// percentile scoring, not just displayed here for comparison (see computeAndPersistFundamentalScores,
-// which groups strictly by primary_peer_group_id and never reads peer_group_members).
+// A member is "scored here" (API field: isRepresentative, legacy name) when its own
+// scoring cohort (ticker_registry.primary_peer_group_id) is this group. Scoring never
+// reads peer_group_members or a hand-picked "representative" subset — cohort = all
+// non-ETF tickers with the same primary, with 2nd/98th winsorization inside the group.
 async function memberRoster(groupId: string | null) {
   if (!groupId || groupId === "__global__") return [];
   const rows = await db.select({

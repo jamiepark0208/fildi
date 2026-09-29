@@ -15,7 +15,7 @@ import { logger } from "../lib/logger.js";
 const router = Router();
 
 // All sources we track across all fields
-const ALL_SOURCES = ["yahoo", "finnhub", "fmp", "edgar", "polygon", "alpha_vantage"];
+const ALL_SOURCES = ["yahoo", "finnhub", "fmp", "edgar", "polygon", "alpha_vantage", "factset", "derived"];
 
 // Derive excluded sources per field from FIELD_DEFS priority lists
 const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
@@ -51,7 +51,8 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
     wacc:           "not tracked by Finnhub",
     effectiveTaxRate: "not tracked by Finnhub",
     forwardPe:      "not tracked by Finnhub",
-    pegRatio:       "not tracked by Finnhub",
+    pegRatio:       "Finnhub only exposes forwardPEG — not comparable to trailing/5yr PEG; gold uses derived PE÷growth",
+    dividendYield:  "Finnhub DY may be decimal or percent-points; populate normalizes (v>0.2 → ÷100)",
     evEbitda:       "not tracked by Finnhub",
     evRevenue:      "not tracked by Finnhub",
     totalRevenue:   "not tracked by Finnhub",

@@ -1,7 +1,6 @@
 import type { TickerFundamentalsRow, TickerTechnicalsRow } from "@workspace/db";
 import { scoreTechnicalRowV2 } from "./technical-scorer-v2.js";
-
-const STALE_DAYS = 7;
+import { STALE_DAYS } from "./data-ops-config.js";
 const STALE_HOURS = 23;
 
 function n(v: string | null | undefined): number | null {

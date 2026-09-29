@@ -46,17 +46,37 @@ import { fetchFMPFundamentals }      from "../lib/fmp-client.js";
 import { recordApiUsage }            from "../lib/api-usage.js";
 import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
+import { isExcludedEtf } from "../lib/etf-exclusions.js";
+import { resetDataSourceDailyCountersIfNeeded } from "../lib/reset-data-source-counters.js";
+import { runFactsetReferee } from "../lib/factset-referee.js";
+import {
+  AV_MAX_DAILY_CALLS,
+  CALLS_PER_TICKER as SHARED_CALLS_PER_TICKER,
+  FMP_MAX_DAILY_CALLS,
+  PEER_EXPANSION_CAP as SHARED_PEER_CAP,
+  SOURCE_ORDER as SHARED_SOURCE_ORDER,
+  STALE_DAYS as SHARED_STALE_DAYS,
+  isCohortDueToday,
+} from "../lib/data-ops-config.js";
+import {
+  EARNINGS_STALE_DAYS,
+  getEarningsWindowTickers,
+  listEarningsWindowHits,
+} from "../lib/refresh-triggers.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const DRY_RUN    = process.argv.includes("--dry-run");
-const STALE_DAYS = 7;
+const STALE_DAYS = SHARED_STALE_DAYS;
+
+/** Populated in main() — earnings ± window tickers get priority + shorter stale. */
+let earningsWindowTickers = new Set<string>();
 
 // bug/9: peers of an added ticker used to get fetchFundamentals=true synchronously
 // on every POST /watchlist (unbounded — one add could flag an entire peer group).
 // That flip now happens here instead, capped per run so a large backlog of newly
 // unflagged peers can't blow the nightly budget in one pass.
-const PEER_EXPANSION_CAP = 25;
+const PEER_EXPANSION_CAP = SHARED_PEER_CAP;
 
 // --fields dividendYield,epsGrowth  → restrict to only these tfCol names (for testing)
 const FIELDS_ARG = process.argv.find(a => a.startsWith("--fields="))?.split("=")[1];
@@ -83,15 +103,12 @@ const SOURCE_DAILY_LIMITS: Record<string, number> = {
   edgar:         Infinity,
   finnhub:       Infinity,
   polygon:       Infinity,
-  alpha_vantage: 25,
-  fmp:           220,
+  alpha_vantage: AV_MAX_DAILY_CALLS,
+  fmp:           FMP_MAX_DAILY_CALLS,
 };
 
-// Calls consumed per ticker-fetch (for budget math)
-export const CALLS_PER_TICKER: Record<string, number> = {
-  yahoo: 1, edgar: 1, finnhub: 1, polygon: 1, alpha_vantage: 1,
-  fmp: 9,   // fetchFMPFundamentals fires 9 endpoints
-};
+// Calls consumed per ticker-fetch (for budget math) — re-export shared config
+export const CALLS_PER_TICKER: Record<string, number> = { ...SHARED_CALLS_PER_TICKER };
 
 // Rate-limit sleeps
 const BATCH_SLEEP_MS: Record<string, number> = {
@@ -103,8 +120,8 @@ const BATCH_CONCURRENT: Record<string, number> = {
   yahoo: 3, edgar: 3, finnhub: 3, polygon: 1, alpha_vantage: 1, fmp: 1,
 };
 
-// Process order: cheapest first
-const SOURCE_ORDER = ["yahoo", "edgar", "finnhub", "polygon", "alpha_vantage", "fmp"];
+// Process order: cheapest first (shared with on-demand enrich-and-merge)
+const SOURCE_ORDER = [...SHARED_SOURCE_ORDER];
 
 // ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -189,6 +206,7 @@ async function buildFetchTargets(
 ): Promise<Map<string, string[]>> {
   const tickers = [...nullFieldsMap.keys()];
   const staleThreshold = new Date(Date.now() - STALE_DAYS * 86_400_000);
+  const earningsStaleThreshold = new Date(Date.now() - EARNINGS_STALE_DAYS * 86_400_000);
 
   // Load staging freshness for all sources in one pass
   const [yahooRows, edgarRows, finnhubRows, polyRows, avRows, fmpRows] = await Promise.all([
@@ -202,22 +220,27 @@ async function buildFetchTargets(
 
   // Build staging-freshness maps: source → Set<ticker> that are fresh
   const stagingFresh = new Map<string, Set<string>>();
-  function freshSet(rows: { ticker: string; fetchedAt: Date | null }[], extra?: (r: any) => boolean): Set<string> {
+  const stagingFreshEarnings = new Map<string, Set<string>>();
+  function freshSet(rows: { ticker: string; fetchedAt: Date | null }[], cutoff: Date, extra?: (r: any) => boolean): Set<string> {
     return new Set(rows.filter(r => {
-      if (!r.fetchedAt || r.fetchedAt < staleThreshold) return false;
+      if (!r.fetchedAt || r.fetchedAt < cutoff) return false;
       return !extra || !extra(r);
     }).map(r => r.ticker));
   }
-  stagingFresh.set("yahoo",         freshSet(yahooRows));
-  stagingFresh.set("edgar",         freshSet(edgarRows));
-  stagingFresh.set("finnhub",       freshSet(finnhubRows));
-  stagingFresh.set("polygon",       freshSet(polyRows));
-  stagingFresh.set("alpha_vantage", freshSet(avRows));
+  function setBoth(src: string, rows: { ticker: string; fetchedAt: Date | null }[], extra?: (r: any) => boolean) {
+    stagingFresh.set(src, freshSet(rows, staleThreshold, extra));
+    stagingFreshEarnings.set(src, freshSet(rows, earningsStaleThreshold, extra));
+  }
+  setBoth("yahoo", yahooRows);
+  setBoth("edgar", edgarRows);
+  setBoth("finnhub", finnhubRows);
+  setBoth("polygon", polyRows);
+  setBoth("alpha_vantage", avRows);
   // Real-data check for fmp uses peRatio/netIncome, not wacc/roic — those are FMP-exclusive
   // but legitimately null for most tickers (need a specific balance sheet shape), which made
   // ~92% of rows look like placeholders forever and starved the budget on the same tickers
   // every run. See backfill-fmp.ts's isRecentlyBackfilled for the same fix.
-  stagingFresh.set("fmp",           freshSet(fmpRows, r => r.fmpPeRatio === null && r.fmpNetIncome === null));
+  setBoth("fmp", fmpRows, r => r.fmpPeRatio === null && r.fmpNetIncome === null);
 
   // Load source_fundamentals for all tickers+sources in one query:
   // ticker → source → Set<sfField> that have non-null values
@@ -252,11 +275,17 @@ async function buildFetchTargets(
     const isStagingFresh  = stagingFresh.get(src) ?? new Set<string>();
     const sfFieldToTfCol  = sfToTfCol.get(src) ?? new Map<string, string>();
 
+    const isStagingFreshEarn = stagingFreshEarnings.get(src) ?? new Set<string>();
+
     const targets = tickers.filter(ticker => {
       const nullTfCols = nullFieldsMap.get(ticker)!;
       // Fields this source could fill for this ticker's nulls
       const needed = [...nullTfCols].filter(f => coverableFields.has(f));
-      if (needed.length === 0) return false;
+      // Earnings window: re-pull yahoo/finnhub/fmp even when gold has no nulls
+      const earningsForce =
+        earningsWindowTickers.has(ticker) &&
+        (src === "yahoo" || src === "finnhub" || src === "fmp");
+      if (needed.length === 0 && !earningsForce) return false;
 
       const sourceSfFields = sfIndex.get(ticker)?.get(src) ?? new Set<string>();
 
@@ -269,7 +298,7 @@ async function buildFetchTargets(
         return false;
       });
 
-      if (alreadyCovered.length === needed.length) {
+      if (!earningsForce && alreadyCovered.length === needed.length) {
         // All needed fields already in source_fundamentals → just re-run populate+merge, no API call
         return false;
       }
@@ -280,7 +309,12 @@ async function buildFetchTargets(
       // sourceSfFields.size > 0, so tickers that came back with zero data (the common
       // case for small/foreign tickers on FMP/AV) were retried every single run,
       // starving never-tried tickers of the tiny FMP/AV daily budget.
-      if (isStagingFresh.has(ticker)) return false;
+      // Earnings window uses EARNINGS_STALE_DAYS (1d) so post-print numbers get one refresh.
+      if (earningsWindowTickers.has(ticker)) {
+        if (isStagingFreshEarn.has(ticker)) return false;
+      } else if (isStagingFresh.has(ticker)) {
+        return false;
+      }
 
       return true;
     });
@@ -693,9 +727,9 @@ export const FETCH_FN: Record<string, (ticker: string) => Promise<"ok" | "fail" 
 // ── Process one source ─────────────────────────────────────────────────────────
 
 // Candidate lists come out of buildFetchTargets in a stable order (alphabetical, per
-// ticker_registry's orderBy). Budget-capped sources (fmp, alpha_vantage) only ever get through
-// the first `maxTickers` of that order, so without shuffling, the same early-alphabet subset
-// eats the whole daily budget every run and everything after it never gets a turn.
+// ticker_registry's orderBy). Budget-capped sources (fmp, alpha_vantage) only ever get
+// through the first `maxTickers` — prefer today's cohort so the full universe rotates
+// every COHORT_MODULUS days, then fill remaining slots from the rest (shuffled).
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -705,6 +739,14 @@ function shuffled<T>(arr: T[]): T[] {
   return copy;
 }
 
+/** Earnings-window first, then cohort-due, then the rest. */
+function prioritizeQueue(tickers: string[]): string[] {
+  const earn = shuffled(tickers.filter((t) => earningsWindowTickers.has(t)));
+  const due = shuffled(tickers.filter((t) => !earningsWindowTickers.has(t) && isCohortDueToday(t)));
+  const rest = shuffled(tickers.filter((t) => !earningsWindowTickers.has(t) && !isCohortDueToday(t)));
+  return [...earn, ...due, ...rest];
+}
+
 async function processSource(
   source:    string,
   tickers:   string[],
@@ -712,7 +754,8 @@ async function processSource(
 ): Promise<{ fetched: number; skippedBudget: number; failed: number; nodata: number }> {
   const callsPerTicker = CALLS_PER_TICKER[source];
   const maxTickers     = remaining === Infinity ? tickers.length : Math.floor(remaining / callsPerTicker);
-  const candidates      = remaining === Infinity ? tickers : shuffled(tickers);
+  // Always surface earnings-window names first (cheap + scarce).
+  const candidates     = prioritizeQueue(tickers);
   const toFetch        = candidates.slice(0, maxTickers);
   const skippedBudget  = tickers.length - toFetch.length;
 
@@ -811,20 +854,20 @@ async function computeCoveragePercent(): Promise<number> {
 async function classifyUngroupedTickers(): Promise<void> {
   try {
     const ungrouped = (await db
-      .select({ ticker: tickerFundamentals.ticker })
-      .from(tickerFundamentals)
-      .leftJoin(tickerRegistry, eq(tickerRegistry.ticker, tickerFundamentals.ticker))
-      .where(isNull(tickerRegistry.primaryPeerGroupId)))
-      .map(r => r.ticker);
+      .select({ ticker: tickerRegistry.ticker })
+      .from(tickerRegistry)
+      .where(and(eq(tickerRegistry.fetchFundamentals, true), isNull(tickerRegistry.primaryPeerGroupId))))
+      .map(r => r.ticker)
+      .filter(t => !isExcludedEtf(t));
 
     if (ungrouped.length === 0) return;
-    log(`peer-group backfill: ${ungrouped.length} scored ticker(s) with no peer group`);
+    log(`peer-group backfill: ${ungrouped.length} fetch_fundamentals ticker(s) with no peer group`);
 
     let mapped = 0;
     for (const ticker of ungrouped) {
       try {
         const res = await classifyTicker(ticker);
-        if (res.groupId && res.groupId !== "__global__") {
+        if (res.groupId && res.groupId !== "__global__" && res.confidence !== "unmapped") {
           mapped++;
           log(`  ${ticker} → ${res.groupId} (${res.confidence})`);
         } else {
@@ -908,6 +951,12 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
   const runStartedAt = new Date();
   log(`nightly-enrichment starting${DRY_RUN ? " (DRY RUN)" : ""}${FIELD_FILTER ? ` [fields: ${[...FIELD_FILTER].join(",")}]` : ""}`);
 
+  try {
+    await resetDataSourceDailyCountersIfNeeded();
+  } catch (err: any) {
+    log(`WARN: data_sources counter reset failed: ${err?.message}`);
+  }
+
   let coverageBefore: number | null = null;
   try {
     coverageBefore = await computeCoveragePercent();
@@ -975,6 +1024,23 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
 
   const allTickers = [...flaggedTickers, ...unflaggedPeers];
 
+  // 1c. Earnings-window trigger — prioritize names reporting soon / just reported
+  earningsWindowTickers = await getEarningsWindowTickers();
+  if (TICKER_FILTER) {
+    earningsWindowTickers = new Set([...earningsWindowTickers].filter((t) => TICKER_FILTER!.has(t)));
+  }
+  const earningsHits = await listEarningsWindowHits();
+  const earnInUniverse = earningsHits.filter((h) => allTickers.includes(h.ticker));
+  log(
+    `Earnings trigger window: ${earnInUniverse.length} in universe` +
+      (earnInUniverse.length
+        ? ` (${earnInUniverse
+            .slice(0, 12)
+            .map((h) => `${h.ticker}@${h.reportDate}`)
+            .join(", ")}${earnInUniverse.length > 12 ? "…" : ""})`
+        : ""),
+  );
+
   // 2. Bootstrap Edgar CIK cache
   log("Bootstrapping EDGAR CIK cache…");
   const cikCount = await bootstrapCikCache();
@@ -982,13 +1048,12 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
 
   // 3. Find null fields in ticker_fundamentals
   const nullFieldsMap = await findNullFields(allTickers);
-  const tickersWithNulls = [...nullFieldsMap.keys()];
-  log(`Tickers with ≥1 null fundamental field: ${tickersWithNulls.length}`);
-  if (tickersWithNulls.length === 0) {
-    log("Nothing to enrich — all fields populated.");
-    await recordRun({ startedAt: runStartedAt, status: "success", trigger, perSource: {}, coverageBefore, coverageAfter: coverageBefore });
-    return;
+  // Earnings names with full gold still need a post-print refresh path
+  for (const t of earningsWindowTickers) {
+    if (allTickers.includes(t) && !nullFieldsMap.has(t)) nullFieldsMap.set(t, new Set());
   }
+  const tickersWithNulls = [...nullFieldsMap.keys()];
+  log(`Tickers with ≥1 null fundamental field (or earnings force): ${tickersWithNulls.length}`);
 
   // 4. Which sources can fill which fields
   const sourceFieldMap = buildSourceFieldMap();
@@ -1001,10 +1066,11 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
     log(`  ${src.padEnd(14)} remaining: ${rem === Infinity ? "∞" : rem}`);
   }
 
-  // 6. Build per-source fetch plan: checks source_fundamentals + staging freshness
-  //    before including a ticker, so we never call an API for data already in the DB
+  // 6. Build per-source fetch plan (empty if no nulls — FactSet referee still runs later)
   log("Building fetch plan (checking source_fundamentals + staging freshness)…");
-  fetchPlan = await buildFetchTargets(nullFieldsMap, sourceFieldMap);
+  fetchPlan = tickersWithNulls.length > 0
+    ? await buildFetchTargets(nullFieldsMap, sourceFieldMap)
+    : new Map(SOURCE_ORDER.map(s => [s, [] as string[]]));
   for (const src of SOURCE_ORDER) {
     log(`[${src}] ${fetchPlan.get(src)?.length ?? 0} tickers need enrichment`);
   }
@@ -1039,41 +1105,50 @@ async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
     log(`  ${src.padEnd(14)} fetched=${t.fetched}  nodata=${t.nodata}  failed=${t.failed}  budget_skipped=${t.skippedBudget}`);
   }
 
-  if (!anyFetched || DRY_RUN) {
-    log("No new data fetched — skipping populate + merge.");
-    if (!DRY_RUN) {
-      await recordRun({ startedAt: runStartedAt, status: "success", trigger, perSource: totals, coverageBefore, coverageAfter: coverageBefore });
-    }
-    return;
-  }
-
-  // 10 + 11. Materialize staging → source_fundamentals → ticker_fundamentals.
-  //
-  // These run IN-PROCESS (direct function calls), not as `npx tsx` subprocesses.
-  // The old execFileSync approach spawned npx inside the long-lived api-server and
-  // swallowed any failure as a WARN — in production that spawn failed silently, so
-  // freshly-fetched staging never flowed downstream and coverage regressed as the
-  // flagged universe grew. A failure here now marks the run `partial` instead of
-  // masquerading as a clean success. Both runners are careful never to process.exit.
   let pipelineError: string | null = null;
 
-  log("\nRunning populate-source-fundamentals (in-process)…");
-  try {
-    await runPopulateSourceFundamentals();
-  } catch (err: any) {
-    pipelineError = `populate-source-fundamentals failed: ${err?.message ?? String(err)}`;
-    log(`ERROR: ${pipelineError}`);
+  if (!anyFetched || DRY_RUN) {
+    log("No new free-source data fetched — skipping free populate + merge.");
+  } else {
+    // 10 + 11. Materialize staging → source_fundamentals → ticker_fundamentals (in-process).
+    log("\nRunning populate-source-fundamentals (in-process)…");
+    try {
+      await runPopulateSourceFundamentals();
+    } catch (err: any) {
+      pipelineError = `populate-source-fundamentals failed: ${err?.message ?? String(err)}`;
+      log(`ERROR: ${pipelineError}`);
+    }
+
+    if (!pipelineError) {
+      log("\nRunning merge-trusted (in-process)…");
+      try {
+        await runMergeTrusted();
+      } catch (err: any) {
+        pipelineError = `merge-trusted failed: ${err?.message ?? String(err)}`;
+        log(`ERROR: ${pipelineError}`);
+      }
+    }
   }
 
-  // Merge is the step that writes ticker_fundamentals — skip it if populate threw,
-  // since merging on half-populated source_fundamentals would just persist a
-  // partial/regressed snapshot.
-  if (!pipelineError) {
-    log("\nRunning merge-trusted (in-process)…");
+  // 12. FactSet referee — nulls + divergences (budget-capped). Re-merge if anything written.
+  if (!DRY_RUN && !pipelineError) {
+    log("\nRunning FactSet referee (nulls/divergences)…");
     try {
-      await runMergeTrusted();
+      const fsResult = await runFactsetReferee({});
+      totals["factset"] = {
+        fetched: fsResult.fetched,
+        skippedBudget: fsResult.skippedBudget,
+        failed: fsResult.failed,
+        nodata: 0,
+      };
+      if (fsResult.fieldsWritten > 0) {
+        log(`FactSet wrote ${fsResult.fieldsWritten} source fields — re-running merge-trusted…`);
+        await runMergeTrusted();
+      } else {
+        log(`FactSet referee: fetched=${fsResult.fetched} fields=0`);
+      }
     } catch (err: any) {
-      pipelineError = `merge-trusted failed: ${err?.message ?? String(err)}`;
+      pipelineError = `factset-referee failed: ${err?.message ?? String(err)}`;
       log(`ERROR: ${pipelineError}`);
     }
   }

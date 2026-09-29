@@ -8,7 +8,7 @@ export interface FundamentalsRow {
   discrepancyFlags: string | null;
   overrideFlags: string | null;
   // VALUE
-  peRatio: string | null; pegRatio: string | null; forwardPe: string | null;
+  peRatio: string | null; pegRatio: string | null; forwardPe: string | null; forwardPeg: string | null;
   priceToBook: string | null; priceToSales: string | null; evEbitda: string | null;
   evRevenue: string | null; dividendYield: string | null;
   // GROWTH

@@ -17,12 +17,27 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/merge-trusted.ts
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db, sourceFundamentals, tickerFundamentals, tickerRegistry,
-  fieldProvenance, manualOverrides,
+  fieldProvenance, manualOverrides, pricesHistorical,
   type ManualOverridesRow,
 } from "@workspace/db";
+import {
+  computeTrailingPeg,
+  computeForwardPeg,
+  computeNetMargin,
+  computeDebtToEquity,
+  computePeFromPriceEps,
+  computeForwardPeFromPriceEps,
+  computePriceToBook,
+  computeApproxRoic,
+  computeOperatingMargin,
+  computeReturnOnEquity,
+  resolvePegGrowth,
+} from "../lib/derived-metrics.js";
+
+export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "../lib/derived-metrics.js";
 
 // ── Per-field source priority: [source, sf_field] pairs in priority order ────
 // sf_field = the canonical field name as stored in source_fundamentals
@@ -33,23 +48,26 @@ type FieldDef = { tfCol: keyof typeof tickerFundamentals.$inferInsert; priority:
 
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
-  { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"],      ["alpha_vantage","peRatio"]] },
-  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"],                               ["alpha_vantage","forwardPe"]] },
-  // finnhub is last before alpha_vantage: its only PEG value is forward-looking
-  // (forwardPEG), not directly comparable to yahoo/fmp's trailing PEG — treat as a
-  // last-resort fallback, not a peer of the trailing-basis sources.
-  { tfCol: "pegRatio",           priority: [["yahoo","pegRatio"],     ["fmp","pegRatio"],         ["finnhub","pegRatio"],  ["alpha_vantage","pegRatio"]] },
+  // factset is last-resort referee (null fill / divergence settle) — never ahead of free sources.
+  { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"],      ["alpha_vantage","peRatio"], ["factset","peRatio"]] },
+  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"],                               ["alpha_vantage","forwardPe"], ["factset","forwardPe"]] },
+  // Vendor PEGs are NOT comparable (Yahoo≈5yr expected, FMP=own mix, Finnhub=forwardPEG).
+  // Gold PEG is overwritten by computeTrailingPeg(pe, epsGrowth). Priority list only
+  // seeds provenance display / rare fallback before that overwrite.
+  { tfCol: "pegRatio",           priority: [["yahoo","pegRatio"],     ["fmp","pegRatio"],         ["alpha_vantage","pegRatio"], ["factset","pegRatio"]] },
+  // Gold-only derived companion — never vendor-voted (see applyDerived in runMergeTrusted).
+  { tfCol: "forwardPeg",         priority: [] },
   { tfCol: "evEbitda",           priority: [["yahoo","evEbitda"],     ["fmp","evEbitda"]] },
   { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
-  { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"]] },
+  { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"], ["factset","priceToBook"]] },
   { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["finnhub","psRatio"], ["fmp","priceToSales"]] },
 
-  // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av) ────────
-  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"]] },
-  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["polygon","operatingMargin"], ["alpha_vantage","operatingMargin"]] },
-  { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"]] },
-  { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"]] },
-  { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"]] },
+  // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av → factset) ────────
+  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"], ["factset","grossMargin"]] },
+  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["polygon","operatingMargin"], ["alpha_vantage","operatingMargin"], ["factset","operatingMargin"]] },
+  { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"], ["factset","netMargin"]] },
+  { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"], ["factset","returnOnEquity"]] },
+  { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"], ["factset","returnOnAssets"]] },
   { tfCol: "roic",               priority: [["yahoo","roic"],             ["finnhub","roic"],           ["fmp","roic"]] },
 
   // ── Growth ────────────────────────────────────────────────────────────────
@@ -57,14 +75,14 @@ export const FIELD_DEFS: FieldDef[] = [
   // annualRevenueYoy equals FMP's revenueGrowthYoY exactly (same annual basis); Yahoo's
   // quarterly revenueGrowth (MRQ-YoY) and Finnhub's TTM-YoY answer different questions,
   // so they drop to last-resort for the ~4 tickers missing an annual figure.
-  { tfCol: "revenueGrowthYoY",      priority: [["yahoo","annualRevenueYoy"], ["fmp","revenueGrowthYoY"],  ["finnhub","revenueGrowth"], ["yahoo","revenueGrowth"]] },
+  { tfCol: "revenueGrowthYoY",      priority: [["yahoo","annualRevenueYoy"], ["fmp","revenueGrowthYoY"],  ["finnhub","revenueGrowth"], ["yahoo","revenueGrowth"], ["factset","revenueGrowthYoY"]] },
   { tfCol: "revenueGrowthYoyPrior", priority: [["yahoo","revenueGrowthYoyPrior"], ["fmp","revenueGrowthYoyPrior"]] },
   // Yahoo epsGrowth is already annual and matches FMP; Finnhub is TTM (different basis),
   // so FMP is the fallback and Finnhub drops to last.
-  { tfCol: "epsGrowth",             priority: [["yahoo","epsGrowth"],       ["fmp","epsGrowth"],          ["finnhub","epsGrowth"]] },
+  { tfCol: "epsGrowth",             priority: [["yahoo","epsGrowth"],       ["fmp","epsGrowth"],          ["finnhub","epsGrowth"], ["factset","epsGrowth"]] },
 
   // ── debtToEquity: yahoo only → fmp fallback (never finnhub — different def) ─
-  { tfCol: "debtToEquity",       priority: [["yahoo","debtToEquity"],  ["fmp","debtToEquity"]] },
+  { tfCol: "debtToEquity",       priority: [["yahoo","debtToEquity"],  ["fmp","debtToEquity"], ["factset","debtToEquity"]] },
 
   // ── Balance sheet ─────────────────────────────────────────────────────────
   // EDGAR is last resort everywhere — it's annual 10-K data (lags), so it only wins a
@@ -74,37 +92,39 @@ export const FIELD_DEFS: FieldDef[] = [
   // Yahoo's totalCash reports that; FMP/EDGAR report cash-ONLY (cashAndCashEquivalents),
   // which understates it, so they're excluded here rather than mixed in. Costs 6 tickers
   // their cash value (319/335 have Yahoo totalCash) — better than a wrong, mixed concept.
-  { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"]] },
+  // FactSet "Cash & ST Inv" matches Yahoo's concept — allowed as last-resort only.
+  { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"], ["factset","totalCash"]] },
   // Concept = total debt (short + long term). Yahoo→FMP both report this; Polygon and
   // EDGAR are dropped — they produce unreliable values for this field (Polygon includes
   // bank deposits, e.g. GS=$1.68T; EDGAR often captures only long-term debt, e.g. MSFT=$43B).
   // The residual Yahoo-vs-FMP gap is genuine operating-lease inclusion — see DIVERGENCE_TOL.
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
-  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"], ["edgar","totalEquity"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"]] },
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
-  { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"]] },
+  { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
-  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["polygon","totalRevenue"],  ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"]] },
-  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["polygon","netIncome"],  ["edgar","netIncome"]] },
-  { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"]] },
-  { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"]] },
+  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["polygon","totalRevenue"],  ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"]] },
+  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["polygon","netIncome"],  ["edgar","netIncome"], ["factset","netIncome"]] },
+  { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
+  { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["edgar","grossProfit"]] } as any,
   { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"], ["edgar","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["yahoo","wacc"],             ["fmp","wacc"]] },
 
   // ── Cash flow ─────────────────────────────────────────────────────────────
-  { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"]] },
+  { tfCol: "freeCashFlow",               priority: [["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"], ["factset","freeCashFlow"]] },
   // FMP "quarter" cash-flow endpoint returns YTD from 10-Q, not isolated quarter — Yahoo only.
-  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"]] },
+  // FactSet NOCF allowed as last resort when Yahoo quarterly OCF is null.
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"], ["factset","quarterlyOperatingCashFlow"]] },
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
   { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["finnhub","dividendYield"], ["fmp","dividendYield"], ["alpha_vantage","dividendYield"]] },
   { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"],                      ["alpha_vantage","analystTargetPrice"]] },
-  { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"]] },
+  { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"], ["factset","earningsPerShare"]] },
 ];
 
 // grossProfit has no ticker_fundamentals column — skip in merge
@@ -122,7 +142,25 @@ const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => (tfCol as string) !== 
 //    stays in the value-priority chain as a last resort. Balance-sheet snapshots
 //    (cash, debt, equity, shares, currentRatio) are point-in-time and remain
 //    comparable to EDGAR.
-const DIVERGENCE_SKIP_TFCOLS = new Set(["debtToEquity"]);
+//
+// pegRatio is SKIPPED: Yahoo (5yr expected growth), FMP (own PE/growth mix),
+// Finnhub (forwardPEG only), AV, and any FactSet-derived PEG are NOT the same
+// metric. Comparing them invents fake Needs Review. Gold PEG is computed below
+// from our gold peRatio + gold epsGrowth (same inputs the scorecard uses).
+  // pegRatio/forwardPeg: incompatible vendor definitions — gold is derived.
+  // beta: vendors use different lookbacks / adjustments — skip Needs Review noise.
+  // epsGrowth / revenueGrowthYoY: vendors mix TTM vs FY vs quarterly annualized —
+  // FactSet still settles gold via LTM when present; NR on growth is definition noise.
+  const DIVERGENCE_SKIP_TFCOLS = new Set([
+    "debtToEquity",
+    "pegRatio",
+    "forwardPeg",
+    "beta",
+    "epsGrowth",
+    "revenueGrowthYoY",
+    // ASC 842 / lease inclusion differs Yahoo vs FMP — not a FactSet-fixable error.
+    "totalDebt",
+  ]);
 const PERIOD_SENSITIVE_TFCOLS = new Set([
   "grossMargin", "operatingMargin", "netMargin", "returnOnEquity", "returnOnAssets", "roic",
   "revenueGrowthYoY", "revenueGrowthYoyPrior", "epsGrowth",
@@ -199,15 +237,14 @@ function resolveFromIndex(
   }
   const orderedBySrc = new Map(ordered.map(o => [o.src, o.val]));
 
-  // Divergence = winner-vs-fallback, period-aware. Compare the highest-priority
-  // period-comparable source (the value we're showing) against its realistic
-  // fallback (the next period-comparable source). Sources that never win no longer
-  // manufacture noise, and EDGAR is dropped for period-sensitive fields.
+  // Divergence = winner-vs-fallback among free sources (exclude factset from the
+  // comparison pair — FactSet is the referee, not a peer that should create noise).
   let divergent = false;
+  const freeOrdered = ordered.filter(o => o.src !== "factset");
   if (!DIVERGENCE_SKIP_TFCOLS.has(tf)) {
     const comparable = PERIOD_SENSITIVE_TFCOLS.has(tf)
-      ? ordered.filter(o => o.src !== "edgar")
-      : ordered;
+      ? freeOrdered.filter(o => o.src !== "edgar")
+      : freeOrdered;
     if (comparable.length >= 2) {
       divergent = isMaterialDivergence(tf, comparable[0].val, comparable[1].val);
     }
@@ -234,7 +271,25 @@ function resolveFromIndex(
     // overrideSource has no data — fall through to normal priority
   }
 
-  // Normal priority walk: first non-null source wins
+  // FactSet referee: when free sources disagree, pick the free source closest to
+  // FactSet (within REFEREE_MATCH_TOL). Provenance stays on that free source —
+  // FactSet is the judge, not the default gold author. Only write winning_source=
+  // factset when no free source is close enough (use FactSet's own value).
+  const REFEREE_MATCH_TOL = 0.20; // 20% relative — settle to nearest free source
+  const factsetVal = orderedBySrc.get("factset");
+  if (divergent && factsetVal !== undefined) {
+    let best: { src: string; val: number; dist: number } | null = null;
+    for (const o of freeOrdered) {
+      const dist = Math.abs(o.val - factsetVal) / Math.max(Math.abs(factsetVal), 1e-9);
+      if (!best || dist < best.dist) best = { src: o.src, val: o.val, dist };
+    }
+    if (best && best.dist <= REFEREE_MATCH_TOL) {
+      return { source: best.src, value: best.val, isOverride: false, divergent: false };
+    }
+    return { source: "factset", value: factsetVal, isOverride: false, divergent: false };
+  }
+
+  // Normal priority walk: first non-null source wins (FactSet last in FIELD_DEFS → null fill only)
   if (ordered.length > 0) {
     const winner = ordered[0];
     return { source: winner.src, value: winner.val, isOverride: false, divergent };
@@ -343,6 +398,40 @@ export async function runMergeTrusted() {
   }
 
   const allTickers = [...trackedTickers].sort();
+
+  // Latest close per ticker — for PE / P/B fill-ins when vendors omit ratios.
+  const priceByTicker = new Map<string, number>();
+  if (allTickers.length > 0) {
+    const priceRows = await db.execute(sql`
+      SELECT DISTINCT ON (ticker) ticker, close
+      FROM prices_historical
+      WHERE ticker IN (${sql.join(
+        allTickers.map((t) => sql`${t}`),
+        sql`, `,
+      )})
+      ORDER BY ticker, date DESC
+    `);
+    for (const row of (priceRows as any).rows ?? (priceRows as any)) {
+      const c = Number(row.close);
+      if (row.ticker && isFinite(c) && c > 0) priceByTicker.set(String(row.ticker), c);
+    }
+  }
+
+  // Consensus forward EPS (silver) — yahoo → fmp → finnhub → av for Fwd P/E + PEG growth.
+  const forwardEpsByTicker = new Map<string, number>();
+  const fwdEpsPrefer = ["yahoo", "fmp", "finnhub", "alpha_vantage"];
+  for (const ticker of allTickers) {
+    const bySrc = index.get(ticker)?.get("forwardEps");
+    if (!bySrc) continue;
+    for (const src of fwdEpsPrefer) {
+      const v = bySrc.get(src);
+      if (v != null && isFinite(v) && v > 0) {
+        forwardEpsByTicker.set(ticker, v);
+        break;
+      }
+    }
+  }
+
   let totalTickersMerged = 0;
   let totalFieldsWritten = 0;
   const sourceUsage: Record<string, number> = {};
@@ -360,6 +449,8 @@ export async function runMergeTrusted() {
     const existing = existingMap.get(ticker);
 
     for (const fieldDef of VALID_FIELD_DEFS) {
+      // Empty priority = gold-only derived field (e.g. forwardPeg) — filled in applyDerived.
+      if (fieldDef.priority.length === 0) continue;
       const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
       const result = resolveFromIndex(fieldDef, byField, override);
 
@@ -376,7 +467,110 @@ export async function runMergeTrusted() {
       }
     }
 
-    if (Object.keys(update).length === 0) continue;
+    // ── Owned derives (fill nulls + overwrite PEG/FwdPEG always) ─────────────
+    const price = priceByTicker.get(ticker) ?? null;
+    const fillIfMissing = (field: string, value: number | null) => {
+      if (value == null) return;
+      if (update[field] != null) return;
+      update[field] = value;
+      sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
+      const prev = provenanceBatch.find((p) => p.field === field);
+      const result = { source: "derived", value, isOverride: false, divergent: false };
+      if (prev) prev.result = result;
+      else provenanceBatch.push({ field, result });
+      if (fieldNullCount[field] > 0) fieldNullCount[field]--;
+      const from = existing?.[field] != null ? Number(existing[field]) : null;
+      const { changed } = isChanged(from, value);
+      if (changed) changedFields.push({ field, from, to: value });
+    };
+
+    fillIfMissing("netMargin", computeNetMargin(update.netIncome, update.totalRevenue));
+    fillIfMissing("operatingMargin", computeOperatingMargin(update.ebit, update.totalRevenue));
+    fillIfMissing(
+      "returnOnEquity",
+      computeReturnOnEquity(update.netIncome, update.totalStockholdersEquity),
+    );
+    fillIfMissing("debtToEquity", computeDebtToEquity(update.totalDebt, update.totalStockholdersEquity));
+    fillIfMissing("peRatio", computePeFromPriceEps(price, update.earningsPerShare));
+    fillIfMissing(
+      "priceToBook",
+      computePriceToBook(price, update.totalStockholdersEquity, update.sharesOutstanding),
+    );
+    // Forward P/E from consensus forward EPS when vendors omit the ratio.
+    const forwardEps = forwardEpsByTicker.get(ticker) ?? null;
+    fillIfMissing("forwardPe", computeForwardPeFromPriceEps(price, forwardEps));
+    fillIfMissing(
+      "roic",
+      computeApproxRoic({
+        ebit: update.ebit,
+        taxRate: update.effectiveTaxRate,
+        totalDebt: update.totalDebt,
+        equity: update.totalStockholdersEquity,
+        cash: update.cashAndEquivalents,
+      }),
+    );
+
+    // PEG / Fwd PEG: owned formula. Growth = trailing YoY if usable, else near-term
+    // forward growth from forwardEps (closes coverage gap vs P/B which needs no growth).
+    const pegGrowth = resolvePegGrowth({
+      epsGrowth: update.epsGrowth,
+      trailingEps: update.earningsPerShare,
+      forwardEps,
+    });
+    const canonicalPeg = computeTrailingPeg(update.peRatio, pegGrowth);
+    const canonicalFwdPeg = computeForwardPeg(update.forwardPe, pegGrowth);
+    /** Provenance rows to DELETE when owned derive clears the gold cell. */
+    const clearProvenanceFields: string[] = [];
+
+    const applyDerived = (
+      field: "pegRatio" | "forwardPeg",
+      value: number | null,
+    ) => {
+      const ci = changedFields.findIndex((c) => c.field === field);
+      if (value != null) {
+        const prev = provenanceBatch.find((p) => p.field === field);
+        const from =
+          existing?.[field] != null
+            ? Number(existing[field])
+            : (prev?.result.value ?? null);
+        update[field] = value;
+        sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
+        const result = { source: "derived", value, isOverride: false, divergent: false };
+        if (prev) prev.result = result;
+        else {
+          provenanceBatch.push({ field, result });
+          if (fieldNullCount[field] > 0) fieldNullCount[field]--;
+        }
+        const { changed } = isChanged(from, value);
+        if (changed) {
+          if (ci >= 0) changedFields[ci] = { field, from, to: value };
+          else changedFields.push({ field, from, to: value });
+        } else if (ci >= 0) {
+          // Drop vendor→junk log lines when final gold equals prior derived gold.
+          changedFields.splice(ci, 1);
+        }
+      } else {
+        delete update[field];
+        (update as Record<string, number | null>)[field] = null;
+        const pi = provenanceBatch.findIndex((p) => p.field === field);
+        if (pi >= 0) provenanceBatch.splice(pi, 1);
+        if (ci >= 0) changedFields.splice(ci, 1);
+        clearProvenanceFields.push(field);
+        if (existing?.[field] != null) {
+          changedFields.push({
+            field,
+            from: Number(existing[field]),
+            to: null as unknown as number,
+          });
+        }
+        fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
+      }
+    };
+
+    applyDerived("pegRatio", canonicalPeg);
+    applyDerived("forwardPeg", canonicalFwdPeg);
+
+    if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
 
     const divergentFields = provenanceBatch
       .filter(({ result }) => result.divergent)
@@ -417,6 +611,18 @@ export async function runMergeTrusted() {
         });
     }
 
+    // Owned-null fields must not leave stale vendor provenance (audit honesty).
+    if (clearProvenanceFields.length > 0) {
+      await db.execute(sql`
+        DELETE FROM field_provenance
+        WHERE ticker = ${ticker}
+          AND field IN (${sql.join(
+            clearProvenanceFields.map((f) => sql`${f}`),
+            sql`, `,
+          )})
+      `);
+    }
+
     if (changedFields.length > 0) {
       const shown = changedFields.slice(0, 6).map(c => `${c.field} ${fmt(c.from)}→${fmt(c.to)}`).join(", ");
       const more  = changedFields.length > 6 ? ` (+${changedFields.length - 6} more)` : "";
@@ -425,6 +631,24 @@ export async function runMergeTrusted() {
     totalTickersMerged++;
     totalFieldsWritten += Object.keys(update).length;
   }
+
+  // Vendor PEG fights are definition mismatches, not data errors — clear any leftover flags.
+  await db.execute(sql`
+    UPDATE field_provenance
+    SET divergent = false, updated_at = ${now}
+    WHERE field IN ('pegRatio', 'forwardPeg') AND divergent = true
+  `);
+
+  // Safety net: gold-null owned PEG must not keep a vendor winning_source.
+  await db.execute(sql`
+    DELETE FROM field_provenance fp
+    USING ticker_fundamentals tf
+    WHERE fp.ticker = tf.ticker
+      AND (
+        (fp.field = 'pegRatio' AND tf.peg_ratio IS NULL)
+        OR (fp.field = 'forwardPeg' AND tf.forward_peg IS NULL)
+      )
+  `);
 
   const nullThreshold = Math.ceil(allTickers.length * 0.2);
   const highNullFields = Object.entries(fieldNullCount)

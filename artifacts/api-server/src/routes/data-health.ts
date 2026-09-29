@@ -4,10 +4,11 @@ import { eq, isNull, isNotNull, sql } from "drizzle-orm";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { lastEnrichmentRun, enrichmentRunning } from "../lib/scheduler.js";
 import { FIELD_DEFS } from "../scripts/merge-trusted.js";
+import { DATA_HEALTH_STALE_DAYS } from "../lib/data-ops-config.js";
 
 const router = Router();
 
-const STALE_DAYS = 14;
+const STALE_DAYS = DATA_HEALTH_STALE_DAYS;
 const TOP_NULL_FIELDS = 5;
 
 router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {

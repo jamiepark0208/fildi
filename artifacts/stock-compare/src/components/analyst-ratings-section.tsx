@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -71,21 +69,6 @@ const GRADE_COLOR_CLASS: Record<"bull" | "bear" | "neutral", string> = {
   bear: "text-red-400",
   neutral: "text-yellow-400",
 };
-
-function actionBullets(action: AnalystAction): string[] {
-  const sentiment = classifyGrade(action.toGrade);
-  if (sentiment === "bull") {
-    if (action.action === "up") return ["Raised from prior rating — improved fundamental or near-term outlook", "May reflect accelerating earnings, margin expansion, or valuation re-rating catalyst"];
-    if (action.action === "init") return ["Initiated coverage with constructive thesis on growth and/or valuation", "Entry point suggests risk/reward favors upside at current price"];
-    return ["Reaffirming confidence in current trajectory — no material thesis change", "Sees continued upside relative to peers"];
-  }
-  if (sentiment === "bear") {
-    if (action.action === "down") return ["Downgraded — deteriorating fundamentals, guidance cut, or valuation concern", "Risk/reward seen as unfavorable relative to sector peers"];
-    if (action.action === "init") return ["Initiated with cautious stance — elevated valuation or competitive headwinds", "Sees limited upside versus downside risk at current price"];
-    return ["Maintains cautious view — not yet seeing catalysts to turn constructive", "Monitoring for signs of stabilization before upgrading"];
-  }
-  return ["Neutral stance — balancing growth potential against valuation or execution risk", "Watching for clearer directional signal before committing to Buy or Sell"];
-}
 
 export function AnalystDonut({ recs }: { recs: Recommendations }) {
   const data = [
@@ -164,7 +147,6 @@ export function AnalystRatingsSection({
   analystPriceTargets: AnalystPriceTarget[];
   priceTargetRange: PriceTargetRange | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const m = metrics;
 
   const pt = priceTargetRange;
@@ -177,21 +159,8 @@ export function AnalystRatingsSection({
     : null;
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between mb-3 group"
-      >
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">
-          {expanded ? "Hide" : "Show"} rating history &amp; price targets
-        </span>
-        <span className="text-foreground group-hover:text-foreground transition-colors">
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </span>
-      </button>
-
-      {/* Always-visible: donut + consensus target */}
+    <div className="space-y-4">
+      {/* Donut + consensus target */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
         <AnalystDonut recs={recs} />
         {m.analystTargetPrice != null && m.currentPrice != null && (
@@ -217,9 +186,8 @@ export function AnalystRatingsSection({
         )}
       </div>
 
-      {/* Expanded: price target range + per-firm price targets */}
-      {expanded && (
-        <div className="mt-5 space-y-5 border-t border-border/30 pt-5">
+      {/* Always expanded — panel scrolls */}
+      <div className="space-y-5 border-t border-border/30 pt-4">
           {/* Price target range bar */}
           {hasRange && (
             <div>
@@ -261,9 +229,8 @@ export function AnalystRatingsSection({
                   <tr className="border-b border-border/40">
                     <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Entity</th>
                     <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
-                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Notes</th>
                     <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Target</th>
-                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5">Last Updated</th>
+                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5">Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,7 +248,6 @@ export function AnalystRatingsSection({
                           </span>
                         </td>
                         <td className={cn("py-1.5 pr-2 text-xs font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
-                        <td className="py-1.5 pr-2 text-[13px] text-foreground leading-snug">{actionBullets(a)[0]}</td>
                         <td className="py-1.5 pr-2 text-xs font-mono text-foreground text-right whitespace-nowrap">
                           {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
                         </td>
@@ -349,8 +315,7 @@ export function AnalystRatingsSection({
           ) : (
             <p className="text-sm text-foreground italic">No per-firm price targets archived yet for this ticker.</p>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

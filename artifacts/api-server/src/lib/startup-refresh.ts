@@ -2,8 +2,10 @@ import { eq, and } from "drizzle-orm";
 import { db, tickerRegistry } from "@workspace/db";
 import { logger } from "./logger";
 import { WATCHLIST } from "./constants";
-import { getStaleTickers, checkFMPBudget } from "./fundamentals-db";
-import { refreshFundamentals } from "../routes/fundamentals";
+import { getStaleTickers } from "./fundamentals-db";
+import { enrichAndMergeTickers } from "./enrich-and-merge";
+import { computeAndPersistFundamentalScores } from "./fundamentals-db";
+import { getLatestRegime } from "../routes/regime";
 import { getStaleTechnicalTickers, refreshTechnicals } from "./technicals-db";
 import { withRetry } from "./retry";
 
@@ -12,6 +14,9 @@ import { withRetry } from "./retry";
 // FMP/Yahoo budget. Startup should only warm a small, capped slice of the
 // registry — the scheduler (lib/scheduler.ts) still handles full coverage.
 const DEFAULT_CAP = 25;
+
+/** Cheap free sources only at boot — scarce FMP/AV left to nightly cohort. */
+const STARTUP_SOURCES = ["yahoo", "edgar", "finnhub", "polygon"] as const;
 
 function getStartupCap(): number {
   const raw = process.env["STARTUP_REFRESH_CAP"];
@@ -47,22 +52,22 @@ export async function runStartupStaleRefresh(): Promise<void> {
       if (stale.length === 0) return;
       const capped = stale.slice(0, cap);
 
-      let budget;
+      logger.info(
+        { count: capped.length, staleTotal: stale.length, cap, sources: STARTUP_SOURCES },
+        "startup: enrich+merge stale fundamentals (cheap sources)",
+      );
+      const result = await enrichAndMergeTickers([...capped], {
+        sources: [...STARTUP_SOURCES],
+      });
+      if (!result.ok) {
+        logger.warn({ reason: result.reason }, "startup: enrich+merge incomplete");
+      }
       try {
-        budget = await checkFMPBudget(capped.length * 7);
+        const regime = await getLatestRegime();
+        await computeAndPersistFundamentalScores(regime);
       } catch (err) {
-        logger.warn({ err }, "startup: FMP budget check failed — skipping stale refresh");
-        return;
+        logger.warn({ err: String(err) }, "startup: score recompute failed");
       }
-      if (!budget.allowed) {
-        logger.warn(
-          { callsNeeded: capped.length * 7, callsToday: budget.callsToday, remaining: budget.remaining },
-          "startup: FMP budget exhausted — skipping stale refresh",
-        );
-        return;
-      }
-      logger.info({ count: capped.length, staleTotal: stale.length, cap }, "startup: refreshing stale FMP fundamentals");
-      return refreshFundamentals(capped);
     }), {
     onRetry: (attempt, err) => logger.warn({ err, attempt }, "startup: fundamentals retry"),
   }).catch(e => logger.error({ err: e }, "startup: fundamentals failed after retries"));

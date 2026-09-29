@@ -292,6 +292,8 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
 
   // Phase 4 — extended value / acceleration fields
   forwardPe:                  numeric('forward_pe'),
+  /** Derived: forwardPe / (epsGrowth×100) — same growth basis as pegRatio */
+  forwardPeg:                 numeric('forward_peg'),
   evEbitda:                   numeric('ev_ebitda'),
   evRevenue:                  numeric('ev_revenue'),
   revenueGrowthYoyPrior:      numeric('revenue_growth_yoy_prior'),

@@ -31,3 +31,30 @@ export function shrinkToNeutral(rawScore: number, coverage: number): number | nu
   const c = Math.min(1, Math.max(0, coverage));
   return NEUTRAL_SCORE + (rawScore - NEUTRAL_SCORE) * Math.sqrt(c);
 }
+
+/**
+ * Winsorize non-null values to [loPct, hiPct] empirical percentiles.
+ * Matches fundamental_scoring_guide: clamp before peer-relative ranks so one
+ * extreme name (e.g. NVDA AI multiple) cannot dominate the cohort distribution.
+ * Returns input unchanged when fewer than `minN` non-null values.
+ */
+export function winsorizeValues(
+  vals: (number | null)[],
+  loPct = 0.02,
+  hiPct = 0.98,
+  minN = 5,
+): (number | null)[] {
+  const nums = vals.filter((v): v is number => v !== null && Number.isFinite(v)).sort((a, b) => a - b);
+  if (nums.length < minN) return vals;
+  // Empirical percentile indices — for small n, floor(n*pct) drops ≥1 observation
+  // from each tail (n=50, 2% → index 1), which is what stops a single extreme from
+  // defining the cutoff as itself.
+  const loIdx = Math.min(nums.length - 1, Math.max(0, Math.floor(nums.length * loPct)));
+  const hiIdx = Math.min(nums.length - 1, Math.max(loIdx, Math.ceil(nums.length * hiPct) - 1));
+  const lo = nums[loIdx]!;
+  const hi = nums[hiIdx]!;
+  return vals.map(v => {
+    if (v === null || !Number.isFinite(v)) return null;
+    return Math.min(hi, Math.max(lo, v));
+  });
+}
