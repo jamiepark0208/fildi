@@ -19,8 +19,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
-import { DailyBrief } from "@/components/daily-brief";
-import { MarketTickerBanner } from "@/components/MarketTickerBanner";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { useAuth } from "@/context/AuthContext";
 
@@ -776,6 +774,7 @@ export default function Portfolio() {
     accountSummaries: Array<{ account: string; nickname: string | null; totalValue: string | null; equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null; marginUsed: string | null; buyingPower: string | null }>;
     realizedEvents: Array<{ account: string; symbol: string; assetType: 'stock' | 'option'; direction: 'long' | 'short'; optionType: 'call' | 'put' | null; qty: number; pnl: number; fees: number; closedAt: string }>;
     tickerEarnings: Array<{ account: string; ticker: string; totalUnrealized: string | null; totalRealized: string | null; totalEarned: string | null; sellPut: string | null; sellCall: string | null; longCall: string | null; longPut: string | null; dividends: string | null; stocksRealized: string | null; stocksUnrealized: string | null; totalStocks: string | null }>;
+    earningsCalendar: Record<string, string | null>;
   }>({
     queryKey: ['portfolio-snapshot-latest'],
     queryFn: async () => {
@@ -895,23 +894,23 @@ export default function Portfolio() {
       <TopNav />
 
       <main className="pt-14 min-w-0">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-border/50 flex items-center justify-end gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Manual-entry portfolios are a non-admin concept — admins get theirs from the RH CSV import */}
-            {!isAdmin && (
-              <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8">
-                <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
-              </Button>
-            )}
-            {/* Once there's data, the upload control lives next to the All/FILDI/IRA filter in Portfolio Analysis instead */}
-            {isAdmin && entries.length === 0 && (
-              <PortfolioUpload onSuccess={() => refetchRh()} />
-            )}
+        {/* Sticky actions — only when something to show (avoids empty strip for admin-with-data) */}
+        {(!isAdmin || entries.length === 0) && (
+          <div className="px-5 py-2 border-b border-border/50 flex items-center justify-end gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
+            <div className="flex items-center gap-2 shrink-0">
+              {!isAdmin && (
+                <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8 border-[#d4af37]/25 text-amber-200/80 hover:bg-amber-500/10 hover:text-[#d4af37]">
+                  <FolderPlus className="w-3.5 h-3.5" /> Add Portfolio
+                </Button>
+              )}
+              {isAdmin && entries.length === 0 && (
+                <PortfolioUpload onSuccess={() => refetchRh()} />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="px-5 pb-5 pt-3 space-y-5">
+        <div className="px-5 pb-5 pt-0 space-y-3">
           {entries.length === 0 && portfolioNames.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 gap-5 text-center">
               <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
@@ -933,12 +932,6 @@ export default function Portfolio() {
             </div>
           ) : (
             <>
-              {/* Market ticker tape — VIX/SPY/QQQ/etc, scrolls as one row at any width */}
-              <MarketTickerBanner />
-
-              {/* Daily AI Highlights */}
-              <DailyBrief tickers={uniqueTickers} />
-
               {isAdmin ? (
                 <>
                   {/* Portfolio Analysis — driven by Robinhood snapshot; holdings tables live in its sub-tabs */}
@@ -951,6 +944,7 @@ export default function Portfolio() {
                       accountSummaries={rhData?.accountSummaries ?? []}
                       realizedEvents={rhData?.realizedEvents ?? []}
                       tickerEarnings={rhData?.tickerEarnings ?? []}
+                      earningsCalendar={rhData?.earningsCalendar ?? {}}
                       onUploadSuccess={() => refetchRh()}
                     />
                   )}

@@ -1,9 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
-import Anthropic from "@anthropic-ai/sdk";
-// Module-scope client so each request reuses one keep-alive pool (was constructed
-// per-request in the two AI handlers below — see one-time review).
-const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
+import { aiLimiter } from "../middleware/rateLimiter.js";
+import { callHaiku } from "../lib/haiku.js";
 import YahooFinanceClass from "yahoo-finance2";
 const yahooFinance = new YahooFinanceClass();
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -242,19 +240,20 @@ router.get("/highlights", (_req: Request, res: Response) => {
   }
 });
 
-router.post("/highlights/generate", requireAdmin, async (_req: Request, res: Response) => {
+router.post("/highlights/generate", requireAdmin, aiLimiter, async (req: Request, res: Response) => {
   const today = new Date().toISOString().slice(0, 10);
   try {
     const packet = await buildFactsPacket();
     const prompt = buildHighlightsPrompt(packet);
 
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: prompt }],
+    const { text } = await callHaiku({
+      prompt,
+      maxTokens: 1500,
+      trigger: "macro-highlights",
+      surfaceType: "macro-highlights",
+      userId: req.session.userId,
+      ticker: "_",
     });
-
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
     const result = parseHighlightsResponse(text, today);
     writeFileSync(HIGHLIGHTS_FILE, JSON.stringify(result, null, 2), "utf-8");
     return res.json(result);
@@ -299,7 +298,7 @@ router.get("/bank-research", (_req: Request, res: Response) => {
   return res.json(loadBankResearch());
 });
 
-router.post("/bank-research/generate", requireAdmin, async (_req: Request, res: Response) => {
+router.post("/bank-research/generate", requireAdmin, aiLimiter, async (req: Request, res: Response) => {
   try {
     let macroData: MacroData | null = loadMacroCache();
     if (!macroData) {
@@ -334,16 +333,18 @@ Respond with a JSON array. Each object must have exactly these fields:
 
 Base stances on publicly known views and the current macro context. Return ONLY the JSON array, no other text.`;
 
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
+    const { text } = await callHaiku({
+      prompt,
+      maxTokens: 2000,
+      trigger: "macro-bank-research",
+      surfaceType: "macro-bank-research",
+      userId: req.session.userId,
+      ticker: "_",
     });
-
-    const text = message.content[0].type === "text" ? message.content[0].text : "[]";
+    const jsonText = text || "[]";
     let updated: BankResearch[];
     try {
-      updated = JSON.parse(text) as BankResearch[];
+      updated = JSON.parse(jsonText) as BankResearch[];
     } catch {
       return res.json(existing);
     }

@@ -155,7 +155,11 @@ export function HotlistTable({
                 <td className="px-3 py-1.5 font-mono font-semibold text-white">
                   {e.ticker}
                   {knife && <span className="ml-1 text-red-500" title="Falling knife: >2 ATR below MA50 and MA200 with MACD falling">⚠</span>}
-                  <TickerRecordBadge record={tickerRecords?.[e.ticker]?.[optSide]} />
+                  <TickerRecordBadge
+                    record={tickerRecords?.[e.ticker]?.[optSide]}
+                    livePrice={e.price}
+                    side={optSide}
+                  />
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", rsiExtreme ? "text-green-400 font-semibold" : "text-white")}>

@@ -1,0 +1,15 @@
+{
+  "file": "axios-am.json",
+  "source": "axios",
+  "kind": "axios",
+  "category": "newsletter_digest",
+  "noiseScore": 0,
+  "includeInBrief": true,
+  "noiseReasons": [],
+  "fromDomain": "axios.com",
+  "subject": "⚡ Axios AM: Scoop on cheaper AI",
+  "contentLinks": 5,
+  "tickers": [
+    "IGS"
+  ]
+}

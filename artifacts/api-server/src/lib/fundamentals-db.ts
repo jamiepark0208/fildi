@@ -1,5 +1,9 @@
-import { eq, isNull, or, lt, sql, inArray } from "drizzle-orm";
-import { db, tickerFundamentals, tickerRegistry, peerGroups, fmpApiUsage, type TickerFundamentalsRow, type TickerRegistryRow } from "@workspace/db";
+import { eq, isNull, or, lt, sql, inArray, desc, and, isNotNull } from "drizzle-orm";
+import {
+  db, tickerFundamentals, tickerRegistry, peerGroups, fmpApiUsage,
+  tickerFundamentalsHistory, earningsCalendar, finnhubFundamentals,
+  type TickerFundamentalsRow, type TickerRegistryRow,
+} from "@workspace/db";
 import { recordApiUsage, checkDailyBudget } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
 import { logger } from "./logger.js";
@@ -11,6 +15,10 @@ import {
   FMP_MAX_DAILY_CALLS,
   STALE_DAYS as DATA_OPS_STALE_DAYS,
 } from "./data-ops-config.js";
+import {
+  scoreUniverse, withRanks, avgEpsSurprise, type FundRowInput, type HistoryByTicker, type MetricKey,
+} from "./fund-score-engine.js";
+import { num as parseNum } from "./fund-derived-metrics.js";
 
 const STALE_DAYS = DATA_OPS_STALE_DAYS;
 
@@ -266,13 +274,18 @@ export async function recordFMPCalls(calls: number): Promise<void> {
 
 // ── Fundamental score computation ─────────────────────────────────────────────
 
-export type FamilyCoverage = { quality: number; growth: number; safety: number; total: number };
+export type FamilyCoverage = { value: number; quality: number; growth: number; safety: number; total: number };
 
 export type FundScoreResult = {
   ticker: string;
   // null = not enough data to score honestly (see FAMILY_MIN_COVERAGE / TOTAL_MIN_COVERAGE).
   // Render as "n/a", never as a number — a placeholder 50 reads as a real middling score.
   totalScore: number | null;
+  /** Company score before 10% sector-opportunity blend. */
+  companyScore?: number | null;
+  /** Calibrated peer-group sector opportunity score. */
+  sectorScore?: number | null;
+  valueScore: number | null;
   qualityScore: number | null;
   growthScore: number | null;
   safetyScore: number | null;
@@ -287,6 +300,8 @@ export type FundScoreResult = {
   peerGroupId?: string | null;
   peerGroupName?: string | null;
   peerGroupSize?: number;
+  styleBucket?: string | null;
+  confidence?: "high" | "low" | null;
 };
 
 type Family = 'quality' | 'growth' | 'safety';
@@ -417,7 +432,7 @@ function computeCoverageByTicker(rows: TickerFundamentalsRow[]): Map<string, Fam
   const FAMS: Family[] = ['quality', 'growth', 'safety'];
   const out = new Map<string, FamilyCoverage>();
   rows.forEach(row => {
-    const cov: FamilyCoverage = { quality: 0, growth: 0, safety: 0, total: 0 };
+    const cov: FamilyCoverage = { value: 0, quality: 0, growth: 0, safety: 0, total: 0 };
     let present = 0, total = 0;
     FAMS.forEach(fam => {
       const fm = SCORING_METRICS.filter(m => m.family === fam);
@@ -433,7 +448,7 @@ function computeCoverageByTicker(rows: TickerFundamentalsRow[]): Map<string, Fam
   return out;
 }
 
-const EMPTY_COVERAGE: FamilyCoverage = { quality: 0, growth: 0, safety: 0, total: 0 };
+const EMPTY_COVERAGE: FamilyCoverage = { value: 0, quality: 0, growth: 0, safety: 0, total: 0 };
 
 function computePerMetricScores(
   rows: TickerFundamentalsRow[],
@@ -459,171 +474,265 @@ function computePerMetricScores(
   return result;
 }
 
+function rowToFundInput(
+  row: TickerFundamentalsRow,
+  peerGroupId: string | null,
+  scoringMode: string | null,
+): FundRowInput {
+  const n = (v: string | null | undefined) => parseNum(v);
+  return {
+    ticker: row.ticker,
+    peRatio: n(row.peRatio),
+    pegRatio: n(row.pegRatio),
+    forwardPe: n(row.forwardPe),
+    evEbitda: n(row.evEbitda),
+    evRevenue: n(row.evRevenue),
+    priceToBook: n(row.priceToBook),
+    priceToSales: n(row.priceToSales),
+    dividendYield: n(row.dividendYield),
+    netIncome: n(row.netIncome),
+    freeCashFlow: n(row.freeCashFlow),
+    totalRevenue: n(row.totalRevenue),
+    ebitda: n(row.ebitda),
+    ebit: n(row.ebit),
+    interestExpense: n(row.interestExpense),
+    grossMargin: n(row.grossMargin),
+    operatingMargin: n(row.operatingMargin),
+    netMargin: n(row.netMargin),
+    returnOnEquity: n(row.returnOnEquity),
+    returnOnAssets: n(row.returnOnAssets),
+    roic: n(row.roic),
+    wacc: n(row.wacc),
+    revenueGrowthYoY: n(row.revenueGrowthYoY),
+    revenueGrowthYoyPrior: n(row.revenueGrowthYoyPrior),
+    epsGrowth: n(row.epsGrowth),
+    analystTargetPrice: n(row.analystTargetPrice),
+    currentPrice: null,
+    marketCap: null, // yields use NI/FCF over mcap — without live quote, skip EY/FCFY or use pe inverse
+    currentRatio: n(row.currentRatio),
+    debtToEquity: n(row.debtToEquity),
+    totalDebt: n(row.totalDebt),
+    cashAndEquivalents: n(row.cashAndEquivalents),
+    quarterlyOperatingCashFlow: n(row.quarterlyOperatingCashFlow),
+    sharesOutstanding: n(row.sharesOutstanding),
+    sharesOutstandingPrior: n(row.sharesOutstandingPrior),
+    beta: n(row.beta),
+    grossProfit: n(row.grossProfit as string | null),
+    totalAssets: n(row.totalAssets as string | null),
+    annualOperatingCashFlow: n(row.annualOperatingCashFlow as string | null),
+    tangibleBookValuePerShare: n((row as any).tangibleBookValuePerShare as string | null),
+    ffoProxy: n((row as any).ffoProxy as string | null),
+    peerGroupId,
+    scoringMode,
+  };
+}
+
+/** Prefer Finnhub mcap (stored in millions) → PE×EPS×shares → fwdPE×|EPS|×shares. */
+function enrichMarketCap(
+  input: FundRowInput,
+  row: TickerFundamentalsRow,
+  finnhubMcapMillions?: number | null,
+): FundRowInput {
+  if (finnhubMcapMillions != null && Number.isFinite(finnhubMcapMillions) && finnhubMcapMillions > 0) {
+    return { ...input, marketCap: finnhubMcapMillions * 1e6 };
+  }
+  const pe = parseNum(row.peRatio);
+  const eps = parseNum(row.earningsPerShare);
+  const sh = parseNum(row.sharesOutstanding);
+  if (pe != null && eps != null && sh != null && pe > 0 && eps !== 0) {
+    return { ...input, marketCap: pe * eps * sh };
+  }
+  const fpe = parseNum(row.forwardPe);
+  if (fpe != null && fpe >= 5 && eps != null && sh != null && fpe > 0) {
+    return { ...input, marketCap: fpe * Math.abs(eps) * sh };
+  }
+  return input;
+}
+
+const HISTORY_COL_TO_METRIC: Partial<Record<string, MetricKey>> = {
+  peRatio: "fwdpe",
+  priceToBook: "pb",
+  roic: "roicwacc",
+  grossMargin: "grossmgn",
+  operatingMargin: "operatingmgn",
+  netMargin: "netmgn",
+  revenueGrowth: "revgrow",
+  epsGrowth: "epsgrow",
+  fcf: "fcfYield",
+  roe: "roe",
+  debtToEquity: "de",
+  currentRatio: "cr",
+  grossProfit: "gpa",
+};
+
+async function loadHistoryByTicker(tickers: string[]): Promise<HistoryByTicker> {
+  if (tickers.length === 0) return {};
+  const rows = await db
+    .select()
+    .from(tickerFundamentalsHistory)
+    .where(inArray(tickerFundamentalsHistory.ticker, tickers));
+  const out: HistoryByTicker = {};
+  for (const row of rows) {
+    const t = row.ticker;
+    if (!out[t]) out[t] = {};
+    for (const [col, metricKey] of Object.entries(HISTORY_COL_TO_METRIC)) {
+      if (!metricKey) continue;
+      const v = parseNum((row as any)[col]);
+      if (v == null) continue;
+      if (!out[t]![metricKey]) out[t]![metricKey] = [];
+      out[t]![metricKey]!.push(v);
+    }
+  }
+  return out;
+}
+
+async function loadSurprisesByTicker(tickers: string[]): Promise<Record<string, number | null>> {
+  const out: Record<string, number | null> = {};
+  if (tickers.length === 0) return out;
+  const rows = await db
+    .select({
+      ticker: earningsCalendar.ticker,
+      surprisePct: earningsCalendar.surprisePct,
+      reportDate: earningsCalendar.reportDate,
+    })
+    .from(earningsCalendar)
+    .where(and(inArray(earningsCalendar.ticker, tickers), isNotNull(earningsCalendar.epsActual)))
+    .orderBy(desc(earningsCalendar.reportDate));
+  const byTicker = new Map<string, number[]>();
+  for (const r of rows) {
+    const s = parseNum(r.surprisePct);
+    if (s == null) continue;
+    if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, []);
+    const arr = byTicker.get(r.ticker)!;
+    if (arr.length < 4) arr.push(s);
+  }
+  for (const t of tickers) {
+    out[t] = avgEpsSurprise(byTicker.get(t) ?? []);
+  }
+  return out;
+}
+
 // Compute cross-sectional fundamental scores for all tickers in DB and persist them.
-// Must be called with the current macro regime so score weights are applied correctly.
 export async function computeAndPersistFundamentalScores(regime: string | null): Promise<FundScoreResult[]> {
   const rows = await getAllFundamentalsRows();
   if (rows.length === 0) return [];
 
-  const familyWeights: Record<Family, number> =
-    (regime && REGIME_WEIGHTS[regime]) ? REGIME_WEIGHTS[regime] : DEFAULT_WEIGHTS;
-
-  // Load peer group metric exclusions + peer group (for sector-relative percentiles).
-  // primaryPeerGroupId (e.g. "technology.semiconductors_design") is populated for 273/276
-  // tickers via the curated sector_taxonomy.json import — tickerRegistry.sector itself is
-  // only set for ~17, so peer group is the field to group by, not the flat sector column.
-  const tickers = rows.map(r => r.ticker).filter(t => !isExcludedEtf(t));
-  // Exclude ETFs from the scoring universe entirely (no peer percentiles, no leaderboard).
   const scoreRows = rows.filter(r => !isExcludedEtf(r.ticker));
   if (scoreRows.length === 0) return [];
 
+  const tickers = scoreRows.map(r => r.ticker);
   const regRows = await db
-    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+    .select({
+      ticker: tickerRegistry.ticker,
+      primaryPeerGroupId: tickerRegistry.primaryPeerGroupId,
+    })
     .from(tickerRegistry)
     .where(inArray(tickerRegistry.ticker, tickers));
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
-  const groupExclusionRows = uniqueGroupIds.length > 0
-    ? await db.select({ id: peerGroups.id, name: peerGroups.name, metricExclusions: peerGroups.metricExclusions })
-        .from(peerGroups).where(inArray(peerGroups.id, uniqueGroupIds))
+  const groupRows = uniqueGroupIds.length > 0
+    ? await db.select({
+        id: peerGroups.id,
+        name: peerGroups.name,
+        scoringMode: peerGroups.scoringMode,
+        metricExclusions: peerGroups.metricExclusions,
+      }).from(peerGroups).where(inArray(peerGroups.id, uniqueGroupIds))
     : [];
-  const exclusionsByGroup = new Map(groupExclusionRows.map(g => [g.id, new Set(g.metricExclusions ?? [])]));
-  const nameByGroup = new Map(groupExclusionRows.map(g => [g.id, g.name]));
+  const nameByGroup = new Map(groupRows.map(g => [g.id, g.name]));
+  const modeByGroup = new Map(groupRows.map(g => [g.id, g.scoringMode ?? null]));
   const groupSizeById = new Map<string, number>();
   regRows.forEach(r => {
     if (!r.primaryPeerGroupId) return;
     groupSizeById.set(r.primaryPeerGroupId, (groupSizeById.get(r.primaryPeerGroupId) ?? 0) + 1);
   });
 
-  // Raw metric values with peer-group exclusions and ROE structural null applied
-  const values = SCORING_METRICS.map(m => scoreRows.map(r => m.getValue(r)));
-  scoreRows.forEach((row, ri) => {
-    const groupId = peerGroupByTicker.get(row.ticker);
-    const excl = groupId ? (exclusionsByGroup.get(groupId) ?? new Set<string>()) : new Set<string>();
-    SCORING_METRICS.forEach((m, mi) => {
-      if (excl.has(m.key)) { values[mi][ri] = null; return; }
-      if (m.key === "roe" && row.totalStockholdersEquity !== null && row.netIncome !== null) {
-        const eq_ = parseFloat(row.totalStockholdersEquity ?? "");
-        const ni  = parseFloat(row.netIncome ?? "");
-        if (isFinite(eq_) && isFinite(ni) && eq_ < 0 && ni > 0) values[mi][ri] = null;
-      }
-    });
+  // Finnhub mcap (millions) preferred for sector-layer size + megacap gates
+  const finnhubRows = await db
+    .select({
+      ticker: finnhubFundamentals.ticker,
+      mcap: finnhubFundamentals.finnhubMarketCap,
+    })
+    .from(finnhubFundamentals)
+    .where(inArray(finnhubFundamentals.ticker, tickers));
+  const finnhubMcapByTicker = new Map<string, number>();
+  for (const r of finnhubRows) {
+    const m = parseNum(r.mcap);
+    if (m != null && m > 0) finnhubMcapByTicker.set(r.ticker, m);
+  }
+
+  const inputs: FundRowInput[] = scoreRows.map(row => {
+    const gid = peerGroupByTicker.get(row.ticker) ?? null;
+    const mode = gid ? (modeByGroup.get(gid) ?? null) : null;
+    return enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
   });
 
-  // Percentile ranks per metric (blended universe-wide + peer-group-relative, see SECTOR_WEIGHT)
-  const pctRanks = computeBlendedPctRanks(scoreRows, values, peerGroupByTicker);
+  const [history, surprises] = await Promise.all([
+    loadHistoryByTicker(tickers),
+    loadSurprisesByTicker(tickers),
+  ]);
 
-  const FAMILIES: Family[] = ['quality', 'growth', 'safety'];
+  const scored = withRanks(scoreUniverse(inputs, history, surprises));
   const computedAt = new Date();
 
-  const round2 = (v: number) => parseFloat(v.toFixed(2));
-
-  const rawResults = scoreRows.map((row, ri) => {
-    const familyScores: Record<Family, number | null> = { quality: null, growth: null, safety: null };
-    const familyCoverage: Record<Family, number> = { quality: 0, growth: 0, safety: 0 };
-    let totalNum = 0, totalDen = 0;
-    let weightPresent = 0, weightTotal = 0;
-
-    FAMILIES.forEach(fam => {
-      const famMetrics = SCORING_METRICS.map((m, mi) => ({ m, mi })).filter(({ m }) => m.family === fam);
-      const famWeightTotal = famMetrics.reduce((s, { m }) => s + m.weight, 0);
-      let famNum = 0, famDen = 0;
-      famMetrics.forEach(({ m, mi }) => {
-        const pct = pctRanks[mi][ri];
-        if (pct !== null) { famNum += pct * m.weight; famDen += m.weight; }
-      });
-
-      weightPresent += famDen;
-      weightTotal   += famWeightTotal;
-
-      const coverage = famWeightTotal > 0 ? famDen / famWeightTotal : 0;
-      familyCoverage[fam] = parseFloat(coverage.toFixed(4));
-
-      // Too thin to be worth a number at all — stays null and contributes nothing
-      // to the total (rather than silently voting with a placeholder 50).
-      if (famDen === 0) return;
-      const shrunk = shrinkToNeutral((famNum / famDen) * 100, coverage);
-      if (shrunk === null) return;
-      familyScores[fam] = shrunk;
-      totalNum += shrunk * familyWeights[fam];
-      totalDen += familyWeights[fam];
-    });
-
-    const totalCoverage = weightTotal > 0 ? weightPresent / weightTotal : 0;
-    const ranked = totalCoverage >= TOTAL_MIN_COVERAGE && totalDen > 0;
-
-    return {
-      ticker: row.ticker,
-      totalScore:   ranked ? round2(totalNum / totalDen) : null,
-      qualityScore: familyScores.quality !== null ? round2(familyScores.quality) : null,
-      growthScore:  familyScores.growth  !== null ? round2(familyScores.growth)  : null,
-      safetyScore:  familyScores.safety  !== null ? round2(familyScores.safety)  : null,
-      coverage: { ...familyCoverage, total: parseFloat(totalCoverage.toFixed(4)) },
-      ranked,
-    };
-  });
-
-  // Rank by totalScore descending (1 = best). Unranked tickers (insufficient coverage)
-  // are excluded from the ordering entirely and carry rank 0 — they must not occupy a
-  // leaderboard slot on the strength of one or two metrics.
-  const sorted = rawResults
-    .filter(r => r.ranked && r.totalScore !== null)
-    .sort((a, b) => (b.totalScore as number) - (a.totalScore as number));
-  const rankMap = new Map(sorted.map((r, i) => [r.ticker, i + 1]));
-
-  const perMetric = computePerMetricScores(scoreRows, familyWeights, peerGroupByTicker);
-
-  const results: FundScoreResult[] = rawResults.map(r => ({
-    ...r,
-    rank: rankMap.get(r.ticker) ?? 0,
+  const results: FundScoreResult[] = scored.map(s => ({
+    ticker: s.ticker,
+    totalScore: s.totalScore,
+    companyScore: s.companyScore,
+    sectorScore: s.sectorScore,
+    valueScore: s.valueScore,
+    qualityScore: s.qualityScore,
+    growthScore: s.growthScore,
+    safetyScore: s.safetyScore,
+    coverage: s.coverage,
+    ranked: s.ranked,
+    rank: s.rank,
     regime: regime ?? "unknown",
     computedAt: computedAt.toISOString(),
-    metricScores: perMetric.get(r.ticker),
-    peerGroupId: peerGroupByTicker.get(r.ticker) ?? null,
-    peerGroupName: (() => {
-      const gid = peerGroupByTicker.get(r.ticker);
-      return gid ? (nameByGroup.get(gid) ?? null) : null;
-    })(),
-    peerGroupSize: (() => {
-      const gid = peerGroupByTicker.get(r.ticker);
-      return gid ? (groupSizeById.get(gid) ?? 0) : 0;
-    })(),
+    metricScores: Object.fromEntries(
+      Object.entries(s.metricScores).map(([k, v]) => [k, { value: v.value, weightedScore: v.weightedScore }]),
+    ),
+    peerGroupId: s.peerGroupId,
+    peerGroupName: s.peerGroupId ? (nameByGroup.get(s.peerGroupId) ?? null) : null,
+    peerGroupSize: s.peerGroupId ? (groupSizeById.get(s.peerGroupId) ?? s.peerGroupSize) : s.peerGroupSize,
+    styleBucket: s.styleBucket,
+    confidence: s.confidence,
   }));
 
-  // Persist scores back to DB — single batch upsert instead of one UPDATE per ticker
   await db.insert(tickerFundamentals)
     .values(results.map(r => ({
-      ticker:              r.ticker,
-      // null (insufficient coverage) must persist as SQL NULL, not the string "null".
-      fundTotalScore:      r.totalScore   != null ? String(r.totalScore)   : null,
-      fundQualityScore:    r.qualityScore != null ? String(r.qualityScore) : null,
-      fundGrowthScore:     r.growthScore  != null ? String(r.growthScore)  : null,
-      fundSafetyScore:     r.safetyScore  != null ? String(r.safetyScore)  : null,
-      fundRank:            r.rank,
+      ticker: r.ticker,
+      fundTotalScore: r.totalScore != null ? String(r.totalScore) : null,
+      fundCompanyScore: r.companyScore != null ? String(r.companyScore) : null,
+      fundSectorScore: r.sectorScore != null ? String(r.sectorScore) : null,
+      fundValueScore: r.valueScore != null ? String(r.valueScore) : null,
+      fundQualityScore: r.qualityScore != null ? String(r.qualityScore) : null,
+      fundGrowthScore: r.growthScore != null ? String(r.growthScore) : null,
+      fundSafetyScore: r.safetyScore != null ? String(r.safetyScore) : null,
+      fundRank: r.rank,
       fundScoreComputedAt: computedAt,
-      // regime_at_score is the regime THIS SCORE was computed under — it is the key
-      // readPersistedScores() compares against to decide the cache is still valid.
-      // It must be written here, by the scorer. It was previously only ever written by
-      // writeFundamentalsRow() (the FMP *data fetch* path, which defaults it to null),
-      // so it sat NULL for 552/554 rows and the `regimeAtScore !== currentRegime`
-      // staleness check below never passed — every read fell through to a full
-      // cross-sectional recompute of the whole universe.
-      regimeAtScore:       regime ?? null,
+      regimeAtScore: regime ?? null,
+      styleBucket: r.styleBucket ?? null,
+      fundScoreConfidence: r.confidence ?? null,
     })))
     .onConflictDoUpdate({
       target: tickerFundamentals.ticker,
       set: {
-        fundTotalScore:      sql`excluded.fund_total_score`,
-        fundQualityScore:    sql`excluded.fund_quality_score`,
-        fundGrowthScore:     sql`excluded.fund_growth_score`,
-        fundSafetyScore:     sql`excluded.fund_safety_score`,
-        fundRank:            sql`excluded.fund_rank`,
+        fundTotalScore: sql`excluded.fund_total_score`,
+        fundCompanyScore: sql`excluded.fund_company_score`,
+        fundSectorScore: sql`excluded.fund_sector_score`,
+        fundValueScore: sql`excluded.fund_value_score`,
+        fundQualityScore: sql`excluded.fund_quality_score`,
+        fundGrowthScore: sql`excluded.fund_growth_score`,
+        fundSafetyScore: sql`excluded.fund_safety_score`,
+        fundRank: sql`excluded.fund_rank`,
         fundScoreComputedAt: sql`excluded.fund_score_computed_at`,
-        regimeAtScore:       sql`excluded.regime_at_score`,
+        regimeAtScore: sql`excluded.regime_at_score`,
+        styleBucket: sql`excluded.style_bucket`,
+        fundScoreConfidence: sql`excluded.fund_score_confidence`,
       },
     });
 
-  logger.info({ count: results.length, regime }, "fundamental scores computed and persisted");
+  logger.info({ count: results.length, regime }, "fundamental scores computed and persisted (v2 + sector layer)");
   return results;
 }
 
@@ -633,25 +742,25 @@ const SCORE_STALE_HOURS = 48;
 export async function readPersistedScores(currentRegime: string | null): Promise<FundScoreResult[] | null> {
   const rows = await db
     .select({
-      ticker:          tickerFundamentals.ticker,
-      fundTotalScore:  tickerFundamentals.fundTotalScore,
+      ticker: tickerFundamentals.ticker,
+      fundTotalScore: tickerFundamentals.fundTotalScore,
+      fundCompanyScore: tickerFundamentals.fundCompanyScore,
+      fundSectorScore: tickerFundamentals.fundSectorScore,
+      fundValueScore: tickerFundamentals.fundValueScore,
       fundQualityScore: tickerFundamentals.fundQualityScore,
       fundGrowthScore: tickerFundamentals.fundGrowthScore,
       fundSafetyScore: tickerFundamentals.fundSafetyScore,
-      fundRank:        tickerFundamentals.fundRank,
-      regimeAtScore:   tickerFundamentals.regimeAtScore,
+      fundRank: tickerFundamentals.fundRank,
+      regimeAtScore: tickerFundamentals.regimeAtScore,
       fundScoreComputedAt: tickerFundamentals.fundScoreComputedAt,
+      styleBucket: tickerFundamentals.styleBucket,
+      fundScoreConfidence: tickerFundamentals.fundScoreConfidence,
     })
     .from(tickerFundamentals);
 
   if (rows.length === 0) return null;
-
-  // A NULL fundTotalScore is now a legitimate, intentional result (insufficient
-  // coverage — see FAMILY_MIN_COVERAGE), so it must NOT invalidate the whole cache.
-  // Only a missing computedAt means "this row was never scored".
   if (rows.some(r => r.fundScoreComputedAt == null)) return null;
 
-  // Stale if oldest score is >48h old or regime changed
   const oldest = rows.reduce((min, r) => {
     const t = r.fundScoreComputedAt!.getTime();
     return t < min ? t : min;
@@ -660,11 +769,10 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   if (Date.now() - oldest > staleMs) return null;
   if (currentRegime && rows.some(r => r.regimeAtScore !== currentRegime)) return null;
 
-  const rawRows = await getAllFundamentalsRows();
   const regRows = await db
     .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
     .from(tickerRegistry)
-    .where(inArray(tickerRegistry.ticker, rawRows.map(r => r.ticker)));
+    .where(inArray(tickerRegistry.ticker, rows.map(r => r.ticker)));
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
   const groupNameRows = uniqueGroupIds.length > 0
@@ -677,28 +785,25 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     if (!r.primaryPeerGroupId) return;
     groupSizeById.set(r.primaryPeerGroupId, (groupSizeById.get(r.primaryPeerGroupId) ?? 0) + 1);
   });
-  const familyWeights: Record<Family, number> =
-    (currentRegime && REGIME_WEIGHTS[currentRegime]) ? REGIME_WEIGHTS[currentRegime] : DEFAULT_WEIGHTS;
-  const perMetric = computePerMetricScores(rawRows, familyWeights, peerGroupByTicker);
-  const coverageByTicker = computeCoverageByTicker(rawRows);
 
-  // A persisted NULL means "insufficient coverage to score" and must stay null all the
-  // way to the UI. The old `?? "50"` turned that into a real-looking middling score.
-  const numOrNull = (v: string | null) => (v == null ? null : parseFloat(v));
+  const numOrNull = (v: string | null | undefined) => (v == null ? null : parseFloat(v));
+  const emptyCov: FamilyCoverage = { value: 0, quality: 0, growth: 0, safety: 0, total: 0 };
 
   return rows.map(r => ({
-    ticker:       r.ticker,
-    totalScore:   numOrNull(r.fundTotalScore),
+    ticker: r.ticker,
+    totalScore: numOrNull(r.fundTotalScore),
+    companyScore: numOrNull(r.fundCompanyScore),
+    sectorScore: numOrNull(r.fundSectorScore),
+    valueScore: numOrNull(r.fundValueScore),
     qualityScore: numOrNull(r.fundQualityScore),
-    growthScore:  numOrNull(r.fundGrowthScore),
-    safetyScore:  numOrNull(r.fundSafetyScore),
-    coverage:     coverageByTicker.get(r.ticker) ?? EMPTY_COVERAGE,
-    ranked:       r.fundTotalScore != null && (r.fundRank ?? 0) > 0,
-    rank:         r.fundRank ?? 0,
-    regime:       r.regimeAtScore ?? currentRegime ?? "unknown",
-    computedAt:   r.fundScoreComputedAt!.toISOString(),
-    metricScores: perMetric.get(r.ticker),
-    peerGroupId:  peerGroupByTicker.get(r.ticker) ?? null,
+    growthScore: numOrNull(r.fundGrowthScore),
+    safetyScore: numOrNull(r.fundSafetyScore),
+    coverage: emptyCov,
+    ranked: r.fundTotalScore != null && (r.fundRank ?? 0) > 0,
+    rank: r.fundRank ?? 0,
+    regime: r.regimeAtScore ?? currentRegime ?? "unknown",
+    computedAt: r.fundScoreComputedAt!.toISOString(),
+    peerGroupId: peerGroupByTicker.get(r.ticker) ?? null,
     peerGroupName: (() => {
       const gid = peerGroupByTicker.get(r.ticker);
       return gid ? (nameByGroup.get(gid) ?? null) : null;
@@ -707,5 +812,7 @@ export async function readPersistedScores(currentRegime: string | null): Promise
       const gid = peerGroupByTicker.get(r.ticker);
       return gid ? (groupSizeById.get(gid) ?? 0) : 0;
     })(),
+    styleBucket: r.styleBucket ?? null,
+    confidence: (r.fundScoreConfidence as "high" | "low" | null) ?? null,
   }));
 }

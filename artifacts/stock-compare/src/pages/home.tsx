@@ -65,7 +65,23 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
-      return res.json() as Promise<Array<{ ticker: string; totalScore: number; qualityScore: number; growthScore: number; safetyScore: number; rank: number; regime: string; computedAt: string; metricScores?: Record<string, { value: number | null; weightedScore: number }>; peerGroupId?: string | null; peerGroupName?: string | null; peerGroupSize?: number }>>;
+      return res.json() as Promise<Array<{
+        ticker: string;
+        totalScore: number | null;
+        valueScore?: number | null;
+        qualityScore: number | null;
+        growthScore: number | null;
+        safetyScore: number | null;
+        rank: number;
+        regime: string;
+        computedAt: string;
+        metricScores?: Record<string, { value: number | null; weightedScore: number }>;
+        peerGroupId?: string | null;
+        peerGroupName?: string | null;
+        peerGroupSize?: number;
+        styleBucket?: string | null;
+        confidence?: string | null;
+      }>>;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -81,11 +97,12 @@ export default function Home({ tickers, setTickers }: HomeProps) {
     if (!serverRankings?.length) return [];
     const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
     return [...serverRankings]
+      .filter(r => r.totalScore != null && r.rank > 0)
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
         companyName:  stockByTicker.get(r.ticker)?.companyName ?? r.ticker,
-        totalScore:   r.totalScore,
+        totalScore:   r.totalScore as number,
         maxPossible:  100,
         rank:         r.rank,
         metricScores: Object.fromEntries(
@@ -93,10 +110,10 @@ export default function Home({ tickers, setTickers }: HomeProps) {
         ),
         reason:       "",
         familyScores: {
-          value:   { score: 50,             coverage: 0, lowCoverage: true },
-          quality: { score: r.qualityScore, coverage: 1, lowCoverage: false },
-          growth:  { score: r.growthScore,  coverage: 1, lowCoverage: false },
-          safety:  { score: r.safetyScore,  coverage: 1, lowCoverage: false },
+          value:   { score: r.valueScore ?? 50, coverage: 0, lowCoverage: r.valueScore == null },
+          quality: { score: r.qualityScore ?? 50, coverage: 1, lowCoverage: r.qualityScore == null },
+          growth:  { score: r.growthScore ?? 50, coverage: 1, lowCoverage: r.growthScore == null },
+          safety:  { score: r.safetyScore ?? 50, coverage: 1, lowCoverage: r.safetyScore == null },
         },
         regime: r.regime,
         peerGroupId:   r.peerGroupId ?? undefined,
@@ -142,7 +159,13 @@ export default function Home({ tickers, setTickers }: HomeProps) {
             onPeriodChange={setSelectedPeriod}
           />
 
-          {rankings.length >= 2 && <RankingsLeaderboard scores={rankings} stocks={loadedStocks} />}
+          {rankings.length >= 2 && (
+            <RankingsLeaderboard
+              scores={rankings}
+              stocks={loadedStocks}
+              scoredAsOf={serverRankings?.[0]?.computedAt ?? null}
+            />
+          )}
           {hasData && (
             <MetricsTable stocks={loadedStocks} loadingTickers={loadingTickers} />
           )}

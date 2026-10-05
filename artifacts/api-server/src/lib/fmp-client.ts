@@ -17,6 +17,7 @@ export interface FMPFundamentalsData {
   evRevenue?: number;
   priceToBook?: number;
   priceToSales?: number;
+  tangibleBookValuePerShare?: number;
   debtToEquity?: number;
   dividendYield?: number;
   analystTargetPrice?: number;
@@ -50,6 +51,9 @@ export interface FMPFundamentalsData {
   sharesOutstanding?: number;
   sharesOutstandingPrior?: number;
   beta?: number;
+  totalAssets?: number;
+  grossProfit?: number;
+  annualOperatingCashFlow?: number;
 }
 
 function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
@@ -151,6 +155,7 @@ export async function fetchFMPFundamentals(
   // P/B, P/S: field names unchanged
   result.priceToBook    = fmpN(r.priceToBookRatio);
   result.priceToSales   = fmpN(r.priceToSalesRatio);
+  result.tangibleBookValuePerShare = fmpN(km.tangibleBookValuePerShare);
   // D/E: stable ratios field is debtToEquityRatio (was debtEquityRatio in v3)
   result.debtToEquity   = fmpN(r.debtToEquityRatio);
   result.dividendYield  = fmpN(r.dividendYield);
@@ -191,8 +196,11 @@ export async function fetchFMPFundamentals(
   result.totalDebt               = fmpN(bs.totalDebt);
   result.totalStockholdersEquity = fmpN(bs.totalStockholdersEquity);
   result.cashAndEquivalents      = fmpN(bs.cashAndCashEquivalents);
+  result.totalAssets             = fmpN(bs.totalAssets);
+  result.grossProfit             = fmpN(is0.grossProfit);
   // quarterly OCF: positive = generating cash, negative = burning cash
   result.quarterlyOperatingCashFlow = fmpN(cfQ.operatingCashFlow);
+  result.annualOperatingCashFlow    = fmpN(cfAnn.operatingCashFlow);
 
   // Annual FCF: from annual cash-flow-statement (cfAnn). FMP field is freeCashFlow.
   result.freeCashFlow = fmpN(cfAnn.freeCashFlow);

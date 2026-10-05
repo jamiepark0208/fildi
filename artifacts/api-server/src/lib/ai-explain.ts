@@ -1,13 +1,11 @@
 // Generalizes the cache-lookup -> Haiku-call -> upsert pattern that routes/explain.ts
 // originally inlined for fundamental/technical scores, so new "Explain AI" surfaces
 // (options scanner, stock-breakdown, ...) can reuse it instead of duplicating it.
-import Anthropic from "@anthropic-ai/sdk";
 import { eq, and } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import type { Logger } from "pino";
 import type { ContextBundle } from "./explain-context.js";
-
-const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
+import { callHaiku } from "./haiku.js";
 
 export interface ExplainSurface<TExtra> {
   surfaceType: string;
@@ -23,7 +21,8 @@ export async function generateExplanation<TExtra>(
   bundle: ContextBundle,
   extra: TExtra,
   log: Logger,
-): Promise<{ explanation: string; cached: boolean }> {
+  opts?: { userId?: number; maxTokens?: number },
+): Promise<{ explanation: string; cached: boolean; inputTokens: number; outputTokens: number }> {
   const scoreHash = surface.hashInputs(bundle, extra);
 
   log.info({ ticker, surfaceType: surface.surfaceType, scoreHash, step: "cache-lookup" }, "ai-explain: checking DB cache");
@@ -39,20 +38,21 @@ export async function generateExplanation<TExtra>(
 
   if (cached.length > 0) {
     log.info({ ticker, surfaceType: surface.surfaceType, step: "cache-hit" }, "ai-explain: serving from cache");
-    return { explanation: cached[0].explanation, cached: true };
+    return { explanation: cached[0].explanation, cached: true, inputTokens: 0, outputTokens: 0 };
   }
 
   const prompt = surface.buildPrompt(bundle, extra);
   log.info({ ticker, surfaceType: surface.surfaceType, chars: prompt.length, step: "anthropic-call" }, "ai-explain: calling Haiku");
 
-  const msg = await anthropic.messages.create({
-    model:      "claude-haiku-4-5-20251001",
-    max_tokens: 300,
-    messages:   [{ role: "user", content: prompt }],
+  const { text: explanation, inputTokens, outputTokens } = await callHaiku({
+    prompt,
+    maxTokens: opts?.maxTokens ?? 300,
+    trigger: `explain/${surface.surfaceType}`,
+    surfaceType: surface.surfaceType,
+    userId: opts?.userId,
+    ticker,
   });
-
-  const explanation = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
-  log.info({ ticker, surfaceType: surface.surfaceType, chars: explanation.length, step: "anthropic-ok" }, "ai-explain: got response");
+  log.info({ ticker, surfaceType: surface.surfaceType, chars: explanation.length, inputTokens, outputTokens, step: "anthropic-ok" }, "ai-explain: got response");
 
   await db.insert(explainCache)
     .values({ ticker, scoreType: surface.surfaceType, scoreHash, explanation })
@@ -61,5 +61,5 @@ export async function generateExplanation<TExtra>(
       set: { scoreHash, explanation, generatedAt: new Date() },
     });
 
-  return { explanation, cached: false };
+  return { explanation, cached: false, inputTokens, outputTokens };
 }

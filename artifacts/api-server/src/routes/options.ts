@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { getOptionsChain, getOptionPositionQuote, getIvTermStructure, withFreshDte, type OptionsChainResult, type IvTermPoint } from "../lib/options.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { readLatestOptionRankings, computeAndPersistOptionScores } from "../lib/option-score-snapshots.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
+import { getAllTechnicalsRows } from "../lib/technicals-db.js";
+import { selectPremiumCandidates } from "@workspace/option-scoring";
 
 const router = Router();
 
@@ -40,10 +44,56 @@ async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> 
   return withFreshDte(result);
 }
 
+// GET /api/options/candidates — premium-IV universe for Overall (same filter as nightly job).
+// Declared before /options/:ticker so "candidates" is not captured as a ticker.
+router.get("/options/candidates", async (req, res) => {
+  const limitRaw = parseInt(String(req.query.limit ?? "200"), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.min(300, Math.max(20, limitRaw)) : 200;
+  try {
+    const rows = await getAllTechnicalsRows();
+    const tickers = selectPremiumCandidates(
+      rows.map((r) => ({
+        ticker: r.ticker,
+        atmPutIv: r.atmPutIv,
+        ivVsRealizedVol: r.ivVsRealizedVol,
+        technicalsCoverage: r.technicalsCoverage,
+      })),
+      limit,
+    );
+    return res.json({ tickers, count: tickers.length, limit });
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// GET /api/options/rankings?side=put|call — Overall board from nightly snapshots
+router.get("/options/rankings", async (req, res) => {
+  const sideRaw = String(req.query.side ?? "put").toLowerCase();
+  const side = sideRaw === "call" ? "call" : "put";
+  try {
+    const { rows, asOf, computedAt } = await readLatestOptionRankings(side);
+    return res.json({ side, asOf, computedAt, rankings: rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// POST /api/options/rankings/refresh — admin: recompute Overall snapshots now
+router.post("/options/rankings/refresh", requireAdmin, async (req, res) => {
+  try {
+    const limit = typeof req.body?.limit === "number" ? req.body.limit : undefined;
+    const result = await computeAndPersistOptionScores({ limit });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
 // GET /api/options/batch?tickers=A,B,C — batched chain fetch, per-ticker optionsCache reuse.
 // Caps concurrent Yahoo calls so a large watchlist doesn't fan out N simultaneous requests.
 // MUST be declared before /options/:ticker so it isn't captured by the wildcard
-const OPTIONS_BATCH_CONCURRENCY = 6;
+/** Cap in-flight chain fetches. Cache hits skip Schwab throttle — higher concurrency helps. */
+const OPTIONS_BATCH_CONCURRENCY = 8;
 
 router.get("/options/batch", async (req, res) => {
   const { tickers } = req.query as { tickers?: string };
@@ -59,11 +109,16 @@ router.get("/options/batch", async (req, res) => {
   // endpoint accepts but which has no options chain) must not 400 the whole batch —
   // that would blank out every other valid ticker for a user who has one bad entry.
   const results: Record<string, OptionsChainResult[] | { error: string }> = {};
-  const keys = allKeys.filter(k => {
+  const valid = allKeys.filter(k => {
     if (/^[A-Z]{1,10}$/.test(k)) return true;
     results[k] = { error: "Invalid ticker format" };
     return false;
   });
+  // Serve cache hits first so progressive clients populate the table quickly.
+  const keys = [
+    ...valid.filter((k) => optionsCache.get(k)),
+    ...valid.filter((k) => !optionsCache.get(k)),
+  ];
 
   let cursor = 0;
   async function worker() {

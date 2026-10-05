@@ -14,7 +14,12 @@ import {
   W_STOCK_QUALITY, W_SUPPORT, W_DTE,
   MIN_OI, MAX_SPREAD_PCT, MIN_VOL, LIQUIDITY_GATE_HARD,
   MIN_SCORED_COMPONENTS,
+  EARNINGS_RISK_DAYS, EARNINGS_NEAR_HAIRCUT, EARNINGS_DEEP_OTM_HAIRCUT,
+  EARNINGS_SAFE_OTM, EARNINGS_BUFFER_MULT, QUOTE_STALE_HAIRCUT,
 } from "./option-scorer-constants.ts";
+import { isPlausibleOptionQuote, isViablePremiumIncome } from "./premium-candidates.ts";
+import { applyCalibrationToScore, type CalibrationTable, type OptionSide } from "./calibration.ts";
+import { SQ_FLOOR_BASE } from "./tilt.ts";
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -29,6 +34,10 @@ export interface OptionCandidate {
   volume: number | null;
   strike: number;
   spot: number;
+  /** Live bid available (false when Yahoo returns bid=0 — not scored). */
+  bidIsLive?: boolean;
+  /** No live bid — soft haircut if ever scored; pickBestStrike skips these. */
+  quoteStale?: boolean;
 }
 
 export interface StockContext {
@@ -45,6 +54,8 @@ export interface StockContext {
   nearestSupportDistPct: number | null;
   techTotalScore: number | null;   // [0, 100]
   fundTotalScore: number | null;   // [0, 100]
+  /** Calendar days to next earnings; null if unknown. Highlight risk — do not exclude. */
+  earningsDaysOut?: number | null;
 }
 
 export interface LiquidityResult {
@@ -61,6 +72,15 @@ export interface OptionScoreResult {
   dataQualityFlags: string[];
   liquidity: LiquidityResult;
   availableComponents: number;
+  /** True when earnings within EARNINGS_RISK_DAYS — UI badge, not a hard gate. */
+  earningsRisk: boolean;
+  bidIsLive: boolean;
+  quoteStale: boolean;
+}
+
+/** True when next earnings is within the risk window (inclusive). */
+export function isEarningsRisk(earningsDaysOut: number | null | undefined): boolean {
+  return earningsDaysOut != null && earningsDaysOut >= 0 && earningsDaysOut <= EARNINGS_RISK_DAYS;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -300,7 +320,12 @@ export function computeOptionScore(
   allWatchlistIVs: number[],
   strikeWeights?: Record<string, number>,
   isCall: boolean = false,
+  opts?: { earningsHaircutDeep?: number; earningsHaircutNear?: number },
 ): OptionScoreResult {
+  const quoteStale = candidate.quoteStale === true || candidate.bidIsLive === false;
+  const bidIsLive = !quoteStale;
+  const earningsRisk = isEarningsRisk(stock.earningsDaysOut);
+
   if (candidate.dte <= 0 || candidate.strike <= 0 || candidate.spot <= 0) {
     return {
       optionScore: 0, weeklyIncome: candidate.weeklyIncome,
@@ -308,6 +333,7 @@ export function computeOptionScore(
       dataQualityFlags: ["DTE or strike invalid"],
       liquidity: { pass: false, warn: false, reason: "ineligible" },
       availableComponents: 0,
+      earningsRisk, bidIsLive, quoteStale,
     };
   }
 
@@ -316,9 +342,15 @@ export function computeOptionScore(
 
   const w = (key: string, def: number) => strikeWeights?.[key] ?? def;
 
+  let bufferScore = scoreBuffer(candidate.delta, candidate.strikeIV, candidate.dte, candidate.otmPct, regime);
+  // Soft buffer haircut under earnings — gap risk; deep-OTM still ranks via milder overall mult below.
+  if (earningsRisk && bufferScore != null) {
+    bufferScore = c01(bufferScore * EARNINGS_BUFFER_MULT);
+  }
+
   const components: Array<{ key: string; weight: number; score: number | null }> = [
     { key: "income",      weight: w("income", W_INCOME),        score: scoreIncomeAdequacy(candidate.weeklyIncome, floor, target) },
-    { key: "buffer",      weight: w("buffer", W_BUFFER),        score: scoreBuffer(candidate.delta, candidate.strikeIV, candidate.dte, candidate.otmPct, regime) },
+    { key: "buffer",      weight: w("buffer", W_BUFFER),        score: bufferScore },
     { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew, isCall) },
     { key: "ivAbsolute",  weight: w("ivAbsolute", W_IV_ABSOLUTE),   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
     { key: "stockQuality",weight: w("stockQuality", W_STOCK_QUALITY), score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
@@ -334,9 +366,21 @@ export function computeOptionScore(
   const totalWeight = available.reduce((s, c) => s + c.weight, 0);
   const maxWeight   = components.reduce((s, c) => s + c.weight, 0);
 
-  const optionScore = totalWeight > 0
+  let optionScore = totalWeight > 0
     ? (available.reduce((s, c) => s + c.weight * (c.score as number), 0) / totalWeight) * 100
     : 0;
+
+  // Soft overall adjustments — never hard-exclude. Deep OTM + adequate income through
+  // earnings is a valid elevated-IV harvest; near ATM into ER is riskier.
+  if (earningsRisk) {
+    const deepEnough = candidate.otmPct >= EARNINGS_SAFE_OTM && candidate.weeklyIncome >= floor;
+    const deepH = opts?.earningsHaircutDeep ?? EARNINGS_DEEP_OTM_HAIRCUT;
+    const nearH = opts?.earningsHaircutNear ?? EARNINGS_NEAR_HAIRCUT;
+    optionScore *= deepEnough ? deepH : nearH;
+  }
+  if (quoteStale) {
+    optionScore *= QUOTE_STALE_HAIRCUT;
+  }
 
   const componentScores: Record<string, { score: number | null; weight: number }> = {};
   for (const c of components) componentScores[c.key] = { score: c.score, weight: c.weight };
@@ -346,6 +390,11 @@ export function computeOptionScore(
   if (stock.ivRank === null && stock.ivPercentile === null)         dataQualityFlags.push("IV rank missing");
   if (stock.swingLow20d === null && stock.pivotS1 === null)         dataQualityFlags.push("support levels missing");
   if (stock.techTotalScore === null && stock.fundTotalScore === null) dataQualityFlags.push("both scorers missing");
+  if (earningsRisk) {
+    const d = stock.earningsDaysOut;
+    dataQualityFlags.push(d === 0 ? "earnings today" : `earnings in ${d}d`);
+  }
+  if (quoteStale) dataQualityFlags.push("quote stale (lastPrice / no live bid)");
 
   const liq = liquidityGate(candidate.openInterest, candidate.spreadPct, candidate.volume);
 
@@ -357,18 +406,28 @@ export function computeOptionScore(
     dataQualityFlags,
     liquidity: liq,
     availableComponents: available.length,
+    earningsRisk,
+    bidIsLive,
+    quoteStale,
   };
 }
 
 // ── Convenience: build candidate from raw chain data ─────────────────────────
 
 export function buildCandidate(
-  option: { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number },
+  option: {
+    strike: number; bid: number; ask: number; iv: number;
+    volume: number | null; openInterest: number | null; delta: number | null;
+    spreadPct: number | null; incomePct: number;
+    bidIsLive?: boolean; quoteStale?: boolean;
+  },
   chain: { spot: number; exactDte: number; settlementDte?: number },
   isCall: boolean = false,
 ): OptionCandidate {
   const exactDte = Math.max(0.01, chain.exactDte);
   const settlementDte = Math.max(0.01, chain.settlementDte ?? exactDte);
+  const bidIsLive = option.bidIsLive !== false && option.bid > 0;
+  const quoteStale = option.quoteStale === true || !bidIsLive;
   return {
     strike:       option.strike,
     spot:         chain.spot,
@@ -382,6 +441,8 @@ export function buildCandidate(
     openInterest: option.openInterest,
     spreadPct:    option.spreadPct,
     volume:       option.volume,
+    bidIsLive,
+    quoteStale,
   };
 }
 
@@ -390,8 +451,22 @@ export function buildCandidate(
 // (e.g. `{ ...chain, options: chain.puts }` or `{ ...chain, options: chain.calls }`)
 // so puts and calls share this one loop/liquidity-gate/runner-up implementation.
 
+export interface PickBestStrikeOpts {
+  /** Ownership floor on stockQuality [0,1]. Default SQ_FLOOR_BASE. */
+  minStockQuality?: number;
+  /** Score→expectancy calibration table (soft haircut / hard skip). */
+  calibration?: CalibrationTable | null;
+  /** Override earnings overall haircuts (policy). */
+  earningsHaircut?: number;
+}
+
 export function pickBestStrike<
-  Opt extends { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null; delta: number | null; spreadPct: number | null; incomePct: number; meetsGate: boolean },
+  Opt extends {
+    strike: number; bid: number; ask: number; iv: number;
+    volume: number | null; openInterest: number | null; delta: number | null;
+    spreadPct: number | null; incomePct: number; meetsGate: boolean;
+    bidIsLive?: boolean; quoteStale?: boolean; lastPrice?: number;
+  },
   Chain extends { spot: number; exactDte: number; settlementDte?: number; options: Opt[] },
 >(
   chains: Chain[],
@@ -401,21 +476,39 @@ export function pickBestStrike<
   minScoredComponents: number = MIN_SCORED_COMPONENTS,
   strikeWeights?: Record<string, number>,
   isCall: boolean = false,
+  pickOpts?: PickBestStrikeOpts,
 ): { chain: Chain; put: Opt; result: OptionScoreResult; runnerUp: { chain: Chain; put: Opt; result: OptionScoreResult } | null } | null {
   type Candidate = { chain: Chain; put: Opt; result: OptionScoreResult };
   let best: Candidate | null = null;
   let runnerUp: Candidate | null = null;
+  const sqFloor = pickOpts?.minStockQuality ?? SQ_FLOOR_BASE;
+  const side: OptionSide = isCall ? "call" : "put";
+  const earnH = pickOpts?.earningsHaircut;
+  const scoreOpts = earnH != null
+    ? { earningsHaircutDeep: Math.min(0.99, earnH + 0.06), earningsHaircutNear: earnH }
+    : undefined;
 
   for (const chain of chains) {
-    for (const put of chain.options) {
-      // bid alone is unreliable — Yahoo returns bid=0 for every contract when the market
-      // is closed. meetsGate is the server's fallback check (bid, else lastPrice > 0), the
-      // same gate incomePct already uses — see lib/options.ts buildRows.
-      if (!put.meetsGate) continue;
-      const candidate = buildCandidate(put, chain, isCall);
-      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights, isCall);
+    // `options` is already side-specific (caller passes puts OR calls — never mixed).
+    for (const opt of chain.options) {
+      if (!opt.meetsGate) continue;
+      // Live bid only for THIS contract — never invent bid from ask, never lastPrice
+      // (Yahoo last trades invent inverted OTM curves). Puts and calls are separate markets.
+      if (!(opt.bid > 0) || opt.bidIsLive === false) continue;
+      const candidate = buildCandidate(opt, chain, isCall);
+      if (!isPlausibleOptionQuote(opt.bid, opt.strike, chain.spot, candidate.otmPct)) continue;
+      const result = computeOptionScore(candidate, stock, regime, allWatchlistIVs, strikeWeights, isCall, scoreOpts);
       if (result.availableComponents < minScoredComponents) continue;
-      const entry: Candidate = { chain, put, result };
+      const sq = result.componentScores.stockQuality?.score;
+      if (sq != null && sq < sqFloor) continue;
+      const cal = applyCalibrationToScore(result.optionScore, side, pickOpts?.calibration);
+      if (cal.skip) continue;
+      if (cal.multiplier < 1) {
+        result.optionScore = Math.round(result.optionScore * cal.multiplier * 10) / 10;
+      }
+      const incomeFloor = isCall ? CALL_INCOME_FLOOR : REGIME_INCOME_FLOOR[regime];
+      if (!isViablePremiumIncome(result.weeklyIncome, candidate.otmPct, { incomeFloor: incomeFloor * 0.9 })) continue;
+      const entry: Candidate = { chain, put: opt, result };
       if (!best || result.optionScore > best.result.optionScore) {
         runnerUp = best;
         best = entry;

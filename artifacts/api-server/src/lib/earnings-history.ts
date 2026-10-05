@@ -166,6 +166,34 @@ export async function ensureUpcomingEarnings(ticker: string, trigger: string): P
   if (upcoming.length > 0) await writeEarningsHistory(upperTicker, upcoming);
 }
 
+/**
+ * Next (future) scheduled earnings report date per ticker, read straight from
+ * earnings_calendar — does NOT trigger a live fetch for tickers with no row
+ * yet (that's ensureUpcomingEarnings's job, called elsewhere on a schedule).
+ * Used by the portfolio earnings-risk flag, which needs a cheap batched
+ * lookup on every page load, not a blocking per-ticker API call.
+ */
+export async function getUpcomingEarningsDates(tickers: string[]): Promise<Record<string, string | null>> {
+  const normalized = [...new Set(tickers.map(t => t.toUpperCase()))];
+  const out: Record<string, string | null> = {};
+  for (const t of normalized) out[t] = null;
+  if (normalized.length === 0) return out;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await db
+    .select({ ticker: earningsCalendar.ticker, reportDate: earningsCalendar.reportDate })
+    .from(earningsCalendar)
+    .where(and(inArray(earningsCalendar.ticker, normalized), sql`${earningsCalendar.reportDate} >= ${today}`))
+    .orderBy(earningsCalendar.reportDate);
+
+  // Earliest future date per ticker — rows are ordered ascending, so the
+  // first one seen per ticker wins.
+  for (const r of rows) {
+    if (out[r.ticker] == null) out[r.ticker] = r.reportDate;
+  }
+  return out;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }

@@ -1,0 +1,13 @@
+{
+  "file": "factset-weekend-heads.json",
+  "source": "factset_streetaccount",
+  "kind": "factset",
+  "category": "macro",
+  "noiseScore": 0,
+  "includeInBrief": true,
+  "noiseReasons": [],
+  "fromDomain": "factset.com",
+  "subject": "SA: StreetAccount Macro Update: Weekend Headlines",
+  "contentLinks": 0,
+  "tickers": []
+}

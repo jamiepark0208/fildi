@@ -1,6 +1,7 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
+import { getSchwabQuotes } from "./schwab-client.js";
 
 const yahooFinance = new YahooFinanceClass();
 
@@ -17,10 +18,12 @@ export interface LivePrice {
  * same number everywhere, instead of each page running its own Yahoo quote
  * call with its own TTL (previously: breakdown 2h, quotes 1h, market-context
  * 60s, live-hotlist stuck on yesterday's daily close).
+ *
+ * Schwab first for cache misses (batched /quotes); Yahoo fallback.
  */
 export const livePriceCache = new TTLCache<LivePrice>(60 * 1000, "live-price", 2000);
 
-/** Batched live price + change% lookup, per-ticker cached, one Yahoo call for all misses. */
+/** Batched live price + change% lookup, per-ticker cached. */
 export async function getLivePrices(tickers: string[]): Promise<Map<string, LivePrice>> {
   const result = new Map<string, LivePrice>();
   const keys = [...new Set(tickers.map(t => t.toUpperCase()))];
@@ -33,29 +36,57 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
   }
   if (missing.length === 0) return result;
 
+  let stillMissing = missing;
+
+  try {
+    const schwab = await getSchwabQuotes(missing);
+    if (schwab) {
+      const next: string[] = [];
+      for (const key of missing) {
+        const q = schwab.get(key);
+        if (q?.price != null) {
+          const entry: LivePrice = {
+            price: q.price,
+            changePercent: q.changePercent,
+            open: q.open,
+          };
+          livePriceCache.set(key, entry);
+          result.set(key, entry);
+        } else {
+          next.push(key);
+        }
+      }
+      stillMissing = next;
+    }
+  } catch (err: any) {
+    logger.warn({ err: String(err?.message ?? err) }, "live-quote: Schwab batch failed — Yahoo fallback");
+  }
+
+  if (stillMissing.length === 0) return result;
+
   try {
     const quotes = await (yahooFinance as any).quote(
-      missing,
+      stillMissing,
       {},
       { validateResult: false },
     ) as Array<{ symbol?: string; regularMarketPrice?: number; regularMarketChangePercent?: number; regularMarketOpen?: number }>;
 
     const bySymbol = new Map(quotes.map(q => [q.symbol, q]));
-    for (const key of missing) {
+    for (const key of stillMissing) {
       const q = bySymbol.get(key);
       const entry: LivePrice = {
         price: q?.regularMarketPrice ?? null,
         changePercent: q?.regularMarketChangePercent ?? null,
         open: q?.regularMarketOpen ?? null,
       };
-      // Only cache real quotes — caching a null (symbol omitted from the batch response)
-      // would pin the miss for the full TTL; leave it uncached so the next call retries.
       if (entry.price != null) livePriceCache.set(key, entry);
       result.set(key, entry);
     }
   } catch (err: any) {
-    logger.warn({ err: String(err?.message ?? err), tickers: missing }, "live-quote: batch quote fetch failed");
-    for (const key of missing) result.set(key, { price: null, changePercent: null, open: null });
+    logger.warn({ err: String(err?.message ?? err), tickers: stillMissing }, "live-quote: Yahoo batch quote fetch failed");
+    for (const key of stillMissing) {
+      if (!result.has(key)) result.set(key, { price: null, changePercent: null, open: null });
+    }
   }
 
   return result;

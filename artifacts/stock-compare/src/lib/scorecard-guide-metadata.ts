@@ -30,10 +30,16 @@ export type GuideMetricRow = {
 };
 
 const FUND_CAVEATS: Record<string, string> = {
-  peg: "Null if EPS growth ≤ 0 or negative earnings",
-  roicwacc: "Excluded for HOOD, SOFI (financials)",
-  cashrun: "Cash-generative names capped at max runway",
+  peg: "Null if EPS growth ≤ 0 or negative earnings; excluded for pre-revenue & unprofitable operators",
+  earningsYield: "Excluded for pre-revenue & unprofitable; haircut for cyclicals & distress",
+  roicwacc: "Excluded for REITs; haircut for Chinese; excluded HOOD/SOFI legacy note",
+  cashrun: "Cash-generative names capped; weight ↓ for financials; ↑ for Chinese/distress/pre-rev",
+  de: "Excluded for financials (banks/insurers/REITs) — structural leverage",
+  netDebtEbitda: "Excluded for financials",
+  dilution: "Weight ↑ for growth & pre-revenue styles",
+  gpa: "Needs grossProfit + totalAssets; null when either missing",
   upside: "Analyst consensus proxy, not intrinsic value",
+  divy: "Weight ↑ for REITs and financials",
 };
 
 export const FUNDAMENTAL_FAMILY_WEIGHTS = Object.entries(FAMILY_PRESETS.PUT_SELLER).map(([family, pct]) => ({
@@ -110,9 +116,9 @@ export const OPTIONS_STOCK_ROWS: GuideMetricRow[] = [
 ];
 
 export const OPTIONS_STRIKE_ROWS: GuideMetricRow[] = [
-  opt("wIncome", "Income", W_INCOME, "band", "Yahoo", "On scan", "Regime-adjusted weekly yield target", "strike", "optionStrike", "income"),
-  opt("wBuffer", "Buffer", W_BUFFER, "band", "Yahoo", "On scan", "Delta band + SD vs expected move", "strike", "optionStrike", "buffer"),
-  opt("wIvRel", "IV relative", W_IV_RELATIVE, true, "DB+Yahoo", "Mixed", "IV rank from DB", "strike", "optionStrike", "ivRelative"),
+  opt("wIncome", "Income", W_INCOME, "band", "Yahoo", "On scan", "Regime-adjusted weekly yield target (~0.5–1%/wk); soft peak at target", "strike", "optionStrike", "income"),
+  opt("wBuffer", "Buffer", W_BUFFER, "band", "Yahoo", "On scan", "Delta + SD vs expected move; soft haircut when earnings ≤7d", "strike", "optionStrike", "buffer"),
+  opt("wIvRel", "IV relative", W_IV_RELATIVE, true, "DB+Yahoo", "Mixed", "IV rank from DB; IV>RV / skew nudges", "strike", "optionStrike", "ivRelative"),
   opt("wIvAbs", "IV absolute", W_IV_ABSOLUTE, true, "Yahoo", "On scan", "Capped — avoids junk-high IV", "strike", "optionStrike", "ivAbsolute"),
   opt("wQuality", "Stock quality", W_STOCK_QUALITY, true, "DB", "Mixed", "Tech + fund combined", "strike", "optionStrike", "stockQuality"),
   opt("wSupport", "Support", W_SUPPORT, true, "DB", "Daily", "Distance to swing/pivot support", "strike", "optionStrike", "support"),

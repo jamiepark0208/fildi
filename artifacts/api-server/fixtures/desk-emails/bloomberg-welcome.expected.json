@@ -1,0 +1,17 @@
+{
+  "file": "bloomberg-welcome.json",
+  "source": "bloomberg",
+  "kind": "bloomberg",
+  "category": "promo",
+  "noiseScore": 100,
+  "includeInBrief": false,
+  "noiseReasons": [
+    "welcome_subject",
+    "subscribe_thanks",
+    "category_promo"
+  ],
+  "fromDomain": "news.bloomberg.com",
+  "subject": "You've subscribed!",
+  "contentLinks": 4,
+  "tickers": []
+}

@@ -5,12 +5,12 @@ import { cn } from "@/lib/utils";
 // bordered container, dense uppercase header row, zebra rows, hover highlight, tabular numerals.
 // bg-black/30 gives the table its own visibly darker surface vs. the translucent row it sits in
 // (rows use bg-*/5, near-identical to the card background — without this the table edges vanish).
-export const GRID_WRAP   = "border border-border/60 rounded-lg overflow-hidden bg-black/30";
-export const GRID_HEADER = "border-b border-border/60 bg-secondary/30";
-export const GRID_TH     = "py-1 px-2.5 font-medium text-[11px] uppercase tracking-widest text-muted-foreground whitespace-nowrap";
+export const GRID_WRAP   = "border border-[#d4af37]/20 rounded-lg overflow-hidden bg-black/40";
+export const GRID_HEADER = "border-b border-[#d4af37]/20 bg-black";
+export const GRID_TH     = "py-1 px-2.5 font-medium text-[11px] uppercase tracking-widest text-[#d4af37] whitespace-nowrap";
 export const GRID_TD     = "py-1 px-2.5 text-[13px] tabular-nums";
 export const gridRow = (i: number) =>
-  cn("border-b border-border/20 last:border-0 hover:bg-secondary/10 transition-colors", i % 2 === 1 && "bg-secondary/10");
+  cn("border-b border-[#d4af37]/10 last:border-0 hover:bg-[#d4af37]/5 transition-colors", i % 2 === 1 && "bg-black/30");
 
 // Compact detail-table cell: forces single-line content at header-row height —
 // use in expanded metric/inputs breakdowns so a data row never grows taller than its header.

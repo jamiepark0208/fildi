@@ -1,15 +1,25 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import YahooFinanceClass from "yahoo-finance2";
-import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { TTLCache } from "../lib/ttl-cache.js";
+import {
+  formatDeskPackForBrief,
+  loadDeskPack,
+} from "../lib/desk-commentary.js";
+import { callHaiku } from "../lib/haiku.js";
+import { aiLimiter } from "../middleware/rateLimiter.js";
 
 const yahooFinance = new YahooFinanceClass();
-const anthropic    = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 const router       = Router();
+
+/** Rate-limit only admin regenerations (?refresh=true), not cache reads. */
+function aiLimiterOnRefresh(req: Request, res: Response, next: NextFunction) {
+  if (req.query["refresh"] === "true") return aiLimiter(req, res, next);
+  return next();
+}
 
 export const marketDataCache = new TTLCache<MarketDataPoint[]>(60 * 1000, "daily-brief-market", 1);
 
@@ -155,7 +165,9 @@ async function generateBrief(
   tickerNews: { ticker: string; headlines: string[] }[],
   portfolioTickers: string[],
   date: string,
-  ctx: BriefContext
+  ctx: BriefContext,
+  deskPackText: string,
+  userId?: number,
 ): Promise<string> {
   const mdLines = marketData
     .filter(m => m.price !== null)
@@ -186,7 +198,10 @@ ${contextBlock}
 === LIVE MARKET DATA ===
 ${mdLines}
 
-=== RECENT NEWS (auto-fetched for portfolio tickers) ===
+=== FACTSET DESK COMMENTARIES (StreetAccount — prefer these over Yahoo headlines for macro/sector narrative) ===
+${deskPackText}
+
+=== RECENT NEWS (auto-fetched for portfolio tickers — secondary) ===
 ${newsBlock}
 
 CURRENT PORTFOLIO TICKERS: ${portfolioTickers.join(", ") || "(none provided — use watchlist signals from context)"}
@@ -194,29 +209,31 @@ CURRENT PORTFOLIO TICKERS: ${portfolioTickers.join(", ") || "(none provided — 
 Write a tight, actionable daily briefing in markdown. Follow this structure exactly:
 
 ## 🌍 Macro Environment
-- 3 bullets. Cite the TNX yield and VIX level explicitly. Interpret their current readings relative to the investor's thresholds in their context.
+- 3 bullets. Cite the TNX yield and VIX level explicitly. Fold in overnight / oil / politics desk notes when present. Interpret readings relative to the investor's thresholds in their context.
 
 ## 📊 Market Pulse
-- 3 bullets. Interpret SPY, QQQ, futures, and their divergences. Is this risk-on or risk-off? Why does it matter for selling puts today?
+- 3 bullets. Interpret SPY, QQQ, futures, and their divergences. Use US Overnight or Market Recap desk notes when available. Is this risk-on or risk-off? Why does it matter for selling puts today?
 
 ## 🏭 Sector & Stock Catalysts
-- Up to 5 bullets. Name specific tickers from the portfolio. Pull from the news. Reference the watch signals in context where relevant.
+- Up to 5 bullets. Name specific tickers from the portfolio. Prefer FactSet sector summaries + desk-mentioned tickers; Yahoo headlines are secondary. Reference watch signals where relevant.
 
 ## ⚠️ Risks This Week
-- 2-3 bullets. Near-term catalysts that could spike volatility or move these stocks violently (earnings, macro data, geopolitical, regulatory).
+- 2-3 bullets. Near-term catalysts that could spike volatility (earnings, macro data, geopolitical from Politics desk, oil).
 
 ## 💼 Portfolio Implications
 - 3 bullets. Direct, specific, actionable. Should new puts be opened today, or wait? Which tickers look like good candidates right now given the signals? What premium environment does the current VIX support? Reference the risk rules.
 
-Be specific and data-driven. Use numbers from the market data. Reference the investor's specific tickers, strategy, and risk rules. No generic financial advice.`;
+Be specific and data-driven. Use numbers from the market data and concrete desk bullets. Reference the investor's specific tickers, strategy, and risk rules. No generic financial advice. Do not invent desk facts that are not in the commentaries above.`;
 
-  const msg = await anthropic.messages.create({
-    model:      "claude-haiku-4-5-20251001",
-    max_tokens: 1200,
-    messages:   [{ role: "user", content: prompt }],
+  const { text } = await callHaiku({
+    prompt,
+    maxTokens: 1200,
+    trigger: "daily-brief",
+    surfaceType: "daily-brief",
+    userId,
+    ticker: "_",
   });
-
-  return msg.content[0].type === "text" ? msg.content[0].text : "";
+  return text;
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -243,7 +260,7 @@ router.get("/daily-brief/history", (_req, res) => {
 });
 
 // GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates (admin only)
-router.get("/daily-brief", async (req, res) => {
+router.get("/daily-brief", aiLimiterOnRefresh, async (req, res) => {
   const raw     = typeof req.query["tickers"] === "string" ? req.query["tickers"] : "";
   const refresh = req.query["refresh"] === "true";
   const tickers = raw ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean) : [];
@@ -262,11 +279,15 @@ router.get("/daily-brief", async (req, res) => {
 
   try {
     const ctx = loadContext();
-    const [marketData, tickerNews] = await Promise.all([
+    const [marketData, tickerNews, deskRows] = await Promise.all([
       fetchMarketData(),
       fetchTickerNews(tickers),
+      loadDeskPack(36, 12).catch(() => []),
     ]);
-    const content = await generateBrief(marketData, tickerNews, tickers, today, ctx);
+    const deskPackText = formatDeskPackForBrief(deskRows);
+    const content = await generateBrief(
+      marketData, tickerNews, tickers, today, ctx, deskPackText, req.session.userId,
+    );
 
     const brief: DailyBrief = {
       date: today, marketData, content,

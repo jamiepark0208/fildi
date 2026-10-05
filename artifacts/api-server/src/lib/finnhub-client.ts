@@ -20,6 +20,7 @@ export interface FinnhubFundamentalsData {
   finnhub_fcfMargin?:             number;
   finnhub_fcfPerShare?:           number;
   finnhub_bookValue?:             number;
+  finnhub_tangibleBookValuePerShare?: number;
   finnhub_ev?:                    number;
   finnhub_beta?:                  number;
   finnhub_eps?:                   number;
@@ -183,6 +184,8 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_fcfMargin:            pct(m["fcfMargin"]),
     finnhub_fcfPerShare:          n(m["fcfPerShareTTM"]),
     finnhub_bookValue:            n(m["bookValue"]),
+    finnhub_tangibleBookValuePerShare:
+      n(m["tangibleBookValuePerShareAnnual"]) ?? n(m["tangibleBookValuePerShare"]),
     finnhub_ev:                   n(m["ev"]),
     finnhub_beta:                 n(m["beta"]),
     finnhub_eps:                  n(m["eps"]),

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { TopNav } from "@/components/top-nav";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-rankings";
 import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint } from "@/components/live/regime-banner";
@@ -17,7 +16,10 @@ import {
 } from "@/components/live/hotlist-table";
 import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers";
 import { TopOptionsTable } from "@/components/live/top-options-table";
+import { DailyNewsPanel } from "@/components/live/daily-news-panel";
+import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
+import { queryKeys } from "@/lib/query-keys";
 
 interface MarketContextQuote {
   ticker: string;
@@ -145,16 +147,16 @@ function AsiaOvernightRow({
 /** Oversold vs Overbought — page-level mode (mirrors the scanner's puts/calls toggle). */
 function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: HotlistSide) => void }) {
   return (
-    <div className="inline-flex rounded-md border border-[#d4af37]/25 overflow-hidden text-xs font-semibold">
+    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
       {([
-        ["dip", "Oversold · Sell Puts"],
-        ["rally", "Overbought · Sell Calls"],
+        ["dip", "Oversold"],
+        ["rally", "Overbought"],
       ] as const).map(([value, label]) => (
         <button
           key={value}
           onClick={() => onChange(value)}
           className={cn(
-            "px-3 py-1.5 transition-colors",
+            "px-2 py-1 transition-colors",
             side === value
               ? value === "dip" ? "bg-green-600 text-white" : "bg-red-600 text-white"
               : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
@@ -167,9 +169,33 @@ function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: Hotli
   );
 }
 
+type PageTab = "market" | "news";
 type SubTab = "sell" | "candidates";
 
-/** Sub-tabs inside the combined options/candidates card — labels flip with side. */
+function PageTabToggle({ tab, onChange }: { tab: PageTab; onChange: (t: PageTab) => void }) {
+  return (
+    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
+      {([
+        ["market", "Market"],
+        ["news", "News"],
+      ] as const).map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          className={cn(
+            "px-2.5 py-1 transition-colors",
+            tab === value ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Sub-tabs inside Market — labels flip with side. */
 function SubTabToggle({
   side,
   subTab,
@@ -181,7 +207,7 @@ function SubTabToggle({
   onChange: (t: SubTab) => void;
   candidateCount: number;
 }) {
-  const sellLabel = side === "rally" ? "Top Calls to Sell" : "Top Puts to Sell";
+  const sellLabel = side === "rally" ? "Top Calls" : "Top Puts";
   const candidatesLabel = side === "rally" ? "Overbought" : "Oversold";
   return (
     <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
@@ -191,10 +217,11 @@ function SubTabToggle({
       ] as const).map(([value, label]) => (
         <button
           key={value}
+          type="button"
           onClick={() => onChange(value)}
           className={cn(
             "px-2 py-1 transition-colors",
-            subTab === value ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+            subTab === value ? "bg-[#d4af37]/80 text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
           )}
         >
           {label}
@@ -214,28 +241,43 @@ export default function Live() {
   useEffect(() => { try { localStorage.setItem("fildi_live_side", side); } catch { /* private mode */ } }, [side]);
   const isRally = side === "rally";
 
+  const [pageTab, setPageTab] = useState<PageTab>(() => {
+    try { return (localStorage.getItem("fildi_live_page") as PageTab) || "market"; } catch { return "market"; }
+  });
+  useEffect(() => { try { localStorage.setItem("fildi_live_page", pageTab); } catch { /* */ } }, [pageTab]);
+
   const [subTab, setSubTab] = useState<SubTab>("sell");
 
   const { data, isLoading } = useQuery({
     queryKey: ["live-state"],
     queryFn: () => apiLive("/state"),
+    // Cold post-restart: server returns empty immediately and warms in background.
+    refetchInterval: (q) => (q.state.data?.lastRefreshedAt == null ? 2_000 : false),
+    staleTime: 60_000,
   });
 
   const { data: movers, isLoading: moversLoading } = useQuery({
     queryKey: ["live-movers"],
     queryFn: fetchMovers,
+    staleTime: 60_000,
   });
 
   const { data: regime } = useQuery({
     queryKey: ["live-regime"],
     queryFn: fetchRegime,
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
+
+  // Candidates / hotlist-only — defer until that sub-tab is open.
+  const needCandidates = pageTab === "market" && subTab === "candidates";
 
   const { data: entrySignals } = useQuery({
     queryKey: ["live-entry-signals"],
     queryFn: fetchEntrySignals,
     refetchInterval: 60_000,
+    enabled: needCandidates,
+    staleTime: 60_000,
   });
 
   const { data: entryStats } = useQuery({
@@ -243,6 +285,7 @@ export default function Live() {
     queryFn: fetchEntryStats,
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
+    enabled: needCandidates,
   });
 
   const { data: fundRankingsData } = useQuery({
@@ -254,10 +297,11 @@ export default function Live() {
     },
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    enabled: needCandidates,
   });
 
   const { data: allTechnicalsData } = useQuery({
-    queryKey: ["technicals", "all"],
+    queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
       const res = await fetch("/api/technicals/all");
       if (!res.ok) throw new Error("technicals/all fetch failed");
@@ -265,6 +309,7 @@ export default function Live() {
     },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needCandidates,
   });
 
   const fundScoreMap = useMemo(
@@ -327,96 +372,118 @@ export default function Live() {
       <TopNav />
       <main className="pt-14 p-6">
         <div className="max-w-5xl mx-auto space-y-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-              {data?.marketContext?.map((q) => <MarketContextChip key={q.ticker} quote={q} />)}
-              {!isLoading && (data?.marketContext?.length ?? 0) === 0 && (
-                <p className="text-sm text-amber-200">No data yet — click Refresh.</p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-nowrap overflow-x-auto">
+            <PageTabToggle tab={pageTab} onChange={setPageTab} />
+            {pageTab === "market" && (
+              <>
                 <SideToggle side={side} onChange={setSide} />
-                <Button
+                <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
+                <button
+                  type="button"
                   onClick={() => refreshMutation.mutate()}
                   disabled={refreshMutation.isPending}
-                  size="sm"
+                  className={cn(
+                    "inline-flex items-center gap-1 h-7 px-2.5 shrink-0 rounded border border-[#d4af37]/20",
+                    "bg-zinc-950 text-[11px] font-semibold text-amber-200/70 hover:text-[#d4af37] transition-colors",
+                    "disabled:opacity-50 disabled:pointer-events-none",
+                  )}
+                  title="Refresh hotlist + live prices"
                 >
-                  <RefreshCw className={cn("h-4 w-4 mr-2", refreshMutation.isPending && "animate-spin")} />
+                  <RefreshCw className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-spin")} />
                   Refresh
-                </Button>
-              </div>
-              <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
-              <p className="text-[10px] text-zinc-400">Last refreshed: {lastRefreshedLabel}</p>
-            </div>
+                </button>
+                <span className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 tabular-nums">
+                  {lastRefreshedLabel}
+                </span>
+                {!isLoading && !data?.lastRefreshedAt && (
+                  <span className="text-[10px] text-amber-200/60 whitespace-nowrap">No data yet</span>
+                )}
+              </>
+            )}
           </div>
 
-          <AsiaOvernightRow
-            asiaContext={data?.asiaContext ?? []}
-            hasCatalystToday={data?.hasCatalystToday ?? false}
-            catalystCalendarStale={data?.catalystCalendarStale ?? false}
-          />
-
-          <RegimeBanner checkpoints={regime} />
-
-          <PatternDigestCard />
-
-          <section className="space-y-1.5">
-            {moversLoading && !movers ? (
-              <p className="text-sm text-amber-200/40">Loading movers…</p>
-            ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-3 gap-3">
-                  <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
-                  <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
-                  <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
-                </div>
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-1.5">
-            {subTab === "candidates" && sideStats && entryStats && entryStats.gradedDays > 0 && (
-              <span
-                className="block text-[11px] font-mono text-sky-300/60"
-                title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days). Avg next-day / next-5-day return from the signal price.${isRally ? " Rally side sells calls — Enter wants NEGATIVE forward returns here." : " This is the accountability layer — if Enter doesn't beat Wait here, don't trust the verdicts."}`}
-              >
-                {(["enter", "wait", "avoid"] as const).map((v, i) => {
-                  const s = sideStats[v];
-                  if (!s || s.n === 0) return null;
-                  return (
-                    <span key={v}>
-                      {i > 0 && " · "}
-                      <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
-                        {VERDICT_LABEL[v]}
-                      </span>
-                      {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
-                    </span>
-                  );
-                })}
-                {isRally && <span className="text-amber-200/30"> (↓ fwd = good)</span>}
-              </span>
-            )}
-            {subTab === "sell" ? (
-              <TopOptionsTable side={isRally ? "call" : "put"} n={7} />
-            ) : sortedHotlist.length === 0 ? (
-              !isLoading && (
-                <p className="text-sm text-amber-200/40">
-                  Waiting for scanner data — click Refresh once rankings are cached.
-                </p>
-              )
-            ) : (
-              <HotlistTable
-                side={side}
-                entries={sortedHotlist}
-                techRowMap={techRowMap}
-                fundScoreMap={fundScoreMap}
-                techScoreMap={techScoreMap}
-                entryByTicker={entryByTicker}
-                entryAsOf={entryAsOf}
+          {pageTab === "news" ? (
+            <div className="space-y-3">
+              <DailyNewsPanel compact />
+              <NewsInboxPanel />
+            </div>
+          ) : (
+            <>
+              <AsiaOvernightRow
+                asiaContext={data?.asiaContext ?? []}
+                hasCatalystToday={data?.hasCatalystToday ?? false}
+                catalystCalendarStale={data?.catalystCalendarStale ?? false}
               />
-            )}
-          </section>
+
+              <RegimeBanner checkpoints={regime} />
+
+              <PatternDigestCard />
+
+              <section className="space-y-1.5">
+                {moversLoading && !movers ? (
+                  <p className="text-[11px] text-amber-200/40">Loading movers…</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
+                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
+                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-1.5">
+                {subTab === "candidates" && sideStats && entryStats && entryStats.gradedDays > 0 && (
+                  <span
+                    className="block text-[10px] font-mono text-sky-300/60"
+                    title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days).`}
+                  >
+                    {(["enter", "wait", "avoid"] as const).map((v, i) => {
+                      const s = sideStats[v];
+                      if (!s || s.n === 0) return null;
+                      return (
+                        <span key={v}>
+                          {i > 0 && " · "}
+                          <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
+                            {VERDICT_LABEL[v]}
+                          </span>
+                          {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+                        </span>
+                      );
+                    })}
+                    {isRally && <span className="text-amber-200/30"> (↓ fwd = good)</span>}
+                  </span>
+                )}
+                {subTab === "sell" ? (
+                  <TopOptionsTable
+                    side={isRally ? "call" : "put"}
+                    n={7}
+                    regimeDirection={
+                      [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.direction ?? null
+                    }
+                    regimeConfidence={
+                      [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.confidence ?? null
+                    }
+                  />
+                ) : sortedHotlist.length === 0 ? (
+                  !isLoading && (
+                    <p className="text-[11px] text-amber-200/40">
+                      Waiting for scanner data — click Refresh once rankings are cached.
+                    </p>
+                  )
+                ) : (
+                  <HotlistTable
+                    side={side}
+                    entries={sortedHotlist}
+                    techRowMap={techRowMap}
+                    fundScoreMap={fundScoreMap}
+                    techScoreMap={techScoreMap}
+                    entryByTicker={entryByTicker}
+                    entryAsOf={entryAsOf}
+                  />
+                )}
+              </section>
+            </>
+          )}
         </div>
       </main>
     </div>

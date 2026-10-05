@@ -88,6 +88,7 @@ const EDGAR_FIELDS: Record<string, string> = {
   edgarSharesOutstanding:  "sharesOutstanding",
   edgarGrossMargin:        "grossMargin",
   edgarNetMargin:          "netMargin",
+  edgarDepreciationAmortization: "depreciationAmortization",
 };
 
 const FINNHUB_FIELDS: Record<string, string> = {
@@ -114,6 +115,7 @@ const FINNHUB_FIELDS: Record<string, string> = {
   finnhubQuickRatio:            "quickRatio",
   finnhubFcfPerShare:           "fcfPerShare",
   finnhubBookValue:             "bookValue",
+  finnhubTangibleBookValuePerShare: "tangibleBookValuePerShare",
   finnhubBeta:                  "beta",
   finnhubEps:                   "eps",
   finnhubEbitPerShare:          "ebitPerShare",
@@ -157,6 +159,7 @@ const FMP_FIELDS: Record<string, string> = {
   fmpEvRevenue:                  "evRevenue",
   fmpPriceToBook:                "priceToBook",
   fmpPriceToSales:               "priceToSales",
+  fmpTangibleBookValuePerShare:  "tangibleBookValuePerShare",
   fmpAnalystTargetPrice:         "analystTargetPrice",
   fmpRevenueGrowthYoY:           "revenueGrowthYoY",
   fmpRevenueGrowthYoyPrior:      "revenueGrowthYoyPrior",
@@ -179,9 +182,12 @@ const FMP_FIELDS: Record<string, string> = {
   fmpTotalDebt:                  "totalDebt",
   fmpTotalStockholdersEquity:    "totalStockholdersEquity",
   fmpCashAndEquivalents:         "cashAndEquivalents",
+  fmpTotalAssets:                "totalAssets",
+  fmpGrossProfit:                "grossProfit",
   fmpWacc:                       "wacc",
   fmpRoic:                       "roic",
   fmpQuarterlyOperatingCashFlow: "quarterlyOperatingCashFlow",
+  fmpAnnualOperatingCashFlow:    "annualOperatingCashFlow",
   fmpSharesOutstanding:          "sharesOutstanding",
   fmpSharesOutstandingPrior:     "sharesOutstandingPrior",
   fmpDividendYield:              "dividendYield",

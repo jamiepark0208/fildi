@@ -1,6 +1,9 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { getTier } from "./constants.js";
 import { TTLCache } from "./ttl-cache.js";
+import { isPlausibleOptionQuote } from "@workspace/option-scoring";
+import { getSchwabOptionChains } from "./schwab-client.js";
+import { logger } from "./logger.js";
 
 const yahooFinance = new YahooFinanceClass();
 
@@ -17,6 +20,8 @@ export interface OptionRow {
   incomePct: number;
   meetsGate: boolean;
   bidIsLive: boolean;
+  /** True when Yahoo bid is 0 / missing — not used for income or meetsGate. */
+  quoteStale: boolean;
   delta: number | null;
   spreadPct: number | null;
 }
@@ -33,6 +38,8 @@ export interface OptionsChainResult {
   puts: OptionRow[];
   calls: OptionRow[];
   fetchedAt: number;
+  /** Provenance — schwab preferred; yahoo fallback. */
+  source?: "schwab" | "yahoo";
 }
 
 // Raw shape we read from yf2 (validateResult: false)
@@ -246,12 +253,15 @@ function buildRows(
       const iv           = p.impliedVolatility ?? 0;
       const volume       = typeof p.volume === "number" ? p.volume : null;
       const openInterest = typeof p.openInterest === "number" ? p.openInterest : null;
-      // When market is closed, Yahoo returns bid=0; fall back to lastPrice so the scanner
-      // can still show indicative income estimates outside of market hours.
-      const priceForIncome = bid > 0 ? bid : lastPrice;
+      // Sell-side price MUST be a live bid on THIS contract (put bid for puts, call bid
+      // for calls). Never invent from ask, never lastPrice (invents inverted OTM curves).
+      const priceForIncome = bid > 0 ? bid : 0;
       const incomePct    = priceForIncome > 0 ? (priceForIncome / strike) * 100 : 0;
       const mid          = bid > 0 && ask > 0 ? (bid + ask) / 2 : null;
       const spreadPct    = mid !== null && mid > 0 ? parseFloat(((ask - bid) / mid).toFixed(4)) : null;
+      const otmPct = spot > 0
+        ? (isCall ? (strike - spot) / spot : (spot - strike) / spot)
+        : 0;
 
       let delta: number | null = null;
       if (iv > 0 && spot > 0 && T > 0) {
@@ -259,14 +269,15 @@ function buildRows(
         delta = parseFloat(g.delta.toFixed(4));
       }
 
+      const liveBid = bid > 0;
+      const plausible = liveBid && isPlausibleOptionQuote(bid, strike, spot, otmPct);
+
       return {
         strike, bid, ask, lastPrice, iv, volume, openInterest,
         incomePct: Math.round(incomePct * 1000) / 1000,
-        // No live bid means no real market to sell into — a stale lastPrice fallback isn't
-        // a sellable price, so it must never qualify for ranking/gating even though we still
-        // compute incomePct for display context on the raw chain.
-        meetsGate: bid > 0,
-        bidIsLive: bid > 0,
+        meetsGate: plausible,
+        bidIsLive: liveBid,
+        quoteStale: !liveBid,
         delta,
         spreadPct,
       };
@@ -304,9 +315,24 @@ async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsRespon
 
 // ── Public API ────────────────────────────────────────────────────────────────
 // Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 1-28 DTE).
+// Schwab first (1 call / ticker); Yahoo fallback on auth/rate/empty.
 
 export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const key  = ticker.toUpperCase();
+
+  try {
+    const schwab = await getSchwabOptionChains(key);
+    if (schwab?.length) {
+      return schwab.map((c) => ({ ...c, source: "schwab" as const }));
+    }
+  } catch (err) {
+    logger.warn({ ticker: key, err: String(err) }, "options: Schwab chain failed — Yahoo fallback");
+  }
+
+  return getOptionsChainYahoo(key);
+}
+
+async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> {
   const tier = getTier(key);
 
   // Use cached expiry dates if available; skip the undated initial call entirely
@@ -383,7 +409,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
     }
   }
 
-  return results;
+  return results.map((c) => ({ ...c, source: "yahoo" as const }));
 }
 
 // ── IV term structure (ATM implied vol across the expiry calendar) ────────────

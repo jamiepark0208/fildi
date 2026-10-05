@@ -1,7 +1,12 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { RSI, MFI, ATR, MACD, Stochastic, BollingerBands } from "technicalindicators";
-import { eq, sql, desc } from "drizzle-orm";
-import { db, tickerTechnicals, indicatorCache, type TickerTechnicalsRow } from "@workspace/db";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
+import {
+  db, tickerTechnicals, indicatorCache, earningsCalendar,
+  tickerFundamentals, pricesHistorical, tickerRegistry, tickerAtmIvSnapshots,
+  yahooFundamentals,
+  type TickerTechnicalsRow,
+} from "@workspace/db";
 import { readOHLCVFromDB, fetchAndStoreOHLCV } from "./indicators.js";
 import { logger } from "./logger.js";
 
@@ -395,6 +400,23 @@ async function fetchOptionsFields(ticker: string, realizedVol20d: number | null)
 
 async function getEarningsDaysOut(ticker: string): Promise<number | null> {
   try {
+    // Prefer earnings_calendar (populated for ~half the universe) over sparse indicator_cache.
+    const cal = await db
+      .select({ reportDate: earningsCalendar.reportDate })
+      .from(earningsCalendar)
+      .where(and(
+        eq(earningsCalendar.ticker, ticker),
+        sql`${earningsCalendar.reportDate} >= CURRENT_DATE`,
+      ))
+      .orderBy(earningsCalendar.reportDate)
+      .limit(1);
+    if (cal[0]?.reportDate) {
+      const days = Math.round(
+        (new Date(String(cal[0].reportDate) + "T12:00:00").getTime() - Date.now()) / 86400000,
+      );
+      if (days >= 0) return days;
+    }
+
     const rows = await db.select({ earningsDate: indicatorCache.earningsDate })
       .from(indicatorCache)
       .where(eq(indicatorCache.ticker, ticker))
@@ -403,7 +425,7 @@ async function getEarningsDaysOut(ticker: string): Promise<number | null> {
     const date = rows[0]?.earningsDate;
     if (!date) return null;
     const days = Math.round((new Date(date + "T12:00:00").getTime() - Date.now()) / 86400000);
-    return days > 0 ? days : null;
+    return days >= 0 ? days : null;
   } catch {
     return null;
   }
@@ -487,8 +509,10 @@ export async function writeTechnicalsRow(
     regime:                     ohlcv.regime,
     fallingKnife:               ohlcv.fallingKnife,
 
+    // ivRank stays RV-proxy for backward compat; scorer prefers hist/cross via enrichment
     ivRank:                     num(ohlcv.ivRank),
     ivPercentile:               num(ohlcv.ivPercentile),
+    ivRankSource:               "rv_proxy" as string | null,
     atmPutIv:                   num(opts.atmPutIv),
     impliedMoveWeekly:          num(opts.impliedMoveWeekly),
     ivVsRealizedVol:            num(opts.ivVsRealizedVol),
@@ -505,6 +529,25 @@ export async function writeTechnicalsRow(
   await db.insert(tickerTechnicals)
     .values(values)
     .onConflictDoUpdate({ target: tickerTechnicals.ticker, set: { ...values, ticker: undefined } });
+
+  // Daily ATM IV snapshot — builds true IV-rank history over time
+  if (opts.atmPutIv != null && Number.isFinite(opts.atmPutIv) && opts.atmPutIv > 0) {
+    const asOf = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    await db.insert(tickerAtmIvSnapshots)
+      .values({
+        ticker: ticker.toUpperCase(),
+        asOf,
+        atmPutIv: String(opts.atmPutIv),
+        ivVsRealized: opts.ivVsRealizedVol != null ? String(opts.ivVsRealizedVol) : null,
+      })
+      .onConflictDoUpdate({
+        target: [tickerAtmIvSnapshots.ticker, tickerAtmIvSnapshots.asOf],
+        set: {
+          atmPutIv: String(opts.atmPutIv),
+          ivVsRealized: opts.ivVsRealizedVol != null ? String(opts.ivVsRealizedVol) : null,
+        },
+      });
+  }
 }
 
 export async function readTechnicalsRow(ticker: string): Promise<TickerTechnicalsRow | null> {
@@ -514,8 +557,180 @@ export async function readTechnicalsRow(ticker: string): Promise<TickerTechnical
   return rows[0] ?? null;
 }
 
-export async function getAllTechnicalsRows(): Promise<TickerTechnicalsRow[]> {
-  return db.select().from(tickerTechnicals);
+/** Enriched technicals row for V2/V4 scorer — gold TP, peer group, vsSpy, hist IV rank, short. */
+export type TechnicalsApiRow = TickerTechnicalsRow & {
+  peerGroupId: string | null;
+  analystUpside: number | null;
+  vsSpy20d: number | null;
+  ivRankEffective: number | null;
+  shortRatio: number | null;
+};
+
+export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
+  const techRows = await db.select().from(tickerTechnicals);
+  if (techRows.length === 0) return [];
+
+  const tickers = techRows.map((r) => r.ticker);
+
+  const [regRows, fundRows, pxRows, spyRows, ivSnapRows, shortRows] = await Promise.all([
+    db
+      .select({
+        ticker: tickerRegistry.ticker,
+        peerGroupId: tickerRegistry.primaryPeerGroupId,
+      })
+      .from(tickerRegistry)
+      .where(inArray(tickerRegistry.ticker, tickers)),
+    db
+      .select({
+        ticker: tickerFundamentals.ticker,
+        target: tickerFundamentals.analystTargetPrice,
+      })
+      .from(tickerFundamentals)
+      .where(inArray(tickerFundamentals.ticker, tickers)),
+    db.execute(sql`
+      SELECT DISTINCT ON (ticker) ticker, close::float8 AS close
+      FROM prices_historical
+      WHERE ticker IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})
+      ORDER BY ticker, date DESC
+    `),
+    // 20d returns for SPY + all tickers (2 closes ~20 trading days apart)
+    db.execute(sql`
+      WITH ranked AS (
+        SELECT ticker, date, close::float8 AS close,
+               ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+        FROM prices_historical
+        WHERE ticker IN (${sql.join([...tickers, "SPY"].map((t) => sql`${t}`), sql`, `)})
+      )
+      SELECT ticker,
+             MAX(close) FILTER (WHERE rn = 1) AS close_now,
+             MAX(close) FILTER (WHERE rn = 21) AS close_20d
+      FROM ranked
+      WHERE rn IN (1, 21)
+      GROUP BY ticker
+    `),
+    db.execute(sql`
+      SELECT ticker, atm_put_iv::float8 AS atm_put_iv
+      FROM ticker_atm_iv_snapshots
+      WHERE ticker IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})
+        AND as_of >= (CURRENT_DATE - INTERVAL '400 days')
+      ORDER BY ticker, as_of
+    `),
+    db
+      .select({
+        ticker: yahooFundamentals.ticker,
+        shortRatio: yahooFundamentals.yahooShortRatio,
+      })
+      .from(yahooFundamentals)
+      .where(inArray(yahooFundamentals.ticker, tickers)),
+  ]);
+
+  const peerBy = new Map(regRows.map((r) => [r.ticker, r.peerGroupId ?? null]));
+  const tpBy = new Map(
+    fundRows.map((r) => [r.ticker, r.target != null ? parseFloat(String(r.target)) : null]),
+  );
+  const pxBy = new Map<string, number>();
+  for (const r of ((pxRows as any).rows ?? pxRows) as any[]) {
+    if (r.close != null && Number(r.close) > 0) pxBy.set(String(r.ticker), Number(r.close));
+  }
+
+  // vsSpy20d = ticker 20d return − SPY 20d return (percentage points)
+  const ret20 = new Map<string, number>();
+  for (const r of ((spyRows as any).rows ?? spyRows) as any[]) {
+    const now = Number(r.close_now);
+    const past = Number(r.close_20d);
+    if (now > 0 && past > 0) ret20.set(String(r.ticker), ((now / past) - 1) * 100);
+  }
+  const spyRet = ret20.get("SPY") ?? null;
+
+  // Hist ATM IV series per ticker
+  const ivHist = new Map<string, number[]>();
+  for (const r of ((ivSnapRows as any).rows ?? ivSnapRows) as any[]) {
+    const t = String(r.ticker);
+    const iv = Number(r.atm_put_iv);
+    if (!Number.isFinite(iv) || iv <= 0) continue;
+    if (!ivHist.has(t)) ivHist.set(t, []);
+    ivHist.get(t)!.push(iv);
+  }
+
+  const shortBy = new Map<string, number | null>();
+  for (const r of shortRows) {
+    const n = r.shortRatio != null ? parseFloat(String(r.shortRatio)) : NaN;
+    shortBy.set(r.ticker, Number.isFinite(n) && n > 0 ? n : null);
+  }
+
+  return techRows.map((r) => {
+    const tp = tpBy.get(r.ticker);
+    const px = pxBy.get(r.ticker);
+    const analystUpside =
+      tp != null && Number.isFinite(tp) && tp > 0 && px != null && px > 0 ? tp / px - 1 : null;
+
+    const tRet = ret20.get(r.ticker) ?? null;
+    const vsSpy20d =
+      tRet != null && spyRet != null ? parseFloat((tRet - spyRet).toFixed(2)) : null;
+
+    // Hist IV rank when ≥10 snapshots; else null (scorer fills cross-sectional)
+    let ivRankEffective: number | null = null;
+    const series = ivHist.get(r.ticker);
+    const curIv = r.atmPutIv != null ? parseFloat(String(r.atmPutIv)) : NaN;
+    if (series && series.length >= 10 && Number.isFinite(curIv) && curIv > 0) {
+      let below = 0;
+      for (const v of series) if (v < curIv) below++;
+      ivRankEffective = below / series.length;
+    }
+
+    return {
+      ...r,
+      peerGroupId: peerBy.get(r.ticker) ?? null,
+      analystUpside,
+      vsSpy20d,
+      ivRankEffective,
+      shortRatio: shortBy.get(r.ticker) ?? null,
+    };
+  });
+}
+
+/** Seed today's ATM IV snapshots from existing ticker_technicals.atm_put_iv (one-shot bootstrap). */
+export async function seedAtmIvSnapshotsFromTechnicals(): Promise<{ inserted: number }> {
+  const result = await db.execute(sql`
+    INSERT INTO ticker_atm_iv_snapshots (ticker, as_of, atm_put_iv, iv_vs_realized)
+    SELECT ticker,
+           (CURRENT_DATE AT TIME ZONE 'America/New_York')::date,
+           atm_put_iv,
+           iv_vs_realized_vol
+    FROM ticker_technicals
+    WHERE atm_put_iv IS NOT NULL
+      AND atm_put_iv::float8 > 0
+    ON CONFLICT (ticker, as_of) DO UPDATE SET
+      atm_put_iv = EXCLUDED.atm_put_iv,
+      iv_vs_realized = EXCLUDED.iv_vs_realized
+    RETURNING ticker
+  `);
+  return { inserted: ((result as any).rows ?? result)?.length ?? 0 };
+}
+
+/** Fast DB-only backfill of earnings_days_out from earnings_calendar (no Yahoo). */
+export async function backfillEarningsDaysOut(): Promise<{ updated: number; withDate: number }> {
+  const result = await db.execute(sql`
+    WITH next_earn AS (
+      SELECT ticker, MIN(report_date) AS next_d
+      FROM earnings_calendar
+      WHERE report_date >= CURRENT_DATE
+      GROUP BY ticker
+    )
+    UPDATE ticker_technicals t
+    SET earnings_days_out = (n.next_d - CURRENT_DATE)
+    FROM next_earn n
+    WHERE n.ticker = t.ticker
+    RETURNING t.ticker
+  `);
+  const updated = ((result as any).rows ?? result)?.length ?? 0;
+  const withDate = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM ticker_technicals WHERE earnings_days_out IS NOT NULL
+  `);
+  return {
+    updated,
+    withDate: Number(((withDate as any).rows?.[0] ?? withDate)?.n ?? 0),
+  };
 }
 
 export async function getStaleTechnicalTickers(allTickers: string[]): Promise<string[]> {

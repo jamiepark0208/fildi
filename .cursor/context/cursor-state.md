@@ -1,30 +1,28 @@
 # Cursor State
-> Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code). Update at end of Cursor sessions.
+> Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-09-29
+**Last updated:** 2026-10-04 (efficiency P0s done)
 
 ## Phase
-**build** — shared context Phase A+B landed; maintain + peer scoring continue
+**build** — efficiency playbook P0 shipped (AI limiter + watchlist snapshot Options)
 
 ## READ FIRST
-**Shared map:** `.agents/context/INDEX.md` (+ root `AGENTS.md`)  
-**Peer scoring:** `primary_peer_group_id` + winsorize; ETF deny-list `@workspace/db`  
-**Sector plan:** `.agents/context/plans/fundamental-sector-scoring.md`  
-**Stock DB:** `.agents/context/stock-db-best-realistic.md`
+**Efficiency:** `.agents/context/efficiency-playbook.md`  
+**Schwab:** `.agents/context/schwab-market-data.md`  
+**Desk:** `.agents/context/desk-commentaries.md`
 
-## Active work
-- Shared ops SoT under `.agents/context/` (Cursor + Claude); private phase in this file
-- Daily maintain: bounded enrich + drain + peer-health + scores-only; full nightly only if ≥4d
-- Peers: quantum group; Reassign for mis-cats; `FUNDAMENTAL_WATCHLIST` gone
+## Active
+- Shared `callHaiku` + `aiLimiter` on explain / daily-brief refresh / desk daily-news / macro generate
+- `ai_usage_log` has `input_tokens` / `output_tokens` (migrate-0029 applied)
+- Watchlist Options: rankings ∩ watchlist; chains on expand only (no batch on load)
+- Shared `queryKeys.technicalsAll` / `optionsBatch` across Rankings/Live/Options/Tech
 
-## Next tasks
-1. Weekly data-ops skill + value log (Peers line)
-2. When NR ≤250 + §1 green 7d → unify scorers
-3. Review `maintain-last.json` / `peer-health-last.json` after runs
-4. Always-on Mac if 10:30 often missed
-5. knip on `test-*.ts` one-offs (confirm before delete)
+## Next
+1. P1: `technicals/all` lite projection / field split
+2. Portfolio position-quote batch + short TTL
+3. Macro charts cache split (regime vs liquidity)
 
 ## Do not
-- Edit `.agents/context/state.md` from Cursor
-- Put ETFs in peer scoring cohorts
-- Stop after CreatePlan when user said implement/proceed — execute
+- Commit schwab tokens / secrets
+- Feed desk news into fund_score
+- Re-enable watchlist `/options/batch` on page load

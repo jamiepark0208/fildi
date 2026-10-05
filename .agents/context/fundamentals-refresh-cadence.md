@@ -28,7 +28,7 @@ gap-driven fetch**, not full-universe every day. TradeDash already does most of 
 | Fundamentals bronze (bounded) | Daily maintain @10:30 | missing ≤30 + earnings ≤40 |
 | Full-universe enrich | ≥4d since last success | `nightly-enrichment.ts` |
 | FactSet referee | Budgeted drip ≤40/day if rem≥60 | Divergent / null only |
-| Merge + fund_score | After daily maintain writes | 0 API (`post-merge-scores.ts`) |
+| Merge + fund_score (+10% sector opportunity layer) | After daily maintain writes | 0 API (`post-merge-scores.ts`); uses Finnhub mcap for peer-group size |
 | Peer heal | Daily maintain | `peer-health-check.ts` |
 
 ## Operator loop

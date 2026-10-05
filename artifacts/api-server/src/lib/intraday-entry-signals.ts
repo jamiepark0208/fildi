@@ -137,8 +137,8 @@ function verdictFor(side: HotlistSide, direction: Direction | null, regime: Dire
   if (direction === "bearish") return { verdict: "avoid", why: "ticker is trading bearish intraday" };
   if (regime === "bearish") return { verdict: "avoid", why: "market regime is bearish — don't fight the tape" };
 
-  const earningsSoon = flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS;
-  if (earningsSoon) return { verdict: "wait", why: `earnings in ${flags.earningsDaysOut}d — selling a put through earnings is a different trade` };
+  // Earnings elevates IV — worth considering for deep-OTM premium; do not hard-block.
+  // Factor line below still surfaces the risk badge.
 
   if (direction === "bullish" && regime === "bullish") return { verdict: "enter", why: "ticker bullish and market regime agrees" };
   // The FVG retrace is itself an entry trigger when the ticker leans bullish and the tape isn't against it.
@@ -155,8 +155,8 @@ function verdictForRally(direction: Direction | null, regime: Direction | null, 
   if (direction === "bullish") return { verdict: "avoid", why: "still squeezing up intraday — don't fade momentum" };
   if (regime === "bullish") return { verdict: "avoid", why: "market regime is bullish — don't fight the tape" };
 
-  const earningsSoon = flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS;
-  if (earningsSoon) return { verdict: "wait", why: `earnings in ${flags.earningsDaysOut}d — selling a call through earnings is a different trade` };
+  // Earnings elevates IV — flag only; deep-OTM call premium can be intentional.
+  // Factor line below still surfaces the risk badge.
 
   if (direction === "bearish" && regime === "bearish") return { verdict: "enter", why: "rally is fading and the tape agrees" };
   // Mirror of the dip-side FVG trigger: a retrace up into an unfilled bearish gap is supply overhead.
@@ -207,7 +207,7 @@ async function computeOne(ticker: string, sides: HotlistSide[], regime: Directio
     }
     if (side === "dip" && flags.fallingKnife) factors.push("⚠ Falling knife flag from nightly technicals");
     if (flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS) {
-      factors.push(`⚠ Earnings in ${flags.earningsDaysOut} day${flags.earningsDaysOut === 1 ? "" : "s"}`);
+      factors.push(`⚠ Earnings risk in ${flags.earningsDaysOut} day${flags.earningsDaysOut === 1 ? "" : "s"} — elevated IV; prefer deep OTM`);
     }
     factors.push(regime ? `Market regime: ${regime}` : "Market regime: no call yet");
     factors.push(`Verdict: ${verdict.toUpperCase()} — ${why}`);

@@ -44,7 +44,7 @@ export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "..
 // tf_col   = the ticker_fundamentals JS property to write
 
 type SFPair = [source: string, sfField: string];
-type FieldDef = { tfCol: keyof typeof tickerFundamentals.$inferInsert; priority: SFPair[] };
+type FieldDef = { tfCol: string; priority: SFPair[] };
 
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
@@ -61,6 +61,11 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
   { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"], ["factset","priceToBook"]] },
   { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["finnhub","psRatio"], ["fmp","priceToSales"]] },
+  // Banks/insurers: P/TBV uses TBVPS from Finnhub (free) / FMP when available
+  { tfCol: "tangibleBookValuePerShare", priority: [["finnhub","tangibleBookValuePerShare"], ["fmp","tangibleBookValuePerShare"]] },
+  // REIT FFO proxy input — EDGAR D&A (free); ffoProxy derived in applyDerived
+  { tfCol: "depreciationAmortization", priority: [["edgar","depreciationAmortization"]] },
+  { tfCol: "ffoProxy",           priority: [] },
 
   // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av → factset) ────────
   { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"], ["factset","grossMargin"]] },
@@ -109,7 +114,10 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["polygon","netIncome"],  ["edgar","netIncome"], ["factset","netIncome"]] },
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
-  { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["edgar","grossProfit"]] } as any,
+  { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },
+  // totalAssets: Yahoo wide table has no totalAssets col; EDGAR gold map has none yet — FMP only until those land.
+  { tfCol: "totalAssets",        priority: [["fmp","totalAssets"]] },
+  { tfCol: "annualOperatingCashFlow", priority: [["yahoo","annualOperatingCashFlow"], ["fmp","annualOperatingCashFlow"]] },
   { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"], ["edgar","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["yahoo","wacc"],             ["fmp","wacc"]] },
@@ -127,8 +135,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"], ["factset","earningsPerShare"]] },
 ];
 
-// grossProfit has no ticker_fundamentals column — skip in merge
-const VALID_FIELD_DEFS = FIELD_DEFS.filter(({ tfCol }) => (tfCol as string) !== "grossProfit");
+export const VALID_FIELD_DEFS = FIELD_DEFS;
 
 // ── Divergence comparison scope (period-aware) ───────────────────────────────
 // A field only lands in the "Needs Review" queue when the value we CHOSE materially
@@ -523,7 +530,7 @@ export async function runMergeTrusted() {
     const clearProvenanceFields: string[] = [];
 
     const applyDerived = (
-      field: "pegRatio" | "forwardPeg",
+      field: "pegRatio" | "forwardPeg" | "ffoProxy",
       value: number | null,
     ) => {
       const ci = changedFields.findIndex((c) => c.field === field);
@@ -569,6 +576,25 @@ export async function runMergeTrusted() {
 
     applyDerived("pegRatio", canonicalPeg);
     applyDerived("forwardPeg", canonicalFwdPeg);
+
+    // FFO proxy (REIT / real-estate): NI + D&A. Gold-only derived — never vendor-voted.
+    const niForFfo =
+      update.netIncome != null
+        ? Number(update.netIncome)
+        : existing?.netIncome != null
+          ? Number(existing.netIncome)
+          : null;
+    const daForFfo =
+      update.depreciationAmortization != null
+        ? Number(update.depreciationAmortization)
+        : existing?.depreciationAmortization != null
+          ? Number(existing.depreciationAmortization)
+          : null;
+    const ffoProxy =
+      niForFfo != null && daForFfo != null && Number.isFinite(niForFfo + daForFfo)
+        ? niForFfo + daForFfo
+        : null;
+    applyDerived("ffoProxy", ffoProxy);
 
     if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
 

@@ -1,11 +1,13 @@
-// Shared fetch for the model's auto-tilt state — server already applies the
-// bounded tilt to full default strike-weight sets, so callers just pick
-// put/call weights straight off the response (no client-side applyTilt needed).
+// Shared fetch for the model's auto-tilt / multi-knob policy state — server already
+// applies the bounded policy to full default strike-weight sets.
 import { useQuery } from "@tanstack/react-query";
 
 export interface TiltSideResult {
   factor: number;
   weights: Record<string, number>;
+  sqFloor: number;
+  earningsHaircut: number;
+  version: number;
 }
 
 export interface TiltSideStats {
@@ -19,10 +21,14 @@ export interface TrackRecordTiltResponse {
   state: { put: TiltSideStats; call: TiltSideStats };
   put: TiltSideResult;
   call: TiltSideResult;
+  calibration: {
+    put: { buckets: Array<{ lo: number; hi: number; n: number; avgPnlPct: number; winRate: number }> };
+    call: { buckets: Array<{ lo: number; hi: number; n: number; avgPnlPct: number; winRate: number }> };
+    version: number;
+  } | null;
   minN: number;
-  // The tilt is driven by avgPnlPct (signed, percent units), NOT winRate — selling
-  // OTM premium wins ~90% of the time by construction, so win rate can't tell a
-  // profitable seller from a reckless one. winRate above is display-only.
+  sqFloorBase: number;
+  // Driven by avgPnlPct (signed), NOT winRate — winRate is display-only.
   anchorPnlPct: number;
   spanPnlPct: number;
 }

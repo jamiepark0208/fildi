@@ -3,4 +3,7 @@
 // entry for fundamentals rankings instead of double-fetching (enh/34 T-B1).
 export const queryKeys = {
   fundamentalsRankings: ["fundamentals-rankings"] as const,
+  technicalsAll: ["technicals", "all"] as const,
+  optionsRankings: (side: "put" | "call") => ["options-rankings", side] as const,
+  optionsBatch: (tickersKey: string) => ["options-batch", tickersKey] as const,
 };

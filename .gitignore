@@ -51,6 +51,7 @@ testem.log
 Thumbs.db
 
 .cursor/rules/nx-rules.mdc
+.cursor/context/ai-workflow-reviews/
 .github/instructions/nx.instructions.md
 
 # Secrets (never commit)

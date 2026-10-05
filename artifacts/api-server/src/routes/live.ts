@@ -91,7 +91,10 @@ async function snapshot(): Promise<{
 // This endpoint is button-triggered from the Live tab.
 router.get("/live/state", async (_req, res, next) => {
   try {
-    if (liveHotlist.getLastRefreshedAt() === null) await liveHotlist.refresh();
+    // Never block first paint on a cold post-restart scan — warm in background.
+    if (liveHotlist.getLastRefreshedAt() === null) {
+      void liveHotlist.refresh();
+    }
     res.json(await snapshot());
   } catch (err) {
     next(err);

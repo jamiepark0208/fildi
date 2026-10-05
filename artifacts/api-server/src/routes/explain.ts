@@ -1,14 +1,12 @@
 import { Router } from "express";
-import Anthropic from "@anthropic-ai/sdk";
 import { eq, and } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
-import { logApiCall } from "../lib/api-logger.js";
+import { callHaiku } from "../lib/haiku.js";
 import { recordAiUsage } from "../lib/ai-usage.js";
 
 const router  = Router();
-const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -229,19 +227,16 @@ router.post("/explain/score", async (req, res) => {
       return res.json({ explanation: cached[0].explanation, cached: true });
     }
 
-    const hasApiKey = !!process.env["ANTHROPIC_API_KEY"];
-    log.info({ step: "anthropic-call", hasApiKey, model: "claude-haiku-4-5-20251001" }, "explain: calling Haiku");
-
-    const msg = await anthropic.messages.create({
-      model:      "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      messages:   [{ role: "user", content: prompt }],
+    log.info({ step: "anthropic-call", model: "claude-haiku-4-5-20251001" }, "explain: calling Haiku");
+    const { text: explanation, inputTokens, outputTokens } = await callHaiku({
+      prompt,
+      maxTokens: 300,
+      trigger: "explain/score",
+      surfaceType: scoreType,
+      userId,
+      ticker,
     });
-
-    const explanation = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
-    log.info({ step: "anthropic-ok", chars: explanation.length }, "explain: got response");
-    logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/score", ticker, outcome: "success" });
-    recordAiUsage({ userId, ticker, surfaceType: scoreType, cached: false });
+    log.info({ step: "anthropic-ok", chars: explanation.length, inputTokens, outputTokens }, "explain: got response");
 
     log.info({ step: "db-upsert" }, "explain: persisting to cache");
     await db.insert(explainCache)
@@ -341,12 +336,12 @@ router.post("/explain/options", async (req, res) => {
       bundle,
       { rsi, mfi, signal, tier, ivCurrent: ivCurrent ?? null, vsSpy20d: vsSpy20d ?? null },
       log,
+      { userId },
     );
-    if (!result.cached) {
-      logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/options", ticker, outcome: "success" });
+    if (result.cached) {
+      recordAiUsage({ userId, ticker, surfaceType: "options", cached: true });
     }
-    recordAiUsage({ userId, ticker, surfaceType: "options", cached: result.cached });
-    return res.json(result);
+    return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/options error");
     return res.status(500).json({ error: String(err) });
@@ -410,12 +405,13 @@ router.post("/explain/live-regime", async (req, res) => {
 
   try {
     const bundle: ContextBundle = { ticker: MARKET_TICKER, stockEvent: null, marketEvent: null };
-    const result = await generateExplanation(MARKET_TICKER, liveRegimeSurface, bundle, { checkpoints }, log);
-    if (!result.cached) {
-      logApiCall({ source: "anthropic", fn: "messages.create", trigger: "explain/live-regime", ticker: MARKET_TICKER, outcome: "success" });
+    const result = await generateExplanation(
+      MARKET_TICKER, liveRegimeSurface, bundle, { checkpoints }, log, { userId },
+    );
+    if (result.cached) {
+      recordAiUsage({ userId, ticker: MARKET_TICKER, surfaceType: "live-regime", cached: true });
     }
-    recordAiUsage({ userId, ticker: MARKET_TICKER, surfaceType: "live-regime", cached: result.cached });
-    return res.json(result);
+    return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/live-regime error");
     return res.status(500).json({ error: String(err) });

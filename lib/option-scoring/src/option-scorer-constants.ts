@@ -105,3 +105,19 @@ export const TAG_BONUS: Record<string, number> = {
 
 // ── Data quality ──────────────────────────────────────────────────────────────
 export const MIN_SCORED_COMPONENTS = 3; // fewer available → suppress BEST label
+
+// ── Earnings risk (highlight — never hard-exclude from options path) ───────────
+// Earnings elevates IV; deep-OTM premium can be worth selling. Flag + soft adjust.
+export const EARNINGS_RISK_DAYS = 7;
+/** Mild overall haircut when ER ≤7d and strike is not deep enough OTM. */
+export const EARNINGS_NEAR_HAIRCUT = 0.88;
+/** Softer haircut when ER ≤7d but strike is deep OTM with adequate income. */
+export const EARNINGS_DEEP_OTM_HAIRCUT = 0.96;
+/** OTM fraction that counts as "deep enough" to harvest earnings IV. */
+export const EARNINGS_SAFE_OTM = 0.08;
+/** Buffer component mult under earnings risk (gap/assignment risk). */
+export const EARNINGS_BUFFER_MULT = 0.85;
+
+// ── Quote freshness (Yahoo bids go to 0 after hours / can be stale) ───────────
+/** Score mult when quote is non-live (defensive; pickBestStrike skips these). */
+export const QUOTE_STALE_HAIRCUT = 0.90;

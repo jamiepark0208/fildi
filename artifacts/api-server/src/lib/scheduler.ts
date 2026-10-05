@@ -1,7 +1,8 @@
 /**
  * Background job scheduler for the api-server.
  *
- * - Nightly enrichment: Sunday and Thursday at 02:00–02:59 UTC.
+ * - Nightly enrichment: Sunday and Thursday at 02:00–02:59 UTC
+ *   (disabled when DISABLE_SCHEDULER_ENRICHMENT=1 — Mac uses com.fildi.maintain instead).
  * - Retention prune: once per calendar day (UTC), any hour.
  * - Trade-idea expiry resolution: Saturday at 02:00–02:59 UTC — settles option
  *   trade ideas left OPEN past Friday's expiry (see trade-post-expiry.ts).
@@ -10,19 +11,23 @@
  * Each job skips if it already ran within the current calendar day (UTC).
  */
 import { eq } from "drizzle-orm";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { db, appConfig } from "@workspace/db";
 import { logger } from "./logger.js";
 import { runNightlyEnrichment } from "../scripts/nightly-enrichment.js";
 import { pruneOldRows } from "./retention.js";
-import { rotateApiServerLogIfNeeded, pruneScriptLogs } from "./log-rotation.js";
+import { rotateApiServerLogIfNeeded } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
 import { runModelSnapshot, runModelGrading } from "./model-track-record.js";
+import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
 import { runEventBulletCheck } from "./event-bullets.js";
 import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
+import { ingestDeskCommentaries } from "./desk-commentary.js";
+import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -30,9 +35,12 @@ const LAST_ENRICHMENT_RUN_KEY = "last_enrichment_run";
 const LAST_RETENTION_PRUNE_KEY = "last_retention_prune";
 const LAST_TRADE_EXPIRY_RUN_KEY = "last_trade_expiry_run";
 const LAST_MODEL_SNAPSHOT_RUN_KEY = "last_model_snapshot_run";
+const LAST_OPTION_SCORE_RUN_KEY = "last_option_score_snapshot_run";
 const LAST_EVENT_BULLETS_RUN_KEY = "last_event_bullets_run";
 const LAST_EARNINGS_BACKFILL_RUN_KEY = "last_earnings_backfill_run";
 const LAST_FMP_ANALYST_FEED_RUN_KEY = "last_fmp_analyst_feed_run";
+const LAST_DESK_INGEST_RUN_KEY = "last_desk_commentary_ingest_run";
+const LAST_SCHWAB_HEALTH_RUN_KEY = "last_schwab_health_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -45,12 +53,18 @@ export let lastTradeExpiryRun: Date | null = null;
 export let tradeExpiryRunning = false;
 export let lastModelSnapshotRun: Date | null = null;
 export let modelSnapshotRunning = false;
+export let lastOptionScoreRun: Date | null = null;
+export let optionScoreRunning = false;
 export let lastEventBulletsRun: Date | null = null;
 export let eventBulletsRunning = false;
 export let lastEarningsBackfillRun: Date | null = null;
 export let earningsBackfillRunning = false;
 export let lastFmpAnalystFeedRun: Date | null = null;
 export let fmpAnalystFeedRunning = false;
+export let lastDeskIngestRun: Date | null = null;
+export let deskIngestRunning = false;
+export let lastSchwabHealthRun: Date | null = null;
+export let schwabHealthRunning = false;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -107,30 +121,48 @@ function shouldRunRetentionNow(): boolean {
   return !(lastRetentionPrune && isSameUtcDay(lastRetentionPrune, now));
 }
 
-// Once per calendar day, any hour — deliberately not a tighter cadence (event-bullets.ts
-// is DB-only so it's cheap, but the trigger design intentionally checks daily, not live).
+// Daily precompute (event bullets / earnings / FMP): ~7:00 AM PT so the app is
+// ready when you open the Mac (~8 AM). 14:00 UTC ≈ 7:00 AM PDT.
+// Catch-up: first heartbeat in 14–16 UTC (7–9 AM PT) if still not run today —
+// covers lid-closed at 7:00 then wake at 8.
+const DAILY_PRECOMPUTE_HOUR_UTC = 14;
+const DAILY_PRECOMPUTE_CATCHUP_END_UTC = 16;
+
+function shouldRunDailyPrecompute(lastRun: Date | null): boolean {
+  const now = new Date();
+  if (lastRun && isSameUtcDay(lastRun, now)) return false;
+  const hour = now.getUTCHours();
+  const onSchedule = hour === DAILY_PRECOMPUTE_HOUR_UTC;
+  const morningCatchup = hour > DAILY_PRECOMPUTE_HOUR_UTC && hour <= DAILY_PRECOMPUTE_CATCHUP_END_UTC;
+  const missedWindow = daysSince(lastRun) > 1.5;
+  return onSchedule || morningCatchup || missedWindow;
+}
+
 function shouldRunEventBulletsNow(): boolean {
-  const now = new Date();
-  return !(lastEventBulletsRun && isSameUtcDay(lastEventBulletsRun, now));
+  return shouldRunDailyPrecompute(lastEventBulletsRun);
 }
 
-// Once per calendar day — proactively refreshes stale earnings history (30d+ or
-// never-fetched) for the whole ticker universe, capped at MAX_PER_RUN per run
-// (earnings-history.ts), so stock-breakdown reads DB-only instead of triggering
-// FMP/Finnhub on a user's first click.
 function shouldRunEarningsBackfillNow(): boolean {
-  const now = new Date();
-  return !(lastEarningsBackfillRun && isSameUtcDay(lastEarningsBackfillRun, now));
+  return shouldRunDailyPrecompute(lastEarningsBackfillRun);
 }
 
-// Once per calendar day — FMP's grades/price-target "latest news" feeds are global,
-// unfilterable tapes (verified: page/limit locked on our plan), so there's no per-ticker
-// on-demand fetch possible. Daily is plenty since this is best-effort archival, not a
-// live lookup — see fmp-analyst-feed.ts header for the full rationale.
 function shouldRunFmpAnalystFeedNow(): boolean {
-  const now = new Date();
-  return !(lastFmpAnalystFeedRun && isSameUtcDay(lastFmpAnalystFeedRun, now));
+  return shouldRunDailyPrecompute(lastFmpAnalystFeedRun);
 }
+
+  /** Drive → DB catch-up. Cheap; only files newer than last run. No missed-poll replay. */
+  function shouldRunDeskIngestNow(): boolean {
+    if (deskIngestRunning) return false;
+    if (!lastDeskIngestRun) return true;
+    return Date.now() - lastDeskIngestRun.getTime() >= 25 * 60 * 1000;
+  }
+
+  /** Proactive access-token refresh + re-auth warning. No market-data pulls. */
+  function shouldRunSchwabHealthNow(): boolean {
+    if (schwabHealthRunning) return false;
+    if (!lastSchwabHealthRun) return true;
+    return Date.now() - lastSchwabHealthRun.getTime() >= 6 * 60 * 60 * 1000;
+  }
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
 // same catch-up guard rather than depending entirely on the lazy /feed/posts fallback.
@@ -144,20 +176,32 @@ function shouldRunTradeExpiryNow(): boolean {
 }
 
 // Model accountability snapshot: Friday 19:00–19:59 UTC — market is OPEN (15:00 ET),
-// so Yahoo bids are live (bid=0 for every contract when closed). Catch-up runs on
-// other days fall back to lastPrice with bidIsLive=false flagged on the row.
+// so Yahoo bids are live (bid=0 for every contract when closed).
+// Catch-up: only Friday during US cash session (16–21 UTC ≈ 9 AM–2 PM PT), not
+// overnight — otherwise a schema/API failure retries every 30 min forever.
 const MODEL_SNAPSHOT_DAY = 5; // Friday (UTC)
 const MODEL_SNAPSHOT_HOUR = 19;
 const MODEL_SNAPSHOT_CATCHUP_DAYS = 8;
 
 function shouldRunModelSnapshotNow(): boolean {
   const now = new Date();
+  if (lastModelSnapshotRun && isSameUtcDay(lastModelSnapshotRun, now)) return false;
   const onSchedule = now.getUTCDay() === MODEL_SNAPSHOT_DAY && now.getUTCHours() === MODEL_SNAPSHOT_HOUR;
+  const fridaySession =
+    now.getUTCDay() === MODEL_SNAPSHOT_DAY &&
+    now.getUTCHours() >= 16 &&
+    now.getUTCHours() <= 21;
   const missedWindow = daysSince(lastModelSnapshotRun) > MODEL_SNAPSHOT_CATCHUP_DAYS;
-  return (onSchedule || missedWindow) && !(lastModelSnapshotRun && isSameUtcDay(lastModelSnapshotRun, now));
+  return onSchedule || (missedWindow && fridaySession);
 }
 
 async function runEnrichment() {
+  // Mac LaunchAgent `com.fildi.maintain` owns enrichment scheduling (daily lean +
+  // ≥4d full catch-up). Keeping the in-process Sun/Thu job would double-run.
+  if (process.env.DISABLE_SCHEDULER_ENRICHMENT === "1" || process.env.DISABLE_SCHEDULER_ENRICHMENT === "true") {
+    logger.info("scheduler: enrichment skipped (DISABLE_SCHEDULER_ENRICHMENT) — use maintain LaunchAgent");
+    return;
+  }
   if (enrichmentRunning) return;
   enrichmentRunning = true;
   logger.info("scheduler: starting nightly enrichment");
@@ -176,7 +220,8 @@ async function runEnrichment() {
 // Belt-and-suspenders for resolveExpiredOptionTrades(), which already runs lazily
 // on GET /feed/posts — this guarantees expired trades settle even if nobody opens
 // the feed over the weekend, instead of staying OPEN until the next visit.
-async function runTradeExpiry() {
+/** Manual / admin trigger — same body as the Saturday schedule. */
+export async function runTradeExpiry() {
   if (tradeExpiryRunning) return;
   tradeExpiryRunning = true;
   logger.info("scheduler: starting trade-idea expiry resolution");
@@ -196,15 +241,35 @@ async function runTradeExpiry() {
   }
 }
 
-async function runModelSnapshotJob() {
+/** Manual / admin trigger — same body as the Friday schedule. */
+export async function runModelSnapshotJob() {
   if (modelSnapshotRunning) return;
   modelSnapshotRunning = true;
   logger.info("scheduler: starting model accountability snapshot");
   try {
-    await runModelSnapshot();
+    const result = await runModelSnapshot();
     lastModelSnapshotRun = new Date();
     await setConfigDate(LAST_MODEL_SNAPSHOT_RUN_KEY, lastModelSnapshotRun);
-    logger.info("scheduler: model accountability snapshot complete");
+    // Dual-write also refreshed option scores — mark that job done today.
+    lastOptionScoreRun = lastModelSnapshotRun;
+    await setConfigDate(LAST_OPTION_SCORE_RUN_KEY, lastOptionScoreRun).catch(() => {});
+    try {
+      mkdirSync("/tmp/fildi-logs", { recursive: true });
+      writeFileSync(
+        "/tmp/fildi-logs/model-snapshot-last.json",
+        JSON.stringify({
+          ts: lastModelSnapshotRun.toISOString(),
+          degraded: result.degraded,
+          recs: result.recs,
+          liveBidRecs: result.liveBidRecs,
+          failures: result.failures,
+        }),
+      );
+    } catch { /* best-effort status file */ }
+    if (result.degraded) {
+      logger.warn(result, "scheduler: model snapshot DEGRADED (many non-live bids)");
+    }
+    logger.info(result, "scheduler: model accountability snapshot complete");
   } catch (err) {
     logger.error({ err }, "scheduler: model accountability snapshot failed");
   } finally {
@@ -212,7 +277,41 @@ async function runModelSnapshotJob() {
   }
 }
 
-async function runEventBulletsJob() {
+// Overall options rankings: Mon–Fri 19:00 UTC (market open Mon–Thu ET / Fri open) —
+// Yahoo bids live. Catch-up once/day if missed. Uses premium-IV candidate filter (~100).
+const OPTION_SCORE_HOUR = 19;
+const OPTION_SCORE_CATCHUP_DAYS = 2;
+
+function shouldRunOptionScoreNow(): boolean {
+  const now = new Date();
+  const dow = now.getUTCDay(); // 0=Sun … 5=Fri
+  // Friday: model snapshot dual-writes option_score_snapshots — skip standalone job.
+  if (dow === MODEL_SNAPSHOT_DAY) return false;
+  const weekday = dow >= 1 && dow <= 5;
+  const onSchedule = weekday && now.getUTCHours() === OPTION_SCORE_HOUR;
+  const missedWindow = daysSince(lastOptionScoreRun) > OPTION_SCORE_CATCHUP_DAYS;
+  return (onSchedule || missedWindow) && !(lastOptionScoreRun && isSameUtcDay(lastOptionScoreRun, now));
+}
+
+/** Manual / admin trigger — Overall option score persistence. */
+export async function runOptionScoreJob() {
+  if (optionScoreRunning) return;
+  optionScoreRunning = true;
+  logger.info("scheduler: starting option score snapshots (Overall rankings)");
+  try {
+    await computeAndPersistOptionScores();
+    lastOptionScoreRun = new Date();
+    await setConfigDate(LAST_OPTION_SCORE_RUN_KEY, lastOptionScoreRun);
+    logger.info("scheduler: option score snapshots complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: option score snapshots failed");
+  } finally {
+    optionScoreRunning = false;
+  }
+}
+
+/** Manual / admin trigger — daily event-bullet precompute. */
+export async function runEventBulletsJob() {
   if (eventBulletsRunning) return;
   eventBulletsRunning = true;
   logger.info("scheduler: starting event-bullets trigger check");
@@ -228,7 +327,8 @@ async function runEventBulletsJob() {
   }
 }
 
-async function runEarningsBackfillJob() {
+/** Manual / admin trigger — capped earnings-history backfill. */
+export async function runEarningsBackfillJob() {
   if (earningsBackfillRunning) return;
   earningsBackfillRunning = true;
   logger.info("scheduler: starting earnings history backfill");
@@ -244,7 +344,8 @@ async function runEarningsBackfillJob() {
   }
 }
 
-async function runFmpAnalystFeedJob() {
+/** Manual / admin trigger — FMP grades/price-target tape archive. */
+export async function runFmpAnalystFeedJob() {
   if (fmpAnalystFeedRunning) return;
   fmpAnalystFeedRunning = true;
   logger.info("scheduler: starting fmp analyst feed poll");
@@ -260,15 +361,85 @@ async function runFmpAnalystFeedJob() {
   }
 }
 
+/**
+ * FactSet desk emails: Drive folder → desk_commentaries.
+ * Only files mtime ≥ last run (or last 48h on first run). No full-history replay.
+ */
+export async function runDeskIngestJob() {
+  if (deskIngestRunning) return;
+  deskIngestRunning = true;
+  logger.info("scheduler: starting desk commentary ingest");
+  try {
+    const sinceMs = lastDeskIngestRun
+      ? lastDeskIngestRun.getTime() - 5 * 60 * 1000
+      : Date.now() - 48 * 60 * 60 * 1000;
+    const result = await ingestDeskCommentaries({ sinceMs });
+    lastDeskIngestRun = new Date();
+    await setConfigDate(LAST_DESK_INGEST_RUN_KEY, lastDeskIngestRun);
+    logger.info(result, "scheduler: desk commentary ingest complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: desk commentary ingest failed");
+  } finally {
+    deskIngestRunning = false;
+  }
+}
+
+/**
+ * Schwab OAuth health: refresh access token (keeps file warm) + warn before 7d refresh expiry.
+ * Does NOT pull market data — zero RPM cost beyond the token endpoint.
+ */
+export async function runSchwabHealthJob() {
+  if (schwabHealthRunning) return;
+  schwabHealthRunning = true;
+  logger.info("scheduler: starting schwab auth health check");
+  try {
+    const before = getSchwabAuthStatus();
+    if (!before.configured) {
+      logger.info("scheduler: schwab health skipped — credentials not configured");
+    } else if (!before.hasTokens) {
+      logger.warn("scheduler: schwab health — no tokens; run scripts/schwab-oauth.mjs");
+    } else {
+      const token = await getSchwabAccessToken();
+      const after = getSchwabAuthStatus();
+      if (!token) {
+        logger.warn(
+          { err: after.lastError, refreshDaysLeft: after.refreshDaysLeft },
+          "scheduler: schwab health — access refresh failed; re-run oauth if refresh expired",
+        );
+      } else if (after.refreshDaysLeft != null && after.refreshDaysLeft < 2) {
+        logger.warn(
+          { refreshDaysLeft: after.refreshDaysLeft },
+          "scheduler: schwab refresh token nearing expiry — re-run scripts/schwab-oauth.mjs",
+        );
+      } else {
+        logger.info(
+          { refreshDaysLeft: after.refreshDaysLeft, accessValid: after.accessValid },
+          "scheduler: schwab auth healthy",
+        );
+      }
+    }
+    lastSchwabHealthRun = new Date();
+    await setConfigDate(LAST_SCHWAB_HEALTH_RUN_KEY, lastSchwabHealthRun);
+  } catch (err) {
+    logger.error({ err }, "scheduler: schwab health check failed");
+  } finally {
+    schwabHealthRunning = false;
+  }
+}
+
 // Runs at most once/day, independent of the enrichment window — table/log growth
 // from per-request activity doesn't need to wait for a biweekly job.
-async function runRetentionPrune() {
-  lastRetentionPrune = new Date();
-  await setConfigDate(LAST_RETENTION_PRUNE_KEY, lastRetentionPrune).catch(err =>
-    logger.error({ err }, "scheduler: failed to persist retention-prune timestamp"),
-  );
-  await pruneOldRows();
-  pruneScriptLogs();
+/** Manual / admin trigger — daily table/log prune. */
+export async function runRetentionPrune() {
+  try {
+    await pruneOldRows(); // includes filesystem log prune
+    lastRetentionPrune = new Date();
+    await setConfigDate(LAST_RETENTION_PRUNE_KEY, lastRetentionPrune).catch(err =>
+      logger.error({ err }, "scheduler: failed to persist retention-prune timestamp"),
+    );
+  } catch (err) {
+    logger.error({ err }, "scheduler: retention prune failed — lastRun not advanced");
+  }
 }
 
 export let regimeCheckRunning = false;
@@ -277,7 +448,8 @@ export let lastRegimeCheckpointRun: Date | null = null;
 // Separate, finer heartbeat for the intraday regime banner — checkpoints are
 // 15 min apart, tighter than the 30-min cadence the other jobs use, so this
 // runs on its own interval rather than changing CHECK_INTERVAL_MS for everything else.
-async function runRegimeCheckpoints() {
+/** Manual / admin trigger — no-op outside regular session (minutesSinceOpen null). */
+export async function runRegimeCheckpoints() {
   if (regimeCheckRunning) return;
   const minSinceOpen = minutesSinceOpen();
   if (minSinceOpen == null) return;
@@ -307,7 +479,7 @@ async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastOptionScoreRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun, lastDeskIngestRun, lastSchwabHealthRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -324,6 +496,10 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted model-snapshot last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_OPTION_SCORE_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted option-score last-run, dedupe guard starts cold");
+      return null;
+    }),
     getConfigDate(LAST_EVENT_BULLETS_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted event-bullets last-run, dedupe guard starts cold");
       return null;
@@ -336,6 +512,14 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted fmp-analyst-feed last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_DESK_INGEST_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted desk-ingest last-run, dedupe guard starts cold");
+      return null;
+    }),
+    getConfigDate(LAST_SCHWAB_HEALTH_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted schwab-health last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
 
   setInterval(() => {
@@ -343,9 +527,12 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunRetentionNow()) runRetentionPrune();
     if (shouldRunTradeExpiryNow()) runTradeExpiry();
     if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
+    if (shouldRunOptionScoreNow()) runOptionScoreJob();
     if (shouldRunEventBulletsNow()) runEventBulletsJob();
     if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
     if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
+    if (shouldRunDeskIngestNow()) runDeskIngestJob();
+    if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);

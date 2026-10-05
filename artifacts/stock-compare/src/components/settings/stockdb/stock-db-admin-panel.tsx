@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EnrichmentRun } from "./stock-db-types";
-import { runStatusBadge, runDuration } from "./stock-db-formatters";
+import { runStatusBadge, runDuration, runTriggerLabel, runDetail } from "./stock-db-formatters";
 import { coverageColor } from "./stock-db-palette";
 
 // ── Pipeline health panel ─────────────────────────────────────────────────────
@@ -28,12 +28,12 @@ export function PipelineHealthPanel({ runs, latestRun, pipelineExpanded, setPipe
           <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[11px]">Pipeline Health</span>
           <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", runStatusBadge(latestRun.status))}>{latestRun.status}</span>
           <span className="text-amber-200/40">
-            {new Date(latestRun.startedAt).toLocaleString()} · {latestRun.trigger} · {runDuration(latestRun)}
+            {new Date(latestRun.startedAt).toLocaleString()} · {runTriggerLabel(latestRun.trigger)} · {runDuration(latestRun)}
           </span>
         </div>
         {latestRun.coverageBefore != null && latestRun.coverageAfter != null && (
-          <span className="text-amber-200/40 tabular-nums">
-            Coverage <span className={coverageColor(Number(latestRun.coverageBefore))}>{Number(latestRun.coverageBefore).toFixed(1)}%</span>
+          <span className="text-amber-200/40 tabular-nums" title="Gold field-fill % before → after this run (not ticker-row existence)">
+            Field fill <span className={coverageColor(Number(latestRun.coverageBefore))}>{Number(latestRun.coverageBefore).toFixed(1)}%</span>
             {" → "}
             <span className={cn("font-medium", coverageColor(Number(latestRun.coverageAfter)))}>{Number(latestRun.coverageAfter).toFixed(1)}%</span>
           </span>
@@ -50,14 +50,14 @@ export function PipelineHealthPanel({ runs, latestRun, pipelineExpanded, setPipe
                 <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Duration</th>
                 <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Coverage</th>
                 <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Flag audit</th>
-                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Error</th>
+                <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Detail</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {runs.map(run => (
                 <tr key={run.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 whitespace-nowrap text-white">{new Date(run.startedAt).toLocaleString()}</td>
-                  <td className="px-2.5 py-1 text-amber-200/50">{run.trigger}</td>
+                  <td className="px-2.5 py-1 text-amber-200/50">{runTriggerLabel(run.trigger)}</td>
                   <td className="px-2.5 py-1">
                     <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", runStatusBadge(run.status))}>{run.status}</span>
                   </td>
@@ -72,7 +72,7 @@ export function PipelineHealthPanel({ runs, latestRun, pipelineExpanded, setPipe
                       ? `${run.flagAuditOrphaned ?? 0} orphaned / ${run.flagAuditMissing ?? 0} missing`
                       : "—"}
                   </td>
-                  <td className="px-2.5 py-1 text-red-400 max-w-xs truncate" title={run.error ?? undefined}>{run.error ?? "—"}</td>
+                  <td className="px-2.5 py-1 text-amber-200/50 max-w-xs truncate" title={runDetail(run)}>{runDetail(run)}</td>
                 </tr>
               ))}
             </tbody>

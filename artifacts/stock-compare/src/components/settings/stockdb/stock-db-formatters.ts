@@ -23,6 +23,23 @@ export function runStatusBadge(status: EnrichmentRun["status"]): string {
     : "bg-red-500/15 text-red-400 border border-red-500/30";
 }
 
+export function runTriggerLabel(trigger: EnrichmentRun["trigger"]): string {
+  switch (trigger) {
+    case "maintain": return "daily maintain";
+    case "maintain_full": return "maintain full";
+    case "scheduled": return "scheduler (legacy)";
+    case "manual": return "manual";
+    default: return trigger;
+  }
+}
+
+/** Prefer error; else maintain __detail baked into perSource. */
+export function runDetail(run: EnrichmentRun): string {
+  if (run.error) return run.error;
+  const detail = (run.perSource as { __detail?: unknown } | null)?.__detail;
+  return typeof detail === "string" && detail.length > 0 ? detail : "—";
+}
+
 export function runDuration(run: EnrichmentRun): string {
   if (!run.finishedAt) return "—";
   const ms = new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime();
@@ -34,6 +51,7 @@ export function runDuration(run: EnrichmentRun): string {
 
 export function fmt(raw: string | null, type: FmtType): string {
   if (raw == null) return "—";
+  if (type === "text") return String(raw);
   const v = parseFloat(raw);
   if (!isFinite(v)) return "—";
   switch (type) {

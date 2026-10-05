@@ -114,6 +114,12 @@ export default function MacroDashboard() {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
+  // Tab-gated fetches — cold /charts is ~20 upstream series; don't pull policy/COT until needed.
+  const needsCharts = activeTab === "regime" || activeTab === "liquidity" || activeTab === "volatility";
+  const needsRegimeExtras = activeTab === "regime";
+  const needsPolicy = activeTab === "policy";
+  const needsCatalyst = activeTab === "catalyst";
+
   const { data: macroData, isLoading, isError, refetch: macroRefetch } = useQuery<MacroData>({
     queryKey: ["macro-data"],
     queryFn: async () => {
@@ -130,6 +136,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/charts").then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: needsCharts,
   });
 
   const { data: sectorRotation } = useQuery<SectorRotationPoint[]>({
@@ -165,6 +172,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/fed-members").then((r) => r.json()),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needsPolicy,
   });
 
   const { data: events } = useQuery<MacroEvent[]>({
@@ -172,6 +180,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/events").then((r) => r.json()),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needsRegimeExtras || needsCatalyst || needsPolicy,
   });
 
   const { data: bankResearch } = useQuery<BankResearch[]>({
@@ -179,6 +188,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/bank-research").then((r) => r.json()),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needsPolicy,
   });
 
   const { data: sepData } = useQuery<SepData>({
@@ -186,6 +196,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/sep-projections").then((r) => r.json()),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needsPolicy || needsRegimeExtras,
   });
 
   const { data: indicatorHistory, isLoading: indicatorLoading } = useQuery<IndicatorHistory>({
@@ -194,6 +205,7 @@ export default function MacroDashboard() {
       fetch(`/api/macro/indicator-history?key=${selectedIndicatorKey}`).then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: needsRegimeExtras,
   });
 
   const { data: sepActuals } = useQuery<SepActuals>({
@@ -201,6 +213,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/sep-actuals").then((r) => r.json()),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: needsPolicy,
   });
 
   const { data: cotSummaries } = useQuery<COTSummary[]>({
@@ -208,6 +221,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/cot/summary").then((r) => r.json()),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: needsRegimeExtras,
   });
 
   const { data: macroCotHistory } = useQuery<COTRecord[]>({
@@ -215,7 +229,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch(`/api/cot/history?instrument=${selectedMacroCotId}&weeks=52`).then((r) => r.json()),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: !!selectedMacroCotId,
+    enabled: needsRegimeExtras && !!selectedMacroCotId,
   });
 
   const { data: sentCotHistory } = useQuery<COTRecord[]>({
@@ -223,7 +237,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch(`/api/cot/history?instrument=${selectedSentCotId}&weeks=52`).then((r) => r.json()),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: !!selectedSentCotId,
+    enabled: needsRegimeExtras && !!selectedSentCotId,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────

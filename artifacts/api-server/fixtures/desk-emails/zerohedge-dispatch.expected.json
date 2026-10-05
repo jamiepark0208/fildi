@@ -1,0 +1,16 @@
+{
+  "file": "zerohedge-dispatch.json",
+  "source": "zerohedge",
+  "kind": "zerohedge",
+  "category": "macro",
+  "noiseScore": 35,
+  "includeInBrief": true,
+  "noiseReasons": [
+    "link_junk_heavy",
+    "tracking_dense"
+  ],
+  "fromDomain": "zerohedge.com",
+  "subject": "The Durden Dispatch",
+  "contentLinks": 1,
+  "tickers": []
+}

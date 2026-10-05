@@ -5,18 +5,27 @@ import { getUserWatchlistTickers } from "../lib/watchlist-tickers.js";
 const router = Router();
 
 // GET /api/technical/scorecard
-// Returns indicator rows for the authenticated user's watchlist tickers.
+// Returns indicator rows (RSI/MFI/signal/…) for display.
+// Default: authenticated user's watchlist.
+// Optional ?tickers=A,B,C — any universe (Overall premium candidates, etc.), capped.
 // Reads from today's cache where available; computes fresh from stored OHLCV
 // for any ticker not yet cached today (no Yahoo Finance calls for warm data).
 router.get("/technical/scorecard", async (req, res) => {
   try {
-    const userTickers = await getUserWatchlistTickers(req.session.userId!);
+    const raw = typeof req.query.tickers === "string" ? req.query.tickers : "";
+    const requested = [...new Set(
+      raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean),
+    )].slice(0, 300);
+    const tickers = requested.length > 0
+      ? requested
+      : await getUserWatchlistTickers(req.session.userId!);
+
     const today  = new Date().toISOString().slice(0, 10);
     const cached = await getAllCachedIndicators();
     const map    = new Map(cached.map(r => [r.ticker, r]));
 
     // Find tickers missing from today's cache and compute them from stored OHLCV
-    const missing = userTickers.filter(t => !map.has(t) || map.get(t)!.scoredDate !== today);
+    const missing = tickers.filter(t => !map.has(t) || map.get(t)!.scoredDate !== today);
     if (missing.length > 0) {
       const fresh = await getIndicatorsBatch(missing, false);
       for (const [ticker, result] of Object.entries(fresh)) {
@@ -24,7 +33,7 @@ router.get("/technical/scorecard", async (req, res) => {
       }
     }
 
-    const results: Array<IndicatorResult & { stale: boolean }> = userTickers.map(ticker => {
+    const results: Array<IndicatorResult & { stale: boolean }> = tickers.map(ticker => {
       const row = map.get(ticker);
       if (row) return { ...row, stale: row.scoredDate !== today };
       return {

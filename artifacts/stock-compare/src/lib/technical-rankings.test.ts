@@ -94,7 +94,7 @@ describe("computeTechnicalRankingsV2: call side mirrors direction", () => {
     );
   });
   it("volatilityState and volumeConfirm are side-neutral (same score both sides)", () => {
-    const r = row({ ivRank: "0.8", ivVsRealizedVol: "1.2", bbWidthPct: "0.3", volumeRatioPct: "0.6" });
+    const r = row({ atmPutIv: "40", ivVsRealizedVol: "1.2", bbWidthPct: "0.3", volumeRatioPct: "0.6" });
     const put  = computeTechnicalRankingsV2([r], {}, undefined, "put")[0];
     const call = computeTechnicalRankingsV2([r], {}, undefined, "call")[0];
     assert.equal(put.componentScores?.volatilityState.score, call.componentScores?.volatilityState.score);

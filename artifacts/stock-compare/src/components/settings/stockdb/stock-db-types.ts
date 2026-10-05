@@ -24,8 +24,19 @@ export interface FundamentalsRow {
   cashAndEquivalents: string | null; quarterlyOperatingCashFlow: string | null;
   totalDebt: string | null; totalStockholdersEquity: string | null;
   currentRatio: string | null; debtToEquity: string | null;
+  // GAP inputs (fund-score-v2 derived: GPA, accruals, ND/EBITDA)
+  grossProfit: string | null; totalAssets: string | null; annualOperatingCashFlow: string | null;
   sharesOutstanding: string | null; sharesOutstandingPrior: string | null;
   beta: string | null; effectiveTaxRate: string | null;
+  // Persisted scores (optional display)
+  fundTotalScore?: string | null;
+  fundCompanyScore?: string | null;
+  fundSectorScore?: string | null;
+  fundValueScore?: string | null;
+  fundQualityScore?: string | null;
+  fundGrowthScore?: string | null;
+  fundSafetyScore?: string | null;
+  styleBucket?: string | null;
 }
 
 export interface TechnicalsRow {
@@ -108,7 +119,7 @@ export interface EnrichmentRun {
   startedAt: string;
   finishedAt: string | null;
   status: "success" | "partial" | "failed";
-  trigger: "scheduled" | "manual";
+  trigger: "scheduled" | "manual" | "maintain" | "maintain_full";
   perSource: Record<string, { targeted: number; fetched: number; nodata: number; failed: number; budgetSkipped: number }> | null;
   coverageBefore: string | null;
   coverageAfter: string | null;

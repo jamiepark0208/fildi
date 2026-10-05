@@ -12,8 +12,13 @@ import { TTLCache } from "../lib/ttl-cache.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import {
   runModelSnapshot, runModelGrading, getTiltState, insertRegimeGradeStubs,
+  getCalibrationTable, resetModelTrackRecord, backfillPathRisk,
+  type PathRisk,
 } from "../lib/model-track-record.js";
-import { applyTilt, tiltFactor, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_ANCHOR_PNL_PCT, TILT_SPAN_PNL_PCT } from "@workspace/option-scoring";
+import {
+  applyPolicy, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_ANCHOR_PNL_PCT, TILT_SPAN_PNL_PCT,
+  SQ_FLOOR_BASE,
+} from "@workspace/option-scoring";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -36,35 +41,79 @@ interface SideSummary {
   winRate: number | null;
   avgPnlPct: number | null;
   totalPnlPct: number | null;
+  /** Capital-weighted expectancy (pnl weighted by collateral: put=strike, call=spot). */
+  capitalWeightedAvgPnlPct: number | null;
+  maxDrawdownPct: number | null;
   pending: number;
   noData: number;
-  equityCurve: Array<{ expiry: string; pnlPct: number; cumPnlPct: number; ticker: string }>;
+  equityCurve: Array<{
+    expiry: string; pnlPct: number; cumPnlPct: number; ticker: string;
+    capitalCumPnlPct?: number;
+  }>;
 }
 
 async function buildSideSummary(side: "put" | "call"): Promise<SideSummary> {
   const rows = await db.select({
     status: modelRecs.status, pnlPct: modelRecs.pnlPct,
     expiry: modelRecs.expiry, ticker: modelRecs.ticker,
+    strike: modelRecs.strike, spot: modelRecs.spot,
+    componentScores: modelRecs.componentScores,
   }).from(modelRecs).where(eq(modelRecs.side, side)).orderBy(asc(modelRecs.expiry), asc(modelRecs.ticker));
 
   const graded = rows.filter(r => r.status === "WIN" || r.status === "LOSS");
   const wins = graded.filter(r => r.status === "WIN").length;
   const pnls = graded.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
+
+  // Prefer managed label when present (dual settlement); fall back to hold pnlPct.
+  const effectivePnl = (r: typeof graded[0]): number => {
+    const cs = r.componentScores as { _settlement?: { managed?: { pnlPct?: number } } } | null;
+    const m = cs?._settlement?.managed?.pnlPct;
+    if (typeof m === "number" && Number.isFinite(m)) return m;
+    return num(r.pnlPct) ?? 0;
+  };
+
   let cum = 0;
+  let capCum = 0;
+  let capWeightSum = 0;
+  let capPnlSum = 0;
+  let peak = 0;
+  let maxDd = 0;
   const equityCurve = graded.map(r => {
-    const p = num(r.pnlPct) ?? 0;
+    const p = effectivePnl(r);
+    const collateral = side === "put" ? (num(r.strike) ?? 1) : (num(r.spot) ?? 1);
     cum += p;
-    return { expiry: r.expiry, pnlPct: p, cumPnlPct: Math.round(cum * 100) / 100, ticker: r.ticker };
+    // Capital-weighted: weight each trade's pnlPct by collateral notionals
+    capPnlSum += p * collateral;
+    capWeightSum += collateral;
+    const cwAvg = capWeightSum > 0 ? capPnlSum / capWeightSum : 0;
+    // Running capital-weighted cumulative approx: sum(p * w) / mean(w) scaled
+    capCum += p * (collateral / (capWeightSum / graded.length || 1));
+    peak = Math.max(peak, cum);
+    maxDd = Math.min(maxDd, cum - peak);
+    return {
+      expiry: r.expiry,
+      pnlPct: p,
+      cumPnlPct: Math.round(cum * 100) / 100,
+      capitalCumPnlPct: Math.round(capCum * 100) / 100,
+      ticker: r.ticker,
+      _cwAvg: cwAvg,
+    };
   });
+  const capitalWeightedAvgPnlPct = capWeightSum > 0 ? capPnlSum / capWeightSum : null;
+
   return {
     n: graded.length,
     wins,
     winRate: graded.length > 0 ? wins / graded.length : null,
     avgPnlPct: pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null,
     totalPnlPct: pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) : null,
+    capitalWeightedAvgPnlPct,
+    maxDrawdownPct: graded.length > 0 ? maxDd : null,
     pending: rows.filter(r => r.status === "PENDING").length,
     noData: rows.filter(r => r.status === "NO_DATA").length,
-    equityCurve,
+    equityCurve: equityCurve.map(({ expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker }) => ({
+      expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker,
+    })),
   };
 }
 
@@ -102,10 +151,30 @@ async function buildHotlistSummary(): Promise<HotlistSummary[]> {
 router.get("/track-record/summary", async (_req, res) => {
   try {
     const data = await trackRecordCache.getOrCompute("summary", async () => {
-      const [put, call, hotlist] = await Promise.all([
+      const [put, call, hotlist, calibration] = await Promise.all([
         buildSideSummary("put"), buildSideSummary("call"), buildHotlistSummary(),
+        getCalibrationTable(),
       ]);
-      return { put, call, hotlist, generatedAt: Date.now() };
+      return {
+        put, call, hotlist,
+        calibration: calibration
+          ? {
+              put: calibration.put.buckets.map((b: { lo: number; hi: number; n: number; avgPnlPct: number }) => ({
+                lo: b.lo, hi: b.hi, n: b.n, avgPnlPct: b.avgPnlPct,
+              })),
+              call: calibration.call.buckets.map((b: { lo: number; hi: number; n: number; avgPnlPct: number }) => ({
+                lo: b.lo, hi: b.hi, n: b.n, avgPnlPct: b.avgPnlPct,
+              })),
+              version: calibration.version,
+            }
+          : null,
+        // Hotlist/regime are secondary until sample matures — UI demotes when thin.
+        secondary: {
+          hotlistThin: hotlist.every((h: HotlistSummary) => h.n < 20),
+          minHotlistN: 20,
+        },
+        generatedAt: Date.now(),
+      };
     });
     return res.json(data);
   } catch (err: any) {
@@ -117,22 +186,84 @@ router.get("/track-record/summary", async (_req, res) => {
 // Cumulative win/loss counts per ticker per side — the accountability badge shown
 // next to a ticker in the scanner/live tables ("3W-1L").
 
-interface TickerRecord { wins: number; losses: number }
+interface TickerRecord {
+  wins: number;
+  losses: number;
+  /** mean(pnl)/stdev(pnl); null when n<3 */
+  sharpe: number | null;
+  /** Open (unexpired) model-rec spot at Init — for Live StkΔ vs live price */
+  openSpot: number | null;
+  openSnapshotDate: string | null;
+  entryDelta: number | null;
+  entryIv: number | null;
+}
 type ByTickerResponse = Record<string, { put: TickerRecord; call: TickerRecord }>;
+
+function emptyTickerRecord(): TickerRecord {
+  return {
+    wins: 0, losses: 0, sharpe: null,
+    openSpot: null, openSnapshotDate: null, entryDelta: null, entryIv: null,
+  };
+}
+
+function sharpeFromPnls(pnls: number[]): number | null {
+  if (pnls.length < 3) return null;
+  const mean = pnls.reduce((s, v) => s + v, 0) / pnls.length;
+  const variance = pnls.reduce((s, v) => s + (v - mean) ** 2, 0) / (pnls.length - 1);
+  const stdev = Math.sqrt(variance);
+  return stdev > 1e-6 ? mean / stdev : null;
+}
 
 router.get("/track-record/by-ticker", async (_req, res) => {
   try {
-    const data = await trackRecordCache.getOrCompute("by-ticker", async () => {
+    const data = await trackRecordCache.getOrCompute("by-ticker-v2", async () => {
       const rows = await db.select({
-        ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status,
-      }).from(modelRecs).where(sql`${modelRecs.status} IN ('WIN', 'LOSS')`);
+        ticker: modelRecs.ticker,
+        side: modelRecs.side,
+        status: modelRecs.status,
+        pnlPct: modelRecs.pnlPct,
+        snapshotDate: modelRecs.snapshotDate,
+        expiry: modelRecs.expiry,
+        spot: modelRecs.spot,
+        delta: modelRecs.delta,
+        strikeIv: modelRecs.strikeIv,
+      }).from(modelRecs);
 
+      const today = new Date().toISOString().slice(0, 10);
       const out: ByTickerResponse = {};
+      const pnls: Record<string, { put: number[]; call: number[] }> = {};
+      const openBest: Record<string, { put?: typeof rows[0]; call?: typeof rows[0] }> = {};
+
       for (const r of rows) {
         const side = r.side as "put" | "call";
-        if (!out[r.ticker]) out[r.ticker] = { put: { wins: 0, losses: 0 }, call: { wins: 0, losses: 0 } };
-        if (r.status === "WIN") out[r.ticker]![side].wins++;
-        else out[r.ticker]![side].losses++;
+        if (!out[r.ticker]) {
+          out[r.ticker] = { put: emptyTickerRecord(), call: emptyTickerRecord() };
+          pnls[r.ticker] = { put: [], call: [] };
+          openBest[r.ticker] = {};
+        }
+        if (r.status === "WIN" || r.status === "LOSS") {
+          if (r.status === "WIN") out[r.ticker]![side].wins++;
+          else out[r.ticker]![side].losses++;
+          const p = num(r.pnlPct);
+          if (p != null) pnls[r.ticker]![side].push(p);
+        }
+        if (r.expiry >= today) {
+          const prev = openBest[r.ticker]![side];
+          if (!prev || r.snapshotDate > prev.snapshotDate) openBest[r.ticker]![side] = r;
+        }
+      }
+
+      for (const [ticker, sides] of Object.entries(out)) {
+        for (const side of ["put", "call"] as const) {
+          sides[side].sharpe = sharpeFromPnls(pnls[ticker]?.[side] ?? []);
+          const open = openBest[ticker]?.[side];
+          if (open) {
+            sides[side].openSpot = num(open.spot);
+            sides[side].openSnapshotDate = open.snapshotDate;
+            sides[side].entryDelta = num(open.delta);
+            sides[side].entryIv = num(open.strikeIv);
+          }
+        }
       }
       return out;
     });
@@ -150,10 +281,28 @@ router.get("/track-record/by-ticker", async (_req, res) => {
 interface TickerSideAgg {
   n: number; wins: number; losses: number; winRate: number | null;
   avgPnlPct: number | null; pending: number; noData: number;
+  avgIncomePct: number | null;
+  avgAbsMovePct: number | null;
+  /** Endpoint adverse (settle vs spot) — fallback when path MAE missing. */
+  avgAdverseMovePct: number | null;
+  /** Avg max adverse excursion from daily highs/lows (path MAE). */
+  avgMaxAdversePct: number | null;
+  /** Avg % of OTM cushion consumed on the path. */
+  avgCushionUsedPct: number | null;
+  sharpe: number | null;
 }
-/** The model's current best pick for a side — most recent snapshot not yet expired. Null once its expiry passes and no newer snapshot has replaced it. */
+/** The model's current best pick for a side — most recent snapshot not yet expired. */
 interface CurrentPick {
   strike: number; expiry: string; premium: number; incomePct: number | null; dte: number | null;
+  snapshotDate: string;
+  spot: number;
+  /** Live path MAE since Init (null if no bars). */
+  maxAdversePct: number | null;
+  cushionUsedPct: number | null;
+  /** Option Greek delta at snapshot (entry). */
+  delta: number | null;
+  /** Strike IV at snapshot (entry), decimal or % as stored. */
+  strikeIv: number | null;
 }
 interface TickerSummaryRow {
   ticker: string; put: TickerSideAgg; call: TickerSideAgg;
@@ -161,73 +310,155 @@ interface TickerSummaryRow {
   currentPut: CurrentPick | null; currentCall: CurrentPick | null;
 }
 
-type RecRow = { status: string; pnlPct: string | null; snapshotDate: string; expiry: string; strike: string; premium: string; incomePct: string | null; dte: string | null };
+type RecRow = {
+  status: string; pnlPct: string | null; snapshotDate: string; expiry: string;
+  strike: string; premium: string; incomePct: string | null; dte: string | null;
+  spot: string; settleClose: string | null;
+  componentScores: unknown;
+  delta: string | null;
+  strikeIv: string | null;
+};
 
-function aggregateSide(rows: RecRow[]): TickerSideAgg {
+function readPathRisk(cs: unknown): PathRisk | null {
+  const p = (cs as { _pathRisk?: PathRisk } | null)?.["_pathRisk"];
+  if (!p || typeof p.maxAdversePct !== "number") return null;
+  return p;
+}
+
+function aggregateSide(rows: RecRow[], side: "put" | "call"): TickerSideAgg {
   const graded = rows.filter(r => r.status === "WIN" || r.status === "LOSS");
   const wins = graded.filter(r => r.status === "WIN").length;
   const pnls = graded.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
+  const incomes = graded.map(r => num(r.incomePct)).filter((v): v is number => v != null);
+  const absMoves: number[] = [];
+  const endpointAdverse: number[] = [];
+  const pathAdverse: number[] = [];
+  const cushions: number[] = [];
+  for (const r of graded) {
+    const spot = num(r.spot);
+    const settle = num(r.settleClose);
+    if (spot != null && spot > 0 && settle != null) {
+      const ret = (settle - spot) / spot;
+      absMoves.push(Math.abs(ret) * 100);
+      endpointAdverse.push((side === "put" ? Math.max(0, -ret) : Math.max(0, ret)) * 100);
+    }
+    const path = readPathRisk(r.componentScores);
+    if (path) {
+      pathAdverse.push(path.maxAdversePct);
+      if (path.cushionUsedPct != null) cushions.push(path.cushionUsedPct);
+    }
+  }
+  const avg = (xs: number[]) => xs.length > 0 ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
+  const avgIncomePct = avg(incomes);
+  const avgAbsMovePct = avg(absMoves);
+  const avgAdverseMovePct = avg(endpointAdverse);
+  const avgMaxAdversePct = avg(pathAdverse);
+  const avgCushionUsedPct = avg(cushions);
+
+  let sharpe: number | null = null;
+  if (pnls.length >= 3) {
+    const mean = pnls.reduce((s, v) => s + v, 0) / pnls.length;
+    const variance = pnls.reduce((s, v) => s + (v - mean) ** 2, 0) / (pnls.length - 1);
+    const stdev = Math.sqrt(variance);
+    if (stdev > 1e-6) sharpe = mean / stdev;
+  }
+
   return {
     n: graded.length,
     wins,
     losses: graded.length - wins,
     winRate: graded.length > 0 ? wins / graded.length : null,
-    avgPnlPct: pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null,
+    avgPnlPct: avg(pnls),
     pending: rows.filter(r => r.status === "PENDING").length,
     noData: rows.filter(r => r.status === "NO_DATA").length,
+    avgIncomePct,
+    avgAbsMovePct,
+    avgAdverseMovePct,
+    avgMaxAdversePct,
+    avgCushionUsedPct,
+    sharpe,
   };
 }
 
-/** Latest snapshot for this side, but only surfaced while its expiry (this week or next) hasn't passed yet. */
+/** Read path MAE from graded componentScores — never recompute on the request path. */
+function pathFromScores(cs: unknown): { maxAdversePct: number | null; cushionUsedPct: number | null } {
+  const pr = (cs as { _pathRisk?: { maxAdversePct?: unknown; cushionUsedPct?: unknown } } | null)?._pathRisk;
+  if (!pr) return { maxAdversePct: null, cushionUsedPct: null };
+  return {
+    maxAdversePct: typeof pr.maxAdversePct === "number" && Number.isFinite(pr.maxAdversePct) ? pr.maxAdversePct : null,
+    cushionUsedPct: typeof pr.cushionUsedPct === "number" && Number.isFinite(pr.cushionUsedPct) ? pr.cushionUsedPct : null,
+  };
+}
+
+/** Latest snapshot for this side, but only surfaced while its expiry hasn't passed yet. */
 function currentPick(rows: RecRow[], todayStr: string): CurrentPick | null {
   const latest = rows.slice().sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
   if (!latest || latest.expiry < todayStr) return null;
+  const spot = num(latest.spot);
+  const strike = num(latest.strike);
+  const premium = num(latest.premium);
+  if (spot == null || strike == null || premium == null) return null;
+  const path = pathFromScores(latest.componentScores);
   return {
-    strike: num(latest.strike)!,
+    strike,
     expiry: latest.expiry,
-    premium: num(latest.premium)!,
+    premium,
     incomePct: num(latest.incomePct),
     dte: num(latest.dte),
+    snapshotDate: latest.snapshotDate,
+    spot,
+    maxAdversePct: path.maxAdversePct,
+    cushionUsedPct: path.cushionUsedPct,
+    delta: num(latest.delta),
+    strikeIv: num(latest.strikeIv),
   };
 }
 
 router.get("/track-record/ticker-summary", async (_req, res) => {
   try {
-    const data = await trackRecordCache.getOrCompute("ticker-summary", async () => {
-      const rows = await db.select({
-        ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
-        snapshotDate: modelRecs.snapshotDate, expiry: modelRecs.expiry, strike: modelRecs.strike,
-        premium: modelRecs.premium, incomePct: modelRecs.incomePct, dte: modelRecs.dte,
-      }).from(modelRecs);
+    // Opportunistic backfill — never block page load.
+    void backfillPathRisk(40).catch(() => null);
 
-      const byTicker = new Map<string, { put: RecRow[]; call: RecRow[] }>();
-      for (const r of rows) {
-        const side = r.side as "put" | "call";
-        if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
-        byTicker.get(r.ticker)![side].push(r);
-      }
+    // Aggregate + live prices only (path MAE from stored scores). Fast cold + warm.
+    const enriched = await trackRecordCache.getOrCompute("ticker-summary-enriched-v7", async () => {
+      const data = await trackRecordCache.getOrCompute("ticker-summary-v5", async () => {
+        const rows = await db.select({
+          ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
+          snapshotDate: modelRecs.snapshotDate, expiry: modelRecs.expiry, strike: modelRecs.strike,
+          premium: modelRecs.premium, incomePct: modelRecs.incomePct, dte: modelRecs.dte,
+          spot: modelRecs.spot, settleClose: modelRecs.settleClose,
+          componentScores: modelRecs.componentScores,
+          delta: modelRecs.delta, strikeIv: modelRecs.strikeIv,
+        }).from(modelRecs);
 
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const out: Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">[] = [...byTicker.entries()].map(([ticker, sides]) => ({
-        ticker,
-        put: aggregateSide(sides.put),
-        call: aggregateSide(sides.call),
-        currentPut: currentPick(sides.put, todayStr),
-        currentCall: currentPick(sides.call, todayStr),
+        const byTicker = new Map<string, { put: RecRow[]; call: RecRow[] }>();
+        for (const r of rows) {
+          const side = r.side as "put" | "call";
+          if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
+          byTicker.get(r.ticker)![side].push(r);
+        }
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const out: Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">[] = [...byTicker.entries()].map(([ticker, sides]) => ({
+          ticker,
+          put: aggregateSide(sides.put, "put"),
+          call: aggregateSide(sides.call, "call"),
+          currentPut: currentPick(sides.put, todayStr),
+          currentCall: currentPick(sides.call, todayStr),
+        }));
+        out.sort((a, b) => a.ticker.localeCompare(b.ticker));
+        return out;
+      });
+
+      const tickers = (data as Array<{ ticker: string }>).map(r => r.ticker);
+      const live = await getLivePrices(tickers);
+      const base = data as Array<Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">>;
+      return base.map((r) => ({
+        ...r,
+        currentPrice: live.get(r.ticker)?.price ?? null,
+        priceChangePct: live.get(r.ticker)?.changePercent ?? null,
       }));
-      out.sort((a, b) => a.ticker.localeCompare(b.ticker));
-      return out;
     });
-
-    // Live prices are cheap (60s-cached, batched) and change constantly — fetch
-    // fresh on every request rather than baking them into the 10-min DB cache above.
-    const tickers = (data as Array<{ ticker: string }>).map(r => r.ticker);
-    const live = await getLivePrices(tickers);
-    const enriched: TickerSummaryRow[] = (data as Array<Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">>).map(r => ({
-      ...r,
-      currentPrice: live.get(r.ticker)?.price ?? null,
-      priceChangePct: live.get(r.ticker)?.changePercent ?? null,
-    }));
 
     return res.json(enriched);
   } catch (err: any) {
@@ -311,15 +542,28 @@ router.get("/track-record/regime", async (_req, res) => {
 router.get("/track-record/tilt", async (_req, res) => {
   try {
     const state = await getTiltState();
-    const put = applyTilt(state.put);
-    const call = applyTilt(state.call, CALL_STRIKE_WEIGHTS);
+    const put = applyPolicy(state.put);
+    const call = applyPolicy(state.call, CALL_STRIKE_WEIGHTS);
+    const calibration = await getCalibrationTable();
     return res.json({
       state,
-      put: { factor: put.factor, weights: put.weights },
-      call: { factor: call.factor, weights: call.weights },
+      put: {
+        factor: put.factor,
+        weights: put.weights,
+        sqFloor: put.sqFloor,
+        earningsHaircut: put.earningsHaircut,
+        version: put.version,
+      },
+      call: {
+        factor: call.factor,
+        weights: call.weights,
+        sqFloor: call.sqFloor,
+        earningsHaircut: call.earningsHaircut,
+        version: call.version,
+      },
+      calibration,
       minN: TILT_MIN_N,
-      // The tilt is driven by avgPnlPct, not winRate — see tilt.ts. Exposing the
-      // anchor/span so the UI can explain what moved the factor.
+      sqFloorBase: SQ_FLOOR_BASE,
       anchorPnlPct: TILT_ANCHOR_PNL_PCT,
       spanPnlPct: TILT_SPAN_PNL_PCT,
     });
@@ -328,22 +572,19 @@ router.get("/track-record/tilt", async (_req, res) => {
   }
 });
 
-// ── POST /track-record/run (admin) ────────────────────────────────────────────
-// Manual trigger: { snapshot?, grade?, seedFixture? } — lets grading be verified
-// end-to-end today (seed back-dated fixtures, grade them, inspect /summary).
-
 router.post("/track-record/run", requireAdmin, async (req, res) => {
   try {
-    const { snapshot, grade, seedFixture } = (req.body ?? {}) as Record<string, unknown>;
+    const { snapshot, grade, seedFixture, reset } = (req.body ?? {}) as Record<string, unknown>;
     const result: Record<string, unknown> = {};
 
+    if (reset === true) result["reset"] = await resetModelTrackRecord();
     if (seedFixture === true) result["seeded"] = await seedFixtures();
     if (snapshot === true) result["snapshot"] = await runModelSnapshot();
     if (grade === true) {
       await runModelGrading();
       result["graded"] = true;
     }
-    trackRecordCache.clear(); // drop stale aggregates so /summary reflects this run immediately
+    trackRecordCache.clear();
     return res.json(result);
   } catch (err: any) {
     logger.error({ err }, "track-record: manual run failed");

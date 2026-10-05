@@ -2,7 +2,7 @@ import type { FundamentalsRow, TechnicalsRow } from "./stock-db-types";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
-export type FmtType = "pct" | "ratio" | "dollars" | "price" | "shares";
+export type FmtType = "pct" | "ratio" | "dollars" | "price" | "shares" | "text";
 
 export interface ColDef {
   key: keyof FundamentalsRow;
@@ -51,19 +51,24 @@ export const COLS: ColDef[] = [
   { key: "interestExpense",     label: "Int Exp",    family: "safety",  fmt: "dollars", suspect: v => v < 0 },
   { key: "totalDebt",           label: "Total Debt", family: "safety",  fmt: "dollars" },
   { key: "cashAndEquivalents",  label: "Cash",       family: "safety",  fmt: "dollars" },
-  { key: "quarterlyOCF",        label: "Qtrly OCF",  family: "safety",  fmt: "dollars" } as unknown as ColDef,
+  { key: "quarterlyOperatingCashFlow", label: "Qtrly OCF", family: "safety", fmt: "dollars" },
+  { key: "annualOperatingCashFlow",    label: "Ann OCF",   family: "safety", fmt: "dollars" },
   // RAW INPUTS
   { key: "freeCashFlow",        label: "FCF",        family: "safety",  fmt: "dollars" },
   { key: "totalRevenue",        label: "Revenue",    family: "safety",  fmt: "dollars" },
+  { key: "grossProfit",         label: "Gross Profit", family: "safety", fmt: "dollars" },
   { key: "netIncome",           label: "Net Income", family: "safety",  fmt: "dollars" },
+  { key: "totalAssets",         label: "Total Assets", family: "safety", fmt: "dollars" },
   { key: "totalStockholdersEquity", label: "Equity", family: "safety",  fmt: "dollars" },
   { key: "sharesOutstanding",   label: "Shares",     family: "meta",    fmt: "shares" },
   { key: "sharesOutstandingPrior",label:"Shares Pr", family: "meta",    fmt: "shares" },
-  { key: "beta",                label: "Beta",       family: "meta",    fmt: "ratio",  suspect: v => v > 10 || v < -5 },
+  { key: "beta",                label: "Beta",       family: "safety",  fmt: "ratio",  suspect: v => v > 10 || v < -5 },
   { key: "effectiveTaxRate",    label: "Tax Rate",   family: "meta",    fmt: "pct",    suspect: v => v < -0.5 || v > 1.0 },
+  { key: "styleBucket",         label: "Style",      family: "meta",    fmt: "text",   optional: true },
+  { key: "fundTotalScore",      label: "Fund Score", family: "meta",    fmt: "ratio",  optional: true },
+  { key: "fundCompanyScore",    label: "Fund Co",    family: "meta",    fmt: "ratio",  optional: true },
+  { key: "fundSectorScore",     label: "Fund Sec",   family: "meta",    fmt: "ratio",  optional: true },
 ];
-
-(COLS.find(c => c.label === "Qtrly OCF") as ColDef).key = "quarterlyOperatingCashFlow" as keyof FundamentalsRow;
 
 export const FAMILY_COLORS: Record<string, string> = {
   value:   "text-blue-400",

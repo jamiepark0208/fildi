@@ -66,7 +66,7 @@ export function computeCorrelationScaleMax(portfolioRisk: PortfolioRiskResult | 
 
 // ── Risk metrics (theta, assignment risk, at-risk puts, option position health) ──
 export type OptionRow = {
-  ticker: string; positionType: string; strike: number;
+  id: string; ticker: string; positionType: string; strike: number; expiry: string;
   premium: number; breakEven: number; qty: number;
   currentPrice: number | null; moneyness: number | null;
   collateral: number | null;
@@ -129,7 +129,7 @@ export function computePortfolioRiskMetrics(
         ? e.strike! - e.avgPrice
         : e.strike! + e.avgPrice;
       return {
-        ticker: e.ticker, positionType: e.positionType,
+        id: e.id, ticker: e.ticker, positionType: e.positionType, expiry: e.expiry!,
         strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
         currentPrice: price,
         moneyness: price ? ((price / e.strike!) - 1) * 100 : null,
@@ -147,7 +147,7 @@ export function computePortfolioRiskMetrics(
         ? e.strike! + e.avgPrice
         : e.strike! - e.avgPrice;
       return {
-        ticker: e.ticker, positionType: e.positionType,
+        id: e.id, ticker: e.ticker, positionType: e.positionType, expiry: e.expiry!,
         strike: e.strike!, premium: e.avgPrice, breakEven, qty: e.qty,
         currentPrice: price,
         // for calls: positive = ITM (bad for short, good for long)

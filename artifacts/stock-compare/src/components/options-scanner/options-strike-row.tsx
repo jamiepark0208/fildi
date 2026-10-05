@@ -96,24 +96,37 @@ export function StrikeRow({
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
         </div>
-        {/* Bid — dimmed with "~" prefix when using lastPrice fallback (market closed) */}
-        <div className={cn("font-mono", put.bidIsLive ? "text-white" : "text-white")}
-          title={put.bidIsLive ? undefined : "Market closed — showing last traded price"}>
-          {put.bidIsLive ? "" : "~"}${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)}
+        {/* Bid — sellable price only. Never show "~last" as if it were a bid (Yahoo lastPrice
+            is often stale/inverted across strikes). */}
+        <div
+          className={cn("font-mono", put.bidIsLive && put.bid > 0 ? "text-white" : "text-amber-200/35")}
+          title={
+            put.bidIsLive && put.bid > 0
+              ? "Live bid (sellable)"
+              : put.lastPrice > 0
+                ? `No live bid — last trade $${put.lastPrice.toFixed(2)} (not used for ranking)`
+                : "No live bid"
+          }
+        >
+          {put.bidIsLive && put.bid > 0 ? `$${put.bid.toFixed(2)}` : "—"}
         </div>
         {/* %/wk */}
         <div
           className={cn("font-mono font-semibold", incomeColor)}
           title={
-            `%/wk = (Bid ÷ Strike × 100) ÷ (Days until settlement ÷ 7)\n` +
-            `= ($${(put.bid > 0 ? put.bid : put.lastPrice).toFixed(2)} ÷ $${put.strike}) × 100 ÷ (${settlementDte.toFixed(1)} ÷ 7)\n` +
-            `= ${put.incomePct.toFixed(3)}% total premium ÷ ${(settlementDte / 7).toFixed(2)} wks until settlement\n` +
-            `= ${weeklyIncome.toFixed(2)}%/wk\n\n` +
-            `Settlement days = ${exactDte.toFixed(1)} days to expiry + ${(settlementDte - exactDte).toFixed(0)}d settlement lag ` +
-            `(options settle T+1 business day — e.g. Friday expiry → Monday)`
+            put.bid > 0
+              ? (
+                `%/wk = (Bid ÷ Strike × 100) ÷ (Days until settlement ÷ 7)\n` +
+                `= ($${put.bid.toFixed(2)} ÷ $${put.strike}) × 100 ÷ (${settlementDte.toFixed(1)} ÷ 7)\n` +
+                `= ${put.incomePct.toFixed(3)}% total premium ÷ ${(settlementDte / 7).toFixed(2)} wks until settlement\n` +
+                `= ${weeklyIncome.toFixed(2)}%/wk\n\n` +
+                `Settlement days = ${exactDte.toFixed(1)} days to expiry + ${(settlementDte - exactDte).toFixed(0)}d settlement lag ` +
+                `(options settle T+1 business day — e.g. Friday expiry → Monday)`
+              )
+              : "No live bid — weekly income not scored"
           }
         >
-          {weeklyIncome.toFixed(2)}%
+          {put.bid > 0 ? `${weeklyIncome.toFixed(2)}%` : "—"}
         </div>
         {/* OTM% */}
         <div className="font-mono text-white">{otmPct.toFixed(1)}%</div>

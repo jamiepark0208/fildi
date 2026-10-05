@@ -298,6 +298,15 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   evRevenue:                  numeric('ev_revenue'),
   revenueGrowthYoyPrior:      numeric('revenue_growth_yoy_prior'),
 
+  // Phase fund-score-v2 — GPA / accruals inputs
+  grossProfit:                numeric('gross_profit'),
+  totalAssets:                numeric('total_assets'),
+  annualOperatingCashFlow:    numeric('annual_operating_cash_flow'),
+  // Specialty free proxies (banks P/TBV; REIT FFO≈NI+D&A)
+  tangibleBookValuePerShare:  numeric('tangible_book_value_per_share'),
+  depreciationAmortization:   numeric('depreciation_amortization'),
+  ffoProxy:                   numeric('ffo_proxy'),
+
   // Phase 1A additions — data source tracking
   lastSource:         text('last_source').default('fmp'),
   dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
@@ -306,11 +315,16 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
 
   // Persisted fundamental scores — recomputed after every refresh or override
   fundTotalScore:        numeric('fund_total_score'),
+  fundCompanyScore:      numeric('fund_company_score'), // pre sector-layer blend
+  fundSectorScore:       numeric('fund_sector_score'),  // peer-group opportunity
+  fundValueScore:        numeric('fund_value_score'),
   fundQualityScore:      numeric('fund_quality_score'),
   fundGrowthScore:       numeric('fund_growth_score'),
   fundSafetyScore:       numeric('fund_safety_score'),
   fundRank:              integer('fund_rank'),
   fundScoreComputedAt:   timestamp('fund_score_computed_at', { withTimezone: true }),
+  styleBucket:           text('style_bucket'),
+  fundScoreConfidence:   text('fund_score_confidence'),
 }, t => ({
   lastFetchedIdx: index('idx_ticker_fundamentals_last_fetched').on(t.fundamentalsLastFetched),
 }))
@@ -422,11 +436,107 @@ export const tickerTechnicals = pgTable('ticker_technicals', {
 
   // ── Earnings ────────────────────────────────────────────────────────────────
   earningsDaysOut:          integer('earnings_days_out'),        // null if no known date
+  // iv_rank provenance: rv_proxy (legacy) | hist_atm | cross_atm
+  ivRankSource:             text('iv_rank_source'),
 })
 
 export const insertTickerTechnicalsSchema = createInsertSchema(tickerTechnicals)
 export type InsertTickerTechnicals = z.infer<typeof insertTickerTechnicalsSchema>
 export type TickerTechnicalsRow = typeof tickerTechnicals.$inferSelect
+
+// Daily ATM put IV snapshots — builds true IV-rank history over time.
+export const tickerAtmIvSnapshots = pgTable('ticker_atm_iv_snapshots', {
+  ticker:       text('ticker').notNull(),
+  asOf:         date('as_of').notNull(),
+  atmPutIv:     numeric('atm_put_iv').notNull(),
+  ivVsRealized: numeric('iv_vs_realized'),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.asOf] }),
+  tickerIdx: index('idx_atm_iv_snapshots_ticker').on(t.ticker),
+}))
+export type TickerAtmIvSnapshot = typeof tickerAtmIvSnapshots.$inferSelect
+
+// Nightly best-strike option scores for Overall rankings (premium-rich candidates).
+export const optionScoreSnapshots = pgTable('option_score_snapshots', {
+  ticker:           text('ticker').notNull(),
+  side:             text('side').notNull(), // put | call
+  asOf:             date('as_of').notNull(),
+  strike:           numeric('strike').notNull(),
+  expiry:           date('expiry').notNull(),
+  spot:             numeric('spot').notNull(),
+  premium:          numeric('premium').notNull(),
+  weeklyIncomePct:  numeric('weekly_income_pct'),
+  otmPct:           numeric('otm_pct'),
+  delta:            numeric('delta'),
+  strikeIv:         numeric('strike_iv'),
+  dte:              numeric('dte'),
+  optionScore:      numeric('option_score').notNull(),
+  componentScores:  jsonb('component_scores').notNull().default({}),
+  earningsDaysOut:  integer('earnings_days_out'),
+  earningsRisk:     boolean('earnings_risk').notNull().default(false),
+  bidIsLive:        boolean('bid_is_live').notNull().default(true),
+  quoteStale:       boolean('quote_stale').notNull().default(false),
+  dataQuality:      numeric('data_quality'),
+  atmPutIv:         numeric('atm_put_iv'),
+  ivVsRealized:     numeric('iv_vs_realized'),
+  computedAt:       timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.side, t.asOf] }),
+  asOfIdx: index('idx_option_score_snapshots_as_of').on(t.asOf),
+  sideScoreIdx: index('idx_option_score_snapshots_side_score').on(t.side, t.asOf, t.optionScore),
+}))
+export type OptionScoreSnapshot = typeof optionScoreSnapshots.$inferSelect
+export type InsertOptionScoreSnapshot = typeof optionScoreSnapshots.$inferInsert
+
+// ── desk_commentaries ─────────────────────────────────────────────────────────
+// FactSet StreetAccount (and later SA / other) desk emails → structured rows.
+// Drive .eml/.json is the archive; this table is the app-facing index for briefs,
+// soft regime context, and scorecard narrative — never a fund-score hard input.
+
+export const deskCommentaries = pgTable('desk_commentaries', {
+  id:               serial('id').primaryKey(),
+  source:           text('source').notNull().default('factset_streetaccount'),
+  kind:             text('kind').notNull(), // us_overnight | us_market_recap | politics | sector_* | macro_oil | other | newsletter slug
+  gmailMessageId:   text('gmail_message_id').unique(),
+  subject:          text('subject').notNull(),
+  receivedAt:       timestamp('received_at', { withTimezone: true }).notNull(),
+  ingestedAt:       timestamp('ingested_at', { withTimezone: true }).notNull().defaultNow(),
+  tickersMentioned: jsonb('tickers_mentioned').notNull().default([]),
+  synopsis:         text('synopsis'),
+  bodyPlain:        text('body_plain'),
+  driveFileName:    text('drive_file_name'),
+  meta:             jsonb('meta').notNull().default({}),
+  fromAddress:      text('from_address'),
+  fromDomain:       text('from_domain'),
+  category:         text('category'), // overnight | macro | promo | …
+  articlePublishedAt: timestamp('article_published_at', { withTimezone: true }),
+  noiseScore:       integer('noise_score'),
+  parserVersion:    integer('parser_version'),
+}, (t) => ({
+  receivedIdx: index('desk_commentaries_received_idx').on(t.receivedAt),
+  kindDayIdx:  index('desk_commentaries_kind_day_idx').on(t.kind, t.receivedAt),
+  categoryIdx: index('desk_commentaries_category_idx').on(t.category, t.receivedAt),
+  noiseIdx:    index('desk_commentaries_noise_idx').on(t.noiseScore),
+}))
+
+export type DeskCommentary = typeof deskCommentaries.$inferSelect
+export type InsertDeskCommentary = typeof deskCommentaries.$inferInsert
+
+/** User feedback on Daily News Haiku (relevance / ask-why) — soft prefs for next generate. */
+export const deskNewsFeedback = pgTable('desk_news_feedback', {
+  id:          serial('id').primaryKey(),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  sessionDate: text('session_date').notNull(), // PT dateKey of the brief
+  feedbackType: text('feedback_type').notNull(), // not_relevant | ask_why | want_more
+  bulletText:  text('bullet_text'),
+  reason:      text('reason'),
+  question:    text('question'),
+  meta:        jsonb('meta').notNull().default({}),
+}, (t) => ({
+  sessionIdx: index('desk_news_feedback_session_idx').on(t.sessionDate, t.createdAt),
+}))
+
+export type DeskNewsFeedback = typeof deskNewsFeedback.$inferSelect
 
 // ── data_sources ──────────────────────────────────────────────────────────────
 // Tracks available data providers, their daily call budgets, and usage.
@@ -537,6 +647,15 @@ export const tickerFundamentalsHistory = pgTable('ticker_fundamentals_history', 
   revenue:          numeric('revenue'),
   ebitda:           numeric('ebitda'),
   eps:              numeric('eps'),
+  fcf:              numeric('fcf'),
+  roe:              numeric('roe'),
+  debtToEquity:     numeric('debt_to_equity'),
+  currentRatio:     numeric('current_ratio'),
+  totalAssets:      numeric('total_assets'),
+  grossProfit:      numeric('gross_profit'),
+  annualOcf:        numeric('annual_ocf'),
+  epsGrowth:        numeric('eps_growth'),
+  revenueGrowth:    numeric('revenue_growth'),
   source:           text('source').notNull(), // which data source provided this row
   importedAt:       timestamp('imported_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({
@@ -1122,6 +1241,7 @@ export const edgarFundamentals = pgTable('edgar_fundamentals', {
   edgarSharesOutstanding:  numeric('edgar_shares_outstanding'),
   edgarGrossMargin:        numeric('edgar_gross_margin'),      // computed: grossProfit / totalRevenue
   edgarNetMargin:          numeric('edgar_net_margin'),        // computed: netIncome / totalRevenue
+  edgarDepreciationAmortization: numeric('edgar_depreciation_amortization'),
 })
 
 export const insertEdgarFundamentalsSchema = createInsertSchema(edgarFundamentals).omit({ fetchedAt: true })
@@ -1195,6 +1315,7 @@ export const finnhubFundamentals = pgTable('finnhub_fundamentals', {
   // Per-share
   finnhubFcfPerShare:      numeric('finnhub_fcf_per_share'),
   finnhubBookValue:        numeric('finnhub_book_value'),
+  finnhubTangibleBookValuePerShare: numeric('finnhub_tangible_book_value_per_share'),
   finnhubBeta:             numeric('finnhub_beta'),
   finnhubEps:              numeric('finnhub_eps'),
   finnhubEbitPerShare:     numeric('finnhub_ebit_per_share'),
@@ -1259,11 +1380,15 @@ export const fmpFundamentals = pgTable('fmp_fundamentals', {
   fmpTotalDebt:                  numeric('fmp_total_debt'),
   fmpTotalStockholdersEquity:    numeric('fmp_total_stockholders_equity'),
   fmpCashAndEquivalents:         numeric('fmp_cash_and_equivalents'),
+  fmpTotalAssets:                numeric('fmp_total_assets'),
+  fmpGrossProfit:                numeric('fmp_gross_profit'),
+  fmpTangibleBookValuePerShare:  numeric('fmp_tangible_book_value_per_share'),
   fmpWacc:                       numeric('fmp_wacc'),
   fmpRoic:                       numeric('fmp_roic'),
 
   // Cash flow
   fmpQuarterlyOperatingCashFlow: numeric('fmp_quarterly_operating_cash_flow'),
+  fmpAnnualOperatingCashFlow:    numeric('fmp_annual_operating_cash_flow'),
 
   // Share data
   fmpSharesOutstanding:      numeric('fmp_shares_outstanding'),
@@ -1432,6 +1557,10 @@ export const aiUsageLog = pgTable('ai_usage_log', {
   ticker:      text('ticker').notNull(),
   surfaceType: text('surface_type').notNull(),   // "fundamental" | "technical" | "options" | ...
   cached:      boolean('cached').notNull(),
+  /** Anthropic usage.input_tokens — null on cache hits / legacy rows */
+  inputTokens: integer('input_tokens'),
+  /** Anthropic usage.output_tokens — null on cache hits / legacy rows */
+  outputTokens: integer('output_tokens'),
   createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userIdx: index('ai_usage_log_user_idx').on(t.userId, t.createdAt),
@@ -1443,7 +1572,10 @@ export const aiUsageLog = pgTable('ai_usage_log', {
 export type AiUsageLogRow = typeof aiUsageLog.$inferSelect
 
 // ── enrichment_runs ───────────────────────────────────────────────────────────
-// One row per nightly-enrichment.ts invocation. Written at the end of a run (or
+// One row per enrichment invocation (full nightly-enrichment.ts OR daily maintain.mjs).
+// trigger: scheduled (in-process scheduler) | maintain (LaunchAgent lean daily) |
+//          maintain_full (maintain ≥4d catch-up) | manual (CLI).
+// Written at the end of a run (or
 // immediately on a setup-phase failure, before any per-source fetching starts) so
 // a run's outcome is queryable instead of living only in the per-day log file.
 // perSource shape: { [source]: { targeted, fetched, nodata, failed, budgetSkipped } }.
@@ -1454,7 +1586,7 @@ export const enrichmentRuns = pgTable('enrichment_runs', {
   startedAt:          timestamp('started_at', { withTimezone: true }).notNull(),
   finishedAt:         timestamp('finished_at', { withTimezone: true }),
   status:             text('status').notNull(),      // "success" | "partial" | "failed"
-  trigger:            text('trigger').notNull(),      // "scheduled" | "manual"
+  trigger:            text('trigger').notNull(),      // "scheduled" | "manual" | "maintain" | "maintain_full"
   perSource:          jsonb('per_source'),
   coverageBefore:     numeric('coverage_before'),
   coverageAfter:      numeric('coverage_after'),

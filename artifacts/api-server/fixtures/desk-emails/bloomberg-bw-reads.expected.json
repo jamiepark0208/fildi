@@ -1,0 +1,13 @@
+{
+  "file": "bloomberg-bw-reads.json",
+  "source": "bloomberg",
+  "kind": "bloomberg",
+  "category": "newsletter_digest",
+  "noiseScore": 0,
+  "includeInBrief": true,
+  "noiseReasons": [],
+  "fromDomain": "news.bloomberg.com",
+  "subject": "Bw Reads: China’s tax grab",
+  "contentLinks": 5,
+  "tickers": []
+}

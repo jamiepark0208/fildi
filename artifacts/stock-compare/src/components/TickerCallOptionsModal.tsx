@@ -60,22 +60,24 @@ export function TickerCallOptionsModal({ ticker, availableShares, onClose, onPos
                       .filter(c => c.strike > chain.spot)
                       .sort((a, b) => a.strike - b.strike)
                       .map(c => {
-                        const premium = c.bid > 0 ? c.bid : c.lastPrice
+                        const premium = c.bid > 0 ? c.bid : null
                         const otmPct = ((c.strike - chain.spot) / chain.spot) * 100
                         return (
                           <tr key={c.strike} className="border-b border-[#d4af37]/5 last:border-b-0 hover:bg-[#d4af37]/5">
                             <td className="py-1 px-2.5 font-mono text-amber-100">${c.strike.toFixed(2)}</td>
-                            <td className="py-1 px-2.5 text-right font-mono text-amber-200/60">${premium.toFixed(2)}</td>
+                            <td className="py-1 px-2.5 text-right font-mono text-amber-200/60" title={premium == null && c.lastPrice > 0 ? `No live bid — last $${c.lastPrice.toFixed(2)}` : undefined}>
+                              {premium != null ? `$${premium.toFixed(2)}` : "—"}
+                            </td>
                             <td className="py-1 px-2.5 text-right font-mono text-amber-200/60">{c.iv != null ? `${(c.iv * 100).toFixed(0)}%` : "—"}</td>
                             <td className="py-1 px-2.5 text-right font-mono text-amber-200/60">{c.delta != null ? c.delta.toFixed(2) : "—"}</td>
                             <td className="py-1 px-2.5 text-right font-mono text-amber-200/60">{otmPct.toFixed(1)}%</td>
                             <td className="py-1 px-2.5 text-right">
                               <button
-                                disabled={maxContracts === 0}
+                                disabled={maxContracts === 0 || premium == null}
                                 onClick={() => setSelected({ put: c, chain })}
                                 className={cn(
                                   "text-[10px] font-semibold px-1.5 py-0.5 rounded border border-[#d4af37]/30 text-[#d4af37]/80 hover:bg-[#d4af37]/10",
-                                  maxContracts === 0 && "opacity-30 cursor-not-allowed"
+                                  (maxContracts === 0 || premium == null) && "opacity-30 cursor-not-allowed"
                                 )}
                               >
                                 Sell

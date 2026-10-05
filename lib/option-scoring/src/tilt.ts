@@ -1,20 +1,18 @@
-// Auto-tilt: bounded feedback from the model's own graded track record into the
-// strike-weight defaults. Pure — shared by api-server (weekly snapshot job) and
-// stock-compare (options scanner) so both sides provably apply the same tilt.
-//
-// Design rails (do not loosen without revisiting the accountability plan):
-// - Only W_INCOME and W_BUFFER move, in opposite directions, by at most ±TILT_MAX_SHIFT.
-// - Below TILT_MIN_N graded recs the tilt is exactly 0 (no small-sample chasing).
-// - DELTA_MAX, income floors, and every other constant stay untouched — the tilt can
-//   shift preference within the scorer's safety rails, never past them.
+// Multi-knob bounded policy learned from graded track record.
+// Extends the original income↔buffer tilt with SQ floor + earnings haircut.
+// Pure — shared by api-server and stock-compare.
 
 import { W_INCOME, W_BUFFER } from "./option-scorer-constants.ts";
 
 export interface SideTiltStats {
-  winRate: number | null;   // [0,1] over the trailing window — DISPLAY ONLY, never drives the tilt
-  avgPnlPct: number | null; // mean pnlPct (percent units) of graded recs — THIS drives the tilt
-  n: number;                // graded recs in the trailing window
-  updatedAt: string | null; // ISO timestamp of last recompute
+  winRate: number | null;
+  avgPnlPct: number | null;
+  n: number;
+  updatedAt: string | null;
+  /** Optional regime-conditioned expectancy (macro regime name → avgPnlPct). */
+  byRegime?: Record<string, { n: number; avgPnlPct: number }>;
+  /** Per-ticker shrunk expectancy offsets (additive to global avgPnlPct). */
+  byTicker?: Record<string, { n: number; avgPnlPct: number; shrunkDelta: number }>;
 }
 
 export interface TiltState {
@@ -22,32 +20,32 @@ export interface TiltState {
   call: SideTiltStats;
 }
 
-// Why this keys off average P&L and NOT win rate (changed 2026-08-27):
-//
-// Selling OTM premium wins ~85-90% of the time BY CONSTRUCTION — that is what a
-// ~0.15 delta means. Win rate therefore measures the strike distance we chose, not
-// whether the choice made money; the losses are the whole story and they are
-// asymmetric. Under the old winRate/0.70-anchor rule both sides sat at ~0.89-0.90
-// and pinned the factor at its +1 maximum. That included the CALL side, which was
-// running avgPnlPct -0.068 (i.e. losing money) — the loop was leaning hardest into
-// the one side that was bleeding, and shifting weight buffer -> income makes strikes
-// closer to the money, which is exactly the wrong response to losses.
-//
-// avgPnlPct is in PERCENT units (pnlPerShare / basis * 100; see settleRec) and is
-// signed, so 0 is the natural anchor: positive expectancy leans into income,
-// negative expectancy backs off toward buffer. A mean of P&L is noisier than a
-// win rate and one tail loss can swing it — that sensitivity is the point, but it
-// is why TILT_MIN_N is higher here than the old win-rate rule needed.
-export const TILT_MIN_N = 20;             // below this → no tilt (a P&L mean needs more n than a rate)
-export const TILT_ANCHOR_PNL_PCT = 0;     // break-even expectancy is the neutral point
-export const TILT_SPAN_PNL_PCT = 0.25;    // avgPnlPct ± this (percent) maps to factor ±1
-export const TILT_MAX_SHIFT = 0.25;       // max relative change to income/buffer weights
+export const TILT_MIN_N = 20;
+export const TILT_ANCHOR_PNL_PCT = 0;
+export const TILT_SPAN_PNL_PCT = 0.25;
+export const TILT_MAX_SHIFT = 0.25;
+
+/** Ownership soft floor — hard-exclude strikes below this stockQuality. */
+export const SQ_FLOOR_BASE = 0.45;
+/** When side expectancy is negative, raise floor toward this. */
+export const SQ_FLOOR_STRICT = 0.50;
+/** Earnings overall haircut multipliers (deep OTM vs near). Policy nudges these. */
+export const EARNINGS_HAIRCUT_BASE = 0.90;
+export const EARNINGS_HAIRCUT_STRICT = 0.80;
 
 export const EMPTY_SIDE_STATS: SideTiltStats = { winRate: null, avgPnlPct: null, n: 0, updatedAt: null };
 export const EMPTY_TILT_STATE: TiltState = { put: EMPTY_SIDE_STATS, call: EMPTY_SIDE_STATS };
 
-/** Aggressiveness factor in [-1, 1]. Positive = positive expectancy → lean into income.
- *  Negative = losing money → back off toward buffer (further-OTM strikes). */
+export const POLICY_VERSION = 2;
+
+export interface SidePolicy {
+  factor: number;
+  weights: Record<string, number>;
+  sqFloor: number;
+  earningsHaircut: number;
+  version: number;
+}
+
 export function tiltFactor(stats: SideTiltStats | null | undefined): number {
   if (!stats || stats.n < TILT_MIN_N || stats.avgPnlPct == null) return 0;
   const a = (stats.avgPnlPct - TILT_ANCHOR_PNL_PCT) / TILT_SPAN_PNL_PCT;
@@ -55,11 +53,19 @@ export function tiltFactor(stats: SideTiltStats | null | undefined): number {
 }
 
 /**
- * Apply the tilt to a strike-weight record. `baseWeights` may omit income/buffer
- * (falls back to the put defaults W_INCOME/W_BUFFER — pass CALL_STRIKE_WEIGHTS-merged
- * values for calls). Returns the effective weights plus the factor used, so callers
- * can persist/display exactly what was applied.
+ * Empirical-Bayes shrink of ticker mean toward global mean.
+ * priorStrength ≈ pseudo-counts of global; higher = more shrinkage.
  */
+export function shrinkTickerExpectancy(
+  tickerAvg: number,
+  tickerN: number,
+  globalAvg: number,
+  priorStrength = 12,
+): number {
+  const w = tickerN / (tickerN + priorStrength);
+  return w * tickerAvg + (1 - w) * globalAvg;
+}
+
 export function applyTilt(
   stats: SideTiltStats | null | undefined,
   baseWeights?: Record<string, number>,
@@ -75,4 +81,29 @@ export function applyTilt(
       buffer: buffer * (1 - TILT_MAX_SHIFT * factor),
     },
   };
+}
+
+/** Full multi-knob policy from side stats (+ optional regime override). */
+export function applyPolicy(
+  stats: SideTiltStats | null | undefined,
+  baseWeights?: Record<string, number>,
+  opts?: { regime?: string | null; ticker?: string | null },
+): SidePolicy {
+  let effective: SideTiltStats | null | undefined = stats;
+  if (stats && opts?.regime && stats.byRegime?.[opts.regime] && stats.byRegime[opts.regime]!.n >= TILT_MIN_N) {
+    const r = stats.byRegime[opts.regime]!;
+    effective = { ...stats, avgPnlPct: r.avgPnlPct, n: Math.max(stats.n, r.n) };
+  }
+  if (stats && opts?.ticker && stats.byTicker?.[opts.ticker] && stats.avgPnlPct != null) {
+    const t = stats.byTicker[opts.ticker]!;
+    const blended = stats.avgPnlPct + t.shrunkDelta;
+    effective = { ...(effective ?? stats), avgPnlPct: blended };
+  }
+
+  const { weights, factor } = applyTilt(effective, baseWeights);
+  // Negative expectancy → stricter ownership floor + sharper earnings haircut
+  const sqFloor = factor < -0.25 ? SQ_FLOOR_STRICT : SQ_FLOOR_BASE;
+  const earningsHaircut = factor < -0.25 ? EARNINGS_HAIRCUT_STRICT : EARNINGS_HAIRCUT_BASE;
+
+  return { factor, weights, sqFloor, earningsHaircut, version: POLICY_VERSION };
 }

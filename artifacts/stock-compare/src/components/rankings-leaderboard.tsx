@@ -13,6 +13,8 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColo
 interface RankingsLeaderboardProps {
   scores: StockScore[];
   stocks?: StockMetrics[];
+  /** ISO timestamp when fund scores were last persisted (from API computedAt). */
+  scoredAsOf?: string | null;
 }
 
 const RANK_STYLE = (idx: number) =>
@@ -22,10 +24,10 @@ const RANK_STYLE = (idx: number) =>
               "bg-secondary text-secondary-foreground";
 
 const ROW_STYLE = (idx: number) =>
-  idx === 0 ? "border-yellow-500/30 bg-yellow-500/5" :
-  idx === 1 ? "border-slate-400/30 bg-slate-400/5"   :
-  idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
-              "border-border/40 bg-background/30";
+  idx === 0 ? "border-yellow-500/30 bg-yellow-500/10" :
+  idx === 1 ? "border-slate-400/30 bg-slate-400/10"   :
+  idx === 2 ? "border-amber-700/30 bg-amber-700/10"   :
+              "border-[#d4af37]/10 bg-transparent";
 
 const FAMILY_LABEL: Record<FundamentalFamily, string> = { quality: "Quality", growth: "Growth", safety: "Safety" };
 const FAMILY_ORDER: FundamentalFamily[] = ["quality", "growth", "safety"];
@@ -311,7 +313,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
       {isExpanded && (
         <tr>
         <td colSpan={8} className="p-0">
-        <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/20 border-b border-border/20">
+        <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/50 border-b border-[#d4af37]/15">
           {/* Metric table: every scored metric, its value, weight, and real peer comparison */}
           {metricRows.length > 0 && (
             <div>
@@ -383,7 +385,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
   );
 });
 
-export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps) {
+export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLeaderboardProps) {
   const { explain, getState } = useScoreExplanation();
   const [query, setQuery] = useState("");
 
@@ -396,13 +398,28 @@ export function RankingsLeaderboard({ scores, stocks }: RankingsLeaderboardProps
     return scores.filter(s => s.ticker.toLowerCase().includes(q) || s.companyName?.toLowerCase().includes(q));
   }, [scores, query]);
 
+  const scoredLabel = useMemo(() => {
+    if (!scoredAsOf) return null;
+    const d = new Date(scoredAsOf);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  }, [scoredAsOf]);
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+    <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-4 shadow-lg shadow-black/60">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
           <span className="text-xs text-muted-foreground">({scores.length})</span>
+          {scoredLabel && (
+            <span className="text-[10px] text-muted-foreground/80" title="fund_score_computed_at">
+              scored {scoredLabel}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {(Object.keys(FAMILY_LABEL) as FundamentalFamily[]).map(fam => (

@@ -81,6 +81,35 @@ function usageTextColor(pct: number): string {
 
 interface UsageRow { source: string; date: string; callsMade: number; }
 
+interface LocalStackService {
+  up: boolean;
+  pid: number | null;
+  ageSec: number | null;
+  orphan: boolean;
+  port: number;
+}
+
+interface LocalStackResponse {
+  enabled: boolean;
+  api: LocalStackService;
+  vite: LocalStackService;
+  orphans: { pid: number; port: number; cmd: string }[];
+  hint: string;
+  clean: boolean;
+}
+
+function formatAge(sec: number | null): string {
+  if (sec == null) return "—";
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  return `${Math.floor(sec / 3600)}h`;
+}
+
+function Dot({ ok, orphan }: { ok: boolean; orphan?: boolean }) {
+  const color = orphan ? "bg-amber-400" : ok ? "bg-green-500" : "bg-red-500";
+  return <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", color)} />;
+}
+
 export function ApiMonitorTab() {
   const DAYS = 5;
   const dates = buildDateLabels(DAYS);
@@ -112,6 +141,42 @@ export function ApiMonitorTab() {
     refetchInterval: 5 * 60_000,
   });
 
+  const { data: localStack } = useQuery<LocalStackResponse>({
+    queryKey: ["local-stack"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/local-stack", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load local stack");
+      return res.json();
+    },
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: schwab } = useQuery<{
+    clientReady: boolean;
+    hasTokens: boolean;
+    accessValid: boolean;
+    refreshDaysLeft: number | null;
+    reauthHint: string | null;
+    usage?: {
+      rpmBudget: number;
+      requestsLast60s: number;
+      totalRequests: number;
+      last429At: string | null;
+      chainCache: { entryCount: number; hitRate: string };
+    };
+  }>({
+    queryKey: ["schwab-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/schwab/status", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load Schwab status");
+      return res.json();
+    },
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
   // Pivot: source → date → callsMade
   const pivot = new Map<string, Map<string, number>>();
   for (const row of data ?? []) {
@@ -130,8 +195,68 @@ export function ApiMonitorTab() {
   });
 
   return (
-    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl">
-      <div className="flex items-center justify-between mb-2">
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl space-y-3">
+      {localStack?.enabled && (
+        <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
+          <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[10px]">Local stack</span>
+          <span className="flex items-center gap-1.5 text-amber-100/80">
+            <Dot ok={localStack.api.up} orphan={localStack.api.orphan} />
+            API :{localStack.api.port}
+            <span className="text-amber-200/40 tabular-nums">
+              {localStack.api.up ? `up · ${formatAge(localStack.api.ageSec)}` : "down"}
+              {localStack.api.pid != null ? ` · pid ${localStack.api.pid}` : ""}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 text-amber-100/80">
+            <Dot ok={localStack.vite.up} orphan={localStack.vite.orphan} />
+            Vite :{localStack.vite.port}
+            <span className="text-amber-200/40 tabular-nums">
+              {localStack.vite.up ? `up · ${formatAge(localStack.vite.ageSec)}` : "down"}
+              {localStack.vite.pid != null ? ` · pid ${localStack.vite.pid}` : ""}
+            </span>
+          </span>
+          {localStack.orphans.length > 0 ? (
+            <span className="text-amber-400">
+              {localStack.orphans.length} orphan{localStack.orphans.length === 1 ? "" : "s"} — run {localStack.hint}
+            </span>
+          ) : (
+            <span className="text-green-500/70">no drift</span>
+          )}
+          <span className="text-amber-200/30 ml-auto">stop: ./scripts/dev-down.sh · restart: ./scripts/dev-restart.sh</span>
+        </div>
+      )}
+
+      {schwab && (
+        <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
+          <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[10px]">Schwab MD</span>
+          <span className="flex items-center gap-1.5 text-amber-100/80">
+            <Dot ok={schwab.clientReady} orphan={schwab.hasTokens && !schwab.accessValid} />
+            {schwab.clientReady ? "ready" : schwab.hasTokens ? "token issue" : "not linked"}
+          </span>
+          {schwab.refreshDaysLeft != null && (
+            <span className={cn(
+              "tabular-nums",
+              schwab.refreshDaysLeft < 1 ? "text-red-400" : schwab.refreshDaysLeft < 2 ? "text-amber-300" : "text-amber-200/50",
+            )}>
+              refresh token ~{schwab.refreshDaysLeft.toFixed(1)}d left
+            </span>
+          )}
+          {schwab.usage && (
+            <span className="tabular-nums text-amber-200/50">
+              {schwab.usage.requestsLast60s}/{schwab.usage.rpmBudget} rpm
+              {schwab.usage.chainCache.entryCount > 0
+                ? ` · chain cache ${schwab.usage.chainCache.entryCount} (${schwab.usage.chainCache.hitRate})`
+                : ""}
+              {schwab.usage.last429At ? " · 429 recent" : ""}
+            </span>
+          )}
+          {schwab.reauthHint && (
+            <span className="text-amber-400/90 font-mono text-[10px]">{schwab.reauthHint}</span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-0">
         <div>
           <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">API Monitor</h2>
           <p className="text-[10px] text-amber-200/40 mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>

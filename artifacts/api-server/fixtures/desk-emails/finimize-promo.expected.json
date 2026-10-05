@@ -1,0 +1,15 @@
+{
+  "file": "finimize-promo.json",
+  "source": "finimize",
+  "kind": "finimize",
+  "category": "research_note",
+  "noiseScore": 25,
+  "includeInBrief": true,
+  "noiseReasons": [
+    "promo_pitch"
+  ],
+  "fromDomain": "finimize.com",
+  "subject": "Average pick. Not cherry-picked.",
+  "contentLinks": 5,
+  "tickers": []
+}

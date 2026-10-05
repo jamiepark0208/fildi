@@ -12,7 +12,7 @@ import { type StockMetrics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatCompactCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Activity, Shield, Zap, TrendingDown, Layers, BarChart2, Percent } from "lucide-react";
+import { Activity, Shield, Zap, TrendingDown, Layers, BarChart2, Percent } from "lucide-react";
 import {
   TTH, TTD, formatStrike, PALETTE, SECTOR_OVERRIDES, isSameUnderlyingPair,
   BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS, correlationBg,
@@ -62,10 +62,20 @@ interface PortfolioAnalysisProps {
   accountSummaries?: AccountSummary[];
   realizedEvents?: RealizedEvent[];
   tickerEarnings?: TickerEarningsRow[];
+  earningsCalendar?: Record<string, string | null>;
   onUploadSuccess?: () => void;
 }
 
-export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], onUploadSuccess }: PortfolioAnalysisProps) {
+/** Map RH account id / "Traditional IRA" / "IRA" onto stable tab keys. */
+function canonicalizeAccount(raw: string, nickMap: Map<string, string>): string {
+  const nick = nickMap.get(raw) ?? raw;
+  const n = nick.trim();
+  if (n === "Traditional IRA" || n === "IRA" || /\bIRA\b/i.test(n)) return "IRA";
+  if (n === "FILDI") return "FILDI";
+  return n;
+}
+
+export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], earningsCalendar = {}, onUploadSuccess }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
   const filtered = useMemo(() =>
     (activePortfolio === "All"
@@ -238,6 +248,21 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     [filtered],
   );
 
+  // ── Earnings-date risk ───────────────────────────────────────────────────────
+  // Flags any open contract whose expiration spans the underlying's next
+  // scheduled earnings report — IV crush risk, worst on exactly the high-IV
+  // small/mid-caps this account sells premium on. earningsCalendar is the
+  // next FUTURE report date per ticker (server-side, from earnings_calendar);
+  // a position flags when today <= reportDate <= expiry.
+  const earningsRiskPositions = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return openOptionPositions
+      .map(e => ({ entry: e, reportDate: earningsCalendar[e.ticker.toUpperCase()] ?? null }))
+      .filter(({ reportDate }) => reportDate != null && reportDate >= today)
+      .filter(({ entry, reportDate }) => reportDate! <= entry.expiry!)
+      .map(({ entry, reportDate }) => ({ entry, reportDate: reportDate! }));
+  }, [openOptionPositions, earningsCalendar]);
+
   const liquidityQueries = useQueries({
     queries: openOptionPositions.map(e => {
       const optionType: "call" | "put" = e.positionType.includes("call") ? "call" : "put";
@@ -247,7 +272,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           const params = new URLSearchParams({ ticker: e.ticker, expiry: e.expiry!, strike: String(e.strike), type: optionType });
           const res = await fetch(`/api/options/position-quote?${params}`, { credentials: "include" });
           if (!res.ok) throw new Error("Failed to fetch live quote");
-          return res.json() as Promise<{ bid: number | null; ask: number | null; midPrice: number | null }>;
+          return res.json() as Promise<{ bid: number | null; ask: number | null; midPrice: number | null; delta: number | null }>;
         },
         staleTime: 5 * 60 * 1000,
       };
@@ -299,11 +324,70 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     [portfolioRisk],
   );
 
+  // ── Account nicknames (id → FILDI / Traditional IRA) — needed to scope
+  // realizedEvents (which key off raw account ids OR export nicknames
+  // depending on source) by the SAME top-level activePortfolio tab that
+  // already scopes `filtered`/unrealized below. Moved above pnlTotals —
+  // previously pnlTotals summed realizedEvents across BOTH accounts
+  // unconditionally while its unrealized side correctly respected
+  // activePortfolio, so switching the top tab to IRA left "Realized"
+  // showing combined FILDI+IRA while "Unrealized" showed IRA-only —
+  // an inconsistent, wrong "Total" whenever a single account was selected.
+  const accountNickMap = useMemo(() => {
+    const m = new Map<string, string>();
+    accountSummaries.forEach(a => m.set(a.account, a.nickname ?? a.account));
+    return m;
+  }, [accountSummaries]);
+
+  // ── Live unrealized P&L — CSV-stored unrealizedPnL is only as fresh as the
+  // last import (can be a day+ stale); recompute live from the same quote
+  // sources already fetched elsewhere in this component (priceMap for stock,
+  // liquidityQueries' per-contract midPrice for options) instead. Falls back
+  // to the stale stored value only while a live quote hasn't loaded yet, so
+  // numbers don't flash to $0 during the initial fetch.
+  const liveOptionMidByEntryId = useMemo(() => {
+    const m = new Map<string, number>();
+    openOptionPositions.forEach((e, i) => {
+      const mid = liquidityQueries[i]?.data?.midPrice;
+      if (mid != null) m.set(e.id, mid);
+    });
+    return m;
+  }, [openOptionPositions, liquidityQueries]);
+
+  // Live delta per open option position — same quote call as above, used for
+  // the assignment-risk alert (see Position Health table): delta is a much
+  // more standard risk measure than raw moneyness %, and the live quote
+  // endpoint already computes it via Black-Scholes from live IV/spot.
+  const liveOptionDeltaByEntryId = useMemo(() => {
+    const m = new Map<string, number>();
+    openOptionPositions.forEach((e, i) => {
+      const delta = liquidityQueries[i]?.data?.delta;
+      if (delta != null) m.set(e.id, delta);
+    });
+    return m;
+  }, [openOptionPositions, liquidityQueries]);
+
+  const liveUnrealizedFor = (e: PortfolioEntry): number => {
+    if (e.positionType === "stock") {
+      const live = priceMap[e.ticker];
+      return live != null ? (live - e.avgPrice) * e.qty : (e.unrealizedPnL ?? 0);
+    }
+    const mid = liveOptionMidByEntryId.get(e.id);
+    if (mid == null) return e.unrealizedPnL ?? 0;
+    const perContract = isShortPosition(e.positionType) ? (e.avgPrice - mid) : (mid - e.avgPrice);
+    return perContract * 100 * e.qty;
+  };
+
   // ── P&L: realized (from transaction history) + unrealized (from open positions) ──
   const pnlTotals = useMemo(() => {
-    const stockRealized = realizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
+    const scopedRealizedEvents = activePortfolio === "All"
+      ? realizedEvents
+      : realizedEvents.filter(e =>
+          canonicalizeAccount(e.account, accountNickMap) === canonicalizeAccount(activePortfolio, accountNickMap));
+
+    const stockRealized = scopedRealizedEvents.filter(e => e.assetType === "stock").reduce((s, e) => s + e.pnl, 0);
     const realizedFor = (direction: "short" | "long", optionType: "call" | "put") =>
-      realizedEvents.filter(e => e.assetType === "option" && e.direction === direction && e.optionType === optionType)
+      scopedRealizedEvents.filter(e => e.assetType === "option" && e.direction === direction && e.optionType === optionType)
         .reduce((s, e) => s + e.pnl, 0);
     const shortCallRealized = realizedFor("short", "call");
     const shortPutRealized  = realizedFor("short", "put");
@@ -311,11 +395,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     const longPutRealized   = realizedFor("long", "put");
     // Cash bonuses are migrated as dividend rows (no ticker-specific holding), so this
     // sums both — pure cash income, no unrealized leg.
-    const dividendRealized  = realizedEvents.filter(e => e.assetType === "dividend").reduce((s, e) => s + e.pnl, 0);
+    const dividendRealized  = scopedRealizedEvents.filter(e => e.assetType === "dividend").reduce((s, e) => s + e.pnl, 0);
 
-    const stockUnrealized = filtered.filter(e => e.positionType === "stock").reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+    const stockUnrealized = filtered.filter(e => e.positionType === "stock").reduce((s, e) => s + liveUnrealizedFor(e), 0);
     const unrealizedFor = (positionType: string) =>
-      filtered.filter(e => e.positionType === positionType).reduce((s, e) => s + (e.unrealizedPnL ?? 0), 0);
+      filtered.filter(e => e.positionType === positionType).reduce((s, e) => s + liveUnrealizedFor(e), 0);
     const shortCallUnrealized = unrealizedFor("short_call");
     const shortPutUnrealized  = unrealizedFor("short_put");
     const longCallUnrealized  = unrealizedFor("long_call");
@@ -342,13 +426,38 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     };
 
     return { rows, grandTotal };
-  }, [realizedEvents, filtered]);
+  }, [realizedEvents, filtered, activePortfolio, accountNickMap, priceMap, liveOptionMidByEntryId]);
 
-  // ── Cumulative realized P&L over time — running total across all realized events
-  // (stock + options + dividends), sorted by close date. Same realizedEvents source as
-  // pnlTotals above, so no double-counting of premium-open vs close rows.
-  const cumulativePnlTimeline = useMemo(() => {
-    const sorted = [...realizedEvents].sort((a, b) => new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime());
+  // ── Cumulative P&L over time ─────────────────────────────────────────────────
+  // Scoped by the page's own top-level activePortfolio filter (previously had
+  // its own separate All/FILDI/IRA picker, duplicating — and using different
+  // label text than — the parent filter for no reason; removed).
+  // "Realized" = running total across all realized events (stock + options +
+  // dividends), sorted by close date. Same realizedEvents source as pnlTotals
+  // above, so no double-counting of premium-open vs close rows.
+  // "Unrealized" has no real history to plot (we don't keep daily snapshots of
+  // open-position mark-to-market) — shown as a flat line at today's LIVE total
+  // (liveUnrealizedFor, same source pnlTotals' Unrealized column now uses)
+  // across the same date range, honestly labeled as a current value, not a
+  // reconstructed history.
+  // "Total" = the realized line, with one additional point appended for today
+  // that adds the live unrealized total — i.e. "what you'd have if you closed
+  // everything right now," without fabricating what unrealized looked like on
+  // past days.
+  const [cumPnlView, setCumPnlView] = useState<"realized" | "unrealized" | "total">("realized");
+  const scopedRealizedForTimeline = useMemo(() => activePortfolio === "All"
+    ? realizedEvents
+    : realizedEvents.filter(e =>
+        canonicalizeAccount(e.account, accountNickMap) === canonicalizeAccount(activePortfolio, accountNickMap)),
+  [realizedEvents, activePortfolio, accountNickMap]);
+
+  const liveUnrealizedTotal = useMemo(
+    () => filtered.reduce((s, e) => s + liveUnrealizedFor(e), 0),
+    [filtered, priceMap, liveOptionMidByEntryId],
+  );
+
+  const realizedTimeline = useMemo(() => {
+    const sorted = [...scopedRealizedForTimeline].sort((a, b) => new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime());
     let running = 0;
     const byDay = new Map<string, number>();
     sorted.forEach(e => {
@@ -356,7 +465,24 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       byDay.set(e.closedAt.slice(0, 10), running);
     });
     return Array.from(byDay.entries()).map(([date, cumulative]) => ({ date, cumulative }));
-  }, [realizedEvents]);
+  }, [scopedRealizedForTimeline]);
+
+  const cumulativePnlTimeline = useMemo(() => {
+    if (cumPnlView === "realized") return realizedTimeline;
+    if (cumPnlView === "unrealized") {
+      if (realizedTimeline.length === 0) return [];
+      return realizedTimeline.map(p => ({ date: p.date, cumulative: liveUnrealizedTotal }));
+    }
+    // total
+    const today = new Date().toISOString().slice(0, 10);
+    const lastRealized = realizedTimeline.at(-1)?.cumulative ?? 0;
+    const todayPoint = { date: today, cumulative: lastRealized + liveUnrealizedTotal };
+    if (realizedTimeline.length === 0) return [todayPoint];
+    const last = realizedTimeline.at(-1)!;
+    return last.date === today
+      ? [...realizedTimeline.slice(0, -1), todayPoint]
+      : [...realizedTimeline, todayPoint];
+  }, [cumPnlView, realizedTimeline, liveUnrealizedTotal]);
 
   // ── Cumulative P&L per trade type — stacked bar (realized + unrealized = total) ──
   const TRADE_TYPE_LABELS: Record<string, string> = {
@@ -372,30 +498,31 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     [pnlTotals]);
 
   // ── Account key/label pairs shared by the Top Tickers + Cumulative Summary cards.
-  // realizedEvents.account is the raw Robinhood account id; accountSummaries carries
-  // the id→nickname mapping ("FILDI" / "Traditional IRA") already used by the
-  // top-level portfolio filter above — reuse the same nickname as the grouping key
-  // so both cards agree with the rest of the page, but label the IRA tab "IRA" for brevity.
+  // realizedEvents.account may be a Robinhood account id OR an export nickname (FILDI/IRA)
+  // depending on whether the event came from orders vs transactions. Canonicalize both.
   const ACCOUNT_TABS = [
+    { key: "All", label: "All" },
     { key: "FILDI", label: "FILDI" },
-    { key: "Traditional IRA", label: "IRA" },
+    { key: "IRA", label: "IRA" },
   ] as const;
   type AccountTabKey = typeof ACCOUNT_TABS[number]["key"];
 
-  const accountNickMap = useMemo(() => {
-    const m = new Map<string, string>();
-    accountSummaries.forEach(a => m.set(a.account, a.nickname ?? a.account));
-    return m;
-  }, [accountSummaries]);
+  const [tickersTab, setTickersTab] = useState<AccountTabKey>("All");
+  const [summaryTab, setSummaryTab] = useState<AccountTabKey>("All");
+  const [tickersScope, setTickersScope] = useState<"top" | "all">("top");
+  const [summaryScope, setSummaryScope] = useState<"top" | "all">("top");
+  const [tickerChartScope, setTickerChartScope] = useState<"top" | "all">("top");
+  const TOP_N = 10;
 
   // ── Top tickers by trade frequency, net realized P&L YTD — split by account ──
   const topTickersByAccount = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const buildFor = (accountKey: string) => {
+    const buildFor = (accountKey: AccountTabKey) => {
       const bySymbol = new Map<string, { puts: number; calls: number; stockSales: number; netPnl: number }>();
       realizedEvents.forEach(e => {
         if (e.assetType === "dividend") return;
-        if ((accountNickMap.get(e.account) ?? e.account) !== accountKey) return;
+        const acct = canonicalizeAccount(e.account, accountNickMap);
+        if (accountKey !== "All" && acct !== accountKey) return;
         if (new Date(e.closedAt).getFullYear() !== currentYear) return;
         const cur = bySymbol.get(e.symbol) ?? { puts: 0, calls: 0, stockSales: 0, netPnl: 0 };
         if (e.assetType === "option" && e.direction === "short" && e.optionType === "put") cur.puts += 1;
@@ -404,10 +531,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         cur.netPnl += e.pnl;
         bySymbol.set(e.symbol, cur);
       });
-      return Array.from(bySymbol.entries())
+      const all = Array.from(bySymbol.entries())
         .map(([symbol, v]) => ({ symbol, ...v, count: v.puts + v.calls + v.stockSales }))
-        .sort((a, b) => b.count - a.count || b.netPnl - a.netPnl)
-        .slice(0, 10);
+        .sort((a, b) => b.count - a.count || b.netPnl - a.netPnl);
+      return all;
     };
     return Object.fromEntries(ACCOUNT_TABS.map(t => [t.key, buildFor(t.key)])) as Record<AccountTabKey, ReturnType<typeof buildFor>>;
   }, [realizedEvents, accountNickMap]);
@@ -418,22 +545,62 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // depends on legEffect open/close chaining that the flat transactions export
   // doesn't carry. Falls back to the realizedEvents computation only when no
   // ticker-earnings CSV has been imported yet.
+  // Stock capital gains from assignment_buy/sell (now in realizedEvents) are merged
+  // into stocksRealized when the earnings export under-reports them (missing call-away).
   const num = (v: string | null) => (v == null ? 0 : parseFloat(v)) || 0;
   const cumulativeSummaryByAccount = useMemo(() => {
-    const buildFromImported = (accountKey: string) => {
-      return tickerEarnings
-        .filter(r => r.account === accountKey || accountKey.includes(r.account))
-        .map(r => ({
-          ticker: r.ticker,
-          sellPut: num(r.sellPut), sellCall: num(r.sellCall), longCall: num(r.longCall), longPut: num(r.longPut),
-          stocksRealized: num(r.stocksRealized), dividends: num(r.dividends), stocksUnrealized: num(r.stocksUnrealized),
-          optionsUnrealized: num(r.totalUnrealized) - num(r.stocksUnrealized),
-          totalRealized: num(r.totalRealized), totalUnrealized: num(r.totalUnrealized),
-          totalStocks: num(r.totalStocks), totalEarned: num(r.totalEarned),
-        }))
-        .sort((a, b) => b.totalEarned - a.totalEarned);
+    const stockPnlByAccountTicker = new Map<string, number>();
+    realizedEvents.forEach(e => {
+      if (e.assetType !== "stock") return;
+      const acct = canonicalizeAccount(e.account, accountNickMap);
+      const k = `${acct}::${e.symbol}`;
+      stockPnlByAccountTicker.set(k, (stockPnlByAccountTicker.get(k) ?? 0) + e.pnl);
+    });
+
+    const buildFromImported = (accountKey: AccountTabKey) => {
+      const rows = tickerEarnings
+        .filter(r => {
+          const acct = canonicalizeAccount(r.account, accountNickMap);
+          return accountKey === "All" || acct === accountKey;
+        })
+        .map(r => {
+          const acct = canonicalizeAccount(r.account, accountNickMap);
+          const txnStock = stockPnlByAccountTicker.get(`${acct}::${r.ticker}`) ?? 0;
+          let stocksRealized = num(r.stocksRealized);
+          // Prefer the larger of export vs txn-FIFO — export misses some call-aways.
+          if (Math.abs(txnStock) > Math.abs(stocksRealized) + 0.01) {
+            stocksRealized = txnStock;
+          }
+          const sellPut = num(r.sellPut), sellCall = num(r.sellCall);
+          const longCall = num(r.longCall), longPut = num(r.longPut);
+          const dividends = num(r.dividends);
+          const stocksUnrealized = num(r.stocksUnrealized);
+          const optionsUnrealized = num(r.totalUnrealized) - stocksUnrealized;
+          const totalRealized = sellPut + sellCall + longCall + longPut + stocksRealized;
+          const totalUnrealized = stocksUnrealized + optionsUnrealized;
+          const totalStocks = stocksRealized + stocksUnrealized;
+          const totalEarned = totalRealized + totalUnrealized + dividends;
+          return {
+            ticker: r.ticker, sellPut, sellCall, longCall, longPut, stocksRealized, dividends,
+            stocksUnrealized, optionsUnrealized, totalRealized, totalUnrealized, totalStocks, totalEarned,
+          };
+        });
+      // Aggregate across accounts when All is selected (same ticker may appear twice).
+      if (accountKey !== "All") return rows.sort((a, b) => b.totalEarned - a.totalEarned);
+      const byTicker = new Map<string, typeof rows[number]>();
+      for (const r of rows) {
+        const cur = byTicker.get(r.ticker);
+        if (!cur) { byTicker.set(r.ticker, { ...r }); continue; }
+        cur.sellPut += r.sellPut; cur.sellCall += r.sellCall;
+        cur.longCall += r.longCall; cur.longPut += r.longPut;
+        cur.stocksRealized += r.stocksRealized; cur.dividends += r.dividends;
+        cur.stocksUnrealized += r.stocksUnrealized; cur.optionsUnrealized += r.optionsUnrealized;
+        cur.totalRealized += r.totalRealized; cur.totalUnrealized += r.totalUnrealized;
+        cur.totalStocks += r.totalStocks; cur.totalEarned += r.totalEarned;
+      }
+      return Array.from(byTicker.values()).sort((a, b) => b.totalEarned - a.totalEarned);
     };
-    const buildFromRealizedEvents = (accountKey: string) => {
+    const buildFromRealizedEvents = (accountKey: AccountTabKey) => {
       const rows = new Map<string, {
         sellPut: number; sellCall: number; longCall: number; longPut: number;
         stocksRealized: number; dividends: number; stocksUnrealized: number; optionsUnrealized: number;
@@ -443,7 +610,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         return rows.get(t)!;
       };
       realizedEvents.forEach(e => {
-        if ((accountNickMap.get(e.account) ?? e.account) !== accountKey) return;
+        const acct = canonicalizeAccount(e.account, accountNickMap);
+        if (accountKey !== "All" && acct !== accountKey) return;
         if (e.assetType === "dividend") { ensure(e.symbol).dividends += e.pnl; return; }
         if (e.assetType === "stock") { ensure(e.symbol).stocksRealized += e.pnl; return; }
         const row = ensure(e.symbol);
@@ -453,7 +621,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         else if (e.direction === "long" && e.optionType === "put") row.longPut += e.pnl;
       });
       entries.forEach(e => {
-        if (entryPortfolio(e) !== accountKey) return;
+        const acct = canonicalizeAccount(entryPortfolio(e), accountNickMap);
+        if (accountKey !== "All" && acct !== accountKey) return;
         const row = ensure(e.ticker);
         if (e.positionType === "stock") row.stocksUnrealized += e.unrealizedPnL ?? 0;
         else row.optionsUnrealized += e.unrealizedPnL ?? 0;
@@ -470,27 +639,40 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     return Object.fromEntries(ACCOUNT_TABS.map(t => [t.key, buildFor(t.key)])) as Record<AccountTabKey, ReturnType<typeof buildFromRealizedEvents>>;
   }, [realizedEvents, entries, accountNickMap, tickerEarnings]);
 
-  // ── Cumulative P&L — top tickers, all accounts combined — stacked bar ──
+  // ── Cumulative P&L — tickers chart (all accounts or scoped) ──
   const topTickersPnlChartData = useMemo(() => {
-    const byTicker = new Map<string, { stocks: number; dividends: number; sellPut: number; sellCall: number; longCall: number; longPut: number; totalEarned: number }>();
-    ACCOUNT_TABS.forEach(t => {
-      cumulativeSummaryByAccount[t.key].forEach(r => {
-        const cur = byTicker.get(r.ticker) ?? { stocks: 0, dividends: 0, sellPut: 0, sellCall: 0, longCall: 0, longPut: 0, totalEarned: 0 };
-        cur.stocks += r.totalStocks; cur.dividends += r.dividends;
-        cur.sellPut += r.sellPut; cur.sellCall += r.sellCall;
-        cur.longCall += r.longCall; cur.longPut += r.longPut;
-        cur.totalEarned += r.totalEarned;
-        byTicker.set(r.ticker, cur);
-      });
-    });
-    return Array.from(byTicker.entries())
-      .map(([ticker, v]) => ({ ticker, ...v }))
-      .sort((a, b) => b.totalEarned - a.totalEarned)
-      .slice(0, 8);
-  }, [cumulativeSummaryByAccount]);
+    const rows = cumulativeSummaryByAccount.All;
+    const sorted = [...rows].sort((a, b) => b.totalEarned - a.totalEarned);
+    const sliced = tickerChartScope === "top" ? sorted.slice(0, 8) : sorted;
+    return sliced.map(r => ({
+      ticker: r.ticker,
+      stocks: r.totalStocks, dividends: r.dividends,
+      sellPut: r.sellPut, sellCall: r.sellCall,
+      longCall: r.longCall, longPut: r.longPut,
+      totalEarned: r.totalEarned,
+    }));
+  }, [cumulativeSummaryByAccount, tickerChartScope]);
 
-  const [tickersTab, setTickersTab] = useState<AccountTabKey>("FILDI");
-  const [summaryTab, setSummaryTab] = useState<AccountTabKey>("FILDI");
+  // When the page's top-level account filter is already scoped to one account,
+  // these cards' OWN All/FILDI/IRA picker becomes a second, redundant filter —
+  // same class of issue as the Cumulative P&L chart's duplicate picker (fixed
+  // 2026-10-03). Fix: the global filter wins whenever it's not "All"; the
+  // local picker only matters (and is only shown) when viewing "All".
+  const effectiveAccountTab = (local: AccountTabKey): AccountTabKey => {
+    if (activePortfolio === "All") return local;
+    const canon = canonicalizeAccount(activePortfolio, accountNickMap);
+    return canon === "FILDI" || canon === "IRA" ? canon : local;
+  };
+
+  const displayedTopTickers = useMemo(() => {
+    const all = topTickersByAccount[effectiveAccountTab(tickersTab)] ?? [];
+    return tickersScope === "top" ? all.slice(0, TOP_N) : all;
+  }, [topTickersByAccount, tickersTab, tickersScope, activePortfolio, accountNickMap]);
+
+  const displayedSummary = useMemo(() => {
+    const all = cumulativeSummaryByAccount[effectiveAccountTab(summaryTab)] ?? [];
+    return summaryScope === "top" ? all.slice(0, TOP_N) : all;
+  }, [cumulativeSummaryByAccount, summaryTab, summaryScope, activePortfolio, accountNickMap]);
 
   // ── Detail panel — Top Tickers / Summary / Income / Health / Equity / Options,
   // shown as one sub-tabbed card (live tab's SubTabToggle styling) instead of stacked rows.
@@ -499,11 +681,34 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     { key: "summary", label: "Cumulative Summary" },
     { key: "income", label: "Options Income" },
     { key: "health", label: "Position Health" },
+    { key: "backtest", label: "Vol Backtest" },
     { key: "equity", label: "Equity Holdings" },
     { key: "options", label: "Options Holdings" },
   ] as const;
   type DetailTabKey = typeof DETAIL_TABS[number]["key"];
   const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
+
+  // ── IV/vol-rank backtest — does selling premium in a higher-vol regime
+  // actually pay off for this account's own trades? Computed server-side
+  // (one Yahoo Finance call per distinct ticker, cached 6h) since it needs
+  // historical price series, not something to derive client-side.
+  const { data: ivRankBacktest, isLoading: ivRankLoading } = useQuery<{
+    buckets: Array<{ bucket: "Low" | "Mid" | "High"; count: number; keptFullPremiumPct: number; avgPremiumPerContract: number; avgTrailingVol20dAnnualizedPct: number }>;
+    totalEligible: number; graded: number; tickersWithNoPriceHistory: string[];
+    assignmentRiskCheckpoint: { checkedCount: number; flaggedCount: number; flaggedWentItmPct: number; unflaggedCount: number; unflaggedWentItmPct: number };
+    earningsRiskCheck: { inWindowCount: number; inWindowKeptFullPremiumPct: number; outsideWindowCount: number; outsideWindowKeptFullPremiumPct: number };
+    moneynessBandSweep: Array<{ bandPct: number; flaggedCount: number; flaggedWentItmPct: number; unflaggedWentItmPct: number; separation: number }>;
+    coveredCallCheck: { totalCallTrades: number; itmCallTrades: number; coveredItmCount: number; nakedOrUnknownItmCount: number };
+  }>({
+    queryKey: ["portfolio-iv-rank-backtest"],
+    queryFn: async () => {
+      const res = await fetch("/api/portfolio/iv-rank-backtest", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load vol backtest");
+      return res.json();
+    },
+    enabled: detailTab === "backtest",
+    staleTime: 60 * 60 * 1000,
+  });
 
   // Same queryKey as the page-level snapshot query — react-query dedupes, no extra request.
   const { data: snapshotData, isLoading: snapshotLoading, error: snapshotError } = useSnapshotQuery();
@@ -523,7 +728,15 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
     const now = new Date();
 
-    const shortOptionEvents = realizedEvents.filter(e =>
+    // Scoped by the page's top-level account filter — previously always
+    // combined both accounts regardless of the selected tab, inconsistent
+    // with pnlTotals/the cumulative chart (both fixed 2026-10-03).
+    const scopedRealizedEvents = activePortfolio === "All"
+      ? realizedEvents
+      : realizedEvents.filter(e =>
+          canonicalizeAccount(e.account, accountNickMap) === canonicalizeAccount(activePortfolio, accountNickMap));
+
+    const shortOptionEvents = scopedRealizedEvents.filter(e =>
       e.assetType === "option" && e.direction === "short" &&
       (e.optionType === "call" || e.optionType === "put") &&
       new Date(e.closedAt).getFullYear() === year);
@@ -567,7 +780,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       chartData, ytdActual, avgMonthlyEarned,
       projectedAnnualTotal: ytdActual + projectedRemaining,
     };
-  }, [realizedEvents]);
+  }, [realizedEvents, activePortfolio, accountNickMap]);
 
 
   // ── Risk metrics ─────────────────────────────────────────────────────────────
@@ -582,14 +795,14 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   if (filtered.length === 0) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header + filter */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold tracking-tight text-[#d4af37]">Portfolio Analysis</h2>
-          <p className="text-[11px] text-amber-200/50 mt-0.5">
-            Allocation · Sector · Risk · Delta · Income Yield
-            {risk.coveredCallCount > 0 && ` · ${risk.coveredCallCount} covered call${risk.coveredCallCount > 1 ? "s" : ""} detected`}
+          <h2 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Portfolio Analysis</h2>
+          <p className="text-[10px] text-amber-200/40 mt-0.5">
+            Allocation · Sector · Risk · Delta · Income
+            {risk.coveredCallCount > 0 && ` · ${risk.coveredCallCount} covered call${risk.coveredCallCount > 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -605,6 +818,25 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </div>
         </div>
       </div>
+
+      {/* Earnings-date risk — open contracts whose expiration spans the underlying's
+          next earnings report (IV crush risk). Only renders when something's flagged. */}
+      {earningsRiskPositions.length > 0 && (
+        <div className="rounded border border-red-500/30 bg-red-950/30 px-3 py-2">
+          <div className="text-[10px] font-semibold text-red-400 uppercase tracking-wide mb-1">
+            ⚠ Earnings Risk — {earningsRiskPositions.length} open position{earningsRiskPositions.length > 1 ? "s" : ""} expire after an earnings report
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/80">
+            {earningsRiskPositions.map(({ entry, reportDate }) => (
+              <span key={entry.id}>
+                <span className="font-bold">{entry.ticker}</span>{" "}
+                {entry.positionType.replace("_", " ")} {formatStrike(entry.strike ?? 0)} exp {entry.expiry}
+                {" "}<span className="text-red-400">(earnings {reportDate})</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Row 1: Allocation + Sector + Tickers + Risk */}
       <div className="grid grid-cols-4 gap-4">
@@ -820,10 +1052,23 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       <div className="grid grid-cols-2 gap-4">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-              Cumulative P&amp;L — Top Tickers
-            </CardTitle>
-            <p className="text-[10px] text-white/70">all accounts, YTD</p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
+                  Cumulative P&amp;L — Tickers
+                </CardTitle>
+                <p className="text-[10px] text-white/70">all accounts · realized + unrealized</p>
+              </div>
+              <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
+                {([{ key: "top", label: "Top 8" }, { key: "all", label: "All" }] as const).map(t => (
+                  <button key={t.key} onClick={() => setTickerChartScope(t.key)}
+                    className={cn("px-2 py-0.5 transition-colors",
+                      tickerChartScope === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {topTickersPnlChartData.length === 0 ? (
@@ -871,14 +1116,33 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                  Cumulative Realized P&amp;L
+                  Cumulative P&amp;L
                 </CardTitle>
-                <p className="text-[10px] text-white/70">stock + options + dividends, full transaction history</p>
+                <p className="text-[10px] text-white/70">
+                  {cumPnlView === "realized" && "stock + options + dividends · includes assignment lots · scoped to " + activePortfolio}
+                  {cumPnlView === "unrealized" && "live mark-to-market on open positions, today · flat line (no daily history kept) · scoped to " + activePortfolio}
+                  {cumPnlView === "total" && "realized history + live unrealized added at today · scoped to " + activePortfolio}
+                </p>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">Total Realized</div>
-                <div className={cn("text-sm font-bold font-mono tabular-nums", pnlTotals.grandTotal.realized >= 0 ? "text-green-400" : "text-red-400")}>
-                  {pnlTotals.grandTotal.realized >= 0 ? "+" : ""}{formatCurrency(pnlTotals.grandTotal.realized)}
+              <div className="flex items-center gap-3">
+                <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
+                  {([{ key: "realized", label: "Realized" }, { key: "unrealized", label: "Unrealized" }, { key: "total", label: "Total" }] as const).map(t => (
+                    <button key={t.key} onClick={() => setCumPnlView(t.key)}
+                      className={cn("px-2 py-0.5 transition-colors",
+                        cumPnlView === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-white/70 uppercase tracking-wide">
+                    {cumPnlView === "realized" && "Total Realized"}
+                    {cumPnlView === "unrealized" && "Live Unrealized"}
+                    {cumPnlView === "total" && "Total (incl. live)"}
+                  </div>
+                  <div className={cn("text-sm font-bold font-mono tabular-nums", (cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                    {(cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "+" : ""}{formatCurrency(cumulativePnlTimeline.at(-1)?.cumulative ?? 0)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1061,22 +1325,42 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               ))}
             </div>
             {(detailTab === "tickers" || detailTab === "summary") && (
-              <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
-                {ACCOUNT_TABS.map(t => (
-                  <button key={t.key} onClick={() => detailTab === "tickers" ? setTickersTab(t.key) : setSummaryTab(t.key)}
-                    className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
-                      (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                    {t.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 flex-wrap">
+                {activePortfolio === "All" ? (
+                  <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
+                    {ACCOUNT_TABS.map(t => (
+                      <button key={t.key} onClick={() => detailTab === "tickers" ? setTickersTab(t.key) : setSummaryTab(t.key)}
+                        className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
+                          (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/60 italic">
+                    scoped to {activePortfolio} (top filter)
+                  </span>
+                )}
+                <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
+                  {([{ key: "top", label: `Top ${TOP_N}` }, { key: "all", label: "All" }] as const).map(t => (
+                    <button key={t.key}
+                      onClick={() => detailTab === "tickers" ? setTickersScope(t.key) : setSummaryScope(t.key)}
+                      className={cn("px-2 py-0.5 transition-colors",
+                        (detailTab === "tickers" ? tickersScope : summaryScope) === t.key
+                          ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
           <p className="text-[10px] text-muted-foreground normal-case pt-1.5">
-            {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD"}
-            {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends, YTD"}
-            {detailTab === "income" && "Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1"}
+            {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD (stock sales include assignment exits when exported)"}
+            {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends (not calendar-YTD clipped)"}
+            {detailTab === "income" && `Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1 · scoped to ${activePortfolio}`}
             {detailTab === "health" && "Option Position Health — break-even, moneyness, and assignment/exercise risk per leg"}
+            {detailTab === "backtest" && "Vol-Rank Backtest — does selling premium in a higher-volatility regime actually pay off for YOUR trades? (realized-vol proxy, not true IV history)"}
             {detailTab === "equity" && "Equity Holdings — grouped by account"}
             {detailTab === "options" && "Options Holdings — grouped by account, active contracts"}
           </p>
@@ -1105,7 +1389,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </CardHeader>
         {detailTab === "tickers" && (
         <CardContent className="px-0 pb-0">
-          {topTickersByAccount[tickersTab].length === 0 ? (
+          {displayedTopTickers.length === 0 ? (
             <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
               No trades closed this year yet
             </div>
@@ -1123,7 +1407,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </tr>
               </thead>
               <tbody>
-                {topTickersByAccount[tickersTab].map((t, i) => (
+                {displayedTopTickers.map((t, i) => (
                   <tr key={t.symbol} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
                     <td className={cn(TTD, "text-muted-foreground")}>{i + 1}</td>
                     <td className={cn(TTD, "text-left font-bold")}>{t.symbol}</td>
@@ -1145,7 +1429,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
         {detailTab === "summary" && (
         <CardContent className="px-0 pb-0">
-          {cumulativeSummaryByAccount[summaryTab].length === 0 ? (
+          {displayedSummary.length === 0 ? (
             <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
               No activity for this account yet
             </div>
@@ -1169,7 +1453,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   </tr>
                 </thead>
                 <tbody>
-                  {cumulativeSummaryByAccount[summaryTab].map((r, i) => {
+                  {displayedSummary.map((r, i) => {
                     const cell = (v: number) => (
                       <td className={cn(TTD, "text-right", v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
                         {v !== 0 ? `${v >= 0 ? "+" : ""}${formatCurrency(v)}` : "—"}
@@ -1270,7 +1554,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   <table className="w-full">
                     <thead>
                       <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
-                        {["Ticker", "Type", "Qty", "Strike", "Premium", "Break-Even", "Current", isPut ? "OTM %" : "ITM %", "Collateral", "Status"].map((h, hi) => (
+                        {["Ticker", "Type", "Qty", "Strike", "Premium", "Break-Even", "Current", isPut ? "OTM %" : "ITM %", "Collateral", "Status", "Delta", "Action"].map((h, hi) => (
                           <th key={h} className={cn(TTH, hi === 0 || hi === 1 ? "text-left" : "text-right")}>{h}</th>
                         ))}
                       </tr>
@@ -1295,6 +1579,22 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                           safe   = isPut ? (mness !== null && mness < 0) : (mness !== null && mness > 0);
                         }
                         const displayMness = isPut ? mness : (mness !== null ? -mness : null);
+                        // Assignment-risk alert: delta is the standard risk measure
+                        // (vs. raw moneyness above) — live, via Black-Scholes off
+                        // live IV/spot (same endpoint the liquidity-risk card uses).
+                        // Verified 2026-10-03 against this account's own 1,347 past
+                        // trades. Threshold tuned 2026-10-04: a moneyness-band sweep
+                        // (Vol Backtest tab) found 2% separates outcomes better than
+                        // the 3% originally guessed, so the delta bar moved from 0.70
+                        // to 0.75 in the same direction (tighter = cleaner signal) —
+                        // the two scales aren't identical, so this is a directionally-
+                        // informed adjustment, not an exact derived value.
+                        const ASSIGNMENT_RISK_DELTA = 0.75;
+                        const liveDelta = liveOptionDeltaByEntryId.get(p.id);
+                        const dte = daysToExpiry(p.expiry);
+                        const highDelta = isShort && liveDelta != null && Math.abs(liveDelta) > ASSIGNMENT_RISK_DELTA;
+                        const action: "roll" | "assign" | null = !highDelta ? null
+                          : (dte != null && dte > 14) ? "roll" : "assign";
                         return (
                           <tr key={i} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
                             <td className={cn(TTD, "text-left font-bold")}>{p.ticker}</td>
@@ -1334,6 +1634,22 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                                 </span>
                               )}
                             </td>
+                            <td className={cn(TTD, "text-right", liveDelta != null && Math.abs(liveDelta) > ASSIGNMENT_RISK_DELTA ? "text-orange-400 font-semibold" : "text-muted-foreground")}>
+                              {liveDelta != null ? liveDelta.toFixed(2) : "—"}
+                            </td>
+                            <td className={cn(TTD, "text-right")}>
+                              {action === "assign" ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400" title={`Delta > ${ASSIGNMENT_RISK_DELTA} with ≤14 DTE — little time left to roll`}>
+                                  Assignment Risk
+                                </span>
+                              ) : action === "roll" ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-500/15 text-orange-400" title={`Delta > ${ASSIGNMENT_RISK_DELTA} with >14 DTE — consider rolling for credit`}>
+                                  Consider Roll
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -1345,6 +1661,150 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <p className="text-[10px] text-muted-foreground/50">
               Puts OTM% = (price/strike−1)×100 · Calls ITM% = (price/strike−1)×100 · At Risk: short within 8% of strike
             </p>
+        </CardContent>
+        )}
+
+        {detailTab === "backtest" && (
+        <CardContent className="px-4 pb-4">
+          {ivRankLoading && (
+            <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">Running backtest (fetching price history)...</div>
+          )}
+          {!ivRankLoading && ivRankBacktest && ivRankBacktest.graded === 0 && (
+            <div className="h-[120px] flex items-center justify-center text-xs text-muted-foreground">No expired, graded short-option trades yet</div>
+          )}
+          {!ivRankLoading && ivRankBacktest && ivRankBacktest.graded > 0 && (
+            <div className="space-y-3">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
+                      {["Vol Regime", "Trades", "Kept Full Premium", "Avg Trailing Vol (ann.)", "Avg Premium/Contract"].map((h, i) => (
+                        <th key={h} className={cn(TTH, i === 0 ? "text-left" : "text-right")}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ivRankBacktest.buckets.map((b, i) => (
+                      <tr key={b.bucket} className={cn("border-b border-border/20", i % 2 === 0 ? "" : "bg-secondary/5")}>
+                        <td className={cn(TTD, "text-left font-bold")}>{b.bucket}</td>
+                        <td className={cn(TTD, "text-right text-muted-foreground")}>{b.count}</td>
+                        <td className={cn(TTD, "text-right font-semibold",
+                          b.keptFullPremiumPct >= 80 ? "text-green-400" : b.keptFullPremiumPct >= 70 ? "text-yellow-400" : "text-red-400")}>
+                          {b.keptFullPremiumPct.toFixed(1)}%
+                        </td>
+                        <td className={cn(TTD, "text-right")}>{b.avgTrailingVol20dAnnualizedPct.toFixed(1)}%</td>
+                        <td className={cn(TTD, "text-right")}>${b.avgPremiumPerContract.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                {ivRankBacktest.graded} expired short-option trades graded since 2026-01-01 ({ivRankBacktest.totalEligible - ivRankBacktest.graded} skipped — no price history). Vol regime = trailing 20-day realized volatility of the underlying as of each trade's open date (a proxy — true historical IV isn't available for these tickers). "Kept Full Premium" = underlying closed OTM at expiration (put: price ≥ strike; call: price ≤ strike). Covered calls assigned ITM aren't necessarily losses — this measures assignment-risk frequency by vol regime, not P&L (see the covered-call breakout below for how much of the call-side rate this actually affects).
+                {ivRankBacktest.tickersWithNoPriceHistory.length > 0 && ` No price history: ${ivRankBacktest.tickersWithNoPriceHistory.join(", ")}.`}
+              </p>
+
+              {ivRankBacktest.coveredCallCheck.itmCallTrades > 0 && (
+                <div className="rounded border border-[#d4af37]/15 bg-secondary/10 px-3 py-2.5 space-y-1.5">
+                  <div className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-wide">
+                    Covered-Call Correction
+                  </div>
+                  <p className="text-[11px]">
+                    Of {ivRankBacktest.coveredCallCheck.itmCallTrades} short-call trades that finished ITM (counted as "didn't keep full premium" in the table above),{" "}
+                    <span className="font-mono font-semibold text-blue-400">{ivRankBacktest.coveredCallCheck.coveredItmCount}</span>{" "}
+                    ({((ivRankBacktest.coveredCallCheck.coveredItmCount / ivRankBacktest.coveredCallCheck.itmCallTrades) * 100).toFixed(0)}%) were covered — shares were already held when the call was sold — vs.{" "}
+                    <span className="font-mono font-semibold text-red-400">{ivRankBacktest.coveredCallCheck.nakedOrUnknownItmCount}</span>{" "}
+                    naked or unknown-coverage.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                    A covered call assigned ITM is very often a planned, profitable exit (premium kept + stock sold at the strike) — not comparable to a naked assignment or an ITM short put. Of {ivRankBacktest.coveredCallCheck.totalCallTrades} total call trades, nearly all ITM ones were covered, so the call-side "risk" in the bucket table above is mostly normal wheel behavior, not a warning sign.
+                  </p>
+                </div>
+              )}
+
+              {ivRankBacktest.assignmentRiskCheckpoint.checkedCount > 0 && (
+                <div className="rounded border border-[#d4af37]/15 bg-secondary/10 px-3 py-2.5 space-y-1.5">
+                  <div className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-wide">
+                    Assignment-Risk Alert — Verified Against Your Own History
+                  </div>
+                  <div className="flex gap-6 text-[11px]">
+                    <div>
+                      <span className="text-muted-foreground">Flagged at risk</span>{" "}
+                      <span className="font-mono font-semibold text-red-400">{ivRankBacktest.assignmentRiskCheckpoint.flaggedWentItmPct.toFixed(1)}%</span>{" "}
+                      <span className="text-muted-foreground">went ITM</span>{" "}
+                      <span className="text-muted-foreground/60">(n={ivRankBacktest.assignmentRiskCheckpoint.flaggedCount})</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Not flagged</span>{" "}
+                      <span className="font-mono font-semibold text-green-400">{ivRankBacktest.assignmentRiskCheckpoint.unflaggedWentItmPct.toFixed(1)}%</span>{" "}
+                      <span className="text-muted-foreground">went ITM</span>{" "}
+                      <span className="text-muted-foreground/60">(n={ivRankBacktest.assignmentRiskCheckpoint.unflaggedCount})</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                    The live "Consider Roll" / "Assignment Risk" tags on the Position Health tab use delta &gt; 0.75 — this checks that same rule's moneyness proxy (2% band, tuned below) at the midpoint of each trade's own holding period (scaled to the trade's own DTE, since most of this account's trades are 2-9 day weeklies, shorter than a fixed days-out window) against what actually happened by expiration. Flagged trades going ITM {ivRankBacktest.assignmentRiskCheckpoint.flaggedWentItmPct.toFixed(0)}% of the time vs. {ivRankBacktest.assignmentRiskCheckpoint.unflaggedWentItmPct.toFixed(0)}% for unflagged ones means the alert is picking up a real signal, not noise.
+                  </p>
+                  {ivRankBacktest.moneynessBandSweep.length > 0 && (
+                    <div className="pt-1.5 border-t border-[#d4af37]/10">
+                      <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Threshold Sweep — Is 2% The Best Band?</div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-[#d4af37]/10">
+                              {["Band", "n", "Flagged ITM%", "Unflagged ITM%", "Separation"].map((h, i) => (
+                                <th key={h} className={cn(TTH, i === 0 ? "text-left" : "text-right")}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ivRankBacktest.moneynessBandSweep.map(r => (
+                              <tr key={r.bandPct} className={cn("border-b border-border/10", r.bandPct === 2 && "bg-[#d4af37]/10")}>
+                                <td className={cn(TTD, "text-left font-semibold")}>{r.bandPct}%{r.bandPct === 2 ? " (current)" : ""}</td>
+                                <td className={cn(TTD, "text-right text-muted-foreground")}>{r.flaggedCount}</td>
+                                <td className={cn(TTD, "text-right")}>{r.flaggedWentItmPct.toFixed(1)}%</td>
+                                <td className={cn(TTD, "text-right")}>{r.unflaggedWentItmPct.toFixed(1)}%</td>
+                                <td className={cn(TTD, "text-right font-semibold", r.separation >= 40 ? "text-green-400" : "text-muted-foreground")}>{r.separation.toFixed(1)}pp</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/50 mt-1">
+                        Separation = flagged ITM% − unflagged ITM% (bigger = cleaner signal). Narrower bands (1-2%) separate better than wider ones, but flag fewer positions — 2% is the sample-size/signal tradeoff point used live. This band and the live delta threshold measure different things (moneyness snapshot vs. live Black-Scholes delta) and aren't numerically equivalent — the live threshold was moved in the same direction, not derived from this exact number.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(ivRankBacktest.earningsRiskCheck.inWindowCount + ivRankBacktest.earningsRiskCheck.outsideWindowCount) > 0 && (
+                <div className="rounded border border-[#d4af37]/15 bg-secondary/10 px-3 py-2.5 space-y-1.5">
+                  <div className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-wide">
+                    Earnings-Risk Flag — Verified Against Your Own History
+                  </div>
+                  <div className="flex gap-6 text-[11px]">
+                    <div>
+                      <span className="text-muted-foreground">Earnings in window</span>{" "}
+                      <span className="font-mono font-semibold">{ivRankBacktest.earningsRiskCheck.inWindowKeptFullPremiumPct.toFixed(1)}%</span>{" "}
+                      <span className="text-muted-foreground">kept full premium</span>{" "}
+                      <span className="text-muted-foreground/60">(n={ivRankBacktest.earningsRiskCheck.inWindowCount})</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">No earnings in window</span>{" "}
+                      <span className="font-mono font-semibold">{ivRankBacktest.earningsRiskCheck.outsideWindowKeptFullPremiumPct.toFixed(1)}%</span>{" "}
+                      <span className="text-muted-foreground">kept full premium</span>{" "}
+                      <span className="text-muted-foreground/60">(n={ivRankBacktest.earningsRiskCheck.outsideWindowCount})</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                    {Math.abs(ivRankBacktest.earningsRiskCheck.inWindowKeptFullPremiumPct - ivRankBacktest.earningsRiskCheck.outsideWindowKeptFullPremiumPct) < 5
+                      ? "Honest finding: these two rates are close — for this account's actual trades (mostly 2-9 DTE weeklies), spanning an earnings date hasn't meaningfully predicted a worse outcome. Only a small fraction of contracts are even long enough to span an earnings date, so this flag matters far more if/when longer-dated positions are opened, less so for the weekly wheel that dominates current volume."
+                      : "These rates differ meaningfully — earnings-window exposure does appear to correlate with outcome for this account's trades, worth continuing to watch."}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
         )}
 

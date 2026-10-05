@@ -1,5 +1,5 @@
 # TradeDash — Workflow Rules
-> last_updated: 2026-06-10 | update when build process, routing, or tooling changes
+> last_updated: 2026-10-01 | update when build process, routing, or tooling changes
 
 ## Backend build (CRITICAL — causes 502s if skipped)
 Full procedure: `.claude/skills/build-and-run.md`. Short version: rebuild with
@@ -37,6 +37,30 @@ The server does NOT hot-reload. Vite frontend hot-reloads automatically.
 - Read max 2 files before attempting a fix
 - Fix one thing, verify it works, then move to the next
 - Never refactor while debugging — fix only
+
+## External data ingestion (added 2026-10-01)
+- `portfolio_snapshots`/`portfolio_positions`/`portfolio_transactions`/etc. are
+  also written from OUTSIDE this app: `scripts/ingest-portfolio-csv.mts`
+  (direct Postgres write via `@workspace/db`, reuses the parsing logic in
+  `artifacts/api-server/src/lib/portfolio-parser.ts` and
+  `portfolio-txn-parser.ts` — same shapes the `/portfolio/ingest` HTTP route
+  uses, just invoked as a CLI script instead of over HTTP).
+- Source pipeline lives in `~/rbh_scripts/` (a separate project, NOT this
+  repo): Robinhood data collection (manual — run interactively in Claude
+  Code from `~/Claude/fildi`, the only project with the Robinhood MCP
+  connection registered) → `export_robinhood.py`/`export_rbh_transactions.py`
+  → a launchd job (`com.fildi.rbh-daily-export`, weekdays ~3pm Pacific) runs
+  `~/rbh_scripts/daily_export.sh`, which picks up that day's CSVs if present
+  and calls `ingest-portfolio-csv.mts`. If collection hasn't been run that
+  day, the launchd job is a no-op.
+- Collection is NOT automated end-to-end: Claude Code's safety system blocks
+  any unattended/headless session from being granted working Bash execution
+  (verified directly — blocks the attempt regardless of how permissions are
+  scoped), so a human has to trigger the Robinhood collection step.
+- Status/monitoring: `~/rbh_scripts/check_export_status.sh` (launchd state,
+  last run outcome, DB freshness). Don't be surprised by `portfolio_*` rows
+  appearing with no corresponding app-server log line — check that script or
+  `~/rbh_scripts/logs/daily_export.log` first, not just this repo's logs.
 
 ## Data layer rules
 - Cache-first: check DB/cache before any external call

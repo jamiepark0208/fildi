@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { GuideMetricGrid } from "@/components/scorecard-guide/guide-metric-grid";
 import { DataTransparencyBar } from "@/components/scorecard-guide/data-transparency-bar";
 import { TabStatusHeader } from "@/components/scorecard-guide/tab-status-header";
+import { FundamentalTreatmentPanel } from "@/components/scorecard-guide/fundamental-treatment-panel";
 import {
-  FUNDAMENTAL_GUIDE_ROWS, FUNDAMENTAL_FAMILY_GUIDE_ROWS,
   TECHNICAL_GUIDE_ROWS, OPTIONS_STOCK_ROWS, OPTIONS_STRIKE_ROWS,
 } from "@/lib/scorecard-guide-metadata";
 import { useGuideStatus } from "@/hooks/use-guide-status";
@@ -59,9 +59,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
     setError(null);
   };
 
-  const fundCov = status.coverageFor("fundamentals");
   const techCov = status.coverageFor("technicals");
-  const fundNoteSuffix = status.noteSuffix("fundamentals");
   const techNoteSuffix = status.noteSuffix("technicals");
 
   const onDraftChange = (next: ScoringWeightsConfig) => {
@@ -145,27 +143,14 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 text={status.stripFor("fundamentals")}
                 warn={status.fundStale}
               />
-              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Family blend weights</p>
-              <GuideMetricGrid
-                rows={FUNDAMENTAL_FAMILY_GUIDE_ROWS}
-                coverageLabel={fundCov.label}
-                coverageTone={fundCov.tone}
-                config={draft}
-                noteSuffix={fundNoteSuffix}
-                editable={isAdmin}
-                onConfigChange={onDraftChange}
-              />
-              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Metric intra-family weights</p>
-              <GuideMetricGrid
-                rows={FUNDAMENTAL_GUIDE_ROWS}
-                coverageLabel={fundCov.label}
-                coverageTone={fundCov.tone}
-                showFamily
-                config={draft}
-                noteSuffix={fundNoteSuffix}
-                editable={isAdmin}
-                onConfigChange={onDraftChange}
-              />
+              <FundamentalTreatmentPanel />
+              {isAdmin && (
+                <p className="text-[10px] text-amber-200/40 border border-[#d4af37]/15 rounded px-2 py-1.5">
+                  Admin note: preset/weight editors below apply to <em>technical &amp; options</em> layers
+                  and a legacy client preset — they do <strong className="text-amber-200/60">not</strong> rewrite
+                  persisted fund scores. Change scoring via engine treatments + recompute.
+                </p>
+              )}
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0 space-y-2">
@@ -223,7 +208,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           )}
 
           <p className="text-[11px] text-amber-200/40 mt-2">
-            Relative to watchlist. Missing data → 0.
+            Peer-group relative. Missing/excluded metrics drop weight (not scored as 0). Persisted in DB.
           </p>
           <p className="text-[11px] mt-1">
             <button className="text-[#d4af37] hover:underline" onClick={() => navigate("/options-scanner")}>

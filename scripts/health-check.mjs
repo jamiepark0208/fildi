@@ -168,9 +168,17 @@ async function runOnce() {
 
   const ts = new Date().toISOString();
   const failed = results.filter((r) => !r.ok);
+  const PROCESS = new Set(["api_healthz", "vite", "postgres"]);
+  const processFailed = failed.filter((r) => PROCESS.has(r.name)).map((r) => r.name);
+  const vendorFailed = failed.filter((r) => !PROCESS.has(r.name)).map((r) => r.name);
   const summary = {
     ts,
     ok: failed.length === 0,
+    /** Local stack only — use this for LaunchAgent exit / UI "Failed" */
+    processOk: processFailed.length === 0,
+    vendorsOk: vendorFailed.length === 0,
+    processFailed,
+    vendorFailed,
     pass: results.filter((r) => r.ok).length,
     fail: failed.length,
     results,

@@ -396,57 +396,57 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
   const keyBullet = brief?.content ? extractKeyBullet(brief.content) : "";
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 overflow-hidden">
 
       {/* ── Header ── */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-border/40 bg-gradient-to-r from-primary/5 to-transparent">
-        <div className="flex items-center gap-1">
+      <div className="px-3 py-2 flex items-center justify-between border-b border-[#d4af37]/15">
+        <div className="flex items-center gap-0.5">
           {/* Tabs */}
           <button
             onClick={() => setTab("today")}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-              tab === "today" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              "flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wide transition-colors",
+              tab === "today" ? "bg-[#d4af37] text-black" : "text-amber-200/50 hover:text-[#d4af37]"
             )}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3 h-3" />
             Highlights
           </button>
           <button
             onClick={() => setTab("history")}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-              tab === "history" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              "flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wide transition-colors",
+              tab === "history" ? "bg-[#d4af37] text-black" : "text-amber-200/50 hover:text-[#d4af37]"
             )}
           >
-            <History className="w-3.5 h-3.5" />
-            Past Briefs
+            <History className="w-3 h-3" />
+            Past
           </button>
         </div>
 
         {tab === "today" && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {brief?.fromCache && genTime && (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1 mr-1">
-                <Clock className="w-3 h-3" />cached {genTime}
+              <span className="text-[10px] text-amber-200/40 flex items-center gap-1 mr-1">
+                <Clock className="w-3 h-3" />{genTime}
               </span>
             )}
             {isAdmin && noData && !generating && (
               <button
                 onClick={generate}
                 title="Generate today's brief"
-                className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-[#d4af37]/15 text-[#d4af37] border border-[#d4af37]/25 hover:bg-[#d4af37]/25 transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                Generate Today's Brief
+                <Sparkles className="w-3 h-3" />
+                Generate
               </button>
             )}
             {isAdmin && (
               <button
                 onClick={() => setShowContext(v => !v)}
                 title="Edit AI context / learning preferences"
-                className={cn("p-1.5 rounded transition-colors",
-                  showContext ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40")}
+                className={cn("p-1 rounded transition-colors",
+                  showContext ? "text-[#d4af37] bg-[#d4af37]/10" : "text-amber-200/40 hover:text-[#d4af37]")}
               >
                 <Settings className="w-3.5 h-3.5" />
               </button>
@@ -456,15 +456,15 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
                 onClick={generate}
                 disabled={generating}
                 title="Regenerate brief with fresh data"
-                className="flex items-center gap-1 px-2 py-1.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors disabled:opacity-40"
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-amber-200/40 hover:text-[#d4af37] transition-colors disabled:opacity-40"
               >
-                <RefreshCw className={cn("w-3.5 h-3.5", generating && "animate-spin")} />
-                {generating ? "Generating…" : "Refresh"}
+                <RefreshCw className={cn("w-3 h-3", generating && "animate-spin")} />
+                {generating ? "…" : "Refresh"}
               </button>
             )}
             <button
               onClick={() => setExpanded(v => !v)}
-              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
+              className="p-1 rounded text-amber-200/40 hover:text-[#d4af37] transition-colors"
               title={expanded ? "Minimize" : "Expand"}
             >
               {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -478,71 +478,68 @@ export function DailyBrief({ tickers }: { tickers: string[] }) {
         <div>
           {/* Checking state */}
           {checking && expanded && (
-            <div className="px-4 py-2 text-xs text-muted-foreground/60 flex items-center gap-1.5">
+            <div className="px-3 py-1.5 text-[10px] text-amber-200/40 flex items-center gap-1.5 border-t border-[#d4af37]/10">
               <RefreshCw className="w-3 h-3 animate-spin" />
-              Checking for today's brief…
+              Checking…
             </div>
           )}
 
           {/* Error */}
           {error && expanded && (
-            <div className="m-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="m-2 flex items-start gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Could not generate brief</p>
-                <p className="text-xs mt-0.5 text-red-400/80">{error}</p>
+                <p className="text-[10px] mt-0.5 text-red-400/80">{error}</p>
               </div>
             </div>
           )}
 
           {/* No data — CTA lives in the header now, next to the settings icon */}
           {!checking && noData && !generating && expanded && (
-            <div className="px-4 py-6 flex flex-col items-center gap-1 text-center border-t border-border/20">
-              <p className="text-sm text-muted-foreground">No brief generated for today yet.</p>
+            <div className="px-3 py-3 flex flex-col items-center gap-0.5 text-center border-t border-[#d4af37]/10">
+              <p className="text-xs text-amber-200/50">No brief for today yet.</p>
               {isAdmin && (
-                <p className="text-[11px] text-muted-foreground/60">Click "Generate Today's Brief" above · ~15 seconds · live market data</p>
+                <p className="text-[10px] text-amber-200/30">Generate above · ~15s</p>
               )}
             </div>
           )}
 
           {/* Generating spinner */}
           {generating && !brief && expanded && (
-            <div className="px-4 py-8 flex flex-col items-center gap-3 text-center border-t border-border/20">
-              <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-              <div>
-                <p className="text-sm font-medium">Generating market brief…</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Fetching live data · Analyzing news · Personalizing to your context</p>
-              </div>
+            <div className="px-3 py-4 flex flex-col items-center gap-2 text-center border-t border-[#d4af37]/10">
+              <RefreshCw className="w-4 h-4 animate-spin text-[#d4af37]" />
+              <p className="text-xs text-amber-200/60">Generating market brief…</p>
             </div>
           )}
 
           {/* Collapsed: key takeaway only */}
           {brief && !expanded && (
-            <div className="px-4 py-3 border-t border-border/20">
+            <div className="px-3 py-2 border-t border-[#d4af37]/10">
               {keyBullet ? (
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground/80">Key takeaway: </span>
+                <p className="text-[11px] text-amber-200/60 leading-snug line-clamp-2">
+                  <span className="font-semibold text-[#d4af37]/80">Key: </span>
                   <span dangerouslySetInnerHTML={{ __html: inlineMd(keyBullet) }} />
                 </p>
               ) : null}
               <button
                 onClick={() => setExpanded(true)}
-                className="text-xs text-primary hover:underline mt-2 flex items-center gap-1"
+                className="text-[10px] text-[#d4af37] hover:underline mt-1 flex items-center gap-0.5"
               >
-                Read full brief <ChevronDown className="w-3 h-3" />
+                Full brief <ChevronDown className="w-3 h-3" />
               </button>
             </div>
           )}
 
           {/* Expanded: full brief */}
           {brief && expanded && (
-            <div className="px-4 py-4 border-t border-border/20">
+            <div className="px-3 py-3 border-t border-[#d4af37]/10">
               <BriefContent text={brief.content} />
-              <p className="text-[10px] text-muted-foreground/50 mt-4 border-t border-border/20 pt-2 flex items-center gap-2">
-                <span>AI-generated · claude-haiku · live market data · saved to history</span>
+              <p className="text-[10px] text-amber-200/30 mt-3 border-t border-[#d4af37]/10 pt-2 flex items-center gap-2">
+                <span>AI · haiku · saved to history</span>
                 <span>·</span>
-                <button onClick={() => setShowContext(true)} className="hover:text-primary transition-colors">
-                  customize context →
+                <button onClick={() => setShowContext(true)} className="hover:text-[#d4af37] transition-colors">
+                  customize →
                 </button>
               </p>
             </div>

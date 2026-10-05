@@ -25,8 +25,12 @@ import cotRouter from "./macro-cot";
 import regimeRouter from "./regime";
 import apiUsageRouter from "./api-usage";
 import dataHealthRouter from "./data-health";
+import localStackRouter from "./local-stack";
 import enrichmentRunsRouter from "./enrichment-runs";
 import scheduledTasksRouter from "./scheduled-tasks";
+import deskCommentariesRouter from "./desk-commentaries";
+import deskDailyNewsRouter from "./desk-daily-news";
+import schwabRouter from "./schwab";
 import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
 import liveRouter from "./live";
@@ -42,6 +46,9 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(scoringConfigRouter);
 router.use(dailyBriefRouter);
+router.use(deskCommentariesRouter);
+router.use(deskDailyNewsRouter);
+router.use(schwabRouter);
 router.use("/macro", macroRouter);
 router.use(fundamentalsRouter);
 router.use(fundamentalsProvenanceRouter);
@@ -56,6 +63,7 @@ router.use(cotRouter);
 router.use(regimeRouter);
 router.use(apiUsageRouter);
 router.use(dataHealthRouter);
+router.use(localStackRouter);
 router.use(enrichmentRunsRouter);
 router.use(scheduledTasksRouter);
 
@@ -67,7 +75,7 @@ router.use(scheduledTasksRouter);
 // A no-path `.use(requireAuth)` in that position becomes a global gate for
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
-router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record"], requireAuth);
+router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record", "/schwab"], requireAuth);
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);

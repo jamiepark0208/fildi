@@ -14,6 +14,7 @@ export interface OptionRow {
   incomePct: number;
   meetsGate: boolean;
   bidIsLive: boolean;
+  quoteStale?: boolean;
   delta: number | null;
   spreadPct: number | null;
 }

@@ -1,9 +1,6 @@
-// Top-N ranked sell-put / sell-call candidates for the Live tab — the pure ranking
-// path extracted from options-scanner.tsx (page state like sort/refresh/expansion
-// stays behind). Query keys and the ticker set are byte-for-byte identical to the
-// scanner's so react-query serves both pages from ONE shared cache: visiting either
-// page warms the other, and the heavy /api/options/batch call fires at most once
-// per 5-minute staleTime window.
+// Top-N ranked sell-put / sell-call candidates for the Live tab.
+// Fast path: nightly /api/options/rankings filtered to the watchlist (DB, no chain fan-out).
+// Fallback: watchlist options-batch + client scoring (shared cache with Rankings → Options).
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/use-watchlist";
@@ -15,8 +12,6 @@ import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-r
 import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
 import { type MacroRegime, CALL_STRIKE_WEIGHTS } from "@/lib/option-scorer-constants";
 
-// Chain/row shapes match the /api/options/batch payload (declared locally in
-// options-scanner.tsx too — structural types, kept in sync with the server).
 interface OptionRow {
   strike: number;
   bid: number;
@@ -50,10 +45,23 @@ interface MacroRegimeResult {
   regime: MacroRegime;
 }
 
-const RED_TAG = "#ef4444"; // mirrors options-scanner.tsx — red-tagged tickers are excluded from scans
+interface RankingRow {
+  ticker: string;
+  strike: number;
+  expiry: string;
+  spot: number;
+  premium: number;
+  weeklyIncomePct: number | null;
+  otmPct: number | null;
+  delta: number | null;
+  strikeIv: number | null;
+  dte: number | null;
+  optionScore: number;
+  bidIsLive: boolean;
+}
 
-// Mirrors scannerHiddenKey in options-scanner.tsx — must match so the hidden set
-// (and therefore displayTickersKey / the options-batch cache key) agrees between pages.
+const RED_TAG = "#ef4444";
+
 function scannerHiddenKey(userId: number | undefined): string {
   return userId ? `fildi_scanner_hidden_${userId}` : "fildi_scanner_hidden";
 }
@@ -71,7 +79,7 @@ export interface TopOptionRow {
   expiry: string;
   dte: number;
   weeklyIncomePct: number;
-  otmPct: number; // plain percent, e.g. 8.3
+  otmPct: number;
   delta: number | null;
   bufferSigmas: number | null;
   optionScore: number;
@@ -86,24 +94,74 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   const { data: tilt } = useTrackRecordTilt();
   const { entries, isLoaded } = useWatchlist();
 
-  // Model auto-tilt applies only to untouched defaults; an explicit user override always wins.
+  const tiltSide = isCall ? tilt?.call : tilt?.put;
   const effectiveStrikeWeights = isCall
     ? (tilt?.call.weights ?? CALL_STRIKE_WEIGHTS)
     : (hasCustomOptionStrike ? weights.optionStrike : (tilt?.put.weights ?? weights.optionStrike));
+
+  const pickOpts = useMemo(() => ({
+    minStockQuality: tiltSide?.sqFloor,
+    calibration: tilt?.calibration ?? null,
+    earningsHaircut: tiltSide?.earningsHaircut,
+  }), [tiltSide?.sqFloor, tiltSide?.earningsHaircut, tilt?.calibration]);
 
   const displayTickers = useMemo(() => {
     let hidden = new Set<string>();
     try {
       const s = localStorage.getItem(scannerHiddenKey(user?.id));
       if (s) hidden = new Set(JSON.parse(s));
-    } catch { /* corrupt localStorage — treat as none hidden */ }
+    } catch { /* corrupt localStorage */ }
     return entries.filter(e => e.colorTag !== RED_TAG && !hidden.has(e.ticker)).map(e => e.ticker);
   }, [entries, user?.id]);
 
   const displayTickersKey = useMemo(() => [...displayTickers].sort().join(","), [displayTickers]);
+  const watchlistSet = useMemo(() => new Set(displayTickers), [displayTickers]);
+
+  // Fast path — precomputed Overall snapshots ∩ watchlist (no Schwab/Yahoo fan-out).
+  const { data: snapRankings, isFetching: snapFetching } = useQuery({
+    queryKey: queryKeys.optionsRankings(side),
+    queryFn: async (): Promise<{ rankings: RankingRow[] }> => {
+      const res = await fetch(`/api/options/rankings?side=${side}`);
+      if (!res.ok) throw new Error("options rankings fetch failed");
+      return res.json();
+    },
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const fromSnapshots = useMemo((): TopOptionRow[] => {
+    const rows = (snapRankings?.rankings ?? [])
+      .filter((r) => watchlistSet.has(r.ticker))
+      .slice(0, n);
+    return rows.map((r) => {
+      const otmPct = r.otmPct ?? 0;
+      const dte = r.dte ?? 0;
+      const iv = r.strikeIv ?? 0;
+      const bufferSigmas =
+        otmPct > 0 && iv > 0 && dte > 0
+          ? (otmPct / 100) / (iv * Math.sqrt(dte / 365))
+          : null;
+      return {
+        ticker: r.ticker,
+        spot: r.spot,
+        strike: r.strike,
+        expiry: r.expiry,
+        dte,
+        weeklyIncomePct: r.weeklyIncomePct ?? 0,
+        otmPct,
+        delta: r.delta,
+        bufferSigmas,
+        optionScore: r.optionScore,
+        bid: r.premium,
+        bidIsLive: r.bidIsLive,
+      };
+    });
+  }, [snapRankings, watchlistSet, n]);
+
+  const needBatchFallback = isLoaded && displayTickers.length > 0 && fromSnapshots.length < Math.min(3, n);
 
   const { data: allTechnicalsData } = useQuery({
-    queryKey: ["technicals", "all"],
+    queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
       const res = await fetch("/api/technicals/all");
       if (!res.ok) throw new Error("technicals/all fetch failed");
@@ -111,16 +169,17 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
     },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    enabled: needBatchFallback,
   });
 
-  const { data: batchOptionsData, isFetching } = useQuery({
-    queryKey: ["options-batch", displayTickersKey],
+  const { data: batchOptionsData, isFetching: batchFetching } = useQuery({
+    queryKey: queryKeys.optionsBatch(displayTickersKey),
     queryFn: async () => {
       const res = await fetch(`/api/options/batch?tickers=${encodeURIComponent(displayTickersKey)}`);
       if (!res.ok) throw new Error("options batch fetch failed");
       return res.json() as Promise<Record<string, OptionsChainResult[] | { error: string }>>;
     },
-    enabled: isLoaded && displayTickers.length > 0,
+    enabled: needBatchFallback,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -134,6 +193,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
     },
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    enabled: needBatchFallback,
   });
 
   const { data: fundRankingsData } = useQuery({
@@ -144,10 +204,11 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
       return res.json();
     },
     refetchOnWindowFocus: false,
+    enabled: needBatchFallback,
   });
 
-  const rows = useMemo((): TopOptionRow[] => {
-    if (!allTechnicalsData?.length || !batchOptionsData) return [];
+  const fromBatch = useMemo((): TopOptionRow[] => {
+    if (!needBatchFallback || !allTechnicalsData?.length || !batchOptionsData) return [];
 
     const rankings = new Map(
       computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, side).map(s => [s.ticker, s]),
@@ -184,11 +245,12 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
         nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
         techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
+        earningsDaysOut:       techRow.earningsDaysOut ?? null,
       };
       const best = pickBestStrike(
         chains.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
         stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
-        effectiveStrikeWeights, isCall,
+        effectiveStrikeWeights, isCall, pickOpts,
       );
       if (!best) continue;
       const spot = best.chain.spot ?? 0;
@@ -209,15 +271,17 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
           ? otm / (best.put.iv * Math.sqrt(exactDte / 365))
           : null,
         optionScore: best.result.optionScore,
-        bid: best.put.bid > 0 ? best.put.bid : (best.put as OptionRow).lastPrice,
-        bidIsLive: (best.put as OptionRow).bidIsLive, // Opt generic infers the constraint type; the runtime row is a full OptionRow
+        bid: best.put.bid,
+        bidIsLive: (best.put as OptionRow).bidIsLive,
       });
     }
 
-    // One row per ticker (pickBestStrike already collapses to the best strike) —
-    // rank across tickers by option score and keep the top n.
     return picked.sort((a, b) => b.optionScore - a.optionScore).slice(0, n);
-  }, [allTechnicalsData, batchOptionsData, fundRankingsData, macroRegimeData, weights, effectiveStrikeWeights, side, isCall, displayTickers, n]);
+  }, [needBatchFallback, allTechnicalsData, batchOptionsData, fundRankingsData, macroRegimeData, weights, effectiveStrikeWeights, side, isCall, displayTickers, n, pickOpts]);
 
-  return { rows, isFetching };
+  const rows = fromSnapshots.length >= Math.min(3, n) || fromSnapshots.length >= fromBatch.length
+    ? fromSnapshots
+    : fromBatch;
+
+  return { rows, isFetching: snapFetching || (needBatchFallback && batchFetching) };
 }

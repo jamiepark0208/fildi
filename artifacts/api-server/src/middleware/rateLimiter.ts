@@ -28,18 +28,18 @@ export const authLimiter = rateLimit({
   message: { code: "RATE_LIMITED", message: "Too many login attempts, please try again later." },
 });
 
-// Anthropic (Haiku) calls cost money and aren't admin-gated — any logged-in user can
-// trigger one on a cache miss. Keyed by session userId (not IP) so this caps spend
-// per account rather than per network, and survives NAT/shared-IP offices. Must run
-// after requireAuth so req.session.userId is populated — see routes/index.ts mount order.
-export const explainLimiter = rateLimit({
+// Anthropic (Haiku) spend cap — keyed by session userId when present, else IP.
+// Apply to EVERY Haiku generate path: /explain/*, daily-brief ?refresh, desk daily-news
+// refresh, macro highlights/bank-research generate. Prefer mounting after requireAuth /
+// requireAdmin so userId is set.
+export const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  // req.ip fallback is defensive only — requireAuth runs upstream so userId should
-  // always be set here. ipKeyGenerator normalizes IPv6 addresses to a /56 subnet so
-  // that fallback path can't be trivially bypassed by rotating within one.
   keyGenerator: (req) => req.session?.userId ? `user:${req.session.userId}` : ipKeyGenerator(req.ip ?? ""),
-  message: { code: "RATE_LIMITED", message: "Too many AI explanation requests, please try again later." },
+  message: { code: "RATE_LIMITED", message: "Too many AI requests, please try again later." },
 });
+
+/** @deprecated alias — use aiLimiter */
+export const explainLimiter = aiLimiter;

@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "seed:peers": "tsx ./src/seed-peer-groups.ts",
     "backfill:peers": "tsx ./src/backfill-peer-fundamentals.ts",
+    "ingest:portfolio": "tsx ./ingest-portfolio-csv.mts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

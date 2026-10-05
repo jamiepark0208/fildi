@@ -27,6 +27,7 @@ export interface EdgarFundamentalsData {
   edgar_sharesOutstanding?:   number;
   edgar_grossMargin?:         number; // computed: grossProfit / totalRevenue
   edgar_netMargin?:           number; // computed: netIncome / totalRevenue
+  edgar_depreciationAmortization?: number; // for FFO proxy = NI + D&A
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -205,6 +206,12 @@ export async function fetchEdgarFundamentals(
   const freeCashFlow  = opCF != null && capex != null ? opCF - capex : undefined;
   const grossMargin   = grossProfit != null && totalRevenue ? grossProfit / totalRevenue : undefined;
   const netMargin     = netIncome   != null && totalRevenue ? netIncome   / totalRevenue : undefined;
+  const rawDa = annual([
+    "DepreciationDepletionAndAmortization",
+    "DepreciationAndAmortization",
+    "Depreciation",
+  ]);
+  const depreciationAmortization = rawDa != null ? Math.abs(rawDa) : undefined;
 
   const result = {
     cik,
@@ -224,6 +231,7 @@ export async function fetchEdgarFundamentals(
       edgar_sharesOutstanding:  shares,
       edgar_grossMargin:        grossMargin,
       edgar_netMargin:          netMargin,
+      edgar_depreciationAmortization: depreciationAmortization,
     },
   };
 
@@ -274,6 +282,10 @@ const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementTy
   investingCashFlow:   { statementType: "cashflow", tags: ["NetCashProvidedByUsedInInvestingActivities"] },
   financingCashFlow:   { statementType: "cashflow", tags: ["NetCashProvidedByUsedInFinancingActivities"] },
   capex:               { statementType: "cashflow", tags: ["PaymentsToAcquirePropertyPlantAndEquipment"] },
+  depreciationAmortization: {
+    statementType: "cashflow",
+    tags: ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization", "Depreciation"],
+  },
 };
 
 /**

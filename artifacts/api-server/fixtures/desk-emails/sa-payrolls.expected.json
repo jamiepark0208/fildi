@@ -1,0 +1,13 @@
+{
+  "file": "sa-payrolls.json",
+  "source": "seekingalpha",
+  "kind": "seekingalpha",
+  "category": "macro",
+  "noiseScore": 0,
+  "includeInBrief": true,
+  "noiseReasons": [],
+  "fromDomain": "seekingalpha.com",
+  "subject": "Payrolls Pull The Plug On Rate Hike Odds As Wall Street Rallies",
+  "contentLinks": 5,
+  "tickers": []
+}

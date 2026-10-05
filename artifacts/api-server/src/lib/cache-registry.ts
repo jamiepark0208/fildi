@@ -8,6 +8,7 @@ import { getCacheState as getBusinessCycleRegimeState, CACHE_TTL_MS as BUSINESS_
 import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
 import { tickerNewsCache } from './explain-context.js';
 import { livePriceCache } from './live-quote.js';
+import { schwabChainCache } from './schwab-client.js';
 import { trackRecordCache } from '../routes/track-record.js';
 import { screenerCache } from './live-movers.js';
 import { marketDataCache } from '../routes/daily-brief.js';
@@ -35,6 +36,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   history:          'Price History',
   'history-1d':     'Price History (Intraday)',
   options:          'Options Chain',
+  'schwab-options-chain': 'Schwab Options Chain',
   'options-expiry': 'Options Calendar',
   'volatility-regime': 'Volatility Regime (VIX)',
   'business-cycle-regime': 'Business Cycle Regime',
@@ -69,6 +71,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   quote:            quoteCache,
   breakdown:        breakdownCache,
   options:          optionsCache,
+  'schwab-options-chain': schwabChainCache,
   'options-expiry': expiryCache,
   'peer-map':       peersCache,
   'peer-profile':   profileCache,
@@ -125,7 +128,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 

@@ -436,12 +436,13 @@ export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false 
   const [error,      setError]      = useState<string | null>(null);
   const [success,    setSuccess]    = useState(false);
 
-  const premium = put.bid > 0 ? put.bid : put.lastPrice;
+  const premium = put.bid > 0 ? put.bid : 0;
 
   const reset = () => { setContracts("1"); setConfidence(0); setNotes(""); setError(null); setSuccess(false); };
   const handleClose = () => { reset(); onClose(); };
 
   async function handleSubmit() {
+    if (!(premium > 0)) { setError("No live bid — cannot post without a sellable premium"); return; }
     if (!confidence) { setError("Select a confidence level"); return; }
     setSubmitting(true); setError(null);
     try {
@@ -485,7 +486,7 @@ export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false 
             </div>
             <div>
               <label className={labelCls}>Premium / contract</label>
-              <input disabled value={`$${premium.toFixed(2)}`} className={cn(inputCls, "opacity-60")} />
+              <input disabled value={premium > 0 ? `$${premium.toFixed(2)}` : "— (no live bid)"} className={cn(inputCls, "opacity-60")} />
             </div>
           </div>
           <div>
@@ -503,7 +504,7 @@ export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false 
           </div>
           {error   && <div className="text-xs text-red-400">{error}</div>}
           {success && <div className="text-xs text-green-400">Posted!</div>}
-          <button onClick={handleSubmit} disabled={submitting}
+          <button onClick={handleSubmit} disabled={submitting || !(premium > 0)}
             className="w-full bg-primary text-primary-foreground text-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-50">
             {submitting ? "Posting…" : "Post Trade Idea"}
           </button>

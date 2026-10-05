@@ -141,23 +141,77 @@ function runHealth() {
   }
 }
 
-function restartApi() {
-  const pid = listenerPid(8080);
-  if (pid) {
-    try { process.kill(pid, "SIGTERM"); } catch { /* ignore */ }
+function restartStack(reason, { ifDown = false } = {}) {
+  // Synchronous: setTimeout-based relaunch never ran — maintain exits before the timer fires.
+  // Prefer --if-down when only one process is missing so we don't kill a healthy API.
+  const script = join(ROOT, "scripts/dev-restart.sh");
+  const args = ifDown ? [script, "--if-down"] : [script];
+  const r = spawnSync("bash", args, {
+    encoding: "utf8",
+    cwd: ROOT,
+    timeout: 120_000,
+    env: process.env,
+  });
+  return {
+    reason: ifDown ? `${reason}_if_down` : reason,
+    status: r.status,
+    stdoutTail: (r.stdout || "").slice(-500),
+    stderrTail: (r.stderr || "").slice(-400),
+  };
+}
+
+function processFlags(health) {
+  const results = health?.results || [];
+  const failed = results.filter((r) => !r.ok).map((r) => r.name);
+  const PROCESS = new Set(["api_healthz", "vite", "postgres"]);
+  return {
+    processOk: typeof health?.processOk === "boolean"
+      ? health.processOk
+      : !failed.some((n) => PROCESS.has(n)),
+    apiFail: failed.includes("api_healthz"),
+    viteFail: failed.includes("vite"),
+    pgFail: failed.includes("postgres"),
+    processFailed: failed.filter((n) => PROCESS.has(n)),
+    vendorFailed: failed.filter((n) => !PROCESS.has(n)),
+  };
+}
+
+/** Heal local stack: prefer surgical --if-down, retry once, re-check process. */
+function healLocalStack(health, actions) {
+  const flags = processFlags(health);
+  if (flags.processOk) return { health, restart: null, processOk: true };
+
+  let restart = null;
+  const bothDown = flags.apiFail && flags.viteFail;
+  // Full sweep only when both web processes are down; otherwise keep the healthy one.
+  restart = restartStack(
+    bothDown ? "unhealthy_both" : flags.apiFail ? "unhealthy_api" : "unhealthy_vite",
+    { ifDown: !bothDown },
+  );
+  actions.push(`restarted_stack_${restart.reason}_exit_${restart.status}`);
+
+  let post = runHealth();
+  let postFlags = processFlags(post);
+  if (!postFlags.processOk) {
+    const retry = restartStack("retry_if_down", { ifDown: true });
+    actions.push(`restarted_stack_${retry.reason}_exit_${retry.status}`);
+    restart = retry;
+    // brief settle — vite sometimes needs a beat after spawn
+    spawnSync("sleep", ["2"]);
+    post = runHealth();
+    postFlags = processFlags(post);
   }
-  // Parent pnpm/tsx watch usually relaunches; if not, start fresh
-  setTimeout(() => {
-    if (!listenerPid(8080)) {
-      spawnSync("bash", ["-lc", `
-        source /tmp/fildi-env-export.sh 2>/dev/null || true
-        export PATH="$HOME/Applications/Postgres.app/Contents/Versions/16/bin:/usr/local/bin:$PATH"
-        export PORT=8080 NODE_ENV=development
-        export DATABASE_URL="\${DATABASE_URL:-postgresql://jamiepark@127.0.0.1:5432/tradedash}"
-        cd "${ROOT}/artifacts/api-server" && nohup pnpm run dev:watch >> /tmp/fildi-logs/api.log 2>&1 &
-      `], { stdio: "ignore", detached: true });
-    }
-  }, 2000);
+  if (postFlags.processOk) {
+    actions.push("process_healed");
+  } else {
+    actions.push(`process_still_down:${postFlags.processFailed.join("|") || "?"}`);
+  }
+  return { health: post, restart, processOk: postFlags.processOk };
+}
+
+/** @deprecated use restartStack — kept name for action log clarity */
+function restartApi() {
+  return restartStack("api_or_stack");
 }
 
 function daysSinceEnrichment() {
@@ -192,7 +246,8 @@ function runApiTsx(scriptRel, extraArgs = []) {
 }
 
 function runEnrichmentCatchup() {
-  return runApiTsx("src/scripts/nightly-enrichment.ts");
+  // Trigger label for Pipeline Health: maintain-driven full catch-up (not ad-hoc manual).
+  return runApiTsx("src/scripts/nightly-enrichment.ts", ["--trigger=maintain_full"]);
 }
 
 function factsetRemaining() {
@@ -228,6 +283,28 @@ function budgetSnapshot() {
     LEFT JOIN ticker_fundamentals tf ON tf.ticker = r.ticker
     WHERE r.fetch_fundamentals = true
   "`);
+  // Field-fill coverage across core gold columns (true “current state” %, not just row existence)
+  const fieldFill = sh(`psql "$DATABASE_URL" -tAc "
+    WITH u AS (
+      SELECT tf.* FROM ticker_fundamentals tf
+      JOIN ticker_registry r ON r.ticker = tf.ticker AND r.fetch_fundamentals
+    ),
+    c AS (
+      SELECT
+        COUNT(*)::float AS n,
+        (
+          COUNT(pe_ratio)+COUNT(peg_ratio)+COUNT(forward_pe)+COUNT(price_to_book)+COUNT(price_to_sales)
+          +COUNT(ev_ebitda)+COUNT(gross_margin)+COUNT(operating_margin)+COUNT(net_margin)
+          +COUNT(return_on_equity)+COUNT(roic)+COUNT(revenue_growth_yoy)+COUNT(eps_growth)
+          +COUNT(current_ratio)+COUNT(debt_to_equity)+COUNT(free_cash_flow)+COUNT(net_income)
+          +COUNT(total_revenue)+COUNT(ebitda)+COUNT(cash_and_equivalents)+COUNT(total_debt)
+          +COUNT(gross_profit)+COUNT(total_assets)+COUNT(annual_operating_cash_flow)
+        )::float AS filled,
+        24::float AS cols
+      FROM u
+    )
+    SELECT ROUND((100.0 * filled / NULLIF(n * cols, 0))::numeric, 1) FROM c
+  "`);
   const scored = sh(`psql "$DATABASE_URL" -tAc "
     SELECT COUNT(*) FILTER (WHERE fund_total_score IS NOT NULL)::int || '/' || COUNT(*)::int
     FROM ticker_fundamentals
@@ -254,6 +331,7 @@ function budgetSnapshot() {
     sources,
     needsReview: Number.isFinite(nrN) ? nrN : null,
     goldCoverage: String(gold).trim() || null,
+    fieldFillPct: Number(String(fieldFill).trim()) || null,
     fundScoreCoverage: String(scored).trim() || null,
     earningsWindowTickers: Number(String(earnWin).trim()) || 0,
     anomalies,
@@ -279,26 +357,48 @@ async function main() {
   }
 
   const started = Date.now();
-  const health = runHealth();
+  let health = runHealth();
   const logs = await rotateLogs();
 
-  const apiPid = listenerPid(8080);
-  const vitePid = listenerPid(8081);
-  const apiStart = procStartEpoch(apiPid);
+  const apiPidBefore = listenerPid(8080);
+  const vitePidBefore = listenerPid(8081);
+  const apiStart = procStartEpoch(apiPidBefore);
   const apiAgeDays = apiStart != null ? (Date.now() - apiStart) / 86400_000 : null;
 
   const actions = [];
-  if (restartIfUnhealthy && health && health.ok === false) {
-    const apiFail = (health.results || []).some((r) => r.name === "api_healthz" && !r.ok);
-    if (apiFail) {
-      restartApi();
-      actions.push("restarted_api_unhealthy");
+  let restart = null;
+
+  // Prefer heal (adopt pidfiles / kill drift) over full restart when ports are up.
+  const healOut = sh(`node "${join(ROOT, "scripts/local-stack.mjs")}" heal --json`);
+  let healJson = null;
+  try {
+    healJson = JSON.parse(healOut || "{}");
+  } catch {
+    healJson = null;
+  }
+  if (healJson?.actions?.length) {
+    actions.push(`healed:${healJson.actions.join("|")}`);
+  }
+
+  // Auto-fix local stack (api/vite). Vendor API failures are reported but not fatal —
+  // overnight network blips used to mark the whole job "Failed" even when Postgres+API were fine.
+  if (restartIfUnhealthy) {
+    const flags = processFlags(health);
+    if (!flags.processOk || healJson?.needsRestart) {
+      const healed = healLocalStack(health, actions);
+      health = healed.health;
+      restart = healed.restart;
     }
   }
   if (staleDays > 0 && apiAgeDays != null && apiAgeDays >= staleDays) {
-    restartApi();
-    actions.push(`restarted_api_stale_${staleDays}d`);
+    restart = restartStack(`stale_${staleDays}d`, { ifDown: false });
+    actions.push(`restarted_stack_${restart.reason}_exit_${restart.status}`);
+    health = runHealth();
   }
+
+  const apiPid = listenerPid(8080);
+  const vitePid = listenerPid(8081);
+  const finalFlags = processFlags(health);
 
   let enrich = null;
   let enrichMissing = null;
@@ -313,6 +413,9 @@ async function main() {
     if (/["']skipped["']\s*:\s*true/.test(t)) return false;
     return true;
   }
+
+  // Field-fill snapshot before any enrich writes — used for Pipeline Health before→after.
+  const fieldFillPctBefore = enrichIfDue ? (budgetSnapshot().fieldFillPct ?? null) : null;
 
   if (enrichIfDue) {
     // (a) New watchlist / registry adds — don't wait for 4d full run.
@@ -366,21 +469,62 @@ async function main() {
       `post_merge_scores_exit_${postMerge.status}_scores_only` +
         (upstreamMerged ? "" : "_no_upstream_write"),
     );
+
+    // Retention prune lives here too so it runs when API was down all day.
+    // Covers api_usage / ai_usage_log / old intraday app_config + filesystem logs.
+    const retention = runApiTsx("src/scripts/run-retention-prune.ts");
+    actions.push(`retention_prune_exit_${retention.status}`);
+
+    // Morning precompute so stock breakdown is warm by ~8 AM open.
+    // Safe to re-run: each job dedupes same-UTC-day via scheduler stamps when
+    // invoked from API; this script always runs once from Maintain.
+    if (finalFlags.processOk) {
+      const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
+      actions.push(`morning_precompute_exit_${pre.status}`);
+    } else {
+      actions.push("morning_precompute_skipped_process_down");
+    }
   }
 
   // (f) Budget / anomaly snapshot — always when enriching, else light.
   const budget = budgetSnapshot();
+  if (fieldFillPctBefore != null) {
+    budget.fieldFillPctBefore = fieldFillPctBefore;
+  }
   if (budget.anomalies.length) {
     actions.push(`anomalies:${budget.anomalies.join("|")}`);
   }
+
+  const enrichFail =
+    (enrichMissing && enrichMissing.status !== 0) ||
+    (enrichEarnings && enrichEarnings.status !== 0) ||
+    (enrich && enrich.status !== 0) ||
+    (peerHealth && peerHealth.status !== 0) ||
+    (postMerge && postMerge.status !== 0);
+
+  // UI / LaunchAgent "ok": local stack healthy after heal attempts. Vendor blips ≠ job failure.
+  const jobOk = finalFlags.processOk && !enrichFail;
+  const failureClass = !finalFlags.processOk
+    ? "process"
+    : enrichFail
+      ? "enrich"
+      : finalFlags.vendorFailed.length
+        ? "vendor"
+        : null;
 
   const report = {
     ts: new Date().toISOString(),
     ms: Date.now() - started,
     healthOk: !!health.ok,
+    processOk: finalFlags.processOk,
+    vendorsOk: finalFlags.vendorFailed.length === 0,
+    ok: jobOk,
+    failureClass,
     healthPass: health.pass ?? null,
     healthFail: health.fail ?? null,
     failedChecks: (health.results || []).filter((r) => !r.ok).map((r) => r.name),
+    processFailed: finalFlags.processFailed,
+    vendorFailed: finalFlags.vendorFailed,
     apiPid,
     vitePid,
     apiAgeDays: apiAgeDays != null ? Number(apiAgeDays.toFixed(2)) : null,
@@ -393,24 +537,37 @@ async function main() {
     peerHealth,
     postMerge,
     budget,
+    restart,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
 
+  // Pipeline Health (enrichment_runs) — daily maintain is the scheduled enrich path on Mac.
+  if (enrichIfDue) {
+    const rec = runApiTsx("src/scripts/record-maintain-run.ts", [`--report=${REPORT}`]);
+    actions.push(`record_maintain_run_exit_${rec.status}`);
+    report.actions = actions;
+    writeFileSync(REPORT, JSON.stringify(report, null, 2));
+  }
+
   console.log(`[maintain] ${report.ts}`);
-  console.log(`  health: ${report.healthOk ? "OK" : "FAIL"} (${report.healthPass ?? "?"} pass / ${report.healthFail ?? "?"} fail)`);
-  if (report.failedChecks.length) console.log(`  failed: ${report.failedChecks.join(", ")}`);
+  console.log(
+    `  job: ${jobOk ? "OK" : "FAIL"}  process=${finalFlags.processOk ? "OK" : "FAIL"}  vendors=${finalFlags.vendorFailed.length === 0 ? "OK" : "WARN"}`,
+  );
+  console.log(`  health: ${report.healthOk ? "OK" : "DEGRADED"} (${report.healthPass ?? "?"} pass / ${report.healthFail ?? "?"} fail)`);
+  if (report.processFailed?.length) console.log(`  process failed: ${report.processFailed.join(", ")}`);
+  if (report.vendorFailed?.length) console.log(`  vendor warn: ${report.vendorFailed.join(", ")}`);
   console.log(`  api pid=${apiPid ?? "—"} age_days=${report.apiAgeDays ?? "—"}  vite pid=${vitePid ?? "—"}`);
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
   if (budget.goldCoverage) {
     console.log(
-      `  gold=${budget.goldCoverage} scores=${budget.fundScoreCoverage} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
+      `  gold=${budget.goldCoverage} fieldFill=${budget.fieldFillPct ?? "—"}% scores=${budget.fundScoreCoverage} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
     );
   }
   if (budget.anomalies.length) console.log(`  anomalies: ${budget.anomalies.join(", ")}`);
   if (actions.length) console.log(`  actions: ${actions.join(", ")}`);
   console.log(`  report: ${REPORT}`);
 
-  process.exit(report.healthOk ? 0 : 1);
+  process.exit(jobOk ? 0 : 1);
 }
 
 main().catch((e) => {

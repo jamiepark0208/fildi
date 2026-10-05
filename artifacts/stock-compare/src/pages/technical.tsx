@@ -17,6 +17,7 @@ import {
   type TechnicalRow,
   computeTechnicalRankingsV2,
 } from "@/lib/technical-rankings";
+import { queryKeys } from "@/lib/query-keys";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -523,7 +524,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
 
   // Fetch all 31 watchlist technicals for V2 scorer (stable ranks, self-relative scores)
   const { data: allTechnicalsData } = useQuery({
-    queryKey: ["technicals", "all"],
+    queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
       const res = await fetch("/api/technicals/all");
       if (!res.ok) throw new Error("technicals/all fetch failed");

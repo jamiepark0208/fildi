@@ -30,6 +30,8 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
 
 interface ScannerRowProps {
   ticker: string;
+  /** 1-based display rank in the current sort order. */
+  rank?: number;
   rowIndex: number;
   colorTag: string;
   indicator: ScorecardRow | null;
@@ -63,6 +65,7 @@ interface ScannerRowProps {
 
 export function ScannerRow({
   ticker,
+  rank,
   rowIndex,
   colorTag,
   indicator,
@@ -176,6 +179,7 @@ export function ScannerRow({
       nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
       techTotalScore:        score?.totalScore ?? null,
       fundTotalScore:        fundTotalScore ?? null,
+      earningsDaysOut:       techRow.earningsDaysOut ?? null,
     };
   }, [techRow, score, fundTotalScore]);
 
@@ -247,15 +251,38 @@ export function ScannerRow({
         style={{ borderLeft: `4px solid ${borderColor}` }}
         onClick={onExpand}
       >
+        {/* Rank */}
+        <div className="w-8 shrink-0 text-center">
+          {rank != null && (
+            <span className={cn(
+              "inline-flex w-5 h-5 rounded-full items-center justify-center font-bold text-[10px]",
+              rank === 1 ? "bg-yellow-500 text-yellow-950" :
+              rank === 2 ? "bg-slate-400 text-slate-950" :
+              rank === 3 ? "bg-amber-700 text-amber-50" :
+              "bg-secondary text-secondary-foreground",
+            )}>
+              {rank}
+            </span>
+          )}
+        </div>
+
         {/* Ticker */}
         <div className="w-[70px] shrink-0 flex items-center">
           <span
-            className="font-bold text-xs tracking-wide"
+            className="font-bold text-xs tracking-wide font-mono"
             style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
           >
             {ticker}
           </span>
           {oversoldOverboughtBadge}
+          {techRow?.earningsDaysOut != null && techRow.earningsDaysOut >= 0 && techRow.earningsDaysOut <= 7 && (
+            <span
+              className="ml-1 px-1 py-0 rounded border border-amber-500/40 bg-amber-500/15 text-amber-200 text-[9px] font-bold leading-none"
+              title={`Earnings ${techRow.earningsDaysOut === 0 ? "today" : `in ${techRow.earningsDaysOut}d`} — elevated IV; prefer deep OTM`}
+            >
+              ER{techRow.earningsDaysOut}
+            </span>
+          )}
         </div>
 
         {/* Price */}
@@ -274,7 +301,12 @@ export function ScannerRow({
 
         {/* Win/loss track record — its own column, separate from ticker identity */}
         <div className="w-[64px] shrink-0">
-          <TickerRecordBadge record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]} className="" />
+          <TickerRecordBadge
+            record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]}
+            livePrice={price}
+            side={isCall ? "call" : "put"}
+            className=""
+          />
         </div>
 
         {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.).

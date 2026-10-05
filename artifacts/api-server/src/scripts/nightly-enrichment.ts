@@ -472,7 +472,8 @@ async function fetchEdgar(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     edgarSharesOutstanding:  data.edgar_sharesOutstanding?.toString()  ?? null,
     edgarGrossMargin:        data.edgar_grossMargin?.toString()        ?? null,
     edgarNetMargin:          data.edgar_netMargin?.toString()          ?? null,
-  }).onConflictDoUpdate({ target: edgarFundamentals.ticker, set: {
+    edgarDepreciationAmortization: data.edgar_depreciationAmortization?.toString() ?? null,
+  } as any).onConflictDoUpdate({ target: edgarFundamentals.ticker, set: {
     fetchedAt:               sql`now()`,
     edgarTotalRevenue:       sql`excluded.edgar_total_revenue`,
     edgarGrossProfit:        sql`excluded.edgar_gross_profit`,
@@ -489,7 +490,8 @@ async function fetchEdgar(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     edgarSharesOutstanding:  sql`excluded.edgar_shares_outstanding`,
     edgarGrossMargin:        sql`excluded.edgar_gross_margin`,
     edgarNetMargin:          sql`excluded.edgar_net_margin`,
-  }});
+    edgarDepreciationAmortization: sql`excluded.edgar_depreciation_amortization`,
+  } as any});
   return "ok";
 }
 
@@ -522,6 +524,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     finnhubQuickRatio:            data.finnhub_quickRatio?.toString()           ?? null,
     finnhubFcfPerShare:           data.finnhub_fcfPerShare?.toString()          ?? null,
     finnhubBookValue:             data.finnhub_bookValue?.toString()            ?? null,
+    finnhubTangibleBookValuePerShare: data.finnhub_tangibleBookValuePerShare?.toString() ?? null,
     finnhubBeta:                  data.finnhub_beta?.toString()                 ?? null,
     finnhubEps:                   data.finnhub_eps?.toString()                  ?? null,
     finnhubEbitPerShare:          data.finnhub_ebitPerShare?.toString()         ?? null,
@@ -554,6 +557,7 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     finnhubQuickRatio:           sql`excluded.finnhub_quick_ratio`,
     finnhubFcfPerShare:          sql`excluded.finnhub_fcf_per_share`,
     finnhubBookValue:            sql`excluded.finnhub_book_value`,
+    finnhubTangibleBookValuePerShare: sql`excluded.finnhub_tangible_book_value_per_share`,
     finnhubBeta:                 sql`excluded.finnhub_beta`,
     finnhubEps:                  sql`excluded.finnhub_eps`,
     finnhubEbitPerShare:         sql`excluded.finnhub_ebit_per_share`,
@@ -664,14 +668,18 @@ async function fetchFMP(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     fmpTotalDebt:                  n(data.totalDebt),
     fmpTotalStockholdersEquity:    n(data.totalStockholdersEquity),
     fmpCashAndEquivalents:         n(data.cashAndEquivalents),
+    fmpTotalAssets:                n(data.totalAssets),
+    fmpGrossProfit:                n(data.grossProfit),
+    fmpTangibleBookValuePerShare:  n(data.tangibleBookValuePerShare),
     fmpWacc:                       n(data.wacc),
     fmpRoic:                       n(data.roic),
     fmpQuarterlyOperatingCashFlow: n(data.quarterlyOperatingCashFlow),
+    fmpAnnualOperatingCashFlow:    n(data.annualOperatingCashFlow),
     fmpSharesOutstanding:          n(data.sharesOutstanding),
     fmpSharesOutstandingPrior:     n(data.sharesOutstandingPrior),
     fmpDividendYield:              n(data.dividendYield),
     fmpBeta:                       n(data.beta),
-  }).onConflictDoUpdate({ target: fmpFundamentals.ticker, set: {
+  } as any).onConflictDoUpdate({ target: fmpFundamentals.ticker, set: {
     fetchedAt:                     sql`now()`,
     fmpPeRatio:                    sql`excluded.fmp_pe_ratio`,
     fmpPegRatio:                   sql`excluded.fmp_peg_ratio`,
@@ -702,14 +710,18 @@ async function fetchFMP(ticker: string): Promise<"ok" | "fail" | "nodata"> {
     fmpTotalDebt:                  sql`excluded.fmp_total_debt`,
     fmpTotalStockholdersEquity:    sql`excluded.fmp_total_stockholders_equity`,
     fmpCashAndEquivalents:         sql`excluded.fmp_cash_and_equivalents`,
+    fmpTotalAssets:                sql`excluded.fmp_total_assets`,
+    fmpGrossProfit:                sql`excluded.fmp_gross_profit`,
+    fmpTangibleBookValuePerShare:  sql`excluded.fmp_tangible_book_value_per_share`,
     fmpWacc:                       sql`excluded.fmp_wacc`,
     fmpRoic:                       sql`excluded.fmp_roic`,
     fmpQuarterlyOperatingCashFlow: sql`excluded.fmp_quarterly_operating_cash_flow`,
+    fmpAnnualOperatingCashFlow:    sql`excluded.fmp_annual_operating_cash_flow`,
     fmpSharesOutstanding:          sql`excluded.fmp_shares_outstanding`,
     fmpSharesOutstandingPrior:     sql`excluded.fmp_shares_outstanding_prior`,
     fmpDividendYield:              sql`excluded.fmp_dividend_yield`,
     fmpBeta:                       sql`excluded.fmp_beta`,
-  }});
+  } as any});
   return "ok";
 }
 
@@ -824,7 +836,7 @@ async function processSource(
 // Same % calc as GET /api/admin/data-health: non-null field cells over active
 // tickers × FIELD_DEFS columns (excluding the synthetic "grossProfit" alias).
 
-const VALID_FIELD_DEFS = FIELD_DEFS.filter(d => (d.tfCol as string) !== "grossProfit");
+const VALID_FIELD_DEFS = FIELD_DEFS;
 
 async function computeCoveragePercent(): Promise<number> {
   const [regRows, tfRows] = await Promise.all([
@@ -923,7 +935,7 @@ async function detectNodataAnomaly(perSource: Record<string, SourceTotals>): Pro
 async function recordRun(row: {
   startedAt: Date;
   status: "success" | "partial" | "failed";
-  trigger: "scheduled" | "manual";
+  trigger: "scheduled" | "manual" | "maintain" | "maintain_full";
   perSource?: Record<string, SourceTotals>;
   coverageBefore: number | null;
   coverageAfter: number | null;
@@ -947,7 +959,7 @@ async function recordRun(row: {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-async function main(trigger: "scheduled" | "manual" = "manual"): Promise<void> {
+async function main(trigger: "scheduled" | "manual" | "maintain_full" = "manual"): Promise<void> {
   const runStartedAt = new Date();
   log(`nightly-enrichment starting${DRY_RUN ? " (DRY RUN)" : ""}${FIELD_FILTER ? ` [fields: ${[...FIELD_FILTER].join(",")}]` : ""}`);
 
@@ -1187,7 +1199,13 @@ export { main as runNightlyEnrichment };
 // api-server process via scheduler.ts, where exiting would kill the whole server.
 const isMain = process.argv[1]?.includes("nightly-enrichment");
 if (isMain) {
-  main("manual")
+  const triggerArg = process.argv.find((a) => a.startsWith("--trigger="));
+  const triggerRaw = triggerArg?.split("=")[1] ?? "manual";
+  const trigger =
+    triggerRaw === "scheduled" || triggerRaw === "maintain_full" || triggerRaw === "manual"
+      ? triggerRaw
+      : "manual";
+  main(trigger)
     .then(() => process.exit(0))
     .catch(err => {
       log(`FATAL — ${err.message}`);

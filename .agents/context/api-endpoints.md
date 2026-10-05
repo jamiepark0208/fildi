@@ -15,6 +15,9 @@
 | GET | /api/daily-brief/history | Historical brief entries |
 | GET | /api/daily-brief/context | Persistent context notes |
 | PATCH | /api/daily-brief/context | Update context notes |
+| GET | /api/desk-commentaries | FactSet desk rows (?hours=36) |
+| GET | /api/desk-commentaries/soft-context | Narrative hints for live/regime (soft only) |
+| POST | /api/desk-commentaries/ingest | requireAdmin | Drive → DB catch-up |
 
 ## Fundamentals
 | Method | Path | Auth | Purpose |

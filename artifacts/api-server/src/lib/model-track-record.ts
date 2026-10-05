@@ -21,11 +21,17 @@ import {
   pricesHistorical, type InsertModelRec, type InsertHotlistSnapshot,
 } from "@workspace/db";
 import {
-  pickBestStrike, computeTechnicalRankingsV2, applyTilt,
+  pickBestStrike, computeTechnicalRankingsV2, applyPolicy,
   CALL_STRIKE_WEIGHTS, EMPTY_TILT_STATE, computeUnifiedScore,
+  selectPremiumCandidates,
+  buildCalibrationTable, walkForwardCalibration,
+  shrinkTickerExpectancy, TILT_MIN_N,
   type StockContext, type TechnicalRow, type TiltState, type SideTiltStats, type MacroRegime,
+  type CalibrationTable, type GradedRecForCalibration, type SidePolicy,
 } from "@workspace/option-scoring";
-import { getOptionsChain, type OptionsChainResult, type OptionRow } from "./options.js";
+import { type OptionsChainResult, type OptionRow } from "./options.js";
+import { fetchChainsForTickers } from "./options-chain-batch.js";
+import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
@@ -35,12 +41,18 @@ import { getLatestRegime } from "../routes/regime.js";
 import { closeOnOrBeforeExpiryChecked } from "./trade-post-expiry.js";
 import { fetchAndStoreOHLCV } from "./indicators.js";
 import { logger } from "./logger.js";
+import { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
+
+export { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
 
 export const MODEL_TILT_KEY = "model_tilt";
+export const MODEL_CALIBRATION_KEY = "model_calibration";
 const CHAIN_CONCURRENCY = 3;       // Yahoo courtesy — optionsCache dedupes repeats
 const TILT_WINDOW_DAYS = 84;       // trailing 12 weeks of graded recs feed the tilt
 const NO_DATA_GRACE_DAYS = 14;     // no price this long past expiry → NO_DATA (delisted)
 const SPLIT_GUARD_MOVE = 0.6;      // |close/spot - 1| beyond this looks like a split, not a move
+const TICKER_MIN_N = 8;            // below this, no per-ticker EB offset
+const TICKER_PRIOR = 12;           // EB pseudo-counts toward global mean
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -74,18 +86,71 @@ async function setTiltState(state: TiltState): Promise<void> {
   }
 }
 
+export async function getCalibrationTable(): Promise<CalibrationTable | null> {
+  try {
+    const rows = await db.select().from(appConfig).where(eq(appConfig.key, MODEL_CALIBRATION_KEY)).limit(1);
+    const v = rows[0]?.value as CalibrationTable | undefined;
+    if (v?.put?.buckets && v?.call?.buckets) return v;
+  } catch (err) {
+    logger.warn({ err }, "model-track-record: failed to load calibration");
+  }
+  return null;
+}
+
+async function setCalibrationTable(table: CalibrationTable): Promise<void> {
+  const existing = await db.select().from(appConfig).where(eq(appConfig.key, MODEL_CALIBRATION_KEY)).limit(1);
+  if (existing.length === 0) {
+    await db.insert(appConfig).values({ key: MODEL_CALIBRATION_KEY, value: table });
+  } else {
+    await db.update(appConfig).set({ value: table, updatedAt: new Date() }).where(eq(appConfig.key, MODEL_CALIBRATION_KEY));
+  }
+}
+
+/** Wipe graded history + tilt/calibration so a new policy starts clean. */
+export async function resetModelTrackRecord(): Promise<{
+  deletedRecs: number; deletedHotlist: number; tiltCleared: boolean; calibrationCleared: boolean;
+}> {
+  const recs = await db.delete(modelRecs).returning({ id: modelRecs.id });
+  const hot = await db.delete(hotlistSnapshots).returning({ id: hotlistSnapshots.id });
+  await setTiltState(EMPTY_TILT_STATE);
+  const existingCal = await db.select().from(appConfig).where(eq(appConfig.key, MODEL_CALIBRATION_KEY)).limit(1);
+  if (existingCal.length > 0) {
+    await db.delete(appConfig).where(eq(appConfig.key, MODEL_CALIBRATION_KEY));
+  }
+  logger.info({ deletedRecs: recs.length, deletedHotlist: hot.length }, "model-track-record: history wiped");
+  return {
+    deletedRecs: recs.length,
+    deletedHotlist: hot.length,
+    tiltCleared: true,
+    calibrationCleared: true,
+  };
+}
+
 // ── Weekly snapshot ───────────────────────────────────────────────────────────
 
 export async function runModelSnapshot(snapshotDate: string = todayStr()): Promise<{
   recs: number; hotlist: number; regimeStubs: number; tickers: number; failures: number;
+  liveBidRecs: number; degraded: boolean;
 }> {
-  const tickers = await getUnionWatchlistTickers();
-  const [techRows, volRegimeResult, macroRegimeName, tiltState] = await Promise.all([
+  const tickersWatch = await getUnionWatchlistTickers();
+  const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration] = await Promise.all([
     getAllTechnicalsRows(),
     getMacroRegimeResult(),
     getLatestRegime(),
     getTiltState(),
+    getCalibrationTable(),
   ]);
+  // Widen W/L universe: watchlist ∪ premium-IV candidates (capped) — same filter as Overall rankings.
+  const premium = selectPremiumCandidates(
+    (techRows as unknown as TechnicalRow[]).map((r) => ({
+      ticker: r.ticker,
+      atmPutIv: r.atmPutIv,
+      ivVsRealizedVol: r.ivVsRealizedVol,
+      technicalsCoverage: r.technicalsCoverage,
+    })),
+    80,
+  );
+  const tickers = [...new Set([...tickersWatch, ...premium].map((t) => t.toUpperCase()))];
   const volRegime: MacroRegime = volRegimeResult.regime;
 
   // Fundamental scores: same source the scanner's /fundamentals/rankings serves.
@@ -111,21 +176,10 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const techRowMap = new Map(rows.map(r => [r.ticker, r]));
 
   // Fetch chains (bounded concurrency; per-ticker failures don't kill the run).
-  const chainsByTicker = new Map<string, OptionsChainResult[]>();
-  let failures = 0;
-  let idx = 0;
-  const worker = async () => {
-    while (idx < tickers.length) {
-      const t = tickers[idx++]!;
-      try {
-        chainsByTicker.set(t, await getOptionsChain(t));
-      } catch (err) {
-        failures++;
-        logger.warn({ err, ticker: t }, "model-track-record: chain fetch failed, skipping ticker");
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(CHAIN_CONCURRENCY, tickers.length) }, worker));
+  const { chainsByTicker, failures } = await fetchChainsForTickers(tickers, {
+    concurrency: CHAIN_CONCURRENCY,
+    logLabel: "model-track-record",
+  });
 
   // Cross-watchlist IV distribution — mirrors use-top-options.ts exactly (put IVs only).
   const allWatchlistIVs: number[] = [];
@@ -133,8 +187,8 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
     for (const c of chains) for (const p of c.puts) if (p.iv > 0) allWatchlistIVs.push(p.iv);
   }
 
-  const putTilt  = applyTilt(tiltState.put);
-  const callTilt = applyTilt(tiltState.call, CALL_STRIKE_WEIGHTS);
+  const putPolicy  = applyPolicy(tiltState.put, undefined, { regime: macroRegimeName });
+  const callPolicy = applyPolicy(tiltState.call, CALL_STRIKE_WEIGHTS, { regime: macroRegimeName });
 
   // Single query for the unified-score's regime component — same confidence
   // number the regime banner shows, not recomputed per ticker.
@@ -163,11 +217,23 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         nearestSupportDistPct: num(techRow.nearestSupportDistPct),
         techTotalScore:        (isCall ? callRankings : putRankings).get(ticker) ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
+        earningsDaysOut:       num(techRow.earningsDaysOut),
       };
-      const tilt = isCall ? callTilt : putTilt;
+      const policy: SidePolicy = isCall ? callPolicy : putPolicy;
+      // Per-ticker EB when available
+      const tickerPolicy = applyPolicy(
+        isCall ? tiltState.call : tiltState.put,
+        isCall ? CALL_STRIKE_WEIGHTS : undefined,
+        { regime: macroRegimeName, ticker },
+      );
       const best = pickBestStrike(
         chains.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
-        stockCtx, volRegime, allWatchlistIVs, undefined, tilt.weights, isCall,
+        stockCtx, volRegime, allWatchlistIVs, undefined, tickerPolicy.weights, isCall,
+        {
+          minStockQuality: tickerPolicy.sqFloor,
+          calibration,
+          earningsHaircut: tickerPolicy.earningsHaircut,
+        },
       );
       if (!best) continue;
 
@@ -175,8 +241,8 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
       // (same cast the client makes in use-top-options.ts).
       const opt = best.put as OptionRow;
       const chain = best.chain;
-      const premium = opt.bid > 0 ? opt.bid : opt.lastPrice;
-      if (!(premium > 0)) continue; // nothing sellable to grade
+      const premium = opt.bid;
+      if (!(premium > 0) || !opt.bidIsLive) continue; // never grade on lastPrice
 
       // 1-10 blended read (technical + option + regime), stored alongside the
       // option-scorer's own weight breakdown for this pick — see unified-score.ts.
@@ -205,9 +271,15 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         dataQuality: String(best.result.dataQuality),
         volRegime,
         macroRegime: macroRegimeName,
-        tiltApplied: { factor: tilt.factor, weights: tilt.weights },
-      });
-    }
+        tiltApplied: {
+          factor: tickerPolicy.factor,
+          weights: tickerPolicy.weights,
+          sqFloor: tickerPolicy.sqFloor,
+          earningsHaircut: tickerPolicy.earningsHaircut,
+          version: tickerPolicy.version,
+          globalFactor: policy.factor,
+        },
+      });    }
   }
 
   let recs = 0;
@@ -246,11 +318,27 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
 
   const regimeStubs = await insertRegimeGradeStubs();
 
+  // Friday dual-write: persist Overall rankings from the same chain map (Mon–Thu
+  // option-score job still runs alone; Fri skips that job — see scheduler).
+  let snapshotPersisted = 0;
+  try {
+    const snap = await computeAndPersistOptionScores({
+      asOf: snapshotDate,
+      chainsByTicker,
+    });
+    snapshotPersisted = snap.persisted;
+  } catch (err) {
+    logger.warn({ err }, "model-track-record: option-score dual-write failed");
+  }
+
+  const liveBidRecs = recRows.filter(r => r.bidIsLive).length;
+  const degraded = recs > 0 && liveBidRecs < Math.ceil(recs * 0.5);
+
   logger.info(
-    { snapshotDate, tickers: tickers.length, recs, hotlist, regimeStubs, failures },
+    { snapshotDate, tickers: tickers.length, recs, hotlist, regimeStubs, failures, liveBidRecs, degraded, snapshotPersisted },
     "model-track-record: snapshot complete",
   );
-  return { recs, hotlist, regimeStubs, tickers: tickers.length, failures };
+  return { recs, hotlist, regimeStubs, tickers: tickers.length, failures, liveBidRecs, degraded };
 }
 
 // ── Regime grade stubs ────────────────────────────────────────────────────────
@@ -308,14 +396,118 @@ export async function insertRegimeGradeStubs(): Promise<number> {
 
 export function settleRec(input: {
   side: string; strike: number; spot: number; premium: number; close: number;
-}): { intrinsic: number; pnlPerShare: number; pnlPct: number; status: "WIN" | "LOSS" } {
+}): {
+  intrinsic: number; pnlPerShare: number; pnlPct: number; status: "WIN" | "LOSS";
+  managedPnlPerShare: number; managedPnlPct: number; managedStatus: "WIN" | "LOSS";
+} {
   const intrinsic = input.side === "put"
     ? Math.max(input.strike - input.close, 0)
     : Math.max(input.close - input.strike, 0);
   const pnlPerShare = input.premium - intrinsic;
   const basis = input.side === "put" ? input.strike : input.spot;
   const pnlPct = basis > 0 ? (pnlPerShare / basis) * 100 : 0;
-  return { intrinsic, pnlPerShare, pnlPct, status: pnlPerShare > 0 ? "WIN" : "LOSS" };
+  const status: "WIN" | "LOSS" = pnlPerShare > 0 ? "WIN" : "LOSS";
+  // Managed (path-free): bank half credit on winners; stop at −2× premium on losers.
+  const managedPnlPerShare = pnlPerShare > 0
+    ? 0.5 * input.premium
+    : Math.max(pnlPerShare, -2 * input.premium);
+  const managedPnlPct = basis > 0 ? (managedPnlPerShare / basis) * 100 : 0;
+  const managedStatus: "WIN" | "LOSS" = managedPnlPerShare > 0 ? "WIN" : "LOSS";
+  return { intrinsic, pnlPerShare, pnlPct, status, managedPnlPerShare, managedPnlPct, managedStatus };
+}
+
+export async function fetchPathBars(
+  ticker: string,
+  fromDate: string,
+  toDate: string,
+): Promise<Array<{ high: number; low: number }>> {
+  const rows = await db
+    .select({
+      high: pricesHistorical.high,
+      low: pricesHistorical.low,
+    })
+    .from(pricesHistorical)
+    .where(and(
+      eq(pricesHistorical.ticker, ticker),
+      gte(pricesHistorical.date, fromDate),
+      lte(pricesHistorical.date, toDate),
+    ))
+    .orderBy(asc(pricesHistorical.date));
+  return rows.flatMap((r) => {
+    const high = r.high != null ? Number(r.high) : NaN;
+    const low = r.low != null ? Number(r.low) : NaN;
+    if (!Number.isFinite(high) || !Number.isFinite(low)) return [];
+    return [{ high, low }];
+  });
+}
+
+export async function pathRiskForRec(input: {
+  ticker: string;
+  side: string;
+  spot: number;
+  strike: number;
+  snapshotDate: string;
+  endDate: string;
+  /** When false, skip Yahoo OHLCV fill — request paths must stay fast. Default true for backfill jobs. */
+  allowFetch?: boolean;
+}): Promise<PathRisk | null> {
+  let bars = await fetchPathBars(input.ticker, input.snapshotDate, input.endDate);
+  if (bars.length === 0 && input.allowFetch !== false) {
+    await fetchAndStoreOHLCV(input.ticker).catch(() => {});
+    bars = await fetchPathBars(input.ticker, input.snapshotDate, input.endDate);
+  }
+  if (bars.length === 0) return null;
+  return computePathRisk({
+    side: input.side,
+    spot: input.spot,
+    strike: input.strike,
+    highs: bars.map((b) => b.high),
+    lows: bars.map((b) => b.low),
+  });
+}
+
+/** Backfill _pathRisk on graded WIN/LOSS rows missing it (idempotent). */
+export async function backfillPathRisk(limit = 80): Promise<{ updated: number; skipped: number }> {
+  const rows = await db.select({
+    id: modelRecs.id,
+    ticker: modelRecs.ticker,
+    side: modelRecs.side,
+    spot: modelRecs.spot,
+    strike: modelRecs.strike,
+    snapshotDate: modelRecs.snapshotDate,
+    expiry: modelRecs.expiry,
+    componentScores: modelRecs.componentScores,
+  }).from(modelRecs)
+    .where(sql`${modelRecs.status} IN ('WIN','LOSS')`)
+    .orderBy(desc(modelRecs.expiry))
+    .limit(limit * 3); // oversample; many already filled
+
+  let updated = 0, skipped = 0;
+  for (const rec of rows) {
+    if (updated >= limit) break;
+    const prev = (rec.componentScores && typeof rec.componentScores === "object")
+      ? rec.componentScores as Record<string, unknown>
+      : {};
+    if (prev["_pathRisk"] && typeof (prev["_pathRisk"] as { maxAdversePct?: unknown }).maxAdversePct === "number") {
+      skipped++;
+      continue;
+    }
+    const path = await pathRiskForRec({
+      ticker: rec.ticker,
+      side: rec.side,
+      spot: Number(rec.spot),
+      strike: Number(rec.strike),
+      snapshotDate: rec.snapshotDate,
+      endDate: rec.expiry,
+    });
+    if (!path) { skipped++; continue; }
+    await db.update(modelRecs).set({
+      componentScores: { ...prev, _pathRisk: path },
+    }).where(eq(modelRecs.id, rec.id));
+    updated++;
+  }
+  if (updated > 0) logger.info({ updated, skipped }, "model-track-record: path-risk backfill");
+  return { updated, skipped };
 }
 
 export async function gradeModelRecs(): Promise<{ graded: number; noData: number; pending: number }> {
@@ -350,12 +542,36 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
       }
 
       const s = settleRec({ side: rec.side, strike: Number(rec.strike), spot, premium: Number(rec.premium), close });
+      const prevComponents = (rec.componentScores && typeof rec.componentScores === "object")
+        ? rec.componentScores as Record<string, unknown>
+        : {};
+      const path = await pathRiskForRec({
+        ticker: rec.ticker,
+        side: rec.side,
+        spot,
+        strike: Number(rec.strike),
+        snapshotDate: rec.snapshotDate,
+        endDate: rec.expiry,
+      });
       await db.update(modelRecs).set({
         status: s.status,
         settleClose: String(close),
         intrinsic: String(s.intrinsic),
         pnlPerShare: String(s.pnlPerShare),
         pnlPct: String(s.pnlPct),
+        componentScores: {
+          ...prevComponents,
+          _settlement: {
+            hold: { pnlPct: s.pnlPct, status: s.status, pnlPerShare: s.pnlPerShare },
+            managed: {
+              pnlPct: s.managedPnlPct,
+              status: s.managedStatus,
+              pnlPerShare: s.managedPnlPerShare,
+              rule: "take_50pct_credit_or_stop_2x",
+            },
+          },
+          ...(path ? { _pathRisk: path } : {}),
+        },
         gradedAt: new Date(),
       }).where(eq(modelRecs.id, rec.id));
       graded++;
@@ -520,11 +736,16 @@ export async function gradeRegimeRows(): Promise<{ graded: number; noData: numbe
   return { graded, noData, pending };
 }
 
-// ── Tilt recompute ────────────────────────────────────────────────────────────
+// ── Tilt + calibration recompute ──────────────────────────────────────────────
 
 async function sideStats(side: "put" | "call"): Promise<SideTiltStats> {
   const sinceStr = new Date(Date.now() - TILT_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const rows = await db.select({ status: modelRecs.status, pnlPct: modelRecs.pnlPct })
+  const rows = await db.select({
+    status: modelRecs.status,
+    pnlPct: modelRecs.pnlPct,
+    ticker: modelRecs.ticker,
+    macroRegime: modelRecs.macroRegime,
+  })
     .from(modelRecs)
     .where(and(
       eq(modelRecs.side, side),
@@ -535,19 +756,91 @@ async function sideStats(side: "put" | "call"): Promise<SideTiltStats> {
   if (n === 0) return { winRate: null, avgPnlPct: null, n: 0, updatedAt: new Date().toISOString() };
   const wins = rows.filter(r => r.status === "WIN").length;
   const pnls = rows.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
+  const avgPnlPct = pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null;
+
+  // Regime slices
+  const byRegime: NonNullable<SideTiltStats["byRegime"]> = {};
+  const regimeGroups = new Map<string, number[]>();
+  for (const r of rows) {
+    const reg = r.macroRegime;
+    const p = num(r.pnlPct);
+    if (!reg || p == null) continue;
+    if (!regimeGroups.has(reg)) regimeGroups.set(reg, []);
+    regimeGroups.get(reg)!.push(p);
+  }
+  for (const [reg, vals] of regimeGroups) {
+    byRegime[reg] = { n: vals.length, avgPnlPct: vals.reduce((a, b) => a + b, 0) / vals.length };
+  }
+
+  // Per-ticker EB toward global
+  const byTicker: NonNullable<SideTiltStats["byTicker"]> = {};
+  if (avgPnlPct != null) {
+    const tickerGroups = new Map<string, number[]>();
+    for (const r of rows) {
+      const p = num(r.pnlPct);
+      if (p == null) continue;
+      if (!tickerGroups.has(r.ticker)) tickerGroups.set(r.ticker, []);
+      tickerGroups.get(r.ticker)!.push(p);
+    }
+    for (const [ticker, vals] of tickerGroups) {
+      if (vals.length < TICKER_MIN_N) continue;
+      const tAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const shrunk = shrinkTickerExpectancy(tAvg, vals.length, avgPnlPct, TICKER_PRIOR);
+      byTicker[ticker] = { n: vals.length, avgPnlPct: tAvg, shrunkDelta: shrunk - avgPnlPct };
+    }
+  }
+
   return {
     winRate: wins / n,
-    avgPnlPct: pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null,
+    avgPnlPct,
     n,
     updatedAt: new Date().toISOString(),
+    byRegime: Object.keys(byRegime).length ? byRegime : undefined,
+    byTicker: Object.keys(byTicker).length ? byTicker : undefined,
   };
+}
+
+async function loadGradedForCalibration(): Promise<GradedRecForCalibration[]> {
+  const sinceStr = new Date(Date.now() - TILT_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const rows = await db.select({
+    side: modelRecs.side,
+    optionScore: modelRecs.optionScore,
+    pnlPct: modelRecs.pnlPct,
+    snapshotDate: modelRecs.snapshotDate,
+  }).from(modelRecs).where(and(
+    gte(modelRecs.snapshotDate, sinceStr),
+    sql`${modelRecs.status} IN ('WIN','LOSS')`,
+  ));
+  return rows.flatMap((r) => {
+    const side = r.side === "call" ? "call" as const : r.side === "put" ? "put" as const : null;
+    const score = num(r.optionScore);
+    const pnl = num(r.pnlPct);
+    if (!side || score == null || pnl == null) return [];
+    return [{ side, optionScore: score, pnlPct: pnl, snapshotDate: r.snapshotDate }];
+  });
 }
 
 export async function recomputeTilt(): Promise<TiltState> {
   const [put, call] = await Promise.all([sideStats("put"), sideStats("call")]);
   const state: TiltState = { put, call };
   await setTiltState(state);
-  logger.info({ put, call }, "model-track-record: tilt recomputed");
+
+  const graded = await loadGradedForCalibration();
+  if (graded.length >= TILT_MIN_N) {
+    // Walk-forward: train ending 28d before latest snapshot when possible
+    const dates = [...new Set(graded.map((g) => g.snapshotDate).filter(Boolean) as string[])].sort();
+    const foldEnd = dates.length >= 4 ? dates[Math.floor(dates.length * 0.7)]! : null;
+    const table = buildCalibrationTable(graded, { trainEndDate: foldEnd });
+    await setCalibrationTable(table);
+    if (foldEnd) {
+      const wf = walkForwardCalibration(graded, [foldEnd]);
+      logger.info({ foldEnd, holdout: wf[0]?.holdoutExpectancy, putN: table.put.n, callN: table.call.n },
+        "model-track-record: calibration walk-forward");
+    }
+  }
+
+  logger.info({ put: { n: put.n, avgPnlPct: put.avgPnlPct }, call: { n: call.n, avgPnlPct: call.avgPnlPct } },
+    "model-track-record: tilt+calibration recomputed");
   return state;
 }
 
@@ -556,6 +849,7 @@ export async function recomputeTilt(): Promise<TiltState> {
 export async function runModelGrading(): Promise<void> {
   // Each stage isolated: one failure must not block the others or the resolver.
   await gradeModelRecs().catch(err => logger.error({ err }, "model-track-record: gradeModelRecs crashed"));
+  await backfillPathRisk(120).catch(err => logger.error({ err }, "model-track-record: backfillPathRisk crashed"));
   await gradeHotlistSnapshots().catch(err => logger.error({ err }, "model-track-record: gradeHotlistSnapshots crashed"));
   await insertRegimeGradeStubs().catch(err => logger.error({ err }, "model-track-record: insertRegimeGradeStubs crashed"));
   await gradeRegimeRows().catch(err => logger.error({ err }, "model-track-record: gradeRegimeRows crashed"));

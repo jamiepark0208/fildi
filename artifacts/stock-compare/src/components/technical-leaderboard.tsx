@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import { ChevronDown, Trophy, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,12 +20,14 @@ function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, Te
       signal:          score.signal,
       regime:          score.regime ?? "NEUTRAL",
       componentScores: {
-        oversoldDepth:   cs["oversoldDepth"]?.score   ?? 0,
-        reversalSignal:  cs["reversalSignal"]?.score  ?? 0,
-        volatilityState: cs["volatilityState"]?.score ?? 0,
-        trendContext:    cs["trendContext"]?.score     ?? 0,
-        optionsFlow:     cs["optionsFlow"]?.score      ?? 0,
-        volumeConfirm:   cs["volumeConfirm"]?.score    ?? 0,
+        oversoldDepth:    cs["oversoldDepth"]?.score    ?? 0,
+        reversalSignal:   cs["reversalSignal"]?.score   ?? 0,
+        volatilityState:  cs["volatilityState"]?.score  ?? 0,
+        trendContext:     cs["trendContext"]?.score     ?? 0,
+        relativePressure: cs["relativePressure"]?.score ?? 0,
+        optionsFlow:      cs["optionsFlow"]?.score      ?? 0,
+        analystUpside:    cs["analystUpside"]?.score    ?? 0,
+        volumeConfirm:    cs["volumeConfirm"]?.score   ?? 0,
       },
       rsi14:           parseFloat(row?.rsi14 ?? "0") || 0,
       rsi14Pct:        parseFloat(row?.rsi14Pct ?? "50") || 50,
@@ -46,7 +48,18 @@ function parseBullets(text: string): string[] {
     .filter(s => s.length > 8);
 }
 
-export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores: TechnicalScore[]; rowMap?: Record<string, TechnicalRow>; side?: ScoreSide }) {
+export function TechnicalLeaderboard({
+  scores,
+  rowMap,
+  side = "put",
+  scoredAsOf,
+}: {
+  scores: TechnicalScore[];
+  rowMap?: Record<string, TechnicalRow>;
+  side?: ScoreSide;
+  /** ISO timestamp — typically max(technicalsLastFetched) across scored rows. */
+  scoredAsOf?: string | null;
+}) {
   // Side-aware labels/explainers — same component keys, direction-correct wording.
   const metrics = getTechnicalScorecardMetrics(side);
   const explainers = getComponentExplainers(side);
@@ -62,6 +75,27 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
     ? scores.filter(s => s.ticker.toLowerCase().includes(query.trim().toLowerCase()))
     : scores;
 
+  const scoredLabel = (() => {
+    let iso = scoredAsOf ?? null;
+    if (!iso && rowMap) {
+      let maxMs = 0;
+      for (const r of Object.values(rowMap)) {
+        const t = r.technicalsLastFetched;
+        if (!t) continue;
+        const ms = new Date(t).getTime();
+        if (Number.isFinite(ms) && ms > maxMs) maxMs = ms;
+      }
+      if (maxMs > 0) iso = new Date(maxMs).toISOString();
+    }
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  })();
+
   const rankBadgeCls = (idx: number) =>
     idx === 0 ? "bg-yellow-500 text-yellow-950" :
     idx === 1 ? "bg-slate-400 text-slate-950"   :
@@ -69,18 +103,23 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
                 "bg-secondary text-secondary-foreground";
 
   const rowCls = (idx: number) =>
-    idx === 0 ? "border-yellow-500/30 bg-yellow-500/5" :
-    idx === 1 ? "border-slate-400/30 bg-slate-400/5"   :
-    idx === 2 ? "border-amber-700/30 bg-amber-700/5"   :
-                "border-border/40 bg-background/30";
+    idx === 0 ? "border-yellow-500/30 bg-yellow-500/10" :
+    idx === 1 ? "border-slate-400/30 bg-slate-400/10"   :
+    idx === 2 ? "border-amber-700/30 bg-amber-700/10"   :
+                "border-[#d4af37]/10 bg-transparent";
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+    <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-4 shadow-lg shadow-black/60">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-bold tracking-tight">Technical Rankings Leaderboard</h2>
           <span className="text-xs text-muted-foreground">({scores.length})</span>
+          {scoredLabel && (
+            <span className="text-[10px] text-muted-foreground/80" title="max technicals_last_fetched">
+              data as of {scoredLabel}
+            </span>
+          )}
         </div>
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
@@ -100,6 +139,7 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
             <tr className={GRID_HEADER}>
               <th className={cn(GRID_TH, "text-center w-8")}>#</th>
               <th className={cn(GRID_TH, "text-left")}>Ticker</th>
+              <th className={cn(GRID_TH, "text-center w-14")}>Gate</th>
               <th className={cn(GRID_TH, "text-right")}>Score</th>
               <th className={cn(GRID_TH, "text-left")}>Strength</th>
               <th className={cn(GRID_TH, "text-right")}></th>
@@ -107,7 +147,7 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
           </thead>
           <tbody>
         {filtered.length === 0 && (
-          <tr><td colSpan={5} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+          <tr><td colSpan={6} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
         )}
         {filtered.map((score, rowIdx) => {
           const idx = score.rank - 1;
@@ -132,11 +172,6 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
               })
             : [];
           const availWeightSum = componentRows.filter(c => c.score100 != null).reduce((s, c) => s + c.weightPct, 0);
-
-          const signalCls =
-            score.signal === "GO"    ? "text-green-400" :
-            score.signal === "WATCH" ? "text-yellow-400" :
-                                       "text-slate-500";
 
           return (
             <Fragment key={score.ticker}>
@@ -167,7 +202,20 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
 
               <td className={GRID_TD}>
                 <span className="font-mono font-bold text-white">{score.ticker}</span>
-                <span className={cn("ml-1.5 text-[10px] font-bold", signalCls)}>{score.signal} · T{score.tier}</span>
+              </td>
+
+              <td className={cn(GRID_TD, "text-center")}>
+                <span
+                  className={cn(
+                    "inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide",
+                    score.signal === "GO" && "bg-emerald-500/20 text-emerald-400",
+                    score.signal === "WATCH" && "bg-amber-500/20 text-amber-300",
+                    score.signal === "NO" && "bg-slate-700/60 text-slate-400",
+                  )}
+                  title={score.reason}
+                >
+                  {score.signal}
+                </span>
               </td>
 
               <td className={cn(GRID_TD, "text-right")}>
@@ -196,8 +244,8 @@ export function TechnicalLeaderboard({ scores, rowMap, side = "put" }: { scores:
 
               {isExpanded && (
                 <tr>
-                <td colSpan={5} className="p-0">
-                <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/20 border-b border-border/20">
+                <td colSpan={6} className="p-0">
+                <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/50 border-b border-[#d4af37]/15">
                   {/* Formula breakdown, one line: Total = Σ(component score × weight), renormalized over available weight */}
                   {componentRows.length > 0 && (
                     <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-[11px] font-mono">

@@ -81,22 +81,41 @@ export interface TechnicalRow {
   pivotR1: Num;
   atr14: Num;
   impliedMoveWeekly: Num;
+  /** ISO timestamp from ticker_technicals.technicals_last_fetched (API enrichment). */
+  technicalsLastFetched?: string | null;
+  /** Optional enrichment from gold + registry (API /technicals/all). */
+  peerGroupId?: string | null;
+  /** (analystTarget − price) / price from gold TP + last close. */
+  analystUpside?: number | null;
+  /** 20d return vs SPY (pp). Negative = relative weakness. */
+  vsSpy20d?: number | null;
+  /**
+   * Preferred IV rank [0,1]: hist ATM IV percentile when ≥10 snapshots,
+   * else cross-sectional ATM IV percentile among scored universe (set at score time).
+   */
+  ivRankEffective?: number | null;
+  /** Yahoo shortRatio (days-to-cover). High = crowded short. */
+  shortRatio?: number | null;
 }
 
-// ── Named weight constants (total = 1.00) ────────────────────────────────────
-const W_OVERSOLD_DEPTH   = 0.25;
-const W_REVERSAL_SIGNAL  = 0.20;
-const W_VOLATILITY_STATE = 0.22;
-const W_TREND_CONTEXT    = 0.18;
-const W_OPTIONS_FLOW     = 0.10;
-const W_VOLUME_CONFIRM   = 0.05;
+// ── Named weight constants (total = 1.00) — v4
+const W_OVERSOLD_DEPTH   = 0.20;
+const W_REVERSAL_SIGNAL  = 0.17;
+const W_VOLATILITY_STATE = 0.14;
+const W_TREND_CONTEXT    = 0.14;
+const W_RELATIVE_PRESSURE = 0.08;
+const W_OPTIONS_FLOW     = 0.08;
+const W_ANALYST_UPSIDE   = 0.12;
+const W_VOLUME_CONFIRM   = 0.07;
 
 export const TECHNICAL_SCORECARD_METRICS_V2 = [
-  { key: "oversoldDepth",   label: "Oversold Depth",   weight: W_OVERSOLD_DEPTH,   description: "RSI/MFI/Stoch vs own trailing history" },
+  { key: "oversoldDepth",   label: "Oversold Depth",   weight: W_OVERSOLD_DEPTH,   description: "RSI/MFI/Stoch vs own trailing history (sector-dampened)" },
   { key: "reversalSignal",  label: "Reversal Signal",  weight: W_REVERSAL_SIGNAL,  description: "MACD direction, RSI velocity, proximity to own support" },
-  { key: "volatilityState", label: "Volatility State", weight: W_VOLATILITY_STATE, description: "IV rank vs own history, IV/realized spread, BB squeeze" },
+  { key: "volatilityState", label: "Volatility State", weight: W_VOLATILITY_STATE, description: "Hist/cross ATM IV rank + IV/RV premium + BB squeeze" },
   { key: "trendContext",    label: "Trend Context",    weight: W_TREND_CONTEXT,    description: "Regime, price vs MA50 in own ATR units, vs VWAP" },
+  { key: "relativePressure",label: "Relative Pressure",weight: W_RELATIVE_PRESSURE, description: "Price z-score + 20d vs SPY; short DTC & speculative peers haircut total" },
   { key: "optionsFlow",     label: "Options Flow",     weight: W_OPTIONS_FLOW,     description: "Put/call volume ratio, put skew, IV term structure" },
+  { key: "analystUpside",   label: "Analyst Upside",   weight: W_ANALYST_UPSIDE,   description: "Consensus target vs spot (Yahoo/FMP); |upside|>75% rejected" },
   { key: "volumeConfirm",   label: "Volume Confirm",   weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
 ] as const;
 
@@ -108,9 +127,11 @@ export type ScoreSide = "put" | "call";
 export const TECHNICAL_SCORECARD_METRICS_V2_CALL = [
   { key: "oversoldDepth",   label: "Overbought Depth",   weight: W_OVERSOLD_DEPTH,   description: "RSI/MFI/Stoch high vs own trailing history (sell calls into strength)" },
   { key: "reversalSignal",  label: "Exhaustion Signal",  weight: W_REVERSAL_SIGNAL,  description: "MACD rolling over, RSI velocity fading, proximity to own resistance" },
-  { key: "volatilityState", label: "Volatility State",   weight: W_VOLATILITY_STATE, description: "IV rank vs own history, IV/realized spread, BB squeeze" },
+  { key: "volatilityState", label: "Volatility State",   weight: W_VOLATILITY_STATE, description: "Hist/cross ATM IV rank + IV/RV premium + BB squeeze" },
   { key: "trendContext",    label: "Trend Extension",    weight: W_TREND_CONTEXT,    description: "Regime, price stretched above MA50 in own ATR units, above VWAP" },
+  { key: "relativePressure",label: "Relative Extension", weight: W_RELATIVE_PRESSURE, description: "Price z-score + 20d vs SPY; short DTC & speculative peers haircut total" },
   { key: "optionsFlow",     label: "Call-Side Flow",     weight: W_OPTIONS_FLOW,     description: "Call-heavy volume, call wing richness (negative skew), IV term structure" },
+  { key: "analystUpside",   label: "Above Target",       weight: W_ANALYST_UPSIDE,   description: "Price vs consensus target — extended above target favors call overwriting" },
   { key: "volumeConfirm",   label: "Volume Confirm",     weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
 ] as const;
 
@@ -155,14 +176,191 @@ function scoreReversalSignal(r: TechnicalRow): number | null {
 
 function scoreVolatilityState(r: TechnicalRow): number | null {
   const parts: number[] = [];
-  const ivRank = pf(r.ivRank);
-  if (ivRank != null) parts.push(ivRank);                         // already [0,1] self-relative
+  // Prefer hist/cross ATM IV rank when available; fall back to absolute ATM IV level.
+  const ivRankEff = r.ivRankEffective != null && Number.isFinite(r.ivRankEffective)
+    ? r.ivRankEffective
+    : null;
+  if (ivRankEff != null) {
+    parts.push(c01(ivRankEff));
+  } else {
+    const atmIv = pf(r.atmPutIv);
+    if (atmIv != null && atmIv > 0) {
+      parts.push(c01((atmIv - 10) / 50)); // 10%→0, 60%→1
+    }
+  }
   const ivVsRv = pf(r.ivVsRealizedVol);
   if (ivVsRv != null) parts.push(c01((ivVsRv - 0.5) / 1.0));    // 0.5→0, 1.0→0.5, 1.5→1.0
   const bbPct = pf(r.bbWidthPct);
   if (bbPct != null) parts.push(1 - bbPct);                       // squeeze = coiling = higher score
-  // impliedMoveWeekly skipped: no self-relative history stored yet (see roadmap in phase report)
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
+/** Put lens: consensus upside supports selling puts. Call lens: price above target favors overwriting. */
+function scoreAnalystUpside(r: TechnicalRow, side: ScoreSide): number | null {
+  const u = r.analystUpside;
+  if (u == null || !Number.isFinite(u)) return null;
+  // Reject absurd targets. Soft curve so 30% upside ≈ 0.75, 50% ≈ 0.90 — not a binary crown.
+  if (Math.abs(u) > 0.75) return null;
+  const clipped = Math.max(-0.5, Math.min(0.5, u));
+  // tanh-ish soft: score = 0.5 + 0.5 * tanh(clipped / 0.28)
+  const soft = 0.5 + 0.5 * Math.tanh(clipped / 0.28);
+  if (side === "call") return c01(1 - soft);
+  return c01(soft);
+}
+
+/** Relative weakness (put) / extension (call): price z-score + 20d vs SPY. */
+function scoreRelativePressure(r: TechnicalRow, side: ScoreSide): number | null {
+  const parts: number[] = [];
+  const z = pf(r.priceZScore);
+  const vs = r.vsSpy20d != null && Number.isFinite(r.vsSpy20d) ? r.vsSpy20d : null;
+  if (side === "call") {
+    if (z != null) parts.push(c01((z + 0.5) / 2.5));
+    if (vs != null) parts.push(c01((vs + 2) / 10));
+  } else {
+    if (z != null) parts.push(c01((-z + 0.5) / 2.5));
+    if (vs != null) parts.push(c01((-vs + 2) / 10));
+  }
+  return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
+}
+
+/**
+ * Short-interest haircut on total score (both sides).
+ * Days-to-cover: ≤4d → 0%, 9d → 20% (p90≈6.2, p95≈7.9). Crowded shorts = risk.
+ */
+export function shortInterestHaircut(shortRatio: number | null | undefined): number {
+  if (shortRatio == null || !Number.isFinite(shortRatio) || shortRatio <= 4) return 0;
+  return Math.min(0.20, ((shortRatio - 4) / 5) * 0.20);
+}
+
+/**
+ * Speculative peer-group haircut. Extra when consensus TP is missing/rejected —
+ * stops biotech/spec names climbing boards on oversold alone.
+ */
+export function speculativeHaircut(
+  peerGroupId: string | null | undefined,
+  analystUpside: number | null | undefined,
+): number {
+  if (!peerGroupId) return 0;
+  const speculative =
+    peerGroupId.includes("speculative") ||
+    peerGroupId.includes("crypto_") ||
+    peerGroupId.endsWith(".space_aerospace_tech");
+  if (!speculative) return 0;
+  const tpMissing =
+    analystUpside == null ||
+    !Number.isFinite(analystUpside) ||
+    Math.abs(analystUpside) > 0.75;
+  return tpMissing ? 0.12 : 0.06;
+}
+
+/** Mild haircut when gold TP is missing or rejected as absurd — all peer groups. */
+export function missingTpHaircut(analystUpside: number | null | undefined): number {
+  if (analystUpside == null || !Number.isFinite(analystUpside)) return 0.04;
+  if (Math.abs(analystUpside) > 0.75) return 0.04;
+  return 0;
+}
+
+function scoreVolumeConfirm(r: TechnicalRow): number | null {
+  return pf(r.volumeRatioPct);
+}
+
+/**
+ * Soft sector dampening: when a peer group's median oversold/overbought depth is
+ * extreme, haircut members that are also extreme — stops one sector dump from
+ * owning the entire leaderboard. Intentionally cross-sectional (breaks pure
+ * invariance when peerGroupId is present).
+ * v4: tighter — med 0.65→0%, 0.90→45% haircut; applies from depth ≥0.55.
+ */
+export function dampenDepthByPeerGroup(
+  depthScores: (number | null)[],
+  peerGroupIds: (string | null | undefined)[],
+): (number | null)[] {
+  const byGroup = new Map<string, number[]>();
+  peerGroupIds.forEach((gid, i) => {
+    const s = depthScores[i];
+    if (!gid || s == null) return;
+    if (!byGroup.has(gid)) byGroup.set(gid, []);
+    byGroup.get(gid)!.push(s);
+  });
+  const medianOf = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  };
+  const haircutByGroup = new Map<string, number>();
+  for (const [gid, vals] of byGroup) {
+    if (vals.length < 3) continue;
+    const med = medianOf(vals);
+    if (med <= 0.65) continue;
+    // med 0.65→0% haircut, 0.90→45% haircut
+    const h = Math.min(0.45, ((med - 0.65) / 0.25) * 0.45);
+    haircutByGroup.set(gid, h);
+  }
+  if (haircutByGroup.size === 0) return depthScores;
+  return depthScores.map((s, i) => {
+    if (s == null || s < 0.55) return s;
+    const gid = peerGroupIds[i];
+    if (!gid || !haircutByGroup.has(gid)) return s;
+    return s * (1 - haircutByGroup.get(gid)!);
+  });
+}
+
+/**
+ * Soft-cap finals by sector prefix AND by full peer group:
+ * - sector ≤25% of top-N
+ * - single peer group ≤15% of top-N (stops midstream triplet etc.)
+ */
+export function softCapPeerGroupInTopN(
+  scores: { peerGroupId: string | null | undefined; totalScore: number }[],
+  topN = 20,
+  maxShare = 0.25,
+): number[] {
+  const sectorOf = (gid: string | null | undefined) =>
+    gid ? gid.split(".")[0]! : null;
+  const indexed = scores.map((s, i) => ({
+    sector: sectorOf(s.peerGroupId),
+    peerGroupId: s.peerGroupId ?? null,
+    totalScore: s.totalScore,
+    i,
+  }));
+  const sorted = [...indexed].sort((a, b) => b.totalScore - a.totalScore);
+  const top = sorted.slice(0, topN);
+
+  const maxSector = Math.max(1, Math.floor(topN * maxShare));
+  const maxPeer = Math.max(1, Math.floor(topN * 0.15)); // ≤3 of 20
+
+  const countSector = new Map<string, number>();
+  const countPeer = new Map<string, number>();
+  for (const t of top) {
+    if (t.sector) countSector.set(t.sector, (countSector.get(t.sector) ?? 0) + 1);
+    if (t.peerGroupId) countPeer.set(t.peerGroupId, (countPeer.get(t.peerGroupId) ?? 0) + 1);
+  }
+  const overSectors = new Set<string>();
+  for (const [sec, n] of countSector) if (n > maxSector) overSectors.add(sec);
+  const overPeers = new Set<string>();
+  for (const [gid, n] of countPeer) if (n > maxPeer) overPeers.add(gid);
+  if (overSectors.size === 0 && overPeers.size === 0) {
+    return scores.map((s) => s.totalScore);
+  }
+
+  const out = scores.map((s) => s.totalScore);
+  for (const sec of overSectors) {
+    const members = sorted.filter((s) => s.sector === sec);
+    members.forEach((m, rankInSector) => {
+      if (rankInSector < maxSector) return;
+      const h = Math.min(0.25, 0.05 * (rankInSector - maxSector + 1));
+      out[m.i] = Math.min(out[m.i]!, m.totalScore * (1 - h));
+    });
+  }
+  for (const gid of overPeers) {
+    const members = sorted.filter((s) => s.peerGroupId === gid);
+    members.forEach((m, rankInGroup) => {
+      if (rankInGroup < maxPeer) return;
+      const h = Math.min(0.20, 0.06 * (rankInGroup - maxPeer + 1));
+      out[m.i] = Math.min(out[m.i]!, m.totalScore * (1 - h));
+    });
+  }
+  return out;
 }
 
 function scoreTrendContext(r: TechnicalRow): number | null {
@@ -189,10 +387,6 @@ function scoreOptionsFlow(r: TechnicalRow): number | null {
   if (term != null) parts.push(c01((term - 0.8) / 0.4));         // 0.8→0, 1.2→1.0
   // putCallVolumeRatio and basicSkew use absolute mappings (self-relative history not yet stored)
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
-}
-
-function scoreVolumeConfirm(r: TechnicalRow): number | null {
-  return pf(r.volumeRatioPct); // already [0,1] self-relative percentile from DB
 }
 
 // ── Call-side component scorers (mirror of the put scorers above) ─────────────
@@ -397,76 +591,99 @@ export function computeTechnicalRankingsV2(
 ): TechnicalScore[] {
   if (rows.length === 0) return [];
 
-  // Component keys are identical across sides (stable contract for weight
-  // overrides / componentScores / explainers); only scoreFn direction flips.
-  const defaultComponents = side === "call"
-    ? ([
-        { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOverboughtDepth },
-        { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreExhaustionSignal },
-        { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
-        { key: "trendContext",    weight: W_TREND_CONTEXT,    scoreFn: scoreTrendExtension },
-        { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreCallFlow },
-        { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
-      ] as const)
-    : ([
-        { key: "oversoldDepth",   weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
-        { key: "reversalSignal",  weight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
-        { key: "volatilityState", weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
-        { key: "trendContext",    weight: W_TREND_CONTEXT,    scoreFn: scoreTrendContext },
-        { key: "optionsFlow",     weight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
-        { key: "volumeConfirm",   weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
-      ] as const);
+  const w = (key: string, def: number) => technicalWeights?.[key] ?? def;
 
-  const COMPONENTS = defaultComponents.map(c => ({
-    ...c,
-    weight: technicalWeights?.[c.key] ?? c.weight,
-  }));
+  // Raw depth before peer dampening
+  const rawDepth = rows.map((row) =>
+    side === "call" ? scoreOverboughtDepth(row) : scoreOversoldDepth(row),
+  );
+  const depthScores = dampenDepthByPeerGroup(
+    rawDepth,
+    rows.map((r) => r.peerGroupId ?? null),
+  );
 
-  // ── SELF-RELATIVE SCORE COMPUTATION ────────────────────────────────────────
-  // Each ticker's score depends ONLY on its own row. No cross-ticker data used here.
-  const perTicker = rows.map(row => {
-    const compScores = COMPONENTS.map(c => ({ key: c.key, weight: c.weight, score: c.scoreFn(row) }));
-    const available  = compScores.filter(c => c.score !== null) as { key: string; weight: number; score: number }[];
+  // Cross-sectional ATM IV percentile fallback when hist IV rank unavailable
+  const atmIvs = rows.map((r) => pf(r.atmPutIv));
+  const finiteAtm = atmIvs.filter((v): v is number => v != null && v > 0).sort((a, b) => a - b);
+  const crossIvRank = (iv: number | null): number | null => {
+    if (iv == null || iv <= 0 || finiteAtm.length < 20) return null;
+    let below = 0;
+    for (const v of finiteAtm) if (v < iv) below++;
+    return below / finiteAtm.length;
+  };
+  const enrichedRows = rows.map((r) => {
+    if (r.ivRankEffective != null && Number.isFinite(r.ivRankEffective)) return r;
+    const cross = crossIvRank(pf(r.atmPutIv));
+    return cross != null ? { ...r, ivRankEffective: cross } : r;
+  });
+
+  const perTicker = enrichedRows.map((row, i) => {
+    const compScores: { key: string; weight: number; score: number | null }[] = [
+      { key: "oversoldDepth",    weight: w("oversoldDepth", W_OVERSOLD_DEPTH),     score: depthScores[i]! },
+      { key: "reversalSignal",   weight: w("reversalSignal", W_REVERSAL_SIGNAL),   score: side === "call" ? scoreExhaustionSignal(row) : scoreReversalSignal(row) },
+      { key: "volatilityState",  weight: w("volatilityState", W_VOLATILITY_STATE), score: scoreVolatilityState(row) },
+      { key: "trendContext",     weight: w("trendContext", W_TREND_CONTEXT),       score: side === "call" ? scoreTrendExtension(row) : scoreTrendContext(row) },
+      { key: "relativePressure", weight: w("relativePressure", W_RELATIVE_PRESSURE), score: scoreRelativePressure(row, side) },
+      { key: "optionsFlow",      weight: w("optionsFlow", W_OPTIONS_FLOW),        score: side === "call" ? scoreCallFlow(row) : scoreOptionsFlow(row) },
+      { key: "analystUpside",    weight: w("analystUpside", W_ANALYST_UPSIDE),    score: scoreAnalystUpside(row, side) },
+      { key: "volumeConfirm",    weight: w("volumeConfirm", W_VOLUME_CONFIRM),    score: scoreVolumeConfirm(row) },
+    ];
+    const available = compScores.filter((c) => c.score !== null) as { key: string; weight: number; score: number }[];
 
     let totalScore = 0;
     if (available.length > 0) {
-      const availWeight  = available.reduce((s, c) => s + c.weight, 0);
-      const weightedSum  = available.reduce((s, c) => s + c.score * c.weight, 0);
-      // Renormalize over available weights → score ∈ [0,100]. maxPossible = 100 always.
+      const availWeight = available.reduce((s, c) => s + c.weight, 0);
+      const weightedSum = available.reduce((s, c) => s + c.score * c.weight, 0);
       totalScore = (weightedSum / availWeight) * 100;
     }
+
+    // Risk haircuts (multiplicative on total — not ranked components)
+    const siH = shortInterestHaircut(row.shortRatio);
+    const spH = speculativeHaircut(row.peerGroupId, row.analystUpside);
+    const tpH = missingTpHaircut(row.analystUpside);
+    const combinedH = Math.min(0.30, siH + spH + tpH);
+    if (combinedH > 0) totalScore *= 1 - combinedH;
 
     return {
       row,
       compScores,
-      available,
       totalScore,
-      signal:  side === "call" ? computeGateV2Call(row) : computeGateV2(row),
-      tier:    tierMap[row.ticker.toUpperCase()] ?? (1 as 1 | 2 | 3),
-      regime:  (row.regime ?? "NEUTRAL") as "BULLISH" | "NEUTRAL" | "BEARISH",
+      peerGroupId: row.peerGroupId ?? null,
+      signal: side === "call" ? computeGateV2Call(row) : computeGateV2(row),
+      tier: tierMap[row.ticker.toUpperCase()] ?? (1 as 1 | 2 | 3),
+      regime: (row.regime ?? "NEUTRAL") as "BULLISH" | "NEUTRAL" | "BEARISH",
       coverage: pf(row.technicalsCoverage),
     };
   });
 
-  // ── DISPLAY-ONLY: rank assignment (does not affect any score) ──────────────
+  // Soft-cap peer over-representation in the top of the board
+  const capped = softCapPeerGroupInTopN(
+    perTicker.map((p) => ({ peerGroupId: p.peerGroupId, totalScore: p.totalScore })),
+    20,
+    0.25,
+  );
+  perTicker.forEach((p, i) => { p.totalScore = capped[i]!; });
+
   const sorted = [...perTicker].sort((a, b) => b.totalScore - a.totalScore);
 
   return sorted.map(({ row, compScores, totalScore, signal, tier, regime, coverage }, rankIdx) => {
     const rank = rankIdx + 1;
     const ms: TechnicalScore["metricScores"] = {};
     const repValue: Record<string, number | null> = {
-      oversoldDepth:   pf(row.rsi14),
-      reversalSignal:  pf(row.rsiVelocity),
-      volatilityState: pf(row.ivVsRealizedVol),
-      trendContext:    pf(row.priceVsMa50Atr),
-      optionsFlow:     pf(row.putCallVolumeRatio),
-      volumeConfirm:   pf(row.volumeRatioPct),
+      oversoldDepth:    pf(row.rsi14),
+      reversalSignal:   pf(row.rsiVelocity),
+      volatilityState:  row.ivRankEffective ?? pf(row.atmPutIv) ?? pf(row.ivVsRealizedVol),
+      trendContext:     pf(row.priceVsMa50Atr),
+      relativePressure: row.vsSpy20d ?? pf(row.priceZScore),
+      optionsFlow:      pf(row.putCallVolumeRatio),
+      analystUpside:    row.analystUpside ?? null,
+      volumeConfirm:    pf(row.volumeRatioPct),
     };
     for (const c of compScores) {
       ms[c.key] = {
         value:         repValue[c.key] ?? null,
         weightedScore: c.score != null ? parseFloat((c.score * c.weight).toFixed(4)) : 0,
-        rank,          // overall rank — component-level rank is display-only in V2
+        rank,
       };
     }
     return {
@@ -478,7 +695,6 @@ export function computeTechnicalRankingsV2(
       tier,
       metricScores: ms,
       reason:       side === "call" ? generateReasonV2Call(row, signal) : generateReasonV2(row, signal),
-      // V2 optional fields
       gateStatus:   signal,
       regime,
       componentScores: Object.fromEntries(
@@ -522,12 +738,94 @@ export function explainReversalSignal(r: TechnicalRow): ComponentPart[] {
 
 export function explainVolatilityState(r: TechnicalRow): ComponentPart[] {
   const parts: ComponentPart[] = [];
-  const ivRank = pf(r.ivRank);
-  if (ivRank != null) parts.push({ label: "IV rank (own history)", raw: fmtPct01(ivRank), score: ivRank });
+  if (r.ivRankEffective != null && Number.isFinite(r.ivRankEffective)) {
+    parts.push({ label: "ATM IV rank (hist or cross-sectional)", raw: fmtPct01(r.ivRankEffective), score: c01(r.ivRankEffective) });
+  } else {
+    const atmIv = pf(r.atmPutIv);
+    if (atmIv != null && atmIv > 0) {
+      parts.push({ label: "ATM put IV (elevated = better for premium)", raw: `${atmIv.toFixed(1)}%`, score: c01((atmIv - 10) / 50) });
+    }
+  }
   const ivVsRv = pf(r.ivVsRealizedVol);
   if (ivVsRv != null) parts.push({ label: "IV vs realized vol", raw: `${ivVsRv.toFixed(2)}x`, score: c01((ivVsRv - 0.5) / 1.0) });
   const bbPct = pf(r.bbWidthPct);
   if (bbPct != null) parts.push({ label: "Bollinger Band width percentile", raw: fmtPct01(bbPct), score: 1 - bbPct });
+  return parts;
+}
+
+export function explainAnalystUpsidePut(r: TechnicalRow): ComponentPart[] {
+  const u = r.analystUpside;
+  if (u == null || !Number.isFinite(u) || Math.abs(u) > 0.75) return [];
+  const clipped = Math.max(-0.5, Math.min(0.5, u));
+  const soft = 0.5 + 0.5 * Math.tanh(clipped / 0.28);
+  return [{
+    label: "Consensus target upside (gold Yahoo/FMP)",
+    raw: `${(u * 100).toFixed(1)}%`,
+    score: c01(soft),
+  }];
+}
+
+export function explainAnalystUpsideCall(r: TechnicalRow): ComponentPart[] {
+  const u = r.analystUpside;
+  if (u == null || !Number.isFinite(u) || Math.abs(u) > 0.75) return [];
+  const clipped = Math.max(-0.5, Math.min(0.5, u));
+  const soft = 0.5 + 0.5 * Math.tanh(clipped / 0.28);
+  return [{
+    label: "Price vs consensus target (above target = good for calls)",
+    raw: `${(u * 100).toFixed(1)}% upside`,
+    score: c01(1 - soft),
+  }];
+}
+
+export function explainRelativePressurePut(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const z = pf(r.priceZScore);
+  if (z != null) parts.push({ label: "Price z-score (20d)", raw: z.toFixed(2), score: c01((-z + 0.5) / 2.5) });
+  if (r.vsSpy20d != null && Number.isFinite(r.vsSpy20d)) {
+    parts.push({ label: "20d return vs SPY (pp)", raw: `${r.vsSpy20d.toFixed(1)}pp`, score: c01((-r.vsSpy20d + 2) / 10) });
+  }
+  const siH = shortInterestHaircut(r.shortRatio);
+  if (siH > 0 && r.shortRatio != null) {
+    parts.push({
+      label: `Short DTC haircut (−${(siH * 100).toFixed(0)}% total)`,
+      raw: `${r.shortRatio.toFixed(1)}d`,
+      score: 1 - siH,
+    });
+  }
+  const spH = speculativeHaircut(r.peerGroupId, r.analystUpside);
+  if (spH > 0) {
+    parts.push({
+      label: `Speculative peer haircut (−${(spH * 100).toFixed(0)}% total)`,
+      raw: r.peerGroupId ?? "speculative",
+      score: 1 - spH,
+    });
+  }
+  return parts;
+}
+
+export function explainRelativePressureCall(r: TechnicalRow): ComponentPart[] {
+  const parts: ComponentPart[] = [];
+  const z = pf(r.priceZScore);
+  if (z != null) parts.push({ label: "Price z-score (20d)", raw: z.toFixed(2), score: c01((z + 0.5) / 2.5) });
+  if (r.vsSpy20d != null && Number.isFinite(r.vsSpy20d)) {
+    parts.push({ label: "20d return vs SPY (pp)", raw: `${r.vsSpy20d.toFixed(1)}pp`, score: c01((r.vsSpy20d + 2) / 10) });
+  }
+  const siH = shortInterestHaircut(r.shortRatio);
+  if (siH > 0 && r.shortRatio != null) {
+    parts.push({
+      label: `Short DTC haircut (−${(siH * 100).toFixed(0)}% total)`,
+      raw: `${r.shortRatio.toFixed(1)}d`,
+      score: 1 - siH,
+    });
+  }
+  const spH = speculativeHaircut(r.peerGroupId, r.analystUpside);
+  if (spH > 0) {
+    parts.push({
+      label: `Speculative peer haircut (−${(spH * 100).toFixed(0)}% total)`,
+      raw: r.peerGroupId ?? "speculative",
+      score: 1 - spH,
+    });
+  }
   return parts;
 }
 
@@ -561,12 +859,14 @@ export function explainVolumeConfirm(r: TechnicalRow): ComponentPart[] {
 }
 
 export const COMPONENT_EXPLAINERS: Record<string, (r: TechnicalRow) => ComponentPart[]> = {
-  oversoldDepth:   explainOversoldDepth,
-  reversalSignal:  explainReversalSignal,
-  volatilityState: explainVolatilityState,
-  trendContext:    explainTrendContext,
-  optionsFlow:     explainOptionsFlow,
-  volumeConfirm:   explainVolumeConfirm,
+  oversoldDepth:    explainOversoldDepth,
+  reversalSignal:   explainReversalSignal,
+  volatilityState:  explainVolatilityState,
+  trendContext:     explainTrendContext,
+  relativePressure: explainRelativePressurePut,
+  optionsFlow:      explainOptionsFlow,
+  analystUpside:    explainAnalystUpsidePut,
+  volumeConfirm:    explainVolumeConfirm,
 };
 
 // ── Call-side explainers (mirror the call scorers exactly) ───────────────────
@@ -618,12 +918,14 @@ export function explainCallFlow(r: TechnicalRow): ComponentPart[] {
 }
 
 export const COMPONENT_EXPLAINERS_CALL: Record<string, (r: TechnicalRow) => ComponentPart[]> = {
-  oversoldDepth:   explainOverboughtDepth,
-  reversalSignal:  explainExhaustionSignal,
-  volatilityState: explainVolatilityState,
-  trendContext:    explainTrendExtension,
-  optionsFlow:     explainCallFlow,
-  volumeConfirm:   explainVolumeConfirm,
+  oversoldDepth:    explainOverboughtDepth,
+  reversalSignal:   explainExhaustionSignal,
+  volatilityState:  explainVolatilityState,
+  trendContext:     explainTrendExtension,
+  relativePressure: explainRelativePressureCall,
+  optionsFlow:      explainCallFlow,
+  analystUpside:    explainAnalystUpsideCall,
+  volumeConfirm:    explainVolumeConfirm,
 };
 
 export function getComponentExplainers(side: ScoreSide) {

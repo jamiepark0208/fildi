@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { cn } from "@/lib/utils";
 import { useWatchlist } from "@/hooks/use-watchlist";
@@ -9,8 +9,8 @@ import {
   type TechnicalRow,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { Loader2, RefreshCw, TrendingUp, Search } from "lucide-react";
-import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
+import { Loader2, RefreshCw, TrendingUp, Search, Trophy } from "lucide-react";
+import { pickBestStrike, selectPremiumCandidates, type StockContext } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
@@ -44,10 +44,24 @@ function scannerHiddenKey(userId: number | undefined): string {
 // that the min-income filter portals into instead of its own default control row.
 export const OPTIONS_FILTER_SLOT_ID = "options-filter-bar-slot";
 
-export function OptionsScannerContent({ showHeader = true }: { showHeader?: boolean }) {
+export function OptionsScannerContent({
+  showHeader = true,
+  universe = "watchlist",
+  side: controlledSide,
+  onSideChange,
+}: {
+  showHeader?: boolean;
+  /** Watchlist = user tickers; Overall = premium-IV candidates (same scorer + expandables). */
+  universe?: "watchlist" | "overall";
+  /** When set, parent owns Sell Puts/Calls (stable rankings chrome). */
+  side?: "puts" | "calls";
+  onSideChange?: (side: "puts" | "calls") => void;
+}) {
   const { isAdmin, user } = useAuth();
+  const queryClient = useQueryClient();
   const { weights, hasCustomOptionStrike } = useScoringPreferences();
   const { data: tilt } = useTrackRecordTilt();
+  const sideControlled = controlledSide != null;
 
   // sessionStorage (not localStorage) — expanded rows are tab-lifetime UI state,
   // restored on returning to this tab/sub-tab, but not meant to persist forever.
@@ -62,12 +76,27 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [scanMode,      setScanMode]      = useState<"puts" | "calls">(() => {
     try { return (localStorage.getItem("fildi_scanner_mode") as "puts" | "calls") || "puts"; } catch { return "puts"; }
   });
-  const isCallMode = scanMode === "calls";
-  useEffect(() => { try { localStorage.setItem("fildi_scanner_mode", scanMode); } catch {} }, [scanMode]);
+  const effectiveMode = sideControlled ? controlledSide! : scanMode;
+  const isCallMode = effectiveMode === "calls";
+  const setMode = (m: "puts" | "calls") => {
+    if (sideControlled) onSideChange?.(m);
+    else setScanMode(m);
+  };
+  useEffect(() => {
+    if (!sideControlled) {
+      try { localStorage.setItem("fildi_scanner_mode", scanMode); } catch {}
+    }
+  }, [scanMode, sideControlled]);
   // Model auto-tilt applies only to untouched defaults; an explicit user override always wins.
+  const tiltSide = isCallMode ? tilt?.call : tilt?.put;
   const effectiveStrikeWeights = isCallMode
     ? (tilt?.call.weights ?? CALL_STRIKE_WEIGHTS)
     : (hasCustomOptionStrike ? weights.optionStrike : (tilt?.put.weights ?? weights.optionStrike));
+  const pickOpts = useMemo(() => ({
+    minStockQuality: tiltSide?.sqFloor,
+    calibration: tilt?.calibration ?? null,
+    earningsHaircut: tiltSide?.earningsHaircut,
+  }), [tiltSide?.sqFloor, tiltSide?.earningsHaircut, tilt?.calibration]);
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [tickerQuery,   setTickerQuery]   = useState("");
@@ -92,26 +121,11 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setFilterSlot(document.getElementById(OPTIONS_FILTER_SLOT_ID)); }, []);
 
-  const { entries, isLoaded } = useWatchlist();
+  const { entries, isLoaded: watchlistLoaded } = useWatchlist();
 
-  const activeTickers = useMemo(
-    () => entries.filter(e => e.colorTag !== RED_TAG).map(e => e.ticker),
-    [entries],
-  );
-  const colorMap = useMemo(
-    () => new Map(entries.map(e => [e.ticker, e.colorTag])),
-    [entries],
-  );
-
-  // Watchlist tickers minus hidden
-  const displayTickers = useMemo(
-    () => activeTickers.filter(t => !hiddenTickers.has(t)),
-    [activeTickers, hiddenTickers],
-  );
-
-  // ── V2 technicals — all 31 rows for self-relative scoring ───────────────────
-  const { data: allTechnicalsData } = useQuery({
-    queryKey: ["technicals", "all"],
+  // ── V2 technicals — full universe (Overall candidates + self-relative scoring) ─
+  const { data: allTechnicalsData, isLoading: technicalsLoading } = useQuery({
+    queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
       const res = await fetch("/api/technicals/all");
       if (!res.ok) throw new Error("technicals/all fetch failed");
@@ -121,39 +135,108 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     refetchOnWindowFocus: false,
   });
 
-  // ── Scorecard batch — watchlist tickers (for display: RSI, MFI, IV, price) ─
+  // Overall ticker set fallback (if rankings snapshot empty) — premium-IV candidates.
+  const overallTickers = useMemo(() => {
+    if (universe !== "overall" || !allTechnicalsData?.length) return [] as string[];
+    return selectPremiumCandidates(
+      allTechnicalsData.map((r) => ({
+        ticker: r.ticker,
+        atmPutIv: r.atmPutIv,
+        ivVsRealizedVol: r.ivVsRealizedVol,
+        technicalsCoverage: r.technicalsCoverage,
+      })),
+      200,
+    );
+  }, [universe, allTechnicalsData]);
+
+  // Nightly DB snapshots — both Overall and Watchlist seed scores from these
+  // (watchlist = rankings ∩ watchlist). Chains load only on row expand.
+  const rankingSide = isCallMode ? "call" : "put";
+  const { data: optionRankings, isLoading: optionRankingsLoading } = useQuery({
+    queryKey: queryKeys.optionsRankings(rankingSide),
+    queryFn: async (): Promise<{
+      rankings: Array<{
+        ticker: string;
+        optionScore: number;
+        weeklyIncomePct: number | null;
+        otmPct: number | null;
+        delta: number | null;
+        strikeIv: number | null;
+        dte: number | null;
+        spot: number;
+        strike: number;
+        expiry: string;
+        premium: number;
+        bidIsLive: boolean;
+      }>;
+      asOf: string | null;
+      computedAt: string | null;
+    }> => {
+      const res = await fetch(`/api/options/rankings?side=${rankingSide}`);
+      if (!res.ok) throw new Error("options rankings fetch failed");
+      return res.json();
+    },
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const rankingByTicker = useMemo(() => {
+    const m = new Map<string, NonNullable<typeof optionRankings>["rankings"][number]>();
+    for (const r of optionRankings?.rankings ?? []) m.set(r.ticker, r);
+    return m;
+  }, [optionRankings]);
+
+  const activeTickers = useMemo(() => {
+    if (universe === "overall") {
+      const fromSnap = (optionRankings?.rankings ?? [])
+        .map((r) => r.ticker)
+        .filter((t) => !hiddenTickers.has(t));
+      if (fromSnap.length > 0) return fromSnap;
+      return overallTickers.filter((t) => !hiddenTickers.has(t));
+    }
+    return entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
+  }, [universe, optionRankings, overallTickers, entries, hiddenTickers]);
+
+  const colorMap = useMemo(
+    () => new Map(entries.map(e => [e.ticker, e.colorTag])),
+    [entries],
+  );
+
+  const displayTickers = activeTickers;
+  const isLoaded = universe === "overall"
+    ? (!optionRankingsLoading && (optionRankings != null || (!technicalsLoading && !!allTechnicalsData)))
+    : watchlistLoaded;
+
+  // ── Options chains ─────────────────────────────────────────────────────────
+  // No batch on load — scores from rankings snapshots; chains load on expand.
+  const displayTickersKey = useMemo(() => [...displayTickers].sort().join(","), [displayTickers]);
+
+  // ── Scorecard — watchlist only. Overall uses technicals rows (no N-ticker recompute).
   const { data: scorecardData, isLoading: scorecardLoading, refetch: refetchScorecard } = useQuery({
-    queryKey:             ["technical-scorecard"],
+    queryKey:             ["technical-scorecard", displayTickersKey],
     queryFn:              async () => {
-      const res = await fetch("/api/technical/scorecard");
+      const q = displayTickersKey
+        ? `?tickers=${encodeURIComponent(displayTickersKey)}`
+        : "";
+      const res = await fetch(`/api/technical/scorecard${q}`);
       if (!res.ok) throw new Error("scorecard fetch failed");
       return res.json() as Promise<ScorecardRow[]>;
     },
-    staleTime:            Infinity,
+    enabled:              universe === "watchlist" && isLoaded && displayTickers.length > 0,
+    staleTime:            10 * 60_000,
     refetchOnWindowFocus: false,
   });
 
-  // ── Options — one batched request for all display tickers ───────────────────
-  // Every sort key (income/buffer/otm/optionScore) is computed FROM the options
-  // chain, so there's no way to lazy-load "just the top N" — the ranking itself
-  // depends on having every ticker's chain. Batching avoids an N-way parallel
-  // burst against Yahoo; the server caps concurrency and reuses optionsCache.
-  const displayTickersKey = useMemo(() => [...displayTickers].sort().join(","), [displayTickers]);
-
-  const { data: batchOptionsData, isFetching: batchOptionsFetching } = useQuery({
-    queryKey:             ["options-batch", displayTickersKey],
-    queryFn:              async () => {
-      const res = await fetch(`/api/options/batch?tickers=${encodeURIComponent(displayTickersKey)}`);
-      if (!res.ok) throw new Error("options batch fetch failed");
-      return res.json() as Promise<Record<string, OptionsChainResult[] | { error: string }>>;
-    },
-    enabled:              isLoaded && displayTickers.length > 0,
-    staleTime:            5 * 60_000,
-    refetchOnWindowFocus: false,
+  // Subscribe to shared batch cache (filled by expand / Live fallback) — never auto-fetch.
+  const { data: batchOptionsData } = useQuery({
+    queryKey: queryKeys.optionsBatch(displayTickersKey),
+    queryFn: async () => ({} as Record<string, OptionsChainResult[] | { error: string }>),
+    enabled: false,
+    staleTime: 5 * 60_000,
   });
 
   // ── Derived maps ─────────────────────────────────────────────────────────────
-  const scorecardMap = useMemo(
+  const scorecardFromApi = useMemo(
     () => new Map((scorecardData ?? []).map(r => [r.ticker, r])),
     [scorecardData],
   );
@@ -172,11 +255,12 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   const optionsLoadingMap = useMemo(() => {
     const m = new Map<string, boolean>();
     displayTickers.forEach(t => {
-      const hasData = refreshedOptions.has(t) || !!batchOptionsData?.[t];
-      m.set(t, batchOptionsFetching && !hasData);
+      const entry = batchOptionsData?.[t];
+      const hasData = refreshedOptions.has(t) || (entry != null && !("error" in entry));
+      m.set(t, expandedSet.has(t) && !hasData);
     });
     return m;
-  }, [displayTickers, batchOptionsFetching, batchOptionsData, refreshedOptions]);
+  }, [displayTickers, batchOptionsData, refreshedOptions, expandedSet]);
 
   // ── Today's oversold/overbought hotlist membership (Live tab) — surfaced as a
   // badge in this table so a ticker flagged there isn't missed here too.
@@ -221,6 +305,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       return res.json();
     },
     refetchOnWindowFocus: false,
+    staleTime: 10 * 60_000,
   });
 
   // V2: self-relative scores over all 31 watchlist rows — invariant to display filter.
@@ -240,6 +325,46 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     [allTechnicalsData],
   );
 
+  // Overall: RSI/IV/price from technicals + snapshot spot — no scorecard fan-out.
+  const scorecardMap = useMemo(() => {
+    const m = new Map(scorecardFromApi);
+    if (universe !== "overall") return m;
+    for (const ticker of displayTickers) {
+      if (m.has(ticker)) continue;
+      const tech = techRowMap.get(ticker);
+      if (!tech) continue;
+      const rsi = pfNum(tech.rsi14) ?? 0;
+      const iv = pfNum(tech.atmPutIv) ?? 0;
+      const snap = rankingByTicker.get(ticker);
+      m.set(ticker, {
+        ticker,
+        scoredDate: "",
+        rsi,
+        mfi: 0,
+        rsiThreshold: 40,
+        mfiThreshold: 25,
+        rsiOk: rsi < 40,
+        mfiOk: false,
+        signal: rsi < 30 ? "GO" : rsi < 40 ? "WATCH" : "NO",
+        tier: 2,
+        atr: pfNum(tech.atr14),
+        macdCross: null,
+        stoch: pfNum(tech.stoch),
+        return5d: null,
+        position52w: null,
+        vsSpy20d: null,
+        earningsDate: null,
+        rsiYesterday: pfNum(tech.rsi14) ?? 0,
+        price: snap?.spot ?? 0,
+        ivCurrent: iv,
+        ivPercentile: pfNum(tech.ivPercentile) ?? 50,
+        ma200: pfNum(tech.ma200),
+        stale: false,
+      } as ScorecardRow);
+    }
+    return m;
+  }, [scorecardFromApi, universe, displayTickers, techRowMap, rankingByTicker]);
+
   // Fundamental score map
   const fundScoreMap = useMemo(
     () => new Map((fundRankingsData ?? []).map(r => [r.ticker, r.totalScore])),
@@ -257,9 +382,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
   }, [optionsMap]);
 
   // Best option per ticker (drives optionScore/Income%/Buffer sort + column display).
-  // All three columns must come off the SAME picked strike from pickBestStrike —
-  // previously Income%/Buffer independently re-scanned every strike for its own max,
-  // which could land on a different strike/expiry than the one actually scored.
+  // Seed from nightly rankings snapshots; live chains override when expanded.
   const { bestOptionScoreMap, bestIncomeMap, bufferMap } = useMemo(() => {
     const scoreMap = new Map<string, number>();
     const incomeMap = new Map<string, number>();
@@ -267,39 +390,55 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     for (const ticker of displayTickers) {
       const chains = optionsMap.get(ticker);
       const techRow = techRowMap.get(ticker);
-      if (!chains || !techRow) continue;
-      const stockCtx: StockContext = {
-        ivRank:                pfNum(techRow.ivRank),
-        ivPercentile:          pfNum(techRow.ivPercentile),
-        ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
-        basicSkew:             pfNum(techRow.basicSkew),
-        swingLow20d:           pfNum(techRow.swingLow20d),
-        swingLow50d:           pfNum(techRow.swingLow50d),
-        pivotS1:               pfNum(techRow.pivotS1),
-        swingHigh20d:          pfNum(techRow.swingHigh20d),
-        swingHigh50d:          pfNum(techRow.swingHigh50d),
-        pivotR1:               pfNum(techRow.pivotR1),
-        nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
-        techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
-        fundTotalScore:        fundScoreMap.get(ticker) ?? null,
-      };
-      const picked = pickBestStrike(
-        chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
-        stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
-        effectiveStrikeWeights, isCallMode,
-      );
-      if (!picked) continue;
-      scoreMap.set(ticker, picked.result.optionScore);
-      incomeMap.set(ticker, picked.result.weeklyIncome);
-      const spot = picked.chain.spot ?? 0;
-      const exactDte = picked.chain.exactDte ?? Math.max(1, picked.chain.daysToExpiry);
-      if (spot > 0 && picked.put.iv > 0 && exactDte > 0) {
-        const otm = isCallMode ? (picked.put.strike - spot) / spot : (spot - picked.put.strike) / spot;
-        bufMap.set(ticker, otm / (picked.put.iv * Math.sqrt(exactDte / 365)));
+      if (chains && techRow) {
+        const stockCtx: StockContext = {
+          ivRank:                pfNum(techRow.ivRank),
+          ivPercentile:          pfNum(techRow.ivPercentile),
+          ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
+          basicSkew:             pfNum(techRow.basicSkew),
+          swingLow20d:           pfNum(techRow.swingLow20d),
+          swingLow50d:           pfNum(techRow.swingLow50d),
+          pivotS1:               pfNum(techRow.pivotS1),
+          swingHigh20d:          pfNum(techRow.swingHigh20d),
+          swingHigh50d:          pfNum(techRow.swingHigh50d),
+          pivotR1:               pfNum(techRow.pivotR1),
+          nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
+          techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
+          fundTotalScore:        fundScoreMap.get(ticker) ?? null,
+          earningsDaysOut:       techRow.earningsDaysOut ?? null,
+        };
+        const picked = pickBestStrike(
+          chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
+          stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
+          effectiveStrikeWeights, isCallMode, pickOpts,
+        );
+        if (picked) {
+          scoreMap.set(ticker, picked.result.optionScore);
+          incomeMap.set(ticker, picked.result.weeklyIncome);
+          const spot = picked.chain.spot ?? 0;
+          const exactDte = picked.chain.exactDte ?? Math.max(1, picked.chain.daysToExpiry);
+          if (spot > 0 && picked.put.iv > 0 && exactDte > 0) {
+            const otm = isCallMode ? (picked.put.strike - spot) / spot : (spot - picked.put.strike) / spot;
+            bufMap.set(ticker, otm / (picked.put.iv * Math.sqrt(exactDte / 365)));
+          }
+          continue;
+        }
+      }
+      // Snapshot fallback (before expand, or chain miss)
+      const snap = rankingByTicker.get(ticker);
+      if (snap) {
+        scoreMap.set(ticker, snap.optionScore);
+        if (snap.weeklyIncomePct != null) incomeMap.set(ticker, snap.weeklyIncomePct);
+        const otm = (snap.otmPct ?? 0) / 100;
+        const iv = snap.strikeIv ?? 0;
+        const dte = snap.dte ?? 0;
+        if (otm > 0 && iv > 0 && dte > 0) {
+          bufMap.set(ticker, otm / (iv * Math.sqrt(dte / 365)));
+        }
       }
     }
     return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
-  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode]);
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode, pickOpts, rankingByTicker]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
@@ -359,12 +498,15 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         case "otm": {
           const otm = (t: string) => {
             const chains = optMap.get(t);
-            if (!chains) return -1;
-            const spot = chains[0]?.spot ?? 0;
-            const strikes = chains.flatMap((c: OptionsChainResult) => (isCallMode ? c.calls : c.puts).filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike));
-            if (spot <= 0 || strikes.length === 0) return -1;
-            const best = isCallMode ? Math.min(...strikes) : Math.max(...strikes);
-            return isCallMode ? ((best - spot) / spot) * 100 : ((spot - best) / spot) * 100;
+            if (chains) {
+              const spot = chains[0]?.spot ?? 0;
+              const strikes = chains.flatMap((c: OptionsChainResult) => (isCallMode ? c.calls : c.puts).filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike));
+              if (spot > 0 && strikes.length > 0) {
+                const best = isCallMode ? Math.min(...strikes) : Math.max(...strikes);
+                return isCallMode ? ((best - spot) / spot) * 100 : ((spot - best) / spot) * 100;
+              }
+            }
+            return rankingByTicker.get(t)?.otmPct ?? -1;
           };
           return otm(b) - otm(a);
         }
@@ -374,31 +516,58 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       }
     });
     return list;
-  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap, isCallMode]);
+  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap, isCallMode, rankingByTicker]);
 
   const filteredTickers = useMemo(() => {
     const q = tickerQuery.trim().toLowerCase();
     return q ? sortedTickers.filter(t => t.toLowerCase().includes(q)) : sortedTickers;
   }, [sortedTickers, tickerQuery]);
 
+  // Overall DOM cap — full ranked list can be 100–200 rows; show top 75 unless filtering.
+  const OVERALL_VISIBLE = 75;
+  const visibleTickers = useMemo(() => {
+    if (universe === "overall" && !tickerQuery.trim()) {
+      return filteredTickers.slice(0, OVERALL_VISIBLE);
+    }
+    return filteredTickers;
+  }, [universe, tickerQuery, filteredTickers]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
+  /** Priority single-ticker chain fetch (expand / admin refresh). */
+  const ensureTickerChain = useCallback(async (ticker: string) => {
+    try {
+      const res = await fetch(`/api/options/${ticker}`);
+      if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
+      const data = await res.json() as OptionsChainResult[];
+      setRefreshedOptions(prev => new Map(prev).set(ticker, data));
+      // Keep shared batch cache warm for Live / re-visits.
+      queryClient.setQueryData(
+        queryKeys.optionsBatch(displayTickersKey),
+        (old: Record<string, OptionsChainResult[] | { error: string }> | undefined) =>
+          old ? { ...old, [ticker]: data } : { [ticker]: data },
+      );
+    } catch {
+      // keep existing data on failure
+    }
+  }, [queryClient, displayTickersKey]);
+
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
       const next = new Set(prev);
-      next.has(ticker) ? next.delete(ticker) : next.add(ticker);
+      const opening = !next.has(ticker);
+      if (opening) next.add(ticker);
+      else next.delete(ticker);
+      if (opening) {
+        const hasChain = refreshedOptions.has(ticker)
+          || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)));
+        if (!hasChain) void ensureTickerChain(ticker);
+      }
       return next;
     });
   };
 
   const handleRowRefresh = async (ticker: string) => {
-    try {
-      const res = await fetch(`/api/options/${ticker}`);
-      if (!res.ok) throw new Error(`options refresh failed: ${ticker}`);
-      const data = await res.json() as OptionsChainResult[];
-      setRefreshedOptions(prev => new Map(prev).set(ticker, data));
-    } catch {
-      // keep existing data on failure
-    }
+    await ensureTickerChain(ticker);
   };
 
   const handleOverride = (ticker: string) => {
@@ -456,31 +625,35 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
     </div>
   );
 
-  // Sell Puts / Sell Calls — swaps the whole table (scores, sort, expanded strikes) to
-  // the other side. Both are served from the same already-fetched per-ticker options
-  // batch (optionsCache on the server), so switching never triggers a network request.
-  const scanModeToggle = (
-    <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-xs h-7 shrink-0">
+  // Sell Puts / Sell Calls — match Technical tab chrome (zinc/gold).
+  // Hidden when parent controls side (rankings chrome owns the toggle for stable layout).
+  const scanModeToggle = sideControlled ? null : (
+    <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-xs h-7 shrink-0">
       <button
-        onClick={() => setScanMode("puts")}
+        onClick={() => setMode("puts")}
         className={cn(
           "px-2.5 h-6 rounded-full transition-colors font-semibold",
-          !isCallMode ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+          !isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
         )}
       >
         Sell Puts
       </button>
       <button
-        onClick={() => setScanMode("calls")}
+        onClick={() => setMode("calls")}
         className={cn(
           "px-2.5 h-6 rounded-full transition-colors font-semibold",
-          isCallMode ? "bg-primary/20 text-primary" : "text-white/70 hover:text-white",
+          isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
         )}
       >
         Sell Calls
       </button>
     </div>
   );
+
+  const scoredLabel = refreshedAt.toLocaleString(undefined, {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
 
   const controlsRow = (
     <div className="flex items-center gap-2">
@@ -490,6 +663,8 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
       {tickerFilterBar}
     </div>
   );
+
+  const boardTitle = universe === "overall" ? "Overall Options Leaderboard" : "Options Rankings Leaderboard";
 
   return (
     <div className="space-y-4">
@@ -503,34 +678,45 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
         )}
         {filterSlot && createPortal(controlsRow, filterSlot)}
 
-        {/* Scanner table */}
-        {scorecardLoading || !isLoaded ? (
+        {/* Scanner table — same zinc/gold card chrome as fund/tech leaderboards */}
+        {((universe === "watchlist" && scorecardLoading) || !isLoaded) ? (
           <div className="flex items-center gap-2 text-sm text-white py-8 justify-center">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Loading scorecard…
+            {universe === "overall" ? "Loading Overall rankings…" : "Loading scorecard…"}
           </div>
         ) : filteredTickers.length === 0 ? (
-          <div className="text-sm text-white py-8 text-center">
-            No tickers match current filters.
+          <div className="text-sm text-white py-8 text-center space-y-1">
+            <div>No tickers match current filters.</div>
+            {universe === "overall" && (
+              <div className="text-xs text-amber-200/50">
+                Overall uses nightly option-score snapshots (or premium-IV candidates). Snapshots: {optionRankings?.rankings?.length ?? 0}; candidates: {overallTickers.length}.
+              </div>
+            )}
           </div>
         ) : (
-          <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
-            {/* Column headers */}
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#d4af37]/25 bg-black text-[11px] font-semibold tracking-wider uppercase text-[#d4af37]" style={{ borderLeft: "4px solid transparent" }}>
-              <div className="w-[70px] shrink-0">Ticker</div>
-              <div className="w-[80px] shrink-0">Price</div>
-              <div className="w-[56px] shrink-0">Signal</div>
-              <div className="w-[64px] shrink-0" title="Graded sell-put/sell-call win-loss record for this ticker">Record</div>
-              <div className="w-[48px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
-              <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
-              <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
-              <SortableHeader label="IV%" sortKey="iv" active={sort === "iv"} width="w-[52px]" onClick={setSort} />
-              <SortableHeader label="Income%" sortKey="income" active={sort === "income"} width="w-[72px]" onClick={setSort} />
-              <SortableHeader label="Buffer" sortKey="buffer" active={sort === "buffer"} width="w-[64px]" onClick={setSort} />
-              <div className="flex-1" />
+          <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-4 shadow-lg shadow-black/60">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-primary" />
+                <h2 className="text-sm font-bold tracking-tight">
+                  {boardTitle}
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  ({visibleTickers.length}{universe === "overall" && filteredTickers.length > visibleTickers.length
+                    ? ` of ${filteredTickers.length}`
+                    : ""})
+                </span>
+                <span className="text-[10px] text-muted-foreground/80" title="Client refresh / scorecard load time">
+                  as of {scoredLabel}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">
+                  {`Snapshot${optionRankings?.asOf ? ` ${optionRankings.asOf}` : ""} · expand loads live chain · `}
+                  {isCallMode ? "Sell-calls lens" : "Sell-puts lens"}
+                </span>
+              </div>
               {isAdmin && (
                 <button
-                  className="flex items-center gap-1.5 text-xs normal-case font-normal tracking-normal text-amber-200/70 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-xs text-amber-200/70 hover:text-[#d4af37] transition-colors shrink-0"
                   onClick={handleGlobalRefresh}
                   disabled={scorecardLoading}
                 >
@@ -542,10 +728,28 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 </button>
               )}
             </div>
-            {filteredTickers.map((ticker, i) => (
+
+            <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-black/40">
+            {/* Column headers */}
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#d4af37]/25 bg-black text-[11px] font-semibold tracking-wider uppercase text-[#d4af37]" style={{ borderLeft: "4px solid transparent" }}>
+              <div className="w-8 shrink-0 text-center">#</div>
+              <div className="w-[70px] shrink-0">Ticker</div>
+              <div className="w-[80px] shrink-0">Price</div>
+              <div className="w-[56px] shrink-0">Signal</div>
+              <div className="w-[64px] shrink-0" title="Graded sell-put/sell-call win-loss record for this ticker">Record</div>
+              <div className="w-[48px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
+              <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
+              <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
+              <SortableHeader label="IV%" sortKey="iv" active={sort === "iv"} width="w-[52px]" onClick={setSort} />
+              <SortableHeader label="Income%" sortKey="income" active={sort === "income"} width="w-[72px]" onClick={setSort} />
+              <SortableHeader label="Buffer" sortKey="buffer" active={sort === "buffer"} width="w-[64px]" onClick={setSort} />
+              <div className="flex-1" />
+            </div>
+            {visibleTickers.map((ticker, i) => (
               <ScannerRow
                 key={ticker}
                 ticker={ticker}
+                rank={i + 1}
                 rowIndex={i}
                 colorTag={colorMap.get(ticker) ?? ""}
                 indicator={scorecardMap.get(ticker) ?? null}
@@ -573,6 +777,7 @@ export function OptionsScannerContent({ showHeader = true }: { showHeader?: bool
                 isOverbought={overboughtSet.has(ticker)}
               />
             ))}
+            </div>
           </div>
         )}
     </div>

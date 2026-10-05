@@ -41,12 +41,20 @@ CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 
 **Do not** use `/usr/local/Cellar/postgresql@16` (Intel Homebrew bottle — missing gettext dylib).
 
-## One-shot start
+## One-shot start / restart (Mac)
 ```bash
 cd /Users/jamiepark/Cursor/fildi
-./scripts/dev-up.sh
+./scripts/dev-restart.sh          # kill :8080/:8081 if needed, start both detached, wait until healthy
+./scripts/dev-restart.sh --if-down  # only start what is missing
+./scripts/dev-up.sh               # same as dev-restart.sh (detached)
 ```
-Preview: `http://localhost:8081/` (Cursor Browser / Simple Browser).
+Preview: `http://localhost:8081/`
+
+**Important:** Do **not** leave API/Vite as the foreground process of a Cursor agent terminal — aborting that chat kills the stack. `dev-restart.sh` uses `nohup` and exits after health checks.
+
+`maintain.mjs --restart-if-unhealthy` also calls `dev-restart.sh` (fixed: old setTimeout relaunch never ran).
+
+**Auto-heal is daily, not continuous:** LaunchAgent `com.fildi.maintain` runs ~10:30 local with `--restart-if-unhealthy`. Mid-day Vite/API death needs a manual `./scripts/dev-restart.sh` (or wait until next maintain). Plist must use `/opt/homebrew/bin/node` (arm64) — reinstall via `./scripts/install-maintenance-launchd.sh` if it still points at Intel `/usr/local/bin/node`.
 
 ## Logs
 - `/tmp/fildi-logs/api.log`

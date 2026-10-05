@@ -1,0 +1,13 @@
+{
+  "file": "dailyupside-bonds.json",
+  "source": "thedailyupside",
+  "kind": "thedailyupside",
+  "category": "macro",
+  "noiseScore": 0,
+  "includeInBrief": true,
+  "noiseReasons": [],
+  "fromDomain": "thedailyupside.com",
+  "subject": "The Bond Market’s Tokyo Story",
+  "contentLinks": 5,
+  "tickers": []
+}

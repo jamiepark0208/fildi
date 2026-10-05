@@ -123,11 +123,13 @@ export function PortfolioUpload({ onSuccess }: Props) {
         onDrop={handleDrop}
         title="Select all 4 export files at once (holdings + recent txns + cumulative txns + ticker-earnings) — hold Ctrl/Cmd to multi-select in the file picker, or drag-and-drop them together"
         className={cn(
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60',
+          'flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors disabled:opacity-60 border',
           status === 'error'
-            ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-            : 'bg-primary text-primary-foreground hover:bg-primary/90',
-          dragging && 'ring-2 ring-primary/60',
+            ? 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+            : status === 'success'
+            ? 'border-green-500/40 bg-green-500/10 text-green-400'
+            : 'border-[#d4af37]/25 bg-zinc-950 text-amber-200/80 hover:bg-amber-500/10 hover:text-[#d4af37]',
+          dragging && 'ring-2 ring-[#d4af37]/40',
         )}
       >
         <Icon className={cn('w-3.5 h-3.5', status === 'uploading' && 'animate-spin')} />

@@ -13,6 +13,11 @@
 |---|---|---|
 | Agentic floors | `.agents/context/agentic-floors.md` | `.cursor/tasks/ai/1-*` full research PRD |
 | Sector / peer scoring | `.agents/context/plans/fundamental-sector-scoring.md` | `.cursor/context/archive/` · `.cursor/plans/archive/` |
+| Fund-score treatments (profit/financial/style) | `.cursor/context/plans/fund-score-treatment-framework.md` | — |
+| Free API field inventories (CET1/FFO gaps) | `.agents/context/data-source-fields/INDEX.md` | — |
+| Desk commentaries (any labeled email → Live Daily News, JSON-only Drive) | `.agents/context/desk-commentaries.md` | — |
+| Schwab Market Data (options/quotes P0, RPM + 7d refresh) | `.agents/context/schwab-market-data.md` | — |
+| Efficiency (AI tokens, RPM, drift, compute) | `.agents/context/efficiency-playbook.md` | — |
 | Stock DB quality / NR | `.agents/context/stock-db-best-realistic.md` | Archived quality-audit snapshots |
 | Fundamentals cadence | `.agents/context/fundamentals-refresh-cadence.md` | — |
 | Earnings-window triggers | `.agents/context/event-driven-refresh.md` | — |
@@ -27,6 +32,8 @@
 
 ## Daily maintain (code SoT)
 `scripts/maintain.mjs` → missing / earnings / drain / peer-health / post-merge-scores · LaunchAgent `com.fildi.maintain` · report `/tmp/fildi-logs/maintain-last.json`  
+Records into `enrichment_runs` (trigger=`maintain`) → Stock DB **Pipeline Health**.  
+Full catch-up engine: `nightly-enrichment.ts` only when ≥4d (via maintain) — **not** a second calendar job on Mac (`DISABLE_SCHEDULER_ENRICHMENT=1`).  
 Technicals/options: **not** scheduled (ad-hoc on click).
 
 ## Ignore / archive
