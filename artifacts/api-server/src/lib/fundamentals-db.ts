@@ -1,6 +1,6 @@
 import { eq, isNull, or, lt, sql, inArray, desc, and, isNotNull } from "drizzle-orm";
 import {
-  db, tickerFundamentals, tickerRegistry, peerGroups, fmpApiUsage,
+  db, pool, tickerFundamentals, tickerRegistry, peerGroups, fmpApiUsage,
   tickerFundamentalsHistory, earningsCalendar, finnhubFundamentals,
   type TickerFundamentalsRow, type TickerRegistryRow,
 } from "@workspace/db";
@@ -16,9 +16,19 @@ import {
   STALE_DAYS as DATA_OPS_STALE_DAYS,
 } from "./data-ops-config.js";
 import {
-  scoreUniverse, withRanks, avgEpsSurprise, type FundRowInput, type HistoryByTicker, type MetricKey,
+  scoreUniverse, withRanks, avgEpsSurprise, METRICS,
+  type FundRowInput, type HistoryByTicker, type MetricKey, type IbesSignalsByTicker,
 } from "./fund-score-engine.js";
-import { num as parseNum } from "./fund-derived-metrics.js";
+import {
+  num as parseNum,
+  ibesRevBreadth,
+  avgIbesSue,
+} from "./fund-derived-metrics.js";
+import {
+  upsertFundScoreSnapshots,
+  pickTopMetrics,
+  type ScoreTrigger,
+} from "./fund-score-snapshots.js";
 
 const STALE_DAYS = DATA_OPS_STALE_DAYS;
 
@@ -612,8 +622,81 @@ async function loadSurprisesByTicker(tickers: string[]): Promise<Record<string, 
   return out;
 }
 
+/**
+ * WRDS IBES research cache → growth extras.
+ * Schema absent or ticker missing → nulls (coverage shrinkage, no penalty).
+ */
+async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSignalsByTicker> {
+  const out: IbesSignalsByTicker = {};
+  for (const t of tickers) out[t] = { revBreadth: null, sue: null };
+  if (tickers.length === 0) return out;
+
+  try {
+    const schema = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wrds_research'
+       ) AS exists`,
+    );
+    if (!schema.rows[0]?.exists) return out;
+
+    const stats = await pool.query<{
+      oftic: string;
+      numup: number | null;
+      numdown: number | null;
+      numest: number | null;
+    }>(
+      `SELECT DISTINCT ON (oftic)
+         oftic, numup, numdown, numest
+       FROM wrds_research.ibes_statsum
+       WHERE oftic = ANY($1::text[])
+         AND measure = 'EPS'
+         AND (fiscalp IS NULL OR fiscalp IN ('ANN', 'QTR', 'Y'))
+       ORDER BY oftic,
+         CASE WHEN fpi IN ('1', '1.0') THEN 0 ELSE 1 END,
+         CASE WHEN fiscalp IN ('ANN', 'Y') THEN 0 ELSE 1 END,
+         statpers DESC`,
+      [tickers],
+    );
+    for (const r of stats.rows) {
+      const t = r.oftic?.toUpperCase();
+      if (!t || !out[t]) continue;
+      out[t].revBreadth = ibesRevBreadth(r.numup, r.numdown, r.numest);
+    }
+
+    const surp = await pool.query<{ oftic: string; suescore: number | null }>(
+      `SELECT oftic, suescore
+       FROM wrds_research.ibes_surpsum
+       WHERE oftic = ANY($1::text[])
+         AND suescore IS NOT NULL
+       ORDER BY oftic, anndats DESC NULLS LAST`,
+      [tickers],
+    );
+    const sueBy = new Map<string, number[]>();
+    for (const r of surp.rows) {
+      const t = r.oftic?.toUpperCase();
+      if (!t || r.suescore == null || !Number.isFinite(Number(r.suescore))) continue;
+      if (!sueBy.has(t)) sueBy.set(t, []);
+      const arr = sueBy.get(t)!;
+      if (arr.length < 4) arr.push(Number(r.suescore));
+    }
+    for (const t of tickers) {
+      out[t].sue = avgIbesSue(sueBy.get(t) ?? []);
+    }
+  } catch (err) {
+    logger.warn({ err }, "loadIbesSignalsByTicker: wrds_research unavailable — skipping IBES extras");
+  }
+  return out;
+}
+
 // Compute cross-sectional fundamental scores for all tickers in DB and persist them.
-export async function computeAndPersistFundamentalScores(regime: string | null): Promise<FundScoreResult[]> {
+const METRIC_FAMILY: Record<string, string> = Object.fromEntries(
+  METRICS.map((m) => [m.key, m.family]),
+);
+
+export async function computeAndPersistFundamentalScores(
+  regime: string | null,
+  trigger: ScoreTrigger = "admin_recompute",
+): Promise<FundScoreResult[]> {
   const rows = await getAllFundamentalsRows();
   if (rows.length === 0) return [];
 
@@ -666,12 +749,13 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
     return enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
   });
 
-  const [history, surprises] = await Promise.all([
+  const [history, surprises, ibesSignals] = await Promise.all([
     loadHistoryByTicker(tickers),
     loadSurprisesByTicker(tickers),
+    loadIbesSignalsByTicker(tickers),
   ]);
 
-  const scored = withRanks(scoreUniverse(inputs, history, surprises));
+  const scored = withRanks(scoreUniverse(inputs, history, surprises, ibesSignals));
   const computedAt = new Date();
 
   const results: FundScoreResult[] = scored.map(s => ({
@@ -732,7 +816,43 @@ export async function computeAndPersistFundamentalScores(regime: string | null):
       },
     });
 
-  logger.info({ count: results.length, regime }, "fundamental scores computed and persisted (v2 + sector layer)");
+  // Append/upsert daily history for Breakdown accountability chart
+  try {
+    const { getChampionScorecardParams } = await import("./scorecard-params.js");
+    const champ = await getChampionScorecardParams("fund");
+    const snapCount = await upsertFundScoreSnapshots(
+      scored.map((s) => ({
+        ticker: s.ticker,
+        fundTotal: s.totalScore,
+        fundValue: s.valueScore,
+        fundGrowth: s.growthScore,
+        fundQuality: s.qualityScore,
+        fundSafety: s.safetyScore,
+        styleBucket: s.styleBucket,
+        coverage: s.coverage?.total ?? null,
+        confidence: s.confidence,
+        peerGroupId: s.peerGroupId,
+        topMetrics: pickTopMetrics(
+          Object.fromEntries(
+            Object.entries(s.metricScores).map(([k, v]) => [
+              k,
+              { value: v.value, peerNorm: v.peerNorm, weightedScore: v.weightedScore },
+            ]),
+          ),
+          METRIC_FAMILY,
+          8,
+        ),
+        trigger,
+        asOf: computedAt,
+        modelVersion: champ.version,
+        inputsDigest: null,
+      })),
+    );
+    logger.info({ count: results.length, snapCount, regime, trigger, modelVersion: champ.version }, "fundamental scores + snapshots persisted");
+  } catch (err) {
+    logger.warn({ err: String(err) }, "fund_score_snapshots upsert failed (scores still persisted)");
+  }
+
   return results;
 }
 

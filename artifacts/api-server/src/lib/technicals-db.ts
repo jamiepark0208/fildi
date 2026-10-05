@@ -818,4 +818,10 @@ export async function refreshTechnicals(tickers: string[]): Promise<void> {
     if (i + BATCH < tickers.length) await new Promise(r => setTimeout(r, 500));
   }
   logger.info({ count: tickers.length }, "technicals: refresh complete");
+  try {
+    const { persistTechScoreSnapshots } = await import("./tech-score-snapshots.js");
+    await persistTechScoreSnapshots({ trigger: "technicals_refresh" });
+  } catch (err) {
+    logger.warn({ err: String(err) }, "technicals: tech_score_snapshots persist failed");
+  }
 }

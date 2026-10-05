@@ -479,6 +479,11 @@ export const optionScoreSnapshots = pgTable('option_score_snapshots', {
   dataQuality:      numeric('data_quality'),
   atmPutIv:         numeric('atm_put_iv'),
   ivVsRealized:     numeric('iv_vs_realized'),
+  /** A14 accountability */
+  coverage:         numeric('coverage'),
+  confidence:       text('confidence'),
+  modelVersion:     text('model_version'),
+  inputsDigest:     text('inputs_digest'),
   computedAt:       timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.ticker, t.side, t.asOf] }),
@@ -487,6 +492,94 @@ export const optionScoreSnapshots = pgTable('option_score_snapshots', {
 }))
 export type OptionScoreSnapshot = typeof optionScoreSnapshots.$inferSelect
 export type InsertOptionScoreSnapshot = typeof optionScoreSnapshots.$inferInsert
+
+// ── fund_score_snapshots ──────────────────────────────────────────────────────
+// Daily (or intraday override) point-in-time fund scores for history charts +
+// auto-attribution. Model-only — never overwritten by desk adj notes.
+export const fundScoreSnapshots = pgTable('fund_score_snapshots', {
+  ticker:       text('ticker').notNull(),
+  asOf:         date('as_of').notNull(),
+  fundTotal:    numeric('fund_total'),
+  fundValue:    numeric('fund_value'),
+  fundGrowth:   numeric('fund_growth'),
+  fundQuality:  numeric('fund_quality'),
+  fundSafety:   numeric('fund_safety'),
+  styleBucket:  text('style_bucket'),
+  coverage:     numeric('coverage'),
+  confidence:   text('confidence'),
+  peerGroupId:  text('peer_group_id'),
+  trigger:      text('trigger').notNull().default('nightly'), // nightly | admin_recompute | peer_override | manual_refresh
+  topMetrics:   jsonb('top_metrics').notNull().default([]),
+  modelVersion: text('model_version'),
+  inputsDigest: text('inputs_digest'),
+  computedAt:   timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.asOf] }),
+  tickerAsOfIdx: index('idx_fund_score_snapshots_ticker_as_of').on(t.ticker, t.asOf),
+}))
+export type FundScoreSnapshot = typeof fundScoreSnapshots.$inferSelect
+export type InsertFundScoreSnapshot = typeof fundScoreSnapshots.$inferInsert
+
+// ── tech_score_snapshots (A14) ────────────────────────────────────────────────
+export const techScoreSnapshots = pgTable('tech_score_snapshots', {
+  ticker:        text('ticker').notNull(),
+  asOf:          date('as_of').notNull(),
+  techTotal:     numeric('tech_total'),
+  components:    jsonb('components').notNull().default({}),
+  coverage:      numeric('coverage'),
+  confidence:    text('confidence'),
+  fallingKnife:  integer('falling_knife'), // 0|1 — real Fildi flag
+  peerGroupId:   text('peer_group_id'),
+  modelVersion:  text('model_version'),
+  inputsDigest:  text('inputs_digest'),
+  trigger:       text('trigger').notNull().default('daily'),
+  computedAt:    timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ticker, t.asOf] }),
+  asOfIdx: index('idx_tech_score_snapshots_as_of').on(t.asOf),
+}))
+export type TechScoreSnapshot = typeof techScoreSnapshots.$inferSelect
+export type InsertTechScoreSnapshot = typeof techScoreSnapshots.$inferInsert
+
+// ── scorecard_params — Cursor-owned versioned weights (A17/A18) ───────────────
+// Same shape as watchlist_sync.model_params, but one champion per lane.
+export const scorecardParams = pgTable('scorecard_params', {
+  version:     text('version').primaryKey(),
+  lane:        text('lane').notNull(), // fund | tech | options
+  status:      text('status').notNull(), // champion | challenger | retired
+  parent:      text('parent'),
+  params:      jsonb('params').notNull(),
+  rationale:   jsonb('rationale'),
+  evidence:    jsonb('evidence'),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  promotedAt:  timestamp('promoted_at', { withTimezone: true }),
+  approvedBy:  text('approved_by'),
+}, (t) => ({
+  laneStatusIdx: index('idx_scorecard_params_lane_status').on(t.lane, t.status),
+}))
+export type ScorecardParam = typeof scorecardParams.$inferSelect
+export type InsertScorecardParam = typeof scorecardParams.$inferInsert
+
+// ── fund_score_notes ──────────────────────────────────────────────────────────
+// Human accountability layer. Never mutates ticker_fundamentals fund_* columns.
+// Optional adj_points → deskScore = model + sum(active adj) for display only.
+export const fundScoreNotes = pgTable('fund_score_notes', {
+  id:                 serial('id').primaryKey(),
+  ticker:             text('ticker').notNull(),
+  asOf:               date('as_of').notNull(),
+  body:               text('body').notNull(),
+  author:             text('author'),
+  tags:               jsonb('tags').notNull().default([]),
+  adjPoints:          numeric('adj_points'),
+  expiresAt:          timestamp('expires_at', { withTimezone: true }),
+  linkedSnapshotAsOf: date('linked_snapshot_as_of'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  tickerAsOfIdx: index('idx_fund_score_notes_ticker_as_of').on(t.ticker, t.asOf),
+  tickerCreatedIdx: index('idx_fund_score_notes_ticker_created').on(t.ticker, t.createdAt),
+}))
+export type FundScoreNote = typeof fundScoreNotes.$inferSelect
+export type InsertFundScoreNote = typeof fundScoreNotes.$inferInsert
 
 // ── desk_commentaries ─────────────────────────────────────────────────────────
 // FactSet StreetAccount (and later SA / other) desk emails → structured rows.

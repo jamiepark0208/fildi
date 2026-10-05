@@ -142,6 +142,18 @@ export async function computeAndPersistOptionScores(opts?: {
   const limit = opts?.limit ?? CANDIDATE_LIMIT;
   const dryRun = opts?.dryRun === true;
 
+  const { getChampionScorecardParams } = await import("./scorecard-params.js");
+  const optChamp = await getChampionScorecardParams("options");
+  const { createHash } = await import("crypto");
+  // Ensure A14 columns exist (idempotent)
+  const { pool } = await import("@workspace/db");
+  await pool.query(`
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS coverage numeric;
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS confidence text;
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS model_version text;
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS inputs_digest text;
+  `);
+
   const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration] = await Promise.all([
     getAllTechnicalsRows(),
     getMacroRegimeResult(),
@@ -271,15 +283,20 @@ export async function computeAndPersistOptionScores(opts?: {
         dataQuality: String(best.result.dataQuality),
         atmPutIv: techRow.atmPutIv != null ? String(techRow.atmPutIv) : null,
         ivVsRealized: techRow.ivVsRealizedVol != null ? String(techRow.ivVsRealizedVol) : null,
+        coverage: String(best.result.dataQuality ?? 1),
+        confidence: best.result.bidIsLive && !best.result.quoteStale ? "high" : "low",
+        modelVersion: optChamp.version,
+        inputsDigest: createHash("sha1")
+          .update(JSON.stringify({ ticker, side, strike: opt.strike, expiry: chain.expiry, spot, premium }))
+          .digest("hex")
+          .slice(0, 16),
         computedAt: new Date(),
       });
     }
   }
 
   if (!dryRun && inserts.length > 0) {
-    // Replace today's rows for these tickers/sides (idempotent re-run).
-    await db.execute(sql`DELETE FROM option_score_snapshots WHERE as_of = ${asOf}`);
-    // Chunk inserts
+    // Upsert only — never DELETE … WHERE as_of = today (partial runs wiped the day).
     const CHUNK = 50;
     for (let i = 0; i < inserts.length; i += CHUNK) {
       await db.insert(optionScoreSnapshots).values(inserts.slice(i, i + CHUNK))
@@ -304,6 +321,10 @@ export async function computeAndPersistOptionScores(opts?: {
             dataQuality: sql`excluded.data_quality`,
             atmPutIv: sql`excluded.atm_put_iv`,
             ivVsRealized: sql`excluded.iv_vs_realized`,
+            coverage: sql`excluded.coverage`,
+            confidence: sql`excluded.confidence`,
+            modelVersion: sql`excluded.model_version`,
+            inputsDigest: sql`excluded.inputs_digest`,
             computedAt: sql`excluded.computed_at`,
           },
         });
