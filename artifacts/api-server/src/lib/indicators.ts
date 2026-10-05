@@ -291,13 +291,9 @@ export async function readOHLCVFromDB(key: string): Promise<OHLCVRow[]> {
   }));
 }
 
-// Once a ticker crosses 60 stored rows, fetchAndStoreOHLCV is only reached via
-// this staleness check — row-count alone doesn't detect a ticker whose daily
-// bars silently stopped appending (e.g. RDDT sat 7 weeks stale, causing a
-// trade-idea to settle against a June close instead of the July expiry close).
 const STALE_OHLCV_DAYS = 4; // covers weekends/a single holiday without over-fetching
 
-async function latestOHLCVDate(key: string): Promise<string | null> {
+export async function latestOHLCVDate(key: string): Promise<string | null> {
   const rows = await db.select({ date: pricesHistorical.date })
     .from(pricesHistorical)
     .where(eq(pricesHistorical.ticker, key))
@@ -306,10 +302,20 @@ async function latestOHLCVDate(key: string): Promise<string | null> {
   return rows[0]?.date ?? null;
 }
 
-function isOHLCVStale(latestDate: string | null): boolean {
+export function isOHLCVStale(latestDate: string | null): boolean {
   if (!latestDate) return true;
   const days = (Date.now() - new Date(latestDate).getTime()) / 86_400_000;
   return days > STALE_OHLCV_DAYS;
+}
+
+/** Ensure prices_historical has a fresh window; used by indicators + technicals. */
+export async function ensureFreshOHLCV(key: string): Promise<OHLCVRow[]> {
+  let rows = await readOHLCVFromDB(key);
+  const latest = await latestOHLCVDate(key);
+  if (rows.length < 60 || isOHLCVStale(latest)) {
+    rows = await fetchAndStoreOHLCV(key);
+  }
+  return rows;
 }
 
 export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
@@ -347,10 +353,7 @@ export async function getIndicators(ticker: string, refresh = false, ctx: SeedCo
     if (cached) return cached;
   }
 
-  let rows = await readOHLCVFromDB(key);
-  if (rows.length < 60 || isOHLCVStale(await latestOHLCVDate(key))) {
-    rows = await fetchAndStoreOHLCV(key);
-  }
+  let rows = await ensureFreshOHLCV(key);
 
   const result = computeIndicators(key, rows, ctx);
   await writeToCache(key, result);

@@ -7,7 +7,7 @@ import {
   yahooFundamentals,
   type TickerTechnicalsRow,
 } from "@workspace/db";
-import { readOHLCVFromDB, fetchAndStoreOHLCV } from "./indicators.js";
+import { readOHLCVFromDB, fetchAndStoreOHLCV, latestOHLCVDate, isOHLCVStale } from "./indicators.js";
 import { logger } from "./logger.js";
 
 const yahooFinance = new YahooFinanceClass();
@@ -764,12 +764,14 @@ async function computeTechnicals(ticker: string): Promise<void> {
   const key = ticker.toUpperCase();
 
   let rows = await readOHLCVFromDB(key);
-  // Bootstrap: if fewer than 200 trading rows, fetch the full 420-day window from Yahoo.
-  // This is a one-time cost per ticker until pricesHistorical is fully populated.
-  if (rows.length < 200) {
+  // Must refresh when the latest bar is stale — NOT only when row-count < 200.
+  // Bug A12: once a ticker had ≥200 bars in the cutoff window, daily technicals
+  // kept recomputing from a frozen July series and never appended new closes.
+  const latest = await latestOHLCVDate(key);
+  if (rows.length < 200 || isOHLCVStale(latest)) {
     try {
       rows = await fetchAndStoreOHLCV(key);
-      logger.info({ ticker: key, rows: rows.length }, "technicals: fetched OHLCV history");
+      logger.info({ ticker: key, rows: rows.length, prevLatest: latest }, "technicals: fetched OHLCV history");
     } catch (err) {
       logger.warn({ ticker: key, err: String(err) }, "technicals: OHLCV bootstrap failed, using cached data");
     }

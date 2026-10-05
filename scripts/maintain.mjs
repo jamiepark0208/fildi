@@ -250,9 +250,36 @@ function runEnrichmentCatchup() {
   return runApiTsx("src/scripts/nightly-enrichment.ts", ["--trigger=maintain_full"]);
 }
 
+/**
+ * data_sources.calls_today only resets inside nightly-enrichment / SDM paths.
+ * With DISABLE_SCHEDULER_ENRICHMENT + sparse full enrich, those counters rot for days
+ * (seen: FactSet stuck at 463 from 2026-09-28 while api_usage correctly showed 0 today).
+ * Maintain must reset before drain / budget decisions.
+ */
+function resetDataSourceCountersIfNeeded() {
+  const out = sh(`psql "$DATABASE_URL" -tAc "
+    UPDATE data_sources
+    SET calls_today = 0,
+        last_reset_date = to_char(CURRENT_DATE, 'YYYY-MM-DD')
+    WHERE last_reset_date IS DISTINCT FROM to_char(CURRENT_DATE, 'YYYY-MM-DD')
+    RETURNING name
+  "`);
+  return String(out || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Remaining FactSet budget — api_usage is SoT (same as Settings API Monitor). */
 function factsetRemaining() {
   const out = sh(
-    `psql "$DATABASE_URL" -tAc "SELECT daily_limit - calls_today FROM data_sources WHERE name='factset'"`,
+    `psql "$DATABASE_URL" -tAc "
+      SELECT d.daily_limit - COALESCE(u.calls_made, 0)
+      FROM data_sources d
+      LEFT JOIN api_usage u
+        ON u.source = 'factset' AND u.date = CURRENT_DATE
+      WHERE d.name = 'factset'
+    "`,
   );
   const n = Number(String(out).trim());
   return Number.isFinite(n) ? n : 0;
@@ -264,15 +291,22 @@ function runDrainNr(max) {
 
 /** Budget / coverage / anomaly snapshot for the maintain report (0 API). */
 function budgetSnapshot() {
+  // Prefer api_usage (API Monitor SoT). Map data_sources.name → api_usage.source
+  // (alpha_vantage ↔ av). Fall back to 0 when no row for CURRENT_DATE.
   const src = sh(`psql "$DATABASE_URL" -tAc "
     SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (
-      SELECT name, calls_today, daily_limit,
-             (daily_limit - calls_today) AS remaining,
-             CASE WHEN daily_limit > 0
-               THEN ROUND(100.0 * calls_today / daily_limit, 1)
+      SELECT d.name,
+             COALESCE(u.calls_made, 0)::int AS calls_today,
+             d.daily_limit,
+             (d.daily_limit - COALESCE(u.calls_made, 0))::int AS remaining,
+             CASE WHEN d.daily_limit > 0
+               THEN ROUND(100.0 * COALESCE(u.calls_made, 0) / d.daily_limit, 1)
                ELSE 0 END AS pct_used
-      FROM data_sources
-      ORDER BY name
+      FROM data_sources d
+      LEFT JOIN api_usage u
+        ON u.date = CURRENT_DATE
+       AND u.source = CASE d.name WHEN 'alpha_vantage' THEN 'av' ELSE d.name END
+      ORDER BY d.name
     ) t
   "`);
   const nr = sh(`psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM field_provenance WHERE divergent"`);
@@ -305,9 +339,29 @@ function budgetSnapshot() {
     )
     SELECT ROUND((100.0 * filled / NULLIF(n * cols, 0))::numeric, 1) FROM c
   "`);
+  // Active universe only: fetch_fundamentals + not ETF exclusion. Dead/acquired
+  // (fetch=false) and ETFs stay NULL scores by design — don't anomaly them.
   const scored = sh(`psql "$DATABASE_URL" -tAc "
-    SELECT COUNT(*) FILTER (WHERE fund_total_score IS NOT NULL)::int || '/' || COUNT(*)::int
-    FROM ticker_fundamentals
+    SELECT COUNT(*) FILTER (WHERE tf.fund_total_score IS NOT NULL)::int
+           || '/' || COUNT(*)::int
+    FROM ticker_fundamentals tf
+    JOIN ticker_registry r ON r.ticker = tf.ticker
+    WHERE r.fetch_fundamentals = true
+      AND UPPER(tf.ticker) NOT IN (
+        'SMH','SOXX','IWM','QQQ','SPY','ARKG','CANE','BIZD','JBBB',
+        'NVDY','SPCK','PSUS','HOOY','DRAM','ARKQ','XOP','GOOY','RVI'
+      )
+  "`);
+  const unscoredActive = sh(`psql "$DATABASE_URL" -tAc "
+    SELECT COUNT(*)::int
+    FROM ticker_fundamentals tf
+    JOIN ticker_registry r ON r.ticker = tf.ticker
+    WHERE r.fetch_fundamentals = true
+      AND tf.fund_total_score IS NULL
+      AND UPPER(tf.ticker) NOT IN (
+        'SMH','SOXX','IWM','QQQ','SPY','ARKG','CANE','BIZD','JBBB',
+        'NVDY','SPCK','PSUS','HOOY','DRAM','ARKQ','XOP','GOOY','RVI'
+      )
   "`);
   const earnWin = sh(`psql "$DATABASE_URL" -tAc "
     SELECT COUNT(DISTINCT UPPER(ticker))
@@ -327,12 +381,16 @@ function budgetSnapshot() {
   }
   const nrN = Number(String(nr).trim());
   if (Number.isFinite(nrN) && nrN > 500) anomalies.push(`needs_review_${nrN}`);
+  const unscoredN = Number(String(unscoredActive).trim());
+  // Soft ceiling: coverage/safety gates are intentional; rising counts = enrich gap.
+  if (Number.isFinite(unscoredN) && unscoredN > 8) anomalies.push(`unscored_active_${unscoredN}`);
   return {
     sources,
     needsReview: Number.isFinite(nrN) ? nrN : null,
     goldCoverage: String(gold).trim() || null,
     fieldFillPct: Number(String(fieldFill).trim()) || null,
     fundScoreCoverage: String(scored).trim() || null,
+    unscoredActive: Number.isFinite(unscoredN) ? unscoredN : null,
     earningsWindowTickers: Number(String(earnWin).trim()) || 0,
     anomalies,
   };
@@ -400,8 +458,14 @@ async function main() {
   const vitePid = listenerPid(8081);
   const finalFlags = processFlags(health);
 
+  const resetNames = resetDataSourceCountersIfNeeded();
+  if (resetNames.length) {
+    actions.push(`data_sources_reset:${resetNames.join("|")}`);
+  }
+
   let enrich = null;
   let enrichMissing = null;
+  let enrichUnscored = null;
   let enrichEarnings = null;
   let peerHealth = null;
   let postMerge = null;
@@ -421,6 +485,14 @@ async function main() {
     // (a) New watchlist / registry adds — don't wait for 4d full run.
     enrichMissing = runApiTsx("src/scripts/enrich-missing-fundamentals.ts", ["--max=30"]);
     actions.push(`enrich_missing_exit_${enrichMissing.status}`);
+
+    // (a2) Active names with null fund_total_score — free sources only, shrink coverage/safety gaps.
+    enrichUnscored = runApiTsx("src/scripts/enrich-unscored-fundamentals.ts", ["--max=20"]);
+    actions.push(`enrich_unscored_exit_${enrichUnscored.status}`);
+
+    // (a3) Stale prices_historical — technicals used to skip Yahoo once ≥200 bars (A12).
+    const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts", ["--max=120"]);
+    actions.push(`backfill_stale_prices_exit_${stalePrices.status}`);
 
     // (b) Earnings-window stale refresh (bounded) — every weekday when due.
     enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
@@ -461,6 +533,7 @@ async function main() {
     const upstreamMerged =
       drainMerged ||
       ranEnrichMerge(enrichMissing) ||
+      ranEnrichMerge(enrichUnscored) ||
       ranEnrichMerge(enrichEarnings) ||
       (enrich != null && enrich.status === 0);
     const scoreArgs = ["--scores-only"];
@@ -497,6 +570,7 @@ async function main() {
 
   const enrichFail =
     (enrichMissing && enrichMissing.status !== 0) ||
+    (enrichUnscored && enrichUnscored.status !== 0) ||
     (enrichEarnings && enrichEarnings.status !== 0) ||
     (enrich && enrich.status !== 0) ||
     (peerHealth && peerHealth.status !== 0) ||
@@ -532,6 +606,7 @@ async function main() {
     actions,
     enrich,
     enrichMissing,
+    enrichUnscored,
     enrichEarnings,
     drain,
     peerHealth,
@@ -560,7 +635,7 @@ async function main() {
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
   if (budget.goldCoverage) {
     console.log(
-      `  gold=${budget.goldCoverage} fieldFill=${budget.fieldFillPct ?? "—"}% scores=${budget.fundScoreCoverage} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
+      `  gold=${budget.goldCoverage} fieldFill=${budget.fieldFillPct ?? "—"}% scores=${budget.fundScoreCoverage} unscoredActive=${budget.unscoredActive ?? "—"} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
     );
   }
   if (budget.anomalies.length) console.log(`  anomalies: ${budget.anomalies.join(", ")}`);
