@@ -85,6 +85,7 @@ sweep_ports() {
 
 start_api() {
   echo "Starting API (tsx watch) on :$API_PORT → $LOG_DIR/api.log"
+  # Explicit SCHWAB_* so a stripped spawn env cannot drop MD credentials.
   node "$ROOT/scripts/dev-spawn.mjs" \
     --cwd="$ROOT/artifacts/api-server" \
     --log="$LOG_DIR/api.log" \
@@ -96,6 +97,13 @@ start_api() {
     DATABASE_URL="$DATABASE_URL" \
     SESSION_SECRET="$SESSION_SECRET" \
     DISABLE_SCHEDULER_ENRICHMENT="$DISABLE_SCHEDULER_ENRICHMENT" \
+    SCHWAB_CLIENT_ID="${SCHWAB_CLIENT_ID:-}" \
+    SCHWAB_SECRET="${SCHWAB_SECRET:-}" \
+    SCHWAB_APP_KEY="${SCHWAB_APP_KEY:-}" \
+    SCHWAB_APP_SECRET="${SCHWAB_APP_SECRET:-}" \
+    FACTSET_PROXY_URL="${FACTSET_PROXY_URL:-}" \
+    FACTSET_PROXY_SECRET="${FACTSET_PROXY_SECRET:-}" \
+    FMP_API_KEY="${FMP_API_KEY:-}" \
     PATH="$PATH" \
     pnpm run dev:watch
 }

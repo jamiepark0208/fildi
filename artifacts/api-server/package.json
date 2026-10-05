@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm run dev:watch",
-    "dev:watch": "export NODE_ENV=development && tsx watch --clear-screen=false src/index.ts",
+    "dev:watch": "export NODE_ENV=development && node --import tsx --watch --watch-path=src src/index.ts",
     "dev:rebuild": "export NODE_ENV=development && pnpm run build && node ./kill-port.mjs 2>/dev/null; true && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",

@@ -1,9 +1,10 @@
 /**
  * Mac local-dev stack status (API :8080 + Vite :8081).
- * Read-only — no process kill from HTTP. Pidfiles written by scripts/dev-spawn.mjs.
+ * Soft-adopts pidfiles when a sole healthy listener drifted (no process kill).
+ * Pidfiles written by scripts/dev-spawn.mjs / heal.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const LOG_DIR = "/tmp/fildi-logs";
 const API_PORT = Number(process.env.API_PORT || 8080);
@@ -132,21 +133,64 @@ function matchesCanonical(listenerPid: number, record: PidRecord | null): boolea
   }
 }
 
+function pgidOf(pid: number): number | undefined {
+  try {
+    const raw = execFileSync("/bin/ps", ["-o", "pgid=", "-p", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** When the sole healthy listener drifted from a dead/stale pidfile, rewrite pidfile (no kill). */
+function softAdopt(name: "api" | "vite", port: number, listenerPid: number, record: PidRecord | null): PidRecord {
+  const next: PidRecord = {
+    pid: listenerPid,
+    pgid: pgidOf(listenerPid),
+    port,
+    cmd: cmdline(listenerPid) || record?.cmd || "",
+    log: record?.log || `${LOG_DIR}/${name}.log`,
+    startedAt:
+      record?.startedAt && record.pid === listenerPid
+        ? record.startedAt
+        : new Date().toISOString(),
+  };
+  try {
+    writeFileSync(`${LOG_DIR}/${name}.pid.json`, JSON.stringify(next, null, 2));
+  } catch {
+    /* best-effort */
+  }
+  return next;
+}
+
 function inspect(name: "api" | "vite", port: number, health: string): LocalStackService & { listeners: number[] } {
   const pidfile = `${LOG_DIR}/${name}.pid.json`;
-  const record = readPidfile(pidfile);
+  let record = readPidfile(pidfile);
   const listeners = listenerPids(port);
   const primary = listeners[0] ?? null;
-  const canonicalAlive = record ? alive(record.pid) : false;
-  const orphan =
-    listeners.length > 0 &&
-    (!record || !canonicalAlive || !listeners.every((p) => matchesCanonical(p, record)));
   // Never curl our own PORT: this helper runs inside the API request and uses
   // execFileSync, which blocks the event loop — self-healthz would time out and
   // falsely report API down (CLI status is fine; it probes from outside).
   const self = selfListenPort();
   const up =
     listeners.length > 0 && (self != null && port === self ? true : httpOk(health));
+
+  // Sole healthy listener + dead/mismatched pidfile → adopt (false "orphan" spam).
+  if (up && primary && listeners.length === 1) {
+    const canonicalAlive = record ? alive(record.pid) : false;
+    if (!record || !canonicalAlive || !matchesCanonical(primary, record)) {
+      record = softAdopt(name, port, primary, record);
+    }
+  }
+
+  const canonicalAlive = record ? alive(record.pid) : false;
+  const orphan =
+    listeners.length > 0 &&
+    (!record || !canonicalAlive || !listeners.every((p) => matchesCanonical(p, record)));
   return {
     up,
     pid: primary ?? (canonicalAlive && record ? record.pid : null),

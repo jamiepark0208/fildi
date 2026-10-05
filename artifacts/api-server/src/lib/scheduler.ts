@@ -10,9 +10,9 @@
  * Uses a 30-minute heartbeat to detect each window without external cron.
  * Each job skips if it already ran within the current calendar day (UTC).
  */
-import { eq } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { db, appConfig } from "@workspace/db";
+import { db, appConfig, enrichmentRuns } from "@workspace/db";
 import { logger } from "./logger.js";
 import { runNightlyEnrichment } from "../scripts/nightly-enrichment.js";
 import { pruneOldRows } from "./retention.js";
@@ -28,6 +28,11 @@ import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 import { ingestDeskCommentaries } from "./desk-commentary.js";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
+import {
+  runResearchOpsHealthJob,
+  researchOpsRunning,
+  lastResearchOpsRun as researchOpsModuleRun,
+} from "./research-ops.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -41,6 +46,7 @@ const LAST_EARNINGS_BACKFILL_RUN_KEY = "last_earnings_backfill_run";
 const LAST_FMP_ANALYST_FEED_RUN_KEY = "last_fmp_analyst_feed_run";
 const LAST_DESK_INGEST_RUN_KEY = "last_desk_commentary_ingest_run";
 const LAST_SCHWAB_HEALTH_RUN_KEY = "last_schwab_health_run";
+const LAST_RESEARCH_OPS_RUN_KEY = "last_research_ops_health_run";
 
 // Exported so data-health / scheduled-tasks routes can read them without a DB round-trip.
 // Hydrated from app_config at startup — see loadPersistedLastRun().
@@ -48,6 +54,13 @@ export let lastEnrichmentRun: Date | null = null;
 export let enrichmentRunning = false;
 // Setter so other modules (e.g. the ad-hoc refetch-queue route) can share this
 // mutex with the scheduler — a plain `let` export is read-only outside this file.
+
+/** Keep in-memory stamp aligned with enrichment_runs (Maintain writes there, not only app_config). */
+export function noteEnrichmentRunFromDb(at: Date): void {
+  if (!lastEnrichmentRun || at.getTime() > lastEnrichmentRun.getTime()) {
+    lastEnrichmentRun = at;
+  }
+}
 export function setEnrichmentRunning(v: boolean) { enrichmentRunning = v; }
 export let lastTradeExpiryRun: Date | null = null;
 export let tradeExpiryRunning = false;
@@ -65,6 +78,9 @@ export let lastDeskIngestRun: Date | null = null;
 export let deskIngestRunning = false;
 export let lastSchwabHealthRun: Date | null = null;
 export let schwabHealthRunning = false;
+/** Re-export for scheduled-tasks — probe only, never vendor sync. */
+export { researchOpsRunning };
+export let lastResearchOpsRun: Date | null = null;
 
 async function getConfigDate(key: string): Promise<Date | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
@@ -162,6 +178,13 @@ function shouldRunFmpAnalystFeedNow(): boolean {
     if (schwabHealthRunning) return false;
     if (!lastSchwabHealthRun) return true;
     return Date.now() - lastSchwabHealthRun.getTime() >= 6 * 60 * 60 * 1000;
+  }
+
+  /** Local WRDS/LSEG cache + LSEG :9000 probe. Never syncs vendors (lane contract). */
+  function shouldRunResearchOpsNow(): boolean {
+    if (researchOpsRunning) return false;
+    if (!lastResearchOpsRun) return true;
+    return Date.now() - lastResearchOpsRun.getTime() >= 6 * 60 * 60 * 1000;
   }
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
@@ -427,6 +450,21 @@ export async function runSchwabHealthJob() {
   }
 }
 
+/**
+ * Research ops health — Schwab-analog for WRDS/LSEG.
+ * Probes local sync_state + LSEG desktop TCP. Never runs sync_*.py / never burns quota.
+ */
+export async function runResearchOpsJob() {
+  logger.info("scheduler: starting research ops health check");
+  try {
+    await runResearchOpsHealthJob();
+    lastResearchOpsRun = researchOpsModuleRun ?? new Date();
+    await setConfigDate(LAST_RESEARCH_OPS_RUN_KEY, lastResearchOpsRun);
+  } catch (err) {
+    logger.error({ err }, "scheduler: research ops health check failed");
+  }
+}
+
 // Runs at most once/day, independent of the enrichment window — table/log growth
 // from per-request activity doesn't need to wait for a biweekly job.
 /** Manual / admin trigger — daily table/log prune. */
@@ -479,7 +517,7 @@ export async function runRegimeCheckpoints() {
 }
 
 export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastOptionScoreRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun, lastDeskIngestRun, lastSchwabHealthRun] = await Promise.all([
+  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastOptionScoreRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun, lastDeskIngestRun, lastSchwabHealthRun, lastResearchOpsRun] = await Promise.all([
     getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
       logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
       return null;
@@ -520,7 +558,26 @@ export async function startScheduler(): Promise<void> {
       logger.error({ err }, "scheduler: failed to load persisted schwab-health last-run, dedupe guard starts cold");
       return null;
     }),
+    getConfigDate(LAST_RESEARCH_OPS_RUN_KEY).catch(err => {
+      logger.error({ err }, "scheduler: failed to load persisted research-ops last-run, dedupe guard starts cold");
+      return null;
+    }),
   ]);
+
+  // Prefer enrichment_runs (Maintain daily) over app_config — Maintain used to
+  // write only enrichment_runs, leaving Data Health stuck on an old scheduler stamp.
+  try {
+    const rows = await db
+      .select({ finishedAt: enrichmentRuns.finishedAt })
+      .from(enrichmentRuns)
+      .where(inArray(enrichmentRuns.status, ["success", "partial"]))
+      .orderBy(desc(enrichmentRuns.finishedAt))
+      .limit(1);
+    const at = rows[0]?.finishedAt ? new Date(rows[0].finishedAt as unknown as string) : null;
+    if (at) noteEnrichmentRunFromDb(at);
+  } catch (err) {
+    logger.warn({ err }, "scheduler: enrichment_runs hydrate skipped");
+  }
 
   setInterval(() => {
     if (shouldRunEnrichmentNow()) runEnrichment();
@@ -533,6 +590,7 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
     if (shouldRunDeskIngestNow()) runDeskIngestJob();
     if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
+    if (shouldRunResearchOpsNow()) runResearchOpsJob();
     // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
     rotateApiServerLogIfNeeded();
   }, CHECK_INTERVAL_MS);

@@ -51,6 +51,18 @@ export const SOURCE_ORDER = [
 
 export type EnrichSource = (typeof SOURCE_ORDER)[number];
 
+/**
+ * On-demand enrich (watchlist / maintain missing / earnings window / startup).
+ * Scarce FMP/AV stay on nightly cohort — burning them here double-fetches and
+ * wastes daily quota without changing gold (merge-trusted is priority-first).
+ */
+export const FREE_ENRICH_SOURCES: EnrichSource[] = [
+  "yahoo",
+  "edgar",
+  "finnhub",
+  "polygon",
+];
+
 /** Stable hash → cohort bucket 0..COHORT_MODULUS-1. */
 export function tickerCohort(ticker: string): number {
   const s = ticker.toUpperCase();

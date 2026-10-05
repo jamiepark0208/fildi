@@ -21,6 +21,7 @@ import {
 import { isCohortDueToday } from "./data-ops-config.js";
 import { logger } from "./logger.js";
 import { recordApiUsage } from "./api-usage.js";
+import { usageCalendarDate } from "./usage-date.js";
 
 /** Map FactSet partial keys → source_fundamentals field names (FIELD_DEFS sfField). */
 const FACTSET_FIELD_MAP: Array<{
@@ -97,7 +98,14 @@ async function factsetBudgetRemaining(): Promise<number> {
   if (rows.length === 0) return 0;
   const row = rows[0];
   if (!row.isActive) return 0;
-  return Math.max(0, row.dailyLimit - row.callsToday);
+  // api_usage is the Settings API Monitor SoT. data_sources.calls_today can rot when
+  // nightly/SDM reset paths don't run (Mac-local + DISABLE_SCHEDULER_ENRICHMENT).
+  const today = usageCalendarDate();
+  const usage = await db.execute<{ calls_made: number }>(
+    sql`SELECT calls_made FROM api_usage WHERE source = 'factset' AND date = ${today}::date`,
+  );
+  const callsToday = Number(usage.rows[0]?.calls_made ?? 0);
+  return Math.max(0, row.dailyLimit - callsToday);
 }
 
 async function incrementFactsetCalls(n = 1): Promise<void> {

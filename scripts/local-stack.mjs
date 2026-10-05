@@ -220,6 +220,70 @@ function killHard(pid) {
   }
 }
 
+/**
+ * Stray `tsx watch … src/index.ts` under fildi that are NOT the current listener's
+ * ancestor. These orphans (PPID=1) reclaimed :8080 after restart and served without
+ * SCHWAB / full .env — Settings showed "env missing" while a good watcher sat idle.
+ */
+function listApiWatchPids() {
+  try {
+    const out = execFileSync("/bin/ps", ["-ax", "-o", "pid=,command="], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const pids = [];
+    for (const line of out.split("\n")) {
+      const m = line.trim().match(/^(\d+)\s+(.*)$/);
+      if (!m) continue;
+      const pid = Number(m[1]);
+      const cmd = m[2] || "";
+      if (!Number.isFinite(pid)) continue;
+      if (!isFildiCmd(cmd)) continue;
+      // tsx watch running api-server entry (watcher OR worker cmdline)
+      if (/tsx.*watch/.test(cmd) && /api-server|src\/index\.ts/.test(cmd)) {
+        pids.push(pid);
+      }
+    }
+    return pids;
+  } catch {
+    return [];
+  }
+}
+
+function isAncestorOf(ancestorPid, childPid) {
+  if (!ancestorPid || !childPid) return false;
+  if (ancestorPid === childPid) return true;
+  try {
+    let cur = childPid;
+    for (let i = 0; i < 24; i++) {
+      const raw = execFileSync("/bin/ps", ["-o", "ppid=", "-p", String(cur)], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      const ppid = Number(raw);
+      if (!Number.isFinite(ppid) || ppid <= 1) return false;
+      if (ppid === ancestorPid) return true;
+      cur = ppid;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function killStrayApiWatchers(keepListenerPid = null) {
+  const killed = [];
+  for (const pid of listApiWatchPids()) {
+    if (keepListenerPid && isAncestorOf(pid, keepListenerPid)) continue;
+    // Also keep the listener itself if it matches the pattern
+    if (keepListenerPid && pid === keepListenerPid) continue;
+    console.log(`Killing stray api tsx-watch pid=${pid}`);
+    killPidTree(pid);
+    killed.push(pid);
+  }
+  return killed;
+}
+
 export function bringDown() {
   const killed = [];
   for (const svc of SERVICES) {
@@ -235,6 +299,8 @@ export function bringDown() {
       killed.push(pid);
     }
   }
+  // Kill orphan watchers that would re-bind :8080 after listeners die
+  killed.push(...killStrayApiWatchers(null));
   try {
     execFileSync("/bin/sleep", ["1"], { stdio: "ignore" });
   } catch {
@@ -253,6 +319,8 @@ export function bringDown() {
       }
     }
   }
+  // Second pass — watchers that respawned a child during the sleep window
+  killed.push(...killStrayApiWatchers(null));
   return { killed: [...new Set(killed)] };
 }
 
@@ -308,6 +376,13 @@ export function heal() {
         console.log(`${svc.name}: killing extra listener pid=${pid}`);
         killPidTree(pid);
         actions.push(`${svc.name}_kill_extra_${pid}`);
+      }
+    }
+
+    // API only: kill stray tsx-watch trees that aren't ancestors of the live listener
+    if (svc.name === "api" && primary) {
+      for (const pid of killStrayApiWatchers(primary)) {
+        actions.push(`api_kill_stray_watch_${pid}`);
       }
     }
 

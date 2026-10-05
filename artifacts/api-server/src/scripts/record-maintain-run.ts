@@ -4,7 +4,7 @@
  *   pnpm exec tsx src/scripts/record-maintain-run.ts --report=/tmp/fildi-logs/maintain-last.json
  */
 import { readFileSync } from "node:fs";
-import { db, enrichmentRuns } from "@workspace/db";
+import { db, enrichmentRuns, appConfig } from "@workspace/db";
 
 const reportArg = process.argv.find((a) => a.startsWith("--report="));
 const reportPath = reportArg?.split("=")[1] ?? "/tmp/fildi-logs/maintain-last.json";
@@ -86,6 +86,16 @@ async function main() {
     coverageAfter: afterPct != null ? String(afterPct) : null,
     error: status === "failed" ? detail : null,
   });
+
+  // Keep Data Health / scheduler dedupe stamp in sync with Maintain (not only
+  // the in-process Sun/Thu enrichment path).
+  await db
+    .insert(appConfig)
+    .values({ key: "last_enrichment_run", value: finished.toISOString() })
+    .onConflictDoUpdate({
+      target: appConfig.key,
+      set: { value: finished.toISOString(), updatedAt: new Date() },
+    });
 
   console.log(JSON.stringify({ ok: true, trigger: "maintain", status, detail: detail.slice(0, 200) }));
 }

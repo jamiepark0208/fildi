@@ -7,11 +7,9 @@
 import { inArray } from "drizzle-orm";
 import { db, tickerFundamentals, tickerRegistry } from "@workspace/db";
 import {
-  CALLS_PER_TICKER,
-  SOURCE_ORDER,
+  FREE_ENRICH_SOURCES,
   type EnrichSource,
 } from "./data-ops-config.js";
-import { recordApiUsage } from "./api-usage.js";
 import { enrichmentRunning, setEnrichmentRunning } from "./scheduler.js";
 import { FETCH_FN } from "../scripts/nightly-enrichment.js";
 import { runPopulateSourceFundamentals } from "../scripts/populate-source-fundamentals.js";
@@ -36,8 +34,12 @@ export type EnrichAndMergeResult = {
 };
 
 /**
- * Flag tickers for fundamentals, fetch free sources in SOURCE_ORDER (Yahoo first),
+ * Flag tickers for fundamentals, fetch free sources (Yahoo first by default),
  * then populate + merge so gold + provenance stay authoritative.
+ *
+ * Defaults to FREE_ENRICH_SOURCES — scarce FMP/AV are nightly/cohort only.
+ * Merge-trusted is priority-first (sources do not overwrite each other in gold);
+ * extra fetches only waste quota into bronze/source_fundamentals.
  */
 export async function enrichAndMergeTickers(
   tickers: string[],
@@ -73,7 +75,7 @@ export async function enrichAndMergeTickers(
     };
   }
 
-  const sources = (opts.sources ?? [...SOURCE_ORDER]).filter((s) => s in FETCH_FN);
+  const sources = (opts.sources ?? [...FREE_ENRICH_SOURCES]).filter((s) => s in FETCH_FN);
 
   if (respectMutex) setEnrichmentRunning(true);
   let fetched = 0;
@@ -111,10 +113,10 @@ export async function enrichAndMergeTickers(
       for (const ticker of unique) {
         if (isExcludedEtf(ticker)) continue;
         try {
+          // Usage counted once inside client logApiCall — do not recordApiUsage here.
           const status = await fn(ticker);
           if (status === "ok") {
             fetched++;
-            await recordApiUsage(source, CALLS_PER_TICKER[source] ?? 1).catch(() => {});
           } else if (status === "fail") {
             failed++;
           }

@@ -25,19 +25,24 @@ export interface ApiCallParams {
   requestedFields?: string;
   usageToday?: number;
   usageLimit?: number;
+  /** Quota units consumed (default 1). FMP fundamentals = ~9 stable endpoints. */
+  calls?: number;
 }
 
 export function logApiCall(params: ApiCallParams): void {
   try {
+    const calls = params.calls != null && Number.isFinite(params.calls) ? Math.max(0, params.calls) : 1;
     const msg = `api-call: ${params.source}.${params.fn} ${params.outcome}`;
     if (params.outcome === "success") {
       logger.info(params, msg);
     } else {
       logger.warn(params, msg);
     }
-    // Fire-and-forget: persist call count to api_usage table for API Monitor.
-    // Counts both successes and failures — both consume quota.
-    recordApiUsage(params.source, 1).catch(() => {});
+    // Single SoT for Settings → API Monitor. Callers must NOT also recordApiUsage
+    // for the same HTTP work (that double-counted FMP/Yahoo/etc.).
+    if (calls > 0) {
+      recordApiUsage(params.source, calls).catch(() => {});
+    }
   } catch {
     // must never throw
   }

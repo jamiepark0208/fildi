@@ -12,6 +12,8 @@ interface DataHealthResponse {
   divergentCount: number;
   topNullFields: { field: string; nullCount: number }[];
   lastEnrichmentRun: string | null;
+  lastEnrichmentTrigger?: string | null;
+  lastEnrichmentStatus?: string | null;
   enrichmentRunning: boolean;
   bronze: { polygonRows: number; avRows: number };
 }
@@ -29,20 +31,22 @@ interface SourceMeta {
 
 const SOURCE_META: Record<string, SourceMeta> = {
   factset:{ label: "FactSet",      limitKind: "daily",   dailyLimit: 500, rateNote: "500/day (referee)" },
-  fmp:    { label: "FMP",          limitKind: "daily",   dailyLimit: 250, rateNote: "250/day" },
+  fmp:    { label: "FMP",          limitKind: "daily",   dailyLimit: 220, rateNote: "220/day (headroom under ~250)" },
   av:     { label: "Alpha Vantage",limitKind: "daily",   dailyLimit: 25,  rateNote: "25/day"  },
   polygon:{ label: "Polygon",      limitKind: "per-min", rateNote: "5 req/min" },
   finnhub:{ label: "Finnhub",      limitKind: "per-min", rateNote: "60 req/min" },
-  yahoo:  { label: "Yahoo",        limitKind: "none",    rateNote: "no hard limit" },
+  yahoo:  { label: "Yahoo",        limitKind: "none",    rateNote: "fundamentals counted · quotes/chains not" },
   edgar:  { label: "SEC EDGAR",    limitKind: "per-sec", rateNote: "10 req/sec" },
   fred:   { label: "FRED",         limitKind: "none",    rateNote: "no hard limit" },
   cnn:    { label: "CNN",          limitKind: "none",    rateNote: "no hard limit" },
   nyfed:  { label: "NY Fed",       limitKind: "none",    rateNote: "no hard limit" },
   anthropic: { label: "Anthropic (Haiku)", limitKind: "none", rateNote: "30 req/15min per user" },
+  lseg:   { label: "LSEG Workspace", limitKind: "daily", dailyLimit: 10000, rateNote: "10k req/day · CLI sync only" },
+  wrds:   { label: "WRDS",         limitKind: "none",    rateNote: "CLI sync only · counts when you pull" },
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "finnhub", "yahoo", "edgar", "anthropic"];
+const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,11 +158,13 @@ export function ApiMonitorTab() {
   });
 
   const { data: schwab } = useQuery<{
+    configured: boolean;
     clientReady: boolean;
     hasTokens: boolean;
     accessValid: boolean;
     refreshDaysLeft: number | null;
     reauthHint: string | null;
+    lastError: string | null;
     usage?: {
       rpmBudget: number;
       requestsLast60s: number;
@@ -171,6 +177,35 @@ export function ApiMonitorTab() {
     queryFn: async () => {
       const res = await fetch("/api/schwab/status", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load Schwab status");
+      return res.json();
+    },
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
+  type ResearchOps = {
+    checkedAt: string;
+    wrds: {
+      overall: string;
+      schema: boolean;
+      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null }[];
+      lastError: { dataset: string; error: string; finishedAt: string | null } | null;
+    };
+    lseg: {
+      overall: string;
+      schema: boolean;
+      desktopProxy: { reachable: boolean };
+      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null }[];
+      lastError: { dataset: string; error: string; finishedAt: string | null } | null;
+    };
+    fixHints: string[];
+  };
+
+  const { data: researchOps } = useQuery<ResearchOps>({
+    queryKey: ["research-ops"],
+    queryFn: async () => {
+      const res = await fetch("/api/research/ops", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load research ops");
       return res.json();
     },
     staleTime: 60_000,
@@ -217,7 +252,8 @@ export function ApiMonitorTab() {
           </span>
           {localStack.orphans.length > 0 ? (
             <span className="text-amber-400">
-              {localStack.orphans.length} orphan{localStack.orphans.length === 1 ? "" : "s"} — run {localStack.hint}
+              {localStack.orphans.length} orphan{localStack.orphans.length === 1 ? "" : "s"} —{" "}
+              <span className="font-mono">node scripts/local-stack.mjs heal</span>
             </span>
           ) : (
             <span className="text-green-500/70">no drift</span>
@@ -230,8 +266,19 @@ export function ApiMonitorTab() {
         <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
           <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[10px]">Schwab MD</span>
           <span className="flex items-center gap-1.5 text-amber-100/80">
-            <Dot ok={schwab.clientReady} orphan={schwab.hasTokens && !schwab.accessValid} />
-            {schwab.clientReady ? "ready" : schwab.hasTokens ? "token issue" : "not linked"}
+            <Dot
+              ok={schwab.clientReady}
+              orphan={!schwab.configured || (schwab.hasTokens && !schwab.accessValid)}
+            />
+            {schwab.clientReady
+              ? "ready"
+              : !schwab.configured
+                ? "env missing"
+                : !schwab.hasTokens
+                  ? "not linked"
+                  : !schwab.accessValid
+                    ? "token issue"
+                    : "not ready"}
           </span>
           {schwab.refreshDaysLeft != null && (
             <span className={cn(
@@ -259,7 +306,9 @@ export function ApiMonitorTab() {
       <div className="flex items-center justify-between mb-0">
         <div>
           <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">API Monitor</h2>
-          <p className="text-[10px] text-amber-200/40 mt-0.5">Daily call counts per data source · auto-refreshes every 5 min</p>
+          <p className="text-[10px] text-amber-200/40 mt-0.5">
+            Pacific-day call counts · single SoT (api_usage) · gold merge is priority-first (sources do not overwrite each other)
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {lastUpdated && <span className="text-[10px] text-amber-200/40">as of {lastUpdated}</span>}
@@ -339,8 +388,81 @@ export function ApiMonitorTab() {
       </div>
 
       <p className="text-[10px] text-amber-200/40 mt-2">
-        FMP and AV enforce daily limits; progress bars show consumption. Polygon, Finnhub, Yahoo, and EDGAR are rate-limited per minute/second but have no enforced daily cap.
+        FMP counts ~9 units per fundamentals fetch (matches budget). On-demand enrich uses free sources only; FMP/AV are nightly/cohort. LSEG/WRDS count CLI syncs. Yahoo quotes/options chains are not in this grid.
       </p>
+
+      {/* ── Research caches (WRDS / LSEG local) ─────────────── */}
+      {researchOps && (
+        <div className="mt-4 pt-3 border-t border-[#d4af37]/25 space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Research caches</h2>
+            <span className="text-[10px] text-amber-200/40">
+              probed {new Date(researchOps.checkedAt).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3 text-[11px]">
+            <span className="flex items-center gap-1.5">
+              <Dot ok={researchOps.wrds.overall === "ok"} orphan={researchOps.wrds.overall === "warn"} />
+              <span className="text-amber-100/80">WRDS {researchOps.wrds.overall}</span>
+              {!researchOps.wrds.schema && <span className="text-red-400">schema missing</span>}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Dot ok={researchOps.lseg.overall === "ok"} orphan={researchOps.lseg.overall === "warn"} />
+              <span className="text-amber-100/80">LSEG {researchOps.lseg.overall}</span>
+              <span className="text-amber-200/40">
+                desktop {researchOps.lseg.desktopProxy.reachable ? "up" : "down"}
+              </span>
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
+            <table className="w-full text-xs">
+              <thead className="bg-black text-[#d4af37]">
+                <tr className="border-b border-[#d4af37]/25">
+                  <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Lane</th>
+                  <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Dataset</th>
+                  <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Status</th>
+                  <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Last ok</th>
+                  <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Rows</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {[
+                  ...researchOps.wrds.datasets.map((d) => ({ lane: "WRDS", ...d })),
+                  ...researchOps.lseg.datasets.map((d) => ({ lane: "LSEG", ...d })),
+                ].map((d) => (
+                  <tr key={`${d.lane}-${d.dataset}`} className="bg-zinc-900/70 even:bg-zinc-800/60">
+                    <td className="px-2.5 py-1 text-amber-200/50">{d.lane}</td>
+                    <td className="px-2.5 py-1 font-mono text-white">{d.dataset}</td>
+                    <td className={cn(
+                      "px-2.5 py-1",
+                      d.status === "ok" ? "text-green-400" : d.status === "warn" ? "text-amber-300" : "text-red-400",
+                    )}>
+                      {d.status}
+                    </td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">
+                      {d.lastOkAt ? new Date(d.lastOkAt).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+                    </td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">{d.lastRows ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {(researchOps.wrds.lastError || researchOps.lseg.lastError) && (
+            <div className="text-[10px] text-red-300/80 space-y-0.5 font-mono">
+              {researchOps.wrds.lastError && (
+                <p>WRDS {researchOps.wrds.lastError.dataset}: {researchOps.wrds.lastError.error}</p>
+              )}
+              {researchOps.lseg.lastError && (
+                <p>LSEG {researchOps.lseg.lastError.dataset}: {researchOps.lseg.lastError.error}</p>
+              )}
+            </div>
+          )}
+          {researchOps.fixHints.length > 0 && (
+            <p className="text-[10px] text-amber-200/45">{researchOps.fixHints[0]}</p>
+          )}
+        </div>
+      )}
 
       {/* ── Data Health ─────────────────────────────────────── */}
       {health && (
@@ -414,8 +536,13 @@ export function ApiMonitorTab() {
           </div>
 
           <p className="text-[10px] text-amber-200/40 mt-2">
-            Last enrichment: {health.lastEnrichmentRun ? new Date(health.lastEnrichmentRun).toLocaleString() : "not yet run this session"}
-            {" · "}Runs Sun &amp; Thu at 02:00 UTC
+            Last enrichment:{" "}
+            {health.lastEnrichmentRun
+              ? new Date(health.lastEnrichmentRun).toLocaleString()
+              : "not yet run"}
+            {health.lastEnrichmentTrigger ? ` · ${health.lastEnrichmentTrigger}` : ""}
+            {health.lastEnrichmentStatus ? ` · ${health.lastEnrichmentStatus}` : ""}
+            {" · "}Mac Maintain ~7:00 AM PT (full catch-up when enrichment age ≥4d)
           </p>
         </div>
       )}

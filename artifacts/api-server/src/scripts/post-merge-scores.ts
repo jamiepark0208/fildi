@@ -21,11 +21,28 @@ async function main() {
   const regime = await getLatestRegime();
   console.error(`[post-merge-scores] fund_score recompute (regime=${regime ?? "null"})…`);
   const scores = await computeAndPersistFundamentalScores(regime);
+  const unscored = scores
+    .filter((s) => s.totalScore == null)
+    .map((s) => ({
+      ticker: s.ticker,
+      coverageTotal: s.coverage?.total ?? null,
+      reason:
+        (s.coverage?.total ?? 0) < 0.4
+          ? "coverage_below_0.4"
+          : !s.ranked
+            ? "post_gate_unranked"
+            : "null_total",
+      peerGroupId: s.peerGroupId,
+    }));
+  // Durable observability: Maintain / Settings can treat rising unscored as an anomaly.
   console.log(
     JSON.stringify({
       ok: true,
       regime,
       scored: scores.length,
+      scoredNonNull: scores.filter((s) => s.totalScore != null).length,
+      unscoredCount: unscored.length,
+      unscored: unscored.slice(0, 40),
       scoresOnly,
     }),
   );
