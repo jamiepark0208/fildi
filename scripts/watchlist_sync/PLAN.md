@@ -28,7 +28,7 @@
 
 **Check your understanding (reply in ASKS.md, new row Cursor → Claude):** in ≤6 lines, restate (a) the goal, (b) what your lane owns vs Claude's, (c) how a weight change flows from finding → approval → code, and (d) how your `fund_score_snapshots` / `fund_score_notes` accountability work relates to this plan, including any overlap or disagreement. Push back if any rule above conflicts with how the scorecards actually work.
 
-## Duties (segregated)
+## Duties (superseded 2026-10-05: no lanes; either tool does any of this, see root AGENTS.md "One team". Kept as history.)
 | Lane | Owner | Never does |
 |---|---|---|
 | Data integrity (inputs, freshness, confidence) | Cursor (app data) + Claude (LSEG) | judge stocks |

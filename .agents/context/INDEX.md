@@ -18,6 +18,13 @@
 | Desk commentaries (any labeled email → Live Daily News, JSON-only Drive) | `.agents/context/desk-commentaries.md` | — |
 | Schwab Market Data (options/quotes P0, RPM + 7d refresh) | `.agents/context/schwab-market-data.md` | — |
 | Efficiency (AI tokens, RPM, drift, compute) | `.agents/context/efficiency-playbook.md` | — |
+| WRDS academic batch (IBES/CRSP + W1–W4) | `research/wrds/PLAYBOOK.md` | Scores only via IBES growth extras; FinRatios/calibration offline |
+| LSEG ↔ WRDS research split (shared plan) | `research/LSEG_WRDS_SYNC.md` | **§11 mutual impact** + **§13 ops** before editing |
+| Research ops health (WRDS/LSEG cache + desktop) | `GET /api/research/ops` · `research/common/health.py` · Scheduled Tasks **Research Ops Health** | Probe only — never auto-sync vendors |
+| LSEG research | `research/lseg/PLAYBOOK.md` | Soft UI only — never fund_score |
+| Watchlist recommendations / Model List | `scripts/watchlist_sync/PLAN.md` → `NEXT_SESSION.md` | Model tags never write `watchlist.color_tag`; no Robinhood writes |
+| Shared research universe (≤50 tickers) | `research/common/universe_book.txt` | Do not duplicate it |
+| WRDS → fund growth (IBES breadth/SUE) | `fund-score-engine` + `wrds_research` | Soft UI: Breakdown Street panel; options ER haircut |
 | Stock DB quality / NR | `.agents/context/stock-db-best-realistic.md` | Archived quality-audit snapshots |
 | Fundamentals cadence | `.agents/context/fundamentals-refresh-cadence.md` | — |
 | Earnings-window triggers | `.agents/context/event-driven-refresh.md` | — |
@@ -31,10 +38,14 @@
 | Claude memory (grep) | `.agents/memory/MEMORY.md` | Load whole memory dir |
 
 ## Daily maintain (code SoT)
-`scripts/maintain.mjs` → missing / earnings / drain / peer-health / post-merge-scores · LaunchAgent `com.fildi.maintain` · report `/tmp/fildi-logs/maintain-last.json`  
+`scripts/maintain.mjs` → missing / earnings / drain / peer-health / post-merge-scores / retention / morning precompute · LaunchAgent `com.fildi.maintain` · report `/tmp/fildi-logs/maintain-last.json`  
+**Sunday:** also `weekly-data-ops-check.mjs --digest-only` (audit + value-log; no second FactSet drain).  
+**Fail notify:** macOS `osascript` banner when Maintain hard-fails.  
+**Ops cockpit:** Settings → Scheduled Tasks — **Ops Nucleus** (L0/L1 + 7 workers MetricCards) + Today + alerts + inventory. Phase B/C parked. Research LSEG/WRDS stay supervised (no vendor cron).  
 Records into `enrichment_runs` (trigger=`maintain`) → Stock DB **Pipeline Health**.  
 Full catch-up engine: `nightly-enrichment.ts` only when ≥4d (via maintain) — **not** a second calendar job on Mac (`DISABLE_SCHEDULER_ENRICHMENT=1`).  
-Technicals/options: **not** scheduled (ad-hoc on click).
+Technicals/options: **not** scheduled (ad-hoc on click).  
+Weekly agent skill: `.cursor/skills/weekly-data-ops-check.md` — prefer digest / Maintain-covered skip over re-drain.
 
 ## Ignore / archive
 | Path | Why |

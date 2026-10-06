@@ -2,7 +2,7 @@
 
 **Goal:** open Robinhood and see Fildi's current calls already organized into `Fildi ·` watchlists. A recommendation reaches Robinhood only after passing two verification layers.
 
-**Owner:** Claude Code. Inputs come from Fildi tables owned by Cursor (model_recs, scores, technicals) and from the LSEG/WRDS lanes.
+Inputs come from Fildi tables (model_recs, scores, technicals) and from LSEG / WRDS research data. Anyone (Claude Code or Cursor) may change it; see root AGENTS.md "One team".
 **Status:** Phase 1 = **plan + verify only. Nothing is written to Robinhood yet.**
 
 ## Pipeline

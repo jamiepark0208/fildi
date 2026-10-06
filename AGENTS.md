@@ -15,14 +15,15 @@
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 
-## Write rules (phase state)
-| File | Who writes |
-|---|---|
-| `.agents/context/state.md` | Claude only |
-| `.cursor/context/cursor-state.md` | Cursor only |
-| `.agents/context/*` ops SoT (INDEX, floors, stock-db, cadence…) | Either — prefer update shared file, not a Cursor-only copy |
-
-**Cursor must never write** `.agents/context/state.md` (merge conflicts with Claude).
+## One team (user decision 2026-10-05)
+There are no lanes. Claude Code and Cursor can both change any code, data or doc in this repo. Older docs and ASKS rows that say
+"Cursor's lane" / "Claude's lane" are history, not rules. What remains are practical rules:
+1. **Never make the user relay messages** between tools. `research/common/ASKS.md` is a log the other tool reads on its next run;
+   it never blocks finishing work, and reviews are optional.
+2. **Check before editing:** `git status` / `git diff` the file first. If the other tool has uncommitted work in it, build on it, don't overwrite it.
+3. **One home per piece of logic** (`scripts/watchlist_sync/FACTOR_MAP.md`): extend the existing implementation instead of writing a second one.
+4. **Session-state files stay per tool** (merge conflicts only): Claude writes `.agents/context/state.md`, Cursor writes `.cursor/context/cursor-state.md`.
+5. Changes to how ideas are scored or chosen still need the user's approval with a before/after; bug fixes and display changes don't.
 
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`
