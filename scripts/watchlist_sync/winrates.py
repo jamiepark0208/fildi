@@ -52,7 +52,15 @@ def latest(conn) -> dict | None:
     return r[0] if r else None
 
 
-def _interp(x: float, grid: tuple) -> tuple[int, int, float]:
+def _interp(x: float, grid: tuple, extend: tuple[float, float] | None = None) -> tuple[int, int, float]:
+    """Index pair + weight. With `extend` = (low, high), values past the grid extrapolate linearly on the end segment up to those
+    limits (a 0.34Δ put must not be read as a 0.30Δ one: that understates its risk); otherwise they clamp to the edge cell."""
+    if extend and x < grid[0]:
+        x = max(x, extend[0])
+        return 0, 1, (x - grid[0]) / (grid[1] - grid[0])
+    if extend and x > grid[-1]:
+        x = min(x, extend[1])
+        return len(grid) - 2, len(grid) - 1, (x - grid[-2]) / (grid[-1] - grid[-2])
     if x <= grid[0]:
         return 0, 0, 0.0
     if x >= grid[-1]:
@@ -69,7 +77,7 @@ def lookup(table: dict | None, side: str, delta: float | None, dte: float | None
         return None
     d, t = abs(float(delta)), float(dte)
     C = table["cells"]
-    i0, i1, wd = _interp(d, DELTAS)
+    i0, i1, wd = _interp(d, DELTAS, (0.10, 0.45))
     j0, j1, wt = _interp(t, DTES)
 
     def cell(i, j, k):
@@ -83,8 +91,10 @@ def lookup(table: dict | None, side: str, delta: float | None, dte: float | None
     n = sum(cell(i, j, "n") for i in {i0, i1} for j in {j0, j1})
     pay = ({"payout": round(mix("payout"), 4), "payout_bad": round(mix("payout_worst_year"), 4), "payout_good": round(mix("payout_best_year"), 4)}
            if "payout_best_year" in C[f"{side}|0.20|30"] else {})
-    return {"rate": round(mix("rate"), 3), "lo": round(mix("worst_year"), 3), "hi": round(mix("best_year"), 3), "n": n, **pay,
+    rate = lambda k: min(1.0, max(0.0, mix(k)))  # noqa: E731  (extrapolation can't leave [0, 1])
+    return {"rate": round(rate("rate"), 3), "lo": round(rate("worst_year"), 3), "hi": round(rate("best_year"), 3), "n": n, **pay,
             "delta": round(d, 2), "dte": round(t), "outside": d < DELTAS[0] - 0.05 or d > DELTAS[-1] + 0.05 or t > DTES[-1] + 15,
+            "extrapolated": d < DELTAS[0] or d > DELTAS[-1],
             "version": table["version"]}
 
 

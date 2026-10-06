@@ -119,3 +119,26 @@ not evidence against all of them.
   skip strikes) and this `win_rates` table (historical, by delta × expiry, display only). Proposal: keep both; calibration can use the
   win-rate cell as its prior when live buckets are small. One owner each: Cursor = scanner calibration, Claude = Model List win rates.
 - Cross-review: each side lists changed files in ASKS; the other reviews (read-only) and replies "reviewed: ok / issues". First review asks: A27.
+
+## 10. Review of the live picks (2026-10-05, plan #3 → Model List run #12)
+| # | idea | fill | Δ | wins (hist.) | $ good / avg / bad | contract IV ÷ 20d RV | 30d ATM ÷ RV (Prem pillar) | trend vs 200d | notes |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | CAVA 52P 10/16 | 1.11 | 0.34 | ≈75% | +31 / −12 / −71 | 1.02 fair | 1.14 | −25% | yield comes from taking delta; verdict blank (not "own"); earnings 11/2 (after) |
+| 2 | MNDY 75P | 1.06 (model 1.65) | 0.20 | 83% | +34 / −30 / −148 | **0.90 cheap** | 1.03 | −11% | green verdict; RV 72%; IRA puts → 73% of capacity (limit 60%) |
+| 3 | NFLX 65P | 0.52 (model 0.62) | 0.24 | 81% | +4 / −31 / −90 | **0.87 cheap** | 1.23 | −20% | 30d IV includes earnings 10/20 that this contract misses → Prem 68 overstates; FILDI 61% in one name (limit 35%) |
+| 4 | DVN 45.5P | 0.27 (model 0.55) | 0.18 | 85% | +9 / −9 / −44 | 1.01 fair | 1.02 | +7% | best trend + STREET 82; thin yield (0.37%/wk vs 0.35 floor); IRA → 85% of capacity |
+Fixed today: (a) **verify_plan marked in-session quotes "provisional"** (it classified by evaluation time, not quote time); (b) detail view showed
+Fildi's modelled premium, not the realistic fill (overstated 17–107%); (c) deltas past 0.30 were read as 0.30 (CAVA's risk understated; now
+extrapolated to 0.45 and marked ≈). Side effect handled: a manual `verify_plan.py evaluate` (no --plan) marked draft plan #6 "verified" with
+0 passes; restored to draft (21 pending, matching plans 4/5). **Always pass --plan when re-evaluating by hand.**
+Judgement: none of today's sized puts sells options priced above recent moves (the validated edge); two sell below. If taking any, DVN
+(fair price, best trend, lowest delta) and CAVA (fair, highest fill, but −25% trend and 0.34Δ) are the defensible ones; MNDY and NFLX are cheap.
+**Proposals (need the user's approval: methodology changes, before/after shown):**
+P1 hold back to Review any put whose contract IV ÷ 20d RV < 0.95 (today: MNDY, NFLX). P2 PREMIUM pillar for ideas expiring before the next
+earnings date should use the contract's IV (or IV ex-earnings), not the 30-day ATM IV. P3 the portfolio layer keeps ideas that breach its own
+soft limits as "warn"; make the list explicitly cumulative ("take in this order; #3+ exceed the IRA limit").
+
+## 11. Backlog finished (2026-10-05)
+E3 strategy views (Model / Safest / Least tail / Rich options / Wheel; sort-only), E4 your Robinhood record per ticker + side, E5 earnings
+line (inside window / days after), options-vs-realized line, E6 `monthly.py` (lab + gates + win-rate rebuild every 28 days, ~2 min,
+one summary in out/runs/monthly_*.md; replaces the separate win-rate step in daily.py). Earnings coverage: 92 tickers have a next date.

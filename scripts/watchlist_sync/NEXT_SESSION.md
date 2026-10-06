@@ -85,7 +85,8 @@ Regime detector owner = Claude (user decision, ASKS A26). Cost/benefit review ch
 - Gate 1b (`out/proto/gate1b.md`): delta lookup passes; PREMIUM-tier split and tail caps rejected (period-dependent).
 - Gate 1c + display shipped (run #10): `winrates.py` (monthly refresh in daily.py), contract.win + pillars.ma200 in the Model List detail view.
 - E1 what-if strike + E2 $ per contract (good/avg/bad) shipped in run #11 (PLAN §8). Avg sold option ≈ break-even across all stocks; edge = selection.
-- **Next:** Cursor review via ASKS A27; remaining backlog E3–E6. A25 → user takes it to Cursor.
+- Backlog E3–E6 done; pick review + 3 fixes + proposals P1–P3 in PLAN §10–11 (run #12). **User to approve P1–P3.**
+- Lesson: `verify_plan.py evaluate` without --plan targets the newest plan (it marked draft #6 verified once; restored). A25 → user takes it to Cursor.
 - Not verified: the new fields in a browser (no session cookie here).
 
 ## Scorecard lab + Step 8 done 2026-10-05 (late session)

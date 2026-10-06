@@ -89,6 +89,26 @@ def ma200_gap(conn) -> dict[str, float]:
         WHERE n <= 200 GROUP BY ticker HAVING count(*) = 200""")}
 
 
+def contract_context(conn) -> tuple[dict, dict, dict]:
+    """Per-ticker context for option ideas: 20-day realized vol (prices_historical), next earnings date (LSEG), and the user's own
+    Robinhood realized closes by (ticker, side) since 2025 (portfolio_transactions; small n, descriptive only)."""
+    rv = {r["ticker"]: r["rv"] for r in rows(conn, """
+        SELECT ticker, stddev_samp(lr) * sqrt(252) rv FROM (
+          SELECT ticker, ln(close / lag(close) OVER (PARTITION BY ticker ORDER BY date)) lr,
+                 row_number() OVER (PARTITION BY ticker ORDER BY date DESC) n
+          FROM prices_historical WHERE date > now() - interval '60 days') x
+        WHERE n <= 20 GROUP BY ticker HAVING count(lr) >= 15""")}
+    er = {r["ticker"]: r["d"] for r in rows(conn, """
+        SELECT ticker, min(d) d FROM (SELECT ticker, event_date d FROM lseg_research.events WHERE event_type = 'EarningsReleases'
+          UNION ALL SELECT ticker, report_date FROM lseg_research.earnings_moves) x WHERE d >= current_date GROUP BY ticker""")}
+    rec = {(r["t"], r["side"]): {"n": r["n"], "wins": r["wins"], "pnl": round(float(r["pnl"]), 2), "since": "2025-01-01"} for r in rows(conn, """
+        SELECT upper(symbol) t, CASE category WHEN 'Sell Puts' THEN 'put' ELSE 'call' END side, count(*) n,
+               count(*) FILTER (WHERE amount > 0) wins, sum(amount) pnl
+        FROM portfolio_transactions WHERE txn_type = 'realized_close' AND category IN ('Sell Puts', 'Sell Calls')
+          AND amount IS NOT NULL AND txn_date::date >= '2025-01-01' GROUP BY 1, 2""")}
+    return rv, er, rec
+
+
 def precheck(conn, plan_id: int) -> tuple[set[int], list[str]]:
     """Plan items worth a live Robinhood quote: pass the verdict cross-check, (calls) strike ≥ cost basis, (puts) fundable at all."""
     fit, _, P = champion_scores(conn)
@@ -125,6 +145,7 @@ def build(conn) -> tuple[dict, list[dict]]:
     spy20 = spy_20d(conn)
     wr = W.latest(conn)
     atm = W.atm_iv(conn)
+    rv20, next_er, record = contract_context(conn)
     today = datetime.now().date()
 
     for p in rows(conn, """SELECT * FROM watchlist_sync.plan_items WHERE plan_id = %s AND l1_pass
@@ -150,6 +171,18 @@ def build(conn) -> tuple[dict, list[dict]]:
                         float(spot) if spot is not None else None, float(p["strike"]), (p["expiry"] - today).days, wr,
                         atm.get(p["ticker"]))
             contract["win"] = {**win, **(m or {})}
+        lv = p["live"] if isinstance(p["live"], dict) else {}
+        if lv.get("realistic_fill") is not None:   # show what Robinhood would actually pay, not Fildi's modelled mid
+            contract["model_premium"], contract["premium"] = contract["premium"], round(float(lv["realistic_fill"]), 3)
+        civ, r20, a30 = lv.get("iv") or (float(p["model_iv"]) if p["model_iv"] is not None else None), rv20.get(p["ticker"]), atm.get(p["ticker"])
+        if civ and r20:
+            contract["vol"] = {"contract_iv": round(float(civ), 3), "atm30_iv": round(a30, 3) if a30 else None, "rv20": round(r20, 3),
+                               "contract_iv_rv": round(float(civ) / r20, 2), "atm30_iv_rv": round(a30 / r20, 2) if a30 else None}
+        if next_er.get(p["ticker"]):
+            ed = next_er[p["ticker"]]
+            contract["earnings"] = {"date": str(ed), "inside": ed <= p["expiry"], "days_after_expiry": (ed - p["expiry"]).days}
+        if record.get((p["ticker"], p["option_type"])):
+            contract["record"] = record[(p["ticker"], p["option_type"])]
         status = "provisional" if p["verify_status"] == "pass_after_hours" else "ok"
         held_back = held_back_reason(p["list_key"], f, P, spy20)
         if held_back:

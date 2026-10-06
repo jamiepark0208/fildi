@@ -125,14 +125,18 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     oi, vol = q.get("open_interest") or 0, q.get("volume") or 0
     delta, iv = _f(q.get("delta")), _f(q.get("implied_volatility"))
     upd = parse_ts(q["updated_at"]) if q.get("updated_at") else None
-    after_hours = not R.market_open(now)
+    # Provisional = the quote itself was taken outside the session (classify by quote time, not by when this runs: quotes fetched
+    # at 14:44 ET and evaluated after the close were wrongly marked after-hours on 2026-10-05).
+    after_hours = upd is None or not R.market_open(upd)
+    evaluating_closed = not R.market_open(now)
 
     # Freshness: live session → minutes old; closed → must be from the latest close.
     if upd is None:
         c.append(chk("quote_fresh", False, "no timestamp"))
-    elif after_hours:
+    elif evaluating_closed:
         ok = upd.astimezone(R.ET).date() == R.last_close_date(now)
-        c.append(chk("quote_fresh", ok, f"market closed; quote from {upd.astimezone(R.ET):%a %m-%d %H:%M} ET"))
+        c.append(chk("quote_fresh", ok, f"market closed; quote from {upd.astimezone(R.ET):%a %m-%d %H:%M} ET"
+                                         + ("" if after_hours else " (in session)")))
     else:
         age = (now - upd).total_seconds() / 60
         c.append(chk("quote_fresh", age <= R.QUOTE_MAX_AGE_MIN_OPEN, f"{age:.0f} min old"))

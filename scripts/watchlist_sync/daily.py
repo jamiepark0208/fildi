@@ -8,7 +8,7 @@ Stages (in order):
   verify     evaluate the Robinhood quotes the export session fetched for today's plan (COLLECT_PROTOCOL Step 13). Optional
              alternative: rh_client.py (deterministic read-only MCP client) if it was ever logged in.
   publish    publish_model_list (Model List in the app) · grade_ledger (grades anything that has expired / matured) ·
-             winrates refresh (monthly "wins historically" table; a no-op on other days) ·
+             monthly.py (lab + gate re-tests + "wins historically" rebuild, every 28 days; a no-op on other days) ·
              learn propose (new challenger only when evidence moved; promotion stays approval-gated)
 
 Usage: .venv/bin/python daily.py [--from STAGE] [--until STAGE] [--only STAGE] [--verified] [--no-lseg]
@@ -48,7 +48,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "publish": [
         ("publish Model List", PY, HERE, ["publish_model_list.py"]),
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
-        ("win rates (monthly)", PY, HERE, ["winrates.py", "refresh"]),   # no-op unless the table is ≥ 28 days old (~1 min rebuild)
+        ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
     ],
 }
