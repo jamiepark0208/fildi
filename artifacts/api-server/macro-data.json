@@ -1,22 +1,22 @@
 {
-  "fetchedAt": "2026-09-28T23:42:31.084Z",
+  "fetchedAt": "2026-10-06T16:26:26.059Z",
   "vix": {
-    "value": 16.07,
-    "change": 1.1999998,
-    "changePct": 8.069939,
-    "level": "low-mid"
+    "value": 15.17,
+    "change": -0.35000038,
+    "changePct": -2.255157,
+    "level": "low"
   },
   "yield10y": {
-    "value": 5.2400002,
-    "change": 0.056000233,
-    "changePct": 1.0802515
+    "value": 5.2790003,
+    "change": -0.031999588,
+    "changePct": -0.6027423
   },
   "yield2y": {
     "value": 3.47,
     "change": null,
     "changePct": null
   },
-  "yieldSpread": 177.00001999999998,
+  "yieldSpread": 180.90002999999996,
   "yieldCurve": [
     {
       "maturity": "1M",
@@ -107,16 +107,16 @@
       "threeMonthAgo": 4.86
     }
   ],
-  "usDebt": 39065421,
+  "usDebt": 39462398,
   "skew": {
-    "value": 146.25,
-    "change": 1.3399963,
-    "changePct": 0.9247093
+    "value": 143.04,
+    "change": 0,
+    "changePct": 0
   },
   "vxn": {
-    "value": 22.13,
-    "change": 1.2599983,
-    "changePct": 6.037366
+    "value": 21.62,
+    "change": -0.07999992,
+    "changePct": -0.36849344
   },
   "series": {
     "cpi": {
@@ -138,46 +138,46 @@
       "unit": "%"
     },
     "corePce": {
-      "value": 130.658,
-      "prev": 130.338,
-      "change": 0.3199999999999932,
-      "changePct": 0.2455155058386604,
-      "yoy": 3.3441430040338367,
-      "date": "2026-07-01",
+      "value": 130.455,
+      "prev": 130.133,
+      "change": 0.32200000000000273,
+      "changePct": 0.24743915839948566,
+      "yoy": 3.0075959761855975,
+      "date": "2026-08-01",
       "unit": "%"
     },
     "unemployment": {
-      "value": 4.1,
+      "value": 4.2,
       "prev": 4.1,
-      "change": 0,
-      "changePct": 0,
+      "change": 0.10000000000000053,
+      "changePct": 2.4390243902439157,
       "yoy": null,
-      "date": "2026-08-01",
+      "date": "2026-09-01",
       "unit": "%"
     },
     "nonfarmPayrolls": {
-      "value": 159075,
-      "prev": 158913,
-      "change": 162,
-      "changePct": 0.10194257235090899,
+      "value": 159044,
+      "prev": 159015,
+      "change": 29,
+      "changePct": 0.01823727321321888,
+      "yoy": null,
+      "date": "2026-09-01",
+      "unit": "thousands"
+    },
+    "jolts": {
+      "value": 7079,
+      "prev": 7335,
+      "change": -256,
+      "changePct": -3.49011588275392,
       "yoy": null,
       "date": "2026-08-01",
       "unit": "thousands"
     },
-    "jolts": {
-      "value": 7271,
-      "prev": 7182,
-      "change": 89,
-      "changePct": 1.2392091339459759,
-      "yoy": null,
-      "date": "2026-07-01",
-      "unit": "thousands"
-    },
     "gdp": {
-      "value": 1.5,
-      "prev": 2.1,
-      "change": -0.6000000000000001,
-      "changePct": -28.571428571428577,
+      "value": 2.2,
+      "prev": 2.5,
+      "change": -0.2999999999999998,
+      "changePct": -11.999999999999993,
       "yoy": null,
       "date": "2026-04-01",
       "unit": "%"
@@ -192,11 +192,11 @@
       "unit": "%"
     },
     "retailSales": {
-      "value": 668877,
-      "prev": 660638,
-      "change": 8239,
-      "changePct": 1.2471277764827333,
-      "yoy": 6.041346291041108,
+      "value": 646347,
+      "prev": 639031,
+      "change": 7316,
+      "changePct": 1.144858387151797,
+      "yoy": 5.360388483086999,
       "date": "2026-08-01",
       "unit": "$ billions"
     },
@@ -215,16 +215,16 @@
       "change": 0,
       "changePct": 0,
       "yoy": null,
-      "date": "2026-09-25",
+      "date": "2026-10-02",
       "unit": "%"
     },
     "sofr": {
-      "value": 3.9,
+      "value": 3.89,
       "prev": 3.88,
-      "change": 0.020000000000000018,
-      "changePct": 0.5154639175257737,
+      "change": 0.010000000000000231,
+      "changePct": 0.25773195876289257,
       "yoy": null,
-      "date": "2026-09-25",
+      "date": "2026-10-05",
       "unit": "%"
     },
     "ismManufacturing": {

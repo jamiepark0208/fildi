@@ -2,7 +2,10 @@ import YahooFinanceClass from "yahoo-finance2";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
 
-const yahooFinance = new YahooFinanceClass();
+// The ONE Yahoo client for the server: each instance carries its own cookie/crumb
+// handshake and request queue, so per-module instances multiplied crumb fetches and
+// effective concurrency against Yahoo. Import this instead of constructing a new one.
+export const yahooFinance = new YahooFinanceClass();
 
 export interface YahooFundamentalsData {
   yahoo_grossMargins?: number;

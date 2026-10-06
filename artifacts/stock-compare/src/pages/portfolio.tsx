@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
@@ -20,7 +20,12 @@ import {
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
+import { LazyMount } from "@/components/lazy-mount";
 import { useAuth } from "@/context/AuthContext";
+
+const StreetRadar = lazy(() =>
+  import("@/components/street-radar").then((m) => ({ default: m.StreetRadar })),
+);
 
 // ── Position types ────────────────────────────────────────────────────────────
 
@@ -934,7 +939,7 @@ export default function Portfolio() {
             <>
               {isAdmin ? (
                 <>
-                  {/* Portfolio Analysis — driven by Robinhood snapshot; holdings tables live in its sub-tabs */}
+                  {/* Portfolio Analysis first — Street Radar is heavy; lazy-mount below */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis
                       entries={entries}
@@ -948,6 +953,24 @@ export default function Portfolio() {
                       onUploadSuccess={() => refetchRh()}
                     />
                   )}
+                  <LazyMount
+                    minHeight={160}
+                    fallback={
+                      <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-zinc-500">
+                        Street Radar · scroll to load
+                      </div>
+                    }
+                  >
+                    <Suspense
+                      fallback={
+                        <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-zinc-500">
+                          Loading Street Radar…
+                        </div>
+                      }
+                    >
+                      <StreetRadar />
+                    </Suspense>
+                  </LazyMount>
                 </>
               ) : (
                 // Regular-user manual entry view — server-backed via use-portfolio.ts (bug/14).
@@ -980,37 +1003,52 @@ export default function Portfolio() {
                 </div>
               )}
 
-              {/* Compact snapshot summary — static (no more marquee), at the bottom out of the way */}
+              {/* Compact footer strip — same density as Street Radar */}
               {rhData?.snapshot && (() => { const snapshot = rhData.snapshot!; return (
-                <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 px-4 py-2.5">
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Portfolio Value</span>
-                      <span className="text-xs font-bold font-mono tabular-nums text-white">
+                <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-1.5">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Value</span>
+                      <span className="font-bold font-mono tabular-nums text-white">
                         {snapshot.totalValue ? formatCurrency(parseFloat(snapshot.totalValue)) : '—'}
                       </span>
                       {dodChange && (
-                        <span className={cn('text-[10px] font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                        <span className={cn('font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
                           ({dodChange.pct >= 0 ? '+' : ''}{dodChange.pct.toFixed(2)}%)
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Locked Collateral</span>
-                      <span className="text-xs font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Collateral</span>
+                      <span className="font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Premium Expected This Wk</span>
-                      <span className="text-xs font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Premium / wk</span>
+                      <span className="font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] text-[#d4af37] font-bold tracking-wide uppercase">Top Movers</span>
-                      {topMovers.length === 0 && <span className="text-xs font-mono text-white/50">—</span>}
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase shrink-0">Movers</span>
+                      {topMovers.length === 0 && <span className="font-mono text-white/50">—</span>}
                       {topMovers.map(m => (
-                        <span key={m.ticker} className={cn('text-xs font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
+                        <span key={m.ticker} className={cn('font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
                           {m.ticker} {m.pct >= 0 ? '+' : ''}{m.pct.toFixed(1)}%
                         </span>
                       ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Updated</span>
+                      <span className="font-mono tabular-nums text-white/70" title={snapshot.importedAt}>
+                        {(() => {
+                          const t = new Date(snapshot.importedAt).getTime();
+                          if (!Number.isFinite(t)) return '—';
+                          const h = Math.floor((Date.now() - t) / 3_600_000);
+                          if (h < 1) return '<1h ago';
+                          if (h < 48) return `${h}h ago`;
+                          return new Date(snapshot.importedAt).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                          });
+                        })()}
+                      </span>
                     </div>
                   </div>
                 </div>

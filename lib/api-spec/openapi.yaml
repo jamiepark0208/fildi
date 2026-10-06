@@ -300,6 +300,42 @@ components:
           type: ["number", "null"]
         fairValueEstimate:
           type: ["number", "null"]
+          description: Blended fair value per share (nightly fair_value_snapshots; trimmed log-space blend of applicable methods)
+        fairValueLow:
+          type: ["number", "null"]
+          description: Lowest vote kept in the blend
+        fairValueHigh:
+          type: ["number", "null"]
+          description: Highest vote kept in the blend
+        fairValueConfidence:
+          type: ["string", "null"]
+          description: high | medium | low — from vote count and cross-method spread
+        fairValueImpliedGrowth:
+          type: ["number", "null"]
+          description: Reverse DCF — initial FCF growth the current price implies (decimal)
+        fairValueVotes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: number
+              kept:
+                type: boolean
+            required: [name, value, kept]
+        fairValueAsOf:
+          type: ["string", "null"]
+        fairValueChange3m:
+          type: ["number", "null"]
+          description: Fair value change vs ~3 months earlier (decimal); null until history exists
+        fairValueCyclical:
+          type: boolean
+          description: Cyclical business (energy, mining, metals, semis, memory) — confidence capped at medium
+        fairValueValueTrap:
+          type: boolean
+          description: Looks ≥25% cheap but 12-1 momentum is in the bottom half — historically underperformed
         stockType:
           type: ["string", "null"]
           description: Classified type - Growth, Value, Dividend, Blend

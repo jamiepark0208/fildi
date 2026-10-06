@@ -2,8 +2,7 @@ import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 import { callHaiku } from "../lib/haiku.js";
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../lib/yahoo-client.js";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -28,10 +27,12 @@ import {
   BankResearch,
 } from "../lib/macro-data.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { singleFlight } from "../lib/single-flight.js";
 import {
   buildFactsPacket,
   buildHighlightsPrompt,
   parseHighlightsResponse,
+  extractJsonText,
   fallbackPayload,
   isLegacyHighlights,
 } from "../lib/macro-highlights.js";
@@ -49,6 +50,7 @@ const BANK_RESEARCH_FILE = join(ROOT, "macro-bank-research.json");
 export const indicatorHistoryCache = new TTLCache<object>(30 * 60 * 1000, "macro-indicator-history");
 export const sepActualsCache       = new TTLCache<object>(60 * 60 * 1000, "macro-sep-actuals");
 export const sectorRotationCache   = new TTLCache<object>(30 * 60 * 1000, "macro-sector-rotation");
+export const bankNewsCache         = new TTLCache<NewsArticle[]>(30 * 60 * 1000, "macro-bank-news", 50);
 
 const router = Router();
 
@@ -98,12 +100,9 @@ router.get("/charts", async (_req: Request, res: Response) => {
 // ── Sector rotation (relative strength vs SPY, proxy only) ────────────────────
 
 router.get("/sector-rotation", async (_req: Request, res: Response) => {
-  const cached = sectorRotationCache.get("sector-rotation");
-  if (cached) return res.json(cached);
   try {
-    const data = await fetchSectorRotation();
-    sectorRotationCache.set("sector-rotation", data);
-    return res.json(data);
+    // Same key as explain-context's getSectorRotation, so the two paths share one fetch.
+    return res.json(await sectorRotationCache.getOrCompute("sector-rotation", fetchSectorRotation));
   } catch (err) {
     console.error("[macro] sector-rotation failed:", err);
     return res.status(500).json({ error: "Failed to fetch sector rotation" });
@@ -117,14 +116,13 @@ router.get("/indicator-history", async (req: Request, res: Response) => {
   if (!key || !INDICATOR_SERIES[key]) {
     return res.status(400).json({ error: "Unknown indicator key" });
   }
-  const cached = indicatorHistoryCache.get(key);
-  if (cached) return res.json(cached);
   const meta = INDICATOR_SERIES[key];
   try {
-    const periodsForYoY = meta.isYoY ? 12 : 0;
-    const data = await fetchIndicatorHistory(meta.id, periodsForYoY, 4380); // ~12 years
-    const result = { key, label: meta.label, unit: meta.unit, isYoY: !!meta.isYoY, data };
-    indicatorHistoryCache.set(key, result);
+    const result = await indicatorHistoryCache.getOrCompute(key, async () => {
+      const periodsForYoY = meta.isYoY ? 12 : 0;
+      const data = await fetchIndicatorHistory(meta.id, periodsForYoY, 4380); // ~12 years
+      return { key, label: meta.label, unit: meta.unit, isYoY: !!meta.isYoY, data };
+    });
     return res.json(result);
   } catch (err) {
     console.error("[macro] indicator-history failed:", err);
@@ -136,22 +134,21 @@ router.get("/indicator-history", async (req: Request, res: Response) => {
 // Returns recent actual values for each SEP metric from FRED
 
 router.get("/sep-actuals", async (_req: Request, res: Response) => {
-  const cached = sepActualsCache.get("sep-actuals");
-  if (cached) return res.json(cached);
   try {
-    const [gdpData, pcePData, unemploymentData, ffData] = await Promise.allSettled([
-      fetchIndicatorHistory("A191RL1Q225SBEA", 0, 3650),    // GDP quarterly
-      fetchIndicatorHistory("PCEPILFE", 12, 3650),           // Core PCE YoY
-      fetchIndicatorHistory("UNRATE", 0, 3650),              // Unemployment
-      fetchIndicatorHistory("DFF", 0, 3650),                 // Fed Funds
-    ]);
-    const result = {
-      gdp:          gdpData.status === "fulfilled"          ? gdpData.value          : [],
-      corePce:      pcePData.status === "fulfilled"         ? pcePData.value         : [],
-      unemployment: unemploymentData.status === "fulfilled" ? unemploymentData.value : [],
-      fedFunds:     ffData.status === "fulfilled"           ? ffData.value           : [],
-    };
-    sepActualsCache.set("sep-actuals", result);
+    const result = await sepActualsCache.getOrCompute("sep-actuals", async () => {
+      const [gdpData, pcePData, unemploymentData, ffData] = await Promise.allSettled([
+        fetchIndicatorHistory("A191RL1Q225SBEA", 0, 3650),    // GDP quarterly
+        fetchIndicatorHistory("PCEPILFE", 12, 3650),           // Core PCE YoY
+        fetchIndicatorHistory("UNRATE", 0, 3650),              // Unemployment
+        fetchIndicatorHistory("DFF", 0, 3650),                 // Fed Funds
+      ]);
+      return {
+        gdp:          gdpData.status === "fulfilled"          ? gdpData.value          : [],
+        corePce:      pcePData.status === "fulfilled"         ? pcePData.value         : [],
+        unemployment: unemploymentData.status === "fulfilled" ? unemploymentData.value : [],
+        fedFunds:     ffData.status === "fulfilled"           ? ffData.value           : [],
+      };
+    });
     return res.json(result);
   } catch (err) {
     console.error("[macro] sep-actuals failed:", err);
@@ -207,12 +204,25 @@ async function fetchBankNews(bankName: string): Promise<NewsArticle[]> {
   }
 }
 
+// Google News RSS, cached 30 min per bank and shared by concurrent callers. Empty results
+// are not cached (fetchBankNews returns [] on failure too), so a blip doesn't stick.
+async function getBankNews(bank: string): Promise<NewsArticle[]> {
+  try {
+    return await bankNewsCache.getOrCompute(bank.toLowerCase(), async () => {
+      const items = await fetchBankNews(bank);
+      if (items.length === 0) throw new Error("no articles");
+      return items;
+    });
+  } catch {
+    return [];
+  }
+}
+
 router.get("/bank-news", async (req: Request, res: Response) => {
   const bank = req.query["bank"] as string | undefined;
   if (!bank) return res.status(400).json({ error: "bank query param required" });
   try {
-    const articles = await fetchBankNews(bank);
-    return res.json(articles);
+    return res.json(await getBankNews(bank));
   } catch (err) {
     console.error("[macro] bank-news failed:", err);
     return res.status(500).json({ error: "Failed to fetch bank news" });
@@ -240,23 +250,29 @@ router.get("/highlights", (_req: Request, res: Response) => {
   }
 });
 
+// One generation at a time — a double-click joins the in-flight Haiku call instead of paying twice.
+const generateHighlights = singleFlight(async (userId: number | undefined) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const packet = await buildFactsPacket();
+  const prompt = buildHighlightsPrompt(packet);
+
+  const { text } = await callHaiku({
+    prompt,
+    maxTokens: 1500,
+    trigger: "macro-highlights",
+    surfaceType: "macro-highlights",
+    userId,
+    ticker: "_",
+  });
+  const result = parseHighlightsResponse(text, today);
+  writeFileSync(HIGHLIGHTS_FILE, JSON.stringify(result, null, 2), "utf-8");
+  return result;
+});
+
 router.post("/highlights/generate", requireAdmin, aiLimiter, async (req: Request, res: Response) => {
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const packet = await buildFactsPacket();
-    const prompt = buildHighlightsPrompt(packet);
-
-    const { text } = await callHaiku({
-      prompt,
-      maxTokens: 1500,
-      trigger: "macro-highlights",
-      surfaceType: "macro-highlights",
-      userId: req.session.userId,
-      ticker: "_",
-    });
-    const result = parseHighlightsResponse(text, today);
-    writeFileSync(HIGHLIGHTS_FILE, JSON.stringify(result, null, 2), "utf-8");
-    return res.json(result);
+    return res.json(await generateHighlights(req.session.userId));
   } catch (err) {
     console.error("[macro] highlights/generate failed:", err);
     const fb = fallbackPayload(today);
@@ -298,18 +314,20 @@ router.get("/bank-research", (_req: Request, res: Response) => {
   return res.json(loadBankResearch());
 });
 
-router.post("/bank-research/generate", requireAdmin, aiLimiter, async (req: Request, res: Response) => {
-  try {
-    let macroData: MacroData | null = loadMacroCache();
-    if (!macroData) {
-      macroData = await fetchMacroData();
-      saveMacroCache(macroData);
-    }
+// One generation at a time — a double-click joins the in-flight call.
+// NOTE: stances feed regime-classifier's deriveBankLean — prompt changes here change the
+// business-cycle regime, so they need a before/after review (AGENTS.md rule 5).
+const generateBankResearch = singleFlight(async (userId: number | undefined): Promise<BankResearch[]> => {
+  let macroData: MacroData | null = loadMacroCache();
+  if (!macroData) {
+    macroData = await fetchMacroData();
+    saveMacroCache(macroData);
+  }
 
-    const existing = loadBankResearch();
-    const bankList = existing.map((b) => b.name).join(", ");
+  const existing = loadBankResearch();
+  const bankList = existing.map((b) => b.name).join(", ");
 
-    const prompt = `You are a macro strategist summarizing major bank views for an options trader.
+  const prompt = `You are a macro strategist summarizing major bank views for an options trader.
 
 Current macro context (${macroData.fetchedAt.slice(0, 10)}):
 - VIX ${macroData.vix.value?.toFixed(1) ?? "N/A"} (${macroData.vix.level})
@@ -333,24 +351,29 @@ Respond with a JSON array. Each object must have exactly these fields:
 
 Base stances on publicly known views and the current macro context. Return ONLY the JSON array, no other text.`;
 
-    const { text } = await callHaiku({
-      prompt,
-      maxTokens: 2000,
-      trigger: "macro-bank-research",
-      surfaceType: "macro-bank-research",
-      userId: req.session.userId,
-      ticker: "_",
-    });
-    const jsonText = text || "[]";
-    let updated: BankResearch[];
-    try {
-      updated = JSON.parse(jsonText) as BankResearch[];
-    } catch {
-      return res.json(existing);
-    }
+  const { text } = await callHaiku({
+    prompt,
+    maxTokens: 2000,
+    trigger: "macro-bank-research",
+    surfaceType: "macro-bank-research",
+    userId,
+    ticker: "_",
+  });
+  let updated: unknown;
+  try {
+    updated = JSON.parse(extractJsonText(text || "[]", "["));
+  } catch {
+    return existing;
+  }
+  if (!Array.isArray(updated) || updated.length === 0) return existing;
 
-    writeFileSync(BANK_RESEARCH_FILE, JSON.stringify(updated, null, 2), "utf-8");
-    return res.json(updated);
+  writeFileSync(BANK_RESEARCH_FILE, JSON.stringify(updated, null, 2), "utf-8");
+  return updated as BankResearch[];
+});
+
+router.post("/bank-research/generate", requireAdmin, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    return res.json(await generateBankResearch(req.session.userId));
   } catch (err) {
     console.error("[macro] bank-research/generate failed:", err);
     return res.status(500).json({ error: "Failed to generate bank research" });

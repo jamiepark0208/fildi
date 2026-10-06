@@ -1,3 +1,7 @@
+import { loadEnvLocal } from "./lib/load-env-local";
+// Before any other module reads process.env (Schwab / DB / FactSet).
+const envBoot = loadEnvLocal();
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seeder";
@@ -5,6 +9,13 @@ import { withRetry } from "./lib/retry";
 import { startScheduler } from "./lib/scheduler";
 import { runStartupStaleRefresh } from "./lib/startup-refresh";
 import { startCacheSweep } from "./lib/cache-registry";
+
+if (envBoot.filled.length) {
+  logger.info(
+    { path: envBoot.path, filled: envBoot.filled },
+    "boot: filled missing env from .env.local",
+  );
+}
 
 const rawPort = process.env["PORT"];
 

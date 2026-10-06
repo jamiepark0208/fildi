@@ -1,8 +1,7 @@
-import YahooFinanceClass from "yahoo-finance2"
+import { yahooFinance } from "./yahoo-client.js";
 import { inArray } from "drizzle-orm"
 import { db, earningsCalendar, type PortfolioOrder, type PortfolioTransaction } from "@workspace/db"
 
-const yahooFinance = new YahooFinanceClass()
 
 /**
  * Does selling premium in a higher-volatility regime actually pay off for

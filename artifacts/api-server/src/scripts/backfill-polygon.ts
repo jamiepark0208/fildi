@@ -18,6 +18,7 @@
  * Dry run: npx tsx src/scripts/backfill-polygon.ts --dry-run
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq, and, inArray } from "drizzle-orm";
@@ -58,9 +59,6 @@ function appendLog(line: string): void {
   fs.appendFileSync(logFile, stamped + "\n");
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
-}
 
 // ── Core per-ticker logic ──────────────────────────────────────────────────────
 

@@ -172,6 +172,12 @@ export function ApiMonitorTab() {
       last429At: string | null;
       chainCache: { entryCount: number; hitRate: string };
     };
+    optionsChainSource?: {
+      schwab: number;
+      yahoo: number;
+      total: number;
+      schwabSharePct: number | null;
+    };
   }>({
     queryKey: ["schwab-status"],
     queryFn: async () => {
@@ -295,6 +301,13 @@ export function ApiMonitorTab() {
                 ? ` · chain cache ${schwab.usage.chainCache.entryCount} (${schwab.usage.chainCache.hitRate})`
                 : ""}
               {schwab.usage.last429At ? " · 429 recent" : ""}
+            </span>
+          )}
+          {schwab.optionsChainSource && schwab.optionsChainSource.total > 0 && (
+            <span className="tabular-nums text-amber-100/70" title="Live option chains this API process">
+              chains {schwab.optionsChainSource.schwabSharePct}% Schwab /{" "}
+              {100 - (schwab.optionsChainSource.schwabSharePct ?? 0)}% Yahoo
+              <span className="text-amber-200/40"> (n={schwab.optionsChainSource.total})</span>
             </span>
           )}
           {schwab.reauthHint && (

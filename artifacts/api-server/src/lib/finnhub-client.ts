@@ -1,4 +1,4 @@
-import { logger } from "./logger.js";
+import { fetchJsonWithRetry } from "./http-client.js";
 import { logApiCall } from "./api-logger.js";
 
 export interface FinnhubFundamentalsData {
@@ -48,33 +48,12 @@ function pct(v: unknown): number | undefined {
   return num / 100;
 }
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
-  let delay = 1200; // Finnhub free tier: 50 calls/min → 1200ms between retries
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(20_000),
-      });
-    } catch (err) {
-      if (attempt === maxRetries) throw err;
-      await sleep(delay); delay *= 2; continue;
-    }
-    if (res.status === 429) {
-      if (attempt === maxRetries) throw new Error("Finnhub rate limit (429)");
-      logger.warn({ url, attempt }, "finnhub: rate limited, backing off");
-      await sleep(delay * 2); delay *= 2; continue;
-    }
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      if (attempt === maxRetries) throw new Error(`Finnhub HTTP ${res.status}`);
-      await sleep(delay); delay *= 2; continue;
-    }
-    return res.json();
-  }
+// Finnhub free tier is 60 calls/min — the shared limiter in http-client paces every caller.
+function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
+  return fetchJsonWithRetry(url, {
+    provider: "Finnhub", maxRetries, timeoutMs: 20_000, baseDelayMs: 1200, nullOn404: true,
+    init: { headers: { "Accept": "application/json" } },
+  });
 }
 
 export interface FinnhubEarningsQuarter {

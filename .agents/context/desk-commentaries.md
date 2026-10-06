@@ -49,7 +49,14 @@ Server module `desk-commentary-normalize.ts`:
 - **Weekday:** calendar day America/Los_Angeles
 - **Sat / Sun / Mon before 07:00 PT:** Friday 00:00 PT → now (weekend pack)
 
-Generate uses noise-filtered pack + baked CSP prefs + user feedback.
+Generate uses:
+1. Noise-filtered pack, **ranked by book hits + diggable activity**
+2. **Secondary dig** (`desk-link-dig.ts`) — body-first analyst/PT extract; fetch content links when body is thin (TipRanks pstmrk unwrap)
+3. Near earnings (book ∩ `earnings_calendar` next 14d)
+4. Lean book ticker context + user feedback
+5. UI: tape chips + dig cards + section cards (not a prose wall)
+
+Soft context only — never into `fund_score`.
 
 ## Feedback loop (Live → News)
 

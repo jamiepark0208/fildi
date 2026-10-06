@@ -37,11 +37,8 @@ router.get("/options/position-quote", async (req, res) => {
 });
 
 async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
-  const cached = optionsCache.get(ticker);
-  if (cached) return withFreshDte(cached);
-  const result = await getOptionsChain(ticker);
-  optionsCache.set(ticker, result);
-  return withFreshDte(result);
+  // getOrCompute: concurrent requests for the same ticker share one upstream chain fetch.
+  return withFreshDte(await optionsCache.getOrCompute(ticker, () => getOptionsChain(ticker)));
 }
 
 // GET /api/options/candidates — premium-IV universe for Overall (same filter as nightly job).
@@ -144,11 +141,7 @@ router.get("/options/:ticker/term-structure", async (req, res) => {
     return res.status(400).json({ error: "Invalid ticker" });
   }
   try {
-    const cached = ivTermCache.get(ticker);
-    if (cached) return res.json(cached);
-    const result = await getIvTermStructure(ticker);
-    ivTermCache.set(ticker, result);
-    return res.json(result);
+    return res.json(await ivTermCache.getOrCompute(ticker, () => getIvTermStructure(ticker)));
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

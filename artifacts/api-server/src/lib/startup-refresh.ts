@@ -64,7 +64,7 @@ export async function runStartupStaleRefresh(): Promise<void> {
       }
       try {
         const regime = await getLatestRegime();
-        await computeAndPersistFundamentalScores(regime);
+        await computeAndPersistFundamentalScores(regime, "nightly");
       } catch (err) {
         logger.warn({ err: String(err) }, "startup: score recompute failed");
       }

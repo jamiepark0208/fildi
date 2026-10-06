@@ -2,19 +2,22 @@ import { useState, useRef, useCallback, useEffect, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart
+  Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart,
 } from "lucide-react";
 import { PriceChart, Period } from "./price-chart";
 import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
 import { CompetitorsSection } from "./competitors-section";
 import { AnalystRatingsSection, type Recommendations, type AnalystAction, type AnalystPriceTarget, type PriceTargetRange } from "./analyst-ratings-section";
 import { EarningsHistorySection, type EarningsQuarter } from "./earnings-history-section";
-import { MarketSentimentSection } from "./market-sentiment-section";
+import { MarketSentimentSection, BullBearCases } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard, type NewsItem } from "./news-card";
-import { BreakdownMetricsTable } from "./breakdown-metrics-table";
+import { BreakdownMetricsTable, ScoreBadge } from "./breakdown-metrics-table";
 import { PegGrowthDistChart } from "./peg-growth-dist-chart";
 import { PeerGroupEditor } from "./settings/PeerGroupEditor";
+import { FundScoreHistoryChart, type ScoreHistoryPoint } from "./fund-score-history-chart";
+import { StreetSynthesisCard, type StreetSynthesisData } from "./street-synthesis-card";
+import { ScoreNoteForm } from "./score-note-form";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -22,20 +25,69 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { ModelThesisReport, type ModelThesis } from "@/components/model-thesis-report";
+import { FairValueBadge } from "@/components/fair-value-badge";
+
+function scoreTone(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(score)) return "border-white/40 text-white/70 bg-zinc-800";
+  if (score >= 70) return "border-green-400 text-white bg-green-600/40";
+  if (score >= 50) return "border-yellow-400 text-white bg-yellow-600/35";
+  if (score >= 35) return "border-orange-400 text-white bg-orange-600/35";
+  return "border-red-400 text-white bg-red-600/40";
+}
+
+function PillarChip({ label, score, title }: { label: string; score: number | null | undefined; title?: string }) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border text-[11px] font-mono tabular-nums",
+        scoreTone(score),
+      )}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-wide font-sans">{label}</span>
+      <span className="font-bold">{score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}</span>
+    </span>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface SnowflakeScores {
-  value: number;
-  growth: number;
-  health: number;
-  past: number;
-  dividend: number;
+interface ScoreEvidence {
+  total: number | null;
+  value: number | null;
+  growth: number | null;
+  quality: number | null;
+  safety: number | null;
+  style: string | null;
+  confidence: string | null;
+  coverage: number | null;
+  scoredAt: string | null;
+  topMetrics: Array<{ key: string; family: string; raw: number | null; peerPct: number | null; contrib: number }>;
+  modelScore: number | null;
+  deskScore: number | null;
+  activeAdjPoints: number;
+}
+
+interface TradeOverlay {
+  techScore: number | null;
+  atmPutIv: number | null;
+  realizedVol20d: number | null;
+  ivVsRealized: number | null;
+  earningsDaysOut: number | null;
+  streetEventRisk: boolean;
+  regime: string | null;
 }
 
 interface BreakdownData {
   metrics: any;
-  snowflake: SnowflakeScores;
+  scoreEvidence?: ScoreEvidence | null;
+  scoreHistory?: ScoreHistoryPoint[];
+  street?: StreetSynthesisData | null;
+  tradeOverlay?: TradeOverlay | null;
   recommendations: Recommendations | null;
   analystActions: AnalystAction[];
   analystPriceTargets: AnalystPriceTarget[];
@@ -93,7 +145,7 @@ function overviewBullets(description: string, companyName: string | null | undef
 // tickers sharing that same value.
 
 type ClassificationTagType = "exchange" | "sector" | "industry" | "stockType";
-type TagType = ClassificationTagType | "beta" | "fairValue" | "marketCap";
+type TagType = ClassificationTagType | "beta" | "marketCap";
 
 interface WatchlistTagEntry {
   companyName?: string | null;
@@ -109,7 +161,6 @@ const TAG_STYLES: Record<TagType, string> = {
   industry:  "border-teal-500/30 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20",
   stockType: "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
   beta:      "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
-  fairValue: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
   marketCap: "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20",
 };
 
@@ -172,27 +223,29 @@ type BreakdownPanelProps = {
   empty?: string;
   /** Span both columns in the 2-col grid. */
   fullWidth?: boolean;
-  /** Taller min height for chart panels (earnings / growth). */
-  tall?: boolean;
-  /** Let children own vertical scroll (charts need flex fill, not scroll clip). */
-  fillBody?: boolean;
+  /** Optional right-side action (e.g. Open dig). */
+  action?: ReactNode;
+  /** Cap height + scroll only when content is long (charts). */
+  scrollMax?: string;
 };
 
-function BreakdownPanel({ title, children, empty, fullWidth, tall, fillBody }: BreakdownPanelProps) {
+function BreakdownPanel({ title, children, empty, fullWidth, action, scrollMax }: BreakdownPanelProps) {
   return (
     <div
       className={cn(
-        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col overflow-hidden",
-        fullWidth ? "col-span-2 min-h-[280px] max-h-[420px]" : tall ? "min-h-[300px] h-[320px]" : "min-h-[220px] max-h-[280px]",
+        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0 h-full",
+        fullWidth && "col-span-2",
       )}
     >
-      <div className="flex items-center justify-between mb-1.5 shrink-0">
+      <div className="flex items-center justify-between mb-1.5 gap-2 shrink-0">
         <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">{title}</span>
+        {action}
       </div>
       <div
         className={cn(
-          "flex-1 min-h-0 overflow-x-hidden",
-          fillBody ? "flex flex-col overflow-hidden" : "overflow-y-auto",
+          "min-h-0",
+          scrollMax ?? "flex-1 overflow-y-auto",
+          scrollMax && !/overflow-/.test(scrollMax) && "overflow-y-auto",
         )}
       >
         {children ?? (
@@ -208,57 +261,21 @@ function BreakdownPanel({ title, children, empty, fullWidth, tall, fillBody }: B
 export function StockBreakdown({
   ticker: propTicker,
   watchlistMetrics,
-}: { ticker?: string; watchlistMetrics?: Record<string, WatchlistTagEntry | undefined> } = {}) {
+  modelThesis,
+}: {
+  ticker?: string;
+  watchlistMetrics?: Record<string, WatchlistTagEntry | undefined>;
+  /** When opened from Model List — conviction report pinned above the breakdown. */
+  modelThesis?: ModelThesis | null;
+} = {}) {
   const [, navigate] = useLocation();
   const { isAdmin } = useAuth();
   const [inputText, setInputText] = useState(propTicker ?? "");
   const [activeTicker, setActiveTicker] = useState<string | null>(propTicker ?? null);
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
-
-  // Technical widget / Peers box split — user-draggable, persisted per browser.
-  const SIDE_PANEL_TOTAL = 440; // matches the h-[440px] row height below
-  const SIDE_PANEL_MIN = 80;
-  const [techBoxHeight, setTechBoxHeight] = useState<number>(() => {
-    const saved = Math.round(Number(localStorage.getItem("breakdown-tech-box-height")));
-    if (saved >= 160 && saved <= SIDE_PANEL_TOTAL - SIDE_PANEL_MIN) return saved;
-    return 280;
-  });
-  const [tvZoom, setTvZoom] = useState<number>(() => {
-    const saved = Number(localStorage.getItem("breakdown-tv-zoom"));
-    return saved >= 0.55 && saved <= 1.5 ? saved : 1;
-  });
-  const [dragHeight, setDragHeight] = useState<number | null>(null);
-  const dragStartRef = useRef<{ y: number; height: number } | null>(null);
-
-  const handleSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragStartRef.current = { y: e.clientY, height: techBoxHeight };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const handleSplitPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragStartRef.current) return;
-    const delta = Math.round(e.clientY - dragStartRef.current.y);
-    const next = Math.min(
-      SIDE_PANEL_TOTAL - SIDE_PANEL_MIN,
-      Math.max(SIDE_PANEL_MIN, dragStartRef.current.height + delta),
-    );
-    setDragHeight(next);
-  };
-  const handleSplitPointerUp = () => {
-    if (!dragStartRef.current) return;
-    if (dragHeight != null) {
-      setTechBoxHeight(dragHeight);
-      localStorage.setItem("breakdown-tech-box-height", String(dragHeight));
-    }
-    dragStartRef.current = null;
-    setDragHeight(null);
-  };
-  const nudgeTvZoom = (delta: number) => {
-    setTvZoom((prev) => {
-      const next = Math.round(Math.min(1.5, Math.max(0.55, prev + delta)) * 100) / 100;
-      localStorage.setItem("breakdown-tv-zoom", String(next));
-      return next;
-    });
-  };
+  const [tvOpen, setTvOpen] = useState(false);
+  const [peerEditOpen, setPeerEditOpen] = useState(false);
+  const [digTab, setDigTab] = useState<"news" | "history" | "accounting">("news");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -306,6 +323,8 @@ export function StockBreakdown({
     setDropdownOpen(false);
     setFocusedIdx(-1);
     setChartPeriod("1W");
+    setDigTab("news");
+    setPeerEditOpen(false);
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -416,9 +435,16 @@ export function StockBreakdown({
           </div>
         )}
 
+        {/* Model List thesis — top of the report, even while quotes load */}
+        {modelThesis && activeTicker && modelThesis.item.ticker === activeTicker && (
+          <div className="max-w-5xl mx-auto px-5 pt-4 pb-0">
+            <ModelThesisReport thesis={modelThesis} />
+          </div>
+        )}
+
         {/* Loading */}
         {activeTicker && isLoading && (
-          <div className="h-full flex items-center justify-center py-20">
+          <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="w-8 h-8 animate-spin" />
               <span className="text-sm">Loading {activeTicker}…</span>
@@ -528,69 +554,112 @@ export function StockBreakdown({
                 <TagBadge type="beta" value={`Beta ${formatNumber(m.beta)}`} />
               )}
               {m.fairValueEstimate != null && (
-                <TagBadge type="fairValue" value={`Fair Value ${formatCurrency(m.fairValueEstimate)}`} />
+                <FairValueBadge
+                  fairValue={m.fairValueEstimate} low={m.fairValueLow} high={m.fairValueHigh}
+                  confidence={m.fairValueConfidence} impliedGrowth={m.fairValueImpliedGrowth}
+                  votes={m.fairValueVotes} asOf={m.fairValueAsOf} price={m.currentPrice} change3m={m.fairValueChange3m} cyclical={m.fairValueCyclical} valueTrap={m.fairValueValueTrap}
+                />
               )}
               {m.marketCap != null && (
                 <TagBadge type="marketCap" value={`Mkt Cap ${formatLargeNumber(m.marketCap)}`} />
               )}
             </div>
 
-            {/* ── Highlights: catalysts + top reward / risk ── */}
+            {/* ── Memo header: fund model + trade overlay ── */}
             {(() => {
+              const se = data.scoreEvidence;
+              const tr = data.tradeOverlay;
               const catalysts = data.catalysts ?? [];
               const earns = catalysts.find((l) => /^(Earnings|Next earnings)/i.test(l));
-              const otherCats = catalysts.filter((l) => l !== earns);
-              const hasHighlights =
-                !!earns || otherCats.length > 0 || !!data.bullBullets?.[0] || !!data.bearBullets?.[0];
-              if (!hasHighlights) return null;
+              const hasCases =
+                catalysts.some((l) => !/^(Earnings|Next earnings)/i.test(l)) ||
+                (data.bullBullets?.length ?? 0) > 0 ||
+                (data.bearBullets?.length ?? 0) > 0;
               return (
-                <div className="mt-0.5 space-y-1.5">
-                  {(earns || otherCats.length > 0) && (
+                <div id="bd-memo-header" className="mt-0.5 space-y-1.5">
+                  {/* Our peer-relative fund model — not the Street (WRDS/LSEG) panel below */}
+                  <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-lg px-2.5 py-2 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-200/45">
-                        Catalysts
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]" title="Peer-relative fundamentals — separate from Street (WRDS/LSEG) below">
+                        Our Fund
                       </span>
-                      {earns && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 whitespace-nowrap">
-                          {earns}
+                      <span className="text-base leading-none" title="Peer-relative fundamental score (0–100)">
+                        <ScoreBadge score={se?.modelScore ?? se?.total} max={100} />
+                      </span>
+                      {se?.activeAdjPoints ? (
+                        <span className="text-[11px] font-mono text-amber-200" title="model + active desk adj">
+                          <span className="font-semibold">Desk</span>{" "}
+                          <span className="font-bold">{se.deskScore != null ? se.deskScore.toFixed(0) : "—"}</span>
+                          <span className="text-amber-100/80 ml-1 italic">
+                            (adj {se.activeAdjPoints >= 0 ? "+" : ""}{se.activeAdjPoints})
+                          </span>
+                        </span>
+                      ) : null}
+                      <PillarChip label="V" score={se?.value} title="Value pillar" />
+                      <PillarChip label="G" score={se?.growth} title="Growth pillar" />
+                      <PillarChip label="Q" score={se?.quality} title="Quality pillar" />
+                      <PillarChip label="S" score={se?.safety} title="Safety pillar" />
+                      {se?.style && (
+                        <span className="text-[10px] font-semibold italic px-1.5 py-0.5 rounded border border-violet-400/60 text-violet-200 bg-violet-500/20">
+                          {se.style}
                         </span>
                       )}
-                      {otherCats.map((line, i) => (
-                        <span
-                          key={i}
-                          className="text-[11px] text-muted-foreground px-2 py-0.5 rounded border border-[#d4af37]/15 bg-zinc-900/80"
-                        >
-                          {line}
+                      {se?.confidence && (
+                        <span className="text-[10px] font-semibold text-sky-200 underline decoration-sky-500/50 underline-offset-2">
+                          {se.confidence} conf
                         </span>
-                      ))}
+                      )}
                     </div>
-                  )}
-                  {(data.bullBullets?.[0] || data.bearBullets?.[0]) && (
-                    <div className="grid grid-cols-2 gap-3">
-                      {data.bullBullets?.[0] && (
-                        <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-green-500/50 pl-2.5 py-1">
-                          <span className="shrink-0 text-green-500/70 mt-0.5">▲</span>
-                          {data.bullBullets[0]}
-                        </div>
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-[#d4af37]/15 pt-1.5">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-sky-300">Trade</span>
+                      {tr?.techScore != null && (
+                        <PillarChip label="Tech" score={tr.techScore} title="Technical score" />
                       )}
-                      {data.bearBullets?.[0] && (
-                        <div className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-red-500/50 pl-2.5 py-1">
-                          <span className="shrink-0 text-red-500/70 mt-0.5">▼</span>
-                          {data.bearBullets[0]}
-                        </div>
+                      {tr?.ivVsRealized != null && (
+                        <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-sky-400/50 bg-sky-500/15">
+                          IV/RV {tr.ivVsRealized.toFixed(2)}
+                        </span>
                       )}
+                      {tr?.atmPutIv != null && (
+                        <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-cyan-400/50 bg-cyan-500/15">
+                          IV {tr.atmPutIv.toFixed(0)}%
+                        </span>
+                      )}
+                      {(tr?.earningsDaysOut != null || earns) && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-yellow-500/25 text-yellow-200 border-yellow-400/60">
+                          {tr?.earningsDaysOut != null ? `ER ${tr.earningsDaysOut}d` : earns}
+                        </span>
+                      )}
+                      {tr?.streetEventRisk && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-400/70 text-red-200 bg-red-500/20">
+                          Event risk
+                        </span>
+                      )}
+                      {!tr?.techScore && tr?.ivVsRealized == null && tr?.atmPutIv == null && !tr?.earningsDaysOut && !earns && !tr?.streetEventRisk && (
+                        <span className="text-[10px] text-amber-100/70 italic">No trade overlay yet</span>
+                      )}
+                    </div>
+                  </div>
+                  {hasCases && (
+                    <div id="bd-cases">
+                      <BullBearCases
+                        bullBullets={data.bullBullets ?? []}
+                        bearBullets={data.bearBullets ?? []}
+                        catalysts={catalysts}
+                      />
                     </div>
                   )}
                 </div>
               );
             })()}
 
-            {/* ── Metrics table ── */}
+            {/* ── Score evidence (model families) ── */}
             <BreakdownMetricsTable
               groups={[
                 {
-                  title: "Valuation",
-                  score: data.snowflake.value,
+                  title: "Value",
+                  sectionId: "bd-family-value",
+                  score: data.scoreEvidence?.value ?? null,
                   rows: [
                     { label: "P/E Ratio", value: formatNumber(m.peRatio) },
                     { label: "PEG Ratio", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined },
@@ -606,21 +675,22 @@ export function StockBreakdown({
                           good: m.analystTargetPrice > m.currentPrice,
                         }]
                       : []),
-                    ...(m.fairValueEstimate != null && m.currentPrice != null
-                      ? [{
-                          label: "Fair Value Est.",
-                          value: formatCurrency(m.fairValueEstimate),
-                          good: m.fairValueEstimate > m.currentPrice,
-                        }]
-                      : []),
+                    ...((data.scoreEvidence?.topMetrics ?? [])
+                      .filter((t) => t.family === "value")
+                      .slice(0, 2)
+                      .map((t) => ({
+                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
+                        value: t.raw != null ? formatNumber(t.raw) : "—",
+                      }))),
                   ],
                 },
                 {
-                  title: "Future Growth",
-                  score: data.snowflake.growth,
+                  title: "Growth",
+                  sectionId: "bd-family-growth",
+                  score: data.scoreEvidence?.growth ?? null,
                   rows: [
                     { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined },
-                    { label: "EPS Growth (display)", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
+                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
                     {
                       label: "PEG growth (peer z)",
                       value: m.pegGrowth != null
@@ -640,122 +710,84 @@ export function StockBreakdown({
                           ? m.pegGrowth > 0
                           : undefined,
                     },
-                    { label: "EPS (Trailing)", value: formatCurrency(m.earningsPerShare) },
-                    { label: "EPS (Forward / Street)", value: formatCurrency(m.forwardEps) },
                     { label: "Forward P/E", value: formatNumber(m.forwardPe) },
-                    { label: "Forward PEG", value: formatNumber(m.forwardPeg), good: m.forwardPeg != null ? m.forwardPeg < 1.5 : undefined },
-                    { label: "Total Revenue", value: formatLargeNumber(m.totalRevenue) },
-                    { label: "EBITDA", value: formatLargeNumber(m.ebitda) },
+                    ...((data.scoreEvidence?.topMetrics ?? [])
+                      .filter((t) => t.family === "growth")
+                      .slice(0, 2)
+                      .map((t) => ({
+                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
+                        value: t.raw != null ? formatNumber(t.raw) : "—",
+                      }))),
                   ],
                 },
                 {
-                  title: "Past Performance",
-                  score: data.snowflake.past,
+                  title: "Quality",
+                  sectionId: "bd-family-quality",
+                  score: data.scoreEvidence?.quality ?? null,
                   rows: [
                     { label: "Return on Equity", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined },
-                    { label: "Return on Assets", value: formatPercent(m.returnOnAssets), good: m.returnOnAssets != null ? m.returnOnAssets > 0 : undefined },
                     { label: "Gross Margin", value: formatPercent(m.grossMargin) },
                     { label: "Operating Margin", value: formatPercent(m.operatingMargin) },
                     { label: "Net Margin", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined },
                     { label: "Free Cash Flow", value: formatLargeNumber(m.freeCashFlow) },
+                    ...((data.scoreEvidence?.topMetrics ?? [])
+                      .filter((t) => t.family === "quality")
+                      .slice(0, 2)
+                      .map((t) => ({
+                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
+                        value: t.raw != null ? formatNumber(t.raw) : "—",
+                      }))),
                   ],
                 },
                 {
-                  title: "Financial Health",
-                  score: data.snowflake.health,
+                  title: "Safety",
+                  sectionId: "bd-family-safety",
+                  score: data.scoreEvidence?.safety ?? null,
                   rows: [
                     { label: "Current Ratio", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined },
                     { label: "Debt / Equity", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined },
-                    { label: "Net Income", value: formatLargeNumber(m.netIncome) },
+                    { label: "Beta", value: formatNumber(m.beta) },
                     { label: "Dividend Yield", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined },
+                    ...((data.scoreEvidence?.topMetrics ?? [])
+                      .filter((t) => t.family === "safety")
+                      .slice(0, 2)
+                      .map((t) => ({
+                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
+                        value: t.raw != null ? formatNumber(t.raw) : "—",
+                      }))),
                   ],
                 },
               ]}
             />
 
-            {/* ── Price Chart + Technical / Peers side boxes ── */}
-            {(() => {
-              const hasPeers = !!propTicker && !!activeTicker;
-              return (
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 h-[440px] w-full">
-                  <div className="h-full min-w-0">
-                    <PriceChart
-                      tickers={[m.ticker]}
-                      loadedStocks={[m]}
-                      selectedPeriod={chartPeriod}
-                      onPeriodChange={setChartPeriod}
-                      showTechnicalZones={!!propTicker}
-                      tickerForTechnicals={propTicker}
-                      compact
-                    />
-                  </div>
-                  <div className="h-full min-w-0 flex flex-col min-h-0">
-                    <div
-                      className="relative bg-zinc-950 border border-[#d4af37]/20 rounded-lg shrink-0 min-w-0 overflow-hidden"
-                      style={{ height: dragHeight ?? techBoxHeight }}
-                    >
-                      <div className="absolute top-1 right-1 z-10 flex items-center gap-0.5 rounded border border-[#d4af37]/30 bg-zinc-950/90 shadow-sm">
-                        <button
-                          type="button"
-                          aria-label="Zoom out technical widget"
-                          title="Zoom out"
-                          onClick={() => nudgeTvZoom(-0.1)}
-                          className="px-1.5 py-0.5 text-[11px] font-bold text-amber-200/70 hover:text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors"
-                        >
-                          −
-                        </button>
-                        <span className="text-[9px] font-mono text-amber-200/40 px-0.5 tabular-nums min-w-[2.25rem] text-center">
-                          {Math.round(tvZoom * 100)}%
-                        </span>
-                        <button
-                          type="button"
-                          aria-label="Zoom in technical widget"
-                          title="Zoom in"
-                          onClick={() => nudgeTvZoom(0.1)}
-                          className="px-1.5 py-0.5 text-[11px] font-bold text-amber-200/70 hover:text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <TradingViewTechnicalWidget
-                        ticker={m.ticker}
-                        exchange={m.exchange}
-                        height={Math.max(120, dragHeight ?? techBoxHeight)}
-                        zoom={tvZoom}
-                      />
-                    </div>
-                    <div
-                      onPointerDown={handleSplitPointerDown}
-                      onPointerMove={handleSplitPointerMove}
-                      onPointerUp={handleSplitPointerUp}
-                      className="h-2 shrink-0 -my-px cursor-row-resize flex items-center justify-center touch-none select-none group"
-                      title="Drag to resize"
-                    >
-                      <div className="w-8 h-1 rounded-full bg-[#d4af37]/25 group-hover:bg-[#d4af37]/60 group-active:bg-[#d4af37] transition-colors" />
-                    </div>
-                    <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 flex-1 min-h-0 min-w-0 overflow-hidden">
-                      {hasPeers ? (
-                        <CompetitorsSection ticker={activeTicker!} />
-                      ) : (
-                        <>
-                          <div className="text-[11px] font-bold tracking-tight text-[#d4af37] mb-1">Peers</div>
-                          <span className="text-[10px] text-amber-200/50 italic">No peer data available.</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+            {/* ── Price chart + Technicals dig ── */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTvOpen(true)}
+                  className="text-[10px] font-semibold text-amber-200/60 hover:text-[#d4af37] underline underline-offset-2 decoration-[#d4af37]/30"
+                >
+                  Technicals
+                </button>
+              </div>
+              <div className="h-[340px] w-full min-w-0">
+                <PriceChart
+                  tickers={[m.ticker]}
+                  loadedStocks={[m]}
+                  selectedPeriod={chartPeriod}
+                  onPeriodChange={setChartPeriod}
+                  showTechnicalZones={!!propTicker}
+                  tickerForTechnicals={propTicker}
+                  compact
+                />
+              </div>
+            </div>
 
-            {/* ── Detail panels ── */}
+            {/* ── Priority stack ── */}
             {(() => {
-              const hasPeers = !!propTicker && !!activeTicker;
-              const hasSentiment =
-                (data.bullBullets?.length ?? 0) > 0 ||
-                (data.bearBullets?.length ?? 0) > 0 ||
-                !!data.recommendations;
-              const hasNews = !!data.news && data.news.length > 0;
+              const hasPeers = !!activeTicker;
+              const hasNews = !!data.news && data.news.some((n) => !!n.link);
               const hasEarnings = !!data.earningsHistory && data.earningsHistory.length > 0;
               const hasGrowth =
                 m.pegGrowth != null &&
@@ -763,80 +795,189 @@ export function StockBreakdown({
                 m.pegGrowthPeerStd != null &&
                 (m.pegGrowthPeerDisplay?.length ?? m.pegGrowthPeerMembers?.length ?? 0) >= 2;
               const hasAnalyst = !!data.recommendations;
+              const hasSentiment = !!data.recommendations;
+              const hasHistory = (data.scoreHistory?.length ?? 0) > 0;
 
               return (
-                <div className="grid grid-cols-2 gap-2">
-                  <BreakdownPanel title="Analyst Ratings" empty="No analyst ratings yet." tall>
-                    {hasAnalyst ? (
-                      <AnalystRatingsSection
-                        recs={data.recommendations!}
-                        metrics={m}
-                        analystActions={data.analystActions ?? []}
-                        analystPriceTargets={data.analystPriceTargets ?? []}
-                        priceTargetRange={data.priceTargetRange ?? null}
-                      />
-                    ) : null}
-                  </BreakdownPanel>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2 items-stretch">
+                    <BreakdownPanel
+                      title="Peers (relative scores)"
+                      empty="No peer group data."
+                      scrollMax="h-[280px]"
+                      action={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setPeerEditOpen((v) => !v)}
+                            className="text-[10px] text-amber-200/60 hover:text-[#d4af37]"
+                          >
+                            {peerEditOpen ? "Close editor" : "Edit group"}
+                          </button>
+                        ) : undefined
+                      }
+                    >
+                      {hasPeers ? (
+                        <div id="bd-peers" className="space-y-2">
+                          <CompetitorsSection
+                            ticker={activeTicker!}
+                            compact
+                            onSelectTicker={commitTicker}
+                          />
+                          {isAdmin && peerEditOpen && (
+                            <div className="border-t border-[#d4af37]/15 pt-2">
+                              <PeerGroupEditor ticker={m.ticker} compact />
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </BreakdownPanel>
 
-                  <BreakdownPanel title="Earnings" empty="No earnings history yet." tall fillBody>
-                    {hasEarnings ? (
-                      <EarningsHistorySection history={data.earningsHistory ?? []} compact />
-                    ) : null}
-                  </BreakdownPanel>
+                    <BreakdownPanel
+                      title="Street"
+                      empty="No Street synthesis yet."
+                      scrollMax="h-[280px] overflow-hidden flex flex-col"
+                    >
+                      {activeTicker ? (
+                        <div id="bd-street" className="h-full min-h-0 flex flex-col">
+                          <StreetSynthesisCard street={data.street} ticker={activeTicker} />
+                        </div>
+                      ) : null}
+                    </BreakdownPanel>
+                  </div>
 
-                  <BreakdownPanel title="Growth (PEG)" empty="Peer growth sample unavailable." tall fillBody>
-                    {hasGrowth ? (
-                      <PegGrowthDistChart
-                        mean={m.pegGrowthPeerMean}
-                        std={m.pegGrowthPeerStd}
-                        subjectGrowth={m.pegGrowth}
-                        subjectZ={m.pegGrowthPeerZ ?? null}
-                        pegGrowthSource={m.pegGrowthSource}
-                        pegGrowthExplain={m.pegGrowthExplain}
-                        display={m.pegGrowthPeerDisplay ?? m.pegGrowthPeerMembers ?? []}
-                        members={m.pegGrowthPeerMembers ?? m.pegGrowthPeerDisplay ?? []}
-                        groupName={m.pegGrowthPeerGroup}
-                      />
-                    ) : null}
-                  </BreakdownPanel>
+                  <div className="grid grid-cols-2 gap-2">
+                    <BreakdownPanel title="Analyst Ratings" empty="No analyst ratings yet." scrollMax="h-[280px]">
+                      {hasAnalyst ? (
+                        <AnalystRatingsSection
+                          recs={data.recommendations!}
+                          metrics={m}
+                          analystActions={data.analystActions ?? []}
+                          analystPriceTargets={data.analystPriceTargets ?? []}
+                          priceTargetRange={data.priceTargetRange ?? null}
+                        />
+                      ) : null}
+                    </BreakdownPanel>
 
-                  <BreakdownPanel title="Sentiment" empty="No sentiment data yet." tall fillBody>
-                    {hasSentiment ? (
-                      <MarketSentimentSection
-                        recs={data.recommendations}
-                        bullBullets={data.bullBullets ?? []}
-                        bearBullets={data.bearBullets ?? []}
-                      />
-                    ) : null}
-                  </BreakdownPanel>
+                    <BreakdownPanel title="Earnings" empty="No earnings history yet." scrollMax="h-[280px]">
+                      {hasEarnings ? (
+                        <EarningsHistorySection history={data.earningsHistory ?? []} compact />
+                      ) : null}
+                    </BreakdownPanel>
 
-                  <BreakdownPanel title="Accounting" empty="No EDGAR statements yet." fullWidth>
-                    <AccountingStatementsSection ticker={m.ticker} />
-                  </BreakdownPanel>
+                    <BreakdownPanel title="Growth (PEG)" empty="Peer growth sample unavailable." scrollMax="max-h-[260px]">
+                      {hasGrowth ? (
+                        <PegGrowthDistChart
+                          mean={m.pegGrowthPeerMean}
+                          std={m.pegGrowthPeerStd}
+                          subjectGrowth={m.pegGrowth}
+                          subjectZ={m.pegGrowthPeerZ ?? null}
+                          pegGrowthSource={m.pegGrowthSource}
+                          pegGrowthExplain={m.pegGrowthExplain}
+                          display={m.pegGrowthPeerDisplay ?? m.pegGrowthPeerMembers ?? []}
+                          members={m.pegGrowthPeerMembers ?? m.pegGrowthPeerDisplay ?? []}
+                          groupName={m.pegGrowthPeerGroup}
+                        />
+                      ) : null}
+                    </BreakdownPanel>
 
-                  <BreakdownPanel title="News" empty="No recent news.">
-                    {hasNews ? (
-                      <div className="space-y-0.5 -mx-0.5">
-                        {data.news.slice(0, 6).map((item, i) => (
-                          <NewsCard key={i} item={item} compact />
-                        ))}
+                    <BreakdownPanel title="Sentiment" empty="No Wall St. consensus yet." scrollMax="max-h-[260px]">
+                      {hasSentiment ? (
+                        <MarketSentimentSection recs={data.recommendations} />
+                      ) : null}
+                    </BreakdownPanel>
+
+                    {/* News / Score history / Accounting — one dig panel with sub-tabs */}
+                    <div
+                      id="bd-dig"
+                      className="col-span-2 bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5 shrink-0">
+                        <div className="flex items-center gap-0.5 rounded border border-[#d4af37]/20 p-0.5">
+                          {(
+                            [
+                              ["news", "News"],
+                              ["history", "Score history"],
+                              ["accounting", "Accounting"],
+                            ] as const
+                          ).map(([id, label]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setDigTab(id)}
+                              className={cn(
+                                "text-[10px] font-semibold px-2 py-0.5 rounded transition-colors",
+                                digTab === id
+                                  ? "bg-[#d4af37]/20 text-[#d4af37]"
+                                  : "text-amber-200/50 hover:text-amber-100",
+                              )}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {digTab === "history" && isAdmin && activeTicker ? (
+                          <ScoreNoteForm ticker={activeTicker} />
+                        ) : null}
                       </div>
-                    ) : null}
-                  </BreakdownPanel>
-
-                  <BreakdownPanel
-                    title={isAdmin ? "Peer Group" : "Peers"}
-                    empty="No peer group data."
-                  >
-                    {isAdmin ? (
-                      <PeerGroupEditor ticker={m.ticker} compact />
-                    ) : hasPeers && activeTicker ? (
-                      <CompetitorsSection ticker={activeTicker} />
-                    ) : null}
-                  </BreakdownPanel>
+                      <div className="min-h-0 max-h-[320px] overflow-y-auto">
+                        {digTab === "news" && (
+                          hasNews ? (
+                            <div id="bd-narrative" className="space-y-0.5 -mx-0.5">
+                              {data.news.filter((n) => n.link).slice(0, 8).map((item, i) => (
+                                <NewsCard key={i} item={item} compact />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-amber-200/40 italic">No recent news.</p>
+                          )
+                        )}
+                        {digTab === "history" && (
+                          hasHistory || isAdmin ? (
+                            <div id="bd-score-history">
+                              <FundScoreHistoryChart history={data.scoreHistory ?? []} />
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-amber-200/40 italic">No score history yet.</p>
+                          )
+                        )}
+                        {digTab === "accounting" && activeTicker && (
+                          <AccountingStatementsSection ticker={activeTicker} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })()}
+
+            {/* Technicals — centered dialog (same pattern as WRDS/LSEG) */}
+            <Dialog open={tvOpen} onOpenChange={setTvOpen}>
+              <DialogContent
+                className={cn(
+                  "bg-zinc-950 border-[#d4af37]/30 text-zinc-100",
+                  "w-[calc(100vw-1.5rem)] sm:max-w-2xl md:max-w-3xl",
+                  "max-h-[85dvh] p-0 gap-0 flex flex-col overflow-hidden",
+                )}
+              >
+                <DialogHeader className="px-4 pt-4 pb-2 border-b border-[#d4af37]/15 shrink-0 space-y-1 text-left">
+                  <DialogTitle className="text-[#d4af37] text-base tracking-tight">
+                    Technicals · {m.ticker}
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-500 text-[11px]">
+                    TradingView technical summary — open when you need the dig, not in the main path.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 min-h-0 overflow-hidden p-2">
+                  <TradingViewTechnicalWidget
+                    ticker={m.ticker}
+                    exchange={m.exchange}
+                    height={560}
+                    zoom={1}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>

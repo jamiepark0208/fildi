@@ -206,10 +206,28 @@ export async function fetchFMPFundamentals(
   result.freeCashFlow = fmpN(cfAnn.freeCashFlow);
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
-  logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "success", fieldsReturned });
+  // ~9 stable endpoints per ticker — must match CALLS_PER_TICKER.fmp / budget math.
+  logApiCall({
+    source: "fmp",
+    fn: "fetchFMPFundamentals",
+    trigger,
+    ticker: t,
+    outcome: "success",
+    fieldsReturned,
+    calls: 9,
+  });
   return result;
   } catch (err: any) {
-    logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "key-metrics, ratios, income-statement, balance-sheet, price-target-consensus, cash-flow-qtr, financial-growth, wacc, cash-flow-ann" });
+    logApiCall({
+      source: "fmp",
+      fn: "fetchFMPFundamentals",
+      trigger,
+      ticker: t,
+      outcome: "failure",
+      error: String(err?.message ?? err),
+      requestedFields: "key-metrics, ratios, income-statement, balance-sheet, price-target-consensus, cash-flow-qtr, financial-growth, wacc, cash-flow-ann",
+      calls: 9,
+    });
     throw err;
   }
 }

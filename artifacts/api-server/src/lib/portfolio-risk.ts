@@ -1,7 +1,9 @@
-import YahooFinanceClass from "yahoo-finance2";
-import { historyCache } from "../routes/stocks.js";
-
-const yahooFinance = new YahooFinanceClass();
+/**
+ * Correlation + parametric VaR/CVaR from local prices_historical (no Yahoo fan-out).
+ * Yahoo chart-per-ticker used to rate-limit and leave most names skipped → tiny matrices.
+ */
+import { and, gte, inArray, isNotNull, asc } from "drizzle-orm";
+import { db, pricesHistorical } from "@workspace/db";
 
 // 1-day 95% parametric (variance-covariance) VaR/CVaR under a normal-returns
 // assumption — standard closed-form constants, not fitted:
@@ -9,24 +11,10 @@ const yahooFinance = new YahooFinanceClass();
 //   CVaR95 = phi(z(0.95)) / 0.05  * sigma = 2.063 * sigma
 const Z_95 = 1.645;
 const CVAR_95_MULT = 2.063;
-
-async function fetchDailyCloses(ticker: string): Promise<number[]> {
-  const key = `${ticker.toUpperCase()}_3M`;
-  const cached = historyCache.get(key);
-  if (cached) return (cached as Array<{ close: number }>).map(q => q.close);
-
-  const result = await yahooFinance.chart(ticker.toUpperCase(), {
-    period1: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
-    interval: "1d" as any,
-  });
-  const quotes = (result?.quotes ?? []).filter((q: any) => q.close != null);
-  const data = quotes.map((q: any) => ({
-    date: new Date(q.date).toISOString(), close: q.close,
-    open: q.open ?? null, high: q.high ?? null, low: q.low ?? null, volume: q.volume ?? null,
-  }));
-  historyCache.set(key, data);
-  return data.map(q => q.close);
-}
+const LOOKBACK_DAYS = 100; // calendar ≈ 3mo trading
+const MIN_CLOSES = 10;
+/** Cap matrix size for UI readability / O(n²) cost — denser grid shows ~32 */
+const MAX_TICKERS = 32;
 
 function dailyReturns(closes: number[]): number[] {
   const out: number[] = [];
@@ -62,7 +50,7 @@ function covariance(a: number[], b: number[]): number {
 
 export interface PortfolioRiskInput {
   ticker: string;
-  weight: number; // fraction of portfolio notional, need not sum to exactly 1
+  weight: number; // fraction or percent of portfolio notional — renormalized
 }
 
 export interface PortfolioRiskResult {
@@ -73,44 +61,86 @@ export interface PortfolioRiskResult {
   cvar95Pct: number;
   var95Usd: number;
   cvar95Usd: number;
-  skippedTickers: string[]; // no usable price history (e.g. thinly-traded/new listing)
+  skippedTickers: string[];
+}
+
+async function loadClosesFromDb(tickers: string[]): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>();
+  if (tickers.length === 0) return out;
+  const cutoff = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const rows = await db
+    .select({
+      ticker: pricesHistorical.ticker,
+      close: pricesHistorical.close,
+    })
+    .from(pricesHistorical)
+    .where(
+      and(
+        inArray(pricesHistorical.ticker, tickers),
+        gte(pricesHistorical.date, cutoff),
+        isNotNull(pricesHistorical.close),
+      ),
+    )
+    .orderBy(asc(pricesHistorical.ticker), asc(pricesHistorical.date));
+
+  for (const r of rows) {
+    const t = String(r.ticker).toUpperCase();
+    const c = Number(r.close);
+    if (!Number.isFinite(c)) continue;
+    const arr = out.get(t) ?? [];
+    arr.push(c);
+    out.set(t, arr);
+  }
+  return out;
 }
 
 export async function computePortfolioRisk(
   positions: PortfolioRiskInput[],
   portfolioValueUsd: number,
 ): Promise<PortfolioRiskResult> {
-  const uniqueTickers = [...new Set(positions.map(p => p.ticker.toUpperCase()))];
-  const closesByTicker = new Map<string, number[]>();
+  // Prefer heavier weights first when we cap the matrix.
+  const weightAgg = new Map<string, number>();
+  for (const p of positions) {
+    const t = p.ticker.toUpperCase();
+    weightAgg.set(t, (weightAgg.get(t) ?? 0) + Math.abs(p.weight));
+  }
+  const ranked = [...weightAgg.entries()].sort((a, b) => b[1] - a[1]);
+  const uniqueTickers = ranked.map(([t]) => t);
+
+  const closesByTicker = await loadClosesFromDb(uniqueTickers);
   const skippedTickers: string[] = [];
+  const withHistory = uniqueTickers.filter((t) => {
+    const n = closesByTicker.get(t)?.length ?? 0;
+    if (n >= MIN_CLOSES) return true;
+    skippedTickers.push(t);
+    return false;
+  });
 
-  await Promise.all(uniqueTickers.map(async ticker => {
-    try {
-      const closes = await fetchDailyCloses(ticker);
-      if (closes.length >= 10) closesByTicker.set(ticker, closes);
-      else skippedTickers.push(ticker);
-    } catch {
-      skippedTickers.push(ticker);
-    }
-  }));
+  const tickers = withHistory.slice(0, MAX_TICKERS);
+  for (const t of withHistory.slice(MAX_TICKERS)) skippedTickers.push(t);
 
-  const tickers = uniqueTickers.filter(t => closesByTicker.has(t));
-  const returnsByTicker = new Map(tickers.map(t => [t, dailyReturns(closesByTicker.get(t)!)]));
+  const returnsByTicker = new Map(tickers.map((t) => [t, dailyReturns(closesByTicker.get(t)!)]));
 
-  const correlationMatrix = tickers.map(a =>
-    tickers.map(b => a === b ? 1 : parseFloat(pearsonCorrelation(returnsByTicker.get(a)!, returnsByTicker.get(b)!).toFixed(3)))
+  const correlationMatrix = tickers.map((a) =>
+    tickers.map((b) =>
+      a === b
+        ? 1
+        : parseFloat(pearsonCorrelation(returnsByTicker.get(a)!, returnsByTicker.get(b)!).toFixed(3)),
+    ),
   );
 
-  // Weights renormalized over tickers we actually have history for.
   const weightMap = new Map<string, number>();
   for (const p of positions) {
-    if (!closesByTicker.has(p.ticker.toUpperCase())) continue;
-    weightMap.set(p.ticker.toUpperCase(), (weightMap.get(p.ticker.toUpperCase()) ?? 0) + p.weight);
+    const t = p.ticker.toUpperCase();
+    if (!closesByTicker.has(t) || !tickers.includes(t)) continue;
+    weightMap.set(t, (weightMap.get(t) ?? 0) + Math.abs(p.weight));
   }
   const weightSum = [...weightMap.values()].reduce((s, w) => s + w, 0);
-  const w = (t: string) => weightSum > 0 ? (weightMap.get(t) ?? 0) / weightSum : 0;
+  const w = (t: string) => (weightSum > 0 ? (weightMap.get(t) ?? 0) / weightSum : 0);
 
-  // Portfolio daily variance = w^T Σ w
   let variance = 0;
   for (const a of tickers) {
     for (const b of tickers) {
@@ -128,8 +158,8 @@ export async function computePortfolioRisk(
     dailyVolatilityPct: parseFloat((dailyVol * 100).toFixed(3)),
     var95Pct: parseFloat(var95Pct.toFixed(3)),
     cvar95Pct: parseFloat(cvar95Pct.toFixed(3)),
-    var95Usd: parseFloat((var95Pct / 100 * portfolioValueUsd).toFixed(2)),
-    cvar95Usd: parseFloat((cvar95Pct / 100 * portfolioValueUsd).toFixed(2)),
+    var95Usd: parseFloat(((var95Pct / 100) * portfolioValueUsd).toFixed(2)),
+    cvar95Usd: parseFloat(((cvar95Pct / 100) * portfolioValueUsd).toFixed(2)),
     skippedTickers,
   };
 }

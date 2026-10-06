@@ -1,5 +1,5 @@
 import { Router } from "express";
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "../lib/yahoo-client.js";
 import { logger } from "../lib/logger.js";
 
 // Intraday VIX-band volatility regime (LOW_VOL/BASELINE/ELEVATED/EXTREME),
@@ -9,7 +9,6 @@ import { logger } from "../lib/logger.js";
 // used to share the word "regime" in their URLs (/macro/regime vs
 // /regime/macro), which is why this one now lives at /volatility/regime.
 
-const yahooFinance = new YahooFinanceClass();
 const router = Router();
 
 // ── Types ─────────────────────────────────────────────────────────────────────

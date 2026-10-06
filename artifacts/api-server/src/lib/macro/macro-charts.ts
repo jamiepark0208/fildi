@@ -1,6 +1,5 @@
 // Charts data assembly. Extracted verbatim from macro-data.ts — no behavior change.
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../yahoo-client.js";
 import * as XLSX from "xlsx";
 import { logApiCall } from "../api-logger.js";
 import type { MacroCharts, ChartPoint, VixCurvePoint, FedFundsCurvePoint } from "../macro-data.js";
@@ -26,7 +25,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
 
   const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
     const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return [];
     const text = await res.text();
     if (text.trimStart().startsWith("<")) return []; // guard against HTML error pages

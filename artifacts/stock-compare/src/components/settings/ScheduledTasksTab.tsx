@@ -1,11 +1,31 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, RefreshCw, Play, Power, PowerOff, FileText } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  Play,
+  Power,
+  PowerOff,
+  FileText,
+  HelpCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { OpsNucleus, nucleusPulse, shortSummary, type NucleusPayload } from "./OpsNucleus";
 
 type TaskRunner = "api-scheduler" | "launchd" | "supervised";
-type TaskStatus = "running" | "ok" | "warn" | "failed" | "idle" | "never" | "off" | "missing" | "waiting" | "degraded";
+type TaskStatus =
+  | "running"
+  | "ok"
+  | "warn"
+  | "failed"
+  | "idle"
+  | "never"
+  | "off"
+  | "missing"
+  | "waiting"
+  | "degraded";
 type TodayState = "pending" | "done" | "overdue" | "running" | "skipped" | "waiting" | "degraded";
 
 interface ScheduledTask {
@@ -24,6 +44,7 @@ interface ScheduledTask {
   canToggle: boolean;
   enabled: boolean;
   detail?: string | null;
+  outcome?: string | null;
   logFiles: string[];
   dueToday: boolean;
   dueTimeLabel: string | null;
@@ -33,6 +54,30 @@ interface ScheduledTask {
   verifyChecks?: { ok: boolean; label: string; fix?: string | null }[];
 }
 
+type OpsAlertSeverity = "critical" | "warn" | "info";
+
+interface OpsAlert {
+  id: string;
+  severity: OpsAlertSeverity;
+  title: string;
+  detail: string;
+  taskIds: string[];
+  fix?: string | null;
+}
+
+interface InventoryRow {
+  taskId: string;
+  name: string;
+  runner: TaskRunner;
+  owner: string;
+  writes: string[];
+  mutex: string | null;
+  cadence: string;
+  enabled: boolean;
+  status: TaskStatus;
+  primary: boolean;
+}
+
 interface ScheduledTasksStatus {
   tasks: ScheduledTask[];
   today: ScheduledTask[];
@@ -40,7 +85,36 @@ interface ScheduledTasksStatus {
   todayLabel: string;
   generatedAt: number;
   legend?: Record<string, string>;
-  summary?: { failed: number; warn: number; todayPending: number; todayDone: number };
+  summary?: {
+    failed: number;
+    warn: number;
+    todayPending: number;
+    todayDone: number;
+    alertsCritical?: number;
+    alertsWarn?: number;
+  };
+  inventory?: InventoryRow[];
+  alerts?: OpsAlert[];
+  nucleus?: NucleusPayload;
+  enrichmentDisabled?: boolean;
+  remediateLast?: {
+    at: string;
+    trigger: string;
+    taskIds: string[];
+    alertsBefore: number;
+    alertsAfter: number | null;
+    alertDelta: number | null;
+    value: string;
+    ok: boolean;
+    actions: string[];
+    note?: string;
+  } | null;
+  optionsChainSource?: {
+    schwab: number;
+    yahoo: number;
+    total: number;
+    schwabSharePct: number | null;
+  };
 }
 
 interface LogsResponse {
@@ -49,56 +123,84 @@ interface LogsResponse {
   logs: { path: string; exists: boolean; mtime: string | null; text: string }[];
 }
 
-const STATUS_STYLE: Record<TaskStatus, string> = {
-  running: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  ok: "bg-green-500/15 text-green-400 border-green-500/30",
-  warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  failed: "bg-red-500/15 text-red-400 border-red-500/30",
-  idle: "bg-yellow-500/10 text-yellow-300 border-yellow-500/25",
-  never: "bg-zinc-800 text-zinc-400 border-zinc-700",
-  off: "bg-zinc-800/60 text-zinc-500 border-zinc-700",
-  missing: "bg-red-500/15 text-red-400 border-red-500/30",
-  waiting: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  degraded: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+const STATUS_DOT: Record<TaskStatus, string> = {
+  running: "bg-amber-300 animate-pulse",
+  ok: "bg-emerald-400",
+  warn: "bg-amber-400",
+  failed: "bg-red-400",
+  idle: "bg-zinc-300",
+  never: "bg-zinc-500",
+  off: "bg-zinc-500",
+  missing: "bg-red-400",
+  waiting: "bg-sky-400",
+  degraded: "bg-orange-400",
 };
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
-  running: "Running",
+  running: "Run",
   ok: "OK",
   warn: "Warn",
-  failed: "Failed",
+  failed: "Fail",
   idle: "Idle",
-  never: "Never",
+  never: "—",
   off: "Off",
-  missing: "Not loaded",
-  waiting: "Waiting",
-  degraded: "Degraded",
+  missing: "Miss",
+  waiting: "Wait",
+  degraded: "Weak",
 };
 
-const TODAY_STYLE: Record<TodayState, string> = {
-  pending: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  done: "bg-green-500/15 text-green-400 border-green-500/30",
-  overdue: "bg-red-500/15 text-red-400 border-red-500/30",
-  running: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  skipped: "bg-zinc-800 text-zinc-500 border-zinc-700",
-  waiting: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  degraded: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+const TODAY_DOT: Record<TodayState, string> = {
+  pending: "bg-sky-400",
+  done: "bg-emerald-400",
+  overdue: "bg-red-400",
+  running: "bg-amber-300 animate-pulse",
+  skipped: "bg-zinc-500",
+  waiting: "bg-sky-400",
+  degraded: "bg-orange-400",
 };
 
 const TODAY_LABEL: Record<TodayState, string> = {
-  pending: "Pending",
+  pending: "Due",
   done: "Done",
-  overdue: "Overdue",
-  running: "Running",
-  skipped: "Skipped",
-  waiting: "Waiting",
-  degraded: "Degraded",
+  overdue: "Late",
+  running: "Run",
+  skipped: "Skip",
+  waiting: "Wait",
+  degraded: "Weak",
 };
 
-function runnerLabel(runner: TaskRunner, short = false): string {
-  if (runner === "launchd") return short ? "Mac" : "LaunchAgent (Mac)";
-  if (runner === "supervised") return short ? "You" : "Supervised (Claude / you)";
-  return short ? "API" : "API scheduler";
+function shortName(name: string): string {
+  return name
+    .replace(/^Session regime(?:\s*·\s*.+)?$/i, "Regime")
+    .replace(/^Session Regime$/i, "Regime")
+    .replace(/^Mac Maintain · heal$/i, "Heal")
+    .replace(/^Mac Maintain · full$/i, "Maintain")
+    .replace(/^Mac Maintain$/i, "Maintain")
+    .replace(/^Event Bullets$/i, "Bullets")
+    .replace(/^Earnings History Backfill$/i, "Earnings")
+    .replace(/^FMP Analyst Feed$/i, "FMP tape")
+    .replace(/^Desk Commentary Ingest$/i, "Desk")
+    .replace(/^Schwab Auth Health$/i, "Schwab")
+    .replace(/^Research Ops Health$/i, "Research")
+    .replace(/^LSEG Daily Sync$/i, "LSEG daily")
+    .replace(/^LSEG Weekly Sync$/i, "LSEG weekly")
+    .replace(/^WRDS Monthly IBES$/i, "WRDS IBES")
+    .replace(/^WRDS Quarterly CRSP$/i, "WRDS CRSP")
+    .replace(/^RH Portfolio Export$/i, "RH export")
+    .replace(/^RH Portfolio Ingest$/i, "RH ingest")
+    .replace(/^Option Score Snapshots$/i, "Opt scores")
+    .replace(/^Model Snapshot$/i, "Model snap")
+    .replace(/^Model Grade \+ Expiry$/i, "Model grade")
+    .replace(/^Weekly Ops Digest$/i, "Ops digest")
+    .replace(/^In-process Enrichment$/i, "API enrich")
+    .replace(/ Snapshots?/i, "")
+    .replace(/ Health$/i, "")
+    .replace(/^In-process /i, "");
+}
+
+function shortLast(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 async function postAction(id: string, action: "run" | "enable" | "disable") {
@@ -117,6 +219,8 @@ export function ScheduledTasksTab() {
   const [logs, setLogs] = useState<LogsResponse | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
 
   const { data, isLoading, refetch, isFetching } = useQuery<ScheduledTasksStatus>({
     queryKey: ["admin", "scheduled-tasks"],
@@ -143,6 +247,33 @@ export function ScheduledTasksTab() {
     },
   });
 
+  const remediate = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/ops/remediate", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "manual-nucleus" }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Remediate failed");
+      return body as { ok: boolean; report: ScheduledTasksStatus["remediateLast"] };
+    },
+    onSuccess: (body) => {
+      const r = body.report;
+      const msg = r
+        ? `Remediate ${r.value}${r.alertDelta != null ? ` · alerts Δ ${r.alertDelta}` : ""}`
+        : "Remediate started";
+      setActionMsg(msg);
+      void qc.invalidateQueries({ queryKey: ["admin", "scheduled-tasks"] });
+      setTimeout(() => setActionMsg(null), 6000);
+    },
+    onError: (err: Error) => {
+      setActionMsg(err.message);
+      setTimeout(() => setActionMsg(null), 6000);
+    },
+  });
+
   async function loadLogs(id: string) {
     setLogsLoading(true);
     try {
@@ -157,116 +288,249 @@ export function ScheduledTasksTab() {
   }
 
   const busyId = mutate.isPending ? String((mutate.variables as { id?: string } | undefined)?.id ?? "") : null;
+  const alertIssues = (data?.alerts ?? []).filter((a) => a.severity === "critical" || a.severity === "warn");
+  const pulse = data?.nucleus ? nucleusPulse(data.nucleus) : null;
 
   return (
-    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Scheduled Tasks</h2>
-        <div className="flex items-center gap-2">
+    <div className="max-w-3xl space-y-2 text-zinc-100">
+      {/* Ops · NOMINAL · all clear · date · refresh — one line */}
+      <div className="flex items-center gap-2 h-7 min-w-0">
+        <h2 className="text-sm font-semibold text-white shrink-0">Ops</h2>
+        {pulse && (
+          <>
+            <span className={cn("text-sm font-semibold shrink-0", pulse.className)}>{pulse.label}</span>
+            <span className="text-[11px] text-zinc-200 shrink-0">{pulse.note}</span>
+          </>
+        )}
+        {data?.todayLabel && <span className="text-[11px] text-zinc-300 truncate">· {data.todayLabel}</span>}
+        {data?.enrichmentDisabled === false && (
+          <span className="text-[10px] font-semibold text-amber-300 shrink-0">enrich ON</span>
+        )}
+        <div className="flex items-center gap-1 ml-auto shrink-0">
           {data?.legend && (
-            <div className="hidden sm:flex items-center gap-1">
-              {(["ok", "idle", "waiting", "warn", "degraded", "failed", "never", "off"] as TaskStatus[]).map((k) => (
-                <Popover key={k}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded border cursor-help", STATUS_STYLE[k])}
-                    >
-                      {STATUS_LABEL[k]}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-52 p-2 text-[11px] bg-zinc-900 border-zinc-600/40 text-amber-100/90" side="bottom">
-                    {data.legend?.[k]}
-                  </PopoverContent>
-                </Popover>
-              ))}
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="h-6 w-6 inline-flex items-center justify-center rounded border border-zinc-600 text-zinc-200 hover:text-white cursor-pointer"
+                  aria-label="Legend"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-2 text-xs bg-zinc-900 border-zinc-600 text-zinc-100 space-y-1" align="end">
+                {(Object.keys(STATUS_LABEL) as TaskStatus[]).map((k) =>
+                  data.legend?.[k] ? (
+                    <div key={k} className="flex gap-1.5">
+                      <span className={cn("mt-1 w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[k])} />
+                      <span>
+                        <b className="text-white">{STATUS_LABEL[k]}</b> {shortSummary(data.legend[k], 40)}
+                      </span>
+                    </div>
+                  ) : null,
+                )}
+              </PopoverContent>
+            </Popover>
           )}
+          <button
+            type="button"
+            onClick={() => remediate.mutate()}
+            disabled={remediate.isPending || mutate.isPending}
+            className="h-6 inline-flex items-center gap-1 text-[11px] font-medium text-zinc-950 bg-[#d4af37] rounded px-2 hover:bg-[#e0c04a] disabled:opacity-50 cursor-pointer"
+            title="Safe whitelist only: Maintain / stack heal / regime"
+          >
+            <Play className="w-3 h-3" />
+            Remediate
+          </button>
           <button
             type="button"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
+            className="h-6 inline-flex items-center gap-1 text-[11px] font-medium text-white border border-zinc-600 rounded px-2 hover:border-[#d4af37] hover:text-[#d4af37] disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
-            Refresh
+            Sync
           </button>
         </div>
       </div>
 
       {actionMsg && (
-        <p className="text-[11px] text-amber-200/70 border border-[#d4af37]/20 rounded px-2 py-1 bg-black/40">{actionMsg}</p>
+        <p className="text-[11px] text-white border border-zinc-600 rounded px-2 py-1 bg-zinc-900">{actionMsg}</p>
       )}
 
       {isLoading ? (
-        <p className="text-xs text-amber-200/40 animate-pulse">Loading…</p>
+        <p className="text-xs text-zinc-300 animate-pulse">Loading…</p>
       ) : (
         <>
-          <section>
-            <h3 className="text-[10px] font-semibold text-amber-200/45 uppercase tracking-wider mb-1">
-              Today · {data?.todayLabel ?? ""}
+          {data?.nucleus && (
+            <OpsNucleus
+              hidePulse
+              nucleus={data.nucleus}
+              onRun={(id) => mutate.mutate({ id, action: "run" })}
+              onLogs={(id) => {
+                setExpanded(id);
+                setShowCatalog(true);
+                void loadLogs(id);
+              }}
+              busyId={busyId}
+            />
+          )}
+
+          {data?.remediateLast && (
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded border border-zinc-600 px-2 py-1 text-[11px]">
+              <span className="font-semibold text-white shrink-0">Last remediate</span>
+              <span
+                className={cn(
+                  "font-semibold shrink-0",
+                  data.remediateLast.value === "IMPROVED"
+                    ? "text-emerald-400"
+                    : data.remediateLast.value === "FAILED" || data.remediateLast.value === "NEEDS_YOU"
+                      ? "text-amber-300"
+                      : "text-zinc-200",
+                )}
+              >
+                {data.remediateLast.value}
+              </span>
+              <span className="text-zinc-300 truncate">
+                {data.remediateLast.trigger}
+                {data.remediateLast.taskIds?.length
+                  ? ` · ${data.remediateLast.taskIds.join(", ")}`
+                  : ""}
+                {data.remediateLast.alertsBefore >= 0 && data.remediateLast.alertsAfter != null
+                  ? ` · alerts ${data.remediateLast.alertsBefore}→${data.remediateLast.alertsAfter}`
+                  : ""}
+                {data.remediateLast.actions?.length
+                  ? ` · ${shortSummary(data.remediateLast.actions.slice(0, 3).join(", "), 48)}`
+                  : ""}
+              </span>
+              <span className="text-zinc-400 font-mono ml-auto shrink-0">
+                {new Date(data.remediateLast.at).toLocaleString([], {
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
+          )}
+
+          {alertIssues.length > 0 && (
+            <div className="rounded border border-zinc-600 overflow-hidden divide-y divide-zinc-700">
+              {alertIssues.slice(0, 4).map((a) => (
+                <div
+                  key={a.id}
+                  className={cn(
+                    "flex items-baseline gap-2 px-2 py-1 border-l-2",
+                    a.severity === "critical" ? "border-l-red-400" : "border-l-amber-400",
+                  )}
+                >
+                  <span className="text-[10px] font-bold uppercase text-white shrink-0">{a.severity}</span>
+                  <span className="text-[11px] text-white truncate flex-1" title={a.detail}>
+                    {a.title}
+                    {a.fix ? ` — ${shortSummary(a.fix, 36)}` : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Today */}
+          <section className="rounded border border-zinc-600 bg-zinc-950 overflow-hidden">
+            <div className="flex items-center gap-2 h-7 px-2 border-b border-zinc-700">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Today</span>
               {data?.summary && (
-                <span className="ml-2 font-normal normal-case tracking-normal text-amber-200/35">
-                  {data.summary.todayDone} done · {data.summary.todayPending} left
+                <span className="text-[11px] text-zinc-200 tabular-nums">
+                  {data.summary.todayDone}/{data.summary.todayDone + data.summary.todayPending}
                 </span>
               )}
-            </h3>
-            <div className="rounded-md border border-[#d4af37]/25 overflow-hidden">
-              <div className="flex items-center gap-2 px-2.5 py-1 bg-zinc-950 border-b border-zinc-800 text-[9px] uppercase tracking-wider text-amber-200/35">
-                <span className="w-[7.5rem] shrink-0">Time</span>
-                <span className="flex-1 min-w-0">Task</span>
-                <span className="w-10 shrink-0">Who</span>
-                <span className="w-[4.5rem] shrink-0 text-center">Today</span>
-                <span className="w-6 shrink-0" />
-              </div>
-              <div className="divide-y divide-zinc-800">
-                {(data?.today ?? []).length === 0 ? (
-                  <p className="text-[11px] text-amber-200/40 px-2.5 py-2">Nothing scheduled today.</p>
-                ) : (
-                  (data?.today ?? []).map((task) => (
-                    <TodayRow key={`today-${task.id}`} task={task} onRun={() => mutate.mutate({ id: task.id, action: "run" })} busy={busyId === task.id} />
-                  ))
-                )}
-              </div>
+            </div>
+            <div className="divide-y divide-zinc-800">
+              {(data?.today ?? []).length === 0 ? (
+                <p className="text-[11px] text-zinc-200 px-2 py-1.5">Nothing due.</p>
+              ) : (
+                (data?.today ?? []).map((task) => (
+                  <TodayRow
+                    key={`today-${task.id}`}
+                    task={task}
+                    onRun={() => mutate.mutate({ id: task.id, action: "run" })}
+                    busy={busyId === task.id}
+                  />
+                ))
+              )}
             </div>
           </section>
 
-          <section>
-            <h3 className="text-[10px] font-semibold text-amber-200/45 uppercase tracking-wider mb-1">
-              All tasks · by frequency
-            </h3>
-            <TaskList
-              tasks={data?.tasks ?? []}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              mutate={mutate}
-              loadLogs={loadLogs}
-              logsLoading={logsLoading}
-              busyId={busyId}
-            />
+          <section className="rounded border border-zinc-600 bg-zinc-950 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowCatalog((v) => !v)}
+              className="w-full flex items-center gap-1.5 h-7 px-2 text-left hover:bg-zinc-900 cursor-pointer"
+            >
+              {showCatalog ? <ChevronDown className="w-3.5 h-3.5 text-zinc-300" /> : <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />}
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Tasks</span>
+              <span className="text-[11px] text-zinc-200 ml-auto tabular-nums">{data?.tasks?.length ?? 0}</span>
+            </button>
+            {showCatalog && (
+              <TaskList
+                tasks={data?.tasks ?? []}
+                inventory={data?.inventory ?? []}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                mutate={mutate}
+                loadLogs={loadLogs}
+                logsLoading={logsLoading}
+                busyId={busyId}
+              />
+            )}
           </section>
+
+          {(data?.inventory?.length ?? 0) > 0 && (
+            <section className="rounded border border-zinc-600 bg-zinc-950 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowInventory((v) => !v)}
+                className="w-full flex items-center gap-1.5 h-7 px-2 text-left hover:bg-zinc-900 cursor-pointer"
+              >
+                {showInventory ? <ChevronDown className="w-3.5 h-3.5 text-zinc-300" /> : <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />}
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Writers</span>
+                <span className="text-[11px] text-zinc-200 ml-auto tabular-nums">{data!.inventory!.length}</span>
+              </button>
+              {showInventory && (
+                <div className="divide-y divide-zinc-800 max-h-48 overflow-auto border-t border-zinc-700">
+                  {data!.inventory!.map((r) => (
+                    <div key={r.taskId} className="flex items-center gap-2 h-7 px-2 text-[11px]">
+                      <span className="text-white font-medium w-28 shrink-0 truncate">{shortName(r.name)}</span>
+                      <span className="text-zinc-200 truncate flex-1" title={r.writes.join(" · ")}>
+                        {shortSummary(r.writes.join(" · "), 52)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-zinc-100 shrink-0">
+                        <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[r.status])} />
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
 
       {logs && (
-        <div className="rounded-md border border-[#d4af37]/25 bg-black/50 p-2 space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-[11px] font-semibold text-[#d4af37]/80 uppercase tracking-wide">Logs — {logs.name}</h4>
-            <button type="button" className="text-[10px] text-amber-200/50 hover:text-white" onClick={() => setLogs(null)}>
+        <div className="rounded border border-zinc-600 bg-zinc-950 p-2 space-y-1.5">
+          <div className="flex items-center gap-2 h-6">
+            <span className="text-[11px] font-semibold text-white truncate">Logs · {logs.name}</span>
+            <button type="button" className="ml-auto text-[11px] text-zinc-200 hover:text-white cursor-pointer" onClick={() => setLogs(null)}>
               Close
             </button>
           </div>
           {logs.logs.map((log) => (
-            <div key={log.path}>
-              <div className="text-[10px] text-amber-200/40 font-mono truncate mb-0.5">
-                {log.path}
-                {log.mtime ? ` · ${new Date(log.mtime).toLocaleString()}` : ""}
-                {!log.exists ? " · missing" : ""}
-              </div>
-              <pre className="text-[10px] leading-snug text-amber-100/70 bg-zinc-950 border border-zinc-800 rounded p-2 max-h-48 overflow-auto whitespace-pre-wrap break-all">
-                {log.text || "(empty)"}
-              </pre>
-            </div>
+            <pre
+              key={log.path}
+              className="text-[11px] leading-snug text-zinc-100 bg-black border border-zinc-700 rounded p-1.5 max-h-36 overflow-auto whitespace-pre-wrap break-all"
+            >
+              {log.text || "(empty)"}
+            </pre>
           ))}
         </div>
       )}
@@ -276,57 +540,50 @@ export function ScheduledTasksTab() {
 
 function TodayRow({ task, onRun, busy }: { task: ScheduledTask; onRun: () => void; busy: boolean }) {
   const state = task.todayState ?? "pending";
-  const failedChecks = (task.verifyChecks ?? []).filter((c) => !c.ok);
+  // Prefer lean/outcome (e.g. Bull 72% / 0%) over verify fix essays.
+  const hint = task.outcome
+    ? shortSummary(task.outcome, 40)
+    : state !== "done" && state !== "skipped" && (task.verifyChecks ?? []).some((c) => !c.ok)
+      ? shortSummary(
+          (task.verifyChecks ?? []).find((c) => !c.ok)?.label ?? "",
+          40,
+        ) || null
+      : null;
+
   return (
-    <div className="px-2.5 py-1.5 bg-zinc-900/70 space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[10px] text-amber-200/45 w-[7.5rem] shrink-0">{task.dueTimeLabel ?? "—"}</span>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button type="button" className="flex-1 min-w-0 text-left">
-              <span className="text-xs font-medium text-white underline decoration-dotted decoration-amber-200/40 underline-offset-2">
-                {task.name}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-2.5 text-[11px] bg-zinc-900 border-zinc-600/40 text-amber-100/90" align="start">
-            <p>{task.purpose}</p>
-            {(task.verifyChecks?.length ?? 0) > 0 && (
-              <ul className="mt-2 space-y-1 border-t border-zinc-700/50 pt-2">
-                {task.verifyChecks!.map((c) => (
-                  <li key={c.label} className={c.ok ? "text-emerald-300/80" : "text-red-300/90"}>
-                    {c.ok ? "✓" : "✗"} {c.label}
-                    {!c.ok && c.fix ? <span className="block text-amber-200/50 pl-3">Fix: {c.fix}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PopoverContent>
-        </Popover>
-        <span className="text-[9px] uppercase tracking-wide text-amber-200/30 w-10 shrink-0">
-          {runnerLabel(task.runner, true)}
-        </span>
-        <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0", TODAY_STYLE[state])}>
-          {TODAY_LABEL[state]}
-        </span>
-        {task.canRun && state !== "skipped" ? (
-          <button
-            type="button"
-            disabled={busy || task.running}
-            onClick={onRun}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40 shrink-0"
-            title="Run now"
-          >
-            <Play className="w-3 h-3" />
+    <div className="flex items-center gap-2 h-7 px-2 hover:bg-zinc-900">
+      <span className="font-mono text-[11px] text-zinc-200 w-[3.75rem] shrink-0 tabular-nums">
+        {(task.dueTimeLabel ?? "—").replace(/\s*PT$/i, "").replace(":00 ", "").replace(" ", "")}
+      </span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button type="button" className="min-w-0 flex-1 text-left cursor-pointer truncate">
+            <span className="text-[11px] font-medium text-white hover:text-[#d4af37]">
+              {shortName(task.name)}
+              {hint ? <span className="text-zinc-200 font-normal"> · {hint}</span> : null}
+            </span>
           </button>
-        ) : (
-          <span className="w-6 shrink-0" />
-        )}
-      </div>
-      {failedChecks.length > 0 && state !== "done" && state !== "skipped" && (
-        <p className="text-[10px] text-red-300/70 pl-[7.5rem]">
-          {failedChecks[0].fix ?? failedChecks[0].label}
-        </p>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-2 text-xs bg-zinc-900 border-zinc-600 text-zinc-100" align="start">
+          <p>{shortSummary(task.purpose, 180)}</p>
+        </PopoverContent>
+      </Popover>
+      <span className="inline-flex items-center gap-1 text-[11px] text-zinc-100 w-12 shrink-0">
+        <span className={cn("w-1.5 h-1.5 rounded-full", TODAY_DOT[state])} />
+        {TODAY_LABEL[state]}
+      </span>
+      {task.canRun && state !== "skipped" ? (
+        <button
+          type="button"
+          disabled={busy || task.running}
+          onClick={onRun}
+          className="h-5 w-5 inline-flex items-center justify-center rounded bg-[#d4af37]/20 text-[#d4af37] disabled:opacity-40 cursor-pointer shrink-0"
+          title="Run"
+        >
+          <Play className="w-3 h-3" />
+        </button>
+      ) : (
+        <span className="w-5 shrink-0" />
       )}
     </div>
   );
@@ -334,6 +591,7 @@ function TodayRow({ task, onRun, busy }: { task: ScheduledTask; onRun: () => voi
 
 function TaskList({
   tasks,
+  inventory,
   expanded,
   setExpanded,
   mutate,
@@ -342,6 +600,7 @@ function TaskList({
   busyId,
 }: {
   tasks: ScheduledTask[];
+  inventory: InventoryRow[];
   expanded: string | null;
   setExpanded: (id: string | null) => void;
   mutate: { mutate: (v: { id: string; action: "run" | "enable" | "disable" }) => void };
@@ -349,132 +608,91 @@ function TaskList({
   logsLoading: boolean;
   busyId: string | null;
 }) {
+  const invById = new Map(inventory.map((r) => [r.taskId, r]));
   return (
-    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden">
-      <div className="flex items-center gap-1 px-2 py-1 bg-zinc-950 border-b border-zinc-800 text-[9px] uppercase tracking-wider text-amber-200/35">
-        <span className="w-6 shrink-0" />
-        <span className="flex-1 min-w-0 px-1">Task</span>
-        <div className="flex items-center gap-1.5 px-2 shrink-0">
-          <span className="w-14 text-right">Freq</span>
-          <span className="w-[3.5rem] text-center">Status</span>
-          <span className="w-[4.5rem] text-right">Last run</span>
-        </div>
-      </div>
-      <div className="divide-y divide-zinc-800">
-        {tasks.map((task) => {
-          const open = expanded === task.id;
-          const busy = busyId === task.id;
-          return (
-            <div key={task.id} className="bg-zinc-900/70">
-              <div className="flex items-stretch gap-1">
+    <div className="divide-y divide-zinc-800 border-t border-zinc-700">
+      {tasks.map((task) => {
+        const open = expanded === task.id;
+        const busy = busyId === task.id;
+        const inv = invById.get(task.id);
+        const line =
+          task.outcome && (task.status === "ok" || task.todayState === "done")
+            ? shortSummary(task.outcome, 36)
+            : shortSummary(task.summary, 36);
+        return (
+          <div key={task.id}>
+            <div className="flex items-center gap-1.5 h-7 px-1.5 hover:bg-zinc-900">
+              <button
+                type="button"
+                className="text-zinc-300 hover:text-white cursor-pointer shrink-0"
+                onClick={() => setExpanded(open ? null : task.id)}
+              >
+                {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                type="button"
+                className="min-w-0 flex-1 text-left cursor-pointer truncate"
+                onClick={() => setExpanded(open ? null : task.id)}
+              >
+                <span className="text-[11px] font-medium text-white">{shortName(task.name)}</span>
+                <span className="text-[11px] text-zinc-200"> · {line}</span>
+              </button>
+              <span className="text-[10px] uppercase text-zinc-200 w-8 text-right shrink-0">{task.frequency}</span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-zinc-100 w-10 shrink-0">
+                <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[task.status])} />
+                {STATUS_LABEL[task.status]}
+              </span>
+              <span className="text-[10px] font-mono text-zinc-200 w-[4.5rem] text-right shrink-0">{shortLast(task.lastRun)}</span>
+              {task.canRun ? (
                 <button
                   type="button"
-                  className="px-1.5 text-amber-200/40 hover:text-[#d4af37] shrink-0"
-                  onClick={() => setExpanded(open ? null : task.id)}
-                  aria-label={open ? "Collapse" : "Expand"}
+                  disabled={busy || task.running || task.status === "off"}
+                  onClick={() => mutate.mutate({ id: task.id, action: "run" })}
+                  className="text-[#d4af37] disabled:opacity-40 cursor-pointer shrink-0"
                 >
-                  {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  <Play className="w-3 h-3" />
                 </button>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button type="button" className="flex-1 min-w-0 text-left px-1 py-1.5 hover:bg-amber-500/5">
-                      <div className="font-medium text-white text-xs underline decoration-dotted decoration-amber-200/40 underline-offset-2 truncate">
-                        {task.name}
-                      </div>
-                      <div className="text-[10px] text-amber-200/40 truncate">{task.summary}</div>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-2.5 text-[11px] bg-zinc-900 border-zinc-600/40 text-amber-100/90" align="start">
-                    <p>{task.purpose}</p>
-                    <p className="mt-1.5 text-amber-200/45">
-                      {task.frequency} · {runnerLabel(task.runner)}
-                    </p>
-                  </PopoverContent>
-                </Popover>
-
-                <div className="flex items-center gap-1.5 px-2 shrink-0">
-                  <span className="text-[9px] uppercase tracking-wide text-amber-200/30 w-14 text-right">{task.frequency}</span>
-                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", STATUS_STYLE[task.status])}>
-                    {STATUS_LABEL[task.status]}
-                  </span>
-                  <span className="text-[10px] text-amber-200/40 whitespace-nowrap w-[4.5rem] text-right">
-                    {task.lastRun
-                      ? new Date(task.lastRun).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-
-              {open && (
-                <div className="px-3 pb-2.5 pt-0.5 space-y-2 border-t border-zinc-800/80 bg-black/30">
-                  <p className="text-[11px] text-amber-200/70">{task.purpose}</p>
-                  <p className="text-[10px] text-amber-200/40">
-                    {task.schedule}
-                    {" · "}
-                    {runnerLabel(task.runner)}
-                  </p>
-                  {task.detail && (
-                    <p className="text-[10px] text-amber-200/50 font-mono">{task.detail}</p>
-                  )}
-                  {(task.verifyChecks?.length ?? 0) > 0 && (
-                    <ul className="text-[10px] space-y-1">
-                      {task.verifyChecks!.map((c) => (
-                        <li key={c.label} className={c.ok ? "text-emerald-300/80" : "text-red-300/90"}>
-                          {c.ok ? "✓" : "✗"} {c.label}
-                          {!c.ok && c.fix ? <span className="block text-amber-200/50 pl-3">Fix: {c.fix}</span> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="flex flex-wrap gap-1.5">
-                    {task.canRun && (
-                      <button
-                        type="button"
-                        disabled={busy || task.running || task.status === "off"}
-                        onClick={() => mutate.mutate({ id: task.id, action: "run" })}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40"
-                      >
-                        <Play className="w-3 h-3" /> Run now
-                      </button>
-                    )}
-                    {task.canToggle && task.enabled && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => mutate.mutate({ id: task.id, action: "disable" })}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
-                      >
-                        <PowerOff className="w-3 h-3" /> Disable
-                      </button>
-                    )}
-                    {task.canToggle && !task.enabled && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => mutate.mutate({ id: task.id, action: "enable" })}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-sky-500/30 text-sky-300 hover:bg-sky-500/10 disabled:opacity-40"
-                      >
-                        <Power className="w-3 h-3" /> Enable
-                      </button>
-                    )}
-                    {task.logFiles.length > 0 && (
-                      <button
-                        type="button"
-                        disabled={logsLoading}
-                        onClick={() => void loadLogs(task.id)}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-[#d4af37]/25 text-amber-200/70 hover:bg-amber-500/10 disabled:opacity-40"
-                      >
-                        <FileText className="w-3 h-3" /> Logs
-                      </button>
-                    )}
-                  </div>
-                </div>
+              ) : (
+                <span className="w-3 shrink-0" />
               )}
             </div>
-          );
-        })}
-      </div>
+            {open && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 ml-5 border-t border-zinc-800 bg-zinc-900/60 text-[11px]">
+                <span className="text-zinc-100">{shortSummary(task.purpose, 100)}</span>
+                {inv && <span className="text-zinc-200">writes {shortSummary(inv.writes.join(", "), 40)}</span>}
+                {(task.verifyChecks ?? []).slice(0, 3).map((c) => (
+                  <span key={c.label} className={c.ok ? "text-emerald-400" : "text-red-400"}>
+                    {c.ok ? "✓" : "✗"} {shortSummary(c.label, 28)}
+                  </span>
+                ))}
+                <span className="flex gap-1 ml-auto">
+                  {task.canToggle && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => mutate.mutate({ id: task.id, action: task.enabled ? "disable" : "enable" })}
+                      className="inline-flex items-center gap-0.5 h-6 px-1.5 rounded border border-zinc-500 text-zinc-100 cursor-pointer"
+                    >
+                      {task.enabled ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
+                      {task.enabled ? "Off" : "On"}
+                    </button>
+                  )}
+                  {task.logFiles.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={logsLoading}
+                      onClick={() => void loadLogs(task.id)}
+                      className="inline-flex items-center gap-0.5 h-6 px-1.5 rounded border border-zinc-500 text-zinc-100 cursor-pointer"
+                    >
+                      <FileText className="w-3 h-3" /> Logs
+                    </button>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

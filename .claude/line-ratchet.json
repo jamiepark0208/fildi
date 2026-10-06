@@ -1,6 +1,5 @@
 {
  "artifacts/api-server/src/lib/technicals-db.ts": 605,
- "artifacts/api-server/src/lib/stock-data-manager.ts": 614,
  "artifacts/api-server/src/lib/fundamentals-db.ts": 613,
  "artifacts/api-server/src/routes/stocks.ts": 1101,
  "artifacts/api-server/src/scripts/nightly-enrichment.ts": 1052,

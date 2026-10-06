@@ -19,6 +19,7 @@ import {
   lastFmpAnalystFeedRun, fmpAnalystFeedRunning,
   lastDeskIngestRun, deskIngestRunning,
   lastSchwabHealthRun, schwabHealthRunning,
+  lastResearchOpsRun, researchOpsRunning,
   runModelSnapshotJob,
   runTradeExpiry,
   runOptionScoreJob,
@@ -29,9 +30,59 @@ import {
   runFmpAnalystFeedJob,
   runDeskIngestJob,
   runSchwabHealthJob,
+  runResearchOpsJob,
 } from "../lib/scheduler.js";
 import { getSchwabAuthStatus } from "../lib/schwab-auth.js";
-import { CHECKPOINTS_MIN, getTodaysCheckpoints, type RegimeCheckpoint } from "../lib/intraday-regime.js";
+import {
+  getResearchOpsReport,
+  lastResearchOpsRun,
+  researchOpsRunning,
+  type ResearchOpsReport,
+} from "../lib/research-ops.js";
+import { etDateKey } from "../lib/market-hours.js";
+import {
+  CHECKPOINTS_MIN,
+  getCheckpointsForDate,
+  getTodaysCheckpoints,
+  type RegimeCheckpoint,
+} from "../lib/intraday-regime.js";
+import { buildInventory, buildNucleus, detectOpsAlerts } from "../lib/scheduled-tasks-inventory.js";
+import {
+  countOpenAlerts,
+  finalizeRemediateIfPending,
+  readRemediateReport,
+  remediateTaskIdsFromAlerts,
+  REMEDIATE_WHITELIST,
+  runOpsRemediate,
+} from "../lib/ops-remediate.js";
+import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
+
+/**
+ * Session checkpoints for the Scheduled Tasks Today agenda (PT calendar day).
+ * After ~9pm PT, ET has already rolled to the next date — `getTodaysCheckpoints`
+ * would load an empty next-day key while Monday’s leans still sit under Monday’s
+ * ET key. Prefer the PT agenda date when ET is ahead.
+ */
+async function checkpointsForAgenda(ptYmd: string): Promise<RegimeCheckpoint[]> {
+  const et = etDateKey();
+  const key = et > ptYmd ? ptYmd : et;
+  if (key === et) return getTodaysCheckpoints();
+  const existing = await getCheckpointsForDate(key);
+  const byMin = new Map(existing.map((c) => [c.minAfterOpen, c]));
+  return CHECKPOINTS_MIN.map((min) => byMin.get(min) ?? {
+    minAfterOpen: min,
+    timestamp: 0,
+    status: "pending" as const,
+    direction: null,
+    confidence: null,
+    spy: null,
+    qqq: null,
+    breadth: null,
+    label: "",
+    computedLate: false,
+    factors: ["Not reached that session."],
+  });
+}
 
 const router = Router();
 
@@ -41,6 +92,7 @@ const LAUNCH_AGENTS = join(homedir(), "Library/LaunchAgents");
 const RBH_LOG = join(homedir(), "rbh_scripts/logs/daily_export.log");
 const RBH_LAST = join(homedir(), "rbh_scripts/logs/last_run.json");
 const RBH_SCRIPT = join(homedir(), "rbh_scripts/daily_export.sh");
+const RBH_EXPORT_PROMPT_LAST = join(homedir(), "rbh_scripts/logs/export_prompt_last.json");
 
 /** Same labels as Live RegimeBanner — keep in sync with regime-banner.tsx */
 const CHECKPOINT_TIME_PT: Record<number, string> = {
@@ -59,6 +111,39 @@ const CHECKPOINT_TIME_PT: Record<number, string> = {
 /** Minutes from midnight PT = 6:30 open + minAfterOpen */
 function checkpointDueMinutesPt(minAfterOpen: number): number {
   return 6 * 60 + 30 + minAfterOpen;
+}
+
+/** True when this slot was actually written (not a getTodaysCheckpoints placeholder). */
+function isRegimeRecorded(cp: RegimeCheckpoint | undefined): boolean {
+  if (!cp) return false;
+  if (cp.status === "resolved") return true;
+  // Persisted rows with a real timestamp but missing/odd status still count.
+  if (cp.status === "pending") return false;
+  return typeof cp.timestamp === "number" && cp.timestamp > 0;
+}
+
+/**
+ * Compact lean for Today: Bull 72% / Bear 40% / Mixed 20% / OR / 0% / —.
+ * `due` = slot time has passed (past-due miss → 0%; not-yet-due → —).
+ */
+function regimeLeanLabel(cp: RegimeCheckpoint | undefined, due = false): string {
+  if (!isRegimeRecorded(cp)) return due ? "0%" : "—";
+  const pct = cp!.confidence ?? 0;
+  // 15m baseline: OR established, no directional call yet.
+  if (!cp!.direction) return pct > 0 ? `${pct}%` : "OR";
+  const lean = cp!.direction === "bullish" ? "Bull" : cp!.direction === "bearish" ? "Bear" : "Mixed";
+  return `${lean} ${pct}%`;
+}
+
+function ageLabel(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "now";
+  const m = Math.floor(ms / 60_000);
+  if (m < 60) return `${Math.max(1, m)}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
 
 export type TaskRunner = "api-scheduler" | "launchd" | "supervised";
@@ -102,6 +187,8 @@ export interface ScheduledTaskRow {
   canToggle: boolean;
   enabled: boolean;
   detail?: string | null;
+  /** What changed / improved when last successful — shown on Done rows */
+  outcome?: string | null;
   logFiles: string[];
   /** Local PT ISO date YYYY-MM-DD this job is due (null = not today) */
   dueToday: boolean;
@@ -163,6 +250,7 @@ function withToday(
     dueTimeLabel: string | null;
     dueMinutesPt: number | null;
     verifyChecks?: VerifyCheck[];
+    outcome?: string | null;
   },
   pt: ReturnType<typeof ptParts>,
 ): ScheduledTaskRow {
@@ -171,6 +259,7 @@ function withToday(
   const { verifyChecks: _drop, ...rest } = row;
   return {
     ...rest,
+    outcome: row.outcome ?? null,
     verifyChecks,
     verified,
     todayState: todayStateFor({
@@ -281,9 +370,35 @@ function rhCsvReady(ptYmd: string): { ready: boolean; count: number; todayStamp:
   return { ready: count === 3, count, todayStamp: stamp };
 }
 
-function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
+function buildTasks(
+  checkpoints: RegimeCheckpoint[] = [],
+  researchReport: ResearchOpsReport | null = null,
+): ScheduledTaskRow[] {
   const pt = ptParts();
-  const maintain = readJsonFile(join(LOG_DIR, "maintain-last.json"));
+  const maintainHeal = readJsonFile(join(LOG_DIR, "maintain-last.json"));
+  const maintainFull = readJsonFile(join(LOG_DIR, "maintain-full-last.json"));
+  // Prefer full-pass proof for verifyChecks; heal report for live stack health.
+  const maintain = (() => {
+    if (!maintainHeal && !maintainFull) return null;
+    if (!maintainFull) return maintainHeal;
+    if (!maintainHeal) return maintainFull;
+    const healActions = Array.isArray(maintainHeal.actions) ? (maintainHeal.actions as string[]) : [];
+    const fullActions = Array.isArray(maintainFull.actions) ? (maintainFull.actions as string[]) : [];
+    const merged = [...healActions];
+    for (const a of fullActions) {
+      if (typeof a === "string" && !merged.includes(a)) merged.push(a);
+    }
+    return {
+      ...maintainFull,
+      ...maintainHeal,
+      actions: merged,
+      // Keep heal's live health stamps
+      ts: maintainHeal.ts ?? maintainFull.ts,
+      processOk: maintainHeal.processOk ?? maintainFull.processOk,
+      ok: maintainHeal.ok ?? maintainFull.ok,
+      budget: maintainHeal.budget ?? maintainFull.budget,
+    };
+  })();
   const rbh = readJsonFile(RBH_LAST);
   const PROCESS = new Set(["api_healthz", "vite", "postgres"]);
   const failedChecks = Array.isArray(maintain?.failedChecks) ? (maintain!.failedChecks as string[]) : [];
@@ -303,12 +418,19 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
   const retentionOk = maintainActionsList.some((a) => /^retention_prune_exit_0$/.test(a));
   const morningPreOk = maintainActionsList.some((a) => /^morning_precompute_exit_0$/.test(a))
     || ranPtToday(lastEventBulletsRun?.toISOString() ?? null, pt.ymd);
+  /** Non-zero exit / process_still_down in actions[] → L1 verify fail */
+  const maintainActionFail = maintainActionsList.some(
+    (a) =>
+      /_exit_[1-9]\d*$/.test(a) ||
+      /process_still_down/.test(a) ||
+      /local_stack_heal_exit_[1-9]/.test(a),
+  );
   const maintainLd = launchdState("com.fildi.maintain");
 
   let maintainStatus: TaskStatus = "never";
   if (maintainLd === "missing") maintainStatus = "missing";
   else if (jobOk === false || processOk === false) maintainStatus = "failed";
-  else if (vendorsOk === false) maintainStatus = "warn";
+  else if (maintainActionFail || vendorsOk === false) maintainStatus = "warn";
   else if (jobOk === true || processOk === true) maintainStatus = "ok";
   else if (maintainTs) maintainStatus = "idle";
 
@@ -320,10 +442,24 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
   const csv = rhCsvReady(pt.ymd);
   const ingestRanToday = ymdInTz(rbhStarted, "America/Los_Angeles") === pt.ymd;
 
-  // Export = supervised Claude MCP (no LaunchAgent). Status from CSV presence.
+  // Export = ask-first LaunchAgent (com.fildi.rbh-export-prompt) → Claude session.
+  const rbhPromptLd = launchdState("com.fildi.rbh-export-prompt");
+  const rbhPrompt = readJsonFile(RBH_EXPORT_PROMPT_LAST);
+  const rbhPromptDecision = typeof rbhPrompt?.decision === "string" ? rbhPrompt.decision : null;
+  const rbhPromptAt =
+    typeof rbhPrompt?.ts === "string"
+      ? rbhPrompt.ts
+      : typeof rbhPrompt?.at === "string"
+        ? rbhPrompt.at
+        : typeof rbhPrompt?.updated_at === "string"
+          ? rbhPrompt.updated_at
+          : null;
   let rbhExportStatus: TaskStatus = "off";
-  if (pt.weekday) {
-    if (csv.ready) rbhExportStatus = "ok";
+  if (rbhPromptLd === "missing") rbhExportStatus = "missing";
+  else if (pt.weekday) {
+    if (csv.ready || rbhPromptDecision === "done") rbhExportStatus = "ok";
+    else if (rbhPromptDecision === "error" || rbhPromptDecision === "gave_up") rbhExportStatus = "failed";
+    else if (rbhPromptDecision === "skipped") rbhExportStatus = "idle";
     else if (pt.minutes >= 13 * 60) rbhExportStatus = "waiting";
     else rbhExportStatus = "idle";
   }
@@ -352,67 +488,56 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
   const utcHourAsPtMinutes = (utcHour: number) => ((utcHour - 7 + 24) % 24) * 60;
 
   const cpByMin = new Map(checkpoints.map((c) => [c.minAfterOpen, c]));
-  const resolvedCount = checkpoints.filter((c) => c.status === "resolved").length;
   const regimeRows: ScheduledTaskRow[] = CHECKPOINTS_MIN.map((min, i) => {
     const cp = cpByMin.get(min);
     const dueMin = checkpointDueMinutesPt(min);
     const label = CHECKPOINT_TIME_PT[min] ?? `+${min}m`;
-    const resolved = cp?.status === "resolved";
+    const due = pt.weekday && pt.minutes >= dueMin;
+    const recorded = isRegimeRecorded(cp);
     let status: TaskStatus = "never";
     if (!pt.weekday) status = "off";
-    else if (resolved) status = "ok";
-    else if (pt.minutes >= dueMin) status = "waiting";
+    else if (recorded) status = "ok";
+    else if (due) status = "waiting";
     else status = "idle";
 
+    const lean = regimeLeanLabel(cp, due);
     return withToday({
       id: `regime-${min}`,
-      name: `Session regime · ${label}`,
-      summary: resolved
-        ? `${cp?.direction ?? "—"} ${cp?.confidence != null ? `${cp.confidence}%` : ""}`.trim()
-        : "SPY/QQQ checkpoint (auto while market open)",
-      purpose: `Intraday session checkpoint at ${label} (${min} min after open). Written by the API while the market is open — same slots as the Live Regime banner.`,
+      // Time lives in dueTimeLabel only — don't duplicate in the name.
+      name: "Session regime",
+      summary: lean,
+      purpose: `SPY/QQQ checkpoint at ${label} (+${min}m). Same slots as Live Regime.`,
       schedule: `Weekdays ${label}`,
       frequencyRank: 10 + i * 0.01,
       frequency: "intraday",
-      lastRun: resolved && cp?.timestamp ? new Date(cp.timestamp).toISOString() : null,
+      lastRun: recorded && cp?.timestamp ? new Date(cp.timestamp).toISOString() : null,
       running: false,
       runner: "api-scheduler",
       status,
       canRun: false,
       canToggle: false,
       enabled: pt.weekday,
-      detail: resolved ? (cp?.factors?.[0] ?? null) : null,
+      detail: recorded ? (cp?.factors?.[0] ?? null) : null,
+      outcome: lean,
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: pt.weekday,
       dueTimeLabel: label,
       dueMinutesPt: dueMin,
       verifyChecks: pt.weekday
-        ? [
-            vcheck(
-              resolved,
-              `Checkpoint recorded at ${label}`,
-              pt.minutes >= dueMin
-                ? "API must be up during market hours — Run Mac Maintain · heal, then wait for next checkpoint"
-                : "Not due yet",
-            ),
-            vcheck(
-              !resolved || (cp?.direction != null && cp?.confidence != null),
-              "Direction + confidence present",
-              "Check Live Regime banner / api.log for checkpoint errors",
-            ),
-          ]
+        ? [vcheck(recorded, lean, null)]
         : [],
     }, pt);
   });
 
   // Single catalog row for All tasks (Today still lists each checkpoint time)
-  const latestResolved = [...checkpoints]
-    .filter((c) => c.status === "resolved" && c.timestamp)
+  const recordedToday = checkpoints.filter((c) => isRegimeRecorded(c));
+  const latestResolved = [...recordedToday]
+    .filter((c) => c.timestamp)
     .sort((a, b) => b.timestamp - a.timestamp)[0];
   const regimeCatalog = withToday({
     id: "regime",
     name: "Session Regime",
-    summary: `11 checkpoints / session · ${resolvedCount}/${CHECKPOINTS_MIN.length} recorded today`,
+    summary: `${recordedToday.length}/${CHECKPOINTS_MIN.length} recorded`,
     purpose: "One job, many fires: SPY/QQQ session checkpoints at the same 11 times as Live (6:45 AM–12:00 PM PT). Today’s agenda shows each time; this row is the job itself.",
     schedule: "Weekdays · 11× (6:45 AM–12:00 PM PT)",
     frequencyRank: 10,
@@ -420,10 +545,13 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
     lastRun: latestResolved?.timestamp ? new Date(latestResolved.timestamp).toISOString() : null,
     running: false,
     runner: "api-scheduler",
-    status: !pt.weekday ? "off" : resolvedCount > 0 ? "ok" : "idle",
+    status: !pt.weekday ? "off" : recordedToday.length > 0 ? "ok" : "idle",
     canRun: true,
     canToggle: false,
     enabled: true,
+    outcome: latestResolved
+      ? `${regimeLeanLabel(latestResolved, true)} · ${recordedToday.length}/${CHECKPOINTS_MIN.length}`
+      : `0/${CHECKPOINTS_MIN.length}`,
     logFiles: [join(LOG_DIR, "api.log")],
     dueToday: false,
     dueTimeLabel: null,
@@ -440,8 +568,8 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       id: "maintain",
       name: "Mac Maintain",
       summary: "7:00 AM full · 12:00/2:45 PM heal",
-      purpose: "Two LaunchAgents, one purpose (keep the Mac stack up before you open ~8 AM): (1) 7:00 AM PT full — heal API/Vite, lean enrich, scores, retention prune (api_usage = vendor call counters; ai_usage_log = Anthropic explain calls; old intraday app_config keys; /tmp/fildi-logs). Then morning precompute. (2) 12:00 PM + 2:45 PM PT heal-only. Does NOT shrink Cursor chat tokens.",
-      schedule: "7:00 AM full · 12:00 PM + 2:45 PM heal",
+      purpose: "Two LaunchAgents, one purpose (keep the Mac stack up before you open ~8 AM): (1) 7:00 AM PT full — heal API/Vite, lean enrich, scores, retention prune, morning precompute; Sundays also run Weekly Ops Digest (audit + value-log, no second FactSet drain). Hard-fail fires a macOS notification. (2) 12:00 PM + 2:45 PM PT heal-only. Does NOT shrink Cursor chat tokens.",
+      schedule: "7:00 AM full · Sun digest · 12:00/2:45 heal",
       frequencyRank: 20,
       frequency: "3× / day",
       lastRun: maintainTs,
@@ -452,8 +580,21 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canToggle: true,
       enabled: maintainLd === "loaded",
       detail: maintainActions,
+      outcome: (() => {
+        const b = maintain?.budget as Record<string, unknown> | null | undefined;
+        const parts: string[] = [];
+        if (processOk) parts.push("stack OK");
+        if (retentionOk) parts.push("retention");
+        if (morningPreOk) parts.push("precompute");
+        if (b?.goldCoverage) parts.push(`gold ${String(b.goldCoverage)}`);
+        if (b?.fieldFillPct != null) parts.push(`fill ${b.fieldFillPct}%`);
+        if (b?.fundScoreCoverage) parts.push(`scores ${String(b.fundScoreCoverage)}`);
+        if (b?.unscoredActive != null) parts.push(`${b.unscoredActive} unscored`);
+        return parts.length ? parts.join(" · ") : (maintainActions ? String(maintainActions).slice(0, 48) : null);
+      })(),
       logFiles: [
         join(LOG_DIR, "maintain-last.json"),
+        join(LOG_DIR, "maintain-full-last.json"),
         join(LOG_DIR, "maintain-launchd.out"),
         join(LOG_DIR, "maintain-launchd.err"),
         join(LOG_DIR, "stack-ensure-launchd.out"),
@@ -467,7 +608,16 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
         vcheck(maintainRanToday, "Maintain report written today", "Run now (or open Mac by ~7 so launchd fires)"),
         vcheck(processOk === true, "API / Vite / Postgres healthy", "Run now — heals local stack"),
         vcheck(jobOk !== false, "Maintain job did not hard-fail", "Open maintain-last.json; Run now"),
-        vcheck(!maintainRanToday || retentionOk, "Retention prune in today’s full pass", "Run Mac Maintain · full"),
+        vcheck(
+          !maintainRanToday || retentionOk || morningPreOk,
+          "Full pass today (retention and/or morning precompute)",
+          "Run Mac Maintain · full (7 AM enrich path)",
+        ),
+        vcheck(
+          !maintainActionFail,
+          "Maintain actions exited cleanly",
+          "Open maintain-last.json actions[]; Run Maintain or Remediate",
+        ),
       ],
     }, pt),
     // Today agenda slots for midday heal (hidden from All catalog — merged into Maintain)
@@ -537,6 +687,11 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      outcome: ranPtToday(lastEventBulletsRun?.toISOString() ?? null, pt.ymd)
+        ? "bullets refreshed"
+        : morningPreOk
+          ? "via Maintain"
+          : null,
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: true,
       dueTimeLabel: utcHourAsPtLabel(14),
@@ -564,6 +719,9 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      outcome: ranPtToday(lastEarningsBackfillRun?.toISOString() ?? null, pt.ymd)
+        ? "≤60 stale EPS warmed"
+        : null,
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: true,
       dueTimeLabel: utcHourAsPtLabel(14),
@@ -591,6 +749,9 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      outcome: ranPtToday(lastFmpAnalystFeedRun?.toISOString() ?? null, pt.ymd)
+        ? "FMP tape archived"
+        : null,
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: true,
       dueTimeLabel: utcHourAsPtLabel(14),
@@ -622,6 +783,10 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       dueToday: true,
       dueTimeLabel: "ongoing",
       dueMinutesPt: null,
+      outcome:
+        lastDeskIngestRun != null
+          ? `desk ${ageLabel(lastDeskIngestRun.toISOString())}`
+          : null,
       verifyChecks: [
         vcheck(
           lastDeskIngestRun != null && Date.now() - lastDeskIngestRun.getTime() < 2 * 60 * 60 * 1000,
@@ -657,6 +822,15 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
         canToggle: false,
         enabled: schwab.configured,
         detail: days != null ? `refresh token ~${days.toFixed(1)}d left` : schwab.hasTokens ? null : "not linked",
+        outcome: !schwab.configured
+          ? "not configured"
+          : failed
+            ? "token fail"
+            : days != null
+              ? `refresh ${days.toFixed(1)}d`
+              : schwab.hasTokens
+                ? "linked"
+                : "not linked",
         logFiles: [join(LOG_DIR, "api.log")],
         dueToday: schwab.configured,
         dueTimeLabel: "every 6h",
@@ -674,37 +848,284 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
         ],
       }, pt);
     })(),
+    (() => {
+      const r = researchReport;
+      const deskDown = r != null && !r.lseg.desktopProxy.reachable;
+      const wrdsBad = r != null && (r.wrds.overall === "down" || r.wrds.overall === "missing");
+      const localBad = r != null && !r.localDb.ok;
+      return withToday({
+        id: "research-ops-health",
+        name: "Research Ops Health",
+        summary: "WRDS/LSEG cache freshness + LSEG desktop :9000 (no vendor sync)",
+        purpose:
+          "Every ~6h: probe local wrds_research/lseg_research.sync_state age and TCP to LSEG Workspace (127.0.0.1:9000). Never calls WRDS Cloud or opens an LSEG session — refreshes stay manual (lane contract). Analog of Schwab Auth Health. CLI: python research/common/health.py",
+        schedule: "Every ~6h (api-scheduler)",
+        frequencyRank: 27,
+        frequency: "every 6h",
+        lastRun: lastResearchOpsRun?.toISOString() ?? r?.checkedAt ?? null,
+        running: researchOpsRunning,
+        runner: "api-scheduler",
+        status: researchOpsRunning
+          ? "running"
+          : localBad || wrdsBad
+            ? "failed"
+            : deskDown || (r != null && (r.wrds.overall === "warn" || r.lseg.overall === "warn"))
+              ? "warn"
+              : apiStatus(false, lastResearchOpsRun?.toISOString() ?? r?.checkedAt ?? null),
+        canRun: true,
+        canToggle: false,
+        enabled: true,
+        detail: r
+          ? `wrds=${r.wrds.overall} lseg=${r.lseg.overall} desktop=${r.lseg.desktopProxy.reachable ? "up" : "down"}`
+          : "not probed yet",
+        outcome: r
+          ? `WRDS ${r.wrds.overall} · LSEG ${r.lseg.overall} · desk ${r.lseg.desktopProxy.reachable ? "up" : "down"}`
+          : null,
+        logFiles: [join(LOG_DIR, "api.log")],
+        dueToday: true,
+        dueTimeLabel: "every 6h",
+        dueMinutesPt: null,
+        verifyChecks: [
+          vcheck(
+            !localBad,
+            localBad ? "Local Postgres down" : "Local Postgres reachable",
+            "Check DATABASE_URL / Postgres",
+          ),
+          vcheck(
+            !wrdsBad,
+            wrdsBad ? "WRDS research cache missing/stale" : "WRDS cache present",
+            "cd research/wrds && .venv/bin/python sync_ibes.py",
+          ),
+          vcheck(
+            r == null || r.lseg.overall !== "down",
+            r?.lseg.overall === "down" ? "LSEG cache down/stale" : "LSEG cache OK (or warn)",
+            "Open Workspace + run LSEG daily sync",
+          ),
+        ],
+      }, pt);
+    })(),
+    // Supervised research refreshes — never LaunchAgent (LSEG needs Workspace GUI; WRDS is session/Duo limited).
+    ...(() => {
+      const r = researchReport;
+      const ds = (lane: "wrds" | "lseg", name: string) =>
+        r?.[lane].datasets.find((d) => d.dataset === name) ?? null;
+      const freshest = (...names: { lane: "wrds" | "lseg"; name: string }[]) => {
+        const times = names
+          .map((n) => ds(n.lane, n.name)?.lastOkAt)
+          .filter((t): t is string => !!t)
+          .map((t) => new Date(t).getTime());
+        if (!times.length) return null;
+        return new Date(Math.max(...times)).toISOString();
+      };
+      const ageOk = (iso: string | null, maxMs: number) =>
+        iso != null && Date.now() - new Date(iso).getTime() <= maxMs;
+      const day = 24 * 60 * 60 * 1000;
+      const lsegDailyAt = freshest(
+        { lane: "lseg", name: "signals_daily" },
+        { lane: "lseg", name: "events" },
+      );
+      const lsegWeeklyAt = freshest(
+        { lane: "lseg", name: "coverage" },
+        { lane: "lseg", name: "security_map_ids" },
+        { lane: "lseg", name: "earnings_moves" },
+        { lane: "lseg", name: "holders_top" },
+        { lane: "lseg", name: "starmine_history" },
+        { lane: "lseg", name: "gold_audit" },
+      );
+      const wrdsIbesAt = freshest(
+        { lane: "wrds", name: "ibes_statsum" },
+        { lane: "wrds", name: "ibes_surpsum" },
+      );
+      const wrdsCrspAt = freshest({ lane: "wrds", name: "crsp_dsf" });
+      const deskOk = r?.lseg.desktopProxy.reachable !== false;
+      const dayOfMonth = Number(pt.ymd.slice(8, 10));
+
+      return [
+        withToday({
+          id: "lseg-daily-sync",
+          name: "LSEG Daily Sync",
+          summary: "signals + events (Workspace GUI · supervised)",
+          purpose:
+            "Weekday refresh of lseg_research.signals_daily + events. Requires Workspace logged in on :9000. Not LaunchAgent — lane contract forbids vendor cron.",
+          schedule: "Weekdays after open (supervised)",
+          frequencyRank: 28,
+          frequency: "weekdays",
+          lastRun: lsegDailyAt,
+          running: false,
+          runner: "supervised" as const,
+          status: !r
+            ? ("never" as const)
+            : ageOk(lsegDailyAt, 2 * day)
+              ? ("ok" as const)
+              : deskOk
+                ? ("idle" as const)
+                : ("waiting" as const),
+          canRun: false,
+          canToggle: false,
+          enabled: true,
+          detail:
+            "cd research/lseg && .venv/bin/python sync_signals.py && .venv/bin/python sync_events.py",
+          outcome: lsegDailyAt
+            ? `signals ${ageLabel(lsegDailyAt)}${deskOk ? "" : " · desk down"}`
+            : null,
+          logFiles: [],
+          dueToday: pt.weekday,
+          dueTimeLabel: pt.weekday ? "~after open" : null,
+          dueMinutesPt: pt.weekday ? 7 * 60 : null,
+          verifyChecks: pt.weekday
+            ? [
+                // Fresh cache = Done even if Workspace is closed now.
+                vcheck(
+                  ageOk(lsegDailyAt, 2 * day),
+                  "signals/events refreshed <2d",
+                  deskOk
+                    ? "cd research/lseg && .venv/bin/python sync_signals.py && .venv/bin/python sync_events.py"
+                    : "Open LSEG Workspace (logged in), then run sync_signals + sync_events",
+                ),
+              ]
+            : [],
+        }, pt),
+        withToday({
+          id: "lseg-weekly-sync",
+          name: "LSEG Weekly Sync",
+          summary: "coverage · ids · moves · holders · StarMine hist · gold audit",
+          purpose:
+            "Weekly LSEG maintenance pack. Supervised only (Workspace GUI). Writes sync_state for each dataset.",
+          schedule: "Weekly (supervised)",
+          frequencyRank: 48,
+          frequency: "weekly",
+          lastRun: lsegWeeklyAt,
+          running: false,
+          runner: "supervised" as const,
+          status: !r
+            ? ("never" as const)
+            : ageOk(lsegWeeklyAt, 10 * day)
+              ? ("ok" as const)
+              : ("idle" as const),
+          canRun: false,
+          canToggle: false,
+          enabled: true,
+          detail:
+            "cd research/lseg && .venv/bin/python coverage.py && sync_ids.py && sync_earnings_moves.py && sync_holders.py && sync_starmine_history.py && audit_gold.py",
+          logFiles: [],
+          dueToday: pt.dow === 0,
+          dueTimeLabel: pt.dow === 0 ? "Sun supervised" : null,
+          dueMinutesPt: pt.dow === 0 ? 10 * 60 : null,
+          verifyChecks: pt.dow === 0
+            ? [
+                vcheck(
+                  ageOk(lsegWeeklyAt, 10 * day),
+                  "Weekly LSEG pack <10d",
+                  "Run coverage + sync_ids + earnings_moves + holders + starmine_history + audit_gold",
+                ),
+              ]
+            : [],
+        }, pt),
+        withToday({
+          id: "wrds-monthly-ibes",
+          name: "WRDS Monthly IBES",
+          summary: "sync_ibes → statsum/surpsum (supervised)",
+          purpose:
+            "Monthly IBES history refresh into wrds_research. Needs WRDS_USERNAME + Duo/network. Feeds fund growth extras + Street panel. Not LaunchAgent.",
+          schedule: "Monthly (supervised)",
+          frequencyRank: 65,
+          frequency: "monthly",
+          lastRun: wrdsIbesAt,
+          running: false,
+          runner: "supervised" as const,
+          status: !r
+            ? ("never" as const)
+            : ageOk(wrdsIbesAt, 40 * day)
+              ? ("ok" as const)
+              : ("idle" as const),
+          canRun: false,
+          canToggle: false,
+          enabled: true,
+          detail: "cd research/wrds && .venv/bin/python sync_ibes.py",
+          outcome: wrdsIbesAt ? `IBES ${ageLabel(wrdsIbesAt)}` : null,
+          logFiles: [],
+          dueToday: dayOfMonth <= 7,
+          dueTimeLabel: dayOfMonth <= 7 ? "early month" : null,
+          dueMinutesPt: dayOfMonth <= 7 ? 9 * 60 : null,
+          verifyChecks: dayOfMonth <= 7
+            ? [
+                vcheck(
+                  ageOk(wrdsIbesAt, 40 * day),
+                  "IBES last_ok <40d",
+                  "cd research/wrds && .venv/bin/python sync_ibes.py",
+                ),
+              ]
+            : [],
+        }, pt),
+        withToday({
+          id: "wrds-quarterly-crsp",
+          name: "WRDS Quarterly CRSP",
+          summary: "sync_crsp → dsf returns (supervised)",
+          purpose:
+            "Quarterly CRSP daily returns for calibration / event windows. WRDS session required. Not LaunchAgent.",
+          schedule: "Quarterly (supervised)",
+          frequencyRank: 80,
+          frequency: "quarterly",
+          lastRun: wrdsCrspAt,
+          running: false,
+          runner: "supervised" as const,
+          status: !r
+            ? ("never" as const)
+            : ageOk(wrdsCrspAt, 100 * day)
+              ? ("ok" as const)
+              : ("idle" as const),
+          canRun: false,
+          canToggle: false,
+          enabled: true,
+          detail: "cd research/wrds && .venv/bin/python sync_crsp.py",
+          logFiles: [],
+          dueToday: false,
+          dueTimeLabel: null,
+          dueMinutesPt: null,
+          verifyChecks: [],
+        }, pt),
+      ];
+    })(),
     // Retention is NOT a separate product task — folded into Mac Maintain (and API day backup).
     // It only deletes old ai_usage_log / api_usage / stale intraday app_config keys — never fundamentals.
     withToday({
       id: "rbh-export",
       name: "RH Portfolio Export",
-      summary: "Claude MCP → today’s CSVs (supervised)",
-      purpose: "Stage 1: ask Claude to run the daily Robinhood export after the close. Not a LaunchAgent (requires supervised MCP/Bash).",
-      schedule: "Weekdays after close (~1:00+ PM PT)",
+      summary: "Ask-first dialog → Claude session → today’s CSVs",
+      purpose:
+        "Stage 1: LaunchAgent com.fildi.rbh-export-prompt (weekdays after close) asks first; Run opens a Claude session that writes RH CSVs. Status from export_prompt_last.json + CSV presence.",
+      schedule: "Weekdays after close · asks first (hourly catch-up)",
       frequencyRank: 29,
       frequency: "weekdays",
       lastRun: csv.ready
         ? (() => {
             try {
               return statSync(join(homedir(), "rbh_scripts", `robinhood-holdings-${csv.todayStamp}.csv`)).mtime.toISOString();
-            } catch { return null; }
+            } catch { return rbhPromptAt; }
           })()
-        : null,
-      running: false,
-      runner: "supervised",
+        : rbhPromptAt,
+      running: rbhPromptDecision === "in_progress" || rbhPromptDecision === "launched",
+      runner: "launchd",
       status: rbhExportStatus,
       canRun: false,
-      canToggle: false,
-      enabled: pt.weekday,
-      detail: csv.ready ? `CSVs ready (${csv.count}/3)` : `CSVs ${csv.count}/3 — run Claude export`,
-      logFiles: [],
+      canToggle: true,
+      enabled: rbhPromptLd === "loaded",
+      detail: csv.ready
+        ? `CSVs ready (${csv.count}/3)`
+        : `CSVs ${csv.count}/3 · prompt=${rbhPromptDecision ?? "—"}`,
+      outcome: csv.ready
+        ? `CSVs ${csv.count}/3`
+        : rbhPromptDecision
+          ? `prompt ${rbhPromptDecision}`
+          : null,
+      logFiles: [RBH_EXPORT_PROMPT_LAST],
       dueToday: pt.weekday,
-      dueTimeLabel: "~1:00 PM PT+",
-      dueMinutesPt: 13 * 60,
+      dueTimeLabel: "~1:15 PM PT+",
+      dueMinutesPt: 13 * 60 + 15,
       verifyChecks: pt.weekday
         ? [
-            vcheck(csv.ready, `Today’s RH CSVs present (${csv.count}/3)`, "Ask Claude to run the Robinhood daily export after close"),
+            vcheck(rbhPromptLd === "loaded", "Ask-first LaunchAgent loaded", "Install com.fildi.rbh-export-prompt from ~/rbh_scripts"),
+            vcheck(csv.ready, `Today’s RH CSVs present (${csv.count}/3)`, "Respond to the export dialog (Run) after close"),
           ]
         : [],
     }, pt),
@@ -726,6 +1147,11 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       detail: csv.ready
         ? `export ready · ${rbhDetail ?? rbhStage ?? ""}`
         : `blocked on export (${csv.count}/3) · ${rbhDetail ?? ""}`,
+      outcome: ingestRanToday && rbhOk
+        ? rbhStage === "no-op"
+          ? "no-op · current"
+          : `${rbhStage ?? "ok"}${rbhDetail ? ` · ${String(rbhDetail).slice(0, 28)}` : ""}`
+        : null,
       logFiles: [RBH_LAST, RBH_LOG],
       dueToday: pt.weekday,
       dueTimeLabel: "3:00 PM PT",
@@ -733,7 +1159,12 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       verifyChecks: pt.weekday
         ? [
             vcheck(csv.ready, "Export CSVs ready", "Finish RH Portfolio Export first"),
-            vcheck(ingestRanToday && rbhOk === true, "Ingest succeeded today", "Run now once CSVs exist; check rbh last_run.json"),
+            // no-op success after export already ingested earlier same day still counts
+            vcheck(
+              ingestRanToday && rbhOk === true,
+              rbhStage === "no-op" ? "Ingest ran (no-op — already current)" : "Ingest succeeded today",
+              "Run now once CSVs exist; check rbh last_run.json",
+            ),
           ]
         : [],
     }, pt),
@@ -752,6 +1183,14 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      detail: null as string | null,
+      outcome: (() => {
+        const stamped = ranPtToday(lastOptionScoreRun?.toISOString() ?? null, pt.ymd);
+        if (!stamped) return null;
+        const src = getOptionsChainSourceStats();
+        if (src.total === 0) return "option scores saved";
+        return `option scores · chains ${src.schwabSharePct}% Schwab / ${100 - (src.schwabSharePct ?? 0)}% Yahoo (n=${src.total})`;
+      })(),
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: pt.weekday && pt.dow !== 5,
       dueTimeLabel: pt.weekday && pt.dow !== 5 ? utcHourAsPtLabel(19) : null,
@@ -783,6 +1222,11 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      outcome: ranPtToday(lastModelSnapshotRun?.toISOString() ?? null, pt.ymd)
+        ? snapshotDegraded
+          ? "saved · degraded"
+          : "picks frozen"
+        : null,
       logFiles: [join(LOG_DIR, "api.log"), join(LOG_DIR, "model-snapshot-last.json")],
       dueToday: pt.dow === 5,
       dueTimeLabel: pt.dow === 5 ? utcHourAsPtLabel(19) : null,
@@ -813,6 +1257,9 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
       canRun: true,
       canToggle: false,
       enabled: true,
+      outcome: ranPtToday(lastTradeExpiryRun?.toISOString() ?? null, pt.ymd)
+        ? "graded / expired"
+        : null,
       logFiles: [join(LOG_DIR, "api.log")],
       dueToday: pt.dow === 5 || pt.dow === 6,
       dueTimeLabel: pt.dow === 5 ? "~7:00 PM PT" : pt.dow === 6 ? "Sat early" : null,
@@ -887,6 +1334,56 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
           ]
         : [],
     }, pt),
+    (() => {
+      const digPath = join(LOG_DIR, "weekly-data-ops-last.json");
+      const dig = readJsonFile(digPath);
+      const digTs = typeof dig?.ts === "string" ? dig.ts : null;
+      const digAgeDays = digTs ? (Date.now() - new Date(digTs).getTime()) / 86_400_000 : null;
+      const digFresh = digAgeDays != null && digAgeDays <= 8;
+      const digToday = ranPtToday(digTs, pt.ymd);
+      let digStatus: TaskStatus = "never";
+      if (digToday) digStatus = "ok";
+      else if (digFresh) digStatus = "idle";
+      else if (digTs) digStatus = "warn";
+      return withToday({
+        id: "ops-digest",
+        name: "Weekly Ops Digest",
+        summary: "Scoreboard → value-log (no second FactSet drain)",
+        purpose:
+          "Sunday spine via Mac Maintain (--digest-only): audit gold/NR/peers and append .cursor/context/data-ops-value-log.md. Skips drain/peer when Maintain already covered them ≤7d. Manual Run now uses the same digest-only path.",
+        schedule: "Sunday · with Maintain 7:00 AM PT",
+        frequencyRank: 49,
+        frequency: "weekly",
+        lastRun: digTs,
+        running: false,
+        runner: "launchd",
+        status: digStatus,
+        canRun: true,
+        canToggle: false,
+        enabled: true,
+        detail: "node scripts/weekly-data-ops-check.mjs --digest-only",
+        outcome: digTs
+          ? `${dig?.improved === true ? "improved" : dig?.improved === false ? "no change" : "logged"} · ${ageLabel(digTs)}`
+          : null,
+        logFiles: [
+          digPath,
+          join(LOG_DIR, "data-ops-value"),
+          join(ROOT, ".cursor/context/data-ops-value-log.md"),
+        ],
+        dueToday: pt.dow === 0,
+        dueTimeLabel: pt.dow === 0 ? "7:00 AM PT" : null,
+        dueMinutesPt: pt.dow === 0 ? 7 * 60 : null,
+        verifyChecks: pt.dow === 0
+          ? [
+              vcheck(
+                digToday || maintainActionsList.some((a) => /^ops_digest_exit_0$/.test(a)),
+                "Ops digest written today",
+                "Run now, or Run Mac Maintain · full (Sunday)",
+              ),
+            ]
+          : [],
+      }, pt);
+    })(),
     withToday({
       id: "enrichment-api",
       name: "In-process Enrichment",
@@ -916,14 +1413,20 @@ function buildTasks(checkpoints: RegimeCheckpoint[] = []): ScheduledTaskRow[] {
   return rows.sort((a, b) => a.frequencyRank - b.frequencyRank || a.name.localeCompare(b.name));
 }
 
-function findTask(id: string, checkpoints: RegimeCheckpoint[] = []) {
-  return buildTasks(checkpoints).find((t) => t.id === id) ?? null;
+function findTask(
+  id: string,
+  checkpoints: RegimeCheckpoint[] = [],
+  researchReport: ResearchOpsReport | null = null,
+) {
+  return buildTasks(checkpoints, researchReport).find((t) => t.id === id) ?? null;
 }
 
 router.get("/admin/scheduled-tasks", requireAdmin, async (_req, res) => {
   const pt = ptParts();
-  const checkpoints = await getTodaysCheckpoints().catch(() => [] as RegimeCheckpoint[]);
-  const tasks = buildTasks(checkpoints);
+  const checkpoints = await checkpointsForAgenda(pt.ymd).catch(() => [] as RegimeCheckpoint[]);
+  // Fresh probe so LSEG/WRDS Done isn't stuck on a stale in-memory cache.
+  const researchReport = await getResearchOpsReport().catch(() => null);
+  const tasks = buildTasks(checkpoints, researchReport);
   const today = tasks
     .filter((t) => t.dueToday)
     .map((t) => (t.id === "maintain" ? { ...t, name: "Mac Maintain · full" } : t))
@@ -941,6 +1444,40 @@ router.get("/admin/scheduled-tasks", requireAdmin, async (_req, res) => {
     if (t.id === "stack-ensure" || t.id === "stack-ensure-1445") return false;
     return true;
   });
+  const enrichmentDisabled =
+    process.env.DISABLE_SCHEDULER_ENRICHMENT === "1" ||
+    process.env.DISABLE_SCHEDULER_ENRICHMENT === "true";
+  const inventory = buildInventory(catalog);
+  const digSnap = readJsonFile(join(LOG_DIR, "weekly-data-ops-last.json"));
+  const digTs = typeof digSnap?.ts === "string" ? digSnap.ts : null;
+  const digAgeDays = digTs ? (Date.now() - new Date(digTs).getTime()) / 86_400_000 : null;
+  const researchAlert = researchReport
+    ? {
+        wrdsOverall: researchReport.wrds.overall,
+        lsegOverall: researchReport.lseg.overall,
+        desktopReachable: researchReport.lseg.desktopProxy.reachable,
+        fixHints: researchReport.fixHints,
+      }
+    : null;
+  const alerts = detectOpsAlerts({
+    tasks,
+    enrichmentDisabled,
+    todayYmd: pt.ymd,
+    ptDow: pt.dow,
+    nowMinutesPt: pt.minutes,
+    research: researchAlert,
+    opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+  });
+  const getAlertCount = () => countOpenAlerts(alerts);
+  const remediateLast = await finalizeRemediateIfPending(getAlertCount);
+  const nucleus = buildNucleus({
+    tasks,
+    alerts,
+    inventory,
+    research: researchAlert,
+    enrichmentDisabled,
+  });
+  const chainSrc = getOptionsChainSourceStats();
   res.json({
     generatedAt: Date.now(),
     todayDate: pt.ymd,
@@ -967,15 +1504,25 @@ router.get("/admin/scheduled-tasks", requireAdmin, async (_req, res) => {
       warn: tasks.filter((t) => t.status === "warn").length,
       todayPending: today.filter((t) => t.todayState === "pending" || t.todayState === "overdue" || t.todayState === "waiting").length,
       todayDone: today.filter((t) => t.todayState === "done").length,
+      alertsCritical: alerts.filter((a) => a.severity === "critical").length,
+      alertsWarn: alerts.filter((a) => a.severity === "warn").length,
     },
     today,
     tasks: catalog,
+    inventory,
+    alerts,
+    nucleus,
+    enrichmentDisabled,
+    remediateLast: remediateLast ?? readRemediateReport(),
+    optionsChainSource: chainSrc,
   });
 });
 
 router.get("/admin/scheduled-tasks/:id/logs", requireAdmin, async (req, res) => {
-  const checkpoints = await getTodaysCheckpoints().catch(() => [] as RegimeCheckpoint[]);
-  const task = findTask(String(req.params.id), checkpoints);
+  const pt = ptParts();
+  const checkpoints = await checkpointsForAgenda(pt.ymd).catch(() => [] as RegimeCheckpoint[]);
+  const researchReport = await getResearchOpsReport().catch(() => null);
+  const task = findTask(String(req.params.id), checkpoints, researchReport);
   if (!task) {
     res.status(404).json({ error: "unknown task" });
     return;
@@ -987,10 +1534,93 @@ router.get("/admin/scheduled-tasks/:id/logs", requireAdmin, async (req, res) => 
   });
 });
 
+/**
+ * Whitelist auto-remediate: Maintain / stack heal / regime only.
+ * Proof → /tmp/fildi-logs/ops-remediate-last.json (alert Δ).
+ * Body: { taskIds?: string[], trigger?: "manual-nucleus"|"api" } — omit taskIds to derive from open alerts.
+ */
+router.post("/admin/ops/remediate", requireAdmin, async (req, res) => {
+  try {
+    const pt = ptParts();
+    const checkpoints = await checkpointsForAgenda(pt.ymd).catch(() => [] as RegimeCheckpoint[]);
+    const researchReport = await getResearchOpsReport().catch(() => null);
+    const tasks = buildTasks(checkpoints, researchReport);
+    const enrichmentDisabled =
+      process.env.DISABLE_SCHEDULER_ENRICHMENT === "1" ||
+      process.env.DISABLE_SCHEDULER_ENRICHMENT === "true";
+    const digSnap = readJsonFile(join(LOG_DIR, "weekly-data-ops-last.json"));
+    const digTs = typeof digSnap?.ts === "string" ? digSnap.ts : null;
+    const digAgeDays = digTs ? (Date.now() - new Date(digTs).getTime()) / 86_400_000 : null;
+    const researchAlert = researchReport
+      ? {
+          wrdsOverall: researchReport.wrds.overall,
+          lsegOverall: researchReport.lseg.overall,
+          desktopReachable: researchReport.lseg.desktopProxy.reachable,
+          fixHints: researchReport.fixHints,
+        }
+      : null;
+    const alerts = detectOpsAlerts({
+      tasks,
+      enrichmentDisabled,
+      todayYmd: pt.ymd,
+      ptDow: pt.dow,
+      nowMinutesPt: pt.minutes,
+      research: researchAlert,
+      opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+    });
+    const alertsBefore = countOpenAlerts(alerts);
+    const body = (req.body ?? {}) as { taskIds?: unknown; trigger?: unknown };
+    const trigger =
+      body.trigger === "api" || body.trigger === "manual-nucleus" ? body.trigger : "manual-nucleus";
+    let taskIds: string[];
+    if (Array.isArray(body.taskIds) && body.taskIds.length > 0) {
+      taskIds = body.taskIds.map(String).filter((id) => REMEDIATE_WHITELIST.has(id));
+      if (taskIds.length === 0) {
+        res.status(400).json({
+          error: "no whitelist taskIds",
+          allowed: [...REMEDIATE_WHITELIST],
+        });
+        return;
+      }
+    } else {
+      taskIds = remediateTaskIdsFromAlerts(alerts);
+    }
+
+    const report = await runOpsRemediate({
+      trigger,
+      taskIds,
+      alertsBefore,
+      deps: {
+        getAlertCount: async () => {
+          const freshCp = await checkpointsForAgenda(pt.ymd).catch(() => [] as RegimeCheckpoint[]);
+          const freshResearch = await getResearchOpsReport().catch(() => null);
+          const freshTasks = buildTasks(freshCp, freshResearch);
+          const freshAlerts = detectOpsAlerts({
+            tasks: freshTasks,
+            enrichmentDisabled,
+            todayYmd: pt.ymd,
+            ptDow: pt.dow,
+            nowMinutesPt: ptParts().minutes,
+            research: researchAlert,
+            opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+          });
+          return countOpenAlerts(freshAlerts);
+        },
+        runRegime: () => runRegimeCheckpoints(),
+      },
+    });
+    res.json({ ok: report.ok, report });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => {
   const id = String(req.params.id);
-  const checkpoints = await getTodaysCheckpoints().catch(() => [] as RegimeCheckpoint[]);
-  const task = findTask(id, checkpoints);
+  const pt = ptParts();
+  const checkpoints = await checkpointsForAgenda(pt.ymd).catch(() => [] as RegimeCheckpoint[]);
+  const researchReport = await getResearchOpsReport().catch(() => null);
+  const task = findTask(id, checkpoints, researchReport);
   if (!task) {
     res.status(404).json({ error: "unknown task" });
     return;
@@ -1057,6 +1687,22 @@ router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => 
       res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached", next: "node .cursor/scripts/ai-workflow-review.mjs --verify" });
       return;
     }
+    if (id === "ops-digest") {
+      const script = join(ROOT, "scripts/weekly-data-ops-check.mjs");
+      if (!existsSync(script)) {
+        res.status(500).json({ error: "weekly-data-ops-check.mjs missing", path: script });
+        return;
+      }
+      const child = spawn(process.execPath, [script, "--digest-only"], {
+        cwd: ROOT,
+        detached: true,
+        stdio: "ignore",
+        env: process.env,
+      });
+      child.unref();
+      res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached", args: ["--digest-only"] });
+      return;
+    }
 
     // In-process — fire and return; client polls list for running/lastRun.
     const starters: Record<string, () => Promise<void>> = {
@@ -1070,6 +1716,7 @@ router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => 
       "fmp-analyst-feed": runFmpAnalystFeedJob,
       "desk-ingest": runDeskIngestJob,
       "schwab-health": runSchwabHealthJob,
+      "research-ops-health": runResearchOpsJob,
     };
     const start = starters[id];
     if (!start) {
@@ -1089,6 +1736,7 @@ router.post("/admin/scheduled-tasks/:id/enable", requireAdmin, (req, res) => {
     id === "maintain" ? "com.fildi.maintain"
       : id === "stack-ensure" ? "com.fildi.stack-ensure"
       : id === "rbh-ingest" ? "com.fildi.rbh-daily-export"
+      : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });
@@ -1121,6 +1769,7 @@ router.post("/admin/scheduled-tasks/:id/disable", requireAdmin, (req, res) => {
     id === "maintain" ? "com.fildi.maintain"
       : id === "stack-ensure" ? "com.fildi.stack-ensure"
       : id === "rbh-ingest" ? "com.fildi.rbh-daily-export"
+      : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });

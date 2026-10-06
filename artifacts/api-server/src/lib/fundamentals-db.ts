@@ -18,7 +18,9 @@ import {
 import {
   scoreUniverse, withRanks, avgEpsSurprise, METRICS,
   type FundRowInput, type HistoryByTicker, type MetricKey, type IbesSignalsByTicker,
+  type ScoreUniverseParams,
 } from "./fund-score-engine.js";
+import { getChampionScorecardParams } from "./scorecard-params.js";
 import {
   num as parseNum,
   ibesRevBreadth,
@@ -628,7 +630,7 @@ async function loadSurprisesByTicker(tickers: string[]): Promise<Record<string, 
  */
 async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSignalsByTicker> {
   const out: IbesSignalsByTicker = {};
-  for (const t of tickers) out[t] = { revBreadth: null, sue: null };
+  for (const t of tickers) out[t] = { revBreadth: null, sue: null, fwdGrowth: null };
   if (tickers.length === 0) return out;
 
   try {
@@ -661,6 +663,37 @@ async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSignalsBy
       const t = r.oftic?.toUpperCase();
       if (!t || !out[t]) continue;
       out[t].revBreadth = ibesRevBreadth(r.numup, r.numdown, r.numest);
+    }
+
+    // Consensus FY1→FY2 EPS growth from the SAME statpers (ratio is split-invariant), fresh ≤ 120 days,
+    // positive FY1 only (loss → profit has no meaningful growth rate); clamped like epsgrow.
+    // One-off guard: FY1 jumping > 25% vs the prior statpers while FY2 moves < 10% means a non-recurring item
+    // landed in FY1 (GOOGL 2026-08: FY1 14.21 → 20.60, FY2 14.68 → 14.97 ⇒ a fake −27%) → null.
+    const fwd = await pool.query<{ oftic: string; e1: number; e2: number; p1: number | null; p2: number | null }>(
+      `WITH pairs AS (
+         SELECT a.oftic, a.statpers, a.meanest::float AS e1, b.meanest::float AS e2
+         FROM wrds_research.ibes_statsum a
+         JOIN wrds_research.ibes_statsum b
+           ON b.oftic = a.oftic AND b.statpers = a.statpers AND b.measure = 'EPS' AND b.fpi = '2'
+         WHERE a.oftic = ANY($1::text[]) AND a.measure = 'EPS' AND a.fpi = '1'
+           AND a.meanest IS NOT NULL AND b.meanest IS NOT NULL
+       ), cur AS (
+         SELECT DISTINCT ON (oftic) * FROM pairs WHERE statpers >= CURRENT_DATE - 120 ORDER BY oftic, statpers DESC
+       )
+       SELECT c.oftic, c.e1, c.e2, p.e1 AS p1, p.e2 AS p2
+       FROM cur c
+       LEFT JOIN LATERAL (
+         SELECT e1, e2 FROM pairs x WHERE x.oftic = c.oftic AND x.statpers <= c.statpers - 25
+         ORDER BY x.statpers DESC LIMIT 1
+       ) p ON true`,
+      [tickers],
+    );
+    for (const r of fwd.rows) {
+      const t = r.oftic?.toUpperCase();
+      if (!t || !out[t] || !(r.e1 > 0) || !Number.isFinite(r.e2)) continue;
+      if (r.p1 != null && r.p2 != null && r.p1 > 0 && r.p2 > 0
+          && Math.abs(r.e1 / r.p1 - 1) > 0.25 && Math.abs(r.e2 / r.p2 - 1) < 0.10) continue;
+      out[t].fwdGrowth = Math.max(-0.9, Math.min(3, r.e2 / r.e1 - 1));
     }
 
     const surp = await pool.query<{ oftic: string; suescore: number | null }>(
@@ -696,6 +729,8 @@ const METRIC_FAMILY: Record<string, string> = Object.fromEntries(
 export async function computeAndPersistFundamentalScores(
   regime: string | null,
   trigger: ScoreTrigger = "admin_recompute",
+  /** Before/after tooling (scripts/compare-fund-params.ts): score with these params and/or skip all writes. */
+  opts?: { paramsOverride?: { version: string; params: Record<string, unknown> }; dryRun?: boolean },
 ): Promise<FundScoreResult[]> {
   const rows = await getAllFundamentalsRows();
   if (rows.length === 0) return [];
@@ -749,13 +784,28 @@ export async function computeAndPersistFundamentalScores(
     return enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
   });
 
-  const [history, surprises, ibesSignals] = await Promise.all([
+  const [history, surprises, ibesSignals, fundChamp] = await Promise.all([
     loadHistoryByTicker(tickers),
     loadSurprisesByTicker(tickers),
     loadIbesSignalsByTicker(tickers),
+    opts?.paramsOverride ? Promise.resolve(opts.paramsOverride) : getChampionScorecardParams("fund"),
   ]);
 
-  const scored = withRanks(scoreUniverse(inputs, history, surprises, ibesSignals));
+  const fundParams: ScoreUniverseParams = {
+    metricBaseIntra: fundChamp.params.metricBaseIntra as ScoreUniverseParams["metricBaseIntra"],
+    styleFamilyWeights: fundChamp.params.styleFamilyWeights as ScoreUniverseParams["styleFamilyWeights"],
+    megacapBlendFamilyWeights: fundChamp.params
+      .megacapBlendFamilyWeights as ScoreUniverseParams["megacapBlendFamilyWeights"],
+    totalMinCoverage:
+      typeof fundChamp.params.totalMinCoverage === "number"
+        ? fundChamp.params.totalMinCoverage
+        : undefined,
+    familyMinCoverage:
+      typeof fundChamp.params.familyMinCoverage === "number"
+        ? fundChamp.params.familyMinCoverage
+        : undefined,
+  };
+  const scored = withRanks(scoreUniverse(inputs, history, surprises, ibesSignals, fundParams));
   const computedAt = new Date();
 
   const results: FundScoreResult[] = scored.map(s => ({
@@ -781,6 +831,8 @@ export async function computeAndPersistFundamentalScores(
     styleBucket: s.styleBucket,
     confidence: s.confidence,
   }));
+
+  if (opts?.dryRun) return results;
 
   await db.insert(tickerFundamentals)
     .values(results.map(r => ({
@@ -818,8 +870,7 @@ export async function computeAndPersistFundamentalScores(
 
   // Append/upsert daily history for Breakdown accountability chart
   try {
-    const { getChampionScorecardParams } = await import("./scorecard-params.js");
-    const champ = await getChampionScorecardParams("fund");
+    const champ = fundChamp;
     const snapCount = await upsertFundScoreSnapshots(
       scored.map((s) => ({
         ticker: s.ticker,
@@ -851,6 +902,15 @@ export async function computeAndPersistFundamentalScores(
     logger.info({ count: results.length, snapCount, regime, trigger, modelVersion: champ.version }, "fundamental scores + snapshots persisted");
   } catch (err) {
     logger.warn({ err: String(err) }, "fund_score_snapshots upsert failed (scores still persisted)");
+  }
+
+  // Blended fair value uses the same gold inputs + peer groups, so refresh it on every recompute
+  // (nightly, Maintain post-merge-scores, peer overrides, admin). Never blocks scores.
+  try {
+    const { persistFairValueSnapshots } = await import("./fair-value-snapshots.js");
+    await persistFairValueSnapshots({ trigger });
+  } catch (err) {
+    logger.warn({ err: String(err) }, "fair_value_snapshots persist failed (scores still persisted)");
   }
 
   return results;

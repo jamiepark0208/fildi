@@ -9,6 +9,7 @@
  *   cd artifacts/api-server && npx tsx src/scripts/backfill-specialty-proxies.ts
  *   cd artifacts/api-server && npx tsx src/scripts/backfill-specialty-proxies.ts --dry-run
  */
+import { sleep } from "../lib/http-client.js";
 import { sql } from "drizzle-orm";
 import {
   db,
@@ -21,7 +22,6 @@ import { fetchFinnhubFundamentals } from "../lib/finnhub-client.js";
 import { fetchEdgarFundamentals } from "../lib/edgar-client.js";
 
 const dryRun = process.argv.includes("--dry-run");
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function financialTickers(): Promise<string[]> {
   const rows = await db.execute(sql`

@@ -1,8 +1,8 @@
 /**
- * Nightly Overall options rankings: premium-rich DB filter → Yahoo chains →
+ * Nightly Overall options rankings: premium-rich DB filter ∪ watchlist → chains →
  * pickBestStrike → persist option_score_snapshots.
- * UI Overall tab uses the same live scanner path as Watchlist (candidates API);
- * this job keeps persisted snapshots for track-record / offline reads.
+ * Watchlist Rankings seeds from these snapshots — every watchlist ticker with
+ * technicals must be attempted (not only premium-IV Overall candidates).
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
@@ -21,6 +21,7 @@ import { readPersistedScores, computeAndPersistFundamentalScores } from "./funda
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
+import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
 
 const CHAIN_CONCURRENCY = 3;
@@ -73,12 +74,22 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
   asOf: string | null;
   computedAt: string | null;
 }> {
-  const [latest] = await db
-    .select({ asOf: optionScoreSnapshots.asOf })
+  // Prefer the most recent as_of that has a non-trivial board (≥20 rows). A partial
+  // gap-fill for "today" must not hide yesterday's full nightly snapshot.
+  const MIN_BOARD = 20;
+  const dated = await db
+    .select({
+      asOf: optionScoreSnapshots.asOf,
+      n: sql<number>`count(*)::int`,
+    })
     .from(optionScoreSnapshots)
     .where(eq(optionScoreSnapshots.side, side))
-    .orderBy(desc(optionScoreSnapshots.asOf))
-    .limit(1);
+    .groupBy(optionScoreSnapshots.asOf)
+    .orderBy(desc(optionScoreSnapshots.asOf));
+
+  const latest =
+    dated.find((d) => Number(d.n) >= MIN_BOARD) ??
+    dated[0];
 
   if (!latest?.asOf) return { rows: [], asOf: null, computedAt: null };
 
@@ -130,6 +141,8 @@ export async function computeAndPersistOptionScores(opts?: {
   dryRun?: boolean;
   /** Reuse chains from a sibling job (e.g. Friday model snapshot). */
   chainsByTicker?: Map<string, OptionsChainResult[]>;
+  /** Score only these tickers (gap backfill). Still requires technicals rows. */
+  onlyTickers?: string[];
 }): Promise<{
   asOf: string;
   candidates: number;
@@ -154,19 +167,22 @@ export async function computeAndPersistOptionScores(opts?: {
     ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS inputs_digest text;
   `);
 
-  const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration] = await Promise.all([
+  const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration, watchlistTickers] = await Promise.all([
     getAllTechnicalsRows(),
     getMacroRegimeResult(),
     getLatestRegime(),
     getTiltState(),
     getCalibrationTable(),
+    getUnionWatchlistTickers(),
   ]);
   const volRegime: MacroRegime = volRegimeResult.regime;
   const rows = techRows as unknown as TechnicalRow[];
-  const putPolicy = applyPolicy(tiltState.put, undefined, { regime: macroRegimeName });
+  const putWeights = (optChamp.params.strikeWeights ?? undefined) as Record<string, number> | undefined;
+  const putPolicy = applyPolicy(tiltState.put, putWeights, { regime: macroRegimeName });
   const callPolicy = applyPolicy(tiltState.call, CALL_STRIKE_WEIGHTS, { regime: macroRegimeName });
 
-  const candidates = selectPremiumCandidates(
+  const techSet = new Set(rows.map((r) => r.ticker.toUpperCase()));
+  const premium = selectPremiumCandidates(
     rows.map((r) => ({
       ticker: r.ticker,
       atmPutIv: r.atmPutIv,
@@ -174,6 +190,21 @@ export async function computeAndPersistOptionScores(opts?: {
       technicalsCoverage: r.technicalsCoverage,
     })),
     limit,
+  );
+  // Watchlist Rankings seeds from these snapshots — always attempt every watchlist
+  // name that has technicals, not only the premium-IV Overall shortlist.
+  const watchlistInTech = watchlistTickers
+    .map((t) => t.toUpperCase())
+    .filter((t) => techSet.has(t));
+  let candidates = [...new Set([...premium, ...watchlistInTech])];
+  if (opts?.onlyTickers?.length) {
+    const only = new Set(opts.onlyTickers.map((t) => t.toUpperCase()));
+    candidates = candidates.filter((t) => only.has(t));
+  }
+
+  logger.info(
+    { premium: premium.length, watchlist: watchlistInTech.length, candidates: candidates.length, only: opts?.onlyTickers?.length ?? 0 },
+    "option-score-snapshots: universe",
   );
 
   let fundScoreMap = new Map<string, number>();
@@ -212,11 +243,18 @@ export async function computeAndPersistOptionScores(opts?: {
     for (const c of chains) for (const p of c.puts) if (p.iv > 0) allIVs.push(p.iv);
   }
 
+  /** Watchlist names get a relaxed second pass so Rankings isn't blank when Overall gates fire. */
+  const watchlistSet = new Set(watchlistInTech);
+  /** Soft income floor for watchlist-only persistence (still live bid + ≥2% OTM). */
+  const WATCHLIST_INCOME_FLOOR = 0.02;
+
   const inserts: InsertOptionScoreSnapshot[] = [];
   let liveBidCount = 0;
+  let watchlistRelaxed = 0;
   for (const [ticker, chains] of chainsByTicker) {
     const techRow = techRowMap.get(ticker);
     if (!techRow || chains.length === 0) continue;
+    const onWatchlist = watchlistSet.has(ticker.toUpperCase());
 
     for (const side of ["put", "call"] as const) {
       const isCall = side === "call";
@@ -238,8 +276,9 @@ export async function computeAndPersistOptionScores(opts?: {
         earningsDaysOut:       num(techRow.earningsDaysOut),
       };
       const policy = isCall ? callPolicy : putPolicy;
-      const best = pickBestStrike(
-        chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts })),
+      const sideChains = chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts }));
+      let best = pickBestStrike(
+        sideChains,
         stockCtx, volRegime, allIVs, undefined,
         policy.weights, isCall,
         {
@@ -248,9 +287,34 @@ export async function computeAndPersistOptionScores(opts?: {
           earningsHaircut: policy.earningsHaircut,
         },
       );
+      let relaxed = false;
+      if (!best && onWatchlist) {
+        // Fund score missing or thin premium — still show a scored live-bid strike on Watchlist.
+        best = pickBestStrike(
+          sideChains,
+          stockCtx, volRegime, allIVs, undefined,
+          policy.weights, isCall,
+          {
+            minStockQuality: 0,
+            calibration: null,
+            earningsHaircut: policy.earningsHaircut,
+            incomeFloor: WATCHLIST_INCOME_FLOOR,
+            minOtm: 0.02,
+          },
+        );
+        relaxed = true;
+        if (best) watchlistRelaxed++;
+      }
       if (!best) continue;
       const otmCheck = spotOtm(best.chain.spot, best.put.strike, isCall);
-      if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, { incomeFloor: incomeFloor * 0.9 })) continue;
+      // Strict path already passed viability inside pickBestStrike; relaxed too.
+      if (!relaxed) {
+        const floor = incomeFloor * 0.9;
+        if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, { incomeFloor: floor })) continue;
+      } else if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, {
+        incomeFloor: WATCHLIST_INCOME_FLOOR,
+        minOtm: 0.02,
+      })) continue;
 
       const opt = best.put as OptionRow;
       const chain = best.chain;
@@ -343,7 +407,7 @@ export async function computeAndPersistOptionScores(opts?: {
     }));
 
   logger.info(
-    { asOf, candidates: candidates.length, persisted: dryRun ? 0 : inserts.length, failures, liveBidCount },
+    { asOf, candidates: candidates.length, persisted: dryRun ? 0 : inserts.length, failures, liveBidCount, watchlistRelaxed },
     "option-score-snapshots: complete",
   );
 

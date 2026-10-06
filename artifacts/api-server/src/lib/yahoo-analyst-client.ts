@@ -1,7 +1,6 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { logApiCall } from "./api-logger.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 /** Raw Yahoo upgradeDowngradeHistory items — unparsed, caller dedups/maps via parseAnalystHistory. */
 export async function fetchYahooAnalystActions(ticker: string): Promise<unknown[]> {

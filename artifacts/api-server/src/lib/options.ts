@@ -1,11 +1,11 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { getTier } from "./constants.js";
 import { TTLCache } from "./ttl-cache.js";
 import { isPlausibleOptionQuote } from "@workspace/option-scoring";
 import { getSchwabOptionChains } from "./schwab-client.js";
 import { logger } from "./logger.js";
+import { recordOptionsChainSource } from "./options-chain-source-stats.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -323,6 +323,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
   try {
     const schwab = await getSchwabOptionChains(key);
     if (schwab?.length) {
+      recordOptionsChainSource("schwab");
       return schwab.map((c) => ({ ...c, source: "schwab" as const }));
     }
   } catch (err) {
@@ -409,6 +410,7 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
     }
   }
 
+  recordOptionsChainSource("yahoo");
   return results.map((c) => ({ ...c, source: "yahoo" as const }));
 }
 

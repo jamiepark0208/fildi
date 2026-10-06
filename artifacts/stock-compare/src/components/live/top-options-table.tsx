@@ -7,6 +7,8 @@ import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import { CredibilityBadge } from "@/components/credibility-badge";
 import { TickerRecordBadge } from "./ticker-record-badge";
 import { scoreColor } from "./live-format";
+import { RecConflictChip } from "./rec-conflict-chip";
+import type { RecConflict } from "@/lib/rec-conflicts";
 
 /** Match Track Record compact density */
 const TH = "font-semibold text-[9px] uppercase tracking-wider px-1.5 py-0.5";
@@ -17,11 +19,13 @@ export function TopOptionsTable({
   n = 7,
   regimeDirection = null,
   regimeConfidence = null,
+  conflictsByTicker,
 }: {
   side: "put" | "call";
   n?: number;
   regimeDirection?: "bullish" | "bearish" | "mixed" | null;
   regimeConfidence?: number | null;
+  conflictsByTicker?: Map<string, RecConflict[]>;
 }) {
   const { rows, isFetching } = useTopOptions(side, n);
   const { data: tickerRecords } = useTickerTrackRecord();
@@ -70,6 +74,7 @@ export function TopOptionsTable({
                   <td className={cn(TD, "font-semibold text-white")}>
                     {r.ticker}
                     <TickerRecordBadge record={tickerRecords?.[r.ticker]?.[side]} livePrice={r.spot} side={side} />
+                    <RecConflictChip conflicts={conflictsByTicker?.get(r.ticker.toUpperCase()) ?? []} />
                   </td>
                   <td className={cn(TD, "text-right text-white/90")}>{r.spot.toFixed(r.spot < 10 ? 2 : 1)}</td>
                   <td className={cn(TD, "text-right text-amber-400")}>{r.strike.toFixed(r.strike < 10 ? 2 : 1)}</td>

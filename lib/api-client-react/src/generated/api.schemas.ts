@@ -34,6 +34,12 @@ export interface StockSearchResult {
   type?: string;
 }
 
+export type StockMetricsFairValueVotesItem = {
+  name: string;
+  value: number;
+  kept: boolean;
+};
+
 export interface StockMetrics {
   ticker: string;
   companyName: string;
@@ -111,8 +117,43 @@ export interface StockMetrics {
   fiftyTwoWeekLow?: number | null;
   /** @nullable */
   analystTargetPrice?: number | null;
-  /** @nullable */
+  /**
+     * Blended fair value per share (nightly fair_value_snapshots; trimmed log-space blend of applicable methods)
+     * @nullable
+     */
   fairValueEstimate?: number | null;
+  /**
+     * Lowest vote kept in the blend
+     * @nullable
+     */
+  fairValueLow?: number | null;
+  /**
+     * Highest vote kept in the blend
+     * @nullable
+     */
+  fairValueHigh?: number | null;
+  /**
+     * high | medium | low — from vote count and cross-method spread
+     * @nullable
+     */
+  fairValueConfidence?: string | null;
+  /**
+     * Reverse DCF — initial FCF growth the current price implies (decimal)
+     * @nullable
+     */
+  fairValueImpliedGrowth?: number | null;
+  fairValueVotes?: StockMetricsFairValueVotesItem[];
+  /** @nullable */
+  fairValueAsOf?: string | null;
+  /**
+     * Fair value change vs ~3 months earlier (decimal); null until history exists
+     * @nullable
+     */
+  fairValueChange3m?: number | null;
+  /** Cyclical business (energy, mining, metals, semis, memory) — confidence capped at medium */
+  fairValueCyclical?: boolean;
+  /** Looks ≥25% cheap but 12-1 momentum is in the bottom half — historically underperformed */
+  fairValueValueTrap?: boolean;
   /**
      * Classified type - Growth, Value, Dividend, Blend
      * @nullable

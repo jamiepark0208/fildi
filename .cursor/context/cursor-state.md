@@ -1,28 +1,28 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-04 (efficiency P0s done)
+**Last updated:** 2026-10-06 (finished Claude FV leftovers + A31–A33)
 
 ## Phase
-**build** — efficiency playbook P0 shipped (AI limiter + watchlist snapshot Options)
+**build** — Ops Auto Diligence 1–5 + fair-value / fund-1.1.0 catch-up closed
 
 ## READ FIRST
-**Efficiency:** `.agents/context/efficiency-playbook.md`  
-**Schwab:** `.agents/context/schwab-market-data.md`  
-**Desk:** `.agents/context/desk-commentaries.md`
+**Ops:** Nucleus Remediate · `node .cursor/scripts/ops-brief.mjs`  
+**Fair value / fund:** champion `fund-1.1.0`; Model List strike-vs-fair on thesis; ASKS A31–A33 done  
+**Cross-tool:** `research/common/ASKS.md`
 
 ## Active
-- Shared `callHaiku` + `aiLimiter` on explain / daily-brief refresh / desk daily-news / macro generate
-- `ai_usage_log` has `input_tokens` / `output_tokens` (migrate-0029 applied)
-- Watchlist Options: rankings ∩ watchlist; chains on expand only (no batch on load)
-- Shared `queryKeys.technicalsAll` / `optionsBatch` across Rankings/Live/Options/Tech
+- Finished Claude leftovers (Model List FV line, docs, `ibesRevBreadth` optional + recompute). Still **uncommitted** overall.
+- Ops Auto Diligence Phases 1–5 done.
+- **Cursor playbook P1 leftovers:** technicals/all lite · portfolio quote batch · macro charts split
 
 ## Next
-1. P1: `technicals/all` lite projection / field split
-2. Portfolio position-quote batch + short TTL
-3. Macro charts cache split (regime vs liquidity)
+1. User commit when ready (large uncommitted Claude+Cursor batch)
+2. P1 leftovers
+3. Use Remediate / ops-brief for weekday ops
 
 ## Do not
 - Commit schwab tokens / secrets
-- Feed desk news into fund_score
-- Re-enable watchlist `/options/batch` on page load
+- Auto Duo/OAuth/score weights / ideation merge
+- Re-introduce `new YahooFinanceClass()`, local sleep/retry, or cache get+set
+- Retune scoring without before/after + user approval

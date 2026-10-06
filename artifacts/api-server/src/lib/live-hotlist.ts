@@ -58,7 +58,7 @@ function toEntry(r: IndicatorResult, side: HotlistSide): HotlistEntry {
 const PER_SIDE_CAP = Math.floor(HOT_LIST_CAP / 2);
 
 /** Union of top-10 per dimension. Ascending comparators surface dip extremes; rally flips all but IV (always desc). */
-function unionTopDimensions(all: IndicatorResult[], side: HotlistSide): IndicatorResult[] {
+export function unionTopDimensions(all: IndicatorResult[], side: HotlistSide): IndicatorResult[] {
   const flip = side === "rally" ? -1 : 1;
   const dimensions: Array<(a: IndicatorResult, b: IndicatorResult) => number> = [
     (a, b) => flip * (a.rsi - b.rsi),
@@ -79,11 +79,54 @@ function unionTopDimensions(all: IndicatorResult[], side: HotlistSide): Indicato
   return [...byTicker.values()];
 }
 
+/**
+ * If a ticker still appears on both sides (should be rare after RSI gate), keep the
+ * side with more extreme |RSI−50| and drop the other.
+ */
+export function partitionOverlap(
+  dip: HotlistEntry[],
+  rally: HotlistEntry[],
+): { dip: HotlistEntry[]; rally: HotlistEntry[] } {
+  const dipSet = new Set(dip.map(e => e.ticker));
+  const both = rally.filter(e => dipSet.has(e.ticker));
+  if (both.length === 0) return { dip, rally };
+
+  const dropFromDip = new Set<string>();
+  const dropFromRally = new Set<string>();
+  for (const r of both) {
+    const d = dip.find(e => e.ticker === r.ticker)!;
+    const dipExt = Math.abs(d.rsi - 50);
+    const rallyExt = Math.abs(r.rsi - 50);
+    if (rallyExt > dipExt) dropFromDip.add(r.ticker);
+    else dropFromRally.add(r.ticker); // ties → dip wins (sell-put bias)
+  }
+  return {
+    dip: dip.filter(e => !dropFromDip.has(e.ticker)),
+    rally: rally.filter(e => !dropFromRally.has(e.ticker)),
+  };
+}
+
+/**
+ * Atomic both-side derive: RSI side-gate before dimension union so high-IV mid-RSI
+ * names cannot land on both Oversold and Overbought.
+ * dip: rsi < 50; rally: rsi > 50; rsi == 50 → neither.
+ */
+export function deriveBothHotLists(all: IndicatorResult[]): { dip: HotlistEntry[]; rally: HotlistEntry[] } {
+  if (all.length === 0) return { dip: [], rally: [] };
+
+  const dipPool = all.filter(r => r.rsi < 50);
+  const rallyPool = all.filter(r => r.rsi > 50);
+
+  const dip = unionTopDimensions(dipPool, "dip").slice(0, PER_SIDE_CAP).map(r => toEntry(r, "dip"));
+  const rally = unionTopDimensions(rallyPool, "rally").slice(0, PER_SIDE_CAP).map(r => toEntry(r, "rally"));
+  return partitionOverlap(dip, rally);
+}
+
 /** Top-10-per-dimension derivation from cached daily indicators (see task doc A7). */
 export async function deriveHotList(side: HotlistSide = "dip"): Promise<HotlistEntry[]> {
   const all = await getAllCachedIndicators();
-  if (all.length === 0) return [];
-  return unionTopDimensions(all, side).slice(0, PER_SIDE_CAP).map(r => toEntry(r, side));
+  const both = deriveBothHotLists(all);
+  return side === "rally" ? both.rally : both.dip;
 }
 
 /**
@@ -144,8 +187,9 @@ export class LiveHotlistManager extends EventEmitter {
   }
 
   private async doRefresh(): Promise<void> {
-    // Both sides come from the same in-memory indicator scan — one refresh, two lists.
-    const [dip, rally] = await Promise.all([deriveHotList("dip"), deriveHotList("rally")]);
+    // Both sides from one gated derive — RSI pools are mutually exclusive by construction.
+    const all = await getAllCachedIndicators();
+    const { dip, rally } = deriveBothHotLists(all);
     const dipFiltered = dip.filter(e => !this.unpinned.has(e.ticker));
     const rallyFiltered = rally.filter(e => !this.unpinned.has(e.ticker));
     const next = new Set([...dipFiltered, ...rallyFiltered].map(e => e.ticker));

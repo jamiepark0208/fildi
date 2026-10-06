@@ -20,6 +20,7 @@ import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
+import { useRecConflicts } from "@/hooks/use-rec-conflicts";
 
 interface MarketContextQuote {
   ticker: string;
@@ -259,7 +260,8 @@ export default function Live() {
   const { data: movers, isLoading: moversLoading } = useQuery({
     queryKey: ["live-movers"],
     queryFn: fetchMovers,
-    staleTime: 60_000,
+    // Match Yahoo screener TTL (5m) — efficiency-playbook Live movers row.
+    staleTime: 5 * 60_000,
   });
 
   const { data: regime } = useQuery({
@@ -367,6 +369,10 @@ export default function Live() {
 
   const sideStats = isRally ? entryStats?.rally : entryStats?.dip;
 
+  const dipTickers = useMemo(() => (data?.hotlist ?? []).map(e => e.ticker), [data?.hotlist]);
+  const rallyTickers = useMemo(() => (data?.rallyHotlist ?? []).map(e => e.ticker), [data?.rallyHotlist]);
+  const { byTicker: conflictsByTicker } = useRecConflicts(dipTickers, rallyTickers);
+
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
@@ -377,6 +383,9 @@ export default function Live() {
             {pageTab === "market" && (
               <>
                 <SideToggle side={side} onChange={setSide} />
+                <span className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 hidden sm:inline">
+                  RSI-side extremes, not best trades
+                </span>
                 <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
                 <button
                   type="button"
@@ -457,6 +466,7 @@ export default function Live() {
                   <TopOptionsTable
                     side={isRally ? "call" : "put"}
                     n={7}
+                    conflictsByTicker={conflictsByTicker}
                     regimeDirection={
                       [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.direction ?? null
                     }
@@ -479,6 +489,7 @@ export default function Live() {
                     techScoreMap={techScoreMap}
                     entryByTicker={entryByTicker}
                     entryAsOf={entryAsOf}
+                    conflictsByTicker={conflictsByTicker}
                   />
                 )}
               </section>

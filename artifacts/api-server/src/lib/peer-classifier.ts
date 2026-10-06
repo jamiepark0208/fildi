@@ -181,12 +181,7 @@ export async function classifyTicker(ticker: string): Promise<PeerGroupClassific
     return { groupId: "__global__", confidence: "unmapped" };
   }
 
-  const cached = classifyCache.get(key);
-  if (cached) return cached;
-
-  const result = await classifyTickerUncached(key);
-  classifyCache.set(key, result);
-  return result;
+  return classifyCache.getOrCompute(key, () => classifyTickerUncached(key));
 }
 
 async function classifyTickerUncached(key: string): Promise<PeerGroupClassification> {

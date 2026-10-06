@@ -1,4 +1,4 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { RSI, MFI, ATR, MACD, Stochastic, BollingerBands } from "technicalindicators";
 import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import {
@@ -9,21 +9,14 @@ import {
 } from "@workspace/db";
 import { readOHLCVFromDB, fetchAndStoreOHLCV, latestOHLCVDate, isOHLCVStale } from "./indicators.js";
 import { logger } from "./logger.js";
+import { percentileRank } from "./technicals-math.js";
 
-const yahooFinance = new YahooFinanceClass();
+export { percentileRank } from "./technicals-math.js";
+
 
 const STALE_HOURS = 23;
 
 // ── Math helpers ──────────────────────────────────────────────────────────────
-
-/** Fraction of `series` values strictly below `current`. [0,1]. Null if fewer than minN finite values. */
-function percentileRank(current: number, series: number[], minN = 60): number | null {
-  const finite = series.filter(v => Number.isFinite(v));
-  if (finite.length < minN) return null;
-  let below = 0;
-  for (const v of finite) if (v < current) below++;
-  return below / finite.length;
-}
 
 /** Compare recent slope of histogram vs noise. */
 function macdTrendDirection(histSeries: number[]): "UP" | "DOWN" | "FLAT" | null {
@@ -73,7 +66,7 @@ function findClosestStrike(contracts: any[], targetStrike: number): any | null {
 
 // ── OHLCV computation ─────────────────────────────────────────────────────────
 
-function computeFromOHLCV(closes: number[], highs: number[], lows: number[], volumes: number[]) {
+export function computeFromOHLCV(closes: number[], highs: number[], lows: number[], volumes: number[]) {
   const price = closes[closes.length - 1];
 
   // ── RSI ──────────────────────────────────────────────────────────────────────
@@ -337,7 +330,10 @@ async function fetchOptionsFields(ticker: string, realizedVol20d: number | null)
     // ATM put IV — closest strike to spot
     const atmPutContract = findClosestStrike(puts0, spot);
     const atmPutIvDecimal: number | null = atmPutContract?.impliedVolatility ?? null;
-    const atmPutIv = atmPutIvDecimal !== null ? r2(atmPutIvDecimal * 100) : null; // convert to %
+    // A10: Yahoo nearest-expiry IV is often garbage off-hours (0–0.8 or absurd spikes).
+    // Reject instead of writing — leave prior DB value / null rather than poison PREMIUM.
+    let atmPutIv = atmPutIvDecimal !== null ? r2(atmPutIvDecimal * 100) : null; // %
+    if (atmPutIv != null && (atmPutIv < 5 || atmPutIv > 200)) atmPutIv = null;
 
     // ATM call IV for straddle / skew
     const atmCallContract = findClosestStrike(calls0, spot);
@@ -526,12 +522,28 @@ export async function writeTechnicalsRow(
     earningsDaysOut,
   };
 
+  // Off-hours / garbage options: never overwrite a good prior IV with null (A10).
   await db.insert(tickerTechnicals)
     .values(values)
-    .onConflictDoUpdate({ target: tickerTechnicals.ticker, set: { ...values, ticker: undefined } });
+    .onConflictDoUpdate({
+      target: tickerTechnicals.ticker,
+      set: {
+        ...values,
+        ticker: undefined,
+        atmPutIv: opts.atmPutIv != null
+          ? num(opts.atmPutIv)
+          : sql`${tickerTechnicals.atmPutIv}`,
+        impliedMoveWeekly: opts.impliedMoveWeekly != null
+          ? num(opts.impliedMoveWeekly)
+          : sql`${tickerTechnicals.impliedMoveWeekly}`,
+        ivVsRealizedVol: opts.ivVsRealizedVol != null
+          ? num(opts.ivVsRealizedVol)
+          : sql`${tickerTechnicals.ivVsRealizedVol}`,
+      },
+    });
 
-  // Daily ATM IV snapshot — builds true IV-rank history over time
-  if (opts.atmPutIv != null && Number.isFinite(opts.atmPutIv) && opts.atmPutIv > 0) {
+  // Daily ATM IV snapshot — builds true IV-rank history over time (skip garbage/null)
+  if (opts.atmPutIv != null && Number.isFinite(opts.atmPutIv) && opts.atmPutIv >= 5 && opts.atmPutIv <= 200) {
     const asOf = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     await db.insert(tickerAtmIvSnapshots)
       .values({

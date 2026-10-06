@@ -90,4 +90,24 @@ describe("TTLCache.getOrCompute", () => {
     assert.equal(await cache.getOrCompute("k", flaky), 7); // retry succeeds
     assert.equal(calls, 2);
   });
+
+  it("does not write back a result computed across clear()", async () => {
+    const cache = new TTLCache<number>(60_000, "test");
+    let release!: (v: number) => void;
+    const pending = cache.getOrCompute("k", () => new Promise<number>(r => { release = r; }));
+    await new Promise(r => setTimeout(r, 0));
+    cache.clear();
+    release(1);
+    assert.equal(await pending, 1);          // the waiting caller still gets its value
+    assert.equal(cache.get("k"), undefined);  // but the stale result is not cached
+    assert.equal(await cache.getOrCompute("k", async () => 2), 2);
+    assert.equal(cache.get("k"), 2);
+  });
+
+  it("does not wedge on a compute that throws synchronously", async () => {
+    const cache = new TTLCache<number>(60_000, "test");
+    const syncThrow = (() => { throw new Error("sync"); }) as () => Promise<number>;
+    await assert.rejects(cache.getOrCompute("k", syncThrow));
+    assert.equal(await cache.getOrCompute("k", async () => 5), 5);
+  });
 });

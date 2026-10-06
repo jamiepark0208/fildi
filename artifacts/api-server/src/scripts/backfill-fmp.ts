@@ -9,18 +9,19 @@
  *   - Row was fetched within the last 7 days AND has real data (peRatio or netIncome
  *     non-null, i.e. not a placeholder empty row) → already backfilled, skip.
  *
- * Budget: 9 calls per ticker. checkFMPBudget / recordFMPCalls from fundamentals-db.
+ * Budget: 9 calls per ticker. checkFMPBudget from fundamentals-db; usage via logApiCall.
  *
  * Run: cd artifacts/api-server && npx tsx src/scripts/backfill-fmp.ts
  * Dry run: npx tsx src/scripts/backfill-fmp.ts --dry-run
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { sql, lt, and, isNotNull, eq } from "drizzle-orm";
 import { db, fmpFundamentals, tickerRegistry } from "@workspace/db";
 import { fetchFMPFundamentals } from "../lib/fmp-client.js";
-import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { checkFMPBudget } from "../lib/fundamentals-db.js";
 import { STALE_DAYS, CALLS_PER_TICKER as DATA_OPS_CALLS } from "../lib/data-ops-config.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -46,9 +47,6 @@ function appendLog(line: string): void {
   fs.appendFileSync(logFile, stamped + "\n");
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -111,7 +109,7 @@ async function processTicker(row: FmpRow): Promise<TickerResult> {
     return { ticker, status: "fail", reason: err?.message };
   }
 
-  await recordFMPCalls(CALLS_PER_TICKER);
+  // Quota already recorded by fetchFMPFundamentals → logApiCall(calls: 9).
 
   const n = (v: number | undefined): string | null =>
     v !== undefined && v !== null ? String(v) : null;

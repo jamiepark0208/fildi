@@ -3,6 +3,7 @@
  * Writes source_fundamentals (source='factset') then caller re-runs merge-trusted.
  * Never upserts ticker_fundamentals directly.
  */
+import { sleep } from "./http-client.js";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -89,9 +90,6 @@ async function consensusForwardEps(ticker: string): Promise<number | null> {
 
 const DEFAULT_DAILY_CAP = 40; // stay well under FactSet plan; prefer cohort rotation
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 async function factsetBudgetRemaining(): Promise<number> {
   const rows = await db.select().from(dataSources).where(eq(dataSources.name, "factset")).limit(1);

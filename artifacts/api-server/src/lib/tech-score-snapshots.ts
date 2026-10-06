@@ -41,10 +41,11 @@ export async function persistTechScoreSnapshots(opts?: {
   const asOf = opts?.asOf ?? etDateKey();
   const trigger = opts?.trigger ?? "daily";
   const { version, params } = await getChampionScorecardParams("tech");
+  const weights = (params.weights ?? {}) as Record<string, number>;
 
   const rows = await db.select().from(tickerTechnicals);
   const values = rows.map((r) => {
-    const total = scoreTechnicalRowV2(r);
+    const total = scoreTechnicalRowV2(r, weights);
     const components = {
       rsi14: r.rsi14 != null ? Number(r.rsi14) : null,
       mfi14: r.mfi14 != null ? Number(r.mfi14) : null,

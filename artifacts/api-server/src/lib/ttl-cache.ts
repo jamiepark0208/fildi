@@ -20,6 +20,9 @@ export class TTLCache<T> {
   private inflight = new Map<string, Promise<T>>();
   private hits = 0;
   private misses = 0;
+  // Bumped by delete()/clear(): a compute that started before an invalidation must not
+  // write its (possibly stale) result back afterwards — e.g. admin "Clear cache" mid-fetch.
+  private epoch = 0;
 
   constructor(private ttlMs: number, private name = '', private maxEntries?: number) {}
 
@@ -37,15 +40,19 @@ export class TTLCache<T> {
     const pending = this.inflight.get(key);
     if (pending) return pending;
 
-    const promise = (async () => {
-      try {
-        const value = await compute();
-        this.set(key, value);
+    const startEpoch = this.epoch;
+    const promise: Promise<T> = Promise.resolve()
+      // Deferred so a compute that throws synchronously still lands after inflight.set()
+      // below — otherwise cleanup ran first and the rejected promise stuck forever.
+      .then(compute)
+      .then(value => {
+        if (this.epoch === startEpoch) this.set(key, value);
         return value;
-      } finally {
-        this.inflight.delete(key);
-      }
-    })();
+      })
+      .finally(() => {
+        // Only remove our own entry — an invalidation may have let a newer compute start.
+        if (this.inflight.get(key) === promise) this.inflight.delete(key);
+      });
     this.inflight.set(key, promise);
     return promise;
   }
@@ -86,10 +93,14 @@ export class TTLCache<T> {
 
   delete(key: string) {
     this.store.delete(key);
+    this.inflight.delete(key);
+    this.epoch++;
   }
 
   clear() {
     this.store.clear();
+    this.inflight.clear();
+    this.epoch++;
   }
 
   getStats(): CacheStats {

@@ -4,6 +4,7 @@
  * All interactive / startup refreshes must go through here (or nightly-enrichment).
  * Never write ticker_fundamentals from a single-source waterfall (legacy SDM).
  */
+import { sleep } from "./http-client.js";
 import { inArray } from "drizzle-orm";
 import { db, tickerFundamentals, tickerRegistry } from "@workspace/db";
 import {
@@ -18,9 +19,6 @@ import { classifyTicker } from "./peer-classifier.js";
 import { isExcludedEtf } from "./etf-exclusions.js";
 import { logger } from "./logger.js";
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 export type EnrichAndMergeResult = {
   ok: boolean;

@@ -13,6 +13,7 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/backfill-yahoo.ts
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq } from "drizzle-orm";
@@ -37,7 +38,6 @@ const ZERO_AS_NULL_FIELDS: (keyof YahooFundamentalsData)[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 function ts() { return new Date().toISOString(); }
 

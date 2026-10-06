@@ -16,6 +16,7 @@ import {
   schwabCredentialsConfigured,
 } from "./schwab-auth.js";
 import { TTLCache } from "./ttl-cache.js";
+import { retryAfterMs } from "./http-client.js";
 import type { OptionRow, OptionsChainResult } from "./options.js";
 
 const BASE = "https://api.schwabapi.com/marketdata/v1";
@@ -94,16 +95,6 @@ async function throttle(): Promise<void> {
   });
   chain = run.catch(() => undefined);
   await run;
-}
-
-function retryAfterMs(res: Response): number {
-  const raw = res.headers.get("retry-after");
-  if (!raw) return 2_000;
-  const sec = Number(raw);
-  if (Number.isFinite(sec) && sec >= 0) return Math.min(30_000, sec * 1000);
-  const when = Date.parse(raw);
-  if (Number.isFinite(when)) return Math.min(30_000, Math.max(0, when - Date.now()));
-  return 2_000;
 }
 
 async function schwabFetch(url: URL, token: string, retried401 = false, retried429 = false): Promise<Response | null> {

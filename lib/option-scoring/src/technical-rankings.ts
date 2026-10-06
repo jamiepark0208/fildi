@@ -190,8 +190,7 @@ function scoreVolatilityState(r: TechnicalRow): number | null {
   }
   const ivVsRv = pf(r.ivVsRealizedVol);
   if (ivVsRv != null) parts.push(c01((ivVsRv - 0.5) / 1.0));    // 0.5→0, 1.0→0.5, 1.5→1.0
-  const bbPct = pf(r.bbWidthPct);
-  if (bbPct != null) parts.push(1 - bbPct);                       // squeeze = coiling = higher score
+  // A25 O2: BB squeeze dropped — lab found no edge on VRP / breaches.
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
 }
 
@@ -748,8 +747,6 @@ export function explainVolatilityState(r: TechnicalRow): ComponentPart[] {
   }
   const ivVsRv = pf(r.ivVsRealizedVol);
   if (ivVsRv != null) parts.push({ label: "IV vs realized vol", raw: `${ivVsRv.toFixed(2)}x`, score: c01((ivVsRv - 0.5) / 1.0) });
-  const bbPct = pf(r.bbWidthPct);
-  if (bbPct != null) parts.push({ label: "Bollinger Band width percentile", raw: fmtPct01(bbPct), score: 1 - bbPct });
   return parts;
 }
 

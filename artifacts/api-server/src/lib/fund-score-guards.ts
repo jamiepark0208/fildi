@@ -270,7 +270,7 @@ export function applyPostScoreAdjustments(input: PostAdjustInput): PostAdjustRes
 }
 
 /** Semis / memory / steel behave cyclically for margin peaks. */
-export function isExtendedCyclical(r: GuardRow): boolean {
+export function isExtendedCyclical(r: Pick<GuardRow, "scoringMode" | "peerGroupId">): boolean {
   if (r.scoringMode && ["energy", "mining"].includes(r.scoringMode)) return true;
   return !!(
     r.peerGroupId &&

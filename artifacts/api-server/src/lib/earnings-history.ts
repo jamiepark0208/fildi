@@ -1,3 +1,4 @@
+import { sleep } from "./http-client.js";
 import { inArray, sql, eq, and, isNotNull } from "drizzle-orm";
 import { db, earningsCalendar, fmpFundamentals } from "@workspace/db";
 import { fetchFMPEarningsHistory } from "./fmp-client.js";
@@ -194,9 +195,6 @@ export async function getUpcomingEarningsDates(tickers: string[]): Promise<Recor
   return out;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
-}
 
 // Capped per run so a full-universe backlog (first run after shipping this feature)
 // spreads across several nightly runs instead of one big burst against FMP/Finnhub.

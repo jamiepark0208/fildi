@@ -7,8 +7,9 @@
  */
 import { and, eq } from "drizzle-orm";
 import { db, scorecardParams, pool } from "@workspace/db";
+import { FAIR_VALUE_SEED } from "./fair-value.js";
 
-export type ScorecardLane = "fund" | "tech" | "options";
+export type ScorecardLane = "fund" | "tech" | "options" | "fair_value";
 
 /** Mirrors fund-score-engine METRICS baseIntra + family weights at fund-1.0.0. */
 const FUND_SEED: Record<string, unknown> = {
@@ -16,7 +17,7 @@ const FUND_SEED: Record<string, unknown> = {
     earningsYield: 3, fcfYield: 3, ps: 1.5, peg: 2, fwdpe: 2, evEbitda: 2, evRev: 1,
     pb: 1, ptbv: 2, pFfo: 2.5, expEy: 3.5, divy: 1,
     revgrow: 2.5, revaccel: 2, epsgrow: 2.5, upside: 1, avgEpsSurprise: 1,
-    ibesRevBreadth: 1.5, ibesSue: 1,
+    ibesRevBreadth: 1.5, ibesSue: 1, ibesFwdGrowth: 0,
     grossmgn: 2, operatingmgn: 2.25, netmgn: 3.25, roe: 2, fcfmgn: 2.25,
     roicwacc: 1.5, gpa: 2, accruals: 2, fScore: 2,
     cashrun: 3, intcov: 2.5, dilution: 2, cr: 1.5, de: 1, netDebtEbitda: 2,
@@ -67,6 +68,7 @@ export const SCORECARD_SEEDS: Record<ScorecardLane, { version: string; params: R
   fund: { version: "fund-1.0.0", params: FUND_SEED },
   tech: { version: "tech-1.0.0", params: TECH_SEED },
   options: { version: "options-1.0.0", params: OPTIONS_SEED },
+  fair_value: { version: "fv-1.0.0", params: FAIR_VALUE_SEED as unknown as Record<string, unknown> },
 };
 
 let ensured = false;

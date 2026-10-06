@@ -1,11 +1,11 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { RSI, MFI, ATR, MACD, Stochastic } from "technicalindicators";
 import { eq, and, gte, inArray, desc } from "drizzle-orm";
-import { db, pricesHistorical, indicatorCache } from "@workspace/db";
+import { db, pool, pricesHistorical, indicatorCache } from "@workspace/db";
 import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 import { getLivePrices } from "./live-quote.js";
+import { logger } from "./logger.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -291,7 +291,10 @@ export async function readOHLCVFromDB(key: string): Promise<OHLCVRow[]> {
   }));
 }
 
-const STALE_OHLCV_DAYS = 4; // covers weekends/a single holiday without over-fetching
+const STALE_OHLCV_DAYS = 4; // calendar cushion; isOHLCVStale also uses ET trading-day lag
+/** Per-ticker cooldown so a failed/empty Yahoo refresh cannot stampede vendor APIs. */
+const OHLCV_FETCH_COOLDOWN_MS = 15 * 60 * 1000;
+const ohlcvFetchAttemptAt = new Map<string, number>();
 
 export async function latestOHLCVDate(key: string): Promise<string | null> {
   const rows = await db.select({ date: pricesHistorical.date })
@@ -302,10 +305,40 @@ export async function latestOHLCVDate(key: string): Promise<string | null> {
   return rows[0]?.date ?? null;
 }
 
+/** ET calendar YYYY-MM-DD (America/New_York). */
+export function etDateKey(d = new Date()): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+/** Count Mon–Fri dates strictly after `fromYmd` through `toYmd` (inclusive of to if weekday). */
+export function etTradingDaysBehind(fromYmd: string | null, toYmd?: string): number {
+  if (!fromYmd) return 999;
+  const to = toYmd ?? etDateKey();
+  const [fy, fm, fd] = fromYmd.slice(0, 10).split("-").map(Number);
+  const [ty, tm, td] = to.slice(0, 10).split("-").map(Number);
+  const cur = new Date(Date.UTC(fy!, fm! - 1, fd!));
+  const end = new Date(Date.UTC(ty!, tm! - 1, td!));
+  if (cur >= end) return 0;
+  let n = 0;
+  cur.setUTCDate(cur.getUTCDate() + 1);
+  while (cur <= end) {
+    const dow = cur.getUTCDay(); // UTC date == ET calendar date for these ymd keys
+    if (dow !== 0 && dow !== 6) n++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return n;
+}
+
+/**
+ * Stale if more than STALE_OHLCV_DAYS calendar days *or* >1 ET trading day behind.
+ * Weekend: Friday bar on Monday is NOT stale (0–1 trading days).
+ */
 export function isOHLCVStale(latestDate: string | null): boolean {
   if (!latestDate) return true;
-  const days = (Date.now() - new Date(latestDate).getTime()) / 86_400_000;
-  return days > STALE_OHLCV_DAYS;
+  const ymd = String(latestDate).slice(0, 10);
+  const calDays = (Date.now() - new Date(`${ymd}T16:00:00-04:00`).getTime()) / 86_400_000;
+  if (calDays > STALE_OHLCV_DAYS) return true;
+  return etTradingDaysBehind(ymd) > 1;
 }
 
 /** Ensure prices_historical has a fresh window; used by indicators + technicals. */
@@ -313,34 +346,128 @@ export async function ensureFreshOHLCV(key: string): Promise<OHLCVRow[]> {
   let rows = await readOHLCVFromDB(key);
   const latest = await latestOHLCVDate(key);
   if (rows.length < 60 || isOHLCVStale(latest)) {
+    const upper = key.toUpperCase();
+    const lastTry = ohlcvFetchAttemptAt.get(upper) ?? 0;
+    if (Date.now() - lastTry < OHLCV_FETCH_COOLDOWN_MS && rows.length >= 60) {
+      return rows; // cooldown — do not re-hammer vendors
+    }
     rows = await fetchAndStoreOHLCV(key);
   }
   return rows;
 }
 
+type YahooBar = {
+  date: Date; open: number; high: number; low: number; close: number; volume: number;
+};
+
+/**
+ * LSEG daily_history fallback when Yahoo returns empty/thin history (A19/A21).
+ * Close-only series — synthesize OHLC as close, volume 0 (enough for price freshness
+ * + basic technicals; not a full vendor OHLC substitute).
+ */
+async function fetchOHLCVFromLseg(key: string, period1: string): Promise<YahooBar[]> {
+  const { rows } = await pool.query<{
+    date: string;
+    close: number | null;
+  }>(
+    `SELECT date::text AS date, close
+     FROM lseg_research.daily_history
+     WHERE ticker = $1 AND date >= $2::date AND close IS NOT NULL
+     ORDER BY date`,
+    [key.toUpperCase(), period1],
+  );
+  return rows.map((r) => {
+    const c = Number(r.close);
+    return {
+      date: new Date(`${r.date}T16:00:00.000Z`),
+      open: c,
+      high: c,
+      low: c,
+      close: c,
+      volume: 0,
+    };
+  });
+}
+
+function barYmd(b: YahooBar): string {
+  return b.date.toISOString().slice(0, 10);
+}
+
+type SourcedBar = YahooBar & { source: "yahoo" | "lseg" };
+
+/** Merge by date: prefer Yahoo OHLC when present; fill missing/newer dates from LSEG. */
+function mergeYahooLseg(yahoo: YahooBar[], lseg: YahooBar[]): SourcedBar[] {
+  const byDate = new Map<string, SourcedBar>();
+  for (const b of lseg) byDate.set(barYmd(b), { ...b, source: "lseg" });
+  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: "yahoo" }); // Yahoo wins on conflict
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => v);
+}
+
 export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
+  const upper = key.toUpperCase();
+  const lastTry = ohlcvFetchAttemptAt.get(upper) ?? 0;
+  if (Date.now() - lastTry < OHLCV_FETCH_COOLDOWN_MS) {
+    const cached = await readOHLCVFromDB(upper);
+    if (cached.length >= 15) return cached;
+  }
+  ohlcvFetchAttemptAt.set(upper, Date.now());
   const period1 = cutoffStr();
   const period2 = todayStr();
 
-  const raw = await yahooFinance.historical(key, { period1, period2, interval: "1d" }, { validateResult: false }) as Array<{
-    date: Date; open: number; high: number; low: number; close: number; volume: number;
-  }>;
+  let yahoo: YahooBar[] = [];
+  try {
+    yahoo = await yahooFinance.historical(
+      key,
+      { period1, period2, interval: "1d" },
+      { validateResult: false },
+    ) as YahooBar[];
+  } catch (err) {
+    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Yahoo historical failed");
+  }
 
-  if (raw.length < 15) throw new Error(`Insufficient history for ${key}: ${raw.length} rows`);
+  const yahooLatest = yahoo.length ? barYmd(yahoo[yahoo.length - 1]!) : null;
+  let sourced: SourcedBar[] = yahoo.map((b) => ({ ...b, source: "yahoo" as const }));
+  // Always consult LSEG when Yahoo is thin/stale *or* LSEG has a newer date (Yahoo often lags a session).
+  const lseg = await fetchOHLCVFromLseg(key, period1);
+  if (lseg.length >= 15) {
+    const lsegLatest = barYmd(lseg[lseg.length - 1]!);
+    const lsegAhead = !yahooLatest || lsegLatest > yahooLatest;
+    if (yahoo.length < 15 || isOHLCVStale(yahooLatest) || lsegAhead) {
+      sourced = yahoo.length ? mergeYahooLseg(yahoo, lseg) : lseg.map((b) => ({ ...b, source: "lseg" as const }));
+      logger.info(
+        {
+          ticker: key,
+          yahooRows: yahoo.length,
+          yahooLatest,
+          lsegRows: lseg.length,
+          lsegLatest,
+          merged: sourced.length,
+          lsegOnly: sourced.filter((b) => b.source === "lseg").length,
+        },
+        "fetchAndStoreOHLCV: merged/filled from LSEG daily_history",
+      );
+    }
+  }
 
+  if (sourced.length < 15) throw new Error(`Insufficient history for ${key}: ${sourced.length} rows`);
+
+  // Ranked fallback with provenance: insert new bars only (never overwrite existing rows).
   await db.insert(pricesHistorical)
-    .values(raw.map(r => ({
+    .values(sourced.map(r => ({
       ticker: key,
-      date:   r.date.toISOString().slice(0, 10),
+      date:   barYmd(r),
       open:   String(r.open),
       high:   String(r.high),
       low:    String(r.low),
       close:  String(r.close),
       volume: r.volume,
+      source: r.source,
     })))
     .onConflictDoNothing();
 
-  return raw.map(r => ({ close: r.close, high: r.high, low: r.low, volume: r.volume }));
+  return sourced.map(r => ({ close: r.close, high: r.high, low: r.low, volume: r.volume }));
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

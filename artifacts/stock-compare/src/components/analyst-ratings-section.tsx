@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
+import { formatMdYy } from "@/lib/format";
 
 export interface Recommendations {
   strongBuy: number;
@@ -101,16 +102,16 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
           : "text-orange-400";
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex items-center gap-3">
       <div className="relative shrink-0">
-        <PieChart width={96} height={96}>
+        <PieChart width={72} height={72}>
           <Pie
             data={data}
             dataKey="value"
-            cx={48}
-            cy={48}
-            innerRadius={30}
-            outerRadius={44}
+            cx={36}
+            cy={36}
+            innerRadius={22}
+            outerRadius={33}
             strokeWidth={0}
           >
             {data.map((entry, i) => (
@@ -119,18 +120,18 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
           </Pie>
         </PieChart>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn("text-[10px] font-bold", ratingColor)}>{rating}</span>
+          <span className={cn("text-[9px] font-bold", ratingColor)}>{rating}</span>
         </div>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-0.5 min-w-0 flex-1">
         {data.map((d) => (
-          <div key={d.name} className="flex items-center gap-2 text-[11px]">
-            <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-            <span className="text-foreground">{d.name}</span>
-            <span className="font-mono ml-auto pl-3 font-semibold text-foreground">{d.value}</span>
+          <div key={d.name} className="flex items-center gap-1.5 text-[10px]">
+            <div className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
+            <span className="text-foreground truncate">{d.name}</span>
+            <span className="font-mono ml-auto pl-2 font-semibold text-foreground tabular-nums">{d.value}</span>
           </div>
         ))}
-        <div className="pt-0.5 text-[11px] text-foreground border-t border-border/30">
+        <div className="pt-0.5 text-[10px] text-amber-200/50 border-t border-border/30">
           {total} analyst{total !== 1 ? "s" : ""}
         </div>
       </div>
@@ -158,79 +159,79 @@ export function AnalystRatingsSection({
     ? Math.max(2, Math.min(98, ((pt.mean - pt.low!) / (pt.high! - pt.low!)) * 100))
     : null;
 
-  return (
-    <div className="space-y-4">
-      {/* Donut + consensus target */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
-        <AnalystDonut recs={recs} />
-        {m.analystTargetPrice != null && m.currentPrice != null && (
-          <div className="flex-1 min-w-0 border-t sm:border-t-0 sm:border-l border-border/40 pt-3 sm:pt-0 sm:pl-6">
-            <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">Consensus Price Target</div>
-            <div className="flex items-end gap-2 flex-wrap">
-              <div>
-                <div className="text-[10px] text-foreground mb-1">Current</div>
-                <div className="text-lg font-bold font-mono">${m.currentPrice.toFixed(2)}</div>
-              </div>
-              <div className="text-foreground text-base mb-1">→</div>
-              <div>
-                <div className="text-[10px] text-foreground mb-1">12M Target</div>
-                <div className="text-lg font-bold font-mono">${m.analystTargetPrice.toFixed(2)}</div>
-              </div>
-              <div className={cn("text-sm font-bold font-mono mb-0.5 whitespace-nowrap",
-                m.analystTargetPrice > m.currentPrice ? "text-green-400" : "text-red-400")}>
-                {((m.analystTargetPrice / m.currentPrice - 1) * 100) >= 0 ? "+" : ""}
-                {((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+  const upsidePct =
+    m.analystTargetPrice != null && m.currentPrice != null
+      ? ((m.analystTargetPrice / m.currentPrice - 1) * 100)
+      : null;
 
-      {/* Always expanded — panel scrolls */}
-      <div className="space-y-5 border-t border-border/30 pt-4">
-          {/* Price target range bar */}
+  return (
+    <div className="space-y-2">
+      <AnalystDonut recs={recs} />
+
+      {/* Consensus + 12M target — single line under the donut */}
+      {m.analystTargetPrice != null && m.currentPrice != null && (
+        <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap border-t border-border/30 pt-1.5">
+          <span className="text-[9px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">Consensus</span>
+          <span className="tabular-nums text-white font-semibold">${m.currentPrice.toFixed(2)}</span>
+          <span className="text-amber-200">→</span>
+          <span className="text-[9px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">12M</span>
+          <span className="tabular-nums font-bold text-white">${m.analystTargetPrice.toFixed(2)}</span>
+          {upsidePct != null && (
+            <span
+              className={cn(
+                "tabular-nums font-bold ml-auto",
+                upsidePct >= 0 ? "text-green-400" : "text-red-400",
+              )}
+            >
+              {upsidePct >= 0 ? "+" : ""}
+              {upsidePct.toFixed(1)}%
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2.5 border-t border-border/30 pt-2">
           {hasRange && (
             <div>
-              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">Analyst Price Target Range</div>
-              <div className="relative h-2.5 bg-secondary/50 rounded-full overflow-visible mb-3">
+              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">Target range</div>
+              <div className="relative h-2 bg-secondary/50 rounded-full overflow-visible mb-1.5">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/20 via-yellow-500/15 to-green-500/20" />
                 {meanPct != null && (
                   <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-4 bg-yellow-400/80 rounded-sm"
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-3 bg-yellow-400/80 rounded-sm"
                     style={{ left: `${meanPct}%` }}
                     title={`Mean $${pt!.mean!.toFixed(2)}`}
                   />
                 )}
                 {pricePct != null && (
                   <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-primary rounded-full border-2 border-background shadow-sm z-10"
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-primary rounded-full border-2 border-background shadow-sm z-10"
                     style={{ left: `${pricePct}%` }}
                     title={`Current $${m.currentPrice.toFixed(2)}`}
                   />
                 )}
               </div>
-              <div className="flex justify-between text-[10px] font-mono text-foreground">
-                <span>Low ${pt!.low!.toFixed(2)}</span>
-                {pt!.mean != null && <span className="text-yellow-400/90">Mean ${pt!.mean!.toFixed(2)}</span>}
-                {pt!.median != null && <span>Median ${pt!.median!.toFixed(2)}</span>}
-                <span>High ${pt!.high!.toFixed(2)}</span>
+              <div className="flex justify-between text-[9px] font-mono text-amber-50 gap-1">
+                <span>L ${pt!.low!.toFixed(2)}</span>
+                {pt!.mean != null && <span className="text-yellow-300 font-semibold">μ ${pt!.mean!.toFixed(2)}</span>}
+                {pt!.median != null && <span>M ${pt!.median!.toFixed(2)}</span>}
+                <span>H ${pt!.high!.toFixed(2)}</span>
               </div>
             </div>
           )}
 
-          {/* Recent analyst rating changes (upgrade/downgrade history) */}
           {analystActions.length > 0 && (
             <div>
-              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">
-                Analyst Rating Changes
+              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">
+                Rating changes
               </div>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-border/40">
-                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Entity</th>
-                    <th className="text-left font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Recommendation</th>
-                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5 pr-2">Target</th>
-                    <th className="text-right font-normal text-[10px] text-foreground uppercase tracking-widest pb-1.5">Date</th>
+                    <th className="text-left font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Entity</th>
+                    <th className="text-left font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Rec</th>
+                    <th className="text-right font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Tgt</th>
+                    <th className="text-right font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1">Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,17 +242,17 @@ export function AnalystRatingsSection({
                       : (a.toGrade || "—");
                     return (
                       <tr key={i} className="border-b border-border/20 last:border-0">
-                        <td className="py-1.5 pr-2 text-xs font-medium text-foreground whitespace-nowrap">
-                          <span className="flex items-center gap-1.5">
+                        <td className="py-1 pr-1.5 text-[10px] font-medium text-foreground whitespace-nowrap">
+                          <span className="flex items-center gap-1">
                             {a.firm}
                             <SourceBadge source={a.source} />
                           </span>
                         </td>
-                        <td className={cn("py-1.5 pr-2 text-xs font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
-                        <td className="py-1.5 pr-2 text-xs font-mono text-foreground text-right whitespace-nowrap">
+                        <td className={cn("py-1 pr-1.5 text-[10px] font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
+                        <td className="py-1 pr-1.5 text-[10px] font-mono text-foreground text-right whitespace-nowrap">
                           {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
                         </td>
-                        <td className="py-1.5 text-xs text-foreground text-right whitespace-nowrap">{a.date ?? "—"}</td>
+                        <td className="py-1 text-[10px] text-amber-100 text-right whitespace-nowrap">{formatMdYy(a.date)}</td>
                       </tr>
                     );
                   })}
@@ -260,13 +261,12 @@ export function AnalystRatingsSection({
             </div>
           )}
 
-          {/* Per-firm price targets from FMP */}
           {analystPriceTargets.length > 0 ? (
             <div>
-              <div className="text-[10px] text-foreground uppercase tracking-widest mb-2">
-                Price Targets by Firm
+              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">
+                Targets by firm
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {analystPriceTargets.map((t, i) => {
                   const upside = t.priceTarget != null && m.currentPrice != null
                     ? ((t.priceTarget / m.currentPrice) - 1) * 100
@@ -275,37 +275,32 @@ export function AnalystRatingsSection({
                     ? ((t.priceTarget / t.priceWhenPosted) - 1) * 100
                     : null;
                   return (
-                    <div key={i} className="border border-border/40 rounded-lg p-3 bg-secondary/10">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-foreground">{t.firm}</span>
-                        {t.analyst && <span className="text-[11px] text-foreground">({t.analyst})</span>}
+                    <div key={i} className="border border-border/30 rounded px-2 py-1 bg-secondary/10">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-bold text-foreground">{t.firm}</span>
+                        {t.analyst && <span className="text-[9px] text-amber-200/50">({t.analyst})</span>}
                         <SourceBadge source={t.source} />
                         {t.priceTarget != null && (
-                          <span className="ml-auto font-mono font-bold text-sm text-foreground">
+                          <span className="ml-auto font-mono font-bold text-[11px] text-foreground tabular-nums">
                             ${t.priceTarget.toFixed(2)}
                           </span>
                         )}
                         {upside != null && (
-                          <span className={cn("text-xs font-mono font-semibold", upside >= 0 ? "text-green-400" : "text-red-400")}>
+                          <span className={cn("text-[10px] font-mono font-semibold tabular-nums", upside >= 0 ? "text-green-400" : "text-red-400")}>
                             {upside >= 0 ? "+" : ""}{upside.toFixed(1)}%
                           </span>
                         )}
                       </div>
                       {t.date && (
-                        <div className="text-[10px] text-foreground mt-1">
-                          Published {t.date}
-                          {t.priceWhenPosted != null && ` · Stock was $${t.priceWhenPosted.toFixed(2)} at time of rating`}
+                        <div className="text-[9px] text-amber-100/80 mt-0.5 truncate">
+                          {formatMdYy(t.date)}
+                          {t.priceWhenPosted != null && ` · was $${t.priceWhenPosted.toFixed(2)}`}
                           {fromPosted != null && (
-                            <span className={cn("ml-1", fromPosted >= 0 ? "text-green-400/80" : "text-red-400/80")}>
-                              (implied {fromPosted >= 0 ? "+" : ""}{fromPosted.toFixed(0)}% from then)
+                            <span className={cn("ml-1 font-semibold", fromPosted >= 0 ? "text-green-300" : "text-red-300")}>
+                              ({fromPosted >= 0 ? "+" : ""}{fromPosted.toFixed(0)}%)
                             </span>
                           )}
                         </div>
-                      )}
-                      {t.newsTitle && (
-                        <p className="text-[11px] text-foreground mt-1.5 italic leading-snug line-clamp-2">
-                          "{t.newsTitle}"
-                        </p>
                       )}
                     </div>
                   );
@@ -313,7 +308,7 @@ export function AnalystRatingsSection({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground italic">No per-firm price targets archived yet for this ticker.</p>
+            <p className="text-[10px] text-amber-200/40 italic">No per-firm targets archived yet.</p>
           )}
       </div>
     </div>

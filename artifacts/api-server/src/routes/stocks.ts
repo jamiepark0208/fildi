@@ -1,6 +1,6 @@
 import { Router } from "express";
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../lib/yahoo-client.js";
+import { readLatestFairValue, type LatestFairValue } from "../lib/fair-value-snapshots.js";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
@@ -16,9 +16,9 @@ import {
   type EdgarStatementHistoryRow,
   tickerEventBullets,
 } from "@workspace/db";
-import { readFundamentalsRow, readRegistryRow, recordFMPCalls } from "../lib/fundamentals-db.js";
+import { readFundamentalsRow, readRegistryRow } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { buildCatalysts, parseEarningsDate } from "../lib/catalysts.js";
+import { buildCatalystItems, mergeCaseBullets, parseEarningsDate } from "../lib/catalysts.js";
 import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
@@ -34,6 +34,14 @@ import {
   computeCanonicalPeg,
   computeForwardPeg,
 } from "../lib/derived-metrics.js";
+import {
+  buildScoreEvidence,
+  buildStreetSynthesis,
+  buildTradeOverlay,
+  ensureTodaySnapshot,
+  loadScoreHistory,
+  readFundPeerGroupId,
+} from "../lib/breakdown-enrichment.js";
 
 const router = Router();
 
@@ -172,18 +180,6 @@ function classifyStockType(
   if (revenueGrowth !== null && revenueGrowth > 0.15) return "Growth";
   if (peRatio !== null && peRatio > 30) return "Growth";
   return "Blend";
-}
-
-function computeFairValue(
-  eps: number | null,
-  epsGrowth: number | null,
-  peRatio: number | null
-): number | null {
-  if (eps === null || epsGrowth === null) return null;
-  const growthPct = epsGrowth * 100;
-  const fairPE = 2 * growthPct;
-  if (fairPE <= 0) return null;
-  return parseFloat((eps * fairPE).toFixed(2));
 }
 
 function scoreMetric(
@@ -359,7 +355,7 @@ function fmpNum(v: string | null | undefined): number | null {
 
 // Build StockMetrics from Yahoo quote data + optional FMP fundamentals DB row.
 // FMP values take priority for all fundamental fields; Yahoo provides price/meta/fallback.
-function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: string, reg?: { name: string | null; sector: string | null; industryGroup: string | null } | null) {
+function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: string, reg?: { name: string | null; sector: string | null; industryGroup: string | null } | null, fv?: LatestFairValue | null) {
   // ── Price & market data — always Yahoo ───────────────────────────────────────
   const currentPrice = safeNum(quote.regularMarketPrice);
   const marketCap    = safeNum(quote.marketCap);
@@ -442,9 +438,9 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
   const currentRatio    = fmpNum(fmp?.currentRatio)    ?? safeNum(quote.currentRatio);
   const beta            = fmpNum(fmp?.beta)            ?? safeNum(quote.beta);
 
-  // ── Classification & fair value (computed locally) ───────────────────────────
+  // ── Classification ─────────────────────────────────────────────────────────────
+  // Fair value is the nightly blended snapshot (lib/fair-value.ts), not computed per request.
   const stockType  = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
-  const fairValue  = computeFairValue(earningsPerShare, epsGrowth, peRatio);
 
   // ── Phase 4 value / acceleration fields — FMP only ──────────────────────────
   const forwardPe               = fmpNum(fmp?.forwardPe);
@@ -522,7 +518,16 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     fiftyTwoWeekHigh: safeNum(quote.fiftyTwoWeekHigh),
     fiftyTwoWeekLow:  safeNum(quote.fiftyTwoWeekLow),
     analystTargetPrice,
-    fairValueEstimate: fairValue,
+    fairValueEstimate:      fv?.fairValue ?? null,
+    fairValueLow:           fv?.low ?? null,
+    fairValueHigh:          fv?.high ?? null,
+    fairValueConfidence:    fv?.confidence ?? null,
+    fairValueImpliedGrowth: fv?.impliedGrowth ?? null,
+    fairValueVotes:         fv?.votes ?? [],
+    fairValueAsOf:          fv?.asOf ?? null,
+    fairValueChange3m:      fv?.change3m ?? null,
+    fairValueCyclical:      fv?.cyclical ?? false,
+    fairValueValueTrap:     fv?.valueTrap ?? false,
     stockType,
     sector:      reg?.sector        ?? quote.sector   ?? null,
     industry:    reg?.industryGroup ?? quote.industry ?? null,
@@ -567,7 +572,7 @@ router.get("/stocks/compare", async (req, res) => {
   try {
     const t1 = ticker1.toUpperCase();
     const t2 = ticker2.toUpperCase();
-    const [q1, q2, fmp1, fmp2, reg1, reg2] = await Promise.all([
+    const [q1, q2, fmp1, fmp2, reg1, reg2, fv1, fv2] = await Promise.all([
       yahooFinance.quoteSummary(t1, {
         modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
       }),
@@ -578,13 +583,15 @@ router.get("/stocks/compare", async (req, res) => {
       readFundamentalsRow(t2),
       readRegistryRow(t1),
       readRegistryRow(t2),
+      readLatestFairValue(t1),
+      readLatestFairValue(t2),
     ]);
 
     const merged1 = { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics };
     const merged2 = { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics };
 
-    const stock1 = buildMetrics(merged1, fmp1, t1, reg1);
-    const stock2 = buildMetrics(merged2, fmp2, t2, reg2);
+    const stock1 = buildMetrics(merged1, fmp1, t1, reg1, fv1);
+    const stock2 = buildMetrics(merged2, fmp2, t2, reg2, fv2);
     const scorecard = buildScorecard(stock1, stock2, ticker1.toUpperCase(), ticker2.toUpperCase());
 
     const payload = { stock1, stock2, scorecard };
@@ -702,15 +709,16 @@ async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
   // getOrCompute coalesces concurrent misses for the same ticker into one Yahoo call.
   return quoteCache.getOrCompute(key, async () => {
-    const [q, fmpRow, regRow] = await Promise.all([
+    const [q, fmpRow, regRow, fv] = await Promise.all([
       fetchQuoteSummary(key),
       readFundamentalsRow(key),
       readRegistryRow(key),
+      readLatestFairValue(key),
     ]);
     // assetProfile carries sector/industry — price/summaryDetail/financialData/
     // defaultKeyStatistics never do, so quote.sector was always undefined without it.
     const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-    return { ...buildMetrics(merged, fmpRow, key, regRow), earningsDate: parseEarningsDate(q, null) };
+    return { ...buildMetrics(merged, fmpRow, key, regRow, fv), earningsDate: parseEarningsDate(q, null) };
   });
 }
 
@@ -781,46 +789,6 @@ router.get("/stocks/quotes", async (req, res) => {
   return res.json(results);
 });
 
-function scoreValue(pe: number | null, peg: number | null, pb: number | null, ps: number | null): number {
-  let sum = 0, n = 0;
-  if (pe !== null) { sum += pe < 10 ? 5 : pe < 15 ? 4 : pe < 20 ? 3 : pe < 35 ? 2 : 1; n++; }
-  if (peg !== null) { sum += peg < 0.5 ? 5 : peg < 1 ? 4 : peg < 1.5 ? 3 : peg < 2.5 ? 2 : 1; n++; }
-  if (pb !== null) { sum += pb < 1 ? 5 : pb < 2 ? 4 : pb < 3 ? 3 : pb < 6 ? 2 : 1; n++; }
-  if (ps !== null) { sum += ps < 1 ? 5 : ps < 3 ? 4 : ps < 6 ? 3 : ps < 12 ? 2 : 1; n++; }
-  return n > 0 ? Math.round(sum / n) : 3;
-}
-
-function scoreGrowth(revGrowth: number | null, epsGrowth: number | null): number {
-  let sum = 0, n = 0;
-  if (revGrowth !== null) { sum += revGrowth > 0.3 ? 5 : revGrowth > 0.2 ? 4 : revGrowth > 0.1 ? 3 : revGrowth > 0.05 ? 2 : revGrowth > 0 ? 1 : 0; n++; }
-  if (epsGrowth !== null) { sum += epsGrowth > 0.3 ? 5 : epsGrowth > 0.2 ? 4 : epsGrowth > 0.1 ? 3 : epsGrowth > 0.05 ? 2 : epsGrowth > 0 ? 1 : 0; n++; }
-  return n > 0 ? Math.round(sum / n) : 2;
-}
-
-function scoreHealth(currentRatio: number | null, dte: number | null, netMargin: number | null): number {
-  let sum = 0, n = 0;
-  if (currentRatio !== null) { sum += currentRatio > 3 ? 5 : currentRatio > 2 ? 4 : currentRatio > 1.5 ? 3 : currentRatio > 1 ? 2 : 1; n++; }
-  if (dte !== null) { sum += dte < 0.1 ? 5 : dte < 0.3 ? 4 : dte < 0.6 ? 3 : dte < 1.2 ? 2 : 1; n++; }
-  if (netMargin !== null) { sum += netMargin > 0.25 ? 5 : netMargin > 0.15 ? 4 : netMargin > 0.08 ? 3 : netMargin > 0 ? 2 : 1; n++; }
-  return n > 0 ? Math.round(sum / n) : 2;
-}
-
-function scorePast(roe: number | null, netMargin: number | null, fcf: number | null, marketCap: number | null): number {
-  let sum = 0, n = 0;
-  if (roe !== null) { sum += roe > 0.3 ? 5 : roe > 0.2 ? 4 : roe > 0.12 ? 3 : roe > 0.05 ? 2 : roe > 0 ? 1 : 0; n++; }
-  if (netMargin !== null) { sum += netMargin > 0.25 ? 5 : netMargin > 0.15 ? 4 : netMargin > 0.08 ? 3 : netMargin > 0 ? 2 : 1; n++; }
-  if (fcf !== null && marketCap !== null && marketCap > 0) {
-    const y = fcf / marketCap;
-    sum += y > 0.07 ? 5 : y > 0.04 ? 4 : y > 0.02 ? 3 : y > 0 ? 2 : 1; n++;
-  }
-  return n > 0 ? Math.round(sum / n) : 2;
-}
-
-function scoreDividend(yield_: number | null): number {
-  if (!yield_ || yield_ <= 0) return 0;
-  return yield_ > 0.06 ? 5 : yield_ > 0.04 ? 4 : yield_ > 0.025 ? 3 : yield_ > 0.01 ? 2 : 1;
-}
-
 function buildBullBullets(m: any): string[] {
   const out: string[] = [];
   if (m.revenueGrowthYoY != null && m.revenueGrowthYoY > 0.10)
@@ -875,8 +843,13 @@ type BreakdownPayload = {
   priceTargetRange: unknown;
   bullBullets: string[];
   bearBullets: string[];
-  news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null }>;
-  snowflake: unknown;
+  news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null; source?: "desk" | "yahoo" }>;
+  /** @deprecated legacy 1–5 snowflake — prefer scoreEvidence */
+  snowflake?: unknown;
+  scoreEvidence?: unknown;
+  scoreHistory?: unknown;
+  street?: unknown;
+  tradeOverlay?: unknown;
   earningsDate?: string | null;
   earningsHistory?: EarningsQuarter[];
   catalysts?: string[];
@@ -886,16 +859,27 @@ type BreakdownPayload = {
 };
 
 function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
-  payload.catalysts = buildCatalysts({
+  const items = buildCatalystItems({
     earningsDate: payload.earningsDate ?? null,
     analystActions: payload.analystActions ?? [],
     news: payload.news ?? [],
   });
+  // Lean analyst (and rare news) lines fold into bull/bear; true neutrals stay in catalysts.
+  // Earnings stay neutral here too, but the Trade row already shows ER — UI may hide them.
+  payload.catalysts = items.filter(i => i.lean === "neutral").map(i => i.text);
+  payload.bullBullets = mergeCaseBullets(
+    items.filter(i => i.lean === "bull").map(i => i.text),
+    payload.bullBullets ?? [],
+  );
+  payload.bearBullets = mergeCaseBullets(
+    items.filter(i => i.lean === "bear").map(i => i.text),
+    payload.bearBullets ?? [],
+  );
   return payload;
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 10;
+const BREAKDOWN_CACHE_VER = 14; // 14: blended fair value fields
 
 // Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
 // payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
@@ -924,7 +908,7 @@ router.get("/stocks/breakdown", async (req, res) => {
     const modules = ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
     if (!analystFresh) modules.push("upgradeDowngradeHistory");
 
-    const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload] = await Promise.all([
+    const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload, fv] = await Promise.all([
       yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
       yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
       readFundamentalsRow(upperTicker),
@@ -937,6 +921,7 @@ router.get("/stocks/breakdown", async (req, res) => {
         logger.warn({ ticker: upperTicker, err }, "resolvePeers in breakdown failed");
         return { ticker: upperTicker, sector: null, industry: null, peers: [] as string[] };
       }),
+      readLatestFairValue(upperTicker),
     ]);
 
     const merged = {
@@ -946,7 +931,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       ...summary.defaultKeyStatistics,
       ...summary.assetProfile,
     };
-    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow) as ReturnType<typeof buildMetrics> & {
+    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow, fv) as ReturnType<typeof buildMetrics> & {
       pegGrowthPeerZ?: number | null;
       pegGrowthPeerN?: number;
       pegGrowthPeerGroup?: string | null;
@@ -1097,15 +1082,23 @@ router.get("/stocks/breakdown", async (req, res) => {
       link: n.link ?? "",
       publisher: n.publisher ?? "",
       publishedAt: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null,
+      source: "yahoo" as const,
     }));
 
-    const snowflake = {
-      value: scoreValue(metrics.peRatio, metrics.pegRatio, metrics.priceToBook, metrics.priceToSales),
-      growth: scoreGrowth(metrics.revenueGrowthYoY, metrics.epsGrowth),
-      health: scoreHealth(metrics.currentRatio, metrics.debtToEquity, metrics.netMargin),
-      past: scorePast(metrics.returnOnEquity, metrics.netMargin, metrics.freeCashFlow, metrics.marketCap),
-      dividend: scoreDividend(metrics.dividendYield),
-    };
+    await ensureTodaySnapshot(upperTicker, fmpRow);
+    const [scoreEvidence, scoreHistory, street, peerGroupId] = await Promise.all([
+      buildScoreEvidence(upperTicker, fmpRow),
+      loadScoreHistory(upperTicker),
+      buildStreetSynthesis({
+        ticker: upperTicker,
+        recommendations,
+        targetMean: priceTargetRange.mean,
+        price: metrics.currentPrice ?? null,
+      }),
+      readFundPeerGroupId(upperTicker),
+    ]);
+    if (!scoreEvidence.peerGroupId) scoreEvidence.peerGroupId = peerGroupId;
+    const tradeOverlay = await buildTradeOverlay(upperTicker, street.eventRisk);
 
     const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
 
@@ -1118,7 +1111,10 @@ router.get("/stocks/breakdown", async (req, res) => {
       bullBullets,
       bearBullets,
       news,
-      snowflake,
+      scoreEvidence,
+      scoreHistory,
+      street,
+      tradeOverlay,
       earningsDate,
       earningsHistory,
       peers: peersPayload.peers.slice(0, 8),
@@ -1376,7 +1372,10 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
       db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, allTickers)),
     ]);
 
-    const ranked = rankCompetitors(key, peers, techRows, fundRows);
+    const ranked = rankCompetitors(key, peers, techRows, fundRows, {
+      limit: 12,
+      includeSubject: true,
+    });
 
     return res.json({
       ticker: key,

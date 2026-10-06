@@ -1,9 +1,8 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
 import { getSchwabQuotes } from "./schwab-client.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 export interface LivePrice {
   price: number | null;

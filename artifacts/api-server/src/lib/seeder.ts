@@ -1,4 +1,4 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { eq } from "drizzle-orm";
 import { db, indicatorCache, tickerConfig } from "@workspace/db";
 import { WATCHLIST, RSI_THRESHOLDS, getTier } from "./constants.js";
@@ -6,7 +6,6 @@ import { getIndicators, fetchAndStoreOHLCV, readOHLCVFromDB, type OHLCVRow } fro
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);

@@ -27,6 +27,11 @@
  *   node scripts/maintain.mjs --no-drain-nr
  *     Disable default drain when using --enrich-if-due
  *
+ * Sunday (PT) with --enrich-if-due also runs a lean weekly ops digest
+ * (`weekly-data-ops-check.mjs --digest-only`) — audit + value-log only, no second FactSet drain —
+ * then `ai-workflow-review.mjs` + `--verify` (token/context proof; no silent refactors).
+ * Failures (process/enrich hard-fail) fire a macOS notification via osascript.
+ *
  * Technicals / options: NOT in this job — ad-hoc on UI click (correct).
  *
  * Always-on for local Mac preview should stay at TWO node processes:
@@ -45,9 +50,61 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const LOG_DIR = "/tmp/fildi-logs";
 const REPORT = join(LOG_DIR, "maintain-last.json");
+/** Full 7 AM enrich pass — heal-only midday runs must not erase this. */
+const REPORT_FULL = join(LOG_DIR, "maintain-full-last.json");
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB → gzip + keep .1.gz
 const ENRICH_DUE_DAYS = 4;
 const DEFAULT_DRAIN_NR = 40;
+
+/** Action markers that prove today’s full pass (UI verifyChecks). */
+const FULL_PASS_ACTION_RE =
+  /^(retention_prune_exit_|morning_precompute_exit_|enrichment_ok_age_|enrichment_catchup_|enrich_missing_|post_merge_scores_|ops_digest_exit_|ai_workflow_)/;
+
+function isPtSunday(d = new Date()) {
+  const wd = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+  }).format(d);
+  return wd === "Sun";
+}
+
+/** macOS banner when Maintain hard-fails — closes silent-failure gap for LaunchAgent runs. */
+function notifyMac(title, body) {
+  const esc = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').slice(0, 200);
+  try {
+    execSync(
+      `osascript -e 'display notification "${esc(body)}" with title "${esc(title)}"'`,
+      { stdio: "ignore", timeout: 5000 },
+    );
+  } catch {
+    /* headless / denied — ignore */
+  }
+}
+
+function readPriorReport(path) {
+  try {
+    if (!existsSync(path)) return null;
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function samePtDay(isoA, isoB) {
+  if (!isoA || !isoB) return false;
+  const fmt = (iso) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Los_Angeles",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(iso));
+  try {
+    return fmt(isoA) === fmt(isoB);
+  } catch {
+    return false;
+  }
+}
 
 const args = new Set(process.argv.slice(2));
 const restartIfUnhealthy = args.has("--restart-if-unhealthy");
@@ -363,6 +420,21 @@ function budgetSnapshot() {
         'NVDY','SPCK','PSUS','HOOY','DRAM','ARKQ','XOP','GOOY','RVI'
       )
   "`);
+  // Blended fair value health (lib/fair-value-snapshots.ts; refreshed by post-merge-scores above).
+  // withValue|universe|extremes(>3x or <1/3)|jumps(>30% move with <5% price move)|ageHours|prevWithValue
+  const fairValue = sh(`psql "$DATABASE_URL" -tAc "
+    WITH t AS (SELECT max(as_of) d FROM fair_value_snapshots),
+         p AS (SELECT max(as_of) d FROM fair_value_snapshots WHERE as_of < (SELECT d FROM t)),
+         cur AS (SELECT * FROM fair_value_snapshots WHERE as_of = (SELECT d FROM t)),
+         prev AS (SELECT * FROM fair_value_snapshots WHERE as_of = (SELECT d FROM p))
+    SELECT COUNT(*) FILTER (WHERE c.fair_value IS NOT NULL) || '|' || COUNT(*) || '|' ||
+           COUNT(*) FILTER (WHERE c.fair_value > 3 * c.price OR c.fair_value < c.price / 3) || '|' ||
+           COUNT(*) FILTER (WHERE pv.fair_value > 0 AND c.fair_value > 0 AND pv.price > 0 AND c.price > 0
+                              AND abs(ln(c.fair_value / pv.fair_value)) > ln(1.3) AND abs(ln(c.price / pv.price)) < ln(1.05)) || '|' ||
+           COALESCE(round(extract(epoch FROM now() - max(c.computed_at)) / 3600), 9999) || '|' ||
+           (SELECT COUNT(*) FILTER (WHERE fair_value IS NOT NULL) FROM prev)
+    FROM cur c LEFT JOIN prev pv USING (ticker)
+  " 2>/dev/null`);
   const earnWin = sh(`psql "$DATABASE_URL" -tAc "
     SELECT COUNT(DISTINCT UPPER(ticker))
     FROM earnings_calendar
@@ -384,6 +456,16 @@ function budgetSnapshot() {
   const unscoredN = Number(String(unscoredActive).trim());
   // Soft ceiling: coverage/safety gates are intentional; rising counts = enrich gap.
   if (Number.isFinite(unscoredN) && unscoredN > 8) anomalies.push(`unscored_active_${unscoredN}`);
+  // Baseline 2026-10-06: 436/568 valued, 17 extremes, 0 jumps. Thresholds catch data breaks, not market moves.
+  const [fvWith, fvN, fvExt, fvJumps, fvAge, fvPrev] = String(fairValue || "").trim().split("|").map(Number);
+  if (Number.isFinite(fvWith)) {
+    if (fvAge > 36) anomalies.push(`fair_value_stale_${fvAge}h`);
+    if (fvExt > 30) anomalies.push(`fair_value_extremes_${fvExt}`);
+    if (fvJumps > 10) anomalies.push(`fair_value_jumps_${fvJumps}`);
+    if (fvPrev > 0 && fvWith < fvPrev * 0.9) anomalies.push(`fair_value_coverage_drop_${fvPrev}_to_${fvWith}`);
+  } else {
+    anomalies.push("fair_value_missing");
+  }
   return {
     sources,
     needsReview: Number.isFinite(nrN) ? nrN : null,
@@ -391,6 +473,7 @@ function budgetSnapshot() {
     fieldFillPct: Number(String(fieldFill).trim()) || null,
     fundScoreCoverage: String(scored).trim() || null,
     unscoredActive: Number.isFinite(unscoredN) ? unscoredN : null,
+    fairValue: Number.isFinite(fvWith) ? `${fvWith}/${fvN} ext=${fvExt} jumps=${fvJumps}` : null,
     earningsWindowTickers: Number(String(earnWin).trim()) || 0,
     anomalies,
   };
@@ -557,6 +640,45 @@ async function main() {
     } else {
       actions.push("morning_precompute_skipped_process_down");
     }
+
+    // Sunday lean digest: scoreboard → value-log only (no second drain/peer).
+    if (isPtSunday()) {
+      const dig = spawnSync(
+        process.execPath,
+        [join(ROOT, "scripts/weekly-data-ops-check.mjs"), "--digest-only"],
+        { encoding: "utf8", cwd: ROOT, timeout: 10 * 60 * 1000, env: process.env },
+      );
+      actions.push(`ops_digest_exit_${dig.status ?? 1}`);
+      if (dig.status !== 0) {
+        console.warn("[maintain] ops digest warn:", (dig.stderr || dig.stdout || "").slice(-400));
+      }
+      // Optimization measurement (deterministic) — report then prove; never auto-refactor.
+      const reviewScript = join(ROOT, ".cursor/scripts/ai-workflow-review.mjs");
+      if (existsSync(reviewScript)) {
+        const rev = spawnSync(process.execPath, [reviewScript], {
+          encoding: "utf8",
+          cwd: ROOT,
+          timeout: 5 * 60 * 1000,
+          env: process.env,
+        });
+        actions.push(`ai_workflow_review_exit_${rev.status ?? 1}`);
+        const ver = spawnSync(process.execPath, [reviewScript, "--verify"], {
+          encoding: "utf8",
+          cwd: ROOT,
+          timeout: 2 * 60 * 1000,
+          env: process.env,
+        });
+        actions.push(`ai_workflow_verify_exit_${ver.status ?? 1}`);
+        if (ver.status !== 0) {
+          console.warn(
+            "[maintain] ai-workflow-review --verify warn:",
+            (ver.stderr || ver.stdout || "").slice(-400),
+          );
+        }
+      } else {
+        actions.push("ai_workflow_review_skipped_missing");
+      }
+    }
   }
 
   // (f) Budget / anomaly snapshot — always when enriching, else light.
@@ -586,8 +708,24 @@ async function main() {
         ? "vendor"
         : null;
 
+  const mode = enrichIfDue ? "full" : "heal";
+  let mergedActions = [...actions];
+  // Heal-only must not wipe today’s full-pass proof (retention / morning precompute).
+  if (!enrichIfDue) {
+    const priorFull = readPriorReport(REPORT_FULL) || readPriorReport(REPORT);
+    const priorTs = typeof priorFull?.ts === "string" ? priorFull.ts : null;
+    const priorActions = Array.isArray(priorFull?.actions) ? priorFull.actions : [];
+    if (priorTs && samePtDay(priorTs, new Date().toISOString())) {
+      const keep = priorActions.filter((a) => typeof a === "string" && FULL_PASS_ACTION_RE.test(a));
+      for (const a of keep) {
+        if (!mergedActions.includes(a)) mergedActions.push(a);
+      }
+    }
+  }
+
   const report = {
     ts: new Date().toISOString(),
+    mode,
     ms: Date.now() - started,
     healthOk: !!health.ok,
     processOk: finalFlags.processOk,
@@ -603,7 +741,7 @@ async function main() {
     vitePid,
     apiAgeDays: apiAgeDays != null ? Number(apiAgeDays.toFixed(2)) : null,
     logs,
-    actions,
+    actions: mergedActions,
     enrich,
     enrichMissing,
     enrichUnscored,
@@ -616,12 +754,34 @@ async function main() {
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
 
+  // Heal-cadence proof sibling (Nucleus / Ops) — same vocabulary as data-ops value log.
+  if (!enrichIfDue) {
+    const rem = {
+      at: report.ts,
+      trigger: "heal-cadence",
+      taskIds: ["maintain"],
+      alertsBefore: -1,
+      alertsAfter: -1,
+      alertDelta: null,
+      value: actions.includes("process_healed")
+        ? "IMPROVED"
+        : jobOk
+          ? "NO MATERIAL CHANGE"
+          : "FAILED",
+      ok: jobOk,
+      actions: mergedActions.slice(0, 12),
+      note: "Written by maintain.mjs heal path — see maintain-last.json for stack detail.",
+    };
+    writeFileSync(join(LOG_DIR, "ops-remediate-last.json"), JSON.stringify(rem, null, 2) + "\n");
+  }
+
   // Pipeline Health (enrichment_runs) — daily maintain is the scheduled enrich path on Mac.
   if (enrichIfDue) {
     const rec = runApiTsx("src/scripts/record-maintain-run.ts", [`--report=${REPORT}`]);
-    actions.push(`record_maintain_run_exit_${rec.status}`);
-    report.actions = actions;
+    mergedActions.push(`record_maintain_run_exit_${rec.status}`);
+    report.actions = mergedActions;
     writeFileSync(REPORT, JSON.stringify(report, null, 2));
+    writeFileSync(REPORT_FULL, JSON.stringify(report, null, 2));
   }
 
   console.log(`[maintain] ${report.ts}`);
@@ -635,17 +795,28 @@ async function main() {
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
   if (budget.goldCoverage) {
     console.log(
-      `  gold=${budget.goldCoverage} fieldFill=${budget.fieldFillPct ?? "—"}% scores=${budget.fundScoreCoverage} unscoredActive=${budget.unscoredActive ?? "—"} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers}`,
+      `  gold=${budget.goldCoverage} fieldFill=${budget.fieldFillPct ?? "—"}% scores=${budget.fundScoreCoverage} unscoredActive=${budget.unscoredActive ?? "—"} NR=${budget.needsReview} earnWin=${budget.earningsWindowTickers} fairValue=${budget.fairValue ?? "—"}`,
     );
   }
   if (budget.anomalies.length) console.log(`  anomalies: ${budget.anomalies.join(", ")}`);
   if (actions.length) console.log(`  actions: ${actions.join(", ")}`);
   console.log(`  report: ${REPORT}`);
 
+  if (!jobOk) {
+    const why =
+      failureClass === "process"
+        ? `Stack down: ${(finalFlags.processFailed || []).join(", ") || "api/vite/postgres"}`
+        : failureClass === "enrich"
+          ? "Enrich/peer/scores step failed — see maintain-last.json"
+          : "Maintain failed — open Settings → Scheduled Tasks";
+    notifyMac("Fildi Maintain FAILED", why);
+  }
+
   process.exit(jobOk ? 0 : 1);
 }
 
 main().catch((e) => {
   console.error("[maintain] fatal", e);
+  notifyMac("Fildi Maintain FATAL", String(e?.message || e).slice(0, 180));
   process.exit(2);
 });

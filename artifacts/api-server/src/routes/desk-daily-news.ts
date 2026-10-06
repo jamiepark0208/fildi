@@ -12,16 +12,127 @@ import { Router } from "express";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { desc, sql, eq } from "drizzle-orm";
-import { db, deskCommentaries, deskNewsFeedback } from "@workspace/db";
+import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { db, deskCommentaries, deskNewsFeedback, earningsCalendar, positions, watchlist } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 import { callHaiku } from "../lib/haiku.js";
 import { ingestDeskCommentaries, ensureDeskCommentariesTable } from "../lib/desk-commentary.js";
 import {
   DESK_BRIEF_PREFS,
+  extractTickersClean,
   newsSessionWindow,
 } from "../lib/desk-commentary-normalize.js";
+import {
+  digDeskItem,
+  filterDisplayDigFacts,
+  formatDigFactsForPrompt,
+  type DigFact,
+} from "../lib/desk-link-dig.js";
+import { enrichShallowDigFacts } from "../lib/desk-dig-enrich.js";
+import {
+  assessDailyNewsQuality,
+  sanitizeDailyNewsContent,
+} from "../lib/desk-daily-news-quality.js";
+
+async function loadBookTickers(userId: number | undefined): Promise<{
+  watch: string[];
+  book: string[];
+  all: Set<string>;
+  promptBlock: string;
+}> {
+  if (userId == null) {
+    return { watch: [], book: [], all: new Set(), promptBlock: "(no user — skip book bias)" };
+  }
+  const [wl, open] = await Promise.all([
+    db.select({ ticker: watchlist.ticker })
+      .from(watchlist)
+      .where(eq(watchlist.userId, userId))
+      .limit(80),
+    db.select({ ticker: positions.ticker, positionType: positions.positionType })
+      .from(positions)
+      .where(and(eq(positions.userId, userId), isNull(positions.closedAt)))
+      .limit(40),
+  ]);
+  const watch = [...new Set(wl.map((r) => r.ticker.toUpperCase()))].slice(0, 40);
+  const book = [...new Set(open.map((r) => r.ticker.toUpperCase()))].slice(0, 25);
+  const shorts = open
+    .filter((r) => r.positionType === "short_put" || r.positionType === "short_call")
+    .map((r) => `${r.ticker.toUpperCase()}(${r.positionType === "short_put" ? "SP" : "SC"})`);
+  const shortUniq = [...new Set(shorts)].slice(0, 20);
+  const all = new Set([...watch, ...book]);
+  return {
+    watch,
+    book,
+    all,
+    promptBlock: [
+      `Open positions: ${book.length ? book.join(", ") : "(none)"}`,
+      shortUniq.length ? `Short options: ${shortUniq.join(", ")}` : null,
+      `Watchlist: ${watch.length ? watch.join(", ") : "(empty)"}`,
+    ].filter(Boolean).join("\n"),
+  };
+}
+
+async function loadNearEarnings(book: Set<string>): Promise<string> {
+  if (book.size === 0) return "(none in book)";
+  const today = new Date();
+  const start = today.toISOString().slice(0, 10);
+  const end = new Date(today.getTime() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const rows = await db
+    .select({
+      ticker: earningsCalendar.ticker,
+      reportDate: earningsCalendar.reportDate,
+    })
+    .from(earningsCalendar)
+    .where(and(
+      gte(earningsCalendar.reportDate, start),
+      lte(earningsCalendar.reportDate, end),
+    ))
+    .limit(200);
+  const hits = rows
+    .filter((r) => book.has(r.ticker.toUpperCase()))
+    .slice(0, 12)
+    .map((r) => `${r.ticker.toUpperCase()} ${r.reportDate}`);
+  return hits.length ? hits.join(", ") : "(none in book next 14d)";
+}
+
+interface DeskRowLite {
+  id: number;
+  source: string;
+  kind: string;
+  category: string | null;
+  subject: string;
+  receivedAt: Date;
+  synopsis: string | null;
+  bodyPlain: string | null;
+  noiseScore: number | null;
+  articlePublishedAt: Date | null;
+  tickersMentioned: unknown;
+  meta: unknown;
+}
+
+function rowTickers(r: DeskRowLite): string[] {
+  const fromJson = Array.isArray(r.tickersMentioned)
+    ? (r.tickersMentioned as string[]).map((t) => String(t).toUpperCase())
+    : [];
+  const fromText = extractTickersClean(`${r.subject}\n${r.synopsis ?? ""}\n${(r.bodyPlain ?? "").slice(0, 1200)}`);
+  return [...new Set([...fromText, ...fromJson])].filter((t) => /^[A-Z]{1,5}$/.test(t));
+}
+
+/** Rank for packing: book hits + diggable activity + category priors. */
+function rankForPack(r: DeskRowLite, book: Set<string>, digCount: number): number {
+  const tickers = rowTickers(r);
+  const hits = tickers.filter((t) => book.has(t)).length;
+  let score = hits * 40 + digCount * 25;
+  if (/watchlist|new activity|analyst|price target/i.test(r.subject)) score += 35;
+  if (/portfolio digest|top gainers|top losers/i.test(r.subject + (r.synopsis ?? ""))) score += 30;
+  if (r.category === "macro" || r.category === "overnight") score += 12;
+  if (r.category === "politics") score += 8;
+  if (r.category === "earnings") score += 10;
+  if (r.source === "factset_streetaccount" || r.source === "factset") score += 8;
+  score -= Math.min(30, (r.noiseScore ?? 0) / 4);
+  return score;
+}
 
 const router = Router();
 
@@ -38,6 +149,9 @@ interface DailyNewsCache {
   maxReceivedAt: string | null;
   sources: string[];
   categories: string[];
+  digFacts?: DigFact[];
+  bookHits?: string[];
+  earningsNear?: string;
 }
 
 function loadCache(dateKey: string): DailyNewsCache | null {
@@ -143,6 +257,9 @@ router.get("/desk-commentaries/daily-news", async (_req, res) => {
             sources: cache.sources,
             categories: cache.categories ?? [],
             sessionStartPt: cache.sessionStartPt,
+            digFacts: filterDisplayDigFacts(cache.digFacts ?? []),
+            bookHits: cache.bookHits ?? [],
+            earningsNear: cache.earningsNear ?? "",
           }
         : null,
     });
@@ -173,19 +290,71 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
       });
     }
 
-    const pack = included
-      .slice(0, 24)
+    const book = await loadBookTickers(req.session.userId);
+    const earningsNear = await loadNearEarnings(book.all).catch(() => "(earnings lookup failed)");
+
+    const digCandidates = included
+      .filter((r) =>
+        /watchlist|new activity|analyst|price target|rating|portfolio digest|continue reading/i.test(
+          `${r.subject} ${r.synopsis ?? ""}`,
+        )
+        || rowTickers(r).some((t) => book.all.has(t)),
+      )
+      .slice(0, 10);
+
+    const digById = new Map<number, DigFact[]>();
+    let allDigFacts: DigFact[] = [];
+    for (const r of digCandidates) {
+      const meta = (r.meta ?? {}) as { contentLinks?: Array<{ url: string }> };
+      const facts = await digDeskItem({
+        source: r.source,
+        subject: r.subject,
+        bodyPlain: r.bodyPlain,
+        synopsis: r.synopsis,
+        contentLinks: meta.contentLinks,
+      });
+      digById.set(r.id, facts);
+      allDigFacts.push(...facts);
+    }
+
+    // TipRanks emails only say "N new ratings" — dig Yahoo for firm/grade/date.
+    allDigFacts = await enrichShallowDigFacts(allDigFacts, { sinceDate: win.startDatePt });
+    // Re-attach enriched facts onto digById for pack DIG lines (by ticker).
+    const enrichedByTicker = new Map<string, DigFact[]>();
+    for (const f of allDigFacts) {
+      const list = enrichedByTicker.get(f.ticker) ?? [];
+      list.push(f);
+      enrichedByTicker.set(f.ticker, list);
+    }
+    for (const [id, facts] of digById) {
+      const tickers = new Set(facts.map((f) => f.ticker));
+      const merged = [...facts];
+      for (const t of tickers) {
+        for (const f of enrichedByTicker.get(t) ?? []) {
+          if (!merged.some((m) => m.detail === f.detail && m.source === f.source)) merged.push(f);
+        }
+      }
+      digById.set(id, merged);
+    }
+
+    const ranked = [...included]
+      .map((r) => ({ r, score: rankForPack(r, book.all, digById.get(r.id)?.length ?? 0) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 18)
+      .map(({ r }) => r);
+
+    const pack = ranked
       .map((r) => {
         const when = (r.articlePublishedAt ?? r.receivedAt).toISOString().replace("T", " ").slice(0, 16);
-        const body = (r.synopsis || r.bodyPlain || "").slice(0, 420);
-        const tickers = Array.isArray(r.tickersMentioned) && r.tickersMentioned.length
-          ? `\nTickers: ${(r.tickersMentioned as string[]).slice(0, 8).join(", ")}`
+        const body = (r.synopsis || r.bodyPlain || "").slice(0, 720);
+        const tickers = rowTickers(r);
+        const dig = digById.get(r.id) ?? [];
+        const digLine = dig.length
+          ? `\nDIG: ${dig.map((f) => `${f.ticker} ${f.kind} ${f.detail}`).join("; ")}`
           : "";
-        const links = ((r.meta as { contentLinks?: Array<{ url: string }> } | null)?.contentLinks ?? [])
-          .slice(0, 2)
-          .map((l) => l.url)
-          .join(" | ");
-        return `[${r.category ?? r.kind}/${r.source} noise=${r.noiseScore ?? "?"}] ${when}\n${r.subject}\n${body}${tickers}${links ? `\nLinks: ${links}` : ""}`;
+        return `[${r.category ?? r.kind}/${r.source} noise=${r.noiseScore ?? "?"}] ${when}\n${r.subject}\n${body}${
+          tickers.length ? `\nTickers: ${tickers.slice(0, 10).join(", ")}` : ""
+        }${digLine}`;
       })
       .join("\n\n---\n\n");
 
@@ -208,45 +377,103 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
       : "(none yet)";
 
     const excludedN = rows.length - included.length;
-    const prompt = `You are a markets desk assistant for a ${DESK_BRIEF_PREFS.role}.
+    const digBlock = formatDigFactsForPrompt(allDigFacts);
+    const bookHits = [...new Set(allDigFacts.map((f) => f.ticker).filter((t) => book.all.has(t)))];
+    const bookCtx = book.promptBlock;
+    const promptBase = `You write a pre-market / session DESK COMMENTARY for a ${DESK_BRIEF_PREFS.role}.
+This is NOT a list of rating chips. It is a short morning-meeting note: what the tape is doing, why, what matters into the cash session, and what a put-seller should do with that.
+
 Session: ${win.label} (PT date ${win.dateKey}).
+
+A good daily stock-market commentary has:
+1) Tape / open bias — futures or cash indices, risk-on vs risk-off in one line with levels/%
+2) Macro drivers — rates/Fed, oil/energy, credit/VIX/USD when the emails mention them (numbers stay)
+3) Cross-asset or politics only if path-to-markets is clear
+4) Sector / single-name catalysts from the emails (earnings, upgrades with firm+grade, movers)
+5) Put-seller takeaway — bias for short premium: lean in / stay light / watch IV into named events
 
 WANT to surface:
 ${DESK_BRIEF_PREFS.want.map((w) => `- ${w}`).join("\n")}
 
 AVOID / ignore:
 ${DESK_BRIEF_PREFS.avoid.map((w) => `- ${w}`).join("\n")}
+- TipRanks/email teasers that only say "N new analyst rating(s)" with no firm, grade, upgrade/downgrade, or PT — NEVER surface those.
+- Empty sections. Do not leave a heading with zero bullets.
+
+BOOK CONTEXT (priority bias only — do NOT invent news about these names):
+${bookCtx}
+- Prefer desk facts that touch open shorts / watchlist tickers.
+- Macro-only items still belong when they move vol/rates for the book.
+
+NEAR EARNINGS (book ∩ next 14d):
+${earningsNear}
+
+SECONDARY DIG (analyst/PT — firm/grade/date when present; ground truth, not the whole brief):
+${digBlock}
 
 User feedback from prior generates this session (honor these):
 ${feedbackBlock}
 
 Rules:
-- Max 8 bullets total across sections.
-- Use ONLY facts present in DESK EMAILS — do not invent catalysts.
-- Prefer actionable risk/opportunity language for option sellers.
-- Keep under 220 words.
+- 6–10 bullets total across sections. Overnight/Macro MUST have ≥2 bullets if any macro/overnight email is in the pack.
+- EACH bullet: start with "- " then **Lead fact with number** — one short clause (≤28 words).
+- Tickers in CAPS. *italics* only for caveats.
+- MUST include confirmed DIG (firm/grade/PT) that touch the book; dig is a supporting strip, not a substitute for macro.
+- NEVER write "N new analyst rating(s)" or "Monitor TipRanks".
+- Use ONLY facts in DESK EMAILS / DIG — do not invent levels, firms, or sectors.
+- Put-seller takeaway is mandatory when there is any usable tape/macro (1–2 bullets).
+- Keep under 220 words total.
 - ${excludedN} noisy/promo emails were already filtered out — do not ask for them.
 - If weekend pack: emphasize week-ahead risk into Monday open.
 
-Structure exactly:
+Structure exactly (omit a heading only if truly zero bullets for that theme):
 ## Overnight / Macro
 ## Cross-asset / Politics
 ## Sector & tickers
-## Put-seller takeaway (1-2 bullets)
+## Put-seller takeaway
 
-=== DESK EMAILS (${included.length} included / ${rows.length} total) ===
+=== DESK EMAILS (top ${ranked.length} of ${included.length} included / ${rows.length} total) ===
 ${pack || "(all emails filtered as noise — say so briefly)"}`;
 
-    const { text: content } = await callHaiku({
-      prompt,
-      maxTokens: 500,
-      trigger: "desk-daily-news",
-      surfaceType: "desk-daily-news",
-      userId: req.session.userId,
-      ticker: "_",
-    });
-    const sources = [...new Set(included.map((r) => r.source))];
-    const categories = [...new Set(included.map((r) => r.category ?? r.kind).filter(Boolean))] as string[];
+    let content = (
+      await callHaiku({
+        prompt: promptBase,
+        maxTokens: 420,
+        trigger: "desk-daily-news",
+        surfaceType: "desk-daily-news",
+        userId: req.session.userId,
+        ticker: "_",
+      })
+    ).text;
+
+    let quality = assessDailyNewsQuality(content);
+    if (!quality.ok) {
+      content = (
+        await callHaiku({
+          prompt: `${promptBase}
+
+QUALITY FAIL on prior draft — rewrite and fix: ${quality.reasons.join("; ")}.
+Prior draft (do not repeat its mistakes):
+${content.slice(0, 600)}`,
+          maxTokens: 420,
+          trigger: "desk-daily-news-retry",
+          surfaceType: "desk-daily-news",
+          userId: req.session.userId,
+          ticker: "_",
+        })
+      ).text;
+      quality = assessDailyNewsQuality(content);
+    }
+    if (!quality.ok) {
+      content = sanitizeDailyNewsContent(content);
+      if (!content.trim()) {
+        content =
+          "## Overnight / Macro\n**Desk pack thin on confirmed catalysts** — macro emails only; analyst teasers omitted pending firm/grade.\n\n## Put-seller takeaway\nNo actionable rating detail confirmed; lean on levels from macro pack, not TipRanks counts.";
+      }
+    }
+
+    const sources = [...new Set(ranked.map((r) => r.source))];
+    const categories = [...new Set(ranked.map((r) => r.category ?? r.kind).filter(Boolean))] as string[];
     const maxReceivedAt = rows[0]?.receivedAt?.toISOString() ?? null;
     const cache: DailyNewsCache = {
       date: win.dateKey,
@@ -258,6 +485,9 @@ ${pack || "(all emails filtered as noise — say so briefly)"}`;
       maxReceivedAt,
       sources,
       categories,
+      digFacts: filterDisplayDigFacts(allDigFacts).slice(0, 24),
+      bookHits,
+      earningsNear,
     };
     saveCache(cache);
 
@@ -280,6 +510,9 @@ ${pack || "(all emails filtered as noise — say so briefly)"}`;
         sources: cache.sources,
         categories: cache.categories,
         sessionStartPt: cache.sessionStartPt,
+        digFacts: cache.digFacts,
+        bookHits,
+        earningsNear,
       },
     });
   } catch (err: any) {

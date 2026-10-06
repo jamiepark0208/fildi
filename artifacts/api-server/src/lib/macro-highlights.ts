@@ -1,10 +1,9 @@
 import { z } from "zod";
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { ECONOMIC_EVENTS } from "./macro-data.js";
 import { WATCHLIST } from "./constants.js";
 import { loadMacroCache } from "./macro-data.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 // ── Zod schema ─────────────────────────────────────────────────────────────────
 
@@ -332,20 +331,22 @@ Rules: 6–8 bullets only. Each bullet grounded in a news item, event, or snapsh
 
 // ── Parse + validate ───────────────────────────────────────────────────────────
 
+/**
+ * Pulls the JSON payload out of an LLM reply: prefers a ```json fenced block, then the
+ * outermost object/array (`open` = "{" or "[") so surrounding prose doesn't break JSON.parse.
+ */
+export function extractJsonText(text: string, open: "{" | "[" = "{"): string {
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = codeBlock ? codeBlock[1].trim() : text.trim();
+  const close = open === "{" ? "}" : "]";
+  const startIdx = candidate.indexOf(open);
+  const endIdx   = candidate.lastIndexOf(close);
+  return startIdx >= 0 && endIdx > startIdx ? candidate.slice(startIdx, endIdx + 1) : candidate;
+}
+
 export function parseHighlightsResponse(text: string, marketDate: string): HighlightsPayload {
   try {
-    // Try extracting JSON from markdown code block first, then bare JSON
-    const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = codeBlock ? codeBlock[1].trim() : text.trim();
-
-    // Find the outermost JSON object in case there's surrounding text
-    const startIdx = candidate.indexOf("{");
-    const endIdx   = candidate.lastIndexOf("}");
-    const jsonStr  = startIdx >= 0 && endIdx > startIdx
-      ? candidate.slice(startIdx, endIdx + 1)
-      : candidate;
-
-    const raw = JSON.parse(jsonStr);
+    const raw = JSON.parse(extractJsonText(text, "{"));
 
     // Coerce watchlistMovers.changePct to number if model returned string
     if (Array.isArray(raw.watchlistMovers)) {

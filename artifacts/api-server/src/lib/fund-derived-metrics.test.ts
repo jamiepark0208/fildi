@@ -5,6 +5,9 @@ import {
   grossProfitability,
   accrualsRatio,
   avgEpsSurprise,
+  ibesRevBreadth,
+  avgIbesSue,
+  streetEventRisk,
   piotroskiFScore,
   ownHistoryNorm,
   blendPeerHist,
@@ -41,6 +44,30 @@ describe("avgEpsSurprise", () => {
   });
   it("null when empty", () => {
     assert.equal(avgEpsSurprise([null, undefined]), null);
+  });
+});
+
+describe("ibesRevBreadth", () => {
+  it("computes (up-down)/est", () => {
+    assert.equal(ibesRevBreadth(7, 1, 20), 0.3);
+  });
+  it("null when no estimates", () => {
+    assert.equal(ibesRevBreadth(1, 0, 0), null);
+  });
+});
+
+describe("avgIbesSue", () => {
+  it("clips and averages", () => {
+    assert.equal(avgIbesSue([1, 2, 10, -10], 4, 5), (1 + 2 + 5 + -5) / 4);
+  });
+});
+
+describe("streetEventRisk", () => {
+  it("true when breadth extreme", () => {
+    assert.equal(streetEventRisk(0.2, 0), true);
+  });
+  it("false when quiet", () => {
+    assert.equal(streetEventRisk(0.05, 0.2), false);
   });
 });
 

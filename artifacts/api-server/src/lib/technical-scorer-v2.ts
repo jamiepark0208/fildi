@@ -41,13 +41,13 @@ function scoreReversalSignal(r: TickerTechnicalsRow): number | null {
 }
 
 function scoreVolatilityState(r: TickerTechnicalsRow): number | null {
+  // A25: do not use RV-proxy ivRank (wrong-signed for option richness). Prefer IV/RV;
+  // fall back to ATM IV level. BB squeeze dropped (lab: no edge).
   const parts: number[] = [];
-  const ivRank = pf(r.ivRank);
-  if (ivRank != null) parts.push(ivRank);
   const ivVsRv = pf(r.ivVsRealizedVol);
   if (ivVsRv != null) parts.push(c01((ivVsRv - 0.5) / 1.0));
-  const bbPct = pf(r.bbWidthPct);
-  if (bbPct != null) parts.push(1 - bbPct);
+  const atmIv = pf(r.atmPutIv);
+  if (atmIv != null && atmIv > 0) parts.push(c01((atmIv - 10) / 50));
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
 }
 
@@ -78,18 +78,27 @@ function scoreVolumeConfirm(r: TickerTechnicalsRow): number | null {
   return pf(r.volumeRatioPct);
 }
 
-const COMPONENTS = [
-  { weight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
-  { weight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
-  { weight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
-  { weight: W_TREND_CONTEXT,    scoreFn: scoreTrendContext },
-  { weight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
-  { weight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
+const COMPONENT_FNS = [
+  { key: "oversoldDepth",   defaultWeight: W_OVERSOLD_DEPTH,   scoreFn: scoreOversoldDepth },
+  { key: "reversalSignal",  defaultWeight: W_REVERSAL_SIGNAL,  scoreFn: scoreReversalSignal },
+  { key: "volatilityState", defaultWeight: W_VOLATILITY_STATE, scoreFn: scoreVolatilityState },
+  { key: "trendContext",    defaultWeight: W_TREND_CONTEXT,    scoreFn: scoreTrendContext },
+  { key: "optionsFlow",     defaultWeight: W_OPTIONS_FLOW,     scoreFn: scoreOptionsFlow },
+  { key: "volumeConfirm",   defaultWeight: W_VOLUME_CONFIRM,   scoreFn: scoreVolumeConfirm },
 ] as const;
 
-/** Self-relative V2 technical score [0,100] from a DB row — matches client computeTechnicalRankingsV2. */
-export function scoreTechnicalRowV2(row: TickerTechnicalsRow): number | null {
-  const compScores = COMPONENTS.map(c => ({ weight: c.weight, score: c.scoreFn(row) }));
+export type TechScoreWeights = Partial<Record<(typeof COMPONENT_FNS)[number]["key"], number>>;
+
+/** Self-relative V2 technical score [0,100] from a DB row.
+ *  Optional `weights` from scorecard_params champion (tech-1.0.0 seeds match defaults). */
+export function scoreTechnicalRowV2(
+  row: TickerTechnicalsRow,
+  weights?: TechScoreWeights,
+): number | null {
+  const compScores = COMPONENT_FNS.map((c) => ({
+    weight: weights?.[c.key] ?? c.defaultWeight,
+    score: c.scoreFn(row),
+  }));
   const available = compScores.filter(c => c.score !== null) as { weight: number; score: number }[];
   if (available.length === 0) return null;
   const availWeight = available.reduce((s, c) => s + c.weight, 0);

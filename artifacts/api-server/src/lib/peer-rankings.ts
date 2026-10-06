@@ -135,11 +135,35 @@ export function computeFundMetricBreakdown(rows: TickerFundamentalsRow[], ticker
 export interface CompetitorRanked {
   rank: number;
   ticker: string;
+  isSubject?: boolean;
   combinedScore: number | null;
   techScore: number | null;
   fundScore: number | null;
+  fundValue: number | null;
+  fundGrowth: number | null;
+  fundQuality: number | null;
+  fundSafety: number | null;
   pendingBackfill: boolean;
   breakdown: FundMetricBreakdown[];
+}
+
+function persistedFund(row: TickerFundamentalsRow | null | undefined): {
+  total: number | null;
+  value: number | null;
+  growth: number | null;
+  quality: number | null;
+  safety: number | null;
+} {
+  if (!row) {
+    return { total: null, value: null, growth: null, quality: null, safety: null };
+  }
+  return {
+    total: n(row.fundTotalScore),
+    value: n(row.fundValueScore),
+    growth: n(row.fundGrowthScore),
+    quality: n(row.fundQualityScore),
+    safety: n(row.fundSafetyScore),
+  };
 }
 
 export function rankCompetitors(
@@ -147,48 +171,62 @@ export function rankCompetitors(
   peerTickers: string[],
   techRows: TickerTechnicalsRow[],
   fundRows: TickerFundamentalsRow[],
+  opts?: { limit?: number; includeSubject?: boolean },
 ): CompetitorRanked[] {
   const key = subject.toUpperCase();
+  const limit = opts?.limit ?? 12;
+  const includeSubject = opts?.includeSubject !== false;
   const techMap = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
   const fundMap = new Map(fundRows.map(r => [r.ticker.toUpperCase(), r]));
 
+  const universe = Array.from(new Set([key, ...peerTickers.map((t) => t.toUpperCase())]));
+
   const techScores = new Map<string, number>();
-  for (const t of peerTickers) {
-    const row = techMap.get(t.toUpperCase());
+  for (const t of universe) {
+    const row = techMap.get(t);
     if (row) {
       const s = scoreTechnicalRowV2(row);
-      if (s != null) techScores.set(t.toUpperCase(), s);
+      if (s != null) techScores.set(t, s);
     }
   }
 
-  const fundScores = computeFundScoresForRows(fundRows);
+  // Fallback peer-relative fund score only when persisted fund_* is missing
+  const fallbackFund = computeFundScoresForRows(fundRows);
 
-  const scored = peerTickers
-    .filter(t => t.toUpperCase() !== key)
-    .map(ticker => {
-      const u = ticker.toUpperCase();
-      const techRow = techMap.get(u) ?? null;
-      const fundRow = fundMap.get(u) ?? null;
-      const techScore = techScores.get(u) ?? null;
-      const fundScore = fundScores.get(u) ?? null;
-      const pendingBackfill =
-        isTechnicalsStale(techRow) || isFundamentalsStale(fundRow);
-      return {
-        ticker: u,
-        combinedScore: computeTechFundScore(techScore, fundScore),
-        techScore,
-        fundScore,
-        pendingBackfill,
-        breakdown: computeFundMetricBreakdown(fundRows, u),
-      };
-    })
+  const scored = universe.map((u) => {
+    const techRow = techMap.get(u) ?? null;
+    const fundRow = fundMap.get(u) ?? null;
+    const techScore = techScores.get(u) ?? null;
+    const pf = persistedFund(fundRow);
+    const fundScore = pf.total ?? fallbackFund.get(u) ?? null;
+    const pendingBackfill =
+      isTechnicalsStale(techRow) || isFundamentalsStale(fundRow);
+    return {
+      ticker: u,
+      isSubject: u === key,
+      combinedScore: computeTechFundScore(techScore, fundScore),
+      techScore,
+      fundScore,
+      fundValue: pf.value,
+      fundGrowth: pf.growth,
+      fundQuality: pf.quality,
+      fundSafety: pf.safety,
+      pendingBackfill,
+      breakdown: computeFundMetricBreakdown(fundRows, u),
+    };
+  });
+
+  const peers = scored
+    .filter((s) => !s.isSubject)
     .sort((a, b) => {
       if (a.combinedScore == null && b.combinedScore == null) return 0;
       if (a.combinedScore == null) return 1;
       if (b.combinedScore == null) return -1;
       return b.combinedScore - a.combinedScore;
     })
-    .slice(0, 5);
+    .slice(0, limit);
 
-  return scored.map((s, i) => ({ rank: i + 1, ...s }));
+  const subjectRow = scored.find((s) => s.isSubject);
+  const ordered = includeSubject && subjectRow ? [subjectRow, ...peers] : peers;
+  return ordered.map((s, i) => ({ rank: i + 1, ...s }));
 }

@@ -8,6 +8,7 @@ import {
   type StyleBucket,
   type FamilyName,
 } from "@/lib/fund-score-treatments";
+import { BREAKDOWN_SECTION_IDS } from "@/lib/scorecard-guide-metadata";
 
 const STYLE_ORDER: StyleBucket[] = [
   "value",
@@ -34,12 +35,37 @@ export function FundamentalTreatmentPanel() {
           DB. Weights below are from <span className="font-mono text-[10px]">fund-score-engine</span> —
           not the legacy editable PUT_SELLER preset (that only affects client experiments).
         </p>
+        <p className="text-[10px] text-zinc-500 mt-1.5">
+          Breakdown memo anchors:{" "}
+          {Object.entries(BREAKDOWN_SECTION_IDS).map(([k, id], i) => (
+            <span key={id}>
+              {i > 0 ? " · " : ""}
+              <span className="font-mono text-amber-200/60">#{id}</span>
+              <span className="text-zinc-600"> ({k})</span>
+            </span>
+          ))}
+        </p>
       </div>
 
       <div className="rounded border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2 text-[11px] text-emerald-200/80">
         Cross-section: <span className="font-mono">{CROSS_SECTION_BLEND.peer * 100}% peer</span> +{" "}
         <span className="font-mono">{CROSS_SECTION_BLEND.sector * 100}% sector</span>.{" "}
         {CROSS_SECTION_BLEND.note}
+      </div>
+
+      <div className="rounded border border-sky-500/25 bg-sky-500/5 px-2.5 py-2 text-[11px] text-sky-100/80 space-y-1 leading-snug">
+        <div className="font-semibold text-sky-200/90 uppercase tracking-wide text-[10px]">Street research extras (WRDS IBES)</div>
+        <p>
+          On rescore, <span className="font-mono text-[10px]">ibesRevBreadth</span> (intra-weight 1.5) and{" "}
+          <span className="font-mono text-[10px]">ibesFwdGrowth</span> (2.5, consensus FY1→FY2; fund-1.1.0) enter the{" "}
+          <b className="text-sky-100">growth</b> family (<span className="font-mono text-[10px]">ibesSue</span> is weight 0)
+          with Yahoo/FMP growth metrics, get peer-ranked, then roll into{" "}
+          <span className="font-mono text-[10px]">fund_total_score</span> → options stockQuality.
+        </p>
+        <p className="text-sky-200/60">
+          Missing IBES shrinks coverage — it does <b className="text-sky-100">not</b> apply a penalty. LSEG/StarMine ranks stay
+          soft UI chips until WRDS loop-B calibration says otherwise (never FIELD_DEFS / gold merge).
+        </p>
       </div>
 
       <ol className="space-y-1 list-decimal list-inside text-[11px] text-amber-200/70">

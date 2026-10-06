@@ -5,7 +5,8 @@ Local compute only (~2–3 min), no vendor calls, no tokens. Report only: nothin
 goes to the user / ASKS like any other methodology change.
 
 Steps: lab replay (live technical engines, monthly dates) → lab outcomes → lab fundamentals → lab report → gate 1 (regime / confidence)
-→ gate 1b (lookup / tail caps) → gate 1c (win rates; rebuilds watchlist_sync.win_rates). Summary: out/runs/monthly_YYYYMMDD.md with
+→ gate 1b (lookup / tail caps) → gate 1c (win rates; rebuilds watchlist_sync.win_rates) → fair value validation
+(research/fair_value/validate_snapshots.py: live snapshots vs later returns, stability, coverage). Summary: out/runs/monthly_YYYYMMDD.md with
 each step's headline and the win-rate cells that moved > 2 pts since the previous table.
 
 Usage: .venv/bin/python monthly.py [--force]
@@ -35,6 +36,7 @@ STEPS = [
     ("gate 1 (regime / confidence)", [PY, "analysis/proto.py", "--rebuild"], HERE),
     ("gate 1b (lookup / tail caps)", [PY, "analysis/proto_b.py"], HERE),
     ("gate 1c (win rates)", [PY, "analysis/proto_c.py", "--final", "--fresh"], HERE),
+    ("fair value validation", [PY, str(HERE.parents[1] / "research" / "fair_value" / "validate_snapshots.py")], HERE),
 ]
 
 

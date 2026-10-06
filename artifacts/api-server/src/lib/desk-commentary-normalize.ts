@@ -110,6 +110,17 @@ export function unwrapRedirectUrl(raw: string): string {
       url = ud[1];
     }
   }
+  // TipRanks / Postmark click wrappers: …/3s/www.tipranks.com*2Fstocks*2FOKLO*3F…
+  const pst = url.match(/pstmrk\.it\/3s\/(.+?)(?:\/enfm\/|$)/i);
+  if (pst?.[1]) {
+    const decoded = pst[1]
+      .replace(/\*/g, "%")
+      .replace(/%2F/gi, "/")
+      .replace(/%3F/gi, "?")
+      .replace(/%3D/gi, "=")
+      .replace(/%26/gi, "&");
+    url = decoded.startsWith("http") ? decoded : `https://${decoded}`;
+  }
   // Axios / Finimize click trackers with base64 path segment
   const b64 = url.match(/\/(?:click|c)\/[^/]+\/([A-Za-z0-9+/=_-]{20,})/i);
   if (b64?.[1]) {
@@ -135,11 +146,13 @@ export function classifyLink(url: string, host?: string): LinkKindHint {
   const h = (host ?? "").toLowerCase();
   if (/unsubscribe|pref(?:erence)?s?|email-settings|manage.?subscription|opt.?out/i.test(u)) return "unsubscribe";
   if (/phishalarm|proofpoint\.com\/ewt|safelinks\.protection/i.test(u)) return "tracking";
+  // Unwrapped TipRanks stock/news pages are content; raw pstmrk account links are tracking.
+  if (/pstmrk\.it/i.test(h) && !/tipranks\.com\/(stocks|news)/i.test(u)) return "tracking";
   if (/urldefense\.com|click\d*\.email\.|link\.(axios|finimize)/i.test(h) && !/axios\.com\/|finimize\.com\//i.test(u)) {
     return "tracking";
   }
   if (/twitter\.com|x\.com|facebook\.com|linkedin\.com|instagram\.com|youtube\.com/i.test(h)) return "social";
-  if (/account\/newsletters|\/subscribe|welcome/i.test(u)) return "promo";
+  if (/account\/newsletters|\/subscribe|welcome|personal-settings|my-notifications/i.test(u)) return "promo";
   return "content";
 }
 
@@ -202,6 +215,11 @@ export function extractArticlePublishedAt(text: string, receivedAt: Date): Date 
 
 export function extractTickersClean(text: string): string[] {
   const out = new Set<string>();
+  // "Oklo Inc (OKLO)" / "Tesla (TSLA)"
+  for (const m of text.matchAll(/\(([A-Z]{1,5})\)/g)) {
+    const t = m[1]!;
+    if (!TICKER_STOP.has(t)) out.add(t);
+  }
   const re = /\b([A-Z]{1,5})(?:\s*\(|\s+--|\/)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -260,10 +278,7 @@ export function scoreNoise(input: {
   if (input.body.replace(/\s+/g, " ").trim().length < 120) {
     score += 15; reasons.push("thin_body");
   }
-  // TipRanks watchlist activity often low-signal for CSP desk
-  if (input.sourceId === "tipranks" && /watchlist|new activity/i.test(s)) {
-    score += 20; reasons.push("tipranks_watchlist");
-  }
+  // TipRanks watchlist digests carry analyst/PT activity — keep (do NOT noise-boost).
 
   return { score: Math.min(100, score), reasons };
 }
@@ -339,9 +354,14 @@ export function normalizeDeskPayload(raw: {
     sourceId,
   });
 
-  const tickers = Array.isArray(raw.tickersMentioned) && raw.tickersMentioned.length
-    ? (raw.tickersMentioned as string[]).filter((t) => !TICKER_STOP.has(t)).slice(0, 40)
-    : extractTickersClean(bodyClean + " " + subject);
+  // Always merge body extract — Apps Script / trackers often inject junk tickers (IAQ/AQ).
+  const fromBody = extractTickersClean(`${bodyClean} ${subject}`);
+  const fromRaw = Array.isArray(raw.tickersMentioned)
+    ? (raw.tickersMentioned as string[])
+        .map((t) => String(t).toUpperCase())
+        .filter((t) => /^[A-Z]{1,5}$/.test(t) && !TICKER_STOP.has(t))
+    : [];
+  const tickers = [...new Set([...fromBody, ...fromRaw])].slice(0, 40);
 
   let synopsis = String(raw.synopsis ?? "").trim();
   if (!synopsis || /urldefense|phishalarm|external sender/i.test(synopsis.slice(0, 80))) {

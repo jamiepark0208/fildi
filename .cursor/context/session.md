@@ -1,9 +1,10 @@
 # Cursor Session Context
 > Cursor-only. Setup: `CURSOR.md` + root `AGENTS.md`. Shared map: `.agents/context/INDEX.md`.
 
-**Last updated:** 2026-09-29
+**Last updated:** 2026-10-06
 
 ## Last session summary
+- Ops Nucleus Phase A + Scheduled Tasks UI densify; fixed regime Wait 0% (PT/ET date mismatch after 9pm PT — Monday leans were under 2026-10-05); compacted task outcomes; after-hours regime Run catch-up
 - Phase A+B: shared ops/INDEX/floors/sector plan moved to `.agents/context/`; root `AGENTS.md` ToC; stubs at old `.cursor` paths; CLAUDE `@AGENTS.md`; execute-after-plan called out in cursor.mdc/rehydrate (Plan mode pause was product behavior, not a broken hook).
 - Daily maintain + peer/ETF work from earlier in session remain in place.
 
@@ -11,3 +12,6 @@
 - Start: `AGENTS.md` → `.agents/context/INDEX.md` → codegraph
 - After user confirms a plan: **build immediately**
 - Never write `.agents/context/state.md`
+
+## History
+- 2026-10-06 — Ops Nucleus Phase A + Scheduled Tasks UI densify; fixed regime Wait 0% (PT/ET date mismatch after 9pm PT — Monday leans 

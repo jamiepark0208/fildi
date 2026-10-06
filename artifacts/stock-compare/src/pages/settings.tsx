@@ -1,17 +1,15 @@
 import { Fragment, useState, useEffect, type FormEvent } from "react";
-import { useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
-import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, LogOut, UserPlus, KeyRound } from "lucide-react";
+import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, UserPlus } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { PeerGroupsTab } from "@/components/settings/PeerGroupsTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
-import { getTraderPrefs, saveTraderPrefs, DEFAULT_TRADER_PREFS } from "@/lib/trader-prefs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,139 +46,6 @@ interface CacheRow {
   entries: CacheEntry[];
 }
 interface CacheStatus { caches: CacheRow[]; generatedAt: number }
-
-// ─── Profile Tab ──────────────────────────────────────────────────────────────
-
-function ProfileTab() {
-  const { user, refetch } = useAuth();
-  const queryClient = useQueryClient();
-  const [, navigate] = useLocation();
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSuccess, setPwSuccess] = useState(false);
-  const [pwSubmitting, setPwSubmitting] = useState(false);
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    queryClient.removeQueries({ queryKey: ["watchlist"] });
-    queryClient.removeQueries({ queryKey: ["portfolio-snapshot-latest"] });
-    await refetch();
-    navigate("/login");
-  };
-
-  const handleChangePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    setPwError(null);
-    setPwSuccess(false);
-    if (newPassword !== confirmPassword) {
-      setPwError("New passwords don't match");
-      return;
-    }
-    setPwSubmitting(true);
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to change password");
-      setPwSuccess(true);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => setPwSuccess(false), 3000);
-    } catch (err) {
-      setPwError(err instanceof Error ? err.message : "Failed to change password");
-    } finally {
-      setPwSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="max-w-3xl grid grid-cols-2 gap-2">
-      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5">
-        <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1.5">Account</h2>
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-200/40">Email</span>
-            <span className="text-xs font-mono text-white">{user?.email}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-200/40">Username</span>
-            <span className="text-xs font-mono text-white">{user?.username}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-200/40">Role</span>
-            <span className={cn(
-              "text-xs font-semibold px-2 py-0.5 rounded border",
-              user?.role === "admin"
-                ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                : "bg-zinc-900 text-amber-200/50 border-[#d4af37]/20"
-            )}>
-              {user?.role}
-            </span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-xs text-amber-200/50 hover:text-red-400 transition-colors pt-0.5"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Log out
-          </button>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5">
-        <div className="flex items-center gap-2 mb-1.5">
-          <KeyRound className="w-3.5 h-3.5 text-[#d4af37]/70" />
-          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Change Password</h2>
-        </div>
-        <form onSubmit={handleChangePassword} className="space-y-1.5">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={currentPassword}
-            onChange={e => setCurrentPassword(e.target.value)}
-            required
-            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
-          />
-          <input
-            type="password"
-            placeholder="New password (min 8 characters)"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
-            minLength={8}
-            required
-            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            minLength={8}
-            required
-            className="w-full text-xs bg-zinc-900 border border-[#d4af37]/20 rounded-md px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
-          />
-          {pwError && <p className="text-xs text-red-400">{pwError}</p>}
-          {pwSuccess && <p className="text-xs text-green-400">Password updated.</p>}
-          <button
-            type="submit"
-            disabled={pwSubmitting}
-            className="text-xs font-semibold bg-[#d4af37] text-black px-3 py-1.5 rounded-md hover:bg-[#e0bd4a] transition-colors disabled:opacity-50"
-          >
-            {pwSubmitting ? "Updating…" : "Update Password"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ─── User Mgmt Tab ────────────────────────────────────────────────────────────
 
@@ -784,126 +649,49 @@ function CacheMonitorTab() {
   );
 }
 
-// ─── Trading Tab ──────────────────────────────────────────────────────────────
-
-interface BriefContextSummary { strategy: string; userNotes: string; lastUpdated: string }
-
-function TradingTab() {
-  const { user, isAdmin } = useAuth();
-  const [, navigate] = useLocation();
-  const [minWeeklyIncome, setMinWeeklyIncome] = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
-  const [input, setInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
-  const [saved, setSaved] = useState(false);
-
-  const { data: briefCtx } = useQuery<BriefContextSummary>({
-    queryKey: ["daily-brief-context"],
-    queryFn: async () => {
-      const r = await fetch("/api/daily-brief/context", { credentials: "include" });
-      if (!r.ok) throw new Error();
-      return r.json();
-    },
-    staleTime: 60000,
-  });
-
-  const handleSave = () => {
-    const n = parseFloat(input);
-    if (!Number.isFinite(n) || n < 0) return;
-    setMinWeeklyIncome(n);
-    saveTraderPrefs({ minWeeklyIncome: n }, user?.id);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  };
-
-  const handleReset = () => {
-    setInput(String(DEFAULT_TRADER_PREFS.minWeeklyIncome));
-    setMinWeeklyIncome(DEFAULT_TRADER_PREFS.minWeeklyIncome);
-    saveTraderPrefs(DEFAULT_TRADER_PREFS, user?.id);
-  };
-
-  return (
-    <div className="max-w-3xl mt-2 rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-2.5 space-y-1.5">
-      <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Trading</h2>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-amber-200/40">Min weekly income ≥</span>
-        <div className="flex items-center gap-1 border border-[#d4af37]/20 rounded-md px-2 h-6">
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            className="w-10 text-xs bg-transparent text-white focus:outline-none text-center"
-          />
-          <span className="text-xs text-amber-200/40">%/wk</span>
-        </div>
-        <button
-          onClick={handleSave}
-          className="text-xs font-semibold px-2 py-1 rounded-md border border-[#d4af37]/40 text-[#d4af37] bg-transparent hover:bg-[#d4af37]/10 transition-colors"
-        >
-          {saved ? "Saved" : "Save"}
-        </button>
-        {minWeeklyIncome !== DEFAULT_TRADER_PREFS.minWeeklyIncome && (
-          <button onClick={handleReset} className="text-xs text-amber-200/50 hover:text-white transition-colors">
-            Reset
-          </button>
-        )}
-        <span className="text-amber-200/20">·</span>
-        <button
-          onClick={() => navigate("/scorecard-explanation")}
-          className="text-xs font-medium text-[#d4af37] hover:underline"
-        >
-          Edit score weights → Scorecard Guide
-        </button>
-      </div>
-
-      <div className="text-xs text-amber-200/40">
-        Daily Brief Context:{" "}
-        {isAdmin ? (
-          <>managed on <button onClick={() => navigate("/portfolio")} className="text-[#d4af37] hover:underline">Portfolio</button>.</>
-        ) : (
-          <>
-            <span className="text-white/80">{briefCtx?.strategy || "—"}</span>
-            {briefCtx?.userNotes && <> · <span className="text-white/80">{briefCtx.userNotes}</span></>}
-            {" "}<span className="text-amber-200/30">(read-only, set by admin)</span>
-          </>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 opacity-50">
-        <input type="checkbox" disabled className="cursor-not-allowed" />
-        <span className="text-xs text-amber-200/40">Alerts: notify on new scanner strikes matching my filters (coming soon)</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
+type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useSessionState<Tab>("fildi_settings_tab", "profile");
+  const [tab, setTab] = useSessionState<Tab>("fildi_settings_tab", "scorecard-guide");
 
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
-    { id: "profile",         label: "Profile" },
     { id: "scorecard-guide", label: "Scorecard Guide" },
+    { id: "stockdb",         label: "Stock DB" },
     { id: "users",           label: "User Mgmt",       adminOnly: true },
     { id: "cache",           label: "Cache Monitor",   adminOnly: true },
     { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
-    { id: "stockdb",         label: "Stock DB" },
     { id: "peer-groups",     label: "Sector Peers",    adminOnly: true },
     { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
     { id: "feedback",        label: "Feedback",        adminOnly: true },
   ];
 
   // Persisted tab may point at an admin-only tab from a prior admin session —
-  // fall back to Profile rather than rendering a blank pane.
+  // fall back to Scorecard Guide rather than rendering a blank pane.
+  // Also migrate away from removed "profile" tab.
   useEffect(() => {
+    const legacy = tab as string;
+    if (legacy === "profile" || !tabs.some((t) => t.id === tab)) {
+      setTab("scorecard-guide");
+      return;
+    }
     const current = tabs.find(t => t.id === tab);
-    if (current?.adminOnly && !isAdmin) setTab("profile");
+    if (current?.adminOnly && !isAdmin) setTab("scorecard-guide");
   }, [isAdmin, tab, setTab]);
+
+  // Ops Nucleus deep-links (API Monitor / Stock DB) from Scheduled Tasks.
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      const next = (e as CustomEvent<string>).detail;
+      if (next === "api-monitor" || next === "stockdb" || next === "scheduled-tasks") {
+        setTab(next as Tab);
+      }
+    };
+    window.addEventListener("fildi:settings-tab", onTab);
+    return () => window.removeEventListener("fildi:settings-tab", onTab);
+  }, [setTab]);
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
 
@@ -937,7 +725,6 @@ export default function Settings() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-4">
-          {tab === "profile" && <><ProfileTab /><TradingTab /></>}
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}

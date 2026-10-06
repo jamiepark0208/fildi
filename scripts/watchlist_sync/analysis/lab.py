@@ -38,7 +38,7 @@ V2_W = {"oversoldDepth": 0.25, "reversalSignal": 0.20, "volatilityState": 0.22, 
 FEATS = ["dd_52w", "mom_12_1", "dist_ma200", "rev5", "beta", "idio_vol", "iv30", "iv_rv", "iv_rank_1y", "earnings_21", "alpha",
          "mkt_med_dd", "spy_dd_52w", "spy_vrp"]
 OUTS = ["ret_5", "ret_21", "ret_63", "ret_126", "rel_5", "rel_21", "rel_63", "rel_126", "mae_21", "mfe_21", "rv_fwd_21", "vrp_real"]
-CACHE_VERSION = "4"   # bump when load() changes
+CACHE_VERSION = "5"   # bump when load() changes
 ENGINE = ""           # engine digest to grade; default = the most recently replayed base engine (--engine to pin)
 INPUTS = ["realizedVol20d", "rsi14Pct", "mfi14Pct", "stochPct", "priceVsMa50Atr", "priceVsMa200Atr", "ivRankRvProxy", "ivRankEffective", "ivVsRealizedVol",
           "bbWidthPct", "vsSpy20d", "earningsDaysOut"]
@@ -90,7 +90,7 @@ def load() -> dict:
     D["in.fallingKnife"] = col(lambda r: r["inputs"].get("fallingKnife"))
     for k in FEATS:
         D[f"f.{k}"] = col(lambda r, k=k: r["features"].get(k))
-    for k in ("ibes_breadth", "ibes_drift", "ibes_drift_3m", "ibes_disp", "ibes_sue", "ibes_numest"):
+    for k in ("ibes_breadth", "ibes_drift", "ibes_drift_3m", "ibes_disp", "ibes_sue", "ibes_numest", "ibes_fwd_growth"):
         D[f"fu.{k}"] = col(lambda r, k=k: r["fund"].get(k))
     for k in OUTS:
         D[f"o.{k}"] = col(lambda r, k=k: r["outcomes"].get(k))
@@ -368,6 +368,7 @@ def report(D) -> str:
     trend0 = np.nanmean(np.vstack([rk0(D["in.priceVsMa200Atr"]), rk0(D["f.mom_12_1"])]), axis=0)
     for name, sc in [("IBES revision breadth (engine)", D["fu.ibes_breadth"]), ("IBES mean drift, last month (engine)", D["fu.ibes_drift"]),
                      ("IBES mean drift, 3 months", D["fu.ibes_drift_3m"]), ("IBES SUE avg last 4 (engine)", D["fu.ibes_sue"]),
+                     ("IBES fwd EPS growth FY1→FY2 (engine fund-1.1.0)", D["fu.ibes_fwd_growth"]),
                      ("−IBES dispersion", -D["fu.ibes_disp"]), ("StarMine combined alpha", D["f.alpha"]), ("EXPECTATIONS composite", expect)]:
         for tg, lag in (("rel_63", 3), ("rel_126", 6)):
             c = L.card(sc, y(tg), lag, base=D["f.mom_12_1"], others=[("TECH TREND", trend0)])

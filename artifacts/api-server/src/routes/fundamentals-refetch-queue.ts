@@ -1,17 +1,16 @@
+import { sleep } from "../lib/http-client.js";
 import { Router } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, fetchQueue } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
-import { FETCH_FN, CALLS_PER_TICKER } from "../scripts/nightly-enrichment.js";
+import { FETCH_FN } from "../scripts/nightly-enrichment.js";
 import { runPopulateSourceFundamentals } from "../scripts/populate-source-fundamentals.js";
 import { runMergeTrusted } from "../scripts/merge-trusted.js";
-import { recordApiUsage } from "../lib/api-usage.js";
 import { enrichmentRunning, setEnrichmentRunning } from "../lib/scheduler.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── POST /fundamentals/queue-refetch ───────────────────────────────────────────
 // Queue one or more sources for ad-hoc re-fetch for a ticker+field, from the
@@ -114,7 +113,7 @@ router.post("/fundamentals/queue-refetch/run", requireAdmin, async (_req, res) =
       try {
         const status = await fn(ticker);
         if (status === "fail") throw new Error("fetch returned fail");
-        await recordApiUsage(source, CALLS_PER_TICKER[source] ?? 1).catch(() => {});
+        // Quota counted in client logApiCall — do not double-count here.
         await db.update(fetchQueue)
           .set({ status: "done", processedAt: new Date() })
           .where(inArray(fetchQueue.id, rowIds));

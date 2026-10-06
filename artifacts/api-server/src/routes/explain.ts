@@ -1,10 +1,12 @@
 import { Router } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { db, explainCache } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
-import { callHaiku } from "../lib/haiku.js";
-import { recordAiUsage } from "../lib/ai-usage.js";
+import { validate } from "../middleware/validate.js";
+import { markAiCached } from "../middleware/rateLimiter.js";
+import { explainScoreSchema } from "../lib/validators/explain.js";
+import { readLatestFairValue, type LatestFairValue } from "../lib/fair-value-snapshots.js";
 
 const router  = Router();
 
@@ -25,6 +27,8 @@ interface FundamentalData {
   peerGroup?:     string;
   peerGroupSize?: number;
   metricValues?:  Record<string, number | null>;
+  /** Server-attached (never from the client): latest blended fair value snapshot. */
+  fairValueSnapshot?: LatestFairValue | null;
   // Real cross-sectional peer numbers, keyed by metric label — lets the model cite an
   // actual peer median instead of inventing a plausible-sounding benchmark. sectorMedian is
   // the ticker's actual peer-group median (undefined if no/too-small peer group); marketMedian
@@ -75,7 +79,14 @@ const PROMPT_VERSION = "v6"; // v6: side-aware technical prompt (put/call lens)
 
 function fundamentalHash(d: FundamentalData): string {
   const fs = d.familyScores;
-  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}`;
+  // Strength/weakness names are what the 3 bullets are about — when they change, the
+  // explanation is stale even if the rounded pillar scores didn't move. Raw percentiles
+  // stay out of the key so daily drift doesn't force a fresh Haiku call.
+  const story = `${d.topMetrics.join(",")}|${d.weakMetrics.join(",")}`;
+  // Fair value enters the prompt, so a ~10% move in fair/price (or a value-trap flip) refreshes the explanation.
+  const fv = d.fairValueSnapshot;
+  const fvKey = fv?.fairValue && fv.price ? `_fv${Math.round(Math.log(fv.fairValue / fv.price) * 10)}${fv.valueTrap ? "t" : ""}` : "";
+  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}_${story}${fvKey}`;
 }
 
 function technicalHash(d: TechnicalData): string {
@@ -113,7 +124,12 @@ function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
           .join("\n")
       : "";
 
-  return `You explain stock fundamentals to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid and specific. Skip anything unremarkable; only explain what stands out.
+    const fv = d.fairValueSnapshot;
+  const fvLine = fv?.fairValue && fv.price
+    ? `Blended fair value: $${fv.fairValue.toFixed(2)} vs $${fv.price.toFixed(2)} (${((fv.fairValue / fv.price - 1) * 100).toFixed(0)}%), range $${fv.low?.toFixed(2) ?? "?"}–$${fv.high?.toFixed(2) ?? "?"}, ${fv.confidence ?? "low"} confidence${fv.cyclical ? ", cyclical" : ""}${fv.valueTrap ? ". VALUE-TRAP RISK: looks cheap but the 12-month trend is in the bottom half" : ""}.`
+    : "";
+
+return `You explain stock fundamentals to a smart non-expert — like a knowledgeable friend, not a textbook. Be vivid and specific. Skip anything unremarkable; only explain what stands out.
 
 Ticker: ${ticker}
 ${sectorCtx}
@@ -124,12 +140,14 @@ Top strengths: ${d.topMetrics.join(", ") || "none"}
 Top weaknesses: ${d.weakMetrics.join(", ") || "none"}
 ${metricLines ? `\nMetrics (value — percentile, sector median preferred over market median when both given):\n${metricLines}` : ""}
 ${suspectNote}${qualityNote ? "\n" + qualityNote : ""}
+${fvLine}
 
 Write exactly 3 bullet points (starting with -). Rules:
 - Each bullet: max 12 words + one parenthetical with the key number
 - Format: "[what it means for a put seller] (value vs sector median if given, else market median — use ONLY the numbers given above, never invent one)"
 - Example: "Exceptional cash generation, reduces default risk (FCF margin 28% vs 12% sector median)"
 - Only the 3 most significant drivers — skip anything near average
+- Fair value (if given) is a valuation reference, never a buy/sell signal: mention it only if the gap is > 25%; if VALUE-TRAP RISK is flagged, one bullet must say so
 
 No intro. No outro. No investment advice.`;
 }
@@ -184,69 +202,49 @@ No intro. No outro. No investment advice.`;
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
+// Put and call lenses get separate surfaceTypes so both explanations stay cached —
+// explain_cache keeps one row per (ticker, surfaceType), so a shared type made every
+// put↔call toggle overwrite the other and pay for a fresh Haiku call.
+const fundamentalSurface: ExplainSurface<FundamentalData> = {
+  surfaceType:   "fundamental",
+  promptVersion: PROMPT_VERSION,
+  buildPrompt:   (b, d) => buildFundamentalPrompt(b.ticker, d),
+  hashInputs:    (_b, d) => fundamentalHash(d),
+};
+const technicalPutSurface: ExplainSurface<TechnicalData> = {
+  surfaceType:   "technical",
+  promptVersion: PROMPT_VERSION,
+  buildPrompt:   (b, d) => buildTechnicalPrompt(b.ticker, d),
+  hashInputs:    (_b, d) => technicalHash(d),
+};
+const technicalCallSurface: ExplainSurface<TechnicalData> = {
+  ...technicalPutSurface,
+  surfaceType: "technical-call",
+};
+
 // POST /api/explain/score — generate AI explanation for a ticker's score.
 // Checks explain_cache first; only calls Haiku on a cache miss.
-router.post("/explain/score", async (req, res) => {
-  const { ticker, scoreType, fundamentalData, technicalData } = req.body as ExplainRequest;
-
-  if (!ticker || !scoreType) {
-    return res.status(400).json({ error: "ticker and scoreType are required" });
-  }
-
-  let prompt: string;
-  let scoreHash: string;
+router.post("/explain/score", validate(explainScoreSchema), async (req, res) => {
+  const { scoreType, fundamentalData, technicalData } = req.body as ExplainRequest;
+  const ticker = (req.body as ExplainRequest).ticker.toUpperCase();
 
   const userId = req.session.userId!;
   const log = req.log.child({ ticker, scoreType, userId });
+  const bundle: ContextBundle = { ticker, stockEvent: null, marketEvent: null };
 
   try {
+    let result;
     if (scoreType === "fundamental") {
       if (!fundamentalData) return res.status(400).json({ error: "fundamentalData required" });
-      prompt = buildFundamentalPrompt(ticker, fundamentalData);
-      scoreHash = fundamentalHash(fundamentalData);
+      const fairValueSnapshot = await readLatestFairValue(ticker);
+      result = await generateExplanation(ticker, fundamentalSurface, bundle, { ...fundamentalData, fairValueSnapshot }, log, { userId });
     } else {
       if (!technicalData) return res.status(400).json({ error: "technicalData required" });
-      prompt = buildTechnicalPrompt(ticker, technicalData);
-      scoreHash = technicalHash(technicalData);
+      const surface = technicalData.side === "call" ? technicalCallSurface : technicalPutSurface;
+      result = await generateExplanation(ticker, surface, bundle, technicalData, log, { userId });
     }
-
-    log.info({ scoreHash, step: "cache-lookup" }, "explain: checking DB cache");
-
-    const cached = await db.select()
-      .from(explainCache)
-      .where(and(
-        eq(explainCache.ticker, ticker),
-        eq(explainCache.scoreType, scoreType),
-        eq(explainCache.scoreHash, scoreHash),
-      ))
-      .limit(1);
-
-    if (cached.length > 0) {
-      log.info({ step: "cache-hit" }, "explain: serving from cache");
-      recordAiUsage({ userId, ticker, surfaceType: scoreType, cached: true });
-      return res.json({ explanation: cached[0].explanation, cached: true });
-    }
-
-    log.info({ step: "anthropic-call", model: "claude-haiku-4-5-20251001" }, "explain: calling Haiku");
-    const { text: explanation, inputTokens, outputTokens } = await callHaiku({
-      prompt,
-      maxTokens: 300,
-      trigger: "explain/score",
-      surfaceType: scoreType,
-      userId,
-      ticker,
-    });
-    log.info({ step: "anthropic-ok", chars: explanation.length, inputTokens, outputTokens }, "explain: got response");
-
-    log.info({ step: "db-upsert" }, "explain: persisting to cache");
-    await db.insert(explainCache)
-      .values({ ticker, scoreType, scoreHash, explanation })
-      .onConflictDoUpdate({
-        target: [explainCache.ticker, explainCache.scoreType],
-        set: { scoreHash, explanation, generatedAt: new Date() },
-      });
-
-    return res.json({ explanation });
+    markAiCached(res, result.cached);
+    return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/score error");
     return res.status(500).json({ error: String(err) });
@@ -338,9 +336,7 @@ router.post("/explain/options", async (req, res) => {
       log,
       { userId },
     );
-    if (result.cached) {
-      recordAiUsage({ userId, ticker, surfaceType: "options", cached: true });
-    }
+    markAiCached(res, result.cached);
     return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/options error");
@@ -408,9 +404,7 @@ router.post("/explain/live-regime", async (req, res) => {
     const result = await generateExplanation(
       MARKET_TICKER, liveRegimeSurface, bundle, { checkpoints }, log, { userId },
     );
-    if (result.cached) {
-      recordAiUsage({ userId, ticker: MARKET_TICKER, surfaceType: "live-regime", cached: true });
-    }
+    markAiCached(res, result.cached);
     return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/live-regime error");
@@ -516,7 +510,7 @@ router.post("/explain/model-pick", async (req, res) => {
       ticker.toUpperCase(), modelPickSurface, bundle,
       { runId: Number(item.run_id), folderName: String(item.folder_name), item }, log, { userId, maxTokens: 450 },
     );
-    if (result.cached) recordAiUsage({ userId, ticker, surfaceType: "model-pick", cached: true });
+    markAiCached(res, result.cached);
     return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/model-pick error");

@@ -56,6 +56,44 @@ export function avgEpsSurprise(
   return vals.reduce((s, v) => s + v, 0) / vals.length;
 }
 
+/** IBES revision breadth = (numup − numdown) / numest. Null if numest ≤ 0. */
+export function ibesRevBreadth(
+  numup: number | null | undefined,
+  numdown: number | null | undefined,
+  numest: number | null | undefined,
+): number | null {
+  if (numest == null || !Number.isFinite(numest) || numest <= 0) return null;
+  const up = numup == null || !Number.isFinite(numup) ? 0 : numup;
+  const down = numdown == null || !Number.isFinite(numdown) ? 0 : numdown;
+  return (up - down) / numest;
+}
+
+/** Mean of last N IBES SUE scores, winsorized to ±clipAbs. */
+export function avgIbesSue(
+  sues: (number | null | undefined)[],
+  maxN = 4,
+  clipAbs = 5,
+): number | null {
+  const vals = sues
+    .map((v) => (v == null || !Number.isFinite(v) ? null : Math.max(-clipAbs, Math.min(clipAbs, v))))
+    .filter((v): v is number => v !== null)
+    .slice(0, maxN);
+  if (vals.length === 0) return null;
+  return vals.reduce((s, v) => s + v, 0) / vals.length;
+}
+
+/** Near-earnings street event risk for option haircuts (puts and calls). */
+export function streetEventRisk(
+  revBreadth: number | null | undefined,
+  sue: number | null | undefined,
+  breadthAbs = 0.15,
+  sueAbs = 1.5,
+): boolean {
+  const b = revBreadth != null && Number.isFinite(revBreadth) ? Math.abs(revBreadth) : 0;
+  const s = sue != null && Number.isFinite(sue) ? Math.abs(sue) : 0;
+  return b >= breadthAbs || s >= sueAbs;
+}
+
 export type FScoreInputs = {
   netIncome: number | null;
   annualOcf: number | null;

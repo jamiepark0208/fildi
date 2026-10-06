@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db, tickerCik } from "@workspace/db";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
+import { fetchJsonWithRetry } from "./http-client.js";
 
 // ── SEC EDGAR XBRL client ─────────────────────────────────────────────────────
 // No API key required. EDGAR is a public US government service.
@@ -32,33 +33,11 @@ export interface EdgarFundamentalsData {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
-  let delay = 500;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        headers: { "User-Agent": UA, "Accept": "application/json" },
-        signal: AbortSignal.timeout(20_000),
-      });
-    } catch (err) {
-      if (attempt === maxRetries) throw err;
-      await sleep(delay); delay *= 2; continue;
-    }
-    if (res.status === 429 || res.status === 503) {
-      if (attempt === maxRetries) throw new Error(`EDGAR HTTP ${res.status}`);
-      logger.warn({ url, status: res.status, attempt }, "edgar: throttled, backing off");
-      await sleep(delay * 2); delay *= 2; continue;
-    }
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      if (attempt === maxRetries) throw new Error(`EDGAR HTTP ${res.status} for ${url}`);
-      await sleep(delay); delay *= 2; continue;
-    }
-    return res.json();
-  }
+function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
+  return fetchJsonWithRetry(url, {
+    provider: "EDGAR", maxRetries, timeoutMs: 20_000, baseDelayMs: 500, nullOn404: true,
+    init: { headers: { "User-Agent": UA, "Accept": "application/json" } },
+  });
 }
 
 // ── CIK bootstrap ─────────────────────────────────────────────────────────────

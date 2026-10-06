@@ -46,6 +46,10 @@ def main() -> None:
         for r in rows(conn, """SELECT UPPER(oftic) t, statpers d, numest, numup, numdown, meanest, stdev FROM wrds_research.ibes_statsum
                                WHERE measure = 'EPS' AND fiscalp IN ('ANN', 'Y') AND fpi IN ('1', '1.0') AND oftic IS NOT NULL ORDER BY 1, 2"""):
             st[r["t"]].append(r)
+        fy2 = {}  # (oftic, statpers) → FY2 mean, for the engine's ibesFwdGrowth (fund-1.1.0)
+        for r in rows(conn, """SELECT UPPER(oftic) t, statpers d, meanest FROM wrds_research.ibes_statsum
+                               WHERE measure = 'EPS' AND fpi = '2' AND oftic IS NOT NULL AND meanest IS NOT NULL"""):
+            fy2[(r["t"], r["d"])] = f(r["meanest"])
         su = defaultdict(list)
         for r in rows(conn, """SELECT UPPER(oftic) t, anndats d, suescore FROM wrds_research.ibes_surpsum
                                WHERE measure = 'EPS' AND oftic IS NOT NULL AND suescore IS NOT NULL ORDER BY 1, 2"""):
@@ -68,6 +72,16 @@ def main() -> None:
             sd = f(r["stdev"])
             feats["ibes_disp"] = sd / abs(m) if sd is not None and m else None
             feats["ibes_numest"] = n
+            # ibes_fwd_growth mirrors the engine (fundamentals-db.ts): FY2/FY1 − 1 at the same statpers, FY1 > 0,
+            # null when FY1 jumps > 25% vs ≥ 25 days earlier while FY2 moves < 10% (one-off in FY1), clamped [−0.9, 3].
+            e2 = fy2.get((t, r["d"]))
+            if m is not None and m > 0 and e2 is not None:
+                k = bisect_right([q["d"] for q in s], r["d"] - timedelta(days=25)) - 1
+                p1 = f(s[k]["meanest"]) if k >= 0 else None
+                p2 = fy2.get((t, s[k]["d"])) if k >= 0 else None
+                one_off = p1 and p2 and p1 > 0 and p2 > 0 and abs(m / p1 - 1) > 0.25 and abs(e2 / p2 - 1) < 0.10
+                if not one_off:
+                    feats["ibes_fwd_growth"] = max(-0.9, min(3.0, e2 / m - 1))
         u = [max(-5.0, min(5.0, f(x["suescore"]))) for x in su.get(t, []) if x["d"] <= a and f(x["suescore"]) is not None][-4:]
         feats["ibes_sue"] = sum(u) / len(u) if u else None
         out.append((t, a, json.dumps(feats)))
@@ -77,7 +91,8 @@ def main() -> None:
                                ON CONFLICT (ticker, as_of) DO UPDATE SET features = EXCLUDED.features, computed_at = now()""", out)
         conn.commit()
     cov = sum(1 for _, _, x in out if json.loads(x).get("ibes_breadth") is not None)
-    print(f"lab_fund: {len(out)} rows · breadth coverage {cov / max(1, len(out)):.0%}")
+    fg = sum(1 for _, _, x in out if json.loads(x).get("ibes_fwd_growth") is not None)
+    print(f"lab_fund: {len(out)} rows · breadth coverage {cov / max(1, len(out)):.0%} · fwd growth coverage {fg / max(1, len(out)):.0%}")
 
 
 if __name__ == "__main__":

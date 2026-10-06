@@ -9,6 +9,19 @@ export type GuideTab = "fundamental" | "technical" | "options";
 export type CoverageDomain = "fundamentals" | "technicals" | "options";
 export type RefreshCadence = "Weekly" | "Daily" | "On scan" | "Static" | "Mixed";
 
+/** Breakdown memo section IDs — Guide ↔ Breakdown 1:1 deep-links. */
+export const BREAKDOWN_SECTION_IDS = {
+  memoHeader: "bd-memo-header",
+  scoreEvidence: "bd-score-evidence",
+  familyValue: "bd-family-value",
+  familyGrowth: "bd-family-growth",
+  familyQuality: "bd-family-quality",
+  familySafety: "bd-family-safety",
+  scoreHistory: "bd-score-history",
+  street: "bd-street",
+  narrative: "bd-narrative",
+} as const;
+
 import type { WeightGroup } from "@/lib/scoring-weights";
 
 export type GuideMetricRow = {

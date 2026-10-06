@@ -1,0 +1,17 @@
+# Shared research book (≤50). Single SoT for WRDS + LSEG lanes.
+# Edit deliberately — sync scripts cap at MAX_TICKERS=50.
+NVDA
+MSFT
+AAPL
+AMZN
+GOOGL
+META
+TSLA
+AVGO
+AMD
+CRM
+ORCL
+NFLX
+COST
+JPM
+XOM

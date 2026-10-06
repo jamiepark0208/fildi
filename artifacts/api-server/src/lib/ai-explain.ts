@@ -1,11 +1,12 @@
-// Generalizes the cache-lookup -> Haiku-call -> upsert pattern that routes/explain.ts
-// originally inlined for fundamental/technical scores, so new "Explain AI" surfaces
-// (options scanner, stock-breakdown, ...) can reuse it instead of duplicating it.
+// Generalizes the cache-lookup -> Haiku-call -> upsert pattern so every "Explain AI"
+// surface (score, options scanner, live regime, model pick, ...) shares one path
+// instead of re-inlining it.
 import { eq, and } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import type { Logger } from "pino";
 import type { ContextBundle } from "./explain-context.js";
 import { callHaiku } from "./haiku.js";
+import { recordAiUsage } from "./ai-usage.js";
 
 export interface ExplainSurface<TExtra> {
   surfaceType: string;
@@ -15,6 +16,17 @@ export interface ExplainSurface<TExtra> {
   hashInputs: (bundle: ContextBundle, extra: TExtra) => string;
 }
 
+export interface ExplanationResult {
+  explanation: string;
+  cached: boolean;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+// Concurrent misses for the same (ticker, surface, hash) share ONE Haiku call — two
+// tabs / a double-click would otherwise each pay for an identical explanation.
+const inflight = new Map<string, Promise<ExplanationResult>>();
+
 export async function generateExplanation<TExtra>(
   ticker: string,
   surface: ExplainSurface<TExtra>,
@@ -22,9 +34,37 @@ export async function generateExplanation<TExtra>(
   extra: TExtra,
   log: Logger,
   opts?: { userId?: number; maxTokens?: number },
-): Promise<{ explanation: string; cached: boolean; inputTokens: number; outputTokens: number }> {
+): Promise<ExplanationResult> {
   const scoreHash = surface.hashInputs(bundle, extra);
+  const key = `${ticker}|${surface.surfaceType}|${scoreHash}`;
 
+  const pending = inflight.get(key);
+  if (pending) {
+    log.info({ ticker, surfaceType: surface.surfaceType, step: "inflight-join" }, "ai-explain: joining in-flight generation");
+    const shared = await pending;
+    // The caller that started the call already logged its token usage; this one rode along for free.
+    if (opts?.userId != null) recordAiUsage({ userId: opts.userId, ticker, surfaceType: surface.surfaceType, cached: true });
+    return { ...shared, cached: true, inputTokens: 0, outputTokens: 0 };
+  }
+
+  const promise = lookupOrGenerate(ticker, surface, bundle, extra, scoreHash, log, opts);
+  inflight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inflight.delete(key);
+  }
+}
+
+async function lookupOrGenerate<TExtra>(
+  ticker: string,
+  surface: ExplainSurface<TExtra>,
+  bundle: ContextBundle,
+  extra: TExtra,
+  scoreHash: string,
+  log: Logger,
+  opts?: { userId?: number; maxTokens?: number },
+): Promise<ExplanationResult> {
   log.info({ ticker, surfaceType: surface.surfaceType, scoreHash, step: "cache-lookup" }, "ai-explain: checking DB cache");
 
   const cached = await db.select()
@@ -38,6 +78,8 @@ export async function generateExplanation<TExtra>(
 
   if (cached.length > 0) {
     log.info({ ticker, surfaceType: surface.surfaceType, step: "cache-hit" }, "ai-explain: serving from cache");
+    // callHaiku records misses; hits are recorded here so every surface's audit log is complete.
+    if (opts?.userId != null) recordAiUsage({ userId: opts.userId, ticker, surfaceType: surface.surfaceType, cached: true });
     return { explanation: cached[0].explanation, cached: true, inputTokens: 0, outputTokens: 0 };
   }
 
@@ -54,6 +96,8 @@ export async function generateExplanation<TExtra>(
   });
   log.info({ ticker, surfaceType: surface.surfaceType, chars: explanation.length, inputTokens, outputTokens, step: "anthropic-ok" }, "ai-explain: got response");
 
+  // One row per (ticker, surfaceType): a new hash replaces the old explanation. Surfaces
+  // whose variants should coexist (e.g. technical put vs call lens) need distinct surfaceTypes.
   await db.insert(explainCache)
     .values({ ticker, scoreType: surface.surfaceType, scoreHash, explanation })
     .onConflictDoUpdate({

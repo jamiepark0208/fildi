@@ -35,6 +35,10 @@ import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
 import liveRouter from "./live";
 import trackRecordRouter from "./track-record";
+import researchWrdsRouter from "./research-wrds";
+import researchLsegRouter from "./research-lseg";
+import researchOpsRouter from "./research-ops";
+import fundScoreNotesRouter from "./fund-score-notes";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { explainLimiter } from "../middleware/rateLimiter.js";
 
@@ -75,11 +79,12 @@ router.use(scheduledTasksRouter);
 // A no-path `.use(requireAuth)` in that position becomes a global gate for
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
-router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record", "/schwab"], requireAuth);
+router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record", "/schwab", "/research"], requireAuth);
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);
 router.use(stocksRouter);
+router.use(fundScoreNotesRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);
 router.use(technicalRouter);
@@ -87,6 +92,10 @@ router.use(explainRouter);
 router.use(sdmRouter);
 router.use(liveRouter);
 router.use(trackRecordRouter);
+// Local research caches (WRDS/LSEG) — DB read only, never live vendor calls.
+router.use(researchWrdsRouter);
+router.use(researchLsegRouter);
+router.use(researchOpsRouter);
 
 // watchlist.ts, feed.ts, and positions.ts each have their own internal
 // blanket `router.use(requireAuth)` (all-user-specific routes, intentional),

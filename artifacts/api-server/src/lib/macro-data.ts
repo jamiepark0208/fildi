@@ -1,5 +1,4 @@
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "./yahoo-client.js";
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 

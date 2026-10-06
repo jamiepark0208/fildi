@@ -11,9 +11,14 @@ interface FundMetricBreakdown {
 interface CompetitorRanked {
   rank: number;
   ticker: string;
+  isSubject?: boolean;
   combinedScore: number | null;
   techScore: number | null;
   fundScore: number | null;
+  fundValue?: number | null;
+  fundGrowth?: number | null;
+  fundQuality?: number | null;
+  fundSafety?: number | null;
   pendingBackfill: boolean;
   breakdown: FundMetricBreakdown[];
 }
@@ -30,6 +35,10 @@ interface CompetitorsResponse {
 
 interface CompetitorsSectionProps {
   ticker: string;
+  /** Click peer → navigate / select */
+  onSelectTicker?: (t: string) => void;
+  /** Dense table without outer chrome (Breakdown embeds its own panel). */
+  compact?: boolean;
 }
 
 function useCompetitors(ticker: string) {
@@ -45,7 +54,7 @@ function useCompetitors(ticker: string) {
   });
 }
 
-function scoreColor(score: number | null): string {
+function scoreColor(score: number | null | undefined): string {
   if (score == null) return "text-white/40";
   if (score >= 65) return "text-green-400";
   if (score >= 45) return "text-yellow-400";
@@ -66,26 +75,71 @@ function metricValueStr(val: number): string {
   return val.toFixed(2);
 }
 
-function CompetitorRow({ row }: { row: CompetitorRanked }) {
+function fmt(score: number | null | undefined): string {
+  return score != null ? score.toFixed(0) : "—";
+}
+
+const COLS = "grid-cols-[minmax(0,1.2fr)_28px_28px_22px_22px_22px_22px_28px]";
+
+function CompetitorRow({
+  row,
+  onSelectTicker,
+}: {
+  row: CompetitorRanked;
+  onSelectTicker?: (t: string) => void;
+}) {
+  const clickable = !!onSelectTicker && !row.isSubject;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="grid grid-cols-[minmax(0,1fr)_28px_28px_28px] items-center gap-1 py-0.5 px-1 rounded hover:bg-white/5 transition-colors cursor-default">
-          <span className="font-mono font-semibold text-[11px] text-foreground truncate">{row.ticker}</span>
+        <button
+          type="button"
+          disabled={!clickable}
+          onClick={() => clickable && onSelectTicker?.(row.ticker)}
+          className={cn(
+            "grid w-full items-center gap-0.5 py-0.5 px-1 rounded text-left transition-colors",
+            COLS,
+            row.isSubject
+              ? "bg-[#d4af37]/10 border border-[#d4af37]/25"
+              : "hover:bg-white/5",
+            clickable ? "cursor-pointer" : "cursor-default",
+          )}
+        >
+          <span
+            className={cn(
+              "font-mono font-semibold text-[11px] truncate",
+              row.isSubject ? "text-[#d4af37]" : "text-foreground",
+            )}
+          >
+            {row.ticker}
+            {row.isSubject ? " · you" : ""}
+          </span>
           <span className={cn("text-right font-mono text-[10px] font-bold", scoreColor(row.combinedScore))}>
-            {row.combinedScore != null ? row.combinedScore.toFixed(0) : "—"}
+            {fmt(row.combinedScore)}
           </span>
           <span className={cn("text-right font-mono text-[10px]", scoreColor(row.fundScore))}>
-            {row.fundScore != null ? row.fundScore.toFixed(0) : "—"}
+            {fmt(row.fundScore)}
+          </span>
+          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundValue))}>
+            {fmt(row.fundValue)}
+          </span>
+          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundGrowth))}>
+            {fmt(row.fundGrowth)}
+          </span>
+          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundQuality))}>
+            {fmt(row.fundQuality)}
+          </span>
+          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundSafety))}>
+            {fmt(row.fundSafety)}
           </span>
           <span className={cn("text-right font-mono text-[10px]", scoreColor(row.techScore))}>
-            {row.techScore != null ? row.techScore.toFixed(0) : "—"}
+            {fmt(row.techScore)}
           </span>
-        </div>
+        </button>
       </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-[240px]">
+      <TooltipContent side="left" className="max-w-[260px]">
         {row.breakdown.length === 0 ? (
-          <p className="text-xs">No fundamental breakdown available.</p>
+          <p className="text-xs">No metric breakdown.</p>
         ) : (
           <table className="text-[11px] border-collapse">
             <tbody>
@@ -109,30 +163,38 @@ function CompetitorRow({ row }: { row: CompetitorRanked }) {
   );
 }
 
-/** Fundamental/technical peer scoring — read-only, DB-persisted (no navigation). */
-export function CompetitorsSection({ ticker }: CompetitorsSectionProps) {
+/** Peer cohort ranked by tech+fund — relative comparison table. */
+export function CompetitorsSection({ ticker, onSelectTicker, compact }: CompetitorsSectionProps) {
   const { data, isLoading } = useCompetitors(ticker);
   const subtitle = data?.groupName ?? [data?.industry, data?.sector].filter(Boolean).join(" · ");
 
+  if (isLoading) {
+    return <p className="text-[11px] text-amber-200/50">Loading peers…</p>;
+  }
+  if (!data || data.ranked.length === 0) {
+    return <p className="text-[11px] text-amber-200/45 italic">No peers found for this ticker yet.</p>;
+  }
+
   return (
-    <div>
-      {isLoading ? (
-        <p className="text-sm text-foreground">Loading…</p>
-      ) : !data || data.ranked.length === 0 ? (
-        <p className="text-sm text-foreground">No peers found for this ticker yet.</p>
-      ) : (
-        <div className="space-y-0">
-          <div className="grid grid-cols-[minmax(0,1fr)_28px_28px_28px] gap-1 px-1 pb-0.5 border-b border-[#d4af37]/20">
-            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide truncate">Peers</span>
-            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tot</span>
-            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Fnd</span>
-            <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tch</span>
-          </div>
-          {data.ranked.map(row => (
-            <CompetitorRow key={row.ticker} row={row} />
-          ))}
-        </div>
+    <div className={cn(!compact && "space-y-1")}>
+      {subtitle && (
+        <p className="text-[10px] text-zinc-500 truncate mb-1">{subtitle}</p>
       )}
+      <div className={cn("grid gap-0.5 px-1 pb-0.5 border-b border-[#d4af37]/20", COLS)}>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide truncate">Ticker</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tot</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Fnd</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">V</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">G</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Q</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">S</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tch</span>
+      </div>
+      <div className={cn(!compact && "max-h-[280px] overflow-y-auto")}>
+        {data.ranked.map((row) => (
+          <CompetitorRow key={row.ticker} row={row} onSelectTicker={onSelectTicker} />
+        ))}
+      </div>
     </div>
   );
 }

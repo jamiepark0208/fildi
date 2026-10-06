@@ -26,11 +26,25 @@ export interface HaikuCallResult {
 }
 
 export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
-  const msg = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: opts.maxTokens,
-    messages: [{ role: "user", content: opts.prompt }],
-  });
+  let msg: Anthropic.Message;
+  try {
+    msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: opts.maxTokens,
+      messages: [{ role: "user", content: opts.prompt }],
+    });
+  } catch (err) {
+    // Failed calls still count toward the API Monitor and show up in api.log.
+    logApiCall({
+      source: "anthropic",
+      fn: "messages.create",
+      trigger: opts.trigger,
+      ticker: opts.ticker,
+      outcome: "failure",
+      error: String((err as Error)?.message ?? err),
+    });
+    throw err;
+  }
   const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
   const inputTokens = msg.usage?.input_tokens ?? 0;
   const outputTokens = msg.usage?.output_tokens ?? 0;
@@ -41,7 +55,8 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
     trigger: opts.trigger,
     ticker: opts.ticker,
     outcome: "success",
-    fieldsReturned: inputTokens + outputTokens,
+    inputTokens,
+    outputTokens,
   });
 
   if (opts.userId != null) {

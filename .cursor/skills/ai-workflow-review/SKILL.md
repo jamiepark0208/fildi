@@ -24,6 +24,8 @@ Reports land in `.cursor/context/ai-workflow-reviews/`.
 
 `--verify` prints a proof line like `Saved ~N est. hot-context tokens (−X%)` and exits non-zero on regression.
 
+**Cadence:** Sunday Mac Maintain (`--enrich-if-due`) already runs this script then `--verify` after the ops digest — no separate LaunchAgent. Manual Run remains on Scheduled Tasks → AI workflow review.
+
 ## Checklist (same as script)
 
 1. Trim `.cursor/context/session.md` + `cursor-state.md` to facts only  

@@ -48,6 +48,8 @@ interface ScannerRowProps {
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
+  /** WRDS IBES extreme revision/SUE — tighter ER haircut (puts and calls). */
+  streetEventRisk?: boolean;
   macroRegime?: MacroRegime;
   allWatchlistIVs?: number[];
   strikeWeights?: Record<string, number>;
@@ -81,6 +83,7 @@ export function ScannerRow({
   onOverride,
   techRow,
   fundTotalScore,
+  streetEventRisk = false,
   macroRegime = "BASELINE",
   allWatchlistIVs = [],
   strikeWeights,
@@ -180,8 +183,9 @@ export function ScannerRow({
       techTotalScore:        score?.totalScore ?? null,
       fundTotalScore:        fundTotalScore ?? null,
       earningsDaysOut:       techRow.earningsDaysOut ?? null,
+      streetEventRisk,
     };
-  }, [techRow, score, fundTotalScore]);
+  }, [techRow, score, fundTotalScore, streetEventRisk]);
 
   // strikeWeights is already resolved for the active side (put/call, tilt-adjusted or
   // user override) by the parent — no need to re-derive per row.

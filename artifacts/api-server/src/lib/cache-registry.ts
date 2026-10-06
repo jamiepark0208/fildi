@@ -1,17 +1,18 @@
 import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache } from '../routes/stocks.js';
 import { peersCache, profileCache } from '../lib/peer-resolver.js';
 import { classifyCache } from './peer-classifier.js';
-import { optionsCache } from '../routes/options.js';
+import { optionsCache, ivTermCache } from '../routes/options.js';
 import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_REGIME_TTL } from '../routes/macro-regime.js';
 import { getCacheState as getBusinessCycleRegimeState, CACHE_TTL_MS as BUSINESS_CYCLE_REGIME_TTL } from '../routes/regime.js';
-import { indicatorHistoryCache, sepActualsCache, sectorRotationCache } from '../routes/macro.js';
+import { indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache } from '../routes/macro.js';
 import { tickerNewsCache } from './explain-context.js';
 import { livePriceCache } from './live-quote.js';
 import { schwabChainCache } from './schwab-client.js';
 import { trackRecordCache } from '../routes/track-record.js';
-import { screenerCache } from './live-movers.js';
+import { screenerCache, globalMoversCache } from './live-movers.js';
 import { marketDataCache } from '../routes/daily-brief.js';
+import { fredYieldCache } from './fair-value-snapshots.js';
 import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
@@ -38,6 +39,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   options:          'Options Chain',
   'schwab-options-chain': 'Schwab Options Chain',
   'options-expiry': 'Options Calendar',
+  'options-iv-term': 'Options IV Term Structure',
   'volatility-regime': 'Volatility Regime (VIX)',
   'business-cycle-regime': 'Business Cycle Regime',
   'macro-data':     'Macro Data (FRED + Yahoo)',
@@ -49,11 +51,14 @@ const DISPLAY_NAMES: Record<string, string> = {
   'macro-indicator-history': 'Macro Indicator History',
   'macro-sep-actuals':       'SEP Actuals',
   'macro-sector-rotation':   'Sector Rotation Heatmap',
+  'macro-bank-news':         'Bank News (Google News)',
   'ticker-news':             'Ticker News (Explain AI)',
   'live-price':              'Live Price (Golden Source)',
   'live-screener':           'Live Movers (Yahoo Screener)',
+  'live-movers-combined':    'Live Movers (Combined Response)',
   'daily-brief-market':      'Daily Brief Market Strip',
   'track-record':            'Model Track Record Aggregates',
+  'fair-value-yields':       'Fair Value Yields (FRED AAA / 10Y)',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -71,6 +76,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   quote:            quoteCache,
   breakdown:        breakdownCache,
   options:          optionsCache,
+  'options-iv-term': ivTermCache,
   'schwab-options-chain': schwabChainCache,
   'options-expiry': expiryCache,
   'peer-map':       peersCache,
@@ -79,10 +85,13 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'macro-indicator-history': indicatorHistoryCache,
   'macro-sep-actuals':       sepActualsCache,
   'macro-sector-rotation':   sectorRotationCache,
+  'macro-bank-news':         bankNewsCache,
   'ticker-news':             tickerNewsCache,
   'live-price':              livePriceCache,
   'live-screener':           screenerCache,
+  'live-movers-combined':    globalMoversCache,
   'daily-brief-market':      marketDataCache,
+  'fair-value-yields':       fredYieldCache,
   'track-record':            trackRecordCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
@@ -128,7 +137,7 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, tickerNewsCache, livePriceCache, screenerCache, marketDataCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, ivTermCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache, tickerNewsCache, livePriceCache, screenerCache, globalMoversCache, marketDataCache, fredYieldCache];
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 

@@ -1,6 +1,5 @@
 // VIX term structure. Extracted verbatim from macro-data.ts — no behavior change.
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../yahoo-client.js";
 import type { VixCurvePoint } from "../macro-data.js";
 import { safeQuote } from "./macro-utils.js";
 

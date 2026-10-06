@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-06",
+  "sessionStartPt": "2026-10-06",
+  "content": "# DESK COMMENTARY — 2026-10-06 PT\n\n## Overnight / Macro\n- **S&P 500 +0.58%, Nasdaq flat near records** — breadth best since early August; small caps lagged (R2K −0.59%).\n- **10-year Treasury yield holding above 5.3%** — Bessent rhetoric attempts to cap upside; energy rallies (WTI $89.44, Nat Gas +1.6%) support inflation narrative.\n\n## Cross-asset / Politics\n- **Defense tailwind: Anduril $3.7B Maryland shipyard** investment backed by $2.9B Navy contract signals continued mil-industrial support.\n- **Senate control fight heating** — Maine debate highlights spending risk; monitor policy uncertainty for rate/fiscal outlook.\n\n## Sector & Tickers\n- **Comms Equipment +4.5% led Tech** — CIEN +13.9% on AI switch demand; IT Index +0.5%.\n- **Staples XLP +0.9% outperforms** — LW +7.5% post-earnings beat/raise; CPG resilience.\n- **Apple smart-home ecosystem** expansion (doorbell, lock, thermostat w/ LG codevelop) broadens Services TAM.\n- **Wells Fargo maintains GOOGL Overweight** — stable positioning into earnings season.\n\n## Put-Seller Takeaway\n- **Lean in on defined short calls** — sticky rallies, record highs, and +0.6% breadth favor premium capture; avoid size in small caps.\n- **Watch IV decay into NFLX (10/20), ALOY (10/14)** — earnings volatility may spike; theta favorable until then.",
+  "generatedAt": "2026-10-06T21:47:35.725Z",
+  "emailCount": 28,
+  "includedCount": 28,
+  "maxReceivedAt": "2026-10-06T21:15:41.000Z",
+  "sources": [
+    "tipranks",
+    "beehiiv",
+    "factset_streetaccount",
+    "bloomberg",
+    "zerohedge",
+    "danelfin"
+  ],
+  "categories": [
+    "research_note",
+    "newsletter_digest",
+    "market_recap",
+    "sector",
+    "overnight",
+    "macro",
+    "politics",
+    "other"
+  ],
+  "digFacts": [
+    {
+      "ticker": "GOOGL",
+      "kind": "analyst_rating",
+      "detail": "Wells Fargo maintain Overweight (2026-10-06)",
+      "source": "analyst_events:yahoo"
+    },
+    {
+      "ticker": "CRWV",
+      "kind": "analyst_rating",
+      "detail": "Freedom Capital Markets maintain Buy (2026-10-05)",
+      "source": "analyst_events:yahoo"
+    }
+  ],
+  "bookHits": [
+    "SPCX"
+  ],
+  "earningsNear": "NFLX 2026-10-20, ALOY 2026-10-14"
+}

@@ -12,9 +12,11 @@ import { logger } from "../lib/logger.js";
 const router = Router();
 
 function recomputeScoresAsync(reason: string) {
-  getLatestRegime().then(regime => computeAndPersistFundamentalScores(regime)).catch(err =>
-    logger.warn({ err: String(err) }, `peer-overrides: score recompute after ${reason} failed`)
-  );
+  getLatestRegime()
+    .then((regime) => computeAndPersistFundamentalScores(regime, "peer_override"))
+    .catch((err) =>
+      logger.warn({ err: String(err) }, `peer-overrides: score recompute after ${reason} failed`),
+    );
 }
 
 async function groupSummary(groupId: string | null) {

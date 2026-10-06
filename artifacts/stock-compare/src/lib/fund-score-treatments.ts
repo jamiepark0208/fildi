@@ -68,6 +68,9 @@ export const ENGINE_METRICS: EngineMetric[] = [
   { key: "epsgrow", label: "EPS Growth", family: "growth", baseIntra: 2.5, higherIsBetter: true, goldInputs: "epsGrowth", treatment: "Exclude unprofitable; tilt ×1.15 growth; clamped ±100%" },
   { key: "upside", label: "Analyst Upside", family: "growth", baseIntra: 1, higherIsBetter: true, goldInputs: "target/price − 1", treatment: "Capped weight" },
   { key: "avgEpsSurprise", label: "Avg EPS Surprise", family: "growth", baseIntra: 1, higherIsBetter: true, goldInputs: "earnings_calendar", treatment: "—" },
+  { key: "ibesSue", label: "IBES SUE", family: "growth", baseIntra: 0, higherIsBetter: true, goldInputs: "wrds_research.ibes_surpsum avg ≤4", treatment: "Weight 0 since A25 F1 (lab IC ≈ 0); kept for display. LSEG/StarMine stay display-only (not in fund_score)." },
+  { key: "ibesRevBreadth", label: "IBES Rev Breadth", family: "growth", baseIntra: 1.5, higherIsBetter: true, goldInputs: "wrds_research.ibes_statsum (numup−numdown)/n", treatment: "Optional (same coverage fix as ibesFwdGrowth): no IBES = skipped, not missing." },
+  { key: "ibesFwdGrowth", label: "Fwd EPS Growth (FY1→FY2)", family: "growth", baseIntra: 2.5, higherIsBetter: true, goldInputs: "wrds_research.ibes_statsum FY2/FY1 − 1, same statpers, ≤120d", treatment: "fund-1.1.0. Optional: no IBES coverage = skipped (no coverage shrink). Null when FY1 jumps >25% while FY2 <10% (one-off). Evidence: research/fair_value/FACTOR_STUDY.md." },
 
   { key: "grossmgn", label: "Gross Margin", family: "quality", baseIntra: 2, higherIsBetter: true, goldInputs: "grossMargin", treatment: "↑ quality/garp/growth" },
   { key: "operatingmgn", label: "Operating Margin", family: "quality", baseIntra: 2.25, higherIsBetter: true, goldInputs: "operatingMargin", treatment: "↑ quality/garp/growth" },

@@ -9,9 +9,10 @@ import {
   StockMetrics
 } from "@workspace/api-client-react";
 import { StockBreakdown } from "@/components/stock-breakdown";
+import { ModelListPanel, WATCHLIST_ROW_MINE, modelThesisSelectionKey } from "@/components/model-list-panel";
+import type { ModelThesis } from "@/components/model-thesis-report";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-// Loader2 used in search dropdown
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
@@ -33,16 +34,31 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 function WatchlistView() {
   const { entries, isLoaded, addEntry, removeEntry, updateColorTag } = useWatchlist();
   const [selectedTicker, setSelectedTicker] = useSessionState<string | null>("fildi_watchlist_selected_ticker", null);
+  const [modelThesis, setModelThesis] = useState<ModelThesis | null>(null);
   const search = useSearch();
 
   // Deep-link support: /watchlist?ticker=XYZ selects that ticker on load (used by
   // the old /breakdown route redirect and any other cross-page "view breakdown" CTA).
   useEffect(() => {
     const ticker = new URLSearchParams(search).get("ticker");
-    if (ticker) setSelectedTicker(ticker.toUpperCase());
+    if (ticker) {
+      setSelectedTicker(ticker.toUpperCase());
+      setModelThesis(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  const [tab, setTab] = useSessionState<"mine" | "model">("fildi_watchlist_tab", "mine");
+
+  const selectMine = useCallback((ticker: string) => {
+    setSelectedTicker(ticker);
+    setModelThesis(null);
+  }, [setSelectedTicker]);
+
+  const selectModelThesis = useCallback((thesis: ModelThesis) => {
+    setSelectedTicker(thesis.item.ticker);
+    setModelThesis(thesis);
+  }, [setSelectedTicker]);
   const [filterColor, setFilterColor] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -208,11 +224,34 @@ function WatchlistView() {
   if (!isLoaded) return null;
 
   return (
-    <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels" className="flex-1 overflow-hidden">
-      {/* Left Panel */}
-      <ResizablePanel defaultSize={16} minSize={11} maxSize={32} className="flex flex-col bg-zinc-950">
-        {/* Search Header */}
-        <div className="p-2.5 border-b border-[#d4af37]/20">
+    <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 overflow-hidden">
+      {/* Left Panel — hug row content (Sym/Last/Chg/%); no ellipsis, minimal spare */}
+      <ResizablePanel defaultSize={16} minSize={12} maxSize={24} className="flex flex-col bg-zinc-950 min-w-[13.25rem]">
+        <div className="flex border-b border-[#d4af37]/20 text-[11px] font-bold shrink-0">
+          {([["mine", "My List"], ["model", "Model List"]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => {
+                setTab(key);
+                if (key === "mine") setModelThesis(null);
+              }}
+              className={cn(
+                "flex-1 py-1.5 transition-colors border-b-2",
+                tab === key ? "text-[#d4af37] border-[#d4af37]" : "text-amber-200/40 border-transparent hover:text-amber-200/70"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "model" ? (
+          <ModelListPanel
+            selectedKey={modelThesis ? modelThesisSelectionKey(modelThesis) : null}
+            onSelectThesis={selectModelThesis}
+          />
+        ) : (<>
+        <div className="p-2 border-b border-[#d4af37]/20 shrink-0">
           <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 z-10" />
               {isSearching && debouncedSearch.length >= 2 && (
@@ -227,16 +266,16 @@ function WatchlistView() {
                 onFocus={handleSearchFocus}
                 onBlur={handleSearchBlur}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search to add..."
-                className="w-full h-8 pl-7 pr-7 text-xs bg-white border border-white/20 rounded-md text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37] transition-colors"
+                placeholder="Add…"
+                className="w-full h-7 pl-7 pr-7 text-[11px] bg-white border border-white/20 rounded-md text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37] transition-colors"
               />
 
               {open && debouncedSearch.length >= 2 && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-zinc-950 border border-[#d4af37]/25 rounded-md shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                   {isSearching && (!searchResults || searchResults.length === 0) ? (
-                    <div className="px-3 py-2 text-xs text-amber-200/40">Searching...</div>
+                    <div className="px-2 py-2 text-xs text-amber-200/40">Searching...</div>
                   ) : visibleResults.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-amber-200/40">No results found</div>
+                    <div className="px-2 py-2 text-xs text-amber-200/40">No results</div>
                   ) : (
                     <ul className="py-1">
                       {visibleResults.map((r, i) => (
@@ -247,12 +286,12 @@ function WatchlistView() {
                             selectTickerForAdd(r.ticker);
                           }}
                           className={cn(
-                            "px-2.5 py-1.5 text-xs cursor-pointer flex items-center justify-between hover:bg-[#d4af37]/10",
+                            "px-2 py-1 text-[11px] cursor-pointer flex items-center gap-1.5 hover:bg-[#d4af37]/10",
                             i === focusedIndex && "bg-[#d4af37]/10"
                           )}
                         >
-                          <span className="font-mono font-bold text-white">{r.ticker}</span>
-                          <span className="text-amber-200/40 text-[11px] truncate ml-2 max-w-[150px]">{r.name}</span>
+                          <span className="font-mono font-bold text-white w-12 shrink-0">{r.ticker}</span>
+                          <span className="text-amber-200/40 truncate">{r.name}</span>
                         </li>
                       ))}
                     </ul>
@@ -261,12 +300,11 @@ function WatchlistView() {
               )}
             </div>
 
-          {/* Filter Chips — hover a dot for its tag meaning, no separate legend needed */}
-          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+          <div className="mt-1.5 flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
             <button
               onClick={() => setFilterColor(null)}
               className={cn(
-                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors border shrink-0",
+                "text-[9px] px-1.5 py-0.5 rounded-full font-medium transition-colors border shrink-0",
                 !filterColor ? "bg-[#d4af37]/20 text-[#d4af37] border-[#d4af37]/40" : "bg-transparent text-amber-200/40 border-transparent hover:bg-white/5"
               )}
             >
@@ -278,7 +316,7 @@ function WatchlistView() {
                 onClick={() => setFilterColor(filterColor === c ? null : c)}
                 title={COLOR_LABELS[c] ?? undefined}
                 className={cn(
-                  "w-3.5 h-3.5 rounded-full flex-shrink-0 transition-transform border border-transparent",
+                  "w-3 h-3 rounded-full flex-shrink-0 transition-transform border border-transparent",
                   filterColor === c && "ring-2 ring-[#d4af37] ring-offset-1 ring-offset-zinc-950"
                 )}
                 style={{ backgroundColor: c }}
@@ -287,57 +325,55 @@ function WatchlistView() {
           </div>
         </div>
 
-        {/* Table Header */}
-        <div className="grid grid-cols-[14px_1fr_1fr_1fr_1fr] items-center gap-1 px-2.5 py-1.5 border-b border-[#d4af37]/20 text-[10px] font-bold text-[#d4af37] uppercase tracking-wider sticky top-0 bg-zinc-950/95 backdrop-blur-md z-10">
+        <div className={cn(WATCHLIST_ROW_MINE, "border-b border-[#d4af37]/20 text-[#d4af37] sticky top-0 bg-zinc-950/95 backdrop-blur-md z-10 shrink-0")}>
           <div />
-          {(["symbol", "last", "chg", "chgPct"] as SortField[]).map((field, i) => (
-            <button
-              key={field}
-              onClick={() => handleSort(field)}
-              className={cn("flex items-center gap-0.5 hover:text-amber-200 transition-colors select-none", i > 0 && "justify-end")}
-            >
-              {field === "symbol" ? "Sym" : field === "last" ? "Last" : field === "chg" ? "Chg" : "Chg%"}
-              <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
-            </button>
-          ))}
+          <button onClick={() => handleSort("symbol")} className="w-full flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none text-left min-w-0">
+            Sym<SortIcon field="symbol" sortField={sortField} sortDir={sortDir} />
+          </button>
+          <button onClick={() => handleSort("last")} className="w-full flex items-center justify-end gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none min-w-0">
+            Last<SortIcon field="last" sortField={sortField} sortDir={sortDir} />
+          </button>
+          <button onClick={() => handleSort("chg")} className="w-full flex items-center justify-end gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none min-w-0">
+            Chg<SortIcon field="chg" sortField={sortField} sortDir={sortDir} />
+          </button>
+          <button onClick={() => handleSort("chgPct")} className="w-full flex items-center justify-end gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none min-w-0">
+            %<SortIcon field="chgPct" sortField={sortField} sortDir={sortDir} />
+          </button>
+          <div />
         </div>
 
-        {/* Table Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {visibleEntries.length === 0 ? (
-            <div className="p-6 text-center text-xs text-amber-200/40 space-y-2">
+            <div className="p-4 text-center text-xs text-amber-200/40 space-y-2">
               {entries.length === 0 ? (
                 <>
-                  <p>No tickers in watchlist.</p>
+                  <p>No tickers.</p>
                   <p>
                     <Link href="/options-scanner" className="text-[#d4af37] hover:underline">
-                      Add from scanner GO list
+                      Add from scanner
                     </Link>
                   </p>
                 </>
               ) : (
-                <p>No tickers match this color filter.</p>
+                <p>No match for this filter.</p>
               )}
             </div>
           ) : (
             <div className="divide-y divide-[#d4af37]/10">
               {visibleEntries.map((entry) => {
                 const quote = quoteMap[entry.ticker];
-                const isSelected = selectedTicker === entry.ticker;
+                const isSelected = selectedTicker === entry.ticker && !modelThesis;
                 const dayChg = quote?.dayChange ?? 0;
                 const dayChgPct = quote?.dayChangePercent ?? 0;
-
                 const isPositive = dayChg >= 0;
                 const chgColor = isPositive ? "text-green-500" : "text-red-500";
                 const chgSign = isPositive ? "+" : "";
-
                 const isTagging = colorPickerTicker === entry.ticker;
                 return (
                   <div key={entry.ticker} className={cn("transition-colors", isSelected ? "bg-[#d4af37]/15" : "hover:bg-[#d4af37]/10")}>
-                    {/* Main row */}
                     <div
-                      onClick={() => setSelectedTicker(entry.ticker)}
-                      className="grid grid-cols-[14px_1fr_1fr_1fr_1fr] items-center gap-1 px-2.5 h-[28px] text-[11px] cursor-pointer group relative"
+                      onClick={() => selectMine(entry.ticker)}
+                      className={cn(WATCHLIST_ROW_MINE, "cursor-pointer")}
                     >
                       <button
                         onClick={(e) => {
@@ -353,46 +389,49 @@ function WatchlistView() {
                           <div className="w-2 h-2 rounded-full bg-white/20 hover:bg-white/40" />
                         )}
                       </button>
-                      <div className="font-mono font-bold truncate" style={{ color: entry.colorTag || 'white' }}>
+                      <div className="font-mono font-bold whitespace-nowrap" style={{ color: entry.colorTag || "white" }}>
                         {entry.ticker}
                       </div>
-                      <div className="text-right font-mono tabular-nums text-white">
-                        {quote?.currentPrice ? quote.currentPrice.toFixed(2) : "—"}
+                      <div className="text-right font-mono tabular-nums text-white whitespace-nowrap">
+                        {quote?.currentPrice != null ? quote.currentPrice.toFixed(2) : "—"}
                       </div>
-                      <div className={cn("text-right font-mono tabular-nums", chgColor)}>
+                      <div className={cn("text-right font-mono tabular-nums whitespace-nowrap", chgColor)}>
                         {quote?.dayChange !== undefined ? `${chgSign}${dayChg.toFixed(2)}` : "—"}
                       </div>
-                      <div className={cn("text-right font-mono tabular-nums", chgColor)}>
-                        {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(2)}%` : "—"}
+                      <div className={cn("text-right font-mono tabular-nums whitespace-nowrap", chgColor)}>
+                        {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(1)}%` : "—"}
                       </div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           removeEntry(entry.ticker);
-                          if (selectedTicker === entry.ticker) setSelectedTicker(null);
+                          if (selectedTicker === entry.ticker) {
+                            setSelectedTicker(null);
+                            setModelThesis(null);
+                          }
                           if (colorPickerTicker === entry.ticker) setColorPickerTicker(null);
                         }}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 hover:bg-black/60 rounded transition-all text-amber-200/40 hover:text-white"
+                        title={`Remove ${entry.ticker}`}
+                        className="flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
-                    {/* Inline color picker */}
                     {isTagging && (
-                      <div className="px-2.5 pb-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                        <span className="text-[10px] text-amber-200/40">Tag:</span>
+                      <div className="px-2 pb-1 flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <span className="text-[9px] text-amber-200/40">Tag</span>
                         {PRESET_COLORS.map(c => (
                           <button
                             key={c}
                             onClick={() => { updateColorTag(entry.ticker, c); setColorPickerTicker(null); }}
                             title={COLOR_LABELS[c] ?? undefined}
-                            className={cn("w-3.5 h-3.5 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-zinc-950")}
+                            className={cn("w-3 h-3 rounded-full hover:scale-125 transition-transform shrink-0", entry.colorTag === c && "ring-2 ring-white/60 ring-offset-1 ring-offset-zinc-950")}
                             style={{ backgroundColor: c }}
                           />
                         ))}
                         <button
                           onClick={() => { updateColorTag(entry.ticker, ""); setColorPickerTicker(null); }}
-                          className="w-3.5 h-3.5 rounded-full border border-dashed border-white/30 hover:border-white/60 transition-colors shrink-0"
+                          className="w-3 h-3 rounded-full border border-dashed border-white/30 hover:border-white/60 transition-colors shrink-0"
                           title="Remove tag"
                         />
                       </div>
@@ -403,21 +442,25 @@ function WatchlistView() {
             </div>
           )}
         </div>
+        </>)}
       </ResizablePanel>
 
       <ResizableHandle className="bg-[#d4af37]/15 hover:bg-[#d4af37]/40 transition-colors w-[3px]" />
 
-      {/* Right Panel — full StockBreakdown when a ticker is selected */}
-      <ResizablePanel defaultSize={84} className="bg-zinc-900 overflow-hidden flex flex-col">
+      <ResizablePanel defaultSize={87} className="bg-zinc-900 overflow-hidden flex flex-col min-w-0">
         {!selectedTicker ? (
           <div className="h-full flex flex-col items-center justify-center text-amber-200/30 space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-zinc-950 flex items-center justify-center border border-dashed border-[#d4af37]/25">
               <BarChart2 className="w-8 h-8" />
             </div>
-            <p className="text-sm font-medium">Select a security from your watchlist</p>
+            <p className="text-sm font-medium">Select a security</p>
           </div>
         ) : (
-          <StockBreakdown ticker={selectedTicker} watchlistMetrics={watchlistTagMetrics} />
+          <StockBreakdown
+            ticker={selectedTicker}
+            watchlistMetrics={watchlistTagMetrics}
+            modelThesis={modelThesis}
+          />
         )}
       </ResizablePanel>
     </ResizablePanelGroup>

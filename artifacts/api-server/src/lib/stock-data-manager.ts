@@ -5,7 +5,7 @@
  * (nightly-enrichment or enrichAndMergeTickers). This module must never
  * upsert ticker_fundamentals from a single-provider waterfall.
  */
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   tickerFundamentals,
@@ -16,6 +16,8 @@ import {
 } from "@workspace/db";
 import { STALE_DAYS } from "./data-ops-config.js";
 import { enrichAndMergeTickers, loadGoldFundamentals } from "./enrich-and-merge.js";
+import { normalizeUsageSource } from "./api-usage.js";
+import { usageCalendarDate } from "./usage-date.js";
 import { logger } from "./logger.js";
 
 export interface FundamentalsResult {
@@ -101,10 +103,18 @@ export class StockDataManager {
   }
 
   async getSourceBudgets(): Promise<Record<string, number>> {
+    // Remaining budget from api_usage (API Monitor SoT), not stale data_sources.calls_today.
+    const today = usageCalendarDate();
+    const usage = await db.execute<{ source: string; calls_made: number }>(
+      sql`SELECT source, calls_made FROM api_usage WHERE date = ${today}::date`,
+    );
+    const used = new Map(usage.rows.map((r) => [r.source, Number(r.calls_made)]));
     const rows = await db.select().from(dataSources);
     const budgets: Record<string, number> = {};
     for (const row of rows) {
-      budgets[row.name] = row.isActive ? Math.max(0, row.dailyLimit - row.callsToday) : 0;
+      const key = normalizeUsageSource(row.name);
+      const calls = used.get(key) ?? used.get(row.name) ?? 0;
+      budgets[row.name] = row.isActive ? Math.max(0, row.dailyLimit - calls) : 0;
     }
     if (!("edgar" in budgets)) budgets["edgar"] = 9999;
     return budgets;

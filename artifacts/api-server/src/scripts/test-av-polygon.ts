@@ -5,6 +5,7 @@
  * Run: cd artifacts/api-server && npx tsx src/scripts/test-av-polygon.ts
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fetchAVOverview } from "../lib/alpha-vantage-client.js";
@@ -41,9 +42,6 @@ function countFilled(obj: Record<string, unknown>): { count: number; fields: str
   return { count: fields.length, fields };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
-}
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 

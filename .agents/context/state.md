@@ -3,14 +3,36 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`).
 
 ## Phase
-**build** — last updated 2026-08-27
+**build** — last updated 2026-10-06
 
 ## Active work
-- Working: regime-at-score-cache-fix, tilt-objective-avgpnlpct, coverage-gating-shrinkage, feed-n+1-collapse, portfolio-reset-all-or-nothing, api-endpoints-script-fix, peer-group-backfill-added
-- In progress: scoring-quality-remediation-see-agents-context-scoring-backlog-md
-- Blocked: pnpm-typecheck-red-scripts-missing-yahoo-finance2, ticker-fundamentals-history-has-1-row, peer-group-backfill-not-yet-executed
+- Working: api-llm-optimization-pass, blended-fair-value-fv-1.0.0, fund-1.1.0-ibesFwdGrowth, fair-value-maintain-health-checks, value-trap-flag, cyclical-confidence-cap, model-list-strike-vs-fair
+- In progress: fair-value-snapshot-history-accruing
+- Blocked: orval-and-npm-test-broken-on-node-26
 
 ## Next tasks (priority order)
+
+**URGENT — options-income-chart-stuck-at-zero** (reported 2026-10-02, not yet
+investigated): Portfolio tab's options-income chart shows $0 for every period
+since 7/15/2026, which Jamie confirms is wrong (real option premium income
+continued the whole time — verified separately via Robinhood's own P&L data).
+Root cause not yet confirmed, but strongly suspected: `computeRealizedPnL()` in
+`artifacts/api-server/src/lib/realized-pnl.ts` (used by `GET
+/portfolio/snapshot/latest` in `routes/portfolio-snapshot.ts`, consumed by the
+`optionsIncomeTimeline` useMemo in
+`stock-compare/src/components/portfolio-analysis.tsx` ~line 585) pairs
+short-option opens/closes using the `portfolio_orders` table, which is tied to a
+single CSV-ingest snapshot and only reflects whatever `get_option_orders`'s
+~200-row recent-order cap happened to include at collection time — not the full
+cumulative history in `portfolio_transactions`. If an option's *opening* leg has
+aged out of that window, its close likely never gets paired into a realized
+event, even though the close itself is correctly in `portfolio_transactions`.
+Full handoff with verification steps: Claude memory
+`project_options-income-chart-bug.md` (in the rbh_scripts/Robinhood-session
+project, not this repo's own memory — ask to read it, or check
+`~/.claude/projects/-Users-jamiepark-Claude-fildi/memory/`). Do NOT touch the
+chart rendering code itself — if confirmed, the fix is upstream in what feeds
+`computeRealizedPnL`.
 
 0. **macro-synthesis-card-unit-tests** — `computeVolatilityImplications()` and `computeLiquidityImplications()` in `api-server/src/lib/macro-data.ts` (both currently module-private, not exported) and `derivePolicySignals()` in `stock-compare/src/components/macro/MacroComponents.tsx` (also private) have hardcoded regime thresholds driving user-facing trading verdicts, with zero test coverage — unlike the rest of the codebase (308 passing tests elsewhere). Scoped but deferred this session for context budget. To pick up: export the three functions, add boundary tests per threshold transition (see exact threshold values already read out in this session's transcript — VIX 15/20/30, VVIX 90/100/120, put/call 0.7/1.0/1.3, MOVE 90/110/140, HY OAS 350/400/500, RRP 75/300, SOFR-IORB 0/5/15, NFCI -0.1/0.1/0.5) plus one compound-condition case per card.
 
@@ -73,3 +95,8 @@ Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI t
   timing, growth basis) — driving lower needs looser tolerances or per-field comparable curation.
 - Backfill safe order: check api_usage budget → backfill-fmp → backfill-polygon → (populate+merge
   now automatic via nightly-enrichment) → backfill-av.
+
+## Watchlist recommendations (Claude, 2026-10-05)
+Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist_sync.model_params`; portfolio-sized ideas, Needs Review, Manage Open Positions).
+Updated daily by the Robinhood export session (COLLECT_PROTOCOL Steps 13–14 → `scripts/watchlist_sync/daily.py`). Learning loop `learn.py` (bounded auto-promotion).
+Health strip in the Model List header shows pipeline freshness. Next: first live grades 2026-10-09/12; Cursor A17–A21 (IBES coverage batches, AVB deactivation). Details: `scripts/watchlist_sync/NEXT_SESSION.md`.

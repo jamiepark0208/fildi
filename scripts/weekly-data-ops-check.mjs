@@ -2,20 +2,25 @@
 /**
  * Weekly Stock DB data-ops check — token-cheap, quantifies value.
  *
- * Designed for a Cursor agent or LaunchAgent:
- *   1) Snapshot scoreboard (before)
- *   2) Budgeted FactSet NR drain if remaining ≥ max+20
- *   3) merge-trusted (always — clears provenance / applies derives)
- *   4) peer-health-check (heal roster/ETF/unmapped; flag keyword mismatches)
- *   5) Snapshot scoreboard (after)
- *   6) Append value report proving benefit
+ * Modes:
+ *   Default (agent / Run now):
+ *     1) Snapshot scoreboard (before)
+ *     2) Budgeted FactSet NR drain if remaining ≥ max+20 — **skipped** when Mac Maintain
+ *        already drained + peer-healed in the last 7 days (avoid double FactSet spend)
+ *     3) merge-trusted (always unless --digest-only)
+ *     4) peer-health-check — skipped under the same Maintain-covered rule
+ *     5) Snapshot after + append value log
+ *   --digest-only (Sunday Maintain spine):
+ *     Audit + append value log only — no merge/drain/peer. Prefer this over a second weekly ritual.
  *
  *   node scripts/weekly-data-ops-check.mjs
  *   node scripts/weekly-data-ops-check.mjs --max=40
+ *   node scripts/weekly-data-ops-check.mjs --digest-only
  *   node scripts/weekly-data-ops-check.mjs --dry-run
+ *   node scripts/weekly-data-ops-check.mjs --force   # ignore Maintain-covered skip
  *
- * Reads:  .cursor/plans/stock-db-best-realistic.md (agent)
  * Writes: /tmp/fildi-logs/data-ops-value/YYYY-MM-DD.json
+ *         /tmp/fildi-logs/weekly-data-ops-last.json
  *         .cursor/context/data-ops-value-log.md (append)
  */
 import { spawnSync, execSync } from "node:child_process";
@@ -34,6 +39,31 @@ const AUDIT = join(ROOT, "scripts/data-ops-audit.mjs");
 const maxArg = process.argv.find((a) => a.startsWith("--max="));
 const maxTickers = maxArg ? Number(maxArg.split("=")[1]) : 40;
 const dryRun = process.argv.includes("--dry-run");
+const digestOnly = process.argv.includes("--digest-only");
+const forceFull = process.argv.includes("--force");
+const MAINTAIN_FULL = join(LOG_DIR, "maintain-full-last.json");
+const MAINTAIN_COVER_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** True when Maintain full pass already did drain + peer-health within 7d. */
+function maintainCoveredHeavyWork() {
+  if (forceFull) return false;
+  try {
+    if (!existsSync(MAINTAIN_FULL)) return false;
+    const r = JSON.parse(readFileSync(MAINTAIN_FULL, "utf8"));
+    const ts = typeof r.ts === "string" ? Date.parse(r.ts) : NaN;
+    if (!Number.isFinite(ts) || Date.now() - ts > MAINTAIN_COVER_MS) return false;
+    const actions = Array.isArray(r.actions) ? r.actions : [];
+    const drained = actions.some((a) => typeof a === "string" && /^drain_nr_\d+_.*_exit_0$/.test(a));
+    const peered = actions.some((a) => typeof a === "string" && /^peer_health_exit_0$/.test(a));
+    // Also accept "skipped drain for budget" + successful peer heal as covered.
+    const drainSkippedOk = actions.some(
+      (a) => typeof a === "string" && /^drain_nr_skipped_rem_/.test(a),
+    );
+    return peered && (drained || drainSkippedOk);
+  } catch {
+    return false;
+  }
+}
 
 function loadEnvLocal() {
   const path = join(ROOT, ".env.local");
@@ -109,16 +139,25 @@ const started = Date.now();
 const before = runAudit();
 const beforeSb = before.scoreboard || {};
 const rem = beforeSb.factset?.remaining ?? 0;
+const coveredByMaintain = maintainCoveredHeavyWork();
 
 const actions = [];
 let drain = null;
 let merge = null;
 let peers = null;
 
-if (dryRun) {
+if (digestOnly) {
+  actions.push("digest_only");
+  if (coveredByMaintain) actions.push("maintain_covered_7d");
+} else if (dryRun) {
   actions.push("dry_run");
   peers = runTsx("src/scripts/peer-health-check.ts", ["--dry-run"]);
   actions.push(`peer_health_dry_exit_${peers.status}`);
+} else if (coveredByMaintain) {
+  // Maintain already drained + peer-healed this week — only merge + measure.
+  actions.push("maintain_covered_skip_drain_peer");
+  merge = runTsx("src/scripts/merge-trusted.ts");
+  actions.push(`merge_exit_${merge.status}`);
 } else {
   // Always merge — applies derives + provenance honesty (0 API).
   merge = runTsx("src/scripts/merge-trusted.ts");
@@ -131,8 +170,6 @@ if (dryRun) {
     actions.push(`drain_skipped_factset_rem_${rem}`);
   }
 
-  // Peer cohorts: heal roster gaps, quarantine ETFs, auto-classify new ff tickers,
-  // flag keyword mismatches for review (0 FactSet; may call Yahoo/Finnhub for classify).
   peers = runTsx("src/scripts/peer-health-check.ts");
   actions.push(`peer_health_exit_${peers.status}`);
 }
@@ -198,6 +235,8 @@ const report = {
   ts: new Date().toISOString(),
   ms: Date.now() - started,
   dryRun,
+  digestOnly,
+  coveredByMaintain,
   maxTickers,
   actions,
   improved,
@@ -207,15 +246,16 @@ const report = {
   peers: peerReport,
   summary: summaryLines,
   auditOk: !!after.ok,
-  plan: ".cursor/plans/stock-db-best-realistic.md",
+  plan: ".agents/context/stock-db-best-realistic.md",
 };
 
 const day = report.ts.slice(0, 10);
 writeFileSync(join(VALUE_DIR, `${day}.json`), JSON.stringify(report, null, 2));
 writeFileSync(join(LOG_DIR, "weekly-data-ops-last.json"), JSON.stringify(report, null, 2));
 
+const modeTag = digestOnly ? " (digest-only)" : dryRun ? " (dry-run)" : coveredByMaintain ? " (Maintain-covered)" : "";
 const mdBlock = `
-## ${report.ts}${dryRun ? " (dry-run)" : ""}
+## ${report.ts}${modeTag}
 **Value:** ${improved ? "IMPROVED" : "NO MATERIAL CHANGE"} · ${report.ms}ms
 ${summaryLines.map((l) => `- ${l}`).join("\n")}
 - Actions: ${actions.join(", ")}
@@ -224,7 +264,7 @@ ${summaryLines.map((l) => `- ${l}`).join("\n")}
 if (!existsSync(VALUE_MD)) {
   writeFileSync(
     VALUE_MD,
-    `# Data-ops value log\n\nAppend-only proof from \`weekly-data-ops-check.mjs\` / weekly Cursor agent.\n`,
+    `# Data-ops value log\n\nAppend-only proof from \`weekly-data-ops-check.mjs\` (Sunday Maintain \`--digest-only\` or agent).\n`,
   );
 }
 appendFileSync(VALUE_MD, mdBlock);

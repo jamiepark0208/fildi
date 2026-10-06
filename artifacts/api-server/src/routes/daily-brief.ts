@@ -1,10 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "../lib/yahoo-client.js";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { singleFlight } from "../lib/single-flight.js";
 import {
   formatDeskPackForBrief,
   loadDeskPack,
@@ -12,7 +13,6 @@ import {
 import { callHaiku } from "../lib/haiku.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 
-const yahooFinance = new YahooFinanceClass();
 const router       = Router();
 
 /** Rate-limit only admin regenerations (?refresh=true), not cache reads. */
@@ -241,10 +241,7 @@ Be specific and data-driven. Use numbers from the market data and concrete desk 
 // GET /api/daily-brief/market — live prices only, no AI, called on every page load
 router.get("/daily-brief/market", async (_req, res) => {
   try {
-    const cached = marketDataCache.get("shared");
-    if (cached) return res.json({ marketData: cached });
-    const marketData = await fetchMarketData();
-    marketDataCache.set("shared", marketData);
+    const marketData = await marketDataCache.getOrCompute("shared", fetchMarketData);
     return res.json({ marketData });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -257,6 +254,29 @@ router.get("/daily-brief/history", (_req, res) => {
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
   );
   return res.json(history);
+});
+
+// One regeneration at a time — a double-click / second tab joins the in-flight Haiku call.
+const refreshBrief = singleFlight(async (tickers: string[], today: string, userId: number | undefined): Promise<DailyBrief> => {
+  const ctx = loadContext();
+  const [marketData, tickerNews, deskRows] = await Promise.all([
+    fetchMarketData(),
+    fetchTickerNews(tickers),
+    loadDeskPack(36, 12).catch(() => []),
+  ]);
+  const deskPackText = formatDeskPackForBrief(deskRows);
+  const content = await generateBrief(
+    marketData, tickerNews, tickers, today, ctx, deskPackText, userId,
+  );
+
+  const brief: DailyBrief = {
+    date: today, marketData, content,
+    generatedAt: new Date().toISOString(),
+    tickers, fromCache: false,
+  };
+
+  upsertBrief(brief);
+  return brief;
 });
 
 // GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates (admin only)
@@ -278,25 +298,7 @@ router.get("/daily-brief", aiLimiterOnRefresh, async (req, res) => {
   }
 
   try {
-    const ctx = loadContext();
-    const [marketData, tickerNews, deskRows] = await Promise.all([
-      fetchMarketData(),
-      fetchTickerNews(tickers),
-      loadDeskPack(36, 12).catch(() => []),
-    ]);
-    const deskPackText = formatDeskPackForBrief(deskRows);
-    const content = await generateBrief(
-      marketData, tickerNews, tickers, today, ctx, deskPackText, req.session.userId,
-    );
-
-    const brief: DailyBrief = {
-      date: today, marketData, content,
-      generatedAt: new Date().toISOString(),
-      tickers, fromCache: false,
-    };
-
-    upsertBrief(brief);
-    return res.json(brief);
+    return res.json(await refreshBrief(tickers, today, req.session.userId));
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

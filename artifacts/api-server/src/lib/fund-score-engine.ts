@@ -117,6 +117,9 @@ export type MetricKey =
   | "epsgrow"
   | "upside"
   | "avgEpsSurprise"
+  | "ibesRevBreadth"
+  | "ibesSue"
+  | "ibesFwdGrowth"
   | "grossmgn"
   | "operatingmgn"
   | "netmgn"
@@ -142,6 +145,8 @@ type MetricDef = {
   higherIsBetter: boolean;
   /** Metrics excluded for these styles */
   excludeStyles?: StyleBucket[];
+  /** Externally-covered metric (e.g. IBES): a null value is skipped entirely instead of shrinking coverage. */
+  optional?: boolean;
 };
 
 const METRICS: MetricDef[] = [
@@ -163,6 +168,17 @@ const METRICS: MetricDef[] = [
   { key: "epsgrow", family: "growth", baseIntra: 2.5, higherIsBetter: true },
   { key: "upside", family: "growth", baseIntra: 1, higherIsBetter: true },
   { key: "avgEpsSurprise", family: "growth", baseIntra: 1, higherIsBetter: true },
+  // WRDS IBES cache — street momentum / standardized surprise (null if unsynced)
+  // optional: same coverage bug as ibesFwdGrowth — no IBES row must not shrink data coverage / wipe growth.
+  { key: "ibesRevBreadth", family: "growth", baseIntra: 1.5, higherIsBetter: true, optional: true },
+  // A25 F1: lab IC ~0 for SUE — keep field for UI/diagnostics, weight 0 so it doesn't move fund score.
+  { key: "ibesSue", family: "growth", baseIntra: 0, higherIsBetter: true },
+  // Consensus EPS growth FY1→FY2 (same IBES statpers, so split-invariant). Fair-value factor study:
+  // IC +0.108 (t 3.4) vs 126-d peer-relative return, uncorrelated with breadth/drift/trend.
+  // Weight 0 in fund-1.0.0; fund-1.1.0 (challenger → user-approved promotion) gives it weight.
+  // optional: a ticker IBES doesn't cover is "not covered", not "missing data" — it must not shrink coverage
+  // (without this, HOLX fell below the 0.4 total gate and CMPS lost its growth family in the before/after).
+  { key: "ibesFwdGrowth", family: "growth", baseIntra: 0, higherIsBetter: true, optional: true },
 
   { key: "grossmgn", family: "quality", baseIntra: 2, higherIsBetter: true },
   { key: "operatingmgn", family: "quality", baseIntra: 2.25, higherIsBetter: true },
@@ -380,7 +396,13 @@ export function assignStyleBucket(
 export function rawMetricValue(
   key: MetricKey,
   r: FundRowInput,
-  extras?: { avgEpsSurprise?: number | null; fScore?: number | null },
+  extras?: {
+    avgEpsSurprise?: number | null;
+    fScore?: number | null;
+    ibesRevBreadth?: number | null;
+    ibesSue?: number | null;
+    ibesFwdGrowth?: number | null;
+  },
 ): number | null {
   const mcap = r.marketCap;
   switch (key) {
@@ -437,6 +459,12 @@ export function rawMetricValue(
       return r.analystTargetPrice / r.currentPrice - 1;
     case "avgEpsSurprise":
       return extras?.avgEpsSurprise ?? null;
+    case "ibesRevBreadth":
+      return extras?.ibesRevBreadth ?? null;
+    case "ibesSue":
+      return extras?.ibesSue ?? null;
+    case "ibesFwdGrowth":
+      return extras?.ibesFwdGrowth ?? null;
     case "grossmgn":
       return r.grossMargin;
     case "operatingmgn":
@@ -556,12 +584,49 @@ export type ScoredTicker = {
 export type HistoryByTicker = Record<string, Partial<Record<MetricKey, number[]>>>;
 export type SurpriseByTicker = Record<string, number | null>;
 
+/** WRDS IBES growth extras — missing tickers stay null (no penalty). */
+export type IbesSignalsByTicker = Record<
+  string,
+  { revBreadth: number | null; sue: number | null; fwdGrowth?: number | null }
+>;
+
+/** Optional overrides from public.scorecard_params champion (fund-1.0.0 seed = code defaults). */
+export type ScoreUniverseParams = {
+  metricBaseIntra?: Partial<Record<MetricKey, number>>;
+  styleFamilyWeights?: Partial<Record<StyleBucket, Partial<Record<FamilyName, number>>>>;
+  megacapBlendFamilyWeights?: Partial<Record<FamilyName, number>>;
+  totalMinCoverage?: number;
+  familyMinCoverage?: number;
+};
+
 export function scoreUniverse(
   rows: FundRowInput[],
   history: HistoryByTicker = {},
   surprises: SurpriseByTicker = {},
+  ibesSignals: IbesSignalsByTicker = {},
+  params?: ScoreUniverseParams,
 ): ScoredTicker[] {
   if (rows.length === 0) return [];
+
+  const metrics = METRICS.map((m) => ({
+    ...m,
+    baseIntra: params?.metricBaseIntra?.[m.key] ?? m.baseIntra,
+  }));
+  const styleWeights: Record<StyleBucket, Record<FamilyName, number>> = { ...STYLE_FAMILY_WEIGHTS };
+  if (params?.styleFamilyWeights) {
+    for (const [style, fam] of Object.entries(params.styleFamilyWeights) as Array<
+      [StyleBucket, Partial<Record<FamilyName, number>>]
+    >) {
+      if (!fam) continue;
+      styleWeights[style] = { ...styleWeights[style], ...fam };
+    }
+  }
+  const megacapWeights: Record<FamilyName, number> = {
+    ...MEGACAP_BLEND_FAMILY_WEIGHTS,
+    ...(params?.megacapBlendFamilyWeights ?? {}),
+  };
+  const totalMinCov = params?.totalMinCoverage ?? TOTAL_MIN_COVERAGE;
+  const familyMinCov = params?.familyMinCoverage;
 
   // Precompute F-scores
   const fScores = new Map<string, number | null>();
@@ -591,11 +656,15 @@ export function scoreUniverse(
 
   // Raw values matrix
   const raw: Record<MetricKey, (number | null)[]> = {} as any;
-  for (const m of METRICS) {
+  for (const m of metrics) {
     raw[m.key] = rows.map((r) => {
+      const ibes = ibesSignals[r.ticker];
       let v = rawMetricValue(m.key, r, {
         avgEpsSurprise: surprises[r.ticker] ?? null,
         fScore: fScores.get(r.ticker) ?? null,
+        ibesRevBreadth: ibes?.revBreadth ?? null,
+        ibesSue: ibes?.sue ?? null,
+        ibesFwdGrowth: ibes?.fwdGrowth ?? null,
       });
       // Suspect guards
       if (m.key === "netmgn" && v != null && Math.abs(v) > 1) v = null;
@@ -624,7 +693,7 @@ export function scoreUniverse(
 
   // Peer norms per metric
   const peerNorm: Record<MetricKey, (number | null)[]> = {} as any;
-  for (const m of METRICS) {
+  for (const m of metrics) {
     peerNorm[m.key] = rows.map(() => null);
     for (const [, idxs] of groups) {
       const vals = idxs.map((i) => raw[m.key][i]);
@@ -643,7 +712,7 @@ export function scoreUniverse(
     sectorGroups.get(s)!.push(i);
   });
   const sectorNorm: Record<MetricKey, (number | null)[]> = {} as any;
-  for (const m of METRICS) {
+  for (const m of metrics) {
     sectorNorm[m.key] = rows.map(() => null);
     for (const [, idxs] of sectorGroups) {
       if (idxs.length < 3) continue; // too thin — leave null, peer-only
@@ -657,7 +726,7 @@ export function scoreUniverse(
 
   // Universe norms (absolute quality / soft-peer dampening)
   const universeNorm: Record<MetricKey, (number | null)[]> = {} as any;
-  for (const m of METRICS) {
+  for (const m of metrics) {
     universeNorm[m.key] = normalizeCohort(raw[m.key], m.higherIsBetter);
   }
 
@@ -666,7 +735,7 @@ export function scoreUniverse(
 
   // Cross-section: peer + sector + universe (weights vary by soft peer / megacap / expEy)
   const crossNorm: Record<MetricKey, (number | null)[]> = {} as any;
-  for (const m of METRICS) {
+  for (const m of metrics) {
     crossNorm[m.key] = rows.map((r, i) =>
       blendThree(
         peerNorm[m.key][i],
@@ -701,8 +770,8 @@ export function scoreUniverse(
     const style = styleOf[i]!;
     const famW =
       style === "blend" && isMegacap(r)
-        ? MEGACAP_BLEND_FAMILY_WEIGHTS
-        : STYLE_FAMILY_WEIGHTS[style];
+        ? megacapWeights
+        : styleWeights[style];
     const peerSize = groups.get(r.peerGroupId ?? `__orphan__:${r.ticker}`)?.length ?? 1;
     const confidence: "high" | "low" = peerSize >= MIN_PEERS_CONFIDENT ? "high" : "low";
 
@@ -714,7 +783,11 @@ export function scoreUniverse(
       safety: { wSum: 0, sSum: 0, present: 0, total: 0 },
     };
 
-    for (const m of METRICS) {
+    for (const m of metrics) {
+      if (m.optional && raw[m.key][i] == null) {
+        metricScores[m.key] = { value: null, peerNorm: null, histNorm: null, blended: null, weightedScore: 0 };
+        continue;
+      }
       famAcc[m.family].total += m.baseIntra;
       if (isExcluded(m, style, r.scoringMode, r)) {
         metricScores[m.key] = {
@@ -770,7 +843,7 @@ export function scoreUniverse(
       if (a.wSum > 0) {
         const raw01 = a.sSum / a.wSum;
         const raw100 = raw01 * 100;
-        familyScores[f] = shrinkToNeutral(raw100, coverage[f]);
+        familyScores[f] = shrinkToNeutral(raw100, coverage[f], familyMinCov);
       } else {
         familyScores[f] = null;
       }
@@ -787,12 +860,12 @@ export function scoreUniverse(
       ts += s * famW[f];
     });
     let totalScore: number | null =
-      tw > 0 && coverage.total >= TOTAL_MIN_COVERAGE ? ts / tw : null;
+      tw > 0 && coverage.total >= totalMinCov ? ts / tw : null;
     if (totalScore != null) {
       totalScore = parseFloat(totalScore.toFixed(2));
     }
     if (totalScore != null && confidence === "low" && totalScore > 90 && coverage.total < 0.5) {
-      totalScore = shrinkToNeutral(totalScore, coverage.total);
+      totalScore = shrinkToNeutral(totalScore, coverage.total, familyMinCov);
     }
 
     // v3 post-gates: safety prior, speculative cap, China haircut, megacap quality floor

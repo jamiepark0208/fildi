@@ -1,11 +1,11 @@
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { db, tickerRegistry, type TickerRegistryRow } from "@workspace/db";
 import { TTLCache } from "./ttl-cache.js";
 import { checkFMPBudget, recordFMPCalls } from "./fundamentals-db.js";
 import { logger } from "./logger.js";
+import { fetchJsonWithRetry } from "./http-client.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 export const peersCache = new TTLCache<PeersPayload>(24 * 60 * 60 * 1000, "peer-map", 1000); // key = ticker
 export const profileCache = new TTLCache<{ sector: string | null; industry: string | null; name: string | null }>(
@@ -57,21 +57,19 @@ async function querySectorPeers(sector: string, exclude: string, limit = 15): Pr
 }
 
 async function fetchProfileMetadata(ticker: string): Promise<{ sector: string | null; industry: string | null; name: string | null }> {
-  const cached = profileCache.get(ticker);
-  if (cached) return cached;
-
   try {
-    const summary = await yahooFinance.quoteSummary(ticker, {
-      modules: ["assetProfile"] as any,
-    }, { validateResult: false });
-    const ap = (summary as any).assetProfile ?? {};
-    const meta = {
-      sector:   (ap.sector as string) ?? null,
-      industry: (ap.industry as string) ?? null,
-      name:     (ap.longName as string) ?? (ap.shortName as string) ?? null,
-    };
-    profileCache.set(ticker, meta);
-    return meta;
+    // Failures throw out of getOrCompute, so they are not cached (same as before).
+    return await profileCache.getOrCompute(ticker, async () => {
+      const summary = await yahooFinance.quoteSummary(ticker, {
+        modules: ["assetProfile"] as any,
+      }, { validateResult: false });
+      const ap = (summary as any).assetProfile ?? {};
+      return {
+        sector:   (ap.sector as string) ?? null,
+        industry: (ap.industry as string) ?? null,
+        name:     (ap.longName as string) ?? (ap.shortName as string) ?? null,
+      };
+    });
   } catch (err) {
     logger.warn({ ticker, err: String(err) }, "peer-resolver: profile fetch failed");
     return { sector: null, industry: null, name: null };
@@ -135,9 +133,7 @@ async function fetchFinnhubPeers(ticker: string): Promise<string[]> {
   if (!apiKey) return [];
   try {
     const url = `https://finnhub.io/api/v1/stock/peers?symbol=${encodeURIComponent(ticker)}&token=${apiKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return [];
-    const json = await res.json();
+    const json = await fetchJsonWithRetry(url, { provider: "Finnhub", maxRetries: 1, timeoutMs: 10_000 });
     if (!Array.isArray(json)) return [];
     return uniqUpper((json as string[]).filter(p => p && p !== ticker));
   } catch (err) {
@@ -158,10 +154,10 @@ async function fetchFMPStockPeers(ticker: string): Promise<string[]> {
 
   try {
     const url = `https://financialmodelingprep.com/stable/stock-peers?symbol=${encodeURIComponent(ticker)}&apikey=${apiKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    // No retries: each attempt spends daily FMP budget, and this is a best-effort peer source.
+    // Recorded up front so a timeout still counts against the budget (conservative).
     await recordFMPCalls(1);
-    if (!res.ok) return [];
-    const json = await res.json() as Array<{ symbol?: string }>;
+    const json = await fetchJsonWithRetry<Array<{ symbol?: string }>>(url, { provider: "FMP", maxRetries: 0, timeoutMs: 12_000 });
     if (!Array.isArray(json)) return [];
     return uniqUpper(json.map(r => r.symbol ?? "").filter(Boolean));
   } catch (err) {
@@ -185,8 +181,11 @@ async function collectPeersFromRegistry(reg: TickerRegistryRow | null, key: stri
 /** DB-first peer resolution. At most one external fetch per ticker (profile + optional FMP peers). */
 export async function resolvePeers(ticker: string): Promise<PeersPayload> {
   const key = ticker.toUpperCase();
-  const cached = peersCache.get(key);
-  if (cached) return cached;
+  // Concurrent views of the same ticker share one resolution (Finnhub/FMP/Yahoo calls).
+  return peersCache.getOrCompute(key, () => computePeers(key));
+}
+
+async function computePeers(key: string): Promise<PeersPayload> {
 
   let reg = await readRegistryRow(key);
   let peers = await collectPeersFromRegistry(reg, key);
@@ -265,6 +264,5 @@ export async function resolvePeers(ticker: string): Promise<PeersPayload> {
     industry: reg?.industryGroup ?? null,
     peers,
   };
-  peersCache.set(key, payload);
   return payload;
 }

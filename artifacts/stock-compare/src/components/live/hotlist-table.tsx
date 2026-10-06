@@ -10,6 +10,8 @@ import { TickerRecordBadge } from "./ticker-record-badge";
 import { SignalAccuracyChip } from "./signal-accuracy-chip";
 import { useHotlistSignalAccuracy } from "@/hooks/use-hotlist-signal-accuracy";
 import { num, pct, scoreColor } from "./live-format";
+import { RecConflictChip } from "./rec-conflict-chip";
+import type { RecConflict } from "@/lib/rec-conflicts";
 
 export type HotlistSide = "dip" | "rally";
 
@@ -105,6 +107,7 @@ export function HotlistTable({
   techScoreMap,
   entryByTicker,
   entryAsOf,
+  conflictsByTicker,
 }: {
   side: HotlistSide;
   entries: HotlistEntry[];
@@ -113,6 +116,7 @@ export function HotlistTable({
   techScoreMap: Map<string, number>;
   entryByTicker: Map<string, EntrySignal>;
   entryAsOf: string | null;
+  conflictsByTicker?: Map<string, RecConflict[]>;
 }) {
   const isRally = side === "rally";
   const optSide = isRally ? "call" : "put";
@@ -160,6 +164,7 @@ export function HotlistTable({
                     livePrice={e.price}
                     side={optSide}
                   />
+                  <RecConflictChip conflicts={conflictsByTicker?.get(e.ticker.toUpperCase()) ?? []} />
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", rsiExtreme ? "text-green-400 font-semibold" : "text-white")}>

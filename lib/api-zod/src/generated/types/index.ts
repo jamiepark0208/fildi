@@ -18,4 +18,5 @@ export * from './scorecardItem';
 export * from './searchStocksParams';
 export * from './stockComparison';
 export * from './stockMetrics';
+export * from './stockMetricsFairValueVotesItem';
 export * from './stockSearchResult';

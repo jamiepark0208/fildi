@@ -1,8 +1,7 @@
 // Sector rotation (relative strength vs SPY). Extracted verbatim from macro-data.ts — no behavior change.
 // Proxy only — price-based relative strength, NOT measured dollar flow between
 // sectors. Quadrant = RRG-style: rs1m (level) x momentum (rs1m - rs3m, trend).
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../yahoo-client.js";
 import type { SectorRotationPoint } from "../macro-data.js";
 import { allSettledLimited } from "./macro-utils.js";
 

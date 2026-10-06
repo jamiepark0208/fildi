@@ -10,6 +10,11 @@ import {
 } from "@/hooks/use-portfolio";
 import { type StockMetrics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatCurrency, formatCompactCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Activity, Shield, Zap, TrendingDown, Layers, BarChart2, Percent } from "lucide-react";
@@ -25,6 +30,26 @@ import {
 } from "./portfolio/portfolio-risk-calc";
 import { useSnapshotQuery, EquityTable, OptionsTable } from "./RobinhoodPortfolio";
 import { PortfolioUpload } from "./PortfolioUpload";
+import { LazyMount } from "@/components/lazy-mount";
+
+/** Cap live option-quote fan-out until Position Health is open. */
+const OPTION_QUOTE_PREVIEW = 12;
+
+const DETAIL_TABS = [
+  { key: "tickers", label: "Top Tickers" },
+  { key: "summary", label: "Cumulative Summary" },
+  { key: "income", label: "Options Income" },
+  { key: "corr", label: "Correlation" },
+  { key: "health", label: "Position Health" },
+  { key: "backtest", label: "Vol Backtest" },
+  { key: "equity", label: "Equity Holdings" },
+  { key: "options", label: "Options Holdings" },
+] as const;
+type DetailTabKey = (typeof DETAIL_TABS)[number]["key"];
+
+/** Dense correlation cells — grid stretches to fill the detail card. */
+const CORR_TH = "p-0 text-[8px] font-bold uppercase tracking-tight text-muted-foreground text-center leading-none align-middle";
+const CORR_TD = "p-0 text-[9px] tabular-nums text-center leading-none align-middle";
 
 // ── Portfolio Analysis ────────────────────────────────────────────────────────
 
@@ -77,6 +102,7 @@ function canonicalizeAccount(raw: string, nickMap: Map<string, string>): string 
 
 export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], earningsCalendar = {}, onUploadSuccess }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
+  const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
   const filtered = useMemo(() =>
     (activePortfolio === "All"
       ? entries
@@ -263,6 +289,15 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       .map(({ entry, reportDate }) => ({ entry, reportDate: reportDate! }));
   }, [openOptionPositions, earningsCalendar]);
 
+  // Preview quotes for risk metrics / P&L; full fan-out only on Position Health.
+  const quotePreviewIds = useMemo(() => {
+    const ranked = [...openOptionPositions]
+      .sort((a, b) => Math.abs(positionValue(b)) - Math.abs(positionValue(a)))
+      .slice(0, OPTION_QUOTE_PREVIEW)
+      .map((e) => e.id);
+    return new Set(ranked);
+  }, [openOptionPositions, priceMap]);
+
   const liquidityQueries = useQueries({
     queries: openOptionPositions.map(e => {
       const optionType: "call" | "put" = e.positionType.includes("call") ? "call" : "put";
@@ -275,6 +310,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           return res.json() as Promise<{ bid: number | null; ask: number | null; midPrice: number | null; delta: number | null }>;
         },
         staleTime: 5 * 60 * 1000,
+        enabled: detailTab === "health" || quotePreviewIds.has(e.id),
       };
     }),
   });
@@ -313,6 +349,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       if (!res.ok) throw new Error("Failed to compute portfolio risk");
       return res.json();
     },
+    // Fetch with the Risk Metrics card (above the fold) — not only after charts scroll in.
     enabled: riskPositions.length > 0,
     staleTime: 15 * 60 * 1000,
   });
@@ -444,7 +481,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // that adds the live unrealized total — i.e. "what you'd have if you closed
   // everything right now," without fabricating what unrealized looked like on
   // past days.
-  const [cumPnlView, setCumPnlView] = useState<"realized" | "unrealized" | "total">("realized");
+  const [cumPnlView, setCumPnlView] = useState<"realized" | "unrealized" | "total" | "table">("realized");
   const scopedRealizedForTimeline = useMemo(() => activePortfolio === "All"
     ? realizedEvents
     : realizedEvents.filter(e =>
@@ -468,7 +505,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   }, [scopedRealizedForTimeline]);
 
   const cumulativePnlTimeline = useMemo(() => {
-    if (cumPnlView === "realized") return realizedTimeline;
+    if (cumPnlView === "table" || cumPnlView === "realized") return realizedTimeline;
     if (cumPnlView === "unrealized") {
       if (realizedTimeline.length === 0) return [];
       return realizedTimeline.map(p => ({ date: p.date, cumulative: liveUnrealizedTotal }));
@@ -676,18 +713,6 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
   // ── Detail panel — Top Tickers / Summary / Income / Health / Equity / Options,
   // shown as one sub-tabbed card (live tab's SubTabToggle styling) instead of stacked rows.
-  const DETAIL_TABS = [
-    { key: "tickers", label: "Top Tickers" },
-    { key: "summary", label: "Cumulative Summary" },
-    { key: "income", label: "Options Income" },
-    { key: "health", label: "Position Health" },
-    { key: "backtest", label: "Vol Backtest" },
-    { key: "equity", label: "Equity Holdings" },
-    { key: "options", label: "Options Holdings" },
-  ] as const;
-  type DetailTabKey = typeof DETAIL_TABS[number]["key"];
-  const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
-
   // ── IV/vol-rank backtest — does selling premium in a higher-vol regime
   // actually pay off for this account's own trades? Computed server-side
   // (one Yahoo Finance call per distinct ticker, cached 6h) since it needs
@@ -839,7 +864,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       )}
 
       {/* Row 1: Allocation + Sector + Tickers + Risk */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4 items-stretch">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Capital Allocation</CardTitle>
@@ -912,48 +937,282 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardContent>
         </Card>
 
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Risk Metrics</CardTitle>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 min-w-0 flex flex-col">
+          <CardHeader className="px-2 pt-2 pb-0 shrink-0">
+            <CardTitle className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-wide leading-none">
+              Risk Metrics
+            </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 mt-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              {[
-                { label: "Beta (adj.)", value: risk.weightedBeta.toFixed(2), color: risk.weightedBeta > 1.5 ? "text-red-400" : risk.weightedBeta > 1.1 ? "text-yellow-400" : "text-green-400" },
-                { label: "Net Delta", value: risk.netDelta > 0 ? `+${risk.netDelta.toFixed(0)}` : risk.netDelta.toFixed(0), color: Math.abs(risk.netDelta) > 5000 ? "text-orange-400" : "text-foreground" },
-                { label: "Daily Theta", value: `+${formatCurrency(risk.dailyTheta)}`, color: "text-green-400" },
-                { label: "Net Gamma", value: greeksExposure.netGamma >= 0 ? `+${greeksExposure.netGamma.toFixed(1)}` : greeksExposure.netGamma.toFixed(1), color: Math.abs(greeksExposure.netGamma) > 50 ? "text-orange-400" : "text-foreground" },
-                { label: "Net Vega", value: greeksExposure.netVega >= 0 ? `+${greeksExposure.netVega.toFixed(0)}` : greeksExposure.netVega.toFixed(0), color: Math.abs(greeksExposure.netVega) > 500 ? "text-orange-400" : "text-foreground" },
-                { label: "Income Yield", value: `${risk.incomeYield.toFixed(1)}%`, color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground" },
-                { label: "Max Assign Risk", value: formatCurrency(risk.maxAssign), color: "text-yellow-400" },
-                { label: "Avg DTE", value: `${risk.avgDTE.toFixed(0)}d`, color: "text-foreground" },
-                ...(marginUsage.marginUsed > 0 ? [{ label: "Margin Usage", value: `${formatCurrency(marginUsage.marginUsed)} (${marginUsage.pctUsed.toFixed(0)}%)`, color: marginUsage.pctUsed >= 75 ? "text-red-400" : marginUsage.pctUsed >= 50 ? "text-yellow-400" : "text-foreground" }] : []),
-                ...(risk.atRiskPositions > 0 ? [{ label: "At-Risk Puts", value: String(risk.atRiskPositions), color: "text-red-400" }] : []),
-                ...(risk.expiringSoon > 0 ? [{ label: "Expiring ≤7d", value: String(risk.expiringSoon), color: "text-orange-400" }] : []),
-                ...(risk.coveredCallCount > 0 ? [{ label: "Covered Calls", value: String(risk.coveredCallCount), color: "text-blue-400" }] : []),
-                ...(liquidityRisk.wide > 0 ? [{ label: "Wide Spreads", value: String(liquidityRisk.wide), color: "text-red-400" }] : []),
-                ...(liquidityRisk.moderate > 0 ? [{ label: "Moderate Spreads", value: String(liquidityRisk.moderate), color: "text-yellow-400" }] : []),
-              ].map(({ label, value, color }) => (
-                <div key={label} className="flex flex-col gap-0.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wide leading-none">{label}</span>
-                  <span className={cn("text-sm font-bold font-mono tabular-nums leading-tight", color)}>{value}</span>
+          <CardContent className="px-0 pb-0 pt-1 flex-1 min-h-0 flex flex-col">
+            {(() => {
+              const shortPuts = filtered.filter((e) => e.positionType === "short_put").length;
+              const shortCalls = filtered.filter((e) => e.positionType === "short_call").length;
+              const openOpts = openOptionPositions.length;
+              type Metric = { key: string; lines: string[]; value: string; color: string; hint: string };
+              const metrics: Metric[] = [
+                {
+                  key: "beta",
+                  lines: ["Beta", "(adj.)"],
+                  value: risk.weightedBeta.toFixed(2),
+                  color: risk.weightedBeta > 1.5 ? "text-red-400" : risk.weightedBeta > 1.1 ? "text-yellow-400" : "text-green-400",
+                  hint: "How much your book tends to move vs the market. 1.0 ≈ moves with the market; above 1 swings harder. Covered calls lower this a bit.",
+                },
+                {
+                  key: "delta",
+                  lines: ["Net", "Delta"],
+                  value: risk.netDelta > 0 ? `+${risk.netDelta.toFixed(0)}` : risk.netDelta.toFixed(0),
+                  color: Math.abs(risk.netDelta) > 5000 ? "text-orange-400" : "text-zinc-100",
+                  hint: "Rough share-equivalent exposure. Positive = you profit if stocks rise; negative = you lean bearish / short-put heavy.",
+                },
+                {
+                  key: "theta",
+                  lines: ["Daily", "Θ"],
+                  value: `+${formatCompactCurrency(risk.dailyTheta)}`,
+                  color: "text-green-400",
+                  hint: "Estimated premium you keep per day if nothing moves — from short options decaying toward expiry.",
+                },
+                {
+                  key: "gamma",
+                  lines: ["Net", "Γ"],
+                  value: greeksExposure.netGamma >= 0 ? `+${greeksExposure.netGamma.toFixed(1)}` : greeksExposure.netGamma.toFixed(1),
+                  color: Math.abs(greeksExposure.netGamma) > 50 ? "text-orange-400" : "text-zinc-100",
+                  hint: "How fast your delta changes when price jumps. Short options are usually negative gamma — big moves hurt more than small ones help.",
+                },
+                {
+                  key: "vega",
+                  lines: ["Net", "Vega"],
+                  value: greeksExposure.netVega >= 0 ? `+${greeksExposure.netVega.toFixed(0)}` : greeksExposure.netVega.toFixed(0),
+                  color: Math.abs(greeksExposure.netVega) > 500 ? "text-orange-400" : "text-zinc-100",
+                  hint: "Sensitivity to implied volatility. Negative (typical for short premium) means IV crush helps you; IV spikes hurt.",
+                },
+                {
+                  key: "yield",
+                  lines: ["Inc.", "Yield"],
+                  value: `${risk.incomeYield.toFixed(1)}%`,
+                  color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground",
+                  hint: "Annualized premium income vs cash locked in short puts — rough run-rate if you keep rolling similar trades.",
+                },
+                {
+                  key: "collat",
+                  lines: ["Put", "Collat."],
+                  value: formatCompactCurrency(risk.maxAssign),
+                  color: "text-yellow-400",
+                  hint: "Cash reserved to buy shares if your short puts are assigned. That's the capital at risk if every put goes ITM.",
+                },
+                {
+                  key: "dte",
+                  lines: ["Avg", "DTE"],
+                  value: risk.avgDTE > 0 ? `${risk.avgDTE.toFixed(0)}d` : "—",
+                  color: "text-zinc-100",
+                  hint: "Premium-weighted average days left on short options. Shorter = faster theta, more rollover work.",
+                },
+                {
+                  key: "names",
+                  lines: ["Names"],
+                  value: String(betaData.length),
+                  color: "text-zinc-100",
+                  hint: "Distinct tickers with weight in this view. More names usually means less single-stock blow-up risk.",
+                },
+                {
+                  key: "hhi",
+                  lines: ["HHI"],
+                  value: String(concentration.hhi),
+                  color: concentration.level === "High" ? "text-red-400" : concentration.level === "Moderate" ? "text-yellow-400" : "text-green-400",
+                  hint: "Concentration score (0–10,000). Low ≈ diversified; High ≈ a few names dominate. Same idea as antitrust HHI.",
+                },
+                {
+                  key: "top5",
+                  lines: ["Top-5", "%"],
+                  value: `${concentration.top5Pct.toFixed(0)}%`,
+                  color: concentration.top5Pct >= 80 ? "text-red-400" : concentration.top5Pct >= 60 ? "text-yellow-400" : "text-zinc-100",
+                  hint: "Share of notional in your five largest tickers. High % means diversification is mostly cosmetic.",
+                },
+                {
+                  key: "largest",
+                  lines: ["Largest"],
+                  value: concentration.topTicker
+                    ? `${concentration.topTicker} ${concentration.topTickerPct?.toFixed(0) ?? "—"}%`
+                    : "—",
+                  color: (concentration.topTickerPct ?? 0) >= 25 ? "text-orange-400" : "text-zinc-100",
+                  hint: "Your biggest single-name weight. If this one gaps, it moves the whole book.",
+                },
+                {
+                  key: "opts",
+                  lines: ["Open", "opts"],
+                  value: String(openOpts),
+                  color: "text-zinc-100",
+                  hint: "Live option contracts in this view (short + long). More contracts = more legs to manage and more assignment surface.",
+                },
+                {
+                  key: "pc",
+                  lines: ["Short", "P/C"],
+                  value: `${shortPuts}/${shortCalls}`,
+                  color: "text-zinc-100",
+                  hint: "Count of short puts vs short calls. Puts lock cash; calls usually sit on stock (covered) or add upside risk if naked.",
+                },
+                {
+                  key: "atrisk",
+                  lines: ["At-risk", "puts"],
+                  value: String(risk.atRiskPositions),
+                  color: risk.atRiskPositions > 0 ? "text-red-400" : "text-muted-foreground",
+                  hint: "Short puts where the stock is within ~8% above the strike — close enough that a bad day can force assignment.",
+                },
+                {
+                  key: "exp",
+                  lines: ["Exp", "≤7d"],
+                  value: String(risk.expiringSoon),
+                  color: risk.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground",
+                  hint: "Positions that expire within a week. Decide now: close, roll, or let assign/expire.",
+                },
+                {
+                  key: "earn",
+                  lines: ["Earn.", "risk"],
+                  value: String(earningsRiskPositions.length),
+                  color: earningsRiskPositions.length > 0 ? "text-red-400" : "text-muted-foreground",
+                  hint: "Open options that still expire after the next earnings date — gap and IV crush risk around the print.",
+                },
+                {
+                  key: "cc",
+                  lines: ["Covered", "CC"],
+                  value: String(risk.coveredCallCount),
+                  color: risk.coveredCallCount > 0 ? "text-blue-400" : "text-muted-foreground",
+                  hint: "Tickers where you own stock and also sold calls against it. Caps upside; stock is the collateral.",
+                },
+                {
+                  key: "wide",
+                  lines: ["Wide", "spr."],
+                  value: liquidityRisk.checked > 0 ? `${liquidityRisk.wide}/${liquidityRisk.checked}` : "—",
+                  color: liquidityRisk.wide > 0 ? "text-red-400" : "text-muted-foreground",
+                  hint: "Option contracts with a very wide bid/ask (≥40% of mid). Hard to exit without giving up a lot of premium.",
+                },
+                {
+                  key: "mod",
+                  lines: ["Mod", "spr."],
+                  value: liquidityRisk.checked > 0 ? `${liquidityRisk.moderate}/${liquidityRisk.checked}` : "—",
+                  color: liquidityRisk.moderate > 0 ? "text-yellow-400" : "text-muted-foreground",
+                  hint: "Contracts with a middling spread (20–40% of mid). Tradeable, but expect slippage vs mid.",
+                },
+                ...(marginUsage.marginUsed > 0 || marginUsage.buyingPower > 0
+                  ? ([
+                      {
+                        key: "margin",
+                        lines: ["Margin", "used"],
+                        value: `${formatCompactCurrency(marginUsage.marginUsed)} · ${marginUsage.pctUsed.toFixed(0)}%`,
+                        color: marginUsage.pctUsed >= 75 ? "text-red-400" : marginUsage.pctUsed >= 50 ? "text-yellow-400" : "text-zinc-100",
+                        hint: "Broker margin already drawn vs capacity (used + buying power). High % leaves less room for new trades or a drawdown.",
+                      },
+                      {
+                        key: "bp",
+                        lines: ["Buy", "power"],
+                        value: formatCompactCurrency(marginUsage.buyingPower),
+                        color: "text-zinc-100",
+                        hint: "Buying power still available for new equity or option collateral. Cash/IRA accounts often show $0 here.",
+                      },
+                    ] as Metric[])
+                  : []),
+                ...(portfolioRisk
+                  ? ([
+                      {
+                        key: "var",
+                        lines: ["VaR", "95%"],
+                        value: formatCompactCurrency(portfolioRisk.var95Usd),
+                        color: "text-yellow-400",
+                        hint: "Rough 1-day loss you shouldn't exceed 95% of the time (normal-returns model from recent prices). Not a guarantee.",
+                      },
+                      {
+                        key: "cvar",
+                        lines: ["CVaR", "95%"],
+                        value: formatCompactCurrency(portfolioRisk.cvar95Usd),
+                        color: "text-red-400",
+                        hint: "Average loss on the bad 5% of days — how ugly the tail looks if VaR is breached.",
+                      },
+                      {
+                        key: "vol",
+                        lines: ["Daily", "vol"],
+                        value: `${portfolioRisk.dailyVolatilityPct.toFixed(2)}%`,
+                        color: "text-zinc-100",
+                        hint: "Estimated day-to-day % swing of the portfolio from recent returns and weights.",
+                      },
+                    ] as Metric[])
+                  : []),
+              ];
+              const rows: Metric[][] = [];
+              for (let i = 0; i < metrics.length; i += 2) rows.push(metrics.slice(i, i + 2));
+              return (
+                <div className="flex flex-col h-full min-h-0 border-t border-zinc-800/50">
+                  {rows.map((pair, ri) => (
+                    <div
+                      key={ri}
+                      className={cn(
+                        "flex flex-1 min-h-[28px] border-b border-zinc-800/40 hover:bg-amber-500/[0.04]",
+                        ri % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/50",
+                      )}
+                    >
+                      {([0, 1] as const).map((ci) => {
+                        const m = pair[ci];
+                        if (!m) {
+                          return <div key={ci} className="flex-1 border-r border-zinc-800/40 last:border-r-0" />;
+                        }
+                        return (
+                          <div
+                            key={m.key}
+                            className={cn(
+                              "flex flex-1 items-center min-w-0 gap-1 px-1.5",
+                              ci === 0 && "border-r border-zinc-800/60",
+                            )}
+                          >
+                            <UiTooltip delayDuration={200}>
+                              <TooltipTrigger asChild>
+                                <span className="w-[2.75rem] shrink-0 cursor-help text-[8px] uppercase tracking-wide text-zinc-500 leading-[1.05] border-b border-dotted border-zinc-600">
+                                  {m.lines.map((ln) => (
+                                    <span key={ln} className="block">{ln}</span>
+                                  ))}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                className="max-w-[240px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+                              >
+                                {m.hint}
+                              </TooltipContent>
+                            </UiTooltip>
+                            <span className={cn("flex-1 min-w-0 text-right font-mono tabular-nums text-[10px] font-semibold truncate leading-none", m.color)}>
+                              {m.value}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
 
-      {/* Row 1.1a: Beta contribution + Cumulative P&L by trade type */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Charts below the fold — defer mount until near viewport */}
+      <LazyMount
+        minHeight={280}
+        fallback={
+          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-8 text-[10px] text-zinc-500 text-center">
+            Charts · scroll to load
+          </div>
+        }
+      >
+      <div className="space-y-4">
+      {/* Row 1.1a: Beta + trade-type — same box sizing/styling as Tickers / Cum P&L row */}
+      <div className="grid grid-cols-2 gap-4 min-w-0">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-              Beta Contribution
-            </CardTitle>
-            <p className="text-[10px] text-white/70">
-              weighted β · covered calls adjusted to δ×0.70
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
+                  Beta Contribution
+                </CardTitle>
+                <p className="text-[10px] text-white/70">weighted β · covered calls adjusted to δ×0.70</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {topBetaData.length === 0 ? (
@@ -962,8 +1221,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 13, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={40} />
+                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
@@ -1003,10 +1262,14 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-              Cumulative P&amp;L by Trade Type
-            </CardTitle>
-            <p className="text-[10px] text-white/70">realized + unrealized, YTD</p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
+                  Cumulative P&amp;L by Trade Type
+                </CardTitle>
+                <p className="text-[10px] text-white/70">realized + unrealized · scoped to {activePortfolio}</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {tradeTypeChartData.length === 0 ? (
@@ -1048,8 +1311,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </Card>
       </div>
 
-      {/* Row 1.1b: Cumulative P&L top tickers + (reserved) */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Row 1.1b: Cumulative P&L tickers + line chart (P&L table is a sub-tab) */}
+      <div className="grid grid-cols-2 gap-4 min-w-0">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
           <CardHeader className="px-4 pt-4 pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1122,11 +1385,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   {cumPnlView === "realized" && "stock + options + dividends · includes assignment lots · scoped to " + activePortfolio}
                   {cumPnlView === "unrealized" && "live mark-to-market on open positions, today · flat line (no daily history kept) · scoped to " + activePortfolio}
                   {cumPnlView === "total" && "realized history + live unrealized added at today · scoped to " + activePortfolio}
+                  {cumPnlView === "table" && "same scope as chart · realized + live unrealized by trade type · " + activePortfolio}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
-                  {([{ key: "realized", label: "Realized" }, { key: "unrealized", label: "Unrealized" }, { key: "total", label: "Total" }] as const).map(t => (
+                  {([
+                    { key: "realized", label: "Realized" },
+                    { key: "unrealized", label: "Unrealized" },
+                    { key: "total", label: "Total" },
+                    { key: "table", label: "Table" },
+                  ] as const).map(t => (
                     <button key={t.key} onClick={() => setCumPnlView(t.key)}
                       className={cn("px-2 py-0.5 transition-colors",
                         cumPnlView === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
@@ -1134,21 +1403,72 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     </button>
                   ))}
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-white/70 uppercase tracking-wide">
-                    {cumPnlView === "realized" && "Total Realized"}
-                    {cumPnlView === "unrealized" && "Live Unrealized"}
-                    {cumPnlView === "total" && "Total (incl. live)"}
+                {cumPnlView !== "table" && (
+                  <div className="text-right">
+                    <div className="text-[10px] text-white/70 uppercase tracking-wide">
+                      {cumPnlView === "realized" && "Total Realized"}
+                      {cumPnlView === "unrealized" && "Live Unrealized"}
+                      {cumPnlView === "total" && "Total (incl. live)"}
+                    </div>
+                    <div className={cn("text-sm font-bold font-mono tabular-nums", (cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                      {(cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "+" : ""}{formatCurrency(cumulativePnlTimeline.at(-1)?.cumulative ?? 0)}
+                    </div>
                   </div>
-                  <div className={cn("text-sm font-bold font-mono tabular-nums", (cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
-                    {(cumulativePnlTimeline.at(-1)?.cumulative ?? 0) >= 0 ? "+" : ""}{formatCurrency(cumulativePnlTimeline.at(-1)?.cumulative ?? 0)}
+                )}
+                {cumPnlView === "table" && (
+                  <div className="text-right">
+                    <div className="text-[10px] text-white/70 uppercase tracking-wide">Grand Total</div>
+                    <div className={cn("text-sm font-bold font-mono tabular-nums", pnlTotals.grandTotal.total >= 0 ? "text-green-400" : "text-red-400")}>
+                      {pnlTotals.grandTotal.total >= 0 ? "+" : ""}{formatCurrency(pnlTotals.grandTotal.total)}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            {cumulativePnlTimeline.length === 0 ? (
+            {cumPnlView === "table" ? (
+              <div className="h-[240px] overflow-y-auto">
+                <table className="w-full table-fixed text-[11px]">
+                  <colgroup>
+                    <col className="w-[40%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[20%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-[#d4af37]/15">
+                      <th className="text-left py-1 px-1 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider" />
+                      {["Realized", "Unreal.", "Total"].map(h => (
+                        <th key={h} className="text-right py-1 px-1 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pnlTotals.rows.map(row => (
+                      <tr key={row.label} className="border-t border-border/20">
+                        <td className="py-1.5 px-1 font-medium truncate" title={row.label}>{row.label}</td>
+                        {[row.realized, row.unrealized, row.total].map((v, i) => (
+                          <td key={i} className={cn("py-1.5 px-1 text-right font-mono tabular-nums font-semibold",
+                            v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                            {v >= 0 ? "+" : ""}{formatCompactCurrency(v)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    <tr className="border-t border-[#d4af37]/20">
+                      <td className="py-1.5 px-1 font-bold">Total</td>
+                      {[pnlTotals.grandTotal.realized, pnlTotals.grandTotal.unrealized, pnlTotals.grandTotal.total].map((v, i) => (
+                        <td key={i} className={cn("py-1.5 px-1 text-right font-mono tabular-nums font-bold",
+                          v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                          {v >= 0 ? "+" : ""}{formatCompactCurrency(v)}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : cumulativePnlTimeline.length === 0 ? (
               <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
@@ -1188,131 +1508,19 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </Card>
       </div>
 
-      {/* Row 1.2: Correlation matrix + P&L, two boxes in line */}
-      <div className="grid grid-cols-2 gap-4">
-      {portfolioRisk && portfolioRisk.tickers.length > 1 && (
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-0">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                Correlation &amp; Value-at-Risk
-              </CardTitle>
-              <div className="flex items-center gap-5">
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">VaR 95% (1d)</div>
-                  <div className="text-sm font-bold font-mono tabular-nums text-yellow-400">
-                    {formatCurrency(portfolioRisk.var95Usd)} <span className="text-muted-foreground font-normal">({portfolioRisk.var95Pct.toFixed(2)}%)</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">CVaR 95% (1d)</div>
-                  <div className="text-sm font-bold font-mono tabular-nums text-red-400">
-                    {formatCurrency(portfolioRisk.cvar95Usd)} <span className="text-muted-foreground font-normal">({portfolioRisk.cvar95Pct.toFixed(2)}%)</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Daily Vol</div>
-                  <div className="text-sm font-bold font-mono tabular-nums">{portfolioRisk.dailyVolatilityPct.toFixed(2)}%</div>
-                </div>
-              </div>
-            </div>
-            {portfolioRisk.skippedTickers.length > 0 && (
-              <div className="text-[10px] text-muted-foreground pt-2">
-                No price history: {portfolioRisk.skippedTickers.join(", ")}
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="px-0 pb-4 pt-3">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-y border-[#d4af37]/15 bg-secondary/20">
-                    <th className={TTD}></th>
-                    {portfolioRisk.tickers.map(t => (
-                      <th key={t} className={cn(TTD, "text-center font-bold")}>{t}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {portfolioRisk.tickers.map((rowTicker, i) => (
-                    <tr key={rowTicker} className={cn("border-b border-border/20", i % 2 === 0 ? "" : "bg-secondary/5")}>
-                      <td className={cn(TTD, "text-left font-bold")}>{rowTicker}</td>
-                      {portfolioRisk.correlationMatrix[i].map((v, j) => {
-                        const colTicker = portfolioRisk.tickers[j];
-                        const isDiagonal = i === j;
-                        const isExcluded = isSameUnderlyingPair(rowTicker, colTicker);
-                        if (isDiagonal || isExcluded) {
-                          return (
-                            <td key={j} className={cn(TTD, "text-center text-muted-foreground/50")}
-                              title={isExcluded ? "Same underlying — excluded from color scale" : undefined}>
-                              {v.toFixed(2)}
-                            </td>
-                          );
-                        }
-                        return (
-                          <td key={j} className={cn(TTD, "text-center font-semibold text-white")}
-                            style={{ backgroundColor: correlationBg(v, correlationScaleMax) }}>
-                            {v.toFixed(2)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="text-[10px] text-muted-foreground px-4 pt-2">3mo daily returns, 95% 1-day</div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Row 1.5: P&L — realized + unrealized, stock vs. short/long options */}
-      <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-        <CardHeader className="px-4 pt-4 pb-0">
-          <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-            P&amp;L
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <table className="w-full text-[11px] mt-2">
-            <thead>
-              <tr>
-                <th className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider"></th>
-                {["Realized", "Unrealized", "Total"].map(h => (
-                  <th key={h} className="text-right py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pnlTotals.rows.map(row => (
-                <tr key={row.label} className="border-t border-border/20">
-                  <td className="py-1.5 px-2 font-medium">{row.label}</td>
-                  {[row.realized, row.unrealized, row.total].map((v, i) => (
-                    <td key={i} className={cn("py-1.5 px-2 text-right font-mono tabular-nums font-semibold",
-                      v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
-                      {v >= 0 ? "+" : ""}{formatCurrency(v)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              <tr className="border-t border-[#d4af37]/15">
-                <td className="py-1.5 px-2 font-bold">Total</td>
-                {[pnlTotals.grandTotal.realized, pnlTotals.grandTotal.unrealized, pnlTotals.grandTotal.total].map((v, i) => (
-                  <td key={i} className={cn("py-1.5 px-2 text-right font-mono tabular-nums font-bold text-base",
-                    v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
-                    {v >= 0 ? "+" : ""}{formatCurrency(v)}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
       </div>
+      </LazyMount>
 
-      {/* Row 1.6+: Top Tickers / Cumulative Summary / Options Income / Position Health /
-          Equity Holdings / Options Holdings — one sub-tabbed card, live tab's toggle styling */}
-      <Card className="overflow-hidden bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
+      {/* Detail sub-tabs: Top Tickers / Summary / Income / Correlation / Health / … */}
+      <LazyMount
+        minHeight={200}
+        fallback={
+          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-6 text-[10px] text-zinc-500 text-center">
+            Holdings detail · scroll to load
+          </div>
+        }
+      >
+      <Card className="overflow-hidden min-w-0 bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
         <CardHeader className="px-4 pt-4 pb-0">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-1.5">
             <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
@@ -1359,11 +1567,26 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD (stock sales include assignment exits when exported)"}
             {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends (not calendar-YTD clipped)"}
             {detailTab === "income" && `Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1 · scoped to ${activePortfolio}`}
+            {detailTab === "corr" && "Correlation & VaR — 3mo daily returns, weight-ranked names · hover a cell for the pair"}
             {detailTab === "health" && "Option Position Health — break-even, moneyness, and assignment/exercise risk per leg"}
             {detailTab === "backtest" && "Vol-Rank Backtest — does selling premium in a higher-volatility regime actually pay off for YOUR trades? (realized-vol proxy, not true IV history)"}
             {detailTab === "equity" && "Equity Holdings — grouped by account"}
             {detailTab === "options" && "Options Holdings — grouped by account, active contracts"}
           </p>
+          {detailTab === "corr" && portfolioRisk && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono tabular-nums pt-1.5 pb-0.5">
+              <span className="text-yellow-400">VaR 95% {formatCompactCurrency(portfolioRisk.var95Usd)} ({portfolioRisk.var95Pct.toFixed(1)}%)</span>
+              <span className="text-red-400">CVaR {formatCompactCurrency(portfolioRisk.cvar95Usd)} ({portfolioRisk.cvar95Pct.toFixed(1)}%)</span>
+              <span className="text-zinc-300">Vol {portfolioRisk.dailyVolatilityPct.toFixed(2)}%</span>
+              <span className="text-zinc-500">{portfolioRisk.tickers.length} names</span>
+              {portfolioRisk.skippedTickers.length > 0 && (
+                <span className="text-zinc-600 truncate max-w-[220px]" title={portfolioRisk.skippedTickers.join(", ")}>
+                  no hx: {portfolioRisk.skippedTickers.slice(0, 6).join(", ")}
+                  {portfolioRisk.skippedTickers.length > 6 ? ` +${portfolioRisk.skippedTickers.length - 6}` : ""}
+                </span>
+              )}
+            </div>
+          )}
           {detailTab === "income" && (
             <div className="flex items-center gap-5 pt-2 pb-1">
               <div>
@@ -1481,6 +1704,86 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </tbody>
               </table>
             </div>
+          )}
+        </CardContent>
+        )}
+
+        {detailTab === "corr" && (
+        <CardContent className="px-2 pb-2 pt-1">
+          {!portfolioRisk || portfolioRisk.tickers.length < 2 ? (
+            <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+              Need price history on at least two names for a correlation matrix
+            </div>
+          ) : (
+            (() => {
+              const n = portfolioRisk.tickers.length;
+              const labelPct = Math.max(4.5, Math.min(8, 100 / (n + 2)));
+              const cellPct = (100 - labelPct) / n;
+              return (
+                <div className="w-full" style={{ height: `min(62vh, ${Math.max(280, (n + 1) * 22)}px)` }}>
+                  <table className="w-full h-full border-collapse table-fixed">
+                    <colgroup>
+                      <col style={{ width: `${labelPct}%` }} />
+                      {portfolioRisk.tickers.map((t) => (
+                        <col key={t} style={{ width: `${cellPct}%` }} />
+                      ))}
+                    </colgroup>
+                    <thead>
+                      <tr className="border-y border-[#d4af37]/15 bg-secondary/20" style={{ height: `${100 / (n + 1)}%` }}>
+                        <th className={cn(CORR_TH, "sticky left-0 bg-zinc-950 z-[1]")} />
+                        {portfolioRisk.tickers.map((t) => (
+                          <th key={t} className={cn(CORR_TH, "truncate")} title={t}>
+                            {t.length > 4 ? t.slice(0, 4) : t}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {portfolioRisk.tickers.map((rowTicker, i) => (
+                        <tr
+                          key={rowTicker}
+                          className={cn("border-b border-border/15", i % 2 === 0 ? "" : "bg-secondary/5")}
+                          style={{ height: `${100 / (n + 1)}%` }}
+                        >
+                          <td
+                            className={cn(CORR_TD, "sticky left-0 bg-zinc-950 z-[1] text-left font-bold text-zinc-200 pl-1 truncate")}
+                            title={rowTicker}
+                          >
+                            {rowTicker.length > 4 ? rowTicker.slice(0, 4) : rowTicker}
+                          </td>
+                          {portfolioRisk.correlationMatrix[i].map((v, j) => {
+                            const colTicker = portfolioRisk.tickers[j];
+                            const isDiagonal = i === j;
+                            const isExcluded = isSameUnderlyingPair(rowTicker, colTicker);
+                            if (isDiagonal || isExcluded) {
+                              return (
+                                <td
+                                  key={j}
+                                  className={cn(CORR_TD, "text-muted-foreground/50")}
+                                  title={isExcluded ? "Same underlying — excluded from color scale" : undefined}
+                                >
+                                  {v.toFixed(1)}
+                                </td>
+                              );
+                            }
+                            return (
+                              <td
+                                key={j}
+                                className={cn(CORR_TD, "font-semibold text-white")}
+                                style={{ backgroundColor: correlationBg(v, correlationScaleMax) }}
+                                title={`${rowTicker}×${colTicker}: ${v.toFixed(3)}`}
+                              >
+                                {v.toFixed(1)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()
           )}
         </CardContent>
         )}
@@ -1827,6 +2130,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </CardContent>
         )}
       </Card>
+      </LazyMount>
     </div>
   );
 }

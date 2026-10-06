@@ -13,6 +13,7 @@ import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
 import { PRESET_COLORS, COLOR_LABELS, fetchWatchlistFor } from "@/hooks/use-watchlist"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TickerCallOptionsModal } from "@/components/TickerCallOptionsModal"
+import { AccountDetailsButton, TradingPrefsStrip } from "@/components/settings/AccountDetailsPanel"
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -955,6 +956,7 @@ export default function Profile() {
                     )}>
                       {data.user.role}
                     </span>
+                    {isOwnerProfile && <AccountDetailsButton />}
                   </div>
                 </div>
 
@@ -987,6 +989,8 @@ export default function Profile() {
               {/* Compact ag-grid-style stats row */}
               <StatsBar stats={data.stats} posts={data.posts} account={data.account} />
             </div>
+
+            {isOwnerProfile && <TradingPrefsStrip />}
 
             {/* ── Holdings (wheel-strategy assigned shares) ── */}
             <HoldingsSection holdings={data.holdings} isOwnerProfile={isOwnerProfile} onChanged={invalidate} />

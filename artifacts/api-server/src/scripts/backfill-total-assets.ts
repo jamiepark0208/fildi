@@ -14,7 +14,7 @@
 import { sql, eq, and, isNull } from "drizzle-orm";
 import { db, fmpFundamentals, tickerFundamentals, tickerRegistry } from "@workspace/db";
 import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
-import { fetchJsonWithRetry } from "../lib/http-client.js";
+import { fetchJsonWithRetry, sleep } from "../lib/http-client.js";
 
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 const FMP_API_KEY = process.env.FMP_API_KEY ?? "";
@@ -22,9 +22,6 @@ const DERIVE_ONLY = process.argv.includes("--derive-only");
 const maxArg = process.argv.find((a) => a.startsWith("--max="));
 const MAX = maxArg ? Number(maxArg.split("=")[1]) : Infinity;
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function n(v: unknown): number | null {
   if (v == null) return null;

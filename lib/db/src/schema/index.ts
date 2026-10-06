@@ -145,6 +145,8 @@ export const pricesHistorical = pgTable('prices_historical', {
   low:    numeric('low'),
   close:  numeric('close'),
   volume: bigint('volume', { mode: 'number' }),
+  /** Provenance: yahoo | lseg (ranked fallback — never silently overwrite without source). */
+  source: text('source'),
 }, t => ({
   pk:        primaryKey({ columns: [t.ticker, t.date] }),
   lookupIdx: index('idx_prices_lookup').on(t.ticker, t.date),

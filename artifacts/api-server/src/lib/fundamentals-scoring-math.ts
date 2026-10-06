@@ -25,9 +25,14 @@ export const FAMILY_MIN_COVERAGE = 0.5; // below this the family is null (n/a), 
 export const TOTAL_MIN_COVERAGE  = 0.4; // below this the ticker is unranked entirely
 
 /** Pull a raw 0-100 family score toward neutral in proportion to sqrt(coverage).
- *  Returns null when coverage is too thin to publish a number at all. */
-export function shrinkToNeutral(rawScore: number, coverage: number): number | null {
-  if (!(coverage >= FAMILY_MIN_COVERAGE)) return null;
+ *  Returns null when coverage is too thin to publish a number at all.
+ *  `minCoverage` defaults to FAMILY_MIN_COVERAGE; scorecard_params may override. */
+export function shrinkToNeutral(
+  rawScore: number,
+  coverage: number,
+  minCoverage: number = FAMILY_MIN_COVERAGE,
+): number | null {
+  if (!(coverage >= minCoverage)) return null;
   const c = Math.min(1, Math.max(0, coverage));
   return NEUTRAL_SCORE + (rawScore - NEUTRAL_SCORE) * Math.sqrt(c);
 }

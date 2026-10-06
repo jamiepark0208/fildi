@@ -235,6 +235,29 @@ export function OptionsScannerContent({
     staleTime: 5 * 60_000,
   });
 
+  // WRDS IBES street-event flags (local cache) — tighter ER haircut for puts and calls.
+  const { data: wrdsSignals } = useQuery({
+    queryKey: ["research-wrds-signals", displayTickersKey],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/research/wrds/signals?tickers=${encodeURIComponent(displayTickersKey)}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) return { signals: {} as Record<string, { streetEventRisk: boolean }> };
+      return res.json() as Promise<{ signals: Record<string, { streetEventRisk: boolean }> }>;
+    },
+    enabled: isLoaded && displayTickers.length > 0,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const streetRiskMap = useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const [t, s] of Object.entries(wrdsSignals?.signals ?? {})) {
+      if (s?.streetEventRisk) m.set(t, true);
+    }
+    return m;
+  }, [wrdsSignals]);
+
   // ── Derived maps ─────────────────────────────────────────────────────────────
   const scorecardFromApi = useMemo(
     () => new Map((scorecardData ?? []).map(r => [r.ticker, r])),
@@ -406,6 +429,7 @@ export function OptionsScannerContent({
           techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
           fundTotalScore:        fundScoreMap.get(ticker) ?? null,
           earningsDaysOut:       techRow.earningsDaysOut ?? null,
+          streetEventRisk:       streetRiskMap.get(ticker) ?? false,
         };
         const picked = pickBestStrike(
           chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
@@ -438,7 +462,7 @@ export function OptionsScannerContent({
       }
     }
     return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
-  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode, pickOpts, rankingByTicker]);
+  }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode, pickOpts, rankingByTicker, streetRiskMap]);
 
   // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
   const stockScoreMap = useMemo(() => {
@@ -765,6 +789,7 @@ export function OptionsScannerContent({
                 onOverride={() => handleOverride(ticker)}
                 techRow={techRowMap.get(ticker) ?? null}
                 fundTotalScore={fundScoreMap.get(ticker) ?? null}
+                streetEventRisk={streetRiskMap.get(ticker) ?? false}
                 macroRegime={macroRegimeData?.regime ?? "BASELINE"}
                 allWatchlistIVs={allWatchlistIVs}
                 strikeWeights={effectiveStrikeWeights}

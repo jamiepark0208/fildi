@@ -15,7 +15,7 @@ import {
   MIN_OI, MAX_SPREAD_PCT, MIN_VOL, LIQUIDITY_GATE_HARD,
   MIN_SCORED_COMPONENTS,
   EARNINGS_RISK_DAYS, EARNINGS_NEAR_HAIRCUT, EARNINGS_DEEP_OTM_HAIRCUT,
-  EARNINGS_SAFE_OTM, EARNINGS_BUFFER_MULT, QUOTE_STALE_HAIRCUT,
+  EARNINGS_SAFE_OTM, EARNINGS_BUFFER_MULT, EARNINGS_STREET_EVENT_EXTRA, QUOTE_STALE_HAIRCUT,
 } from "./option-scorer-constants.ts";
 import { isPlausibleOptionQuote, isViablePremiumIncome } from "./premium-candidates.ts";
 import { applyCalibrationToScore, type CalibrationTable, type OptionSide } from "./calibration.ts";
@@ -56,6 +56,11 @@ export interface StockContext {
   fundTotalScore: number | null;   // [0, 100]
   /** Calendar days to next earnings; null if unknown. Highlight risk — do not exclude. */
   earningsDaysOut?: number | null;
+  /**
+   * WRDS IBES: extreme revision breadth or SUE into the earnings window.
+   * Tightens soft ER haircut for both puts and calls — does not hard-exclude.
+   */
+  streetEventRisk?: boolean | null;
 }
 
 export interface LiquidityResult {
@@ -374,8 +379,12 @@ export function computeOptionScore(
   // earnings is a valid elevated-IV harvest; near ATM into ER is riskier.
   if (earningsRisk) {
     const deepEnough = candidate.otmPct >= EARNINGS_SAFE_OTM && candidate.weeklyIncome >= floor;
-    const deepH = opts?.earningsHaircutDeep ?? EARNINGS_DEEP_OTM_HAIRCUT;
-    const nearH = opts?.earningsHaircutNear ?? EARNINGS_NEAR_HAIRCUT;
+    let deepH = opts?.earningsHaircutDeep ?? EARNINGS_DEEP_OTM_HAIRCUT;
+    let nearH = opts?.earningsHaircutNear ?? EARNINGS_NEAR_HAIRCUT;
+    if (stock.streetEventRisk) {
+      deepH *= EARNINGS_STREET_EVENT_EXTRA;
+      nearH *= EARNINGS_STREET_EVENT_EXTRA;
+    }
     optionScore *= deepEnough ? deepH : nearH;
   }
   if (quoteStale) {
@@ -393,6 +402,7 @@ export function computeOptionScore(
   if (earningsRisk) {
     const d = stock.earningsDaysOut;
     dataQualityFlags.push(d === 0 ? "earnings today" : `earnings in ${d}d`);
+    if (stock.streetEventRisk) dataQualityFlags.push("street event risk (IBES)");
   }
   if (quoteStale) dataQualityFlags.push("quote stale (lastPrice / no live bid)");
 
@@ -458,6 +468,13 @@ export interface PickBestStrikeOpts {
   calibration?: CalibrationTable | null;
   /** Override earnings overall haircuts (policy). */
   earningsHaircut?: number;
+  /**
+   * Override weekly-income viability floor (absolute %/wk). When set, used as-is
+   * (no ×0.9). Omit for default REGIME / CALL floors with ×0.9 slack.
+   */
+  incomeFloor?: number;
+  /** Override min OTM for viability (default MIN_OTM_FOR_PREMIUM). */
+  minOtm?: number;
 }
 
 export function pickBestStrike<
@@ -506,8 +523,12 @@ export function pickBestStrike<
       if (cal.multiplier < 1) {
         result.optionScore = Math.round(result.optionScore * cal.multiplier * 10) / 10;
       }
-      const incomeFloor = isCall ? CALL_INCOME_FLOOR : REGIME_INCOME_FLOOR[regime];
-      if (!isViablePremiumIncome(result.weeklyIncome, candidate.otmPct, { incomeFloor: incomeFloor * 0.9 })) continue;
+      const defaultFloor = isCall ? CALL_INCOME_FLOOR : REGIME_INCOME_FLOOR[regime];
+      const incomeFloor = pickOpts?.incomeFloor ?? defaultFloor * 0.9;
+      if (!isViablePremiumIncome(result.weeklyIncome, candidate.otmPct, {
+        incomeFloor,
+        minOtm: pickOpts?.minOtm,
+      })) continue;
       const entry: Candidate = { chain, put: opt, result };
       if (!best || result.optionScore > best.result.optionScore) {
         runnerUp = best;

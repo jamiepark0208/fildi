@@ -111,6 +111,8 @@ export const MIN_SCORED_COMPONENTS = 3; // fewer available → suppress BEST lab
 export const EARNINGS_RISK_DAYS = 7;
 /** Mild overall haircut when ER ≤7d and strike is not deep enough OTM. */
 export const EARNINGS_NEAR_HAIRCUT = 0.88;
+/** Extra multiplier when IBES revision/SUE is extreme into earnings (puts and calls). */
+export const EARNINGS_STREET_EVENT_EXTRA = 0.94;
 /** Softer haircut when ER ≤7d but strike is deep OTM with adequate income. */
 export const EARNINGS_DEEP_OTM_HAIRCUT = 0.96;
 /** OTM fraction that counts as "deep enough" to harvest earnings IV. */

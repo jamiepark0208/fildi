@@ -21,6 +21,9 @@ export interface ApiCallParams {
   ticker?: string;
   outcome: "success" | "failure";
   fieldsReturned?: number;
+  /** LLM sources only — token usage for the log line (per-user rows live in ai_usage_log). */
+  inputTokens?: number;
+  outputTokens?: number;
   error?: string;
   requestedFields?: string;
   usageToday?: number;

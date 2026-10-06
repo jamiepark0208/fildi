@@ -20,7 +20,7 @@ import { rotateApiServerLogIfNeeded } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
 import { runModelSnapshot, runModelGrading } from "./model-track-record.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
-import { isMarketOpen, minutesSinceOpen } from "./market-hours.js";
+import { getMarketOpenUtc, isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
 import { runEventBulletCheck } from "./event-bullets.js";
@@ -486,11 +486,22 @@ export let lastRegimeCheckpointRun: Date | null = null;
 // Separate, finer heartbeat for the intraday regime banner — checkpoints are
 // 15 min apart, tighter than the 30-min cadence the other jobs use, so this
 // runs on its own interval rather than changing CHECK_INTERVAL_MS for everything else.
-/** Manual / admin trigger — no-op outside regular session (minutesSinceOpen null). */
+/**
+ * Manual / admin trigger. During RTH uses live minutes-since-open.
+ * After the close on a trading day, still catch up any missing checkpoints
+ * (Scheduled Tasks "Run" at night must not be a silent no-op).
+ */
 export async function runRegimeCheckpoints() {
   if (regimeCheckRunning) return;
-  const minSinceOpen = minutesSinceOpen();
-  if (minSinceOpen == null) return;
+  let minSinceOpen = minutesSinceOpen();
+  if (minSinceOpen == null) {
+    const open = getMarketOpenUtc();
+    if (!open) return; // weekend / holiday
+    const elapsed = (Date.now() - open.getTime()) / 60_000;
+    if (elapsed < 0) return; // before open
+    // Cap high enough to cover the last checkpoint (330m) after close.
+    minSinceOpen = Math.max(elapsed, CHECKPOINTS_MIN[CHECKPOINTS_MIN.length - 1]!);
+  }
   regimeCheckRunning = true;
   try {
     let anyRecorded = false;

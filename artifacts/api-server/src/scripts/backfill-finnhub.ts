@@ -11,6 +11,7 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/backfill-finnhub.ts
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq } from "drizzle-orm";
@@ -41,7 +42,6 @@ function isFresh(fetchedAt: Date | null): boolean {
   return Date.now() - new Date(fetchedAt).getTime() < STALE_DAYS * 86_400_000;
 }
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 function countFilled(data: Record<string, unknown>): number {
   return Object.values(data).filter(v => v !== undefined && v !== null).length;

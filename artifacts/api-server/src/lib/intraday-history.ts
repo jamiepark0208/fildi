@@ -9,13 +9,12 @@
 // serves 5m bars ~60 days back: once a day ages out of that window, the bars are
 // unrecoverable, and checkpoint reconstruction (see intraday-checkpoint-grading.ts)
 // needs them.
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, intradayDayStats } from "@workspace/db";
 import type { Bar } from "./intraday-regime.js";
 import { logger } from "./logger.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 /** Index symbols whose session shape is tracked. Deliberately not the hotlist — this is market-wide context. */
 export const TRACKED_SYMBOLS = ["SPY", "QQQ"] as const;

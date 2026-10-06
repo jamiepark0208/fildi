@@ -5,6 +5,10 @@ import {
   yahooEpochToDateStr,
   parseEarningsDate,
   buildCatalysts,
+  buildCatalystItems,
+  classifyAnalystLean,
+  gradeLean,
+  mergeCaseBullets,
 } from "./catalysts.ts";
 
 describe("yahooEpochToMs", () => {
@@ -58,7 +62,31 @@ describe("parseEarningsDate", () => {
   });
 });
 
-describe("buildCatalysts", () => {
+describe("classifyAnalystLean", () => {
+  it("treats Buy→Neutral cut as bear", () => {
+    assert.equal(classifyAnalystLean("down", "Neutral"), "bear");
+    assert.equal(classifyAnalystLean("downgrade", "Neutral"), "bear");
+  });
+  it("treats upgrade as bull regardless of destination", () => {
+    assert.equal(classifyAnalystLean("up", "Neutral"), "bull");
+    assert.equal(classifyAnalystLean("upgrade", "Hold"), "bull");
+  });
+  it("classifies initiate by destination grade", () => {
+    assert.equal(classifyAnalystLean("init", "Overweight"), "bull");
+    assert.equal(classifyAnalystLean("initiate", "Underweight"), "bear");
+    assert.equal(classifyAnalystLean("init", "Neutral"), "neutral");
+  });
+  it("gradeLean covers common Wall St labels", () => {
+    assert.equal(gradeLean("Buy"), "bull");
+    assert.equal(gradeLean("Overweight"), "bull");
+    assert.equal(gradeLean("Sell"), "bear");
+    assert.equal(gradeLean("Underweight"), "bear");
+    assert.equal(gradeLean("Hold"), "neutral");
+    assert.equal(gradeLean("Equal-Weight"), "neutral");
+  });
+});
+
+describe("buildCatalysts / buildCatalystItems", () => {
   it("returns empty array when no inputs", () => {
     assert.deepEqual(buildCatalysts({ earningsDate: null, analystActions: [], news: [] }), []);
   });
@@ -66,19 +94,19 @@ describe("buildCatalysts", () => {
   it("includes earnings within 14 days as urgent label", () => {
     const soon = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
     const out = buildCatalysts({ earningsDate: soon, analystActions: [], news: [] });
-    assert.ok(out[0].includes("Earnings in"), `expected urgent label, got: ${out[0]}`);
+    assert.ok(out[0]!.includes("Earnings in"), `expected urgent label, got: ${out[0]}`);
   });
 
   it("includes earnings 15-30 days out as date label", () => {
     const mid = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
     const out = buildCatalysts({ earningsDate: mid, analystActions: [], news: [] });
-    assert.ok(out[0].startsWith("Earnings on"), `expected date label, got: ${out[0]}`);
+    assert.ok(out[0]!.startsWith("Earnings on"), `expected date label, got: ${out[0]}`);
   });
 
   it("includes earnings > 30 days as 'Next earnings'", () => {
     const far = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
     const out = buildCatalysts({ earningsDate: far, analystActions: [], news: [] });
-    assert.ok(out[0].startsWith("Next earnings"), `got: ${out[0]}`);
+    assert.ok(out[0]!.startsWith("Next earnings"), `got: ${out[0]}`);
   });
 
   it("omits past earnings dates", () => {
@@ -87,14 +115,33 @@ describe("buildCatalysts", () => {
     assert.equal(out.length, 0);
   });
 
-  it("includes upgrade analyst action within 90 days", () => {
+  it("marks GS Buy→Neutral cut as bear item", () => {
     const recent = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
-    const out = buildCatalysts({
+    const items = buildCatalystItems({
+      earningsDate: null,
+      analystActions: [{
+        firm: "Goldman Sachs",
+        toGrade: "Neutral",
+        fromGrade: "Buy",
+        action: "down",
+        date: recent,
+      }],
+      news: [],
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0]!.lean, "bear");
+    assert.match(items[0]!.text, /Goldman Sachs cut from Buy to Neutral/);
+  });
+
+  it("includes upgrade analyst action within 90 days as bull", () => {
+    const recent = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+    const items = buildCatalystItems({
       earningsDate: null,
       analystActions: [{ firm: "GS", toGrade: "Buy", fromGrade: "Neutral", action: "up", date: recent }],
       news: [],
     });
-    assert.ok(out.some(l => l.includes("upgraded")), `got: ${JSON.stringify(out)}`);
+    assert.equal(items[0]!.lean, "bull");
+    assert.ok(items[0]!.text.includes("upgraded"), `got: ${items[0]!.text}`);
   });
 
   it("omits downgrade older than 90 days", () => {
@@ -107,17 +154,19 @@ describe("buildCatalysts", () => {
     assert.equal(out.length, 0);
   });
 
-  it("filters news to event keywords only", () => {
-    const out = buildCatalysts({
+  it("filters news to event keywords; bankruptcy leans bear", () => {
+    const items = buildCatalystItems({
       earningsDate: null,
       analystActions: [],
       news: [
         { title: "FDA approves new drug trial", publishedAt: null },
         { title: "CEO attends conference", publishedAt: null },
+        { title: "Company files for bankruptcy protection", publishedAt: null },
       ],
     });
-    assert.equal(out.length, 1);
-    assert.ok(out[0].includes("FDA"));
+    assert.equal(items.length, 2);
+    assert.equal(items.find(i => /FDA/.test(i.text))!.lean, "neutral");
+    assert.equal(items.find(i => /bankruptcy/.test(i.text))!.lean, "bear");
   });
 
   it("caps total output at 6", () => {
@@ -137,5 +186,14 @@ describe("buildCatalysts", () => {
       ],
     });
     assert.ok(out.length <= 6, `expected ≤6, got ${out.length}`);
+  });
+
+  it("mergeCaseBullets prefers catalyst line and skips same-firm event bullet", () => {
+    const merged = mergeCaseBullets(
+      ["Goldman Sachs cut from Buy to Neutral (2026-10-01)"],
+      ["Goldman Sachs downgraded AEP from Buy to Neutral"],
+    );
+    assert.equal(merged.length, 1);
+    assert.match(merged[0]!, /cut from Buy/);
   });
 });

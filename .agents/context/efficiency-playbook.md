@@ -2,7 +2,7 @@
 
 > Ops SoT for cost/latency hygiene. Lazy-load + cache are tools; this lists **where money and CPU actually burn**.
 
-Updated: 2026-10-04 (P0 AI limiter + watchlist snapshot Options done).
+Updated: 2026-10-06 (API/LLM optimization pass — shared building blocks below; ASKS A30).
 
 ---
 
@@ -10,13 +10,15 @@ Updated: 2026-10-04 (P0 AI limiter + watchlist snapshot Options done).
 
 | Area | Why |
 |---|---|
-| Explain AI | `explain_cache` + hash; user-click only; `aiLimiter` 30/15m/user |
+| Explain AI | Every surface goes through `generateExplanation` (`lib/ai-explain.ts`): `explain_cache` + hash, concurrent misses share one Haiku call, cache hits logged + refunded from `aiLimiter` (`markAiCached`). One row per (ticker, surfaceType) — variants that must coexist need their own surfaceType (technical put = `technical`, call = `technical-call`). `/explain/score` body size-capped (`lib/validators/explain.ts`) |
 | All Haiku surfaces | Shared `callHaiku` + `aiLimiter` on explain / daily-brief refresh / desk daily-news / macro generate; token cols on `ai_usage_log` |
 | Desk normalize | Deterministic pre-Haiku; Daily News Haiku is ad-hoc |
 | Fundamentals | Maintain LaunchAgent + budgets; `DISABLE_SCHEDULER_ENRICHMENT=1` on Mac |
 | Schwab MD | 100 RPM budget, 30m options + 60s quotes, Yahoo fallback |
+| External HTTP | `fetchJsonWithRetry` (`lib/http-client.ts`): per-provider rolling limits, Retry-After, fail-fast 4xx, `nullOn404`, `redactUrl` on every logged/thrown URL |
+| Yahoo client | ONE instance — `import { yahooFinance } from "lib/yahoo-client.js"`; never `new YahooFinanceClass()` in server code |
 | Local stack | Pidfiles + orphan detection (`scripts/local-stack.mjs`, ApiMonitor chip) |
-| Options UI | Overall **and** Watchlist seed from `/options/rankings` snapshots; chains on expand only |
+| Options UI | Overall **and** Watchlist seed from `/options/rankings` snapshots; chains on expand only. Snapshot job = premium candidates **∪ watchlist** (with technicals); watchlist names that fail Overall gates get a **relaxed** second pass (sq/income floors) so Rankings isn’t blank |
 | Recent UI | Macro tab-gated; Track Record no path-Yahoo on request; shared `queryKeys.technicalsAll` |
 
 ---
@@ -52,8 +54,19 @@ Shared `aiLimiter` + `callHaiku` token logging on daily-brief `?refresh`, desk d
 | Overall Options DOM | Was 100–200 `ScannerRow`s | Cap 75 done; next: virtualize if >75 needed |
 | Track Record `ticker-summary` | Was path-risk Yahoo | v7: live prices + stored `_pathRisk` only |
 | Macro `/charts` cold | ~20 upstream series | Tab-gated client done; next: **split cache** regime-essentials vs liquidity pack on server |
-| Live movers | Yahoo screener every visit | Raise staleTime; skip when Market tab not focused (page already mostly gated) |
+| Live movers | Yahoo screener every visit | **Done:** server `live-movers-combined` 90s TTL + single union `getLivePrices`; client `staleTime` 5m (matches screener) |
 | `computeTechnicalRankingsV2` client-side | Re-runs on every side toggle | Memo by `(side, dataRev)`; or precompute nightly into DB |
+
+### Surface ownership (recommendation lenses — do not unify)
+
+| Surface | Owns | Conflict rule |
+|---|---|---|
+| Live Oversold/Overbought | RSI-side extremes (`rsi<50` / `rsi>50` pools) | Never on both sides |
+| Live Top Puts/Calls | Scanner contract score | Soft amber chip vs Model List side |
+| Rankings (fund/tech/options) | Universe peer scores | Independent lens |
+| Model List | Trade book (SoT when lenses disagree) | Prefer Model; never auto-hide ideas |
+
+`rec-conflicts` (`lib/rec-conflicts.ts` + Live chips) is display-only non-contradiction — not a new ranker.
 
 ---
 
@@ -63,7 +76,9 @@ Shared `aiLimiter` + `callHaiku` token logging on daily-brief `?refresh`, desk d
 - Prefer deterministic text (`buildReasoning`) over Haiku when scores unchanged.
 - Daily brief: enforce once/day cache (already `fromCache`); never auto-regen on tab focus.
 - Desk Daily News: pack size cap already in normalize — keep noise≥70; don’t re-Haiku same session window.
-- Log **input+output tokens** into `ai_usage_log` (today often call-count only) → Settings AI spend strip.
+- Tokens already logged: `callHaiku` writes input/output tokens to `ai_usage_log` (misses) and `api.log` (`inputTokens`/`outputTokens`); failures logged too. Next: Settings AI spend strip.
+- Admin "Generate" actions (macro highlights, bank research, daily-brief refresh) are wrapped in `singleFlight` (`lib/single-flight.ts`); desk daily-news refresh not yet.
+- Bank-research stances feed `regime-classifier` `deriveBankLean` — prompt changes there move the business-cycle regime → before/after + user approval (AGENTS.md rule 5).
 
 ### Cursor / agent tokens (this repo)
 - Codegraph-first (rule) — avoid Explore subagents for symbol lookup.
@@ -78,8 +93,11 @@ Shared `aiLimiter` + `callHaiku` token logging on daily-brief `?refresh`, desk d
 | Vendor | Soft cap in product | Watch |
 |---|---|---|
 | Schwab | 100 RPM token bucket | ApiMonitor RPM chip |
-| Yahoo | Implicit via cache TTLs | Fallback share after Schwab |
-| FMP / AV / Finnhub | Nightly budgets in enrichment | Stock DB Pipeline Health |
+| Yahoo | Cache TTLs + single shared client (one crumb/queue) | Fallback share after Schwab |
+| Finnhub | 55/min rolling (`PROVIDER_LIMITS` in http-client) shared by all callers | ApiMonitor |
+| Polygon / AV | 5/min rolling + nightly budgets (AV daily = `AV_MAX_DAILY_CALLS`) | Stock DB Pipeline Health |
+| SEC EDGAR | 9/s rolling | — |
+| FMP | Daily budget only (`checkFMPBudget` / `FMP_MAX_DAILY_CALLS`) | Stock DB Pipeline Health |
 | Anthropic | `aiLimiter` 30/15m on all Haiku routes | Done |
 | Express general | 300/15m | Fine for single-user Mac |
 
@@ -94,6 +112,9 @@ Shared `aiLimiter` + `callHaiku` token logging on daily-brief `?refresh`, desk d
 | Drop unused Yahoo chain code paths once Schwab hit-rate >95% for 2 weeks | Less dual maintenance |
 | Keep `schwab-market-data.md` + this playbook in INDEX | Done (linked) |
 | Stale plan text still mentioning `FUNDAMENTAL_WATCHLIST` as live | INDEX already says removed — archive plan footer only |
+| Scheduler `xRunning` flags (9 copy-paste pairs) | Could use one helper; skipped 10/06 — exported to scheduled-tasks/data-health/refetch-queue |
+| Sync `readFileSync` in routes | Small JSON; async cascades into sync callers (cache-registry, regime-classifier) — leave |
+| `fetchFredCSV` (macro-charts) vs `fetchFredSeriesData` (macro-fred) | Two FRED CSV fetchers — merge when next touched |
 
 ---
 
@@ -118,6 +139,12 @@ node scripts/local-stack.mjs status
 # Schwab health (0 MD RPM)
 # Settings → Scheduled Tasks → Schwab Auth Health → Run
 
-# AI limiter coverage — grep routes for anthropic.messages.create vs explainLimiter mount
-rg -n "anthropic.messages.create|explainLimiter" artifacts/api-server/src
+# AI limiter coverage — every Haiku call goes through callHaiku; each route calling it needs aiLimiter
+rg -n "anthropic.messages.create" artifacts/api-server/src   # expect only lib/haiku.ts
+rg -n "callHaiku\(|generateExplanation\(|aiLimiter" artifacts/api-server/src/routes
+
+# Drift checks for the shared building blocks
+rg -n "new YahooFinance" artifacts/api-server/src/lib artifacts/api-server/src/routes   # expect only yahoo-client.ts
+rg -n "^function sleep|async function fetchWithRetry" artifacts/api-server/src          # expect none (use http-client)
+rg -n "Cache\.get\(" artifacts/api-server/src/routes                                   # prefer getOrCompute
 ```

@@ -4,6 +4,7 @@
 import { Router } from "express";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js";
 import { getSchwabUsageStats, schwabAvailable } from "../lib/schwab-client.js";
+import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 
 const router = Router();
 
@@ -51,6 +52,8 @@ router.get("/schwab/status", async (_req, res) => {
     clientReady,
     reauthHint,
     usage,
+    /** Process-lifetime: live option chains served via Schwab vs Yahoo fallback */
+    optionsChainSource: getOptionsChainSourceStats(),
   });
 });
 

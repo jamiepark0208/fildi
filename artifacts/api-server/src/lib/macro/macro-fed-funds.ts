@@ -1,6 +1,5 @@
 // Fed funds curve (CME 30-Day Fed Funds Futures). Extracted verbatim from macro-data.ts — no behavior change.
-import YahooFinanceClass from "yahoo-finance2";
-const yahooFinance = new YahooFinanceClass();
+import { yahooFinance } from "../yahoo-client.js";
 import type { FedFundsCurvePoint } from "../macro-data.js";
 import { fetchYieldCurve } from "./macro-yields.js";
 

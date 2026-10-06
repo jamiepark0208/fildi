@@ -82,6 +82,19 @@ def held_back_reason(list_key: str, f: dict | None, P: dict, spy20: float | None
     return None
 
 
+def fair_values(conn) -> dict[str, dict]:
+    """Latest blended fair value per ticker (display only — never scores or sizes)."""
+    try:
+        return {r["ticker"]: r for r in rows(conn, """
+            SELECT DISTINCT ON (ticker) ticker, fair_value::float8 AS fair_value, price::float8 AS fv_price,
+                   confidence, value_trap, cyclical
+            FROM fair_value_snapshots
+            WHERE fair_value IS NOT NULL
+            ORDER BY ticker, as_of DESC""")}
+    except Exception:
+        return {}
+
+
 def ma200_gap(conn) -> dict[str, float]:
     """Close vs its 200-day average (the trend part of the stock score that passed gate 1); needs 200 stored closes."""
     return {r["ticker"]: r["gap"] for r in rows(conn, """
@@ -343,12 +356,25 @@ def build(conn) -> tuple[dict, list[dict]]:
         for i, o in enumerate(items[: caps.get(k) or None], 1):
             final.append({**o, "rank": i})
     gaps = ma200_gap(conn)
+    fvs = fair_values(conn)
     for o in final:
         ps = (o["contract"] or {}).get("premium_score")
         if ps and o["pillars"] is not None:
             o["pillars"] = {**o["pillars"], "premium": ps["value"], "premium_30d": ps["pillar_30d"]}
         if o["pillars"] is not None and o["ticker"] in gaps:
             o["pillars"] = {**o["pillars"], "ma200": round(gaps[o["ticker"]], 4)}
+        # Display only: strike vs blended fair value (never gates / sizes).
+        c, fv = o.get("contract"), fvs.get(o["ticker"])
+        if c and fv and fv.get("fair_value"):
+            strike = float(c["strike"])
+            fair = float(fv["fair_value"])
+            c["fair_value"] = {
+                "value": round(fair, 2),
+                "strike_vs_fair": round(strike / fair - 1, 4),
+                "confidence": fv.get("confidence"),
+                "value_trap": bool(fv.get("value_trap")),
+                "cyclical": bool(fv.get("cyclical")),
+            }
     for o in final:
         o["adjustments"] = adjustments(o)
         o.pop("_f", None)

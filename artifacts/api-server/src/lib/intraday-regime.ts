@@ -6,7 +6,7 @@
 // lightweight liquidity-sweep analog on prior-day H/L) without the
 // execution-grade machinery (FVG entries, market-structure-shift confirmation,
 // tick-level scanning) that a put-selling dashboard doesn't need.
-import YahooFinanceClass from "yahoo-finance2";
+import { yahooFinance } from "./yahoo-client.js";
 import { eq } from "drizzle-orm";
 import { db, appConfig } from "@workspace/db";
 import { readOHLCVFromDB } from "./indicators.js";
@@ -15,7 +15,6 @@ import { liveHotlist, MARKET_CONTEXT_SYMBOLS } from "./live-hotlist.js";
 import { etDateKey, getMarketOpenUtc } from "./market-hours.js";
 import { logger } from "./logger.js";
 
-const yahooFinance = new YahooFinanceClass();
 
 // Every 15 min through the first hour (when trend-vs-reversal usually resolves),
 // every 30 min after that through midday, then hourly through 12:00 PM PT
@@ -308,8 +307,14 @@ function configKey(dateKey: string): string {
 // `label`/`computedLate` from before those fields existed) so a mid-day schema
 // change doesn't crash every consumer that trusts the current RegimeCheckpoint type.
 function normalizeCheckpoint(raw: RegimeCheckpoint & { explanation?: string }, openUtc: Date): RegimeCheckpoint {
+  // Older rows sometimes omit `status`; treat any persisted checkpoint with a
+  // real timestamp as resolved so Scheduled Tasks / Live don't show Wait · 0%.
+  const status =
+    raw.status ??
+    (typeof raw.timestamp === "number" && raw.timestamp > 0 ? "resolved" : "pending");
   return {
     ...raw,
+    status,
     label: raw.label ?? checkpointLabel(openUtc, raw.minAfterOpen),
     computedLate: raw.computedLate ?? false,
     factors: raw.factors ?? (raw.explanation ? [raw.explanation] : ["Recorded under an older format — no factor breakdown available."]),

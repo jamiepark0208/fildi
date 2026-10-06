@@ -15,19 +15,11 @@ export const tickerNewsCache = new TTLCache<NewsItem[]>(30 * 60 * 1000, "ticker-
 
 async function getCachedTickerNews(ticker: string, max = 5): Promise<NewsItem[]> {
   const key = ticker.toUpperCase();
-  const cached = tickerNewsCache.get(key);
-  if (cached) return cached;
-  const news = await fetchYahooTickerNews(ticker, max);
-  tickerNewsCache.set(key, news);
-  return news;
+  return tickerNewsCache.getOrCompute(key, () => fetchYahooTickerNews(ticker, max));
 }
 
 async function getSectorRotation(): Promise<SectorRotationPoint[]> {
-  const cached = sectorRotationCache.get("sector-rotation");
-  if (cached) return cached as SectorRotationPoint[];
-  const data = await fetchSectorRotation();
-  sectorRotationCache.set("sector-rotation", data);
-  return data;
+  return sectorRotationCache.getOrCompute("sector-rotation", fetchSectorRotation) as Promise<SectorRotationPoint[]>;
 }
 
 function toNum(v: unknown): number | null {

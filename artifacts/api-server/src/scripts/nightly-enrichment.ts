@@ -17,6 +17,7 @@
  * Scoped test: npx tsx src/scripts/nightly-enrichment.ts --tickers=RGTI,SPCX --dry-run
  */
 
+import { sleep } from "../lib/http-client.js";
 import fs from "node:fs";
 import path from "node:path";
 import { sql, eq, and, inArray, isNull } from "drizzle-orm";
@@ -43,12 +44,12 @@ import { fetchFinnhubFundamentals }  from "../lib/finnhub-client.js";
 import { fetchPolygonFundamentals }  from "../lib/polygon-client.js";
 import { fetchAVOverview }           from "../lib/alpha-vantage-client.js";
 import { fetchFMPFundamentals }      from "../lib/fmp-client.js";
-import { recordApiUsage }            from "../lib/api-usage.js";
-import { checkFMPBudget, recordFMPCalls } from "../lib/fundamentals-db.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
 import { isExcludedEtf } from "../lib/etf-exclusions.js";
 import { resetDataSourceDailyCountersIfNeeded } from "../lib/reset-data-source-counters.js";
 import { runFactsetReferee } from "../lib/factset-referee.js";
+import { normalizeUsageSource } from "../lib/api-usage.js";
+import { usageCalendarDate } from "../lib/usage-date.js";
 import {
   AV_MAX_DAILY_CALLS,
   CALLS_PER_TICKER as SHARED_CALLS_PER_TICKER,
@@ -136,7 +137,6 @@ function log(line: string): void {
   fs.appendFileSync(logFile, stamped + "\n");
 }
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 const n = (v: number | null | undefined): string | null =>
   v !== undefined && v !== null ? String(v) : null;
@@ -328,14 +328,17 @@ async function buildFetchTargets(
 // ── Budget check ───────────────────────────────────────────────────────────────
 
 async function getRemainingBudgets(): Promise<Map<string, number>> {
+  // Align with Settings API Monitor (Pacific day + av alias for alpha_vantage).
+  const today = usageCalendarDate();
   const rows = await db.execute<{ source: string; calls_made: number }>(
-    sql`SELECT source, calls_made FROM api_usage WHERE date = current_date`
+    sql`SELECT source, calls_made FROM api_usage WHERE date = ${today}::date`,
   );
   const usedToday = new Map<string, number>(rows.rows.map(r => [r.source, r.calls_made]));
   const remaining = new Map<string, number>();
   for (const src of SOURCE_ORDER) {
     const limit = SOURCE_DAILY_LIMITS[src];
-    const used  = usedToday.get(src) ?? 0;
+    const key = normalizeUsageSource(src);
+    const used = usedToday.get(key) ?? usedToday.get(src) ?? 0;
     remaining.set(src, limit === Infinity ? Infinity : Math.max(0, limit - used));
   }
   return remaining;
@@ -795,9 +798,9 @@ async function processSource(
 
     const results = await Promise.all(chunk.map(async t => {
       try {
+        // Quota counted in client logApiCall only (avoid double-count vs api_usage).
         const status = await fn(t);
         if (status === "ok") {
-          await recordApiUsage(source, callsPerTicker).catch(() => {});
           log(`[${source}][${t}] OK`);
           return "ok";
         }
@@ -807,13 +810,11 @@ async function processSource(
         }
         return "ok";
       } catch (err: any) {
-        // AV quota exhaustion stops the whole source
+        // AV quota exhaustion stops the whole source (client already logged the failed call)
         if (source === "alpha_vantage" && err?.message?.includes("AV API limit")) {
-          await recordApiUsage("av", 1).catch(() => {});
           log(`[${source}][${t}] QUOTA — ${err.message}`);
           return "quota";
         }
-        // FMP: use checkFMPBudget before each fetch was already done above; record on error too
         log(`[${source}][${t}] FAIL — ${err?.message ?? "unknown"}`);
         return "fail";
       }

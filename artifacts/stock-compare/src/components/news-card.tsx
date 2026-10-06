@@ -3,9 +3,10 @@ import { cn } from "@/lib/utils";
 
 export interface NewsItem {
   title: string;
-  link: string;
+  link?: string;
   publisher: string;
   publishedAt: string | null;
+  source?: "desk" | "yahoo";
 }
 
 function timeAgo(iso: string | null): string {

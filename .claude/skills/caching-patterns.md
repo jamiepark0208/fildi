@@ -25,6 +25,7 @@ history           | Price History                   | 1 hour   | routes/stocks.t
 history-1d        | Price History (Intraday)        | 15 min   | routes/stocks.ts
 options           | Options Chain                   | 30 min   | routes/options.ts
 options-expiry    | Options Calendar                | 24 hours | lib/options.ts
+options-iv-term   | Options IV Term Structure       | 1 hour   | routes/options.ts
 macro-regime      | Market Regime (VIX)             | 30 min   | routes/macro-regime.ts
 macro-data        | Macro Data (FRED + Yahoo)       | 4 hours  | file cache (macro-data.json)
 macro-charts      | Macro Charts (VIX/Rates/Sentiment) | 4 hours | file cache (macro-charts.json)
@@ -36,6 +37,7 @@ provenance        | Provenance (field source data)  | 15 min   | lib/provenance-
 macro-indicator-history | Macro Indicator History    | 30 min   | routes/macro.ts
 macro-sep-actuals | SEP Actuals                     | 1 hour   | routes/macro.ts
 macro-sector-rotation | Sector Rotation Heatmap      | 30 min   | routes/macro.ts
+macro-bank-news   | Bank News (Google News)         | 30 min   | routes/macro.ts
 ticker-news       | Ticker News (Explain AI)        | 30 min   | lib/explain-context.ts
 live-price        | Live Price (Golden Source)      | 1 min    | lib/live-quote.ts
 live-screener     | Live Movers (Yahoo Screener)    | 5 min    | lib/live-movers.ts
@@ -49,29 +51,31 @@ daily-brief-market | Daily Brief Market Strip       | 1 min    | routes/daily-br
 
 ## Standard cache pattern (copy this exactly)
 ```ts
-const myCache = new TTLCache<MyType>(TTL_MS, 'display-name')
+import { yahooFinance } from '../lib/yahoo-client.js' // the ONE shared Yahoo instance — never `new YahooFinanceClass()`
+
+export const myCache = new TTLCache<MyType>(TTL_MS, 'display-name')
 
 router.get('/my-route', requireAuth, async (req, res, next) => {
   try {
     const key = req.params.ticker.toUpperCase()
-    const cached = myCache.get(key)
-    if (cached) return res.json(cached)
-
-    const data = await yahooFinance.something(...)
-    myCache.set(key, data)
+    // getOrCompute = cache-aside + concurrent misses share ONE upstream call.
+    // Failures throw and are NOT cached. Don't hand-roll get()/set().
+    const data = await myCache.getOrCompute(key, () => yahooFinance.something(...))
     res.json(data)
   } catch (err) {
     next(err)
   }
 })
 ```
+- Need to skip caching some successes (e.g. empty results)? Throw inside the compute and catch outside (see `getBankNews` in routes/macro.ts).
+- Non-Yahoo HTTP: use `fetchJsonWithRetry` from `lib/http-client.ts` (per-provider limits, Retry-After, key redaction) — don't write a new retry loop.
 
 ## Adding a new cache instance checklist
 - [ ] Import TTLCache from lib/ttl-cache
 - [ ] Choose TTL: search/expiry=24h, fundamentals=2h, price=1h, options=30min, intraday=15min
 - [ ] Pass a plain English display name
 - [ ] Export the instance from the route file
-- [ ] Add to cache-registry.ts getAllCaches() array
+- [ ] Add to cache-registry.ts: `DISPLAY_NAMES`, `namedCachesMap`, and the `ttlCaches` array (sweep + stats)
 - [ ] Add a row to the table above in this file
 
 ## Ticker search specifically
