@@ -12,7 +12,7 @@ import {
   STALE_DAYS as DATA_OPS_STALE_DAYS,
 } from "./data-ops-config.js";
 import {
-  scoreUniverse, withRanks, METRICS, type FundRowInput,
+  scoreUniverse, withRanks, METRICS, missingDefaultOptionals, type FundRowInput,
   type ScoreUniverseParams,
 } from "./fund-score-engine.js";
 import { getChampionScorecardParams } from "./scorecard-params.js";
@@ -397,6 +397,13 @@ export async function computeAndPersistFundamentalScores(
       ? (fundChamp.params.optionalMetrics as ScoreUniverseParams["optionalMetrics"])
       : undefined,
   };
+  const droppedOptionals = missingDefaultOptionals(fundParams.optionalMetrics);
+  if (droppedOptionals.length > 0) {
+    logger.warn(
+      { version: fundChamp.version, droppedOptionals },
+      "fund params optionalMetrics omits code-default optional metrics — they are required (coverage shrinks when missing)",
+    );
+  }
   const scored = withRanks(scoreUniverse(inputs, history, surprises, ibesSignals, fundParams));
   const computedAt = new Date();
 

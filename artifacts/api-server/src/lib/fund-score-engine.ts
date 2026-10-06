@@ -597,9 +597,24 @@ export type ScoreUniverseParams = {
   megacapBlendFamilyWeights?: Partial<Record<FamilyName, number>>;
   totalMinCoverage?: number;
   familyMinCoverage?: number;
-  /** Metrics where "no value" means "not covered" (skipped, no coverage shrink). Absent = METRICS `optional` flags. */
+  /**
+   * Metrics where "no value" means "not covered" (skipped, no coverage shrink). Absent = METRICS `optional` flags.
+   * Present = the complete list (replaces the defaults, so a retired version reproduces exactly — e.g. fund-1.1.0
+   * had only ibesFwdGrowth). Callers warn via missingDefaultOptionals() when a champion drops a code default.
+   */
   optionalMetrics?: MetricKey[];
 };
+
+/** METRICS keys flagged optional in code — the list a champion inherits when it sets no optionalMetrics. */
+export function defaultOptionalMetrics(): MetricKey[] {
+  return METRICS.filter((m) => m.optional).map((m) => m.key);
+}
+
+/** Code-default optional metrics a params list leaves out (they become required → coverage shrink). */
+export function missingDefaultOptionals(optionalMetrics: readonly string[] | undefined): MetricKey[] {
+  if (!optionalMetrics) return [];
+  return defaultOptionalMetrics().filter((k) => !optionalMetrics.includes(k));
+}
 
 export function scoreUniverse(
   rows: FundRowInput[],
