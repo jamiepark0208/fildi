@@ -8,47 +8,21 @@
 ## Active work
 - Working: api-llm-optimization-pass, blended-fair-value-fv-1.0.0, fund-1.1.0-ibesFwdGrowth, fair-value-maintain-health-checks, value-trap-flag, cyclical-confidence-cap, model-list-strike-vs-fair
 - In progress: fair-value-snapshot-history-accruing
-- Blocked: orval-and-npm-test-broken-on-node-26
+- Blocked: none
 
 ## Next tasks (priority order)
 
-**URGENT — options-income-chart-stuck-at-zero** (reported 2026-10-02, not yet
-investigated): Portfolio tab's options-income chart shows $0 for every period
-since 7/15/2026, which Jamie confirms is wrong (real option premium income
-continued the whole time — verified separately via Robinhood's own P&L data).
-Root cause not yet confirmed, but strongly suspected: `computeRealizedPnL()` in
-`artifacts/api-server/src/lib/realized-pnl.ts` (used by `GET
-/portfolio/snapshot/latest` in `routes/portfolio-snapshot.ts`, consumed by the
-`optionsIncomeTimeline` useMemo in
-`stock-compare/src/components/portfolio-analysis.tsx` ~line 585) pairs
-short-option opens/closes using the `portfolio_orders` table, which is tied to a
-single CSV-ingest snapshot and only reflects whatever `get_option_orders`'s
-~200-row recent-order cap happened to include at collection time — not the full
-cumulative history in `portfolio_transactions`. If an option's *opening* leg has
-aged out of that window, its close likely never gets paired into a realized
-event, even though the close itself is correctly in `portfolio_transactions`.
-Full handoff with verification steps: Claude memory
-`project_options-income-chart-bug.md` (in the rbh_scripts/Robinhood-session
-project, not this repo's own memory — ask to read it, or check
-`~/.claude/projects/-Users-jamiepark-Claude-fildi/memory/`). Do NOT touch the
-chart rendering code itself — if confirmed, the fix is upstream in what feeds
-`computeRealizedPnL`.
+1. **Model List live grades** — first expiries 2026-10-09..12: grade vs win-rate table, then A24 (RH trade tiers → learn.py).
+2. **fair value re-test** — after ~6 months of `fair_value_snapshots` (see memory fair-value).
 
-0. **macro-synthesis-card-unit-tests** — `computeVolatilityImplications()` and `computeLiquidityImplications()` in `api-server/src/lib/macro-data.ts` (both currently module-private, not exported) and `derivePolicySignals()` in `stock-compare/src/components/macro/MacroComponents.tsx` (also private) have hardcoded regime thresholds driving user-facing trading verdicts, with zero test coverage — unlike the rest of the codebase (308 passing tests elsewhere). Scoped but deferred this session for context budget. To pick up: export the three functions, add boundary tests per threshold transition (see exact threshold values already read out in this session's transcript — VIX 15/20/30, VVIX 90/100/120, put/call 0.7/1.0/1.3, MOVE 90/110/140, HY OAS 350/400/500, RRP 75/300, SOFR-IORB 0/5/15, NFCI -0.1/0.1/0.5) plus one compound-condition case per card.
-
-1. **stock-db-ui-redesign** — The current StockDBTab grouping implementation is hard to read. Redesign from scratch: collapsible accordion sections per sector → peer group, groups ordered by descending coverage % (most data-complete groups first), clear visual hierarchy between sector/group/ticker rows, representative tickers (watchlist) visually distinct within their group. Do NOT patch the existing grouping render — plan the layout first, then implement.
-
-2. **finnhub-coverage-investigation** — Finnhub has no daily rate cap yet `finnhub_fundamentals` is missing PE and other ratios for many tickers. Before assuming a bug, check: (a) which tickers have null `finnhub_pe_ratio`, (b) what `backfill-finnhub.ts` skip logic looks like, (c) whether Finnhub's free tier genuinely returns null metrics for certain ticker types (e.g. ETFs, foreign listings, small caps). Report findings before making any changes.
-
-3. **backfill-fmp** — FMP quota resets at midnight UTC. Check `api_usage` table for today's FMP count before running. Run `backfill-fmp.mjs` only after confirming remaining budget > 0. This runs ~247 tickers × 9 calls over ~10 days at 250/day.
-
-4. **backfill-polygon** — One-shot, no daily cap. Run `backfill-polygon.mjs` after FMP backfill. 175 tickers expected.
-
-5. **populate-and-merge** — After any backfill: run `populate-source-fundamentals.mjs` (now processes all 6 sources including Polygon + AV), then `merge-trusted.mjs`. Do NOT run these blindly — confirm backfill output looks sane first.
-
-6. **backfill-av** — AV quota resets at midnight UTC. 25 calls/day, resumable cursor. Run after populate+merge to avoid gaps in provenance.
-
-7. **verify-provenance-tooltip** — After merge-trusted re-run, open Stock DB tab and confirm the provenance popover shows real winning_source data for at least 3 tickers across different sources.
+Done 2026-10-06 — fund-1.1.1 champion in scorecard_params (user YES; 1.1.0 retired with its real optionalMetrics). Hooks: Read guard only; rehydrate dropped (2 s/prompt, stale). Verified: tsc 0 errors both apps, api 235/235 + web 334/334 tests, vite build OK, validate-workflow 9/10):
+- Backlog already closed: options-income chart, finnhub coverage, backfills, crash handlers.
+- Nightly log filename dated per write. Vitest-only tests → node:test. `npm test` fixed for Node 26 (api: `tsx --test`; web: dropped `--experimental-transform-types`).
+- orval codegen fixed: js-yaml override `>=4.3.0` resolved to 5.x (no default export) → `^4.3.0`. Output identical to committed.
+- Macro card threshold tests: `macro/macro-implications.test.ts` (14) + `macro-policy-signals.test.ts` (8; logic moved to `macro-policy-signals.ts`). Found + fixed: event today read as "tomorrow".
+- Stock DB redesign was already done; fixed stale legend swatch.
+- All 39 pre-existing tsc errors fixed (incl. real bugs: Finnhub dividendYield provenance note overwritten by duplicate key; scheduled-tasks duplicate research-ops import; stale option-scoring dist).
+- Line ratchet: every file back under its ceiling via splits (no behavior change) + dead-code removal (legacy fund scorer in fundamentals-db, unused imports). Ratchet count now matches wc -l.
 
 ## FactSet Proxy — LIVE ✅
 - Oracle Cloud VM `146.235.223.94` — Ubuntu 22.04, VM.Standard.E2.1.Micro (Oracle Always Free)
@@ -89,8 +63,6 @@ Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI t
 
 ### Still open / next
 - **Rebuild+restart to deploy** (deferred by user) — see Active work note.
-- Production hardening not yet done: process.on(uncaughtException/unhandledRejection) in index.ts;
-  frozen log-date bug (nightly log filename fixed at server-start date).
 - Residual ~1017 Needs Review is genuine vendor disagreement (lease inclusion, price-snapshot
   timing, growth basis) — driving lower needs looser tolerances or per-field comparable curation.
 - Backfill safe order: check api_usage budget → backfill-fmp → backfill-polygon → (populate+merge

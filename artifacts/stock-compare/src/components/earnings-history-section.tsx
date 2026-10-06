@@ -106,7 +106,7 @@ export function EarningsHistorySection({
     const vals = chartData
       .flatMap((q) => [q.estimate, q.actual])
       .filter((v): v is number => v != null && Number.isFinite(v));
-    if (vals.length === 0) return ["auto", "auto"] as const;
+    if (vals.length === 0) return ["auto", "auto"] as [string, string];
     const lo = Math.min(...vals);
     const hi = Math.max(...vals);
     const span = Math.max(hi - lo, 0.05);

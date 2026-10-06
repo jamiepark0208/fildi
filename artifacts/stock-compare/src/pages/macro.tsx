@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
@@ -7,41 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { cn } from "@/lib/utils";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  AreaChart,
-  ReferenceLine,
-  Area,
-  ScatterChart,
-  Scatter,
-  ComposedChart,
-  ReferenceDot,
-  BarChart,
-  Bar,
-} from "recharts";
-import {
-  RefreshCw,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  TrendingUp,
-  TrendingDown,
-  Sparkles,
-  Calendar,
-  AlertTriangle,
-  Activity,
-  DollarSign,
-  Building2,
-  Newspaper,
-  ExternalLink,
-} from "lucide-react";
+import { Loader2, TrendingUp, Sparkles, Calendar, AlertTriangle, Activity, Building2 } from "lucide-react";
 import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
 import { RegimeBanner } from "@/components/macro/RegimeBanner";
 import { useAuth } from "@/context/AuthContext";
@@ -50,18 +16,12 @@ import { useSessionState } from "@/hooks/use-session-state";
 
 // Types and sub-components extracted for token-efficient editing
 import type {
-  FredSeries, MarketQuote, YieldCurvePoint, VixCurvePoint, FedFundsCurvePoint,
-  ChartPoint, MacroData, MacroCharts, FedMember, MacroEvent, BankResearch,
-  SepData, NewsArticle, IndicatorHistory, SepActuals, CurvePeriod, SepMetric,
+  MacroData, MacroCharts, FedMember, MacroEvent, BankResearch, SepData, IndicatorHistory, SepActuals, CurvePeriod, SepMetric,
   MacroTab, COTRecord, COTSummary, SectorRotationPoint,
 } from "@/components/macro/macro-page-types";
-import {
-  fmt, fmtPct, fmtK, fmtB, fmtDate, fmtTs, fmtMonthYear,
-  changeColor, inflColor, VIX_LEVEL_LABELS, vixBadgeClass,
-  stanceBadgeClass, stanceLabel, getIndicatorHighlight,
-} from "@/components/macro/macro-format";
-import { CurvePeriodButtons, VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
-import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip, QuickStats } from "@/components/macro/macro-regime-overview";
+import { fmt, fmtPct, fmtK, fmtB, changeColor, getIndicatorHighlight } from "@/components/macro/macro-format";
+import { VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
+import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip } from "@/components/macro/macro-regime-overview";
 import { RegimeAccuracyStrip } from "@/components/macro/regime-accuracy-strip";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
@@ -241,11 +201,6 @@ export default function MacroDashboard() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
-
-  const refreshMutation = useMutation({
-    mutationFn: () => fetch("/api/macro/refresh", { method: "POST" }).then((r) => r.json()),
-    onSuccess: (data: MacroData) => { qc.setQueryData(["macro-data"], data); },
-  });
 
   const generateBankMutation = useMutation({
     mutationFn: () =>

@@ -5,11 +5,10 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
 import type {
-  FundamentalsRow, TechnicalsRow, StockDBEntry, SourceEntry, FieldProv, ProvenanceData,
+  FundamentalsRow, StockDBEntry, FieldProv, ProvenanceData,
   DivergentItem, QueueItem, FamilyCovSummary, DisplayRow, EnrichmentRun,
 } from "./stockdb/stock-db-types";
 import { formatSector } from "./stockdb/stock-db-types";
-import type { ColDef, TechColDef } from "./stockdb/stock-db-columns";
 import {
   COLS, TECH_COLS, FAMILY_COLORS, TECH_FAMILY_COLORS, techFamilies, LOG_TRANSFORM_COLS, txt, flag,
 } from "./stockdb/stock-db-columns";
@@ -18,6 +17,8 @@ import {
   calcCoverage, fmt, isSuspect, computeGroupZScores, isNearZeroBase, fmtDate, sourceAgeLabel, sourceAgeTitle,
 } from "./stockdb/stock-db-formatters";
 import { PipelineHealthPanel } from "./stockdb/stock-db-admin-panel";
+import { VendorCrossCheckPanel } from "./stockdb/vendor-cross-check-panel";
+import { StockDbSummaryBar } from "./stockdb/stock-db-summary-bar";
 
 function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: string | null; sortDir: "asc" | "desc" }) {
   if (sortCol !== colKey) return <span className="opacity-20 ml-0.5 inline-block w-2.5 text-center">↕</span>;
@@ -149,28 +150,6 @@ export function StockDBTab() {
   });
   const divergentItems = divergentData?.items ?? [];
 
-  type GoldAuditRow = {
-    ticker: string;
-    field: string;
-    gold_value: number | string | null;
-    gold_source: string | null;
-    lseg_value: number | string | null;
-    diff: number | null;
-    severity: string;
-    checked_at: string | null;
-  };
-  const [vendorExpanded, setVendorExpanded] = useState(false);
-  const { data: vendorAudit } = useQuery<{ available: boolean; rows: GoldAuditRow[]; reason?: string }>({
-    queryKey: ["lseg-gold-audit"],
-    queryFn: async () => {
-      const r = await fetch("/api/research/lseg/audit", { credentials: "include" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    },
-    enabled: isAdmin,
-    staleTime: 5 * 60_000,
-  });
-  const vendorRows = vendorAudit?.rows ?? [];
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
@@ -194,7 +173,7 @@ export function StockDBTab() {
   }, [data]);
 
   const provTicker = activeCell?.ticker ?? null;
-  const { data: provData, isFetching: provFetching, isError: provError, refetch: refetchProv } = useQuery<ProvenanceData>({
+  const { data: provData, isError: provError, refetch: refetchProv } = useQuery<ProvenanceData>({
     queryKey: ["provenance", provTicker],
     queryFn: async ({ signal }) => {
       const r = await fetch(`/api/fundamentals/provenance/${provTicker}`, { credentials: "include", signal });
@@ -456,26 +435,10 @@ export function StockDBTab() {
   return (
     <>
     <div className="space-y-1.5">
-      {/* Summary bar */}
-      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 px-3 py-2 flex items-center justify-between">
-        <div className="flex gap-4 text-xs text-amber-200/50">
-          <span><span className="text-white font-medium tabular-nums">{data.length}</span> tickers</span>
-          <span><span className="text-white font-medium tabular-nums">{data.filter(d => d.isWatchlist).length}</span> watchlist</span>
-          <span><span className="text-white font-medium tabular-nums">{data.filter(d => !d.isWatchlist).length}</span> peers only</span>
-          <span><span className={cn("font-medium tabular-nums", noRow > 0 ? "text-red-400" : "text-green-400")}>{noRow}</span> missing rows</span>
-          <span>Coverage <span className={cn("font-medium tabular-nums", coverageColor(coverage))}>{coverage}%</span></span>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
-            Refresh
-          </button>
-        )}
-      </div>
+      <StockDbSummaryBar
+        data={data} noRow={noRow} coverage={coverage} isFetching={isFetching}
+        onRefresh={isAdmin ? () => refetch() : undefined}
+      />
 
       {/* Pipeline health */}
       {isAdmin && latestRun && (
@@ -489,93 +452,10 @@ export function StockDBTab() {
 
       {/* Vendor cross-check — LSEG gold_audit (read-only; human queues refetch) */}
       {isAdmin && (
-        <div className="rounded-md border border-violet-500/30 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
-          <button
-            type="button"
-            onClick={() => setVendorExpanded((v) => !v)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              {vendorExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
-              <AlertTriangle className="h-3 w-3 text-violet-400" />
-              <span className="font-semibold text-violet-300/90 uppercase tracking-wide text-[11px]">Vendor cross-check</span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/15 text-violet-300 border-violet-500/30">
-                {vendorRows.length}
-              </span>
-            </div>
-            <span className="text-amber-200/40">LSEG vs gold · never overwrites · queue refetch if you agree</span>
-          </button>
-          {vendorExpanded && (
-            <div className="border-t border-[#d4af37]/20">
-              {!vendorAudit?.available ? (
-                <p className="text-[11px] text-amber-200/50 px-3 py-2">
-                  {vendorAudit?.reason ?? "Run research/lseg/audit_gold.py to populate gold_audit."}
-                </p>
-              ) : vendorRows.length === 0 ? (
-                <p className="text-[11px] text-amber-200/50 px-3 py-2">No disagreements in gold_audit.</p>
-              ) : (
-                <div className="overflow-auto max-h-64">
-                  <table className="text-xs w-full border-collapse">
-                    <thead className="sticky top-0 bg-black text-[#d4af37]">
-                      <tr className="border-b border-[#d4af37]/25">
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Ticker</th>
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Field</th>
-                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Gold</th>
-                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">LSEG</th>
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Sev</th>
-                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800">
-                      {vendorRows.slice(0, 80).map((row) => {
-                        const src = (row.gold_source ?? "yahoo").toLowerCase();
-                        const sources = src.includes("fmp") ? ["fmp"] : src.includes("yahoo") ? ["yahoo"] : ["yahoo", "fmp"];
-                        return (
-                          <tr key={`${row.ticker}:${row.field}`} className="bg-zinc-900/70 even:bg-zinc-800/60">
-                            <td className="px-2.5 py-1 font-mono font-semibold text-white">{row.ticker}</td>
-                            <td className="px-2.5 py-1 font-mono text-amber-200/50">{row.field}</td>
-                            <td className="px-2.5 py-1 text-right font-mono tabular-nums text-amber-200/50" title={row.gold_source ?? ""}>
-                              {row.gold_value != null ? String(row.gold_value) : "—"}
-                            </td>
-                            <td className="px-2.5 py-1 text-right font-mono tabular-nums text-amber-200/50">
-                              {row.lseg_value != null ? String(row.lseg_value) : "—"}
-                            </td>
-                            <td className={cn(
-                              "px-2.5 py-1",
-                              row.severity === "high" ? "text-red-400" : "text-amber-200/50",
-                            )}>
-                              {row.severity}
-                            </td>
-                            <td className="px-2.5 py-1 text-right">
-                              <button
-                                type="button"
-                                disabled={queueRefetchMutation.isPending}
-                                onClick={() =>
-                                  queueRefetchMutation.mutate({
-                                    ticker: row.ticker,
-                                    field: row.field,
-                                    sources,
-                                  })
-                                }
-                                className="text-[10px] px-2 py-0.5 border border-sky-500/30 rounded text-sky-300 hover:bg-sky-500/10 disabled:opacity-40"
-                                title="Queue gold refetch (FMP budget 250/day — human decides)"
-                              >
-                                Queue refetch
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <p className="text-[10px] text-amber-200/40 px-3 py-1.5 border-t border-zinc-800">
-                Auditor only — does not write FIELD_DEFS / fund scores. Dual-class share counts often disagree by design.
-              </p>
-            </div>
-          )}
-        </div>
+        <VendorCrossCheckPanel
+          queuePending={queueRefetchMutation.isPending}
+          onQueueRefetch={(v) => queueRefetchMutation.mutate(v)}
+        />
       )}
 
       {/* Divergent-field review queue — sources disagree and no admin has overridden yet */}
@@ -769,7 +649,7 @@ export function StockDBTab() {
           <div className="flex gap-3 text-xs text-amber-200/50">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500/20 border border-blue-500/40" /> Representative</span>
+            <span className="flex items-center gap-1"><span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-medium">rep</span> Representative (watchlist)</span>
           </div>
         </div>
       </div>

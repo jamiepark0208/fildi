@@ -4,7 +4,20 @@ import {
 } from "@/hooks/use-portfolio";
 import { isSameUnderlyingPair } from "./portfolio-palette";
 import { type CoveredCallPair } from "./covered-calls-detector";
-import { type AccountSummary, type PortfolioRiskResult } from "../portfolio-analysis";
+
+export interface AccountSummary {
+  account: string; nickname: string | null; totalValue: string | null;
+  equityValue: string | null; optionsValue: string | null; cryptoValue: string | null; cash: string | null;
+  marginUsed: string | null; buyingPower: string | null;
+}
+
+export interface PortfolioRiskResult {
+  tickers: string[];
+  correlationMatrix: number[][];
+  dailyVolatilityPct: number;
+  var95Pct: number; cvar95Pct: number; var95Usd: number; cvar95Usd: number;
+  skippedTickers: string[];
+}
 
 // ── Margin usage ──────────────────────────────────────────────────────────────
 // margin_used/buying_power are N/A (null) for cash-only accounts (e.g. the IRA) —

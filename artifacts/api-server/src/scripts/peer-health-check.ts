@@ -80,7 +80,7 @@ async function findRosterGaps(): Promise<Array<{ ticker: string; groupId: string
           AND m.removed_at IS NULL
       )
   `);
-  const rows = (result as { rows?: Array<{ ticker: string; groupId: string }> }).rows
+  const rows = (result as unknown as { rows?: Array<{ ticker: string; groupId: string }> }).rows
     ?? (result as unknown as Array<{ ticker: string; groupId: string }>);
   return Array.isArray(rows) ? rows : [];
 }

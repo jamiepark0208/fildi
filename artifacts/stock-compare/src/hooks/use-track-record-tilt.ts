@@ -1,6 +1,7 @@
 // Shared fetch for the model's auto-tilt / multi-knob policy state — server already
 // applies the bounded policy to full default strike-weight sets.
 import { useQuery } from "@tanstack/react-query";
+import type { CalibrationTable } from "@workspace/option-scoring";
 
 export interface TiltSideResult {
   factor: number;
@@ -21,11 +22,8 @@ export interface TrackRecordTiltResponse {
   state: { put: TiltSideStats; call: TiltSideStats };
   put: TiltSideResult;
   call: TiltSideResult;
-  calibration: {
-    put: { buckets: Array<{ lo: number; hi: number; n: number; avgPnlPct: number; winRate: number }> };
-    call: { buckets: Array<{ lo: number; hi: number; n: number; avgPnlPct: number; winRate: number }> };
-    version: number;
-  } | null;
+  /** Full table from getCalibrationTable() — pickBestStrike reads side `n` for its min-sample guard. */
+  calibration: CalibrationTable | null;
   minN: number;
   sqFloorBase: number;
   // Driven by avgPnlPct (signed), NOT winRate — winRate is display-only.

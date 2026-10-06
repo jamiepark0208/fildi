@@ -35,8 +35,6 @@ import {
 import { getSchwabAuthStatus } from "../lib/schwab-auth.js";
 import {
   getResearchOpsReport,
-  lastResearchOpsRun,
-  researchOpsRunning,
   type ResearchOpsReport,
 } from "../lib/research-ops.js";
 import { etDateKey } from "../lib/market-hours.js";

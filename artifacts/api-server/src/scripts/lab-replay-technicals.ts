@@ -144,7 +144,7 @@ async function main() {
       const comps: Record<string, number | null> = {};
       for (const k of V2_KEYS) {
         const s = scoreTechnicalRowV2(r as any, Object.fromEntries(V2_KEYS.map((x) => [x, x === k ? 1 : 0])) as any);
-        comps[k] = Number.isFinite(s) ? s / 100 : null;
+        comps[k] = s != null && Number.isFinite(s) ? s / 100 : null;
       }
       const pack = (s: any) => s ? { total: s.totalScore, signal: s.gateStatus ?? s.signal,
         comps: Object.fromEntries(Object.entries(s.componentScores ?? {}).map(([k, v]: any) => [k, v.score])) } : null;

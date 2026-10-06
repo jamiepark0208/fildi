@@ -30,10 +30,11 @@ const rehydrate = fs.readFileSync(path.join(ROOT, '.claude/scripts/rehydrate.js'
 const hasPw = /playwright/i.test(rehydrate);
 check('Playwright status in rehydrate', hasPw, hasPw ? 'ok' : 'MISSING — re-add playwright note to rehydrate.js');
 
-// 3. codegraph_node memory note exists
-const memDir = path.join(process.env.HOME, '.local/bin/claude/projects/-home-runner-workspace/memory');
-const memFile = path.join(memDir, 'feedback_codegraph_node_default.md');
-check('codegraph_node default:false memory', fs.existsSync(memFile), fs.existsSync(memFile) ? 'ok' : 'MISSING — recreate memory note');
+// 3. codegraph_node includeCode guidance is in CLAUDE.md (was a Replit-only memory-file path;
+// CLAUDE.md is loaded every session on every machine, so the rule lives there).
+const cgClaudeMd = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');
+const hasCgRule = /codegraph_node`? with `?includeCode:true/.test(cgClaudeMd) && /includeCode:false/.test(cgClaudeMd);
+check('codegraph_node includeCode rule in CLAUDE.md', hasCgRule, hasCgRule ? 'ok' : 'MISSING — restore the codegraph_node includeCode line in CLAUDE.md');
 
 // 4. Line-count ratchet: every file >600L has its current size locked as a
 // ceiling in .claude/line-ratchet.json. Growing one fails; shrinking one
@@ -48,7 +49,8 @@ try {
   for (const [rel, ceiling] of Object.entries(ratchet)) {
     const abs = path.join(ROOT, rel);
     if (!fs.existsSync(abs)) { delete ratchet[rel]; lowered++; continue; } // deleted/split — drop
-    const lines = fs.readFileSync(abs, 'utf8').split('\n').length;
+    const text = fs.readFileSync(abs, 'utf8');
+    const lines = text.split('\n').length - (text.endsWith('\n') ? 1 : 0); // same as wc -l
     if (lines > ceiling) grew.push(`${path.basename(rel)} ${ceiling}→${lines}L`);
     else if (lines < ceiling) { ratchet[rel] = lines <= 600 ? undefined : lines; if (ratchet[rel] === undefined) delete ratchet[rel]; lowered++; }
   }

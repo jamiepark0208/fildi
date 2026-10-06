@@ -297,6 +297,7 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/research/wrds/:ticker | research-wrds.ts |
 | GET | /api/admin/scheduled-tasks | scheduled-tasks.ts |
 | GET | /api/admin/scheduled-tasks/:id/logs | scheduled-tasks.ts |
+| POST | /api/admin/ops/remediate | scheduled-tasks.ts |
 | POST | /api/admin/scheduled-tasks/:id/run | scheduled-tasks.ts |
 | POST | /api/admin/scheduled-tasks/:id/enable | scheduled-tasks.ts |
 | POST | /api/admin/scheduled-tasks/:id/disable | scheduled-tasks.ts |

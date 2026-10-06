@@ -67,7 +67,6 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
     sharesOutstandingPrior: "not tracked by Finnhub",
     freeCashFlow:    "not tracked by Finnhub",
     quarterlyOperatingCashFlow: "not tracked by Finnhub",
-    dividendYield:   "not tracked by Finnhub",
     analystTargetPrice: "not tracked by Finnhub",
   },
   polygon: {

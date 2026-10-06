@@ -13,7 +13,7 @@ async function main() {
     WHERE r.fetch_fundamentals AND t.ticker IS NULL
     ORDER BY r.ticker
   `);
-  const rows = (r as { rows?: { ticker: string }[] })?.rows ?? (r as { ticker: string }[]);
+  const rows = (r as unknown as { rows?: { ticker: string }[] })?.rows ?? (r as unknown as { ticker: string }[]);
   const tickers = rows.map((x) => x.ticker);
   console.log(`[tech] missing before: ${tickers.length}`);
   if (tickers.length === 0) return;

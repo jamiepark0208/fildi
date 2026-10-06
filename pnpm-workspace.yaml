@@ -155,7 +155,7 @@ overrides:
   # Security: pin transitive deps to patched versions
   qs: ">=6.15.2"
   body-parser: ">=2.3.0"
-  js-yaml: ">=4.3.0"
+  js-yaml: "^4.3.0" # 5.x dropped the default export orval imports
   linkify-it: ">=5.0.2"
   markdown-it: ">=14.2.0"
 

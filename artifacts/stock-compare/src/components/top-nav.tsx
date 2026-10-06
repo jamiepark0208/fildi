@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { prefetchRouteChunk } from "@/lib/prefetch-policy";
+import { apiFeed } from "@/lib/feed-api";
 
 export const TOPNAV_H = 56;
 
@@ -37,12 +38,6 @@ const RIGHT_NAV_ITEMS: NavItem[] = [
   { id: "profile",   href: "/profile/me", label: "Profile",    icon: User,          color: "#f472b6" }, // pink
   { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon,  color: "#2dd4bf" }, // teal
 ];
-
-async function apiFeed(path: string, opts?: RequestInit) {
-  const r = await fetch(`/api/feed${path}`, { credentials: "include", ...opts });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon;

@@ -8,7 +8,7 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types --experimental-transform-types --no-warnings --test 'src/**/*.test.ts'"
+    "test": "node --experimental-strip-types --no-warnings --test 'src/**/*.test.ts'"
   },
   "devDependencies": {
     "@esbuild/darwin-arm64": "0.28.1",

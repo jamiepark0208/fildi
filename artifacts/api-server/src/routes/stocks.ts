@@ -19,7 +19,7 @@ import {
 import { readFundamentalsRow, readRegistryRow } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { buildCatalystItems, mergeCaseBullets, parseEarningsDate } from "../lib/catalysts.js";
-import { resolvePeers, peersCache } from "../lib/peer-resolver.js";
+import { resolvePeers } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents, readFmpAnalystEventsFromDb } from "../lib/analyst-events.js";
@@ -43,121 +43,11 @@ import {
   readFundPeerGroupId,
 } from "../lib/breakdown-enrichment.js";
 
+import { pegGrowthPeerZScore } from "../lib/peg-peer-growth.js";
+import { buildBullBullets, buildBearBullets } from "../lib/breakdown-bullets.js";
+import { computeEdgarFindings, groupStatementRows } from "../lib/edgar-findings.js";
+
 const router = Router();
-
-/** Z-score of subject's PEG growth vs peer-group gold EPS growth (higher = better). */
-async function pegGrowthPeerZScore(
-  ticker: string,
-  pegGrowth: number | null | undefined,
-): Promise<{
-  z: number | null;
-  n: number;
-  groupName: string | null;
-  mean: number | null;
-  std: number | null;
-  members: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
-  display: Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>;
-}> {
-  const empty = {
-    z: null as number | null,
-    n: 0,
-    groupName: null as string | null,
-    mean: null as number | null,
-    std: null as number | null,
-    members: [] as Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>,
-    display: [] as Array<{ ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null }>,
-  };
-  if (pegGrowth == null || !isFinite(pegGrowth)) return empty;
-
-  const taxonomy = await getTaxonomyPeers(ticker, 500);
-  if (!taxonomy || taxonomy.peers.length < 3) {
-    return { ...empty, groupName: taxonomy?.groupName ?? null };
-  }
-
-  const subject = ticker.toUpperCase();
-  const tickers = [subject, ...taxonomy.peers.map((t) => t.toUpperCase())];
-  const rows = await db
-    .select({
-      ticker: tickerFundamentals.ticker,
-      epsGrowth: tickerFundamentals.epsGrowth,
-      totalRevenue: tickerFundamentals.totalRevenue,
-    })
-    .from(tickerFundamentals)
-    .where(inArray(tickerFundamentals.ticker, tickers));
-
-  type Raw = { ticker: string; growth: number; isSubject: boolean; size: number | null };
-  const raw: Raw[] = [];
-  for (const r of rows) {
-    const upper = r.ticker.toUpperCase();
-    const size = fmpNum(r.totalRevenue);
-    if (upper === subject) {
-      raw.push({ ticker: upper, growth: pegGrowth, isSubject: true, size });
-      continue;
-    }
-    const v = fmpNum(r.epsGrowth);
-    if (v != null && isFinite(v)) {
-      raw.push({ ticker: upper, growth: v, isSubject: false, size });
-    }
-  }
-  if (raw.length < 4) {
-    return { ...empty, n: raw.length, groupName: taxonomy.groupName };
-  }
-
-  const vals = raw.map((r) => r.growth);
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
-  const std = Math.sqrt(variance);
-  const zOf = (g: number) => (std > 1e-12 ? (g - mean) / std : 0);
-  const members = raw
-    .map((r) => ({
-      ticker: r.ticker,
-      growth: r.growth,
-      z: zOf(r.growth),
-      isSubject: r.isSubject,
-      marketCap: r.size, // size proxy = total revenue (gold has no marketCap)
-    }))
-    .sort((a, b) => a.growth - b.growth);
-
-  const subjectZ = zOf(pegGrowth);
-  // Representatives when the peer set is large: subject + growth extremes + largest names
-  const display = pickPeerGrowthRepresentatives(members, 9);
-
-  return {
-    z: subjectZ,
-    n: members.length,
-    groupName: taxonomy.groupName,
-    mean,
-    std,
-    members,
-    display,
-  };
-}
-
-/** Subject + lowest/highest growth + largest-revenue peers (cap labeled points). */
-function pickPeerGrowthRepresentatives<
-  T extends { ticker: string; growth: number; z: number; isSubject: boolean; marketCap: number | null },
->(members: T[], max = 9): T[] {
-  if (members.length <= max) return members;
-  const byGrowth = [...members].sort((a, b) => a.growth - b.growth);
-  const bySize = [...members]
-    .filter((m) => !m.isSubject)
-    .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
-  const picked = new Map<string, T>();
-  const add = (m: T | undefined) => {
-    if (m && !picked.has(m.ticker)) picked.set(m.ticker, m);
-  };
-  add(byGrowth.find((m) => m.isSubject));
-  add(byGrowth[0]);
-  add(byGrowth[byGrowth.length - 1]);
-  add(byGrowth[Math.floor(byGrowth.length * 0.25)]);
-  add(byGrowth[Math.floor(byGrowth.length * 0.5)]);
-  add(byGrowth[Math.floor(byGrowth.length * 0.75)]);
-  for (const m of bySize) {
-    if (picked.size >= max) break;
-    add(m);
-  }
-  return [...picked.values()].sort((a, b) => a.growth - b.growth);
-}
 
 export const searchCache = new TTLCache<object[]>(24 * 60 * 60 * 1000, 'search', 2000);
 export const compareCache = new TTLCache<object>(60 * 60 * 1000, 'compare', 2000); // key = "TICKER1:TICKER2", combinatorial — cap well above realistic pair traffic
@@ -213,11 +103,6 @@ function fmtLargeNum(val: number | null): string | null {
   if (Math.abs(val) >= 1e12) return `$${(val / 1e12).toFixed(2)}T`;
   if (Math.abs(val) >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
   if (Math.abs(val) >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-  return `$${val.toFixed(2)}`;
-}
-
-function fmtPrice(val: number | null): string | null {
-  if (val === null) return null;
   return `$${val.toFixed(2)}`;
 }
 
@@ -789,44 +674,6 @@ router.get("/stocks/quotes", async (req, res) => {
   return res.json(results);
 });
 
-function buildBullBullets(m: any): string[] {
-  const out: string[] = [];
-  if (m.revenueGrowthYoY != null && m.revenueGrowthYoY > 0.10)
-    out.push(`Revenue growing ${(m.revenueGrowthYoY * 100).toFixed(0)}% YoY — above-average expansion`);
-  if (m.epsGrowth != null && m.epsGrowth > 0.10)
-    out.push(`EPS up ${(m.epsGrowth * 100).toFixed(0)}% — earnings momentum supports premium valuation`);
-  if (m.netMargin != null && m.netMargin > 0.15)
-    out.push(`${(m.netMargin * 100).toFixed(0)}% net margin signals durable pricing power`);
-  if (m.returnOnEquity != null && m.returnOnEquity > 0.15)
-    out.push(`ROE of ${(m.returnOnEquity * 100).toFixed(0)}% reflects efficient capital allocation`);
-  if (m.freeCashFlow != null && m.freeCashFlow > 0)
-    out.push("Positive free cash flow funds buybacks, dividends, or reinvestment without dilution");
-  if (m.currentRatio != null && m.currentRatio > 1.5)
-    out.push(`Current ratio ${m.currentRatio.toFixed(1)}x — near-term obligations comfortably covered`);
-  if (m.analystTargetPrice != null && m.currentPrice != null && m.analystTargetPrice > m.currentPrice * 1.10)
-    out.push(`Consensus target implies ${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(0)}%+ upside from current price`);
-  return out.slice(0, 4);
-}
-
-function buildBearBullets(m: any): string[] {
-  const out: string[] = [];
-  if (m.debtToEquity != null && m.debtToEquity > 1.5)
-    out.push(`D/E of ${m.debtToEquity.toFixed(1)}x — elevated leverage amplifies downside in a downturn`);
-  if (m.peRatio != null && m.peRatio > 30)
-    out.push(`P/E of ${m.peRatio.toFixed(0)}x prices in high growth; any miss could reprice sharply`);
-  if (m.pegRatio != null && m.pegRatio > 2)
-    out.push(`PEG of ${m.pegRatio.toFixed(1)}x suggests stock is running ahead of its growth rate`);
-  if (m.revenueGrowthYoY != null && m.revenueGrowthYoY < 0.05)
-    out.push(`Revenue growth of ${(m.revenueGrowthYoY * 100).toFixed(0)}% points to slowing demand`);
-  if (m.netMargin != null && m.netMargin < 0.05 && m.netMargin >= 0)
-    out.push(`${(m.netMargin * 100).toFixed(1)}% net margin leaves little buffer against cost pressure`);
-  if (m.freeCashFlow != null && m.freeCashFlow < 0)
-    out.push("Negative free cash flow requires external financing to sustain operations");
-  if (m.currentRatio != null && m.currentRatio < 1.0)
-    out.push(`Current ratio below 1x raises near-term liquidity concerns`);
-  return out.slice(0, 4);
-}
-
 export const breakdownCache = new TTLCache<object>(2 * 60 * 60 * 1000, 'breakdown', 1000); // key = "TICKER:vN"
 
 type BreakdownPayload = {
@@ -1138,147 +985,6 @@ router.get("/stocks/breakdown", async (req, res) => {
 // rule-based trend findings and a cross-check against the FMP numbers already
 // shown on the breakdown tab.
 const EDGAR_STATEMENTS_STALE_MS = 100 * 24 * 60 * 60 * 1000; // ~1 quarter — 10-Ks refresh annually
-
-interface EdgarFinding { text: string; tone: "positive" | "negative" | "neutral"; }
-
-function cagr(first: number, last: number, years: number): number | null {
-  if (first <= 0 || years <= 0) return null;
-  return Math.pow(last / first, 1 / years) - 1;
-}
-
-function computeEdgarFindings(
-  rows: EdgarStatementHistoryRow[],
-  fmpRow: TickerFundamentalsRow | null,
-): EdgarFinding[] {
-  const findings: EdgarFinding[] = [];
-  // rows can carry 6 fiscal years per item (5 displayed + 1 extra as a YoY baseline for
-  // the oldest displayed year — see fetchEdgarStatementHistory). Drop that extra oldest
-  // year here so findings describe the same 5-year window the UI shows.
-  const byItem = (lineItem: string) => {
-    const arr = rows
-      .filter(r => r.lineItem === lineItem)
-      .map(r => ({ year: r.fiscalYear, value: Number(r.value) }))
-      .sort((a, b) => a.year - b.year);
-    return arr.length > 5 ? arr.slice(1) : arr;
-  };
-
-  const revenue = byItem("revenue");
-  const netIncome = byItem("netIncome");
-  const grossProfit = byItem("grossProfit");
-  const operatingIncome = byItem("operatingIncome");
-  const operatingCF = byItem("operatingCashFlow");
-  const capex = byItem("capex");
-  const longTermDebt = byItem("longTermDebt");
-  const equity = byItem("stockholdersEquity");
-
-  if (revenue.length >= 2) {
-    const c = cagr(revenue[0].value, revenue[revenue.length - 1].value, revenue.length - 1);
-    if (c != null) {
-      findings.push({
-        text: `Revenue ${c >= 0 ? "grew" : "declined"} at a ${(c * 100).toFixed(1)}% annual rate over the last ${revenue.length} filed years (SEC 10-K).`,
-        tone: c > 0.03 ? "positive" : c < -0.03 ? "negative" : "neutral",
-      });
-    }
-  }
-
-  if (grossProfit.length >= 2 && revenue.length >= 2) {
-    const marginAt = (year: number) => {
-      const gp = grossProfit.find(g => g.year === year)?.value;
-      const rev = revenue.find(r => r.year === year)?.value;
-      return gp != null && rev ? gp / rev : null;
-    };
-    const first = marginAt(grossProfit[0].year);
-    const last = marginAt(grossProfit[grossProfit.length - 1].year);
-    if (first != null && last != null) {
-      const delta = last - first;
-      findings.push({
-        text: `Gross margin ${delta >= 0 ? "expanded" : "compressed"} from ${(first * 100).toFixed(1)}% to ${(last * 100).toFixed(1)}% over the filed history.`,
-        tone: delta > 0.005 ? "positive" : delta < -0.005 ? "negative" : "neutral",
-      });
-    }
-  }
-
-  if (operatingCF.length > 0 && netIncome.length > 0) {
-    const latestYear = Math.max(...operatingCF.map(o => o.year));
-    const opCF = operatingCF.find(o => o.year === latestYear)?.value;
-    const capexVal = Math.abs(capex.find(c => c.year === latestYear)?.value ?? 0);
-    const ni = netIncome.find(n => n.year === latestYear)?.value;
-    if (opCF != null && ni != null) {
-      const fcf = opCF - capexVal;
-      const gap = ni !== 0 ? (fcf - ni) / Math.abs(ni) : 0;
-      if (gap < -0.25) {
-        findings.push({
-          text: `FY${latestYear} free cash flow ($${(fcf / 1e6).toFixed(0)}M) is well below reported net income ($${(ni / 1e6).toFixed(0)}M) — an earnings-quality flag worth digging into (accruals, working-capital swings, or capex timing).`,
-          tone: "negative",
-        });
-      } else if (gap > 0.1) {
-        findings.push({
-          text: `FY${latestYear} free cash flow ($${(fcf / 1e6).toFixed(0)}M) comfortably exceeds net income ($${(ni / 1e6).toFixed(0)}M) — earnings are being backed by real cash generation.`,
-          tone: "positive",
-        });
-      }
-    }
-  }
-
-  if (longTermDebt.length >= 2 && equity.length >= 2) {
-    const ratioAt = (year: number) => {
-      const d = longTermDebt.find(x => x.year === year)?.value;
-      const e = equity.find(x => x.year === year)?.value;
-      return d != null && e ? d / e : null;
-    };
-    const first = ratioAt(longTermDebt[0].year);
-    const last = ratioAt(longTermDebt[longTermDebt.length - 1].year);
-    if (first != null && last != null) {
-      const delta = last - first;
-      if (Math.abs(delta) > 0.1) {
-        findings.push({
-          text: `Long-term debt / equity ${delta > 0 ? "rose" : "fell"} from ${first.toFixed(2)}x to ${last.toFixed(2)}x over the filed history.`,
-          tone: delta > 0 ? "negative" : "positive",
-        });
-      }
-    }
-  }
-
-  // Cross-check against the FMP-derived numbers already shown elsewhere in the app —
-  // this is the actual "second layer of validation" against the existing pipeline.
-  if (fmpRow && revenue.length > 0) {
-    const fmpRevenue = fmpRow.totalRevenue != null ? Number(fmpRow.totalRevenue) : null;
-    if (fmpRevenue && fmpRevenue > 0) {
-      // FMP's figure can lag one fiscal year behind EDGAR's most recently filed 10-K (e.g.
-      // MSFT's FY ends in June — EDGAR reflects the new FY within weeks of filing, but FMP's
-      // annual revenue can still show the prior FY for a while). Compare against whichever of
-      // the last two EDGAR years is the closer match so a one-year lag isn't misreported as a
-      // genuine data-quality issue.
-      const candidates = revenue.slice(-2);
-      const best = candidates.reduce((a, b) =>
-        Math.abs(a.value - fmpRevenue) <= Math.abs(b.value - fmpRevenue) ? a : b);
-      const diff = Math.abs(best.value - fmpRevenue) / fmpRevenue;
-      if (diff > 0.05) {
-        findings.push({
-          text: `Data discrepancy: SEC-filed FY${best.year} revenue ($${(best.value / 1e6).toFixed(0)}M) differs from the FMP-sourced figure shown on this page ($${(fmpRevenue / 1e6).toFixed(0)}M) by ${(diff * 100).toFixed(1)}% — worth checking which period each source is reporting.`,
-          tone: "negative",
-        });
-      }
-    }
-  }
-
-  return findings;
-}
-
-function groupStatementRows(rows: EdgarStatementHistoryRow[]) {
-  const group = (type: string) => {
-    const byLineItem = new Map<string, { fiscalYear: number; value: number }[]>();
-    for (const r of rows.filter(x => x.statementType === type)) {
-      const arr = byLineItem.get(r.lineItem) ?? [];
-      arr.push({ fiscalYear: r.fiscalYear, value: Number(r.value) });
-      byLineItem.set(r.lineItem, arr);
-    }
-    return Object.fromEntries(
-      [...byLineItem.entries()].map(([k, v]) => [k, v.sort((a, b) => b.fiscalYear - a.fiscalYear)]),
-    );
-  };
-  return { income: group("income"), balance: group("balance"), cashflow: group("cashflow") };
-}
 
 export const edgarStatementsCache = new TTLCache<object>(60 * 60 * 1000, 'edgar-statements', 500);
 

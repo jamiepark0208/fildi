@@ -14,7 +14,7 @@ Status: **live** = in that layer today · **proposed** = A25 deferred · **shipp
 | RV-proxy "ivRank", Bollinger squeeze | none (remove) | live in tech v2 | wrong-signed / no edge |
 | Put/call ratio, skew, term structure | Options: PRICING | live in tech optionsFlow | untestable (no history) |
 | Contract: income, buffer, delta, DTE, liquidity, earnings in window | Options: contract scoring | live | graded live (grade_ledger) |
-| Analyst expectations: IBES revision breadth, estimate drift | Fundamentals: expectations | live | t 2.7 / 3.5, but redundant with trend (+0.008 when trend fixed) |
+| Analyst expectations: IBES revision breadth, estimate drift | Fundamentals: expectations (`ibesRevBreadth`, optional from fund-1.1.1) | live | t 2.7 / 3.5, but redundant with trend (+0.008 when trend fixed). fund-1.1.1 (2026-10-06): no IBES row = not covered, no coverage shrink (`optionalMetrics` param). Before/after vs 1.1.0: rank corr 0.992, top-50 49 kept (TFC in, APA out), scored 568 → 570, mean abs shift 0.12; biggest ECOL 36.1 → 47.0. `compare-fund-params.ts` with 2 overrides |
 | IBES SUE (avg last 4), estimate dispersion | Fundamentals | live, proposed drop (F1) | no edge |
 | Forward EPS growth (IBES FY1→FY2) | Fundamentals: expectations (`ibesFwdGrowth`, optional) | **live (fund-1.1.0)** | Lab IC +0.077–0.108 t ≥ 3.1; oftic-keyed; one-off FY1 jump null; no coverage shrink when IBES missing. Before/after rank corr 0.991, top-50 48 kept. `research/fair_value/FACTOR_STUDY.md` |
 | 3-month consensus price-target revision | none (= trend) | rejected | IC +0.052 t 2.7 alone, but ρ 0.77 with price vs MA200; partial t 1.2: `research/fair_value/overlap_check.py` |

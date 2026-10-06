@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Loader2, Search, AlertCircle, BarChart2, TrendingUp, TrendingDown, LineChart,
@@ -7,16 +6,16 @@ import {
 import { PriceChart, Period } from "./price-chart";
 import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
 import { CompetitorsSection } from "./competitors-section";
-import { AnalystRatingsSection, type Recommendations, type AnalystAction, type AnalystPriceTarget, type PriceTargetRange } from "./analyst-ratings-section";
-import { EarningsHistorySection, type EarningsQuarter } from "./earnings-history-section";
-import { MarketSentimentSection, BullBearCases } from "./market-sentiment-section";
+import { AnalystRatingsSection } from "./analyst-ratings-section";
+import { EarningsHistorySection } from "./earnings-history-section";
+import { MarketSentimentSection } from "./market-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
-import { NewsCard, type NewsItem } from "./news-card";
-import { BreakdownMetricsTable, ScoreBadge } from "./breakdown-metrics-table";
+import { NewsCard } from "./news-card";
+import { BreakdownMetricsTable } from "./breakdown-metrics-table";
 import { PegGrowthDistChart } from "./peg-growth-dist-chart";
 import { PeerGroupEditor } from "./settings/PeerGroupEditor";
-import { FundScoreHistoryChart, type ScoreHistoryPoint } from "./fund-score-history-chart";
-import { StreetSynthesisCard, type StreetSynthesisData } from "./street-synthesis-card";
+import { FundScoreHistoryChart } from "./fund-score-history-chart";
+import { StreetSynthesisCard } from "./street-synthesis-card";
 import { ScoreNoteForm } from "./score-note-form";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
@@ -31,230 +30,12 @@ import {
 import { ModelThesisReport, type ModelThesis } from "@/components/model-thesis-report";
 import { FairValueBadge } from "@/components/fair-value-badge";
 
-function scoreTone(score: number | null | undefined): string {
-  if (score == null || !Number.isFinite(score)) return "border-white/40 text-white/70 bg-zinc-800";
-  if (score >= 70) return "border-green-400 text-white bg-green-600/40";
-  if (score >= 50) return "border-yellow-400 text-white bg-yellow-600/35";
-  if (score >= 35) return "border-orange-400 text-white bg-orange-600/35";
-  return "border-red-400 text-white bg-red-600/40";
-}
+import {
+  useBreakdown, overviewBullets, TagBadge, BreakdownPanel,
+  type ClassificationTagType, type WatchlistTagEntry,
+} from "./breakdown/stock-breakdown-parts";
+import { MemoHeader } from "./breakdown/memo-header";
 
-function PillarChip({ label, score, title }: { label: string; score: number | null | undefined; title?: string }) {
-  return (
-    <span
-      title={title}
-      className={cn(
-        "inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border text-[11px] font-mono tabular-nums",
-        scoreTone(score),
-      )}
-    >
-      <span className="text-[9px] font-bold uppercase tracking-wide font-sans">{label}</span>
-      <span className="font-bold">{score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}</span>
-    </span>
-  );
-}
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-interface ScoreEvidence {
-  total: number | null;
-  value: number | null;
-  growth: number | null;
-  quality: number | null;
-  safety: number | null;
-  style: string | null;
-  confidence: string | null;
-  coverage: number | null;
-  scoredAt: string | null;
-  topMetrics: Array<{ key: string; family: string; raw: number | null; peerPct: number | null; contrib: number }>;
-  modelScore: number | null;
-  deskScore: number | null;
-  activeAdjPoints: number;
-}
-
-interface TradeOverlay {
-  techScore: number | null;
-  atmPutIv: number | null;
-  realizedVol20d: number | null;
-  ivVsRealized: number | null;
-  earningsDaysOut: number | null;
-  streetEventRisk: boolean;
-  regime: string | null;
-}
-
-interface BreakdownData {
-  metrics: any;
-  scoreEvidence?: ScoreEvidence | null;
-  scoreHistory?: ScoreHistoryPoint[];
-  street?: StreetSynthesisData | null;
-  tradeOverlay?: TradeOverlay | null;
-  recommendations: Recommendations | null;
-  analystActions: AnalystAction[];
-  analystPriceTargets: AnalystPriceTarget[];
-  priceTargetRange: PriceTargetRange | null;
-  bullBullets: string[];
-  bearBullets: string[];
-  news: NewsItem[];
-  earningsDate?: string | null;
-  earningsHistory?: EarningsQuarter[];
-  catalysts?: string[];
-  peers?: string[];
-  peerIndustry?: string | null;
-  peerSector?: string | null;
-}
-
-// ── Data fetching ──────────────────────────────────────────────────────────────
-
-function useBreakdown(ticker: string | null) {
-  return useQuery<BreakdownData, Error>({
-    queryKey: ["breakdown", ticker],
-    queryFn: async () => {
-      const res = await fetch(`/api/stocks/breakdown?ticker=${encodeURIComponent(ticker!)}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error || `HTTP ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: !!ticker,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    retry: 1,
-  });
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function overviewBullets(description: string, companyName: string | null | undefined): string[] {
-  const sentences = description.split(/(?<=[.!?])\s+/);
-  const filtered = sentences.filter((s, i) => {
-    if (i !== 0) return true;
-    if (!companyName?.trim()) return true;
-    const trimmed = s.trim();
-    const name = companyName.trim();
-    if (trimmed.toLowerCase().startsWith(name.toLowerCase())) return false;
-    if (trimmed.replace(/[.!?]+$/, "").toLowerCase() === name.toLowerCase()) return false;
-    return true;
-  });
-  return filtered.slice(0, 3);
-}
-
-// ── Classification tags (exchange/sector/industry/stockType) ───────────────────
-// Each tag type gets its own color so the row reads as distinct categories rather
-// than a wall of grey text. Clicking a tag opens a popup listing other watchlist
-// tickers sharing that same value.
-
-type ClassificationTagType = "exchange" | "sector" | "industry" | "stockType";
-type TagType = ClassificationTagType | "beta" | "marketCap";
-
-interface WatchlistTagEntry {
-  companyName?: string | null;
-  exchange?: string | null;
-  sector?: string | null;
-  industry?: string | null;
-  stockType?: string | null;
-}
-
-const TAG_STYLES: Record<TagType, string> = {
-  exchange:  "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20",
-  sector:    "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
-  industry:  "border-teal-500/30 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20",
-  stockType: "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
-  beta:      "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
-  marketCap: "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20",
-};
-
-function TagBadge({
-  type, value, matches, onSelectTicker,
-}: {
-  type: TagType; value: string;
-  matches?: { ticker: string; companyName: string | null }[];
-  onSelectTicker?: (t: string) => void;
-}) {
-  const badgeClass = cn(
-    "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border transition-colors",
-    matches ? "cursor-pointer" : "cursor-default",
-    TAG_STYLES[type],
-  );
-
-  if (!matches) {
-    return <button type="button" disabled className={badgeClass}>{value}</button>;
-  }
-
-  // Styled to match the Live Monitor intraday regime checkpoint popover (live.tsx).
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button type="button" className={cn(badgeClass, "hover:brightness-125")}>{value}</button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-0 text-xs bg-zinc-900 border-zinc-600/40" align="start">
-        <div className="px-3 py-2 border-b border-amber-500/20 bg-zinc-800/90 flex items-center gap-2">
-          <span className={cn("text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border shrink-0", TAG_STYLES[type])}>
-            {value}
-          </span>
-          <span className="text-zinc-400 text-[11px]">
-            {matches.length} ticker{matches.length !== 1 ? "s" : ""} in your watchlist
-          </span>
-        </div>
-        <div className="p-2 flex flex-col gap-0.5 max-h-72 overflow-y-auto">
-          {matches.length === 0 ? (
-            <span className="text-zinc-500 italic px-1.5 py-1">No other watchlist tickers share this tag.</span>
-          ) : (
-            matches.map(({ ticker: t, companyName }) => (
-              <button
-                key={t}
-                onClick={() => onSelectTicker?.(t)}
-                className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 transition-colors text-left"
-              >
-                <span className="font-mono font-bold text-xs text-white">{t}</span>
-                {companyName && <span className="text-[11px] text-zinc-400 truncate">{companyName}</span>}
-              </button>
-            ))
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-type BreakdownPanelProps = {
-  title: string;
-  children?: ReactNode;
-  empty?: string;
-  /** Span both columns in the 2-col grid. */
-  fullWidth?: boolean;
-  /** Optional right-side action (e.g. Open dig). */
-  action?: ReactNode;
-  /** Cap height + scroll only when content is long (charts). */
-  scrollMax?: string;
-};
-
-function BreakdownPanel({ title, children, empty, fullWidth, action, scrollMax }: BreakdownPanelProps) {
-  return (
-    <div
-      className={cn(
-        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0 h-full",
-        fullWidth && "col-span-2",
-      )}
-    >
-      <div className="flex items-center justify-between mb-1.5 gap-2 shrink-0">
-        <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">{title}</span>
-        {action}
-      </div>
-      <div
-        className={cn(
-          "min-h-0",
-          scrollMax ?? "flex-1 overflow-y-auto",
-          scrollMax && !/overflow-/.test(scrollMax) && "overflow-y-auto",
-        )}
-      >
-        {children ?? (
-          <p className="text-[10px] text-amber-200/40 italic">{empty ?? "No data available."}</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -566,92 +347,7 @@ export function StockBreakdown({
             </div>
 
             {/* ── Memo header: fund model + trade overlay ── */}
-            {(() => {
-              const se = data.scoreEvidence;
-              const tr = data.tradeOverlay;
-              const catalysts = data.catalysts ?? [];
-              const earns = catalysts.find((l) => /^(Earnings|Next earnings)/i.test(l));
-              const hasCases =
-                catalysts.some((l) => !/^(Earnings|Next earnings)/i.test(l)) ||
-                (data.bullBullets?.length ?? 0) > 0 ||
-                (data.bearBullets?.length ?? 0) > 0;
-              return (
-                <div id="bd-memo-header" className="mt-0.5 space-y-1.5">
-                  {/* Our peer-relative fund model — not the Street (WRDS/LSEG) panel below */}
-                  <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-lg px-2.5 py-2 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]" title="Peer-relative fundamentals — separate from Street (WRDS/LSEG) below">
-                        Our Fund
-                      </span>
-                      <span className="text-base leading-none" title="Peer-relative fundamental score (0–100)">
-                        <ScoreBadge score={se?.modelScore ?? se?.total} max={100} />
-                      </span>
-                      {se?.activeAdjPoints ? (
-                        <span className="text-[11px] font-mono text-amber-200" title="model + active desk adj">
-                          <span className="font-semibold">Desk</span>{" "}
-                          <span className="font-bold">{se.deskScore != null ? se.deskScore.toFixed(0) : "—"}</span>
-                          <span className="text-amber-100/80 ml-1 italic">
-                            (adj {se.activeAdjPoints >= 0 ? "+" : ""}{se.activeAdjPoints})
-                          </span>
-                        </span>
-                      ) : null}
-                      <PillarChip label="V" score={se?.value} title="Value pillar" />
-                      <PillarChip label="G" score={se?.growth} title="Growth pillar" />
-                      <PillarChip label="Q" score={se?.quality} title="Quality pillar" />
-                      <PillarChip label="S" score={se?.safety} title="Safety pillar" />
-                      {se?.style && (
-                        <span className="text-[10px] font-semibold italic px-1.5 py-0.5 rounded border border-violet-400/60 text-violet-200 bg-violet-500/20">
-                          {se.style}
-                        </span>
-                      )}
-                      {se?.confidence && (
-                        <span className="text-[10px] font-semibold text-sky-200 underline decoration-sky-500/50 underline-offset-2">
-                          {se.confidence} conf
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-[#d4af37]/15 pt-1.5">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-sky-300">Trade</span>
-                      {tr?.techScore != null && (
-                        <PillarChip label="Tech" score={tr.techScore} title="Technical score" />
-                      )}
-                      {tr?.ivVsRealized != null && (
-                        <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-sky-400/50 bg-sky-500/15">
-                          IV/RV {tr.ivVsRealized.toFixed(2)}
-                        </span>
-                      )}
-                      {tr?.atmPutIv != null && (
-                        <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-cyan-400/50 bg-cyan-500/15">
-                          IV {tr.atmPutIv.toFixed(0)}%
-                        </span>
-                      )}
-                      {(tr?.earningsDaysOut != null || earns) && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-yellow-500/25 text-yellow-200 border-yellow-400/60">
-                          {tr?.earningsDaysOut != null ? `ER ${tr.earningsDaysOut}d` : earns}
-                        </span>
-                      )}
-                      {tr?.streetEventRisk && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-400/70 text-red-200 bg-red-500/20">
-                          Event risk
-                        </span>
-                      )}
-                      {!tr?.techScore && tr?.ivVsRealized == null && tr?.atmPutIv == null && !tr?.earningsDaysOut && !earns && !tr?.streetEventRisk && (
-                        <span className="text-[10px] text-amber-100/70 italic">No trade overlay yet</span>
-                      )}
-                    </div>
-                  </div>
-                  {hasCases && (
-                    <div id="bd-cases">
-                      <BullBearCases
-                        bullBullets={data.bullBullets ?? []}
-                        bearBullets={data.bearBullets ?? []}
-                        catalysts={catalysts}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            <MemoHeader data={data} />
 
             {/* ── Score evidence (model families) ── */}
             <BreakdownMetricsTable

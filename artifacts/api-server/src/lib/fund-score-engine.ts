@@ -597,6 +597,8 @@ export type ScoreUniverseParams = {
   megacapBlendFamilyWeights?: Partial<Record<FamilyName, number>>;
   totalMinCoverage?: number;
   familyMinCoverage?: number;
+  /** Metrics where "no value" means "not covered" (skipped, no coverage shrink). Absent = METRICS `optional` flags. */
+  optionalMetrics?: MetricKey[];
 };
 
 export function scoreUniverse(
@@ -611,6 +613,7 @@ export function scoreUniverse(
   const metrics = METRICS.map((m) => ({
     ...m,
     baseIntra: params?.metricBaseIntra?.[m.key] ?? m.baseIntra,
+    optional: params?.optionalMetrics ? params.optionalMetrics.includes(m.key) : m.optional,
   }));
   const styleWeights: Record<StyleBucket, Record<FamilyName, number>> = { ...STYLE_FAMILY_WEIGHTS };
   if (params?.styleFamilyWeights) {

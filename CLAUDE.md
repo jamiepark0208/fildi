@@ -1,13 +1,13 @@
 @AGENTS.md
 
 # TradeDash — Claude Code Config
-> Claude Code only. Shared product/ops SoT: `.agents/context/INDEX.md` (also root `AGENTS.md`). State restored on every prompt via rehydrate hook.
+> Claude Code only. Shared product/ops SoT: `.agents/context/INDEX.md` (also root `AGENTS.md`). Session state lives in `.agents/context/state.md` — read it when resuming work.
 
 ## RESPONSE STYLE
 Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
 
 ## STARTUP (every session)
-`rehydrate.js` runs automatically via UserPromptSubmit hook on every prompt — do NOT run it manually, it's not a one-time setup step.
+No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
 Run once per session: `node .claude/scripts/validate-workflow.js`
 First time only: read .claude/skills/replit-setup.md and follow the steps
 Build/restart questions → `.claude/skills/build-and-run.md` (has the correct restart procedure — don't improvise)

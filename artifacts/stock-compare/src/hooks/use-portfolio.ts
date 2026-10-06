@@ -35,7 +35,7 @@ export interface PortfolioEntry {
 //
 // Field map: PortfolioEntry.portfolioName <-> positions.accountId (reused,
 // not a new column — same column Robinhood-derived entries put the account
-// nickname into via dbToEntries() in portfolio.tsx).
+// nickname into via dbToEntries() in lib/portfolio-db-entries.ts).
 // PortfolioEntry.id becomes `db-${row.id}` to avoid colliding with the
 // `rh-pos-`/`rh-opt-` ids Robinhood entries use.
 // positions.positionType is a free-text column (not a DB enum) — we store

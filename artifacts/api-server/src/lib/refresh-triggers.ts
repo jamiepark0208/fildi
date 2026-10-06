@@ -39,7 +39,7 @@ export async function getEarningsWindowTickers(
       AND (CURRENT_DATE + ${after}::int)
   `);
   const set = new Set<string>();
-  for (const r of (rows as { rows?: { ticker: string }[] }).rows ?? []) {
+  for (const r of (rows as unknown as { rows?: { ticker: string }[] }).rows ?? []) {
     if (r.ticker) set.add(String(r.ticker).toUpperCase());
   }
   return set;
@@ -60,8 +60,8 @@ export async function listEarningsWindowHits(
       AND (CURRENT_DATE + ${after}::int)
     ORDER BY UPPER(ticker), report_date DESC
   `);
-  return ((rows as { rows?: EarningsTriggerHit[] }).rows ?? []).map((r) => ({
+  return ((rows as unknown as { rows?: { ticker: string; report_date: string | null }[] }).rows ?? []).map((r) => ({
     ticker: String(r.ticker).toUpperCase(),
-    reportDate: String(r.report_date ?? r.reportDate ?? ""),
+    reportDate: String(r.report_date ?? ""),
   }));
 }

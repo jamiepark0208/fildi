@@ -548,8 +548,8 @@ router.get('/feed/profile/:username', async (req, res) => {
     ])
 
     // db.execute (node-pg) returns QueryResult { rows }, not a bare array
-    const priceRows = (priceResult as { rows?: Array<{ ticker: string; close: string | null }> }).rows
-      ?? (Array.isArray(priceResult) ? priceResult as Array<{ ticker: string; close: string | null }> : [])
+    const priceRows = (priceResult as unknown as { rows?: Array<{ ticker: string; close: string | null }> }).rows
+      ?? (Array.isArray(priceResult) ? priceResult as unknown as Array<{ ticker: string; close: string | null }> : [])
     for (const r of priceRows) {
       if (r.close != null) latestCloseByTicker.set(r.ticker, Number(r.close))
     }
@@ -692,8 +692,8 @@ router.post('/feed/portfolio/reset', async (req, res) => {
     WHERE ticker IN (${sql.join(tickers.map(t => sql`${t}`), sql`, `)})
     ORDER BY ticker, date DESC
   `)
-  const priceRows = (priceResult as { rows?: Array<{ ticker: string; close: string | null }> }).rows
-    ?? (Array.isArray(priceResult) ? priceResult as Array<{ ticker: string; close: string | null }> : [])
+  const priceRows = (priceResult as unknown as { rows?: Array<{ ticker: string; close: string | null }> }).rows
+    ?? (Array.isArray(priceResult) ? priceResult as unknown as Array<{ ticker: string; close: string | null }> : [])
   const closeByTicker = new Map<string, number>()
   for (const r of priceRows) {
     if (r.close != null) closeByTicker.set(r.ticker, Number(r.close))

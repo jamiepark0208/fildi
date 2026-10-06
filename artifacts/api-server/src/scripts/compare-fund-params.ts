@@ -6,6 +6,7 @@
  *
  *   pnpm exec tsx src/scripts/compare-fund-params.ts
  *   pnpm exec tsx src/scripts/compare-fund-params.ts '{"metricBaseIntra":{"ibesFwdGrowth":2.5}}'
+ *   (optional 2nd JSON arg overrides the champion side, e.g. to replay a code change as a param)
  */
 import { pool } from "@workspace/db";
 import { computeAndPersistFundamentalScores, type FundScoreResult } from "../lib/fundamentals-db.js";
@@ -30,7 +31,10 @@ function spearman(a: number[], b: number[]): number {
 }
 
 async function main() {
-  const champ = await getChampionScorecardParams("fund");
+  const live = await getChampionScorecardParams("fund");
+  const champ = process.argv[3]
+    ? { ...live, version: `${live.version}+override`, params: merge(live.params, JSON.parse(process.argv[3])) }
+    : live;
   let chal: { version: string; params: Record<string, unknown> };
   if (process.argv[2]) {
     chal = { version: `${champ.version}+override`, params: merge(champ.params, JSON.parse(process.argv[2])) };
