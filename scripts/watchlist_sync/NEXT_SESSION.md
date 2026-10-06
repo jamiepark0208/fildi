@@ -117,3 +117,15 @@ Regime detector owner = Claude (user decision, ASKS A26). Cost/benefit review ch
 ## Coordination
 - Uncommitted mixed work on `cursor/mac-dev` (97+ files). Agree on commit discipline with the user before committing.
 - Cursor owns scores/scanner/UI; this session's shared-file edits are listed in A13.
+
+## Cursor sync (caught up 2026-10-05 late)
+- Cursor shipped from A25: **T1** (252-bar percentile window, `technicals-math.ts`), **O2 partial** (no BB squeeze, no RV-proxy IV rank in tech v2),
+  **F1** (ibesSue weight 0). Deferred: T2, T3/T4, O1, O2 full, O3, F2. Live technicals rows predate T1 → re-run
+  `lab-fidelity-technicals.ts --source=ph` after the next technicals refresh (expect percentiles 40/40).
+- Engine changed (T1 + O2) → next `monthly.py` replays the new engine side by side; compare with the 10/05 lab report.
+- Cursor follow-up from A28: option scorer's ivVsRealizedVol nudge should use strike IV when dte < earnings (not shipping yet).
+- IBES (A20): WRDS 50-ticker cap per run; more `--universe coverage` batches need the user's Duo.
+- Cursor in flight (uncommitted): research-report layout (research-why / research-report-shell / street-synthesis), fund-score
+  accountability (notes, history chart, migrate-0030), Scheduled Tasks inventory + OpsNucleus, desk news link-dig, portfolio risk.
+  My Model List UI files import `research-why.tsx`, so they get committed after Cursor commits that.
+- Open on my side: A29 review pending from Cursor; M2 withdrawn (gate 1 H5); M1 = stock score once F2 lands.
