@@ -270,7 +270,8 @@ def build(conn) -> tuple[dict, list[dict]]:
                 contract["premium_score"] = {
                     "value": round(FV.wavg0([(Pw["w_iv_rv"], F13.lin(v["contract_iv_rv"], 0.8, 1.5)),
                                              (Pw["w_iv_rank"], 100 * ivr if ivr is not None else None)]), 1),
-                    "pillar_30d": f.get("premium"), "basis": f"contract IV: expires before earnings {e['date']}"}
+                    "pillar_30d": f.get("premium"),
+                    "basis": f"scored on this contract's own IV instead of the 30-day IV, which includes earnings on {e['date']} that this contract expires before"}
         floor = P["thresholds"]["min_contract_iv_rv"]
         if not held_back and floor and p["option_type"] == "put" and v and v["contract_iv_rv"] < floor:
             held_back = (f"this contract's IV is {v['contract_iv_rv']:.2f}× the stock's 20-day realized vol (floor {floor:.2f}): "

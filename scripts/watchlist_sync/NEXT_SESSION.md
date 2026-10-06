@@ -86,7 +86,7 @@ Regime detector owner = Claude (user decision, ASKS A26). Cost/benefit review ch
 - Gate 1c + display shipped (run #10): `winrates.py` (monthly refresh in daily.py), contract.win + pillars.ma200 in the Model List detail view.
 - E1 what-if strike + E2 $ per contract (good/avg/bad) shipped in run #11 (PLAN §8). Avg sold option ≈ break-even across all stocks; edge = selection.
 - Backlog E3–E6 done; pick review + 3 fixes (PLAN §10–11). P1–P3 approved → champion **fit-1.4.2**, run #13 (sell puts: CAVA, DVN; MNDY/NFLX → Review).
-- Run #14: adjustments table, capacity context (PLAN §12). C1 shipped as fit-1.4.3 (run #15); C2 redesign pending the user's input.
+- Run #14: adjustments table, capacity context (PLAN §12). C1 shipped as fit-1.4.3 (run #15). C2 detail → "Explain this pick (AI)" (PLAN §13, run #16).
 - Next real evidence: first live grades 10/09–10/12 → compare with win-rate table; then A24 (RH tiers → learn.py).
 - Lesson: `verify_plan.py evaluate` without --plan targets the newest plan (it marked draft #6 verified once; restored). A25 → user takes it to Cursor.
 - Not verified: the new fields in a browser (no session cookie here).

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
@@ -414,6 +414,112 @@ router.post("/explain/live-regime", async (req, res) => {
     return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/live-regime error");
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Model List pick surface ─────────────────────────────────────────────────
+// Narrates one published Model List item (scripts/watchlist_sync/publish_model_list.py). Every number comes from the stored item
+// (deterministic code computed it); the model only explains. The item is read server-side from the latest run, never from the client.
+// Same owner rule as GET /watchlist/model: the list is built from user 1's accounts.
+
+const MODEL_LIST_USER_ID = 1;
+
+interface ModelPickExtra {
+  runId: number;
+  folderName: string;
+  item: Record<string, any>;
+}
+
+function modelPickHash(_b: ContextBundle, e: ModelPickExtra): string {
+  const c = e.item.contract ?? {};
+  return `v4_${e.runId}_${e.item.folder_key}_${c.type ?? ""}_${c.account ?? ""}`;
+}
+
+function fmtPct(x: unknown): string {
+  return typeof x === "number" ? `${Math.round(x * 100)}%` : "n/a";
+}
+
+function buildModelPickPrompt(_b: ContextBundle, e: ModelPickExtra): string {
+  const it = e.item, c = it.contract ?? null, w = c?.win ?? null, p = it.pillars ?? {};
+  const facts: string[] = [
+    `List: ${e.folderName} (status ${it.status}; verdict ${it.verdict || "none"})`,
+    `Pillars (0-100): OWN ${p.own ?? "n/a"}, STREET ${p.street ?? "n/a"}, PREMIUM ${p.premium ?? "n/a"}${p.premium_30d != null ? ` (30-day IV version ${p.premium_30d})` : ""}; price vs 200-day ${p.ma200 != null ? `${(p.ma200 * 100).toFixed(0)}%` : "n/a"}`,
+  ];
+  if (c) {
+    facts.push(`Trade: sell ${c.type} ${c.strike} expiring ${c.expiry} in ${c.account ?? "?"}; realistic fill $${c.premium ?? "?"}${c.model_premium != null ? ` (model said $${c.model_premium})` : ""}`);
+    if (w) {
+      facts.push(`History of ALL stocks' options at this delta and expiry, not this stock's own (2020-26, delta ${w.delta}, ${w.dte} days): made money ${fmtPct(w.rate)} of the time (worst year ${fmtPct(w.lo)}, best ${fmtPct(w.hi)}); per contract good year $${w.ev_good}, average $${w.ev}, bad year $${w.ev_bad}. Note: across all stocks the average sold option roughly broke even; the edge is in which names are picked.`);
+      if (Array.isArray(w.alts)) facts.push(`What-if same expiry: ${w.alts.map((a: any) => `delta ${a.delta}: strike ~${a.strike}, premium ~$${a.premium}, wins ${fmtPct(a.rate)}, bad year $${a.ev_bad}`).join("; ")} (estimates, no skew)`);
+    }
+    if (c.vol) {
+      const r = c.vol.contract_iv_rv as number;
+      const label = r >= 1.1 ? "RICH (options priced clearly above recent moves: the validated edge is present)"
+        : r < 0.95 ? "CHEAP (priced below recent moves: the validated edge runs the other way)"
+        : "FAIR (about equal to recent moves: no pricing edge either way)";
+      facts.push(`Pricing: this contract's IV is ${r}x the stock's 20-day realized vol = ${label}.`);
+    }
+    if (c.earnings) facts.push(c.earnings.inside
+      ? `Earnings ${c.earnings.date} fall INSIDE this trade (before expiry): an earnings gap can hit it.`
+      : `Earnings ${c.earnings.date} fall ${c.earnings.days_after_expiry} days AFTER expiry: no earnings report inside this trade (this says nothing else about assignment risk).`);
+    if (c.record) facts.push(`Owner's own record on this ticker/side since ${c.record.since}: ${c.record.wins} of ${c.record.n} profitable, total $${c.record.pnl}`);
+  }
+  for (const a of (it.adjustments ?? []) as Array<Record<string, unknown>>) {
+    const net = typeof a.from === "number" && typeof a.to === "number" ? (a.to as number) - (a.from as number) : null;
+    const dir = net == null ? "" : ` (${net >= 0 ? "UP" : "DOWN"} ${Math.abs(net).toFixed(1)})`;
+    facts.push(`Adjustment: ${a.what} ${a.from} -> ${a.to}${dir} because ${a.why}`);
+  }
+  for (const y of ((it.why ?? []) as unknown[]).slice(0, 12)) facts.push(`Model note: ${String(y)}`);
+  if ((it.flags ?? []).length) facts.push(`Risk flags: ${(it.flags as string[]).join("; ")}`);
+
+  return `You explain one recommendation from the Fildi Model List to its owner, an experienced options seller who decides every trade themselves. Use ONLY the facts below. Never invent numbers, prices or events; if something isn't in the facts, don't mention it.
+Rules: use the pricing label exactly as given (never call FAIR or CHEAP an edge). Give each adjustment's reason as written; don't add causes.
+Don't infer risk levels the facts don't state. Mention funding choices (closing a put, selling a flagged holding) only if a model note mentions them.
+
+FACTS (${it.ticker}):
+${facts.map(f => `- ${f}`).join("\n")}
+
+Write 4 short labelled parts, under 170 words total:
+**Why it's listed:** the trade, the list it is in, and the pricing label (RICH / FAIR / CHEAP), in 1-2 sentences. If it was moved to Needs Review, say why first.
+**What history says:** win rate and the good/average/bad dollar range in plain terms; mention the what-if only if a different delta looks clearly better or worse.
+**Adjustments:** what the model changed and why (skip if none).
+**Watch / your call:** the 1-2 things that would change the decision (earnings, trend, limits, funding options such as closing a put or selling a flagged holding). Present funding options as choices, never instructions.
+No intro, no disclaimers.`;
+}
+
+const modelPickSurface: ExplainSurface<ModelPickExtra> = {
+  surfaceType: "model-pick",
+  promptVersion: "v4",
+  buildPrompt: buildModelPickPrompt,
+  hashInputs: modelPickHash,
+};
+
+router.post("/explain/model-pick", async (req, res) => {
+  const { ticker, folderKey, type, account } = req.body as { ticker?: string; folderKey?: string; type?: string; account?: string };
+  if (!ticker || !folderKey) return res.status(400).json({ error: "ticker and folderKey are required" });
+  const userId = req.session.userId!;
+  if (userId !== MODEL_LIST_USER_ID) return res.status(403).json({ error: "the Model List belongs to its owner" });
+  const log = req.log.child({ ticker, surfaceType: "model-pick", userId });
+  try {
+    const r = await db.execute(sql`
+      SELECT i.*, f.name AS folder_name, i.run_id FROM watchlist_sync.model_items i
+      JOIN watchlist_sync.model_folders f ON f.folder_key = i.folder_key
+      WHERE i.run_id = (SELECT max(id) FROM watchlist_sync.model_runs)
+        AND i.folder_key = ${folderKey} AND i.ticker = ${ticker.toUpperCase()}
+        AND COALESCE(i.contract->>'type', '') = ${type ?? ""} AND COALESCE(i.contract->>'account', '') = ${account ?? ""}
+      LIMIT 1`);
+    const rows = (Array.isArray(r) ? r : (r as { rows?: unknown[] }).rows ?? []) as Array<Record<string, any>>;
+    const item = rows[0];
+    if (!item) return res.status(404).json({ error: "item not in the latest Model List run" });
+    const bundle = await assembleContext(ticker, { include: [] });
+    const result = await generateExplanation(
+      ticker.toUpperCase(), modelPickSurface, bundle,
+      { runId: Number(item.run_id), folderName: String(item.folder_name), item }, log, { userId, maxTokens: 450 },
+    );
+    if (result.cached) recordAiUsage({ userId, ticker, surfaceType: "model-pick", cached: true });
+    return res.json({ explanation: result.explanation, cached: result.cached });
+  } catch (err) {
+    log.error({ err, step: "failed" }, "explain/model-pick error");
     return res.status(500).json({ error: String(err) });
   }
 });

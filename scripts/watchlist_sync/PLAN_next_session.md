@@ -169,3 +169,12 @@ Before snapshot: `out/step6/before_fit-1.4.2.json`.
   ideas only (`budget_counts_open_puts: false`); any open put may fund an idea (`fund_by_closing_any_put: true`), and closures that give up a
   better yield or lock in an in-the-money loss are flagged in the funding line, not skipped. Today: DVN "over limit" → "all 2 fit".
 - **C2: user wants a richer design** (see the session reply; pending the user's input before building).
+
+## 13. "Explain this pick (AI)" (2026-10-05, run #16)
+New explain surface `model-pick` (POST /api/explain/model-pick, `routes/explain.ts`; Haiku, cached in explain_cache per run + item; owner-only).
+The server reads the published item (never the client's copy) and turns it into labelled facts; the model only narrates:
+why it's listed (incl. pricing label RICH / FAIR / CHEAP), what history says (all-stock rates, $ range, what-if), adjustments (from → to,
+UP/DOWN, reason as written), watch / your call (earnings, trend, limits, funding choices only when the model notes them).
+Prompt tested on CAVA (sell puts) and NFLX (held back) until 4 errors were gone: FAIR called an edge, earnings timing inverted, invented
+"minimal assignment risk", wrong direction on OWN, all-stock rate attributed to the stock. ~950 tokens in / ~330 out per explanation.
+This is where the C2 detail lives: funding choices (close a put, sell a flagged holding, tax note) are explained per pick, never automatic.
