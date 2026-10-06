@@ -165,3 +165,7 @@ Before snapshot: `out/step6/before_fit-1.4.2.json`.
 - **Proposals (need approval; would change selection):** C1 the budget rule counts only open puts that are still open at the new idea's expiry
   or are near / in the money (OTM puts expiring first don't block); C2 the allocator may list "sell flagged holding X" as a funding step like
   closing a put (IRA first, taxable only at a loss), still never automatic. No backtest exists for either: they're accounting rules, not signals.
+- **C1 approved and shipped (user's version, champion fit-1.4.3, run #15):** open-put collateral counts as closable. Budget measures new
+  ideas only (`budget_counts_open_puts: false`); any open put may fund an idea (`fund_by_closing_any_put: true`), and closures that give up a
+  better yield or lock in an in-the-money loss are flagged in the funding line, not skipped. Today: DVN "over limit" → "all 2 fit".
+- **C2: user wants a richer design** (see the session reply; pending the user's input before building).

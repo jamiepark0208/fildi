@@ -10,6 +10,9 @@ Collateral (v2, user review 2026-10-05):
     1. free cash buying power
     2. close open short puts that are a *worse use of the same collateral* (their remaining weekly yield = mark ÷ strike per week
        left, below the new idea's), cheapest-to-close first. Each closure is listed: "close ONDS 7P ×10: frees $7,000, costs $55".
+  C1 (fit-1.4.3, user 2026-10-05): open-put collateral counts as closable. `fund_by_closing_any_put` lets any open put fund an idea
+  (closures that give up a better yield or lock in an in-the-money loss are flagged, not skipped); `budget_counts_open_puts: false`
+  measures the budget on new ideas only. The user decides; the list shows the opportunity and its cost.
   Feasibility (fits after closures) is the only hard limit. Concentration limits are SOFT: the idea is kept, with a warning:
     position > max_position_pct of capacity · total puts > budget_pct of capacity · sector > max_per_sector ideas or > sector_pct
     of capacity · adding to a name you're already short a put on.
@@ -69,6 +72,7 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
     free = {a: (x["bp"] if P["use_margin"] else x["cash_bp"]) for a, x in acct.items()}
     capacity = {a: free[a] + posted[a] for a in acct}
     committed = dict(posted)  # collateral backing puts after this plan (existing + new − closed)
+    new_coll = defaultdict(float)  # collateral of this plan's new ideas only (C1: the budget can ignore closable open puts)
     closable = {a: sorted((o for o in shorts if o["account"] == a), key=lambda o: o["remaining_weekly_pct"]) for a in acct}
     closed: set[int] = set()
     short_names = {o["ticker"] for o in shorts}
@@ -88,7 +92,9 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
             for o in closable[a]:
                 if avail >= need:
                     break
-                if id(o) in closed or o["remaining_weekly_pct"] > y * (1 - P["min_yield_edge"]):
+                if id(o) in closed:
+                    continue
+                if o["remaining_weekly_pct"] > y * (1 - P["min_yield_edge"]) and not P.get("fund_by_closing_any_put"):
                     continue  # only close positions that earn clearly less on their collateral than the new idea
                 plan.append(o)
                 avail += o["collateral"] - o["close_cost"]
@@ -98,8 +104,9 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
                 # it fits most comfortably (lowest share of capacity used). Breaches were ignored before 2026-10-05, which sent DVN to
                 # FILDI at 43% of its capacity (limit 35%) when the IRA only crossed the budget.
                 after = committed[a] - sum(o["collateral"] for o in plan) + need
+                budget_base = after if P.get("budget_counts_open_puts", True) else new_coll[a] + need
                 load = after / max(capacity[a], 1)
-                breaches = int(need > P["max_position_pct"] * capacity[a]) + int(after > P["budget_pct"] * capacity[a])
+                breaches = int(need > P["max_position_pct"] * capacity[a]) + int(budget_base > P["budget_pct"] * capacity[a])
                 key = (len(plan), breaches, round(cost), load)
                 if best is None or key < best[3]:
                     best = (a, plan, cost, key)
@@ -127,21 +134,33 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
             sector_coll[snap["peer"].get(o["ticker"]) or "unclassified"] -= o["collateral"]
         free[a] -= need
         committed[a] += need
+        new_coll[a] += need
         sector_n[sector] += 1
         sector_coll[sector] += need
         warn = []
         if need > P["max_position_pct"] * capacity[a]:
             warn.append(f"position ${need:,.0f} = {need / capacity[a]:.0%} of {nick[a]}'s ${capacity[a]:,.0f} put capacity (limit {P['max_position_pct']:.0%})")
-        if committed[a] > P["budget_pct"] * capacity[a]:
-            warn.append(f"{nick[a]} puts would total ${committed[a]:,.0f} = {committed[a] / capacity[a]:.0%} of capacity (limit {P['budget_pct']:.0%})")
+        if P.get("budget_counts_open_puts", True):
+            if committed[a] > P["budget_pct"] * capacity[a]:
+                warn.append(f"{nick[a]} puts would total ${committed[a]:,.0f} = {committed[a] / capacity[a]:.0%} of capacity (limit {P['budget_pct']:.0%})")
+        elif new_coll[a] > P["budget_pct"] * capacity[a]:   # C1: open puts count as closable, so only new ideas use the budget
+            warn.append(f"new {nick[a]} puts would total ${new_coll[a]:,.0f} = {new_coll[a] / capacity[a]:.0%} of capacity (limit {P['budget_pct']:.0%})")
         tot_cap = sum(capacity.values())
         if sector_n[sector] > P["max_per_sector"] or sector_coll[sector] > P["sector_pct"] * tot_cap:
             warn.append(f"{sector}: {sector_n[sector]} new ideas, ${sector_coll[sector]:,.0f} = {sector_coll[sector] / tot_cap:.0%} of capacity "
                         f"(limits {P['max_per_sector']} ideas / {P['sector_pct']:.0%})")
         if t in short_names:
             warn.append(f"adds to an existing short put on {t}")
+        def note(o):
+            spot = snap["px"].get(o["ticker"])
+            bits = []
+            if o["remaining_weekly_pct"] > y:
+                bits.append(f"gives up a better yield ({o['remaining_weekly_pct']:.2f}%/wk vs {y:.2f}%/wk here)")
+            if spot and spot < o["strike"]:
+                bits.append(f"in the money (${spot:.2f} < ${o['strike']:g}): closing locks in the loss")
+            return f"; ⚠ {'; '.join(bits)}" if bits else ""
         funding = [f"close {o['ticker']} {o['strike']:g}P ×{o['qty']:.0f} ({nick[a]}): frees ${o['collateral']:,.0f}, costs ${o['close_cost']:,.0f} "
-                   f"(earning {o['remaining_weekly_pct']:.2f}%/wk on its collateral vs {y:.2f}%/wk here)" for o in plan]
+                   f"(earning {o['remaining_weekly_pct']:.2f}%/wk on its collateral vs {y:.2f}%/wk here){note(o)}" for o in plan]
         kept.append({**it, "allocation": {"account": nick[a], "contracts": 1, "collateral": need, "free_after": round(free[a]),
                                           "funding": funding, "warnings": warn, "sector": sector}})
         for o in plan:
