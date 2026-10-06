@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import date, datetime
 from collections import defaultdict
 
 from build_plan import connect, rows
 import fit_model as F13
+import fit_model_v14 as FV
 import params as PM
 import portfolio as PF
 import rules as R
@@ -185,6 +186,21 @@ def build(conn) -> tuple[dict, list[dict]]:
             contract["record"] = record[(p["ticker"], p["option_type"])]
         status = "provisional" if p["verify_status"] == "pass_after_hours" else "ok"
         held_back = held_back_reason(p["list_key"], f, P, spy20)
+        v = contract.get("vol")
+        if P["premium"]["contract_iv_pre_earnings"] and v and f and contract.get("earnings"):
+            e = contract["earnings"]
+            # P2: the 30-day ATM IV prices an earnings date this contract expires before, so it reads as richer than what is sold
+            if not e["inside"] and (date.fromisoformat(e["date"]) - today).days <= 30:
+                Pw = P["premium"]
+                ivr = ((f.get("inputs") or {}).get("_v14") or {}).get("iv_rank")
+                contract["premium_score"] = {
+                    "value": round(FV.wavg0([(Pw["w_iv_rv"], F13.lin(v["contract_iv_rv"], 0.8, 1.5)),
+                                             (Pw["w_iv_rank"], 100 * ivr if ivr is not None else None)]), 1),
+                    "pillar_30d": f.get("premium"), "basis": f"contract IV: expires before earnings {e['date']}"}
+        floor = P["thresholds"]["min_contract_iv_rv"]
+        if not held_back and floor and p["option_type"] == "put" and v and v["contract_iv_rv"] < floor:
+            held_back = (f"this contract's IV is {v['contract_iv_rv']:.2f}× the stock's 20-day realized vol (floor {floor:.2f}): "
+                         "the option is priced below recent moves, the edge the lab validated runs the other way")
         if held_back:
             out.append(item("review", f, ticker=p["ticker"], score=p["score"], status="review", contract=contract,
                             why=[f"{p['list_key'].replace('_', ' ')} idea held back: {held_back}"] + reasons))
@@ -208,6 +224,16 @@ def build(conn) -> tuple[dict, list[dict]]:
         out.append(item(c["list_key"], c["f"], ticker=c["ticker"], score=c["score"], status="warn" if al["warnings"] and c["status"] == "ok" else c["status"],
                         contract={**c["contract"], **{k: v for k, v in al.items() if k in ("contracts", "collateral")}, "account": al["account"]},
                         why=[line] + notes + c["why"]))
+    if PP["cumulative_limits"]:
+        puts = [o for o in out if o["folder_key"] == "sell_puts"]
+        k = next((n for n, o in enumerate(puts) if any(str(w).startswith("⚠ limit") for w in o["why"])), len(puts))
+        for n, o in enumerate(puts, 1):
+            o["contract"]["within_limits"] = n <= k
+            first = "#1" if k == 1 else f"#1–#{k}"
+            o["why"] = ([f"✓ all {len(puts)} put ideas fit inside your limits together"] if k == len(puts) else
+                        [f"⚠ none fit inside your limits as they stand (existing positions): size down or skip"] if k == 0 else
+                        [f"✓ within your limits: take {first} in this order"] if n <= k else
+                        [f"⚠ over your limits if taken after {first}: optional, size down or skip"]) + o["why"]
     for c in held:
         out.append(item("review", c["f"], ticker=c["ticker"], score=c["score"], status="review", contract=c["contract"],
                         why=[f"{c['list_key'].replace('_', ' ')} idea held back by the portfolio: {c['why_held']}"] + c["why"]))
@@ -242,6 +268,9 @@ def build(conn) -> tuple[dict, list[dict]]:
             final.append({**o, "rank": i})
     gaps = ma200_gap(conn)
     for o in final:
+        ps = (o["contract"] or {}).get("premium_score")
+        if ps and o["pillars"] is not None:
+            o["pillars"] = {**o["pillars"], "premium": ps["value"], "premium_30d": ps["pillar_30d"]}
         if o["pillars"] is not None and o["ticker"] in gaps:
             o["pillars"] = {**o["pillars"], "ma200": round(gaps[o["ticker"]], 4)}
     meta = {"plan_id": plan["id"], "plan_status": plan["status"], "fit_run_at": fit_run_at, "version": version}

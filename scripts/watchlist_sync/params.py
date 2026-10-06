@@ -32,11 +32,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS model_params_one_champion ON watchlist_sync.mo
 # fit-1.4.0 seed: fit-1.4 shadow design + the Step 4 proposals approved by the user on 2026-10-05.
 SEED_VERSION = "fit-1.4.0"
 SEED = {
-    "premium": {"w_iv_rv": 0.70, "w_iv_rank": 0.30, "w_iv_level": 0.00},     # Step 4 #1 (raw IV level had no edge)
+    "premium": {"w_iv_rv": 0.70, "w_iv_rank": 0.30, "w_iv_level": 0.00,      # Step 4 #1 (raw IV level had no edge)
+                "contract_iv_pre_earnings": False},   # P2 (fit-1.4.2): ideas expiring before earnings that sit inside the 30d IV window use the contract's IV
     "street": {"k": 8.0, "floor_credit": 20, "floor_own": 40, "timing_far": 0.75, "analyst_saturation": 8},
     "own": {"w_fund": 0.45, "w_credit": 0.35, "w_cam": 0.20},
     "thresholds": {"green_own": 62, "green_credit": 40, "yellow_premium": 55, "yellow_own": 45, "yellow_fit": 60, "red_risk": 1.0,
                    "put_block_risk": 0.3,
+                   "min_contract_iv_rv": 0.0,   # P1 (fit-1.4.2: 0.95): hold back puts whose contract IV is below the stock's 20d realized vol
                    "min_weekly_realistic": 0.35},   # Step 8: scanner's 0.50%/wk is on Yahoo bids; RH realistic fills run 16–35% lower                                    # sell-puts cross-check: hold back at this risk
     "severity": {                                                             # Step 4 #6: falling knife 0.5 → 0.2
         "credit_distress": 1.0, "credit_fragile": 0.6, "arm_very": 0.6, "arm_hard": 0.4, "fund_very": 0.6, "fund_weak": 0.4,
@@ -45,7 +47,8 @@ SEED = {
     "regime": {"pause_puts_spy20": -0.05},
     "portfolio": {"budget_pct": 0.60, "use_margin": False, "max_position_pct": 0.35, "max_per_sector": 2, "sector_pct": 0.50,   # Step 7
                   "take_profit": 0.50, "at_risk_pct": 0.03, "expiry_days": 2, "allow_below_cost_if_red": True,
-                  "min_yield_edge": 0.10},   # close an open put to fund a new one only if it earns ≥10% less per week on its collateral                                    # Step 4 #8: no dip-buying puts in broad selloffs
+                  "min_yield_edge": 0.10,   # close an open put to fund a new one only if it earns ≥10% less per week on its collateral                                    # Step 4 #8: no dip-buying puts in broad selloffs
+                  "cumulative_limits": False},   # P3 (fit-1.4.2): say how many ideas fit inside the limits, flag the rest
     "learning": {"auto_promote": False, "max_rel_step": 0.25, "min_months": 24, "min_t": 2.0, "min_live_grades": 30,
                  "auto_max_verdict_share": 0.10},
 }

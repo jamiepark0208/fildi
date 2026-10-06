@@ -142,3 +142,12 @@ soft limits as "warn"; make the list explicitly cumulative ("take in this order;
 E3 strategy views (Model / Safest / Least tail / Rich options / Wheel; sort-only), E4 your Robinhood record per ticker + side, E5 earnings
 line (inside window / days after), options-vs-realized line, E6 `monthly.py` (lab + gates + win-rate rebuild every 28 days, ~2 min,
 one summary in out/runs/monthly_*.md; replaces the separate win-rate step in daily.py). Earnings coverage: 92 tickers have a next date.
+
+### P1–P3 approved by the user and shipped (2026-10-05, champion fit-1.4.2, Model List run #13)
+Settings in `model_params` (off in SEED so older versions replay unchanged): `thresholds.min_contract_iv_rv` 0.95 (P1),
+`premium.contract_iv_pre_earnings` true (P2, Cursor agreed in A28), `portfolio.cumulative_limits` true (P3).
+Before/after on identical data: MNDY 75P and NFLX 65P → Review (contract IV 0.90× / 0.87× realized); premium pillar re-scored on contract IV
+for pre-earnings expiries (NFLX 68 → 37, TTD 79 → 64, CAVA 18 → 39); sell puts = CAVA 52P ("✓ within your limits: take #1"), DVN 45.5P
+("⚠ over your limits": IRA already heavily committed by open puts). Stock-level scores 1.4.1 → 1.4.2 also moved (241 OWN, 31 PREMIUM,
+3 verdicts) but from data refreshed since 14:16 (closes → RV/RSI; fundamentals recomputed), not from these settings (the fit never reads them).
+Before snapshot: `out/step6/before_fit-1.4.2.json`.

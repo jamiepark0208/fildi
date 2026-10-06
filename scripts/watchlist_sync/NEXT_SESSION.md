@@ -85,7 +85,8 @@ Regime detector owner = Claude (user decision, ASKS A26). Cost/benefit review ch
 - Gate 1b (`out/proto/gate1b.md`): delta lookup passes; PREMIUM-tier split and tail caps rejected (period-dependent).
 - Gate 1c + display shipped (run #10): `winrates.py` (monthly refresh in daily.py), contract.win + pillars.ma200 in the Model List detail view.
 - E1 what-if strike + E2 $ per contract (good/avg/bad) shipped in run #11 (PLAN §8). Avg sold option ≈ break-even across all stocks; edge = selection.
-- Backlog E3–E6 done; pick review + 3 fixes + proposals P1–P3 in PLAN §10–11 (run #12). **User to approve P1–P3.**
+- Backlog E3–E6 done; pick review + 3 fixes (PLAN §10–11). P1–P3 approved → champion **fit-1.4.2**, run #13 (sell puts: CAVA, DVN; MNDY/NFLX → Review).
+- Next real evidence: first live grades 10/09–10/12 → compare with win-rate table; then A24 (RH tiers → learn.py).
 - Lesson: `verify_plan.py evaluate` without --plan targets the newest plan (it marked draft #6 verified once; restored). A25 → user takes it to Cursor.
 - Not verified: the new fields in a browser (no session cookie here).
 
