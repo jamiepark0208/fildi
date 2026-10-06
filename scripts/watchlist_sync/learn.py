@@ -1,0 +1,247 @@
+"""Step 6: the learning loop. Evidence → challenger parameter version → shadow → (approved) promotion.
+
+  propose   measure evidence, derive a challenger from the champion's params (bounded steps), write a before/after report
+  status    champion, challengers, and how each is doing on live grades
+  promote   make a challenger the champion (needs --approve, or learning.auto_promote within bounds)
+  retire    drop a challenger
+
+Evidence sources:
+  backtest  analysis/backtest_puts.py on lseg_research.daily_history (17k+ reconstructed puts since 2020), IV held fixed
+  live      watchlist_sync.grades (from 2026-10-09 expiries on). Grades in the 'data' bucket are NEVER used: a data bug is
+            fixed in the data lane, it doesn't teach the model anything.
+
+Rules (each change cites the evidence that triggered it):
+  premium weights   target ∝ max(0, premium-kept IC | IV) of IV/RV, IV rank, IV level when |t| ≥ min_t; else unchanged
+  street.k          scaled by the strength of StarMine alpha's own-target IC | IV (t / 3, clamped 0.5–1.5), within 2–12 points
+  severity.*        a flag whose tail-loss difference is ≤ 0 (t ≤ −1) or whose risk-adjusted return is better (t ≥ 2) is
+                    down-weighted 25%; one that raises tail losses (t ≥ 2) is up-weighted 25% (bounds 0.05–1.0)
+  thresholds        live grades only (≥ min_live_grades per folder): a folder whose picks underperform peers is tightened by 1 point
+Every move is capped at learning.max_rel_step (25%) of the old value per cycle, so the model can't lurch.
+
+Usage: .venv/bin/python learn.py propose | status | promote VERSION --approve | retire VERSION
+"""
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import sys
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
+
+from build_plan import connect, rows
+import params as PM
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE / "analysis"))
+OUT = HERE / "out" / "step6"
+
+
+def backtest_evidence() -> dict:
+    import backtest_puts as B
+    from statistics import median
+    with connect() as conn:
+        H, peer, er, sm = B.load(conn)
+    trades = B.build_trades(H, peer, er, sm, 0.85, 0.20)
+    by_m = defaultdict(list)
+    for t in trades:
+        by_m[t["entry"]].append(t)
+    for ts in by_m.values():  # 3-month return vs sector peers (the 'own' target)
+        g = defaultdict(list)
+        for x in ts:
+            if x["peer"] and x["fwd63"] is not None:
+                g[x["peer"]].append(x["fwd63"])
+        for x in ts:
+            v = g.get(x["peer"]) or []
+            x["fwd63_rel"] = (x["fwd63"] - median(v)) if len(v) >= 4 and x["fwd63"] is not None else None
+    kept = B.evaluate(trades, ["iv_rv", "iv_rank_1y", "iv30"], "kept")
+    own = B.evaluate(trades, ["combined_alpha_rank", "pred_surprise_pct_fq1"], "fwd63_rel")
+    flags = {f: B.evaluate_binary(trades, f) for f in ("fk_proxy", "earnings_in_window")}
+    pick = lambda r: {k: r[k] for k in ("ic", "t", "pic", "pt", "months", "n")} if r else None
+    return {"source": "backtest", "trades": len(trades), "kept": {k: pick(v) for k, v in kept.items()},
+            "own": {k: pick(v) for k, v in own.items()}, "flags": flags}
+
+
+def live_evidence(conn) -> dict:
+    if not rows(conn, "SELECT to_regclass('watchlist_sync.grades') IS NOT NULL ok")[0]["ok"]:
+        return {"graded": 0}
+    g = rows(conn, """SELECT folder_key, horizon, outcome, bucket, vs_peers FROM watchlist_sync.grades WHERE bucket <> 'data'""")
+    by = defaultdict(list)
+    for r in g:
+        by[(r["folder_key"], r["horizon"])].append(r)
+    return {"graded": len(g), "excluded_data_errors": rows(conn, "SELECT count(*) n FROM watchlist_sync.grades WHERE bucket = 'data'")[0]["n"],
+            "folders": {f"{k[0]}:{k[1]}": {"n": len(v), "good": sum(x["outcome"] == "good" for x in v) / len(v),
+                                         "buckets": dict(sorted({b: sum(x["bucket"] == b for x in v) for b in {x["bucket"] for x in v}}.items()))}
+                        for k, v in by.items()}}
+
+
+def bounded(old: float, target: float, rel: float, lo: float, hi: float) -> float:
+    step = max(abs(old) * rel, 0.02)
+    return round(max(lo, min(hi, max(old - step, min(old + step, target)))), 4)
+
+
+def propose_params(P: dict, ev: dict, live: dict) -> tuple[dict, list[dict]]:
+    L = P["learning"]
+    new, why = copy.deepcopy(P), []
+    # premium weights from premium-kept IC with IV held fixed (IV level's own IC is the unconditional one)
+    comp = {"w_iv_rv": ev["kept"].get("iv_rv"), "w_iv_rank": ev["kept"].get("iv_rank_1y"), "w_iv_level": ev["kept"].get("iv30")}
+    sig = {}
+    for k, r in comp.items():
+        if not r or r["months"] < L["min_months"]:
+            continue
+        ic, t = (r["ic"], r["t"]) if k == "w_iv_level" else (r["pic"], r["pt"])
+        if ic is None:
+            continue
+        sig[k] = max(0.0, ic) if abs(t) >= L["min_t"] or ic <= 0 else None
+    if sig and all(v is not None for v in sig.values()) and sum(sig.values()) > 0:
+        tot = sum(sig.values())
+        for k, v in sig.items():
+            old = P["premium"][k]
+            nv = bounded(old, v / tot, L["max_rel_step"], 0.0, 1.0)
+            if abs(nv - old) >= 0.01:
+                new["premium"][k] = nv
+                why.append({"param": f"premium.{k}", "old": old, "new": nv, "why": f"premium-kept IC {comp[k]['pic'] if k != 'w_iv_level' else comp[k]['ic']:+.3f} → target share {v / tot:.2f}"})
+        s = sum(new["premium"].values())
+        new["premium"] = {k: round(v / s, 4) for k, v in new["premium"].items()}
+    # STREET size from StarMine alpha's 'own' evidence
+    cam = ev["own"].get("combined_alpha_rank")
+    if cam and cam["months"] >= L["min_months"] and cam["pt"] is not None:
+        # absolute target, anchored to the seed: the same evidence always points to the same k (no compounding across cycles)
+        scale = max(0.5, min(1.5, cam["pt"] / 3)) if cam["pic"] > 0 else 0.5
+        old = P["street"]["k"]
+        nv = bounded(old, PM.SEED["street"]["k"] * scale, L["max_rel_step"], 2.0, 12.0)
+        if abs(nv - old) >= 0.1:
+            new["street"]["k"] = nv
+            why.append({"param": "street.k", "old": old, "new": nv, "why": f"StarMine alpha own-target IC | IV {cam['pic']:+.3f} (t {cam['pt']:+.1f}) → scale {scale:.2f}"})
+    # flag severities
+    fk = ev["flags"].get("fk_proxy")
+    if fk and fk["months"] >= L["min_months"]:
+        old, ref = P["severity"]["falling_knife"], PM.SEED["severity"]["falling_knife"]  # targets anchored to the seed
+        if fk["t_tail"] >= L["min_t"]:
+            nv = bounded(old, min(1.0, ref * 1.5), L["max_rel_step"], 0.05, 1.0)
+            reason = f"flag raises tail losses (+{100 * fk['d_tail']:.1f} pts, t {fk['t_tail']:+.1f})"
+        elif fk["t_tail"] <= -1 or fk["t_ret"] >= L["min_t"]:
+            nv = bounded(old, ref * 0.75, L["max_rel_step"], 0.05, 1.0)
+            reason = f"flag doesn't hurt put outcomes (tail {100 * fk['d_tail']:+.1f} pts t {fk['t_tail']:+.1f}; risk-adj return t {fk['t_ret']:+.1f})"
+        else:
+            nv, reason = old, ""
+        if abs(nv - old) >= 0.01:
+            new["severity"]["falling_knife"] = nv
+            why.append({"param": "severity.falling_knife", "old": old, "new": nv, "why": reason})
+    # thresholds from live grades (inactive until enough non-data grades exist)
+    for key, thr, sign in (("own:21d", "green_own", +1), ("income:21d", "yellow_premium", +1)):
+        f = live.get("folders", {}).get(key)
+        if f and f["n"] >= L["min_live_grades"] and f["good"] < 0.5:
+            old = P["thresholds"][thr]
+            new["thresholds"][thr] = old + sign
+            why.append({"param": f"thresholds.{thr}", "old": old, "new": old + sign, "why": f"live {key}: only {f['good']:.0%} of {f['n']} picks beat peers"})
+    return new, why
+
+
+def next_version(conn, champ: str) -> str:
+    base = champ.rsplit(".", 1)[0]
+    n = [int(r["version"].rsplit(".", 1)[1]) for r in rows(conn, "SELECT version FROM watchlist_sync.model_params WHERE version LIKE %s", (base + ".%",))]
+    return f"{base}.{max(n) + 1}"
+
+
+def before_after(conn, champ_params: dict, chal_params: dict) -> str:
+    import fit_model as F13
+    import fit_model_v14 as V
+    S = V.latest_inputs(conn)  # fresh point-in-time inputs (fit-1.3 no longer writes history rows)
+    ivr = V.iv_ranks(conn, {s["ticker"] for s in S})
+    a = {o["ticker"]: o for o in V.score_all(S, champ_params, ivr)}
+    b = {o["ticker"]: o for o in V.score_all(S, chal_params, ivr)}
+    moves = defaultdict(list)
+    for t in a:
+        if a[t]["role"] != "etf" and a[t]["v14"] != b[t]["v14"]:
+            moves[(a[t]["v14"] or "none", b[t]["v14"] or "none")].append(t)
+    L = ["| from → to | n | tickers |", "|---|---|---|"]
+    L += [f"| {x} → {y} | {len(ts)} | {' '.join(sorted(ts))} |" for (x, y), ts in sorted(moves.items(), key=lambda kv: -len(kv[1]))]
+    n = sum(len(v) for v in moves.values())
+    return f"**{n} verdict changes** on the latest inputs ({len(a)} names):\n\n" + ("\n".join(L) if n else "(none)"), n, len(a)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("cmd", choices=["propose", "status", "promote", "retire"])
+    ap.add_argument("version", nargs="?")
+    ap.add_argument("--approve", action="store_true")
+    ap.add_argument("--force", action="store_true", help="propose: run even if nothing new arrived since the last cycle")
+    a = ap.parse_args()
+    with connect() as conn:
+        PM.ensure(conn)
+        cv, CP = PM.champion(conn)
+        if a.cmd == "status":
+            for r in rows(conn, "SELECT version, status, parent, created_at, promoted_at, approved_by, rationale FROM watchlist_sync.model_params ORDER BY created_at"):
+                print(f"{r['version']:<12} {r['status']:<10} parent {r['parent'] or '—':<12} created {r['created_at']:%Y-%m-%d %H:%M}"
+                      f"{'  promoted ' + format(r['promoted_at'], '%Y-%m-%d') + ' by ' + r['approved_by'] if r['promoted_at'] else ''}")
+                for w in r["rationale"] or []:
+                    print(f"    {w.get('param', '')} {w.get('old', '')} → {w.get('new', '')}  {w.get('why', '')}")
+            print("live evidence:", json.dumps(live_evidence(conn))[:400])
+            return
+        if a.cmd == "retire":
+            conn.execute("UPDATE watchlist_sync.model_params SET status = 'retired' WHERE version = %s AND status = 'challenger'", (a.version,))
+            conn.commit()
+            print(f"retired {a.version}")
+            return
+        if a.cmd == "promote":
+            r = rows(conn, "SELECT params, rationale FROM watchlist_sync.model_params WHERE version = %s AND status = 'challenger'", (a.version,))
+            if not r:
+                sys.exit(f"{a.version} is not a challenger")
+            auto = CP["learning"]["auto_promote"]
+            if not a.approve and not auto:
+                sys.exit("promotion needs the user's approval: rerun with --approve (or enable learning.auto_promote for bounded changes)")
+            conn.execute("UPDATE watchlist_sync.model_params SET status = 'retired' WHERE status = 'champion'")
+            conn.execute("UPDATE watchlist_sync.model_params SET status = 'champion', promoted_at = now(), approved_by = %s WHERE version = %s",
+                         ("user" if a.approve else "auto (bounded)", a.version))
+            conn.commit()
+            print(f"promoted {a.version} (was {cv})")
+            return
+        # propose: only when there's new evidence (≥ 7 days since the last cycle, or new live grades); else exit fast
+        state_f = OUT / "state.json"
+        live = live_evidence(conn)
+        st = json.loads(state_f.read_text()) if state_f.exists() else {}
+        fresh = (date.today() - date.fromisoformat(st["last_cycle"])).days < 7 if st.get("last_cycle") else False
+        if fresh and live.get("graded", 0) == st.get("graded") and not a.force:
+            print(f"skip: last cycle {st['last_cycle']}, no new live grades ({live.get('graded', 0)}); use --force")
+            return
+        OUT.mkdir(parents=True, exist_ok=True)
+        state_f.write_text(json.dumps({"last_cycle": date.today().isoformat(), "graded": live.get("graded", 0)}))
+        ev = backtest_evidence()
+        NP, why = propose_params(CP, ev, live)
+        OUT.mkdir(parents=True, exist_ok=True)
+        if not why:
+            print(f"no change proposed: champion {cv} is consistent with the evidence")
+            (OUT / f"cycle_{date.today()}.md").write_text(f"# Learning cycle {date.today()}\n\nNo change: champion {cv} is consistent with the evidence.\n\n```json\n{json.dumps(ev, indent=1, default=str)[:4000]}\n```\n")
+            return
+        for r in rows(conn, "SELECT version, params FROM watchlist_sync.model_params WHERE status = 'challenger'"):
+            if PM.merged(r["params"]) == NP:
+                print(f"no new challenger: the evidence still points to open challenger {r['version']}")
+                return
+        ver = next_version(conn, cv)
+        conn.execute("""INSERT INTO watchlist_sync.model_params (version, status, parent, params, rationale, evidence)
+                        VALUES (%s, 'challenger', %s, %s, %s, %s)""", (ver, cv, json.dumps(NP), json.dumps(why), json.dumps({"backtest": ev, "live": live}, default=str)))
+        conn.commit()
+        ba, n_changed, n_names = before_after(conn, CP, NP)
+        rep = [f"# Learning cycle {date.today()}: challenger {ver} (parent {cv})", "", "## Proposed changes", "", "| param | old | new | why |", "|---|---|---|---|"]
+        rep += [f"| {w['param']} | {w['old']} | {w['new']} | {w['why']} |" for w in why]
+        rep += ["", "## Before vs after (scenario on today's inputs)", "", ba, "",
+                f"Live evidence: {live.get('graded', 0)} non-data grades (data-error grades excluded: {live.get('excluded_data_errors', 0)}).", "",
+                f"Next: {ver} is scored in shadow beside {cv} every day (fit_model_v14). Promote with `learn.py promote {ver} --approve`, or retire it."]
+        # Approval policy (user, 2026-10-05): Claude promotes routine changes itself: every param within max_rel_step (enforced by
+        # bounded()) AND ≤ auto_max_verdict_share of names change verdict. Bigger moves, and anything reaching Robinhood, go to the user.
+        share = n_changed / max(n_names, 1)
+        if CP["learning"]["auto_promote"] and share <= CP["learning"]["auto_max_verdict_share"]:
+            conn.execute("UPDATE watchlist_sync.model_params SET status = 'retired' WHERE status = 'champion'")
+            conn.execute("UPDATE watchlist_sync.model_params SET status = 'champion', promoted_at = now(), approved_by = 'auto (bounded)' WHERE version = %s", (ver,))
+            conn.commit()
+            rep.append(f"\n**Auto-promoted** (bounded: {n_changed}/{n_names} = {share:.0%} verdicts changed ≤ {CP['learning']['auto_max_verdict_share']:.0%}).")
+        elif CP["learning"]["auto_promote"]:
+            rep.append(f"\n**Needs the user:** {share:.0%} of verdicts would change (> {CP['learning']['auto_max_verdict_share']:.0%}). Held as challenger.")
+        (OUT / f"proposal_{ver}.md").write_text("\n".join(rep) + "\n")
+        print("\n".join(rep))
+
+
+if __name__ == "__main__":
+    main()
