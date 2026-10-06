@@ -151,3 +151,17 @@ for pre-earnings expiries (NFLX 68 → 37, TTD 79 → 64, CAVA 18 → 39); sell 
 ("⚠ over your limits": IRA already heavily committed by open puts). Stock-level scores 1.4.1 → 1.4.2 also moved (241 OWN, 31 PREMIUM,
 3 verdicts) but from data refreshed since 14:16 (closes → RV/RSI; fundamentals recomputed), not from these settings (the fit never reads them).
 Before snapshot: `out/step6/before_fit-1.4.2.json`.
+
+## 12. Capacity and adjustments (user questions 2026-10-05, Model List run #14)
+- **Capacity** = cash buying power + collateral on open puts (stock holdings not counted). The 60% `budget_pct` is a soft Step 7 rule (share of
+  that cash backing puts at once), not a broker limit: ideas over it stay listed with a warning. IRA today: $38,076 capacity, 39% used; CAVA → 53%, DVN → 65%.
+- Closing open puts **is** used, but only when cash is short (feasibility), never to get back under the 60% rule. Selling holdings was **not** considered.
+- Shipped (display only, selection unchanged): (a) for ideas over the budget, the share after open puts that expire first and are OTM now
+  ("IRA puts drop to 26% after 10/09"); (b) red / risk-flagged holdings in the same account that could fund it, with tax note
+  (IRA: none; taxable: gain / loss); (c) an **Adjustments** table per item (OWN via STREET, Prem via P2, wins extrapolated, list moved to Review,
+  over limit): from → to, net change, why. New column `model_items.adjustments`, served by GET /api/watchlist/model.
+- Fixed: the allocator ignored soft-limit breaches when choosing an account (sent DVN to FILDI at 43% of capacity vs 35% limit); it now
+  prefers the account with fewer breaches (closures → breaches → cost → load).
+- **Proposals (need approval; would change selection):** C1 the budget rule counts only open puts that are still open at the new idea's expiry
+  or are near / in the money (OTM puts expiring first don't block); C2 the allocator may list "sell flagged holding X" as a funding step like
+  closing a put (IRA first, taxable only at a loss), still never automatic. No backtest exists for either: they're accounting rules, not signals.

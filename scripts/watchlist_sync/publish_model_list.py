@@ -39,7 +39,8 @@ def pillars(f: dict) -> dict:
 def item(folder, f, *, score=None, status="ok", why=None, contract=None, ticker=None):
     return {"folder_key": folder, "ticker": ticker or f["ticker"], "verdict": (f or {}).get("verdict") or "",
             "role": (f or {}).get("role"), "status": status, "score": score, "pillars": pillars(f) if f else None,
-            "flags": (f or {}).get("flags") or [], "why": why if why is not None else (f or {}).get("why") or [], "contract": contract}
+            "flags": (f or {}).get("flags") or [], "why": why if why is not None else (f or {}).get("why") or [], "contract": contract,
+            "_f": f}
 
 
 def champion_scores(conn) -> tuple[dict, str, dict]:
@@ -54,7 +55,7 @@ def champion_scores(conn) -> tuple[dict, str, dict]:
         v = (r["inputs"] or {}).get("_v14", {})
         prov = r["verdict"] == "yellow" and not R.market_open(datetime.fromisoformat(r["inputs"]["iv_fetched_at"])) if (r["inputs"] or {}).get("iv_fetched_at") else False
         why = (["PROVISIONAL: IV captured outside market hours; re-check in session"] if prov else []) + list(r["why"] or [])
-        out[r["ticker"]] = {**r, "own": v.get("eff", r["own"]), "risk": v.get("risk", 0), "why": why}
+        out[r["ticker"]] = {**r, "own": v.get("eff", r["own"]), "own_raw": r["own"], "risk": v.get("risk", 0), "why": why}
     return out, version, P
 
 
@@ -108,6 +109,79 @@ def contract_context(conn) -> tuple[dict, dict, dict]:
         FROM portfolio_transactions WHERE txn_type = 'realized_close' AND category IN ('Sell Puts', 'Sell Calls')
           AND amount IS NOT NULL AND txn_date::date >= '2025-01-01' GROUP BY 1, 2""")}
     return rv, er, rec
+
+
+def portfolio_context(puts: list[dict], snap: dict, fit: dict, P: dict) -> None:
+    """Display only (doesn't change which ideas are kept): for a put idea over the soft budget, show (a) the account's put share after
+    open puts that expire first and are out of the money now, and (b) red / risk-flagged holdings in that account that could fund it."""
+    PP, today = P["portfolio"], datetime.now().date()
+    shorts = PF.open_puts(snap, today)
+    acct = {a["account"]: a for a in snap["accounts"]}
+    by_nick = {x["nickname"]: a for a, x in acct.items()}   # ideas carry the account nickname
+    posted = defaultdict(float)
+    for o in shorts:
+        posted[o["account"]] += o["collateral"]
+    cap = {a: x["cash_bp"] + posted[a] for a, x in acct.items()}
+    committed = dict(posted)
+    for o in puts:
+        c = o["contract"] or {}
+        a = by_nick.get(c.get("account"), c.get("account"))
+        if a in cap and c.get("collateral"):
+            committed[a] = committed.get(a, 0) + c["collateral"]
+    for o in puts:
+        c = o["contract"] or {}
+        a = by_nick.get(c.get("account"), c.get("account"))
+        if a not in cap or not any("puts would total" in str(w) for w in o["why"]):
+            continue
+        exp = date.fromisoformat(c["expiry"])
+        early = [s for s in shorts if s["account"] == a and s["expiration"] < exp
+                 and (snap["px"].get(s["ticker"]) or 0) > s["strike"] * (1 + PP["at_risk_pct"])]
+        lines = []
+        if early:
+            after = committed[a] - sum(s["collateral"] for s in early)
+            days = sorted({s["expiration"] for s in early})
+            lines.append(f"ℹ {len(early)} open put(s) expire {', '.join(f'{d:%m/%d}' for d in days)} and are out of the money now: if they expire, "
+                         f"{acct[a]['nickname']} puts drop to {after / cap[a]:.0%} of capacity (limit {PP['budget_pct']:.0%}) before this idea expires")
+        hold = []
+        for h in snap["positions"]:
+            f = fit.get(h["ticker"]) or {}
+            if h["account"] != a or not h["qty"] or h["qty"] <= 0 or not h["last"]:
+                continue
+            if f.get("verdict") == "red" or (f.get("risk") or 0) >= P["thresholds"]["put_block_risk"]:
+                hold.append((f.get("risk") or 0, h, f))
+        hold.sort(key=lambda x: (-x[0], -x[1]["qty"] * x[1]["last"]))
+        if hold:
+            taxable = "ira" not in (acct[a].get("type") or "").lower()
+            parts = []
+            for _, h, f in hold[:3]:
+                val, pnl = h["qty"] * h["last"], h["qty"] * (h["last"] - (h["avg_cost"] or h["last"]))
+                tag = "red" if f.get("verdict") == "red" else "risk-flagged"
+                parts.append(f"{h['ticker']} ${val:,.0f} ({tag}" + (f", {'loss' if pnl < 0 else 'gain'} ${abs(pnl):,.0f}" if taxable else "") + ")")
+            lines.append("ℹ could fund instead by selling flagged holdings in this account: " + ", ".join(parts)
+                         + (" (taxable: losses can offset gains)" if taxable else " (IRA: no tax on the sale)") + ". Your call; not automatic")
+        o["why"] = [o["why"][0]] + lines + o["why"][1:] if o["why"] else lines
+
+
+def adjustments(o: dict) -> list[dict]:
+    """Every adjustment applied to an item, for the UI: what, from → to, and why."""
+    adj, p, c = [], o.get("pillars") or {}, o.get("contract") or {}
+    f = o.get("_f") or {}
+    if f.get("own_raw") is not None and p.get("own") is not None and abs(f["own_raw"] - p["own"]) >= 0.5:
+        line = next((str(w) for w in o["why"] if str(w).startswith("STREET")), "analyst view (STREET reward / penalty)")
+        adj.append({"what": "OWN", "from": round(f["own_raw"], 1), "to": round(p["own"], 1), "why": line})
+    if p.get("premium_30d") is not None:
+        adj.append({"what": "Prem", "from": round(p["premium_30d"], 1), "to": round(p["premium"], 1),
+                    "why": (c.get("premium_score") or {}).get("basis", "contract IV") + " (P2)"})
+    w = c.get("win") or {}
+    if w.get("extrapolated"):
+        adj.append({"what": "Wins", "from": "Δ 0.15–0.30 table", "to": f"{100 * w['rate']:.0f}% at Δ{w['delta']:.2f}",
+                    "why": "delta outside the tested range: extrapolated on the end segment (≈)"})
+    held = next((str(x) for x in o["why"] if "idea held back" in str(x)), None)
+    if held:
+        adj.append({"what": "List", "from": held.split(" idea held back")[0], "to": "Needs Review", "why": held.split(": ", 1)[-1]})
+    if c.get("within_limits") is False:
+        adj.append({"what": "Limits", "from": "fits", "to": "over limit", "why": "taking it after the ideas above exceeds your soft portfolio limits (P3)"})
+    return adj
 
 
 def precheck(conn, plan_id: int) -> tuple[set[int], list[str]]:
@@ -224,6 +298,7 @@ def build(conn) -> tuple[dict, list[dict]]:
         out.append(item(c["list_key"], c["f"], ticker=c["ticker"], score=c["score"], status="warn" if al["warnings"] and c["status"] == "ok" else c["status"],
                         contract={**c["contract"], **{k: v for k, v in al.items() if k in ("contracts", "collateral")}, "account": al["account"]},
                         why=[line] + notes + c["why"]))
+    portfolio_context([o for o in out if o["folder_key"] == "sell_puts"], snap, fit, P)
     if PP["cumulative_limits"]:
         puts = [o for o in out if o["folder_key"] == "sell_puts"]
         k = next((n for n, o in enumerate(puts) if any(str(w).startswith("⚠ limit") for w in o["why"])), len(puts))
@@ -273,6 +348,9 @@ def build(conn) -> tuple[dict, list[dict]]:
             o["pillars"] = {**o["pillars"], "premium": ps["value"], "premium_30d": ps["pillar_30d"]}
         if o["pillars"] is not None and o["ticker"] in gaps:
             o["pillars"] = {**o["pillars"], "ma200": round(gaps[o["ticker"]], 4)}
+    for o in final:
+        o["adjustments"] = adjustments(o)
+        o.pop("_f", None)
     meta = {"plan_id": plan["id"], "plan_status": plan["status"], "fit_run_at": fit_run_at, "version": version}
     return meta, final
 
@@ -295,16 +373,17 @@ def main() -> None:
                 print(f"  [{o['folder_key']}] {o['ticker']} {c['strike']:g}{c['type'][0].upper()} {c['expiry']} · {o['status']} · {o['why'][0]}")
         if a.dry_run:
             return
+        conn.execute("ALTER TABLE watchlist_sync.model_items ADD COLUMN IF NOT EXISTS adjustments jsonb")   # model_list.sql, 2026-10-05
         run_id = rows(conn, """INSERT INTO watchlist_sync.model_runs (model_version, plan_id, fit_run_at, summary)
                                VALUES (%s, %s, %s, %s) RETURNING id""",
                       (meta["version"], meta["plan_id"], meta["fit_run_at"], json.dumps(summary)))[0]["id"]
         with conn.cursor() as cur:
             cur.executemany("""INSERT INTO watchlist_sync.model_items
-                (run_id, folder_key, ticker, rank, verdict, role, status, score, pillars, flags, why, contract)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (run_id, folder_key, ticker, rank, verdict, role, status, score, pillars, flags, why, contract, adjustments)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 [(run_id, o["folder_key"], o["ticker"], o["rank"], o["verdict"], o["role"], o["status"], o["score"],
                   json.dumps(o["pillars"]), json.dumps(o["flags"]), json.dumps(o["why"], default=str),
-                  json.dumps(o["contract"]) if o["contract"] else None) for o in items])
+                  json.dumps(o["contract"]) if o["contract"] else None, json.dumps(o.get("adjustments") or [], default=str)) for o in items])
         conn.commit()
         print(f"published model run #{run_id} ({len(items)} items)")
 

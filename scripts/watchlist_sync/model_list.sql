@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.model_items (
   why         jsonb,
   contract    jsonb                       -- option ideas: {type, strike, expiry, premium, account, verify_status, contracts, collateral}
 );
+-- every adjustment applied to an item, for the UI: [{what, from, to, why}] (2026-10-05)
+ALTER TABLE watchlist_sync.model_items ADD COLUMN IF NOT EXISTS adjustments jsonb;
 -- a ticker can hold a put AND a call idea in one folder (POET in Needs Review), or the same contract type in two accounts (ONDS)
 CREATE UNIQUE INDEX IF NOT EXISTS model_items_run_folder_ticker_contract
   ON watchlist_sync.model_items (run_id, folder_key, ticker, COALESCE(contract->>'type', ''), COALESCE(contract->>'account', ''));

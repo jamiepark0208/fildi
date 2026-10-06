@@ -94,9 +94,13 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
                 avail += o["collateral"] - o["close_cost"]
                 cost += o["close_cost"]
             if avail >= need:
-                # fewest closures, then cheapest, then the account where it fits most comfortably (lowest share of capacity used)
-                load = (committed[a] - sum(o["collateral"] for o in plan) + need) / max(capacity[a], 1)
-                key = (len(plan), round(cost), load)
+                # fewest closures, then fewest soft-limit breaches (position size, total budget), then cheapest, then the account where
+                # it fits most comfortably (lowest share of capacity used). Breaches were ignored before 2026-10-05, which sent DVN to
+                # FILDI at 43% of its capacity (limit 35%) when the IRA only crossed the budget.
+                after = committed[a] - sum(o["collateral"] for o in plan) + need
+                load = after / max(capacity[a], 1)
+                breaches = int(need > P["max_position_pct"] * capacity[a]) + int(after > P["budget_pct"] * capacity[a])
+                key = (len(plan), breaches, round(cost), load)
                 if best is None or key < best[3]:
                     best = (a, plan, cost, key)
         if best is None:
