@@ -34,7 +34,7 @@
 | API catalog | `.agents/context/api-endpoints.md` | — |
 | Workflow / build | `.agents/context/workflow.md` | — |
 | Agent routing | `.agents/AGENTS.md` | — |
-| Muse AI (live remote via git + ASKS) | `MUSE.md` · pull `origin/cursor/mac-dev` first | Do not invent work already fixed on HEAD |
+| Muse AI (live remote; Cursor owns handoffs) | `MUSE.md` · ASKS `Muse → Cursor` · pull `origin/cursor/mac-dev` | Claude ignores Muse rows (user 2026-10-07) |
 | Weekly ops checklist | `.cursor/skills/weekly-data-ops-check.md` | — |
 | Cursor lessons (grep) | `.cursor/context/lessons.md` | `lessons-archive.md` unless needed |
 | Claude memory (grep) | `.agents/memory/MEMORY.md` | Load whole memory dir |

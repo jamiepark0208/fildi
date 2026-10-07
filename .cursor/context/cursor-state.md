@@ -1,29 +1,26 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-07 (Muse live via git on `cursor/mac-dev`)
+**Last updated:** 2026-10-07 (Cursor owns all Muse ASKS)
 
 ## Phase
-**build** — Muse is a live remote teammate (git + ASKS); monitor ask A38 open
+**build** — Muse queue is Cursor-only; Claude must ignore `Muse → *`
 
 ## READ FIRST
-**Pull first:** `git pull --ff-only origin cursor/mac-dev` (Muse may push while Mac is closed)  
-**Cross-tool:** `research/common/ASKS.md` (incl. Muse rows) · adapter: `MUSE.md`  
-**Ops:** Nucleus Remediate · `node .cursor/scripts/ops-brief.mjs`
+**Pull:** `git pull --ff-only origin cursor/mac-dev`  
+**Muse queue (accepted):** A44 code-integrity · A39 DB quality · A40 wake-safe tasks · A41 optimization audit · A42 API research · A43 live-book UX  
+**Standing:** A38 Cursor → Muse monitor (Muse replies with health passes)  
+**Adapter:** `MUSE.md` · Claude instructed in `CLAUDE.md` not to take Muse rows
 
 ## Active
-- `cursor/mac-dev` @ checkpoint with Options live prices, Muse guards, `MUSE.md` protocol.
-- **A38** Cursor → Muse: standing monitor for smooth app runs — await Muse’s first health pass on ASKS.
-- No Muse commits on remote yet beyond our push (as of last pull).
+- Pulled Muse push `732e0e5` (ASKS plans). Retargeted to `Muse → Cursor`; renumbered duplicate A38 → A44.
+- Next Muse work: A44 verify 3 bugs STALE on HEAD, then reliability sweep; then A39–A43 in order user prefers.
 
 ## Next
-1. On each Cursor session: pull mac-dev, read Muse ASKS
-2. Act on Muse → Cursor rows when they appear
-3. P1 leftovers: technicals/all lite · portfolio quote batch · macro charts split
+1. A44 code-integrity (finish verify + remaining sweep)
+2. A40 / A39 (ops) or A43 (UX) — ask user if priority unclear
+3. A41 / A42 are research deliverables (no silent behavior changes)
 
 ## Do not
-- Commit schwab tokens / secrets
-- Auto Duo/OAuth/score weights / ideation merge
-- Re-introduce `new YahooFinanceClass()`, local sleep/retry, or cache get+set
-- Retune scoring without before/after + user approval
-- Freeze Options board price on nightly snapshot (use getLivePrices)
+- Expect Claude to handle Muse ASKS
+- Commit secrets / retune scores without approval

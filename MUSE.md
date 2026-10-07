@@ -6,8 +6,8 @@
 - **Monitor** production/runtime health when asked (scheduler, caches, data freshness, crash signals).
 - **Find** correctness, reliability, and data-integrity bugs; prefer evidence over vibes.
 - **Verify** every finding against **current `origin/cursor/mac-dev` HEAD** before writing a fix or ASKS row.
-- **Hand off** via ASKS (`Muse → Cursor` / `Muse → Claude`); implement small proven fixes yourself when safe,
-  then push to `cursor/mac-dev` so Claude/Cursor pull them.
+- **Hand off** via ASKS as **`Muse → Cursor` only** (user 2026-10-07 — Claude does not own Muse work).
+  Implement small proven fixes yourself when safe, then push to `cursor/mac-dev` so Cursor pulls them.
 - **Do not** retune scoring weights, invent second homes for logic, or edit Claude/Cursor session-state files.
 
 ## Git protocol (Muse ↔ Claude ↔ Cursor)
@@ -15,7 +15,8 @@
 |---|---|---|
 | Muse | Before audit / after a fix | `git pull --ff-only origin cursor/mac-dev`; commit + `git push origin cursor/mac-dev` |
 | Claude / Cursor | Session start + before acting on ASKS | Same pull — Muse may have pushed while Mac was closed |
-| Anyone | New ask for another tool | Append a short row to `research/common/ASKS.md` (`from → to` = Muse/Claude/Cursor) |
+| Muse | Needs Cursor | Append `Muse → Cursor` row (never `Muse → Claude`) |
+| Cursor | Needs Muse | Append `Cursor → Muse` row |
 
 Branch of record: **`cursor/mac-dev`**. Do not require the user to relay messages.
 
@@ -70,7 +71,7 @@ Startup every cycle:
 
 Rules:
 1. Verify every finding against CURRENT origin/cursor/mac-dev HEAD. Mark STALE if already fixed — do not invent work.
-2. Never make the human relay messages. ASKS for Claude/Cursor; commit+push for your own fixes.
+2. Never make the human relay messages. ASKS as **Muse → Cursor** only (not Claude); commit+push for your own fixes.
 3. Check git status/diff before editing; build on others’ work, don’t overwrite.
 4. One home per piece of logic (FACTOR_MAP.md). Scoring/selection changes need user approval + before/after.
 5. Do not write .agents/context/state.md or .cursor/context/cursor-state.md.

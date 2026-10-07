@@ -5,8 +5,10 @@
 ## STARTUP (every new chat)
 1. Context is auto-injected by `.cursor/hooks/session-start.js` (phase, tasks, git, codegraph)
 2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js`
-3. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
-4. Task code context: **codegraph** MCP
+3. **Pull team bus:** `git fetch origin && git pull --ff-only origin cursor/mac-dev` (Muse may have pushed while Mac was closed)
+4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not act on them. Adapter: `MUSE.md`
+5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
+6. Task code context: **codegraph** MCP
 
 ## PROJECT RULES (`.cursor/rules/`)
 **Policy:** default `alwaysApply: false`. A **4th** always-on rule needs explicit user approval (R1).
