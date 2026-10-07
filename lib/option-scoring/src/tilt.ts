@@ -8,9 +8,11 @@ export interface SideTiltStats {
   winRate: number | null;
   avgPnlPct: number | null;
   n: number;
+  /** Distinct expiry dates behind n. Recs sharing an expiry are one market draw, so this is the real sample size. */
+  nExpiries?: number;
   updatedAt: string | null;
   /** Optional regime-conditioned expectancy (macro regime name → avgPnlPct). */
-  byRegime?: Record<string, { n: number; avgPnlPct: number }>;
+  byRegime?: Record<string, { n: number; nExpiries?: number; avgPnlPct: number }>;
   /** Per-ticker shrunk expectancy offsets (additive to global avgPnlPct). */
   byTicker?: Record<string, { n: number; avgPnlPct: number; shrunkDelta: number }>;
 }
@@ -21,6 +23,8 @@ export interface TiltState {
 }
 
 export const TILT_MIN_N = 20;
+/** Also need this many distinct expiries: 28 calls from one week are ~1 observation, not 28. */
+export const TILT_MIN_EXPIRIES = 8;
 export const TILT_ANCHOR_PNL_PCT = 0;
 export const TILT_SPAN_PNL_PCT = 0.25;
 export const TILT_MAX_SHIFT = 0.25;
@@ -48,6 +52,7 @@ export interface SidePolicy {
 
 export function tiltFactor(stats: SideTiltStats | null | undefined): number {
   if (!stats || stats.n < TILT_MIN_N || stats.avgPnlPct == null) return 0;
+  if ((stats.nExpiries ?? 0) < TILT_MIN_EXPIRIES) return 0;
   const a = (stats.avgPnlPct - TILT_ANCHOR_PNL_PCT) / TILT_SPAN_PNL_PCT;
   return Math.max(-1, Math.min(1, a));
 }
@@ -90,7 +95,8 @@ export function applyPolicy(
   opts?: { regime?: string | null; ticker?: string | null },
 ): SidePolicy {
   let effective: SideTiltStats | null | undefined = stats;
-  if (stats && opts?.regime && stats.byRegime?.[opts.regime] && stats.byRegime[opts.regime]!.n >= TILT_MIN_N) {
+  if (stats && opts?.regime && stats.byRegime?.[opts.regime] && stats.byRegime[opts.regime]!.n >= TILT_MIN_N
+    && (stats.byRegime[opts.regime]!.nExpiries ?? 0) >= TILT_MIN_EXPIRIES) {
     const r = stats.byRegime[opts.regime]!;
     effective = { ...stats, avgPnlPct: r.avgPnlPct, n: Math.max(stats.n, r.n) };
   }

@@ -383,8 +383,11 @@ export default function Live() {
             {pageTab === "market" && (
               <>
                 <SideToggle side={side} onChange={setSide} />
-                <span className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 hidden sm:inline">
-                  RSI-side extremes, not best trades
+                <span
+                  className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 hidden sm:inline"
+                  title="Backtest 2020–26 (scorecard lab): oversold / reversal / short-term signals showed no edge, and dip-buying did worse in broad selloffs. Trade ideas: Watchlist → Model List."
+                >
+                  RSI-side extremes, unvalidated · Model List decides
                 </span>
                 <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
                 <button

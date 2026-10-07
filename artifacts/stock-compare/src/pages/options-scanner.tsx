@@ -9,16 +9,19 @@ import {
   type TechnicalRow,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
-import { Loader2, RefreshCw, TrendingUp, Search, Trophy } from "lucide-react";
+import { Loader2, RefreshCw, TrendingUp, Search, Trophy, Settings2 } from "lucide-react";
 import { pickBestStrike, selectPremiumCandidates, type StockContext } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
+import { useModelList, modelAvoidTickers } from "@/hooks/use-model-list";
 import { CredibilityBadge } from "@/components/credibility-badge";
 import { CALL_STRIKE_WEIGHTS } from "@/lib/option-scorer-constants";
 import { useAuth } from "@/context/AuthContext";
 import { queryKeys } from "@/lib/query-keys";
 import { getTraderPrefs, saveTraderPrefs } from "@/lib/trader-prefs";
+import { formatMdYy } from "@/lib/format";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   pfNum,
   RED_TAG,
@@ -305,6 +308,8 @@ export function OptionsScannerContent({
     () => new Set((liveHotlists?.rallyHotlist ?? []).map(e => e.ticker)),
     [liveHotlists],
   );
+  const { data: modelList } = useModelList();
+  const modelAvoidSet = useMemo(() => new Set(modelAvoidTickers(modelList)), [modelList]);
 
   // ── Volatility regime (VIX-band, intraday) — for Option Scorer overlay ───────
   // Distinct from the business-cycle "macro-regime" used on home.tsx.
@@ -404,51 +409,14 @@ export function OptionsScannerContent({
     return ivs;
   }, [optionsMap]);
 
-  // Best option per ticker (drives optionScore/Income%/Buffer sort + column display).
-  // Seed from nightly rankings snapshots; live chains override when expanded.
+  // Collapsed-row Option Score / Income / Buffer: nightly snapshot wins when present.
+  // Live chains only fill names with no snap (and feed the expanded strike panel) —
+  // expanding must not rewrite board numbers.
   const { bestOptionScoreMap, bestIncomeMap, bufferMap } = useMemo(() => {
     const scoreMap = new Map<string, number>();
     const incomeMap = new Map<string, number>();
     const bufMap = new Map<string, number>();
     for (const ticker of displayTickers) {
-      const chains = optionsMap.get(ticker);
-      const techRow = techRowMap.get(ticker);
-      if (chains && techRow) {
-        const stockCtx: StockContext = {
-          ivRank:                pfNum(techRow.ivRank),
-          ivPercentile:          pfNum(techRow.ivPercentile),
-          ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
-          basicSkew:             pfNum(techRow.basicSkew),
-          swingLow20d:           pfNum(techRow.swingLow20d),
-          swingLow50d:           pfNum(techRow.swingLow50d),
-          pivotS1:               pfNum(techRow.pivotS1),
-          swingHigh20d:          pfNum(techRow.swingHigh20d),
-          swingHigh50d:          pfNum(techRow.swingHigh50d),
-          pivotR1:               pfNum(techRow.pivotR1),
-          nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
-          techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
-          fundTotalScore:        fundScoreMap.get(ticker) ?? null,
-          earningsDaysOut:       techRow.earningsDaysOut ?? null,
-          streetEventRisk:       streetRiskMap.get(ticker) ?? false,
-        };
-        const picked = pickBestStrike(
-          chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
-          stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
-          effectiveStrikeWeights, isCallMode, pickOpts,
-        );
-        if (picked) {
-          scoreMap.set(ticker, picked.result.optionScore);
-          incomeMap.set(ticker, picked.result.weeklyIncome);
-          const spot = picked.chain.spot ?? 0;
-          const exactDte = picked.chain.exactDte ?? Math.max(1, picked.chain.daysToExpiry);
-          if (spot > 0 && picked.put.iv > 0 && exactDte > 0) {
-            const otm = isCallMode ? (picked.put.strike - spot) / spot : (spot - picked.put.strike) / spot;
-            bufMap.set(ticker, otm / (picked.put.iv * Math.sqrt(exactDte / 365)));
-          }
-          continue;
-        }
-      }
-      // Snapshot fallback (before expand, or chain miss)
       const snap = rankingByTicker.get(ticker);
       if (snap) {
         scoreMap.set(ticker, snap.optionScore);
@@ -459,25 +427,63 @@ export function OptionsScannerContent({
         if (otm > 0 && iv > 0 && dte > 0) {
           bufMap.set(ticker, otm / (iv * Math.sqrt(dte / 365)));
         }
+        continue;
+      }
+      const chains = optionsMap.get(ticker);
+      const techRow = techRowMap.get(ticker);
+      if (!chains || !techRow) continue;
+      const stockCtx: StockContext = {
+        ivRank:                pfNum(techRow.ivRank),
+        ivPercentile:          pfNum(techRow.ivPercentile),
+        ivVsRealizedVol:       pfNum(techRow.ivVsRealizedVol),
+        basicSkew:             pfNum(techRow.basicSkew),
+        swingLow20d:           pfNum(techRow.swingLow20d),
+        swingLow50d:           pfNum(techRow.swingLow50d),
+        pivotS1:               pfNum(techRow.pivotS1),
+        swingHigh20d:          pfNum(techRow.swingHigh20d),
+        swingHigh50d:          pfNum(techRow.swingHigh50d),
+        pivotR1:               pfNum(techRow.pivotR1),
+        nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
+        techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
+        fundTotalScore:        fundScoreMap.get(ticker) ?? null,
+        earningsDaysOut:       techRow.earningsDaysOut ?? null,
+        streetEventRisk:       streetRiskMap.get(ticker) ?? false,
+      };
+      const picked = pickBestStrike(
+        chains.map(c => ({ ...c, options: isCallMode ? c.calls : c.puts })),
+        stockCtx, macroRegimeData?.regime ?? "BASELINE", allWatchlistIVs, undefined,
+        effectiveStrikeWeights, isCallMode, pickOpts,
+      );
+      if (!picked) continue;
+      scoreMap.set(ticker, picked.result.optionScore);
+      incomeMap.set(ticker, picked.result.weeklyIncome);
+      const spot = picked.chain.spot ?? 0;
+      const exactDte = picked.chain.exactDte ?? Math.max(1, picked.chain.daysToExpiry);
+      if (spot > 0 && picked.put.iv > 0 && exactDte > 0) {
+        const otm = isCallMode ? (picked.put.strike - spot) / spot : (spot - picked.put.strike) / spot;
+        bufMap.set(ticker, otm / (picked.put.iv * Math.sqrt(exactDte / 365)));
       }
     }
     return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
   }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode, pickOpts, rankingByTicker, streetRiskMap]);
 
-  // Stock Score per ticker (drives "Stock Score" sort — combines tech + fund + relMove + bestOption + tag)
+  // Stock Score for collapsed columns — snap/scorecard spot (stable sort). Live price
+  // is display-only via /live/prices; do not feed it here or the board reshuffles.
   const stockScoreMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const ticker of displayTickers) {
       const techRow   = techRowMap.get(ticker);
       const indicator = scorecardMap.get(ticker);
-      const chains    = optionsMap.get(ticker);
+      const boardSpot = (indicator?.price != null && indicator.price > 0)
+        ? indicator.price
+        : (rankingByTicker.get(ticker)?.spot ?? null);
       const relMove   = computeRelativeMove(
         pfNum(techRow?.priceZScore),
         pfNum(techRow?.priceVsMa50Atr),
         indicator?.return5d ?? null,
         pfNum(techRow?.swingHigh20d),
         pfNum(techRow?.swingLow20d),
-        chains?.[0]?.spot ?? null,
+        boardSpot,
         isCallMode ? "call" : "put",
       );
       const result = computeStockScore({
@@ -490,57 +496,105 @@ export function OptionsScannerContent({
       m.set(ticker, result.stockScore);
     }
     return m;
-  }, [displayTickers, techRowMap, scorecardMap, optionsMap, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock, isCallMode]);
+  }, [displayTickers, techRowMap, scorecardMap, rankingByTicker, rankings, fundScoreMap, bestOptionScoreMap, colorMap, weights.optionStock, isCallMode]);
 
   // ── Sort + filter ─────────────────────────────────────────────────────────────
-  // Re-sorts whenever the score map behind the active sort key actually changes
-  // (e.g. options/technicals data finishes loading) — previously this read stale
-  // snapshots via refs, which froze row order at whatever (mostly-empty) scores
-  // existed on first render and never converged to match the displayed values.
+  // Board order must NOT change when a row is expanded (live chain fetch updates
+  // optionsMap → bestOptionScoreMap for display only). Sort keys prefer nightly
+  // snapshots / scorecard / fund+tech — never live pickBestStrike overrides.
   const sortedTickers = useMemo(() => {
-    const optMap     = optionsMap;
-    const bestScores  = bestOptionScoreMap;
-    const stockScores = stockScoreMap;
-    const scorecard   = scorecardMap;
-    const incomeMap   = bestIncomeMap;
-    const bufMap      = bufferMap;
+    const scorecard = scorecardMap;
+    const idx = new Map(displayTickers.map((t, i) => [t, i]));
+    const stable = (a: string, b: string) => (idx.get(a) ?? 0) - (idx.get(b) ?? 0);
 
-    let list = [...displayTickers];
+    const snapOption = (t: string) => rankingByTicker.get(t)?.optionScore ?? null;
+    const snapIncome = (t: string) => rankingByTicker.get(t)?.weeklyIncomePct ?? null;
+    const snapBuffer = (t: string) => {
+      const snap = rankingByTicker.get(t);
+      if (!snap) return null;
+      const otm = (snap.otmPct ?? 0) / 100;
+      const iv = snap.strikeIv ?? 0;
+      const dte = snap.dte ?? 0;
+      if (!(otm > 0 && iv > 0 && dte > 0)) return null;
+      return otm / (iv * Math.sqrt(dte / 365));
+    };
+    const snapOtm = (t: string) => rankingByTicker.get(t)?.otmPct ?? null;
 
+    /** Stock score for sorting — option leg from snapshot only so expand can't reshuffle. */
+    const sortStockScore = (t: string) => {
+      const techRow = techRowMap.get(t);
+      const indicator = scorecard.get(t);
+      const relMove = computeRelativeMove(
+        pfNum(techRow?.priceZScore),
+        pfNum(techRow?.priceVsMa50Atr),
+        indicator?.return5d ?? null,
+        pfNum(techRow?.swingHigh20d),
+        pfNum(techRow?.swingLow20d),
+        null, // no live spot — expand must not move rows
+        isCallMode ? "call" : "put",
+      );
+      return computeStockScore({
+        techTotalScore: rankings.get(t)?.totalScore ?? null,
+        fundTotalScore: fundScoreMap.get(t) ?? null,
+        relativeMoveScore: relMove,
+        bestOptionScore: snapOption(t),
+        colorTag: colorMap.get(t) ?? null,
+      }, weights.optionStock).stockScore;
+    };
+
+    const list = [...displayTickers];
     list.sort((a, b) => {
+      let cmp = 0;
       switch (sort) {
-        case "optionScore":
-          return (bestScores.get(b) ?? -1) - (bestScores.get(a) ?? -1);
+        case "optionScore": {
+          const sa = snapOption(a);
+          const sb = snapOption(b);
+          if (sa != null && sb != null) cmp = sb - sa;
+          else if (sa != null) cmp = -1;
+          else if (sb != null) cmp = 1;
+          break;
+        }
         case "score":
-          return (stockScores.get(b) ?? 0) - (stockScores.get(a) ?? 0);
+          cmp = sortStockScore(b) - sortStockScore(a);
+          break;
         case "iv": {
           const iv = (t: string) => scorecard.get(t)?.ivCurrent ?? -1;
-          return iv(b) - iv(a);
+          cmp = iv(b) - iv(a);
+          break;
         }
-        case "buffer":
-          return (bufMap.get(b) ?? -1) - (bufMap.get(a) ?? -1);
+        case "buffer": {
+          const ba = snapBuffer(a);
+          const bb = snapBuffer(b);
+          if (ba != null && bb != null) cmp = bb - ba;
+          else if (ba != null) cmp = -1;
+          else if (bb != null) cmp = 1;
+          break;
+        }
         case "otm": {
-          const otm = (t: string) => {
-            const chains = optMap.get(t);
-            if (chains) {
-              const spot = chains[0]?.spot ?? 0;
-              const strikes = chains.flatMap((c: OptionsChainResult) => (isCallMode ? c.calls : c.puts).filter((p: OptionRow) => p.meetsGate).map((p: OptionRow) => p.strike));
-              if (spot > 0 && strikes.length > 0) {
-                const best = isCallMode ? Math.min(...strikes) : Math.max(...strikes);
-                return isCallMode ? ((best - spot) / spot) * 100 : ((spot - best) / spot) * 100;
-              }
-            }
-            return rankingByTicker.get(t)?.otmPct ?? -1;
-          };
-          return otm(b) - otm(a);
+          const oa = snapOtm(a);
+          const ob = snapOtm(b);
+          if (oa != null && ob != null) cmp = ob - oa;
+          else if (oa != null) cmp = -1;
+          else if (ob != null) cmp = 1;
+          break;
         }
         case "income":
-        default:
-          return (incomeMap.get(b) ?? -1) - (incomeMap.get(a) ?? -1);
+        default: {
+          const ia = snapIncome(a);
+          const ib = snapIncome(b);
+          if (ia != null && ib != null) cmp = ib - ia;
+          else if (ia != null) cmp = -1;
+          else if (ib != null) cmp = 1;
+          break;
+        }
       }
+      return cmp !== 0 ? cmp : stable(a, b);
     });
     return list;
-  }, [displayTickers, sort, optionsMap, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap, isCallMode, rankingByTicker]);
+  }, [
+    displayTickers, sort, rankingByTicker, scorecardMap, techRowMap, rankings,
+    fundScoreMap, colorMap, weights.optionStock, isCallMode,
+  ]);
 
   const filteredTickers = useMemo(() => {
     const q = tickerQuery.trim().toLowerCase();
@@ -555,6 +609,24 @@ export function OptionsScannerContent({
     }
     return filteredTickers;
   }, [universe, tickerQuery, filteredTickers]);
+
+  // Golden-source live equity prices (Schwab→Yahoo, 60s server TTL). Overlay only —
+  // sort/option scores stay on nightly snapshots so the board does not reshuffle.
+  const visibleTickersKey = visibleTickers.join(",");
+  const { data: livePrices } = useQuery({
+    queryKey: ["live-prices", visibleTickersKey],
+    queryFn: async (): Promise<Record<string, { price: number | null; changePercent: number | null }>> => {
+      const res = await fetch(`/api/live/prices?tickers=${encodeURIComponent(visibleTickersKey)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("live/prices failed");
+      const body = await res.json() as { prices: Record<string, { price: number | null; changePercent: number | null }> };
+      return body.prices ?? {};
+    },
+    enabled: visibleTickers.length > 0,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   /** Priority single-ticker chain fetch (expand / admin refresh). */
@@ -575,17 +647,23 @@ export function OptionsScannerContent({
     }
   }, [queryClient, displayTickersKey]);
 
+  const hasCachedChain = useCallback((ticker: string) => (
+    refreshedOptions.has(ticker)
+    || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)))
+  ), [refreshedOptions, batchOptionsData]);
+
+  /** Prefetch full chain on hover so expand isn't a cold Schwab/Yahoo wait. */
+  const handleRowPrefetch = useCallback((ticker: string) => {
+    if (!hasCachedChain(ticker)) void ensureTickerChain(ticker);
+  }, [hasCachedChain, ensureTickerChain]);
+
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
       const next = new Set(prev);
       const opening = !next.has(ticker);
       if (opening) next.add(ticker);
       else next.delete(ticker);
-      if (opening) {
-        const hasChain = refreshedOptions.has(ticker)
-          || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)));
-        if (!hasChain) void ensureTickerChain(ticker);
-      }
+      if (opening && !hasCachedChain(ticker)) void ensureTickerChain(ticker);
       return next;
     });
   };
@@ -611,52 +689,59 @@ export function OptionsScannerContent({
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  // Editable min-income filter — hides strikes that return less than this % per week.
-  // Portals into the parent tab bar when embedded in rankings.tsx (see filterSlot above);
-  // falls back to rendering inline above the table when used standalone (e.g. /options-scanner).
-  const filterBar = (
-    <div
-      className="flex items-center gap-1.5 border border-emerald-500/30 bg-emerald-500/5 rounded-full pl-2.5 pr-1 h-7"
-      title="Minimum weekly return filter — hides option strikes that yield less than this % of the strike price per week"
-    >
-      <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
-      <span className="text-xs text-white whitespace-nowrap">Min %/wk</span>
-      <input
-        type="number"
-        min="0"
-        step="0.1"
-        value={minIncomeInput}
-        onChange={e => {
-          setMinIncomeInput(e.target.value);
-          const n = parseFloat(e.target.value);
-          if (Number.isFinite(n) && n >= 0) setMinIncome(n);
-        }}
-        className="w-10 text-xs bg-transparent text-foreground focus:outline-none text-center font-mono"
-      />
-    </div>
-  );
-
-  const tickerFilterBar = (
-    <div className="relative">
-      <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
-      <input
-        type="text"
-        value={tickerQuery}
-        onChange={e => setTickerQuery(e.target.value)}
-        placeholder="Filter ticker..."
-        className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
-      />
+  // Win-rate + min-income + ticker filter → Settings popover (compact rankings chrome).
+  const filterSettingsPanel = (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Track record</p>
+        <CredibilityBadge side={isCallMode ? "call" : "put"} className="text-[10px] px-1.5 py-0" />
+      </div>
+      <div>
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+          <TrendingUp className="w-3 h-3 text-emerald-400" />
+          Min %/wk
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="0.1"
+          value={minIncomeInput}
+          onChange={e => {
+            setMinIncomeInput(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n) && n >= 0) setMinIncome(n);
+          }}
+          title="Hide strikes below this weekly return % of strike"
+          className="h-7 w-full px-2 text-xs rounded-md border border-white/20 bg-zinc-900 text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50"
+        />
+      </div>
+      <div>
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">Ticker filter</label>
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={tickerQuery}
+            onChange={e => setTickerQuery(e.target.value)}
+            placeholder="Filter ticker..."
+            className="h-7 w-full pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      </div>
+      <p className="text-[10px] text-amber-200/40 leading-snug">
+        Unvalidated ranking · Model List decides. Blends income/buffer with v4 technical total (lab: no edge).
+      </p>
     </div>
   );
 
   // Sell Puts / Sell Calls — match Technical tab chrome (zinc/gold).
   // Hidden when parent controls side (rankings chrome owns the toggle for stable layout).
   const scanModeToggle = sideControlled ? null : (
-    <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-xs h-7 shrink-0">
+    <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
       <button
         onClick={() => setMode("puts")}
         className={cn(
-          "px-2.5 h-6 rounded-full transition-colors font-semibold",
+          "px-2 h-5 rounded-full transition-colors font-semibold",
           !isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
         )}
       >
@@ -665,7 +750,7 @@ export function OptionsScannerContent({
       <button
         onClick={() => setMode("calls")}
         className={cn(
-          "px-2.5 h-6 rounded-full transition-colors font-semibold",
+          "px-2 h-5 rounded-full transition-colors font-semibold",
           isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
         )}
       >
@@ -674,24 +759,39 @@ export function OptionsScannerContent({
     </div>
   );
 
-  const scoredLabel = refreshedAt.toLocaleString(undefined, {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "numeric", minute: "2-digit",
-  });
+  const filterSettingsButton = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d4af37]/25 bg-zinc-950 text-[11px] font-semibold text-amber-200/70 hover:text-[#d4af37] hover:border-[#d4af37]/40 transition-colors"
+          title="Filters — min income, ticker, track record"
+        >
+          <Settings2 className="w-3 h-3" />
+          Filters
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-3 bg-zinc-950 border-[#d4af37]/25">
+        {filterSettingsPanel}
+      </PopoverContent>
+    </Popover>
+  );
 
   const controlsRow = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       {scanModeToggle}
-      <CredibilityBadge side={isCallMode ? "call" : "put"} />
-      {filterBar}
-      {tickerFilterBar}
+      {filterSettingsButton}
     </div>
   );
 
-  const boardTitle = universe === "overall" ? "Overall Options Leaderboard" : "Options Rankings Leaderboard";
+  const countLabel =
+    universe === "overall"
+      ? `${visibleTickers.length}/${filteredTickers.length}`
+      : String(visibleTickers.length);
+  const snapDate = optionRankings?.asOf ? formatMdYy(optionRankings.asOf) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 min-w-0">
         {showHeader && <h1 className="text-xl font-bold">Options Scanner</h1>}
 
         {/* Controls — hidden here and portaled into the tab bar when filterSlot is present */}
@@ -718,56 +818,48 @@ export function OptionsScannerContent({
             )}
           </div>
         ) : (
-          <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-4 shadow-lg shadow-black/60">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold tracking-tight">
-                  {boardTitle}
-                </h2>
-                <span className="text-xs text-muted-foreground">
-                  ({visibleTickers.length}{universe === "overall" && filteredTickers.length > visibleTickers.length
-                    ? ` of ${filteredTickers.length}`
-                    : ""})
-                </span>
-                <span className="text-[10px] text-muted-foreground/80" title="Client refresh / scorecard load time">
-                  as of {scoredLabel}
-                </span>
-                <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">
-                  {`Snapshot${optionRankings?.asOf ? ` ${optionRankings.asOf}` : ""} · expand loads live chain · `}
-                  {isCallMode ? "Sell-calls lens" : "Sell-puts lens"}
-                </span>
+          <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 shadow-lg shadow-black/60 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Trophy className="w-3.5 h-3.5 text-primary shrink-0" />
+                <h2 className="text-xs font-bold tracking-tight">Options Leaderboard</h2>
+                <span className="text-[11px] text-muted-foreground tabular-nums">{countLabel}</span>
+                {snapDate && (
+                  <span className="text-[9px] text-muted-foreground/70" title="Snapshot as-of date">
+                    {snapDate}
+                  </span>
+                )}
               </div>
               {isAdmin && (
                 <button
-                  className="flex items-center gap-1.5 text-xs text-amber-200/70 hover:text-[#d4af37] transition-colors shrink-0"
+                  className="flex items-center gap-1 text-[11px] text-amber-200/70 hover:text-[#d4af37] transition-colors shrink-0"
                   onClick={handleGlobalRefresh}
                   disabled={scorecardLoading}
                 >
                   {scorecardLoading
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <RefreshCw className="w-3.5 h-3.5" />
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <RefreshCw className="w-3 h-3" />
                   }
                   {minutesAgo(refreshedAt)}
                 </button>
               )}
             </div>
 
-            <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-black/40">
-            {/* Column headers */}
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#d4af37]/25 bg-black text-[11px] font-semibold tracking-wider uppercase text-[#d4af37]" style={{ borderLeft: "4px solid transparent" }}>
-              <div className="w-8 shrink-0 text-center">#</div>
-              <div className="w-[70px] shrink-0">Ticker</div>
-              <div className="w-[80px] shrink-0">Price</div>
-              <div className="w-[56px] shrink-0">Signal</div>
-              <div className="w-[64px] shrink-0" title="Graded sell-put/sell-call win-loss record for this ticker">Record</div>
-              <div className="w-[48px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
-              <SortableHeader label="Option Score" sortKey="optionScore" active={sort === "optionScore"} width="w-[90px]" onClick={setSort} />
-              <SortableHeader label="Stock Score" sortKey="score" active={sort === "score"} width="w-[90px]" onClick={setSort} />
-              <SortableHeader label="IV%" sortKey="iv" active={sort === "iv"} width="w-[52px]" onClick={setSort} />
-              <SortableHeader label="Income%" sortKey="income" active={sort === "income"} width="w-[72px]" onClick={setSort} />
-              <SortableHeader label="Buffer" sortKey="buffer" active={sort === "buffer"} width="w-[64px]" onClick={setSort} />
-              <div className="flex-1" />
+            <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black/40">
+            {/* Column headers — widths match ScannerRow */}
+            <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] font-semibold tracking-wide uppercase text-[#d4af37] min-w-[560px]" style={{ borderLeft: "3px solid transparent" }}>
+              <div className="w-5 shrink-0 text-center">#</div>
+              <div className="w-[92px] shrink-0">Ticker</div>
+              <div className="w-[58px] shrink-0" title="Live equity quote (Schwab→Yahoo cache); % under price = vs nightly options snapshot">Price</div>
+              <div className="w-[36px] shrink-0">Sig</div>
+              <div className="w-[44px] shrink-0" title="Graded sell-put/sell-call win-loss (Sharpe / StkΔ in row tooltip)">Rec</div>
+              <div className="w-[34px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
+              <SortableHeader label="Opt" sortKey="optionScore" active={sort === "optionScore"} width="w-[48px]" onClick={setSort} />
+              <SortableHeader label="Stock" sortKey="score" active={sort === "score"} width="w-[48px]" onClick={setSort} />
+              <SortableHeader label="IV" sortKey="iv" active={sort === "iv"} width="w-[34px]" onClick={setSort} />
+              <SortableHeader label="Inc" sortKey="income" active={sort === "income"} width="w-[48px]" onClick={setSort} />
+              <SortableHeader label="Buf" sortKey="buffer" active={sort === "buffer"} width="w-[40px]" onClick={setSort} />
+              <div className="flex-1 min-w-0" />
             </div>
             {visibleTickers.map((ticker, i) => (
               <ScannerRow
@@ -784,6 +876,7 @@ export function OptionsScannerContent({
                 minIncome={minIncome}
                 overrideEnabled={overrides.has(ticker)}
                 onExpand={() => handleExpand(ticker)}
+                onPrefetch={() => handleRowPrefetch(ticker)}
                 onRefresh={isAdmin ? () => handleRowRefresh(ticker) : undefined}
                 onDelete={() => handleDelete(ticker)}
                 onOverride={() => handleOverride(ticker)}
@@ -800,6 +893,9 @@ export function OptionsScannerContent({
                 isCall={isCallMode}
                 isOversold={oversoldSet.has(ticker)}
                 isOverbought={overboughtSet.has(ticker)}
+                modelAvoid={modelAvoidSet.has(ticker.toUpperCase())}
+                livePrice={livePrices?.[ticker]?.price ?? null}
+                snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
               />
             ))}
             </div>

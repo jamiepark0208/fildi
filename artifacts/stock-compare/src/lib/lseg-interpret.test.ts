@@ -178,6 +178,8 @@ describe("trade hints + cross-check", () => {
   it("cross-check agree / disagree / missing", () => {
     assert.equal(crossCheck("good", "supportive")?.tone, "good");
     assert.equal(crossCheck("bad", "supportive")?.tone, "warn");
+    assert.equal(crossCheck("warn", "supportive")?.tone, "warn");
+    assert.match(crossCheck("warn", "supportive")?.text ?? "", /beat streak|StarMine|forward/i);
     assert.equal(crossCheck("good", null), null);
   });
 });

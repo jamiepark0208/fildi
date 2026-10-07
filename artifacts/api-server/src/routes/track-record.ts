@@ -16,7 +16,7 @@ import {
   type PathRisk,
 } from "../lib/model-track-record.js";
 import {
-  applyPolicy, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_ANCHOR_PNL_PCT, TILT_SPAN_PNL_PCT,
+  applyPolicy, CALL_STRIKE_WEIGHTS, TILT_MIN_N, TILT_MIN_EXPIRIES, TILT_ANCHOR_PNL_PCT, TILT_SPAN_PNL_PCT,
   SQ_FLOOR_BASE,
 } from "@workspace/option-scoring";
 import { logger } from "../lib/logger.js";
@@ -563,6 +563,7 @@ router.get("/track-record/tilt", async (_req, res) => {
       },
       calibration,
       minN: TILT_MIN_N,
+      minExpiries: TILT_MIN_EXPIRIES,
       sqFloorBase: SQ_FLOOR_BASE,
       anchorPnlPct: TILT_ANCHOR_PNL_PCT,
       spanPnlPct: TILT_SPAN_PNL_PCT,

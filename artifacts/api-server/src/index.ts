@@ -2,6 +2,7 @@ import { loadEnvLocal } from "./lib/load-env-local";
 // Before any other module reads process.env (Schwab / DB / FactSet).
 const envBoot = loadEnvLocal();
 
+import * as Sentry from "@sentry/node";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seeder";
@@ -31,16 +32,6 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Last-resort process guards: an unhandled rejection crashes the process on modern
-// Node, and an uncaught exception leaves it in an undefined state. Log both loudly so
-// Sentry/logs capture the cause instead of a silent exit under long-running load.
-process.on("unhandledRejection", (reason) => {
-  logger.error({ err: reason }, "unhandledRejection");
-});
-process.on("uncaughtException", (err) => {
-  logger.error({ err }, "uncaughtException");
-});
-
 const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -65,21 +56,43 @@ const server = app.listen(port, (err) => {
 // Graceful shutdown: on redeploy/restart Replit sends SIGTERM. Stop accepting new
 // connections and let in-flight requests drain (e.g. a mid-write enrichment) instead
 // of being killed abruptly. Force-exit after a grace window so a hung socket can't
-// block the restart forever.
+// block the restart forever. Crash paths use the same drain with a non-zero exit.
 let shuttingDown = false;
-function shutdown(signal: string) {
+function shutdown(signal: string, exitCode = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
-  logger.info({ signal }, "shutdown: draining connections");
+  logger.info({ signal, exitCode }, "shutdown: draining connections");
   const forceTimer = setTimeout(() => {
-    logger.warn("shutdown: grace period elapsed, forcing exit");
-    process.exit(0);
+    logger.warn({ exitCode }, "shutdown: grace period elapsed, forcing exit");
+    process.exit(exitCode);
   }, 10_000);
   forceTimer.unref();
-  server.close(() => {
-    logger.info("shutdown: server closed cleanly");
-    process.exit(0);
-  });
+
+  const finish = () => {
+    // Flush Sentry so the crash/exception that triggered shutdown is delivered.
+    void Sentry.close(2000)
+      .catch(() => undefined)
+      .finally(() => {
+        logger.info({ exitCode }, "shutdown: server closed cleanly");
+        process.exit(exitCode);
+      });
+  };
+
+  server.close(() => finish());
 }
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+
+process.on("SIGTERM", () => shutdown("SIGTERM", 0));
+process.on("SIGINT", () => shutdown("SIGINT", 0));
+
+// Last-resort process guards: an unhandled rejection crashes the process on modern
+// Node, and an uncaught exception leaves it in an undefined state. Log structurally,
+// then drain the HTTP server / Sentry and exit non-zero so the process manager restarts
+// a clean process (and the in-process scheduler) rather than limping on.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "unhandledRejection");
+  shutdown("unhandledRejection", 1);
+});
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "uncaughtException");
+  shutdown("uncaughtException", 1);
+});

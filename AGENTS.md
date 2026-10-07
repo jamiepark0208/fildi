@@ -5,6 +5,7 @@
 1. **[`.agents/context/INDEX.md`](.agents/context/INDEX.md)** — topic → file map  
 2. **[`.agents/context/agentic-floors.md`](.agents/context/agentic-floors.md)** — R1–R10 + do-not-build  
 3. **[`.agents/AGENTS.md`](.agents/AGENTS.md)** — subagent routing (verifier / data-agent / ui-agent)
+4. **[`research/studies/INDEX.md`](research/studies/INDEX.md)** — every study / backtest and its answer. Check it before any analysis; add a row after
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).
@@ -14,6 +15,7 @@
 |---|---|
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
+| Muse AI (bug-find / verify) | [`MUSE.md`](MUSE.md) — verify vs HEAD; hand off via ASKS |
 
 ## One team (user decision 2026-10-05)
 There are no lanes. Claude Code and Cursor can both change any code, data or doc in this repo. Older docs and ASKS rows that say

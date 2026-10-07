@@ -120,3 +120,10 @@ export function useModelList() {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+/** Tickers the latest Model List run marks red (Avoid: risk flags). Other surfaces defer to these. */
+export function modelAvoidTickers(model: ModelList | undefined): string[] {
+  const out = new Set<string>();
+  for (const f of model?.folders ?? []) for (const i of f.items) if (i.verdict === "red") out.add(i.ticker.toUpperCase());
+  return [...out];
+}

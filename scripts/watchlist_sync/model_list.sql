@@ -62,6 +62,7 @@ INSERT INTO watchlist_sync.model_folders (folder_key, name, description, kind, s
   ('sell_puts',  'Sell Puts',     'Put ideas that passed Fildi checks (L1), live Robinhood checks (L2) and the verdict cross-check', 'action', 10, 15),
   ('sell_calls', 'Covered Calls', 'Call ideas on free shares that passed L1, L2 and the verdict cross-check', 'action', 20, 15),
   ('trim_risk',  'Trim / Risk',   'Held names with 2+ independent red flags', 'action', 30, 15),
+  ('rebalance',  'Rebalance FILDI', 'FILDI holdings vs the per-name cap (15% of net), speculative share (40% of holdings), leverage, margin loan, crypto (display only)', 'action', 37, NULL),
   ('manage',     'Manage Open Positions', 'Your open short options: take profit, at risk / in the money, expiring soon', 'action', 35, NULL),
   ('own',        'Own (green)',   'Would happily own: strong fundamentals + credit, analysts supportive', 'verdict', 40, NULL),
   ('income',     'Income (yellow)', 'Wheel targets: rich premium on an ownable name that fits your buying power', 'verdict', 50, NULL),

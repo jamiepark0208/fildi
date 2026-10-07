@@ -16,6 +16,7 @@ import {
 } from "@workspace/option-scoring";
 import { type OptionsChainResult, type OptionRow } from "./options.js";
 import { fetchChainsForTickers } from "./options-chain-batch.js";
+import { persistChainHistory } from "./option-chain-history.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
@@ -236,6 +237,7 @@ export async function computeAndPersistOptionScores(opts?: {
     });
     chainsByTicker = fetched.chainsByTicker;
     failures = fetched.failures;
+    if (!dryRun) await persistChainHistory(chainsByTicker, asOf); // same chains, no extra API calls
   }
 
   const allIVs: number[] = [];

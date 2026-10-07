@@ -7,6 +7,7 @@ import {
   getTechnicalScorecardMetrics, getComponentExplainers,
 } from "@/lib/technical-rankings";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
+import { formatMdYy } from "@/lib/format";
 
 function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>, side: ScoreSide = "put") {
   const row = rowMap?.[score.ticker];
@@ -90,10 +91,7 @@ export function TechnicalLeaderboard({
     if (!iso) return null;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleString(undefined, {
-      month: "short", day: "numeric", year: "numeric",
-      hour: "numeric", minute: "2-digit",
-    });
+    return formatMdYy(iso);
   })();
 
   const rankBadgeCls = (idx: number) =>
@@ -117,7 +115,7 @@ export function TechnicalLeaderboard({
           <span className="text-xs text-muted-foreground">({scores.length})</span>
           {scoredLabel && (
             <span className="text-[10px] text-muted-foreground/80" title="max technicals_last_fetched">
-              data as of {scoredLabel}
+              {scoredLabel}
             </span>
           )}
         </div>

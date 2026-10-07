@@ -745,6 +745,7 @@ async function sideStats(side: "put" | "call"): Promise<SideTiltStats> {
     pnlPct: modelRecs.pnlPct,
     ticker: modelRecs.ticker,
     macroRegime: modelRecs.macroRegime,
+    expiry: modelRecs.expiry,
   })
     .from(modelRecs)
     .where(and(
@@ -757,19 +758,21 @@ async function sideStats(side: "put" | "call"): Promise<SideTiltStats> {
   const wins = rows.filter(r => r.status === "WIN").length;
   const pnls = rows.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
   const avgPnlPct = pnls.length > 0 ? pnls.reduce((s, v) => s + v, 0) / pnls.length : null;
+  const nExpiries = new Set(rows.map(r => String(r.expiry))).size;
 
   // Regime slices
   const byRegime: NonNullable<SideTiltStats["byRegime"]> = {};
-  const regimeGroups = new Map<string, number[]>();
+  const regimeGroups = new Map<string, { pnls: number[]; expiries: Set<string> }>();
   for (const r of rows) {
     const reg = r.macroRegime;
     const p = num(r.pnlPct);
     if (!reg || p == null) continue;
-    if (!regimeGroups.has(reg)) regimeGroups.set(reg, []);
-    regimeGroups.get(reg)!.push(p);
+    if (!regimeGroups.has(reg)) regimeGroups.set(reg, { pnls: [], expiries: new Set() });
+    regimeGroups.get(reg)!.pnls.push(p);
+    regimeGroups.get(reg)!.expiries.add(String(r.expiry));
   }
-  for (const [reg, vals] of regimeGroups) {
-    byRegime[reg] = { n: vals.length, avgPnlPct: vals.reduce((a, b) => a + b, 0) / vals.length };
+  for (const [reg, { pnls: vals, expiries }] of regimeGroups) {
+    byRegime[reg] = { n: vals.length, nExpiries: expiries.size, avgPnlPct: vals.reduce((a, b) => a + b, 0) / vals.length };
   }
 
   // Per-ticker EB toward global
@@ -794,6 +797,7 @@ async function sideStats(side: "put" | "call"): Promise<SideTiltStats> {
     winRate: wins / n,
     avgPnlPct,
     n,
+    nExpiries,
     updatedAt: new Date().toISOString(),
     byRegime: Object.keys(byRegime).length ? byRegime : undefined,
     byTicker: Object.keys(byTicker).length ? byTicker : undefined,

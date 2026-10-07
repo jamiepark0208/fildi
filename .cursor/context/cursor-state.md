@@ -1,28 +1,29 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-06 (finished Claude FV leftovers + A31–A33)
+**Last updated:** 2026-10-07 (session wrap — Muse guards + Options live prices + git checkpoint)
 
 ## Phase
-**build** — Ops Auto Diligence 1–5 + fair-value / fund-1.1.0 catch-up closed
+**build** — Muse reliability fixes on `fix/muse-scheduler-guards`; Options leaderboard live prices + compact Rankings UI
 
 ## READ FIRST
+**Cross-tool:** `research/common/ASKS.md` · Muse adapter: `MUSE.md`  
 **Ops:** Nucleus Remediate · `node .cursor/scripts/ops-brief.mjs`  
-**Fair value / fund:** champion `fund-1.1.0`; Model List strike-vs-fair on thesis; ASKS A31–A33 done  
-**Cross-tool:** `research/common/ASKS.md`
+**Fair value / fund:** champion path in trader-context / params — scoring changes need approval
 
 ## Active
-- Finished Claude leftovers (Model List FV line, docs, `ibesRevBreadth` optional + recompute). Still **uncommitted** overall.
-- Ops Auto Diligence Phases 1–5 done.
-- **Cursor playbook P1 leftovers:** technicals/all lite · portfolio quote batch · macro charts split
+- Branch `fix/muse-scheduler-guards`: fixture guard, crash shutdown+Sentry, regime after-close catch-up; `MUSE.md` added.
+- Options scanner: `/api/live/prices` overlay + snap Δ%; compact Rankings Options columns (OS/M badges).
+- Large batch also includes Schwab option quotes, portfolio cost carry, research studies, watchlist_sync analysis — committed for Muse HEAD sync.
 
 ## Next
-1. User commit when ready (large uncommitted Claude+Cursor batch)
-2. P1 leftovers
-3. Use Remediate / ops-brief for weekday ops
+1. Push / PR `fix/muse-scheduler-guards` when user wants Muse + CI on remote
+2. Merge to `cursor/mac-dev` or `main` after review
+3. P1 leftovers: technicals/all lite · portfolio quote batch · macro charts split
 
 ## Do not
 - Commit schwab tokens / secrets
 - Auto Duo/OAuth/score weights / ideation merge
 - Re-introduce `new YahooFinanceClass()`, local sleep/retry, or cache get+set
 - Retune scoring without before/after + user approval
+- Freeze Options board price on nightly snapshot (use getLivePrices)

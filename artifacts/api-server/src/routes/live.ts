@@ -101,6 +101,32 @@ router.get("/live/state", async (_req, res, next) => {
   }
 });
 
+/**
+ * GET /live/prices?tickers=A,B,C — golden-source live equity prices (Schwab → Yahoo,
+ * 60s TTLCache). Lightweight board overlay — not a full quote/metrics fan-out.
+ */
+router.get("/live/prices", async (req, res, next) => {
+  try {
+    const raw = String(req.query["tickers"] ?? "");
+    const tickers = [...new Set(raw.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean))];
+    if (tickers.length === 0) {
+      return res.status(400).json({ error: "tickers is required" });
+    }
+    if (tickers.length > 200) {
+      return res.status(400).json({ error: "max 200 tickers" });
+    }
+    const live = await getLivePrices(tickers);
+    const prices: Record<string, { price: number | null; changePercent: number | null }> = {};
+    for (const t of tickers) {
+      const q = live.get(t);
+      prices[t] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
+    }
+    return res.json({ prices });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post("/live/refresh", async (_req, res, next) => {
   try {
     await liveHotlist.refresh();

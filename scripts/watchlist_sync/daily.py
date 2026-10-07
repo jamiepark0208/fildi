@@ -48,6 +48,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "publish": [
         ("publish Model List", PY, HERE, ["publish_model_list.py"]),
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
+        ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
     ],

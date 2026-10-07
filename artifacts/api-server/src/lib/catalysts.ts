@@ -26,6 +26,7 @@ const NEWS_BEAR = /\b(bankruptcy|recall)\b/i;
 const ACTION_LABEL: Record<string, string> = {
   main: "maintains",
   maintain: "maintains",
+  hold: "maintains", // FMP sometimes uses action=hold for maintain/reiterate
   reit: "reiterated",
   reiterate: "reiterated",
   up: "upgraded",
@@ -51,7 +52,7 @@ export function normalizeAnalystAction(action: string): string {
   if (a === "up" || a === "upgrade" || a === "upgraded") return "upgrade";
   if (a === "down" || a === "downgrade" || a === "downgraded") return "downgrade";
   if (a === "init" || a === "initiate" || a === "initiated") return "initiate";
-  if (a === "main" || a === "maintain" || a === "maintained") return "maintain";
+  if (a === "main" || a === "maintain" || a === "maintained" || a === "hold") return "maintain";
   if (a === "reit" || a === "reiterate" || a === "reiterated") return "reiterate";
   return a;
 }
@@ -183,7 +184,7 @@ export function buildCatalystItems(input: {
       if (!a.date) return true;
       return new Date(a.date + "T12:00:00").getTime() >= cutoff90;
     })
-    .map(a => {
+    .map((a): CatalystItem | null => {
       const text = analystLine(a);
       if (!text) return null;
       return {

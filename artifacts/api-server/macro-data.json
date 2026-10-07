@@ -1,15 +1,15 @@
 {
-  "fetchedAt": "2026-10-06T16:26:26.059Z",
+  "fetchedAt": "2026-10-07T18:03:20.267Z",
   "vix": {
-    "value": 15.17,
-    "change": -0.35000038,
-    "changePct": -2.255157,
+    "value": 15.12,
+    "change": 0.10999966,
+    "changePct": 0.73284245,
     "level": "low"
   },
   "yield10y": {
     "value": 5.2790003,
-    "change": -0.031999588,
-    "changePct": -0.6027423
+    "change": 0.010000229,
+    "changePct": 0.18979368
   },
   "yield2y": {
     "value": 3.47,
@@ -109,14 +109,14 @@
   ],
   "usDebt": 39462398,
   "skew": {
-    "value": 143.04,
+    "value": 141.21,
     "change": 0,
     "changePct": 0
   },
   "vxn": {
-    "value": 21.62,
-    "change": -0.07999992,
-    "changePct": -0.36849344
+    "value": 21.16,
+    "change": 0.010000229,
+    "changePct": 0.04726006
   },
   "series": {
     "cpi": {
@@ -215,16 +215,16 @@
       "change": 0,
       "changePct": 0,
       "yoy": null,
-      "date": "2026-10-02",
+      "date": "2026-10-05",
       "unit": "%"
     },
     "sofr": {
-      "value": 3.89,
-      "prev": 3.88,
-      "change": 0.010000000000000231,
-      "changePct": 0.25773195876289257,
+      "value": 3.9,
+      "prev": 3.89,
+      "change": 0.009999999999999787,
+      "changePct": 0.2570694087403544,
       "yoy": null,
-      "date": "2026-10-05",
+      "date": "2026-10-06",
       "unit": "%"
     },
     "ismManufacturing": {

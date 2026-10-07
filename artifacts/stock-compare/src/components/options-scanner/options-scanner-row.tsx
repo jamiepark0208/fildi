@@ -8,6 +8,7 @@ import type { TechnicalRow, TechnicalScore } from "@/lib/technical-rankings";
 import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
+import { RecConflictChip } from "@/components/live/rec-conflict-chip";
 import { pfNum, type OptionRow, type OptionsChainResult, type ScorecardRow, type IvTermPoint } from "./options-scanner-types";
 import { viableOptionStrikes, optionStrikeSummary, buildReasoning } from "./options-scanner-helpers";
 import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
@@ -20,7 +21,7 @@ function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
     signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
                          "bg-muted text-white border-border";
   return (
-    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>
+    <Badge variant="outline" className={cn("text-[8px] px-1 py-0 h-3.5 font-bold leading-none", cls)}>
       {signal}
     </Badge>
   );
@@ -42,9 +43,15 @@ interface ScannerRowProps {
   minIncome: number;
   overrideEnabled: boolean;
   onExpand: () => void;
+  /** Warm the options chain cache before expand (hover). */
+  onPrefetch?: () => void;
   onRefresh?: () => void;
   onDelete: () => void;
   onOverride: () => void;
+  /** Golden-source live equity price (Schwab→Yahoo cache). */
+  livePrice?: number | null;
+  /** Nightly options-snapshot underlying — for Δ vs live on crash/move days. */
+  snapSpot?: number | null;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -63,6 +70,8 @@ interface ScannerRowProps {
   // there isn't missed in this table too.
   isOversold?: boolean;
   isOverbought?: boolean;
+  /** Latest Model List verdict is red (Avoid). This scanner's ranking is unvalidated, so the Model List wins. */
+  modelAvoid?: boolean;
 }
 
 export function ScannerRow({
@@ -78,6 +87,7 @@ export function ScannerRow({
   minIncome,
   overrideEnabled,
   onExpand,
+  onPrefetch,
   onRefresh,
   onDelete,
   onOverride,
@@ -94,6 +104,9 @@ export function ScannerRow({
   isCall,
   isOversold = false,
   isOverbought = false,
+  modelAvoid = false,
+  livePrice = null,
+  snapSpot = null,
 }: ScannerRowProps) {
   const { data: tickerRecords } = useTickerTrackRecord();
 
@@ -101,7 +114,15 @@ export function ScannerRow({
   // Call mode: V2 call-side gate (overbought + fading momentum) from `score` —
   // the legacy indicator signal is oversold-based and would be backwards here.
   const signal    = isCall ? (score?.gateStatus ?? "NO") : (indicator?.signal ?? "NO");
-  const price     = optionsData?.[0]?.spot ?? indicator?.price ?? null;
+  // Price: golden-source live (Schwab→Yahoo 60s cache) first — not nightly snap, not
+  // options-chain spot on expand. Fallback: scorecard → snap → chain.
+  const fallbackSpot = (indicator?.price != null && indicator.price > 0)
+    ? indicator.price
+    : (snapSpot != null && snapSpot > 0 ? snapSpot : optionsData?.[0]?.spot ?? null);
+  const price = livePrice != null && livePrice > 0 ? livePrice : fallbackSpot;
+  const vsSnapPct = (livePrice != null && livePrice > 0 && snapSpot != null && snapSpot > 0)
+    ? ((livePrice - snapSpot) / snapSpot) * 100
+    : null;
   const firstIV   = optionsData?.[0]?.puts?.[0]?.iv ?? null;
 
   // Call-mode red-flag warnings — warn only, never exclude (trader-context convention).
@@ -229,37 +250,31 @@ export function ScannerRow({
 
   const borderColor = colorTag || "transparent";
 
+  const flagCls =
+    "ml-0.5 px-0.5 py-px rounded border border-[#d4af37]/35 bg-[#d4af37]/10 text-[#d4af37] text-[8px] font-bold leading-none shrink-0";
   const oversoldOverboughtBadge = isCall
     ? isOverbought && (
-        <span
-          className="ml-1.5 px-1 py-0 rounded border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] text-[9px] font-bold leading-none"
-          title="In today's Live tab overbought (rally) hotlist"
-        >
-          OB
-        </span>
+        <span className={flagCls} title="In today's Live tab overbought (rally) hotlist">OB</span>
       )
     : isOversold && (
-        <span
-          className="ml-1.5 px-1 py-0 rounded border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] text-[9px] font-bold leading-none"
-          title="In today's Live tab oversold (dip) hotlist"
-        >
-          OS
-        </span>
+        <span className={flagCls} title="In today's Live tab oversold (dip) hotlist">OS</span>
       );
 
   return (
     <div className={cn("border-b border-zinc-800 last:border-b-0", rowIndex % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60")}>
-      {/* Collapsed header row */}
+      {/* Collapsed header row — dense fixed columns; badges must not spill into Price */}
       <div
-        className="flex items-center gap-2 px-3 py-0.5 cursor-pointer hover:bg-amber-500/10 transition-colors select-none"
-        style={{ borderLeft: `4px solid ${borderColor}` }}
+        className="flex items-center gap-1 px-1.5 py-0.5 cursor-pointer hover:bg-amber-500/10 transition-colors select-none min-w-[560px]"
+        style={{ borderLeft: `3px solid ${borderColor}` }}
         onClick={onExpand}
+        onMouseEnter={onPrefetch}
+        onFocus={onPrefetch}
       >
         {/* Rank */}
-        <div className="w-8 shrink-0 text-center">
+        <div className="w-5 shrink-0 text-center">
           {rank != null && (
             <span className={cn(
-              "inline-flex w-5 h-5 rounded-full items-center justify-center font-bold text-[10px]",
+              "inline-flex w-4 h-4 rounded-full items-center justify-center font-bold text-[9px]",
               rank === 1 ? "bg-yellow-500 text-yellow-950" :
               rank === 2 ? "bg-slate-400 text-slate-950" :
               rank === 3 ? "bg-amber-700 text-amber-50" :
@@ -270,54 +285,81 @@ export function ScannerRow({
           )}
         </div>
 
-        {/* Ticker */}
-        <div className="w-[70px] shrink-0 flex items-center">
+        {/* Ticker + tiny flags (clipped so they never overlap Price) */}
+        <div className="w-[92px] shrink-0 flex items-center min-w-0 overflow-hidden">
           <span
-            className="font-bold text-xs tracking-wide font-mono"
+            className="font-bold text-[11px] tracking-wide font-mono shrink-0"
             style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
           >
             {ticker}
           </span>
           {oversoldOverboughtBadge}
+          {modelAvoid && (
+            <RecConflictChip
+              compact
+              conflicts={[{
+                ticker, code: "model_avoid", prefer: "model", severity: "warn",
+                text: `${ticker}: Model List says Avoid (risk flags); this ranking is unvalidated`,
+              }]}
+            />
+          )}
           {techRow?.earningsDaysOut != null && techRow.earningsDaysOut >= 0 && techRow.earningsDaysOut <= 7 && (
             <span
-              className="ml-1 px-1 py-0 rounded border border-amber-500/40 bg-amber-500/15 text-amber-200 text-[9px] font-bold leading-none"
+              className="ml-0.5 px-0.5 py-px rounded border border-amber-500/40 bg-amber-500/15 text-amber-200 text-[8px] font-bold leading-none shrink-0"
               title={`Earnings ${techRow.earningsDaysOut === 0 ? "today" : `in ${techRow.earningsDaysOut}d`} — elevated IV; prefer deep OTM`}
             >
-              ER{techRow.earningsDaysOut}
+              E{techRow.earningsDaysOut}
             </span>
           )}
         </div>
 
-        {/* Price */}
-        <div className="w-[80px] shrink-0">
-          {price != null && (
-            <span className="text-xs font-mono font-semibold text-cyan-400">${price.toFixed(2)}</span>
+        {/* Price — live; Δ vs nightly options snapshot when it moved */}
+        <div className="w-[58px] shrink-0 flex flex-col justify-center leading-none">
+          {price != null ? (
+            <span
+              className="text-[11px] font-mono font-semibold text-cyan-400 tabular-nums"
+              title={snapSpot != null && snapSpot > 0
+                ? `Live ${price.toFixed(2)} · snapshot ${snapSpot.toFixed(2)}${vsSnapPct != null ? ` (${vsSnapPct >= 0 ? "+" : ""}${vsSnapPct.toFixed(1)}%)` : ""}`
+                : "Live equity quote (Schwab→Yahoo cache)"}
+            >
+              ${price.toFixed(2)}
+            </span>
+          ) : null}
+          {vsSnapPct != null && Math.abs(vsSnapPct) >= 1 && (
+            <span
+              className={cn(
+                "text-[8px] font-mono font-semibold tabular-nums",
+                vsSnapPct <= -1 ? "text-red-400" : vsSnapPct >= 1 ? "text-emerald-400" : "text-muted-foreground",
+              )}
+              title="Change vs nightly options-ranking snapshot spot"
+            >
+              {vsSnapPct >= 0 ? "+" : ""}{vsSnapPct.toFixed(1)}%
+            </span>
           )}
         </div>
 
-        <div className="w-[56px] shrink-0 flex items-center gap-1">
+        <div className="w-[36px] shrink-0 flex items-center gap-0.5">
           <SignalBadge signal={signal} />
           {callWarnings.length > 0 && (
-            <span className="text-amber-400 text-[10px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
+            <span className="text-amber-400 text-[9px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
           )}
         </div>
 
-        {/* Win/loss track record — its own column, separate from ticker identity */}
-        <div className="w-[64px] shrink-0">
+        {/* Win/loss — compact W-L; Sharpe/StkΔ in tooltip */}
+        <div className="w-[44px] shrink-0 overflow-hidden">
           <TickerRecordBadge
             record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]}
             livePrice={price}
             side={isCall ? "call" : "put"}
             className=""
+            compact
           />
         </div>
 
-        {/* RSI — hover for full reasoning (threshold, tier, MFI, etc.).
-            Call mode: green = overbought (favorable overwriting), tooltip = V2 call reason. */}
+        {/* RSI */}
         <span
           className={cn(
-            "text-xs font-mono font-semibold w-[48px] shrink-0",
+            "text-[11px] font-mono font-semibold w-[34px] shrink-0 tabular-nums",
             indicator == null ? "text-white" :
             (isCall ? indicator.rsi >= 65 : indicator.rsiOk) ? "text-green-400" : "text-orange-400",
           )}
@@ -328,7 +370,7 @@ export function ScannerRow({
 
         {/* Option Score */}
         <span className={cn(
-          "text-xs w-[90px] shrink-0 font-mono font-semibold",
+          "text-[11px] w-[48px] shrink-0 font-mono font-semibold tabular-nums",
           bestOptionScore == null ? "text-white" :
           bestOptionScore >= 70 ? "text-green-400" :
           bestOptionScore >= 50 ? "text-yellow-400" : "text-white",
@@ -336,9 +378,9 @@ export function ScannerRow({
           {bestOptionScore != null ? bestOptionScore.toFixed(1) : "—"}
         </span>
 
-        {/* Stock Score (blended tech+fund+relMove+option+tag) — matches "score" sort key */}
+        {/* Stock Score */}
         <span className={cn(
-          "text-xs w-[90px] shrink-0 font-mono font-semibold",
+          "text-[11px] w-[48px] shrink-0 font-mono font-semibold tabular-nums",
           stockScore == null ? "text-white" :
           stockScore >= 70 ? "text-green-400" :
           stockScore >= 50 ? "text-yellow-400" : "text-white",
@@ -346,45 +388,45 @@ export function ScannerRow({
           {stockScore != null ? stockScore.toFixed(1) : "—"}
         </span>
 
-        {/* IV — distinctly amber */}
-        <span className="text-xs font-mono font-semibold text-amber-400 w-[52px] shrink-0">
+        {/* IV */}
+        <span className="text-[11px] font-mono font-semibold text-amber-400 w-[34px] shrink-0 tabular-nums">
           {ivPct != null ? `${ivPct}%` : "—"}
         </span>
 
         {/* Income% */}
-        <span className="text-xs font-mono font-semibold text-white w-[72px] shrink-0">
+        <span className="text-[11px] font-mono font-semibold text-white w-[48px] shrink-0 tabular-nums">
           {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "—"}
         </span>
 
-        {/* Buffer (SDs OTM) */}
-        <span className="text-xs font-mono font-semibold text-white w-[64px] shrink-0">
+        {/* Buffer */}
+        <span className="text-[11px] font-mono font-semibold text-white w-[40px] shrink-0 tabular-nums">
           {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "—"}
         </span>
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-0" />
 
         {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
           {onRefresh && (
             <button
-              className="p-1 rounded hover:bg-secondary text-white transition-colors"
+              className="p-0.5 rounded hover:bg-secondary text-white transition-colors"
               onClick={onRefresh}
               title="Refresh options"
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="w-2.5 h-2.5" />
             </button>
           )}
           <button
-            className="p-1 rounded hover:bg-secondary text-white hover:text-red-400 transition-colors"
+            className="p-0.5 rounded hover:bg-secondary text-white hover:text-red-400 transition-colors"
             onClick={onDelete}
             title="Remove from scanner"
           >
-            <X className="w-3 h-3" />
+            <X className="w-2.5 h-2.5" />
           </button>
         </div>
         {expanded
-          ? <ChevronDown className="w-4 h-4 text-white shrink-0" />
-          : <ChevronRight className="w-4 h-4 text-white shrink-0" />
+          ? <ChevronDown className="w-3 h-3 text-white shrink-0" />
+          : <ChevronRight className="w-3 h-3 text-white shrink-0" />
         }
       </div>
 

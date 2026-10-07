@@ -5,6 +5,7 @@ import { Router } from "express";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js";
 import { getSchwabUsageStats, schwabAvailable } from "../lib/schwab-client.js";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
+import { getSchwabOptionQuotes, occSymbol, type OptionContractRef } from "../lib/schwab-option-quotes.js";
 
 const router = Router();
 
@@ -55,6 +56,25 @@ router.get("/schwab/status", async (_req, res) => {
     /** Process-lifetime: live option chains served via Schwab vs Yahoo fallback */
     optionsChainSource: getOptionsChainSourceStats(),
   });
+});
+
+/**
+ * POST /api/schwab/option-quotes {contracts: [{ticker, expiry, strike, type}]} → {quotes: {occ: quote}, symbols: {key: occ}}
+ * Localhost only (called by scripts/watchlist_sync/verify_plan.py to re-price plan contracts at verify time).
+ */
+router.post("/schwab/option-quotes", async (req, res) => {
+  const ip = req.socket.remoteAddress ?? "";
+  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(ip)) return res.status(403).json({ error: "localhost only" });
+  const list = (req.body?.contracts ?? []) as OptionContractRef[];
+  const contracts = list
+    .filter((c) => c && typeof c.ticker === "string" && /^\d{4}-\d{2}-\d{2}$/.test(String(c.expiry)) && Number(c.strike) > 0
+      && (c.type === "put" || c.type === "call"))
+    .slice(0, 200)
+    .map((c) => ({ ticker: c.ticker, expiry: String(c.expiry), strike: Number(c.strike), type: c.type }));
+  if (contracts.length === 0) return res.status(400).json({ error: "no valid contracts" });
+  const quotes = await getSchwabOptionQuotes(contracts);
+  if (!quotes) return res.status(503).json({ error: "schwab unavailable" });
+  return res.json({ quotes, symbols: Object.fromEntries(contracts.map((c) => [`${c.ticker}|${c.expiry}|${c.strike}|${c.type}`, occSymbol(c)])) });
 });
 
 export default router;

@@ -26,7 +26,10 @@ import fit_model as F13
 import fit_model_v14 as FV
 import params as PM
 import portfolio as PF
+import rebalance as RB
 import rules as R
+import setup as SU
+import wheel as WH
 import winrates as W
 
 VERIFIED = {"pass", "pass_after_hours"}
@@ -203,7 +206,8 @@ def precheck(conn, plan_id: int) -> tuple[set[int], list[str]]:
     spy20 = spy_20d(conn)
     snap = PF.snapshot(conn)
     shorts = PF.open_puts(snap, __import__("datetime").date.today())
-    capacity = max((a["cash_bp"] + sum(o["collateral"] for o in shorts if o["account"] == a["account"]) for a in snap["accounts"]), default=0)
+    capacity = max((a["cash_bp"] + sum(o["collateral"] for o in shorts if o["account"] == a["account"]) for a in snap["accounts"]
+                    if not (a.get("margin_used") or 0) > 0), default=0)   # margin accounts write no new puts (portfolio.allocate)
     basis = {(p["account"], p["ticker"]): p["avg_cost"] for p in snap["positions"]}
     by_nick = {a["nickname"]: a["account"] for a in snap["accounts"]}
     keep, skipped = set(), []
@@ -333,6 +337,9 @@ def build(conn) -> tuple[dict, list[dict]]:
                                   "premium": m["contract"]["premium"], "account": m["account"], "verify_status": "open position"},
                         why=m["alerts"] + [f"open: short {m['contract']['qty']:.0f} × {m['account']}"]))
 
+    for r in RB.items(snap, fit, P):  # FILDI concentration + margin (display only; account line first)
+        out.append(item("rebalance", r.get("f") or None, ticker=r["ticker"], score=r["score"], status=r["status"], why=r["why"]))
+
     for f in fit.values():
         prov = any(str(w).startswith("PROVISIONAL") for w in f["why"] or [])
         if f["role"] == "held":
@@ -351,13 +358,26 @@ def build(conn) -> tuple[dict, list[dict]]:
         by[o["folder_key"]].append(o)
     final = []
     for k, items in by.items():
-        if k not in ("sell_puts", "sell_calls", "trim_risk", "review", "manage"):
+        if k not in ("sell_puts", "sell_calls", "trim_risk", "review", "manage", "rebalance"):
             items.sort(key=lambda o: (-(o["score"] if o["score"] is not None else -1), o["ticker"]))
         for i, o in enumerate(items[: caps.get(k) or None], 1):
             final.append({**o, "rank": i})
     gaps = ma200_gap(conn)
     fvs = fair_values(conn)
+    wheel = WH.wheel_pnl(conn)
+    setups = SU.context(conn, sorted({o["ticker"] for o in final if (o["contract"] or {}).get("type") in ("put", "call")}))
     for o in final:
+        # New option ideas: is this the entry setup the trader's own record favours? (display only, S011)
+        ctype = (o["contract"] or {}).get("type")
+        if o["folder_key"] in ("sell_puts", "sell_calls", "review") and ctype in ("put", "call"):
+            line = SU.why_line(ctype, setups.get(o["ticker"]))
+            if line:
+                o["why"] = list(o["why"]) + [line]
+        # Held names: show the whole wheel (options + assigned stock), not just premium kept.
+        if o["folder_key"] in ("holdings", "trim_risk", "manage", "rebalance"):
+            line = WH.why_line(wheel.get(o["ticker"]))
+            if line and line not in o["why"]:
+                o["why"] = [line] + list(o["why"])
         ps = (o["contract"] or {}).get("premium_score")
         if ps and o["pillars"] is not None:
             o["pillars"] = {**o["pillars"], "premium": ps["value"], "premium_30d": ps["pillar_30d"]}

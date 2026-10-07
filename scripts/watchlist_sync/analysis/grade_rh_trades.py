@@ -145,6 +145,13 @@ def main() -> None:
             }
         )
     chronic.sort(key=lambda x: (-x["bad_rate"], x["sym"]))
+    # Option P&L alone hides assigned-stock losses (OPEN: +$2.3k options, -$7.7k stock). Attach the whole wheel.
+    import wheel as WH
+    wheel = WH.wheel_pnl(conn)
+    for c in chronic:
+        w = wheel.get(c["sym"]) or {}
+        c["wheel_total"] = w.get("total")
+        c["stock_pnl"] = (w["stock_realized"] + w["stock_unrealized"]) if w else None
 
     out = {
         "as_of": str(date.today()),
@@ -170,6 +177,10 @@ def main() -> None:
             ),
         },
         "chronic": chronic[:15],
+        "wheel_losers": sorted(
+            [{"sym": t, **w} for t, w in wheel.items() if w["total"] is not None and w["total"] < 0],
+            key=lambda x: x["total"],
+        ),
         "heroes": sorted(
             [
                 {

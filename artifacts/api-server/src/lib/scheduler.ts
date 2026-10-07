@@ -33,6 +33,9 @@ import {
   researchOpsRunning,
   lastResearchOpsRun as researchOpsModuleRun,
 } from "./research-ops.js";
+import { shouldRunRegimeCheckpointsAt } from "./scheduler-catchup.js";
+
+export { shouldRunRegimeCheckpointsAt } from "./scheduler-catchup.js";
 
 // bug/8: persisted to app_config (not scoring_config) so a restart mid-window
 // doesn't lose the "already ran today" guard and cause a duplicate enrichment run.
@@ -483,6 +486,17 @@ export async function runRetentionPrune() {
 export let regimeCheckRunning = false;
 export let lastRegimeCheckpointRun: Date | null = null;
 
+/** RTH + after-close catch-up when the host missed the session. */
+export function shouldRunRegimeCheckpointsNow(now: Date = new Date()): boolean {
+  return shouldRunRegimeCheckpointsAt({
+    isOpen: isMarketOpen(now),
+    marketOpenUtc: getMarketOpenUtc(now),
+    now,
+    lastRun: lastRegimeCheckpointRun,
+    lastCheckpointMin: CHECKPOINTS_MIN[CHECKPOINTS_MIN.length - 1]!,
+  });
+}
+
 // Separate, finer heartbeat for the intraday regime banner — checkpoints are
 // 15 min apart, tighter than the 30-min cadence the other jobs use, so this
 // runs on its own interval rather than changing CHECK_INTERVAL_MS for everything else.
@@ -607,7 +621,8 @@ export async function startScheduler(): Promise<void> {
   }, CHECK_INTERVAL_MS);
 
   setInterval(() => {
-    if (isMarketOpen()) runRegimeCheckpoints();
+    // RTH + after-close catch-up when the host missed the session (see shouldRunRegimeCheckpointsAt).
+    if (shouldRunRegimeCheckpointsNow()) runRegimeCheckpoints();
   }, 60 * 1000);
 
   logger.info(

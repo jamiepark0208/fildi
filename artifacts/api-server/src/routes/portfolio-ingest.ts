@@ -12,6 +12,9 @@ import {
   portfolioTickerEarnings,
 } from '@workspace/db'
 import { parseRobinhoodCSV } from '../lib/portfolio-parser.js'
+import { carryForwardCost } from '../lib/portfolio-cost-carry.js'
+import { logger } from '../lib/logger.js'
+import { desc, sql } from 'drizzle-orm'
 import {
   isTransactionsCSV,
   isTickerEarningsCSV,
@@ -171,8 +174,28 @@ router.post(
 
       // ── Insert positions ───────────────────────────────────────────────────
       if (parsed.positions.length > 0) {
+        // Missing Avg Cost (export glitch) → carry forward from the last snapshot that had one.
+        const [lastWithCost] = await db
+          .select({ id: portfolioPositions.snapshotId })
+          .from(portfolioPositions)
+          .where(sql`${portfolioPositions.avgCost} > 0 AND ${portfolioPositions.snapshotId} < ${snapshotId}`)
+          .orderBy(desc(portfolioPositions.snapshotId))
+          .limit(1)
+        const prior = lastWithCost
+          ? await db
+              .select({
+                account: portfolioPositions.account, symbol: portfolioPositions.symbol,
+                quantity: portfolioPositions.quantity, avgCost: portfolioPositions.avgCost,
+              })
+              .from(portfolioPositions)
+              .where(sql`${portfolioPositions.snapshotId} = ${lastWithCost.id}`)
+          : []
+        const fixed = carryForwardCost(parsed.positions, prior)
+        if (fixed.carried.length || fixed.unknown.length) {
+          logger.warn({ carried: fixed.carried, unknown: fixed.unknown }, 'portfolio-ingest: Avg Cost missing in export')
+        }
         await db.insert(portfolioPositions).values(
-          parsed.positions.map(p => ({
+          fixed.positions.map(p => ({
             snapshotId,
             account:         p.account,
             accountNickname: p.accountNickname ?? null,

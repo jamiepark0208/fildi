@@ -58,8 +58,16 @@ Use before touching any source file (call it yourself — no hook runs codegraph
 
 ## CONTEXT MANAGEMENT
 - If a prompt > 120 words: load the relevant skill file before responding — don't derive from memory
-- If context > 40%: use /compact before starting a new large task
-- Auto-compact fires at 45% (CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=45) — do not fight it
+- Auto-compact fires at 25% (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings.local.json) — do not fight it
+- Cost driver is session length (whole context re-sent each turn), not md files. One task per session: update state.md, then the user runs /clear
+- Read code with codegraph or `grep -n` + small ranges; never `cat`/`sed` whole files. Cap command output (`| head`, `tail -20`)
+- Batch independent commands into one turn; edit with Edit, not rewrite heredocs of whole files
+- research/common/ASKS.md: read open rows only; move closed rows to ASKS-archive.md
+- Facts that must survive compaction go in files, not chat: decisions/next steps → state.md, durable lessons → memory. Write them when they happen, not at the end
+- Prefer a deliberate `/compact <what to keep>` or /clear at a task boundary over letting auto-compact fire mid-task
+
+## COMPACT INSTRUCTIONS
+When summarizing this conversation, keep verbatim: every user message, the user's decisions and approvals (and what they did NOT approve), exact file paths, symbol names, param versions (e.g. fund-1.1.1), error messages still unresolved, test baselines, and uncommitted files and who owns them. Drop: tool output already acted on, file contents (re-read on demand), superseded plans.
 
 ## KEY FILES (updated 2026-07-05)
 - Security middleware: `middleware/rateLimiter.ts`, `middleware/errorHandler.ts`, `middleware/validate.ts`

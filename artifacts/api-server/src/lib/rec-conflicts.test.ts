@@ -54,4 +54,12 @@ describe("detectRecConflicts", () => {
     assert.equal(conflictsForTicker(all, "a").length, 1);
     assert.equal(conflictsForTicker(all, "B")[0]!.code, "model_vs_hotlist");
   });
+
+  it("Model List avoid beats a Live dip/top-put signal; off-list names ignored", () => {
+    const c = detectRecConflicts({
+      modelIdeas: [], liveDip: ["opEN"], liveRally: [], liveTopPuts: ["USAR"], liveTopCalls: [],
+      modelAvoid: ["OPEN", "USAR", "LCID"],
+    });
+    assert.deepEqual(c.map(x => [x.ticker, x.code, x.prefer]).sort(), [["OPEN", "model_avoid", "model"], ["USAR", "model_avoid", "model"]]);
+  });
 });

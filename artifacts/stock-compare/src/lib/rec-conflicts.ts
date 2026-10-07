@@ -6,7 +6,8 @@
 export type RecConflictCode =
   | "live_both_sides"
   | "model_vs_live_side"
-  | "model_vs_hotlist";
+  | "model_vs_hotlist"
+  | "model_avoid";
 
 export type RecConflict = {
   ticker: string;
@@ -27,6 +28,8 @@ export type RecConflictInput = {
   liveRally: string[];
   liveTopPuts: string[];
   liveTopCalls: string[];
+  /** Model List red verdicts (risk flags). Live/scanner signals are unvalidated, so they defer to these. */
+  modelAvoid?: string[];
 };
 
 function up(t: string): string {
@@ -89,6 +92,18 @@ export function detectRecConflicts(input: RecConflictInput): RecConflict[] {
         severity: "info",
       });
     }
+  }
+
+  const live = new Set([...dip, ...rally, ...topPuts, ...topCalls]);
+  for (const t of new Set((input.modelAvoid ?? []).map(up))) {
+    if (!live.has(t)) continue;
+    out.push({
+      ticker: t,
+      code: "model_avoid",
+      text: `${t}: Model List says Avoid (risk flags); Live signals are unvalidated`,
+      prefer: "model",
+      severity: "warn",
+    });
   }
 
   return out;

@@ -530,16 +530,39 @@ export function tradeHints(input: LsegInput, interp: Interpretation): TradeHints
   return { put, call, directional };
 }
 
-/** Loop E: does WRDS IBES history agree with today's LSEG read? */
+/**
+ * Loop E: does WRDS IBES history agree with today's LSEG read?
+ * They measure different things (IBES revision history vs StarMine forward model),
+ * so disagreement is informative — do not collapse LSEG "warn"/mixed into "neutral".
+ */
 export function crossCheck(lsegTone: Tone, wrdsVerdict: "supportive" | "neutral" | "caution" | null | undefined) {
   if (!wrdsVerdict) return null;
-  const lseg = lsegTone === "good" ? "supportive" : lsegTone === "bad" ? "caution" : "neutral";
-  if (lseg === wrdsVerdict)
-    return { tone: "good" as Tone, text: `WRDS history agrees (${wrdsVerdict}). Two independent reads, higher confidence.` };
-  if (lseg === "neutral" || wrdsVerdict === "neutral")
-    return { tone: "neutral" as Tone, text: `WRDS history reads ${wrdsVerdict}. Partial agreement.` };
+  const lsegLabel =
+    lsegTone === "good" ? "supportive" : lsegTone === "bad" ? "caution" : lsegTone === "warn" ? "mixed" : "neutral";
+  const aligned =
+    (wrdsVerdict === "supportive" && lsegTone === "good") ||
+    (wrdsVerdict === "caution" && lsegTone === "bad") ||
+    (wrdsVerdict === "neutral" && (lsegTone === "neutral" || lsegTone === "warn"));
+  if (aligned && lsegTone !== "warn") {
+    return {
+      tone: "good" as Tone,
+      text: `WRDS IBES history agrees (${wrdsVerdict}). Two independent reads — higher confidence.`,
+    };
+  }
+  if (wrdsVerdict === "supportive" && (lsegTone === "bad" || lsegTone === "warn")) {
+    return {
+      tone: "warn" as Tone,
+      text: `WRDS says supportive (often a beat streak / SUE) while LSEG is ${lsegLabel} (forward StarMine ranks). History can look fine while the model turns — trust LSEG more for "what's next."`,
+    };
+  }
+  if (wrdsVerdict === "caution" && (lsegTone === "good" || lsegTone === "warn")) {
+    return {
+      tone: "warn" as Tone,
+      text: `WRDS is cautious on IBES revisions while LSEG is ${lsegLabel}. Cuts may be priced; check whether StarMine still sees a path.`,
+    };
+  }
   return {
-    tone: "warn" as Tone,
-    text: `WRDS history reads ${wrdsVerdict}, LSEG reads ${lseg}. The trend may be turning; LSEG is the fresher view.`,
+    tone: "neutral" as Tone,
+    text: `WRDS IBES reads ${wrdsVerdict}; LSEG reads ${lsegLabel}. Different questions (history vs forward model) — open each tab for the evidence.`,
   };
 }

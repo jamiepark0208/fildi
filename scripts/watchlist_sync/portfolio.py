@@ -33,7 +33,9 @@ DEFAULTS = {"budget_pct": 0.60, "use_margin": False, "max_position_pct": 0.35, "
 
 def snapshot(conn) -> dict:
     sid = rows(conn, "SELECT MAX(id) m FROM portfolio_snapshots")[0]["m"]
-    accts = rows(conn, """SELECT account, nickname, type, COALESCE(unleveraged_bp, buying_power)::float8 cash_bp, buying_power::float8 bp
+    accts = rows(conn, """SELECT account, nickname, type, COALESCE(unleveraged_bp, buying_power)::float8 cash_bp, buying_power::float8 bp,
+                                 COALESCE(margin_used, 0)::float8 margin_used, total_value::float8 total_value,
+                                 COALESCE(crypto_value, 0)::float8 crypto_value, COALESCE(cash, 0)::float8 cash
                           FROM portfolio_account_summaries WHERE snapshot_id = %s""", (sid,))
     pos = rows(conn, """SELECT account, UPPER(symbol) ticker, quantity::float8 qty, avg_cost::float8 avg_cost, last_price::float8 last
                         FROM portfolio_positions WHERE snapshot_id = %s""", (sid,))
@@ -70,6 +72,8 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
     for o in shorts:
         posted[o["account"]] += o["collateral"]
     free = {a: (x["bp"] if P["use_margin"] else x["cash_bp"]) for a, x in acct.items()}
+    if P.get("no_new_puts_on_margin", True):  # user YES 2026-10-06: an account carrying a margin loan writes no new puts
+        free = {a: (0.0 if (acct[a].get("margin_used") or 0) > 0 else v) for a, v in free.items()}
     capacity = {a: free[a] + posted[a] for a in acct}
     committed = dict(posted)  # collateral backing puts after this plan (existing + new − closed)
     new_coll = defaultdict(float)  # collateral of this plan's new ideas only (C1: the budget can ignore closable open puts)

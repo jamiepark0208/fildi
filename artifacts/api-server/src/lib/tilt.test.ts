@@ -3,12 +3,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  tiltFactor, applyTilt, TILT_MIN_N, TILT_SPAN_PNL_PCT, TILT_MAX_SHIFT,
+  tiltFactor, applyTilt, applyPolicy, TILT_MIN_N, TILT_MIN_EXPIRIES, TILT_SPAN_PNL_PCT, TILT_MAX_SHIFT,
   EMPTY_SIDE_STATS, type SideTiltStats,
 } from "@workspace/option-scoring";
 
 const stats = (o: Partial<SideTiltStats>): SideTiltStats => ({
-  winRate: null, avgPnlPct: null, n: TILT_MIN_N, updatedAt: null, ...o,
+  winRate: null, avgPnlPct: null, n: TILT_MIN_N, nExpiries: TILT_MIN_EXPIRIES, updatedAt: null, ...o,
 });
 
 describe("tiltFactor objective", () => {
@@ -36,6 +36,18 @@ describe("tiltFactor objective", () => {
   test("no tilt below TILT_MIN_N, even with a strong signal", () => {
     assert.equal(tiltFactor(stats({ avgPnlPct: 5, n: TILT_MIN_N - 1 })), 0);
     assert.notEqual(tiltFactor(stats({ avgPnlPct: 5, n: TILT_MIN_N })), 0);
+  });
+
+  test("no tilt from one expiry week, however many recs (Oct 2026: 28 calls, 1 expiry)", () => {
+    assert.equal(tiltFactor(stats({ avgPnlPct: 0.196, n: 28, nExpiries: 1 })), 0);
+    assert.equal(tiltFactor(stats({ avgPnlPct: 5, n: 500, nExpiries: TILT_MIN_EXPIRIES - 1 })), 0);
+    assert.equal(tiltFactor(stats({ avgPnlPct: 5, n: 500, nExpiries: undefined })), 0);
+    assert.notEqual(tiltFactor(stats({ avgPnlPct: 5, n: 500 })), 0);
+  });
+
+  test("regime override also needs enough expiries", () => {
+    const s = stats({ avgPnlPct: 0, n: 100, byRegime: { expansion: { n: 40, nExpiries: 2, avgPnlPct: 5 } } });
+    assert.equal(applyPolicy(s, undefined, { regime: "expansion" }).factor, 0);
   });
 
   test("null/empty stats are neutral", () => {

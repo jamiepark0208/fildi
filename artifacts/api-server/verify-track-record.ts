@@ -1,6 +1,18 @@
-import { db, modelRecs, hotlistSnapshots, pricesHistorical } from "@workspace/db";
-import { and, eq, desc, sql } from "drizzle-orm";
-import { runModelGrading, insertRegimeGradeStubs } from "./src/lib/model-track-record.ts";
+// Fixture rows land in the live model_recs / hotlist_snapshots tables (macroRegime='fixture').
+// Tilt + grading read those same tables with no fixture filter — never run against prod.
+// Guard MUST run before any @workspace/db import (static imports would connect first).
+const nodeEnv = process.env.NODE_ENV;
+if (nodeEnv !== "development" && nodeEnv !== "test") {
+  throw new Error(
+    `verify-track-record: refusing to seed fixture model_recs ` +
+      `(NODE_ENV=${nodeEnv ?? "unset"}). Require NODE_ENV=development or NODE_ENV=test. ` +
+      `Running this against production corrupts the model self-correction loop.`,
+  );
+}
+
+const { db, modelRecs, hotlistSnapshots, pricesHistorical } = await import("@workspace/db");
+const { and, eq, desc, sql } = await import("drizzle-orm");
+const { runModelGrading, insertRegimeGradeStubs } = await import("./src/lib/model-track-record.ts");
 
 const candidates = await db.execute(sql`
   SELECT ticker, COUNT(*)::int AS bars FROM prices_historical

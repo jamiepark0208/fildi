@@ -9,6 +9,7 @@ import {
   SECTOR_WEIGHT, MIN_SECTOR_PEERS,
 } from "@/lib/fundamental-scoring-meta";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
+import { formatMdYy } from "@/lib/format";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -402,10 +403,7 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
     if (!scoredAsOf) return null;
     const d = new Date(scoredAsOf);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleString(undefined, {
-      month: "short", day: "numeric", year: "numeric",
-      hour: "numeric", minute: "2-digit",
-    });
+    return formatMdYy(scoredAsOf);
   }, [scoredAsOf]);
 
   return (
@@ -417,7 +415,7 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
           <span className="text-xs text-muted-foreground">({scores.length})</span>
           {scoredLabel && (
             <span className="text-[10px] text-muted-foreground/80" title="fund_score_computed_at">
-              scored {scoredLabel}
+              {scoredLabel}
             </span>
           )}
         </div>

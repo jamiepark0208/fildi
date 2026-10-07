@@ -13,12 +13,14 @@ function displayDatesInText(text: string): string {
 
 const EARNINGS_LINE = /^(Earnings|Next earnings)/i;
 
-const BULL_GRADE = /\b(strong buy|buy|overweight|outperform|accumulate|positive)\b/gi;
-const BEAR_GRADE = /\b(strong sell|sell|underweight|underperform|reduce|negative|avoid)\b/gi;
-const NEUTRAL_GRADE = /\b(equal[-\s]?weight|market perform|sector perform|hold|neutral|in[-\s]?line)\b/gi;
-const BULL_VERB = /\b(upgraded|upgrade|beat|raised|initiates? coverage)\b/gi;
-const BEAR_VERB = /\b(cut|downgraded|downgrade|missed|lowered|slashed)\b/gi;
-const RATED_VERB = /\b(rated|maintains|reiterated|initiated)\b/gi;
+// Non-capturing groups only — String.split includes every capture; nested (...)
+// was duplicating tokens into "NegativeNegative" / "MissedMissed" in the UI.
+const BULL_GRADE = /\b(?:strong buy|buy|overweight|outperform|accumulate|positive)\b/gi;
+const BEAR_GRADE = /\b(?:strong sell|sell|underweight|underperform|reduce|negative|avoid)\b/gi;
+const NEUTRAL_GRADE = /\b(?:equal[-\s]?weight|market perform|sector perform|hold|neutral|in[-\s]?line)\b/gi;
+const BULL_VERB = /\b(?:upgraded|upgrade|beat|raised|initiates? coverage)\b/gi;
+const BEAR_VERB = /\b(?:cut|downgraded|downgrade|missed|lowered|slashed)\b/gi;
+const RATED_VERB = /\b(?:rated|maintains|reiterated|initiated)\b/gi;
 
 /**
  * Inline emphasis for case / catalyst lines — same font size, color + weight + underline.

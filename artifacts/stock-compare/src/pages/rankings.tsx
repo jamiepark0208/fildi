@@ -151,15 +151,15 @@ export default function Rankings() {
       <TopNav />
 
       <main className="pt-14 min-w-0">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="p-3 min-w-0">
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
             <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
               {RANKINGS_TABS.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    "px-2.5 py-1.5 transition-colors",
+                    "px-2 py-1 transition-colors",
                     tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
                   )}
                 >
@@ -171,11 +171,11 @@ export default function Rankings() {
             {/* Fixed order on Options: Scope → Sell Puts/Calls → filters (portal).
                 Sell Puts also shows on Technical. Never reshuffle when flipping scope. */}
             {tab === "options" && (
-              <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-xs h-7 shrink-0">
+              <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
                 <button
                   onClick={() => setOptionsScope("watchlist")}
                   className={cn(
-                    "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                    "px-2 h-5 rounded-full transition-colors font-semibold",
                     optionsScope === "watchlist" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
                   )}
                 >
@@ -184,7 +184,7 @@ export default function Rankings() {
                 <button
                   onClick={() => setOptionsScope("overall")}
                   className={cn(
-                    "px-2.5 h-6 rounded-full transition-colors font-semibold",
+                    "px-2 h-5 rounded-full transition-colors font-semibold",
                     optionsScope === "overall" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
                   )}
                 >
@@ -194,36 +194,29 @@ export default function Rankings() {
             )}
 
             {(tab === "technical" || tab === "options") && (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-xs h-7 shrink-0">
-                  <button
-                    onClick={() => setTechSide("puts")}
-                    className={cn(
-                      "px-2.5 h-6 rounded-full transition-colors font-semibold",
-                      techSide === "puts" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                    )}
-                  >
-                    Sell Puts
-                  </button>
-                  <button
-                    onClick={() => setTechSide("calls")}
-                    className={cn(
-                      "px-2.5 h-6 rounded-full transition-colors font-semibold",
-                      techSide === "calls" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                    )}
-                  >
-                    Sell Calls
-                  </button>
-                </div>
-                {tab === "technical" && (
-                  <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                    {techSide === "puts" ? "Oversold lens" : "Overbought lens"}
-                  </span>
-                )}
+              <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
+                <button
+                  onClick={() => setTechSide("puts")}
+                  className={cn(
+                    "px-2 h-5 rounded-full transition-colors font-semibold",
+                    techSide === "puts" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
+                  )}
+                >
+                  Sell Puts
+                </button>
+                <button
+                  onClick={() => setTechSide("calls")}
+                  className={cn(
+                    "px-2 h-5 rounded-full transition-colors font-semibold",
+                    techSide === "calls" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
+                  )}
+                >
+                  Sell Calls
+                </button>
               </div>
             )}
 
-            {/* Host for the Options tab's min-income / ticker filters — scanner portals here */}
+            {/* Host for Options filter Settings popover — scanner portals here */}
             <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center ml-auto" />
           </div>
 

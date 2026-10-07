@@ -7,6 +7,7 @@ export function TickerRecordBadge({
   livePrice,
   side = "put",
   className = "ml-1.5",
+  compact = false,
 }: {
   record: TickerRecord | undefined;
   /** Live underlying — enables StkΔ vs open model Spot@ */
@@ -14,6 +15,8 @@ export function TickerRecordBadge({
   /** put: stock up = safer (green). call: stock up = stress (red). */
   side?: "put" | "call";
   className?: string;
+  /** Dense tables: W-L only; Sharpe / StkΔ stay in the title tooltip. */
+  compact?: boolean;
 }) {
   if (!record || record.wins + record.losses === 0) {
     // Still show open-rec stress if we have an open model pick with no grades yet
@@ -45,14 +48,14 @@ export function TickerRecordBadge({
   ].filter(Boolean).join(" · ");
 
   return (
-    <span className={cn(className, "inline-flex items-center gap-1 text-[9px] font-mono font-semibold leading-none")} title={tip}>
+    <span className={cn(className, "inline-flex items-center gap-0.5 text-[9px] font-mono font-semibold leading-none tabular-nums")} title={tip}>
       {graded && <span className={color}>{wins}W-{losses}L</span>}
-      {sharpe != null && (
+      {!compact && sharpe != null && (
         <span className={cn(sharpe >= 1 ? "text-emerald-300/90" : sharpe >= 0 ? "text-sky-300/70" : "text-rose-400/80")}>
           S{sharpe.toFixed(1)}
         </span>
       )}
-      {stkDelta != null && (
+      {!compact && stkDelta != null && (
         <span className={cn(
           stkFavorable == null ? "text-zinc-400" : stkFavorable ? "text-green-400/80" : "text-red-400/80",
         )}>

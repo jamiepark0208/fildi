@@ -26,8 +26,14 @@ MAX_ITEMS = 15
 
 # ── L2 (live Robinhood) ─────────────────────────────────────────────────────────
 QUOTE_MAX_AGE_MIN_OPEN = 20            # during regular hours
-MAX_SPREAD_PCT = 30.0                  # (ask − bid) / mark …
-MAX_SPREAD_ABS = 0.05                  # … OR ≤ $0.05 wide (a few ticks on cheap options is as tight as it gets)
+# Spread (user YES 2026-10-06, research/studies S012): yield is already judged at Robinhood's fill-rate price (≈ bid + ¼ of the
+# spread), so a wide spread only blocks when there is no real market: in session AND > 75% of mark AND > $0.10 wide.
+# 30–75% (or any after-hours quote: spreads widen at the close) is a warning with a suggested limit price. Re-tune from
+# analysis/block_audit.py once each group has ≥ 30 graded rows.
+MAX_SPREAD_PCT = 75.0                  # block above this (in session) …
+MAX_SPREAD_ABS = 0.10                  # … unless ≤ $0.10 wide (a few ticks on cheap options is as tight as it gets)
+WARN_SPREAD_PCT = 30.0                 # warn above this
+LIMIT_SPREAD_FRACTION = 0.25           # suggested sell limit = bid + 25% of the spread (≈ RH high-fill price, median 23%)
 MIN_REALISTIC_TO_MODEL = 0.85          # Robinhood fill-rate sell price ÷ Fildi premium
 MIN_OPEN_INTEREST = 100
 MIN_VOLUME_IF_LOW_OI = 25

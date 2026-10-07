@@ -107,6 +107,32 @@ def parse_ts(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
+API = "http://127.0.0.1:8080/api/schwab/option-quotes"
+
+
+def schwab_quotes(items: list[dict]) -> dict[tuple, dict]:
+    """Live Schwab quotes for the plan's contracts, fetched at verify time (one API-server call). {} if unavailable."""
+    import urllib.request
+    opts = [it for it in items if it["kind"] == "option"]
+    if not opts:
+        return {}
+    body = {"contracts": [{"ticker": it["ticker"], "expiry": str(it["expiry"]), "strike": float(it["strike"]),
+                           "type": it["option_type"]} for it in opts]}
+    try:
+        req = urllib.request.Request(API, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.load(r)
+    except Exception as e:  # server down / Schwab re-auth needed: fall back to the plan's stored premium
+        print(f"  (Schwab re-price unavailable: {e}; using Fildi plan premium)")
+        return {}
+    out = {}
+    for it in opts:
+        occ = data["symbols"].get(f"{it['ticker']}|{it['expiry']}|{float(it['strike']):g}|{it['option_type']}")
+        if occ and data["quotes"].get(occ):
+            out[(it["ticker"], str(it["expiry"]), float(it["strike"]), it["option_type"])] = data["quotes"][occ]
+    return out
+
+
 def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> tuple[str, list[dict], dict]:
     c: list[dict] = []
     key = (it["ticker"], str(it["expiry"]), round(float(it["strike"]), 4), it["option_type"])
@@ -144,10 +170,24 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     c.append(chk("bid_positive", (bid or 0) > 0, f"bid {bid}"))
     spread = 100 * (ask - bid) / mark if bid and ask and mark else None
     width = (ask - bid) if bid and ask else None
-    ok_spread = spread is not None and (spread <= R.MAX_SPREAD_PCT or width <= R.MAX_SPREAD_ABS + 1e-9)
-    c.append(chk("spread_ok", ok_spread, f"spread ${width:.2f} = {spread:.0f}% of mark (bid {bid} / ask {ask})" if spread is not None else "no spread"))
+    limit = round(bid + R.LIMIT_SPREAD_FRACTION * width, 2) if width else None
+    detail = (f"spread ${width:.2f} = {spread:.0f}% of mark (bid {bid} / ask {ask}); suggested limit ${limit:.2f}, mid ${mark:.2f} needs patience"
+              if spread is not None else "no spread")
+    no_market = spread is None or (spread > R.MAX_SPREAD_PCT and width > R.MAX_SPREAD_ABS + 1e-9)
+    if spread is not None and after_hours:  # spreads widen at the close; re-check at the open
+        c.append(chk("spread_ok", not no_market and spread <= R.WARN_SPREAD_PCT, detail + " (after-hours quote)", "warn"))
+    else:
+        c.append(chk("spread_ok", not no_market, detail))
+        if not no_market and spread > R.WARN_SPREAD_PCT and width > R.MAX_SPREAD_ABS + 1e-9:
+            c.append(chk("spread_wide", False, detail, "warn"))
     model = float(it["model_premium"])
-    ratio = fill / model if fill and model else 0
+    sq = it.get("_schwab") or {}
+    sb, sa = _f(sq.get("bid")), _f(sq.get("ask"))
+    # Re-priced at verify time from Schwab at the same convention as the Robinhood fill (bid + ¼ spread), so the gap measures
+    # broker disagreement, not a stale overnight plan price. Falls back to the plan premium when Schwab is unavailable.
+    ref, ref_src = ((sb + R.LIMIT_SPREAD_FRACTION * (sa - sb), "Schwab live") if sb and sa and sa >= sb
+                    else (model, "Fildi plan"))
+    ratio = fill / ref if fill and ref else 0
     # Step 8 (gap #12): judge the trade at the price you'd actually get, not by how far Fildi's Yahoo premium was off.
     # Block only if the realistic weekly yield is too low; the Fildi gap stays as a warning (data-quality signal, ASKS A8).
     days = max((it["expiry"] - now.astimezone(R.ET).date()).days, 1)
@@ -156,7 +196,7 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     c.append(chk("realistic_yield", weekly >= floor,
                  f"{weekly:.2f}%/week at the realistic fill ${fill or 0:.2f} ({days}d), floor {floor}%"))
     c.append(chk("fildi_premium_gap", ratio >= R.MIN_REALISTIC_TO_MODEL,
-                 f"realistic fill ${fill or 0:.2f} vs Fildi ${model:.2f} ({100 * (ratio - 1):+.0f}%)", "warn"))
+                 f"realistic fill ${fill or 0:.2f} vs {ref_src} ${ref:.2f} ({100 * (ratio - 1):+.0f}%); plan premium ${model:.2f}", "warn"))
     c.append(chk("liquidity", oi >= R.MIN_OPEN_INTEREST or vol >= R.MIN_VOLUME_IF_LOW_OI, f"OI {oi}, volume {vol}"))
 
     eq = equotes.get(it["ticker"]) or {}
@@ -179,7 +219,7 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     status = "fail" if blocked else ("pass_after_hours" if after_hours else "pass")
     income = 100 * (fill or 0) / strike
     live = {"instrument_id": ins["id"], "bid": bid, "ask": ask, "mark": mark, "realistic_fill": fill, "oi": oi, "volume": vol,
-            "delta": delta, "iv": iv, "spot": spot, "spot_ts": spot_ts, "quote_ts": q.get("updated_at"),
+            "delta": delta, "iv": iv, "spot": spot, "suggested_limit": limit, "schwab": sq or None, "spot_ts": spot_ts, "quote_ts": q.get("updated_at"),
             "realistic_income_pct": round(income, 3), "realistic_weekly_pct": round(weekly, 3)}
     return status, c, live
 
@@ -191,9 +231,11 @@ def cmd_evaluate(conn, pid: int) -> None:
     import params as PM
     floor = PM.champion(conn)[1]["thresholds"]["min_weekly_realistic"]
     counts: dict[str, int] = {}
+    sq = schwab_quotes(items)
     for it in items:
         if it["kind"] == "option":
-            status, checks, live = evaluate_option({**it, "_floor": floor}, instruments, oquotes, equotes, now)
+            key = (it["ticker"], str(it["expiry"]), float(it["strike"]), it["option_type"])
+            status, checks, live = evaluate_option({**it, "_floor": floor, "_schwab": sq.get(key)}, instruments, oquotes, equotes, now)
         else:
             eq = equotes.get(it["ticker"])
             ok = bool(eq) and eq.get("state") == "active"

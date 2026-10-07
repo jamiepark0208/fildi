@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
-out/
+# study outputs: data/caches stay local, markdown reports are versioned (research/studies/INDEX.md links to them)
+out/**
+!out/**/
+!out/**/*.md

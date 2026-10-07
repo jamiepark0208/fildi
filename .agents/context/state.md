@@ -24,6 +24,34 @@ Done 2026-10-06 — fund-1.1.1 champion in scorecard_params (user YES; 1.1.0 ret
 - All 39 pre-existing tsc errors fixed (incl. real bugs: Finnhub dividendYield provenance note overwritten by duplicate key; scheduled-tasks duplicate research-ops import; stale option-scoring dist).
 - Line ratchet: every file back under its ceiling via splits (no behavior change) + dead-code removal (legacy fund scorer in fundamentals-db, unused imports). Ratchet count now matches wc -l.
 
+## Recommendation-quality review (2026-10-06) — all 5 fixes DONE (user approved "all ok"); ASKS A37
+Original findings:
+- Options-scanner tilt is already live from ONE expiry week (model_recs graded = 55, all expiry 2026-10-02; TILT_MIN_N=20 counts recs, not expiries) → call income weight ≈ +20%.
+- Backtests use today's 259-name universe (survivorship bias, not handled anywhere) and 0.85 fill vs RH-observed 16–35% haircut.
+- Live hotlist (RSI/MFI/stoch dip/rally) and scanner v4 tech total = factor families the lab found no edge in; Model List alone is evidence-based.
+- RH realized: puts +$16.6k (529, 85.6% WR), calls +$1.4k (322); but $141k stock bought via assignment, and portfolio_positions has no cost basis (avg_cost/cost_basis = 0) → no wheel-level P&L anywhere.
+- trader-context.md thesis (oversold + high IV) conflicts with lab/Step 8 (oversold no edge; drawdown needs uptrend + analyst support; idio vol hurts after assignment).
+
+Shipped: tilt ≥8 expiries · cost carry-forward (ingest + collector) · wheel.py → Model List why-line (run #18) + grade_rh_trades wheel_losers ·
+model_avoid chip (Live + scanner) + 'unvalidated' labels · trader-context.md rewrite · survivorship.py (bias ≈0, high-vol small caps +0.1 pt/mo).
+Not done: DB backfill of snapshot 13 avg cost (auto-mode denied; next export ingest fixes). Not browser-verified. tsc 0 both; api 245/245, web 334/334.
+
+## RH strategy review (2026-10-06, after rec review)
+- Accounts: IRA `772445425` = the strategy (judge the model here); FILDI `5QU47796` = mixed (crypto, prediction mkts) → needs rebalance recs.
+- `analysis/timing_rh_trades.py` (out/timing/report.md): user's dip/support put timing and post-rally call timing beat same-OTM random days
+  (put breach 17% vs 26% no-dip; calls after rally 7% vs 23%), same sign both halves of 2026, P&L diff not yet significant (CI crosses 0).
+  Conflicts with trader-context "oversold = no edge" (that was universe-wide RSI); proposed to user as a tracked signal, not applied.
+- `analysis/block_audit.py` (wired into daily.py publish stage): grades every L2-verified contract at expiry by block reason. First rows 10/09.
+- Verify facts: Fildi premium = Schwab/Yahoo **bid** (not mid); RH realistic fill = bid + 10–36% of spread (median ~23%).
+  Spread blocks were mostly after-hours quotes (plan 2, 10/02 close); in session (plan 3) spreads tightened.
+- User YES (all 4) → shipped 2026-10-06, uncommitted: spread rule (rules.py/verify_plan.py; blocks 12→3 on the 29 past checks) ·
+  Schwab re-price at verify (`lib/schwab-option-quotes.ts` + `POST /api/schwab/option-quotes`, localhost; 13/13 tested) ·
+  `option_chain_history` from the nightly option-score chains (`lib/option-chain-history.ts`, 0 extra calls; first rows next nightly run) ·
+  setup tag (`setup.py`) · margin rule (`params portfolio.no_new_puts_on_margin`) + FILDI rebalance folder (`rebalance.py`, folder row in DB) ·
+  Model List run #19 published. tsc 0; api 248/248.
+- Research library: `research/studies/` (INDEX catalog S001–S013, METHODS, README, cards S011/S012); `out/**/*.md` now versioned.
+- Next: block audit first grades 10/09; re-run timing study after ≥ 100 new trades; exit-rule study once chain history ≥ 3 months.
+
 ## FactSet Proxy — LIVE ✅
 - Oracle Cloud VM `146.235.223.94` — Ubuntu 22.04, VM.Standard.E2.1.Micro (Oracle Always Free)
 - SSH: `ssh -i ~/Desktop/ssh-key-2026-06-14.key ubuntu@146.235.223.94` (key on Mac Desktop only)

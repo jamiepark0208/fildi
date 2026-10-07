@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useModelList } from "@/hooks/use-model-list";
+import { useModelList, modelAvoidTickers } from "@/hooks/use-model-list";
 import { useTopOptions } from "@/hooks/use-top-options";
 import {
   detectRecConflicts,
@@ -30,6 +30,7 @@ export function useRecConflicts(liveDip: string[], liveRally: string[]) {
       liveRally,
       liveTopPuts: topPuts.map(r => r.ticker),
       liveTopCalls: topCalls.map(r => r.ticker),
+      modelAvoid: modelAvoidTickers(model),
     });
   }, [model, liveDip, liveRally, topPuts, topCalls]);
 
