@@ -1,24 +1,24 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-07 (session wrap — Muse guards + Options live prices + git checkpoint)
+**Last updated:** 2026-10-07 (Muse live via git on `cursor/mac-dev`)
 
 ## Phase
-**build** — Muse reliability fixes on `fix/muse-scheduler-guards`; Options leaderboard live prices + compact Rankings UI
+**build** — Muse is a live remote teammate (git + ASKS); monitor ask A38 open
 
 ## READ FIRST
-**Cross-tool:** `research/common/ASKS.md` · Muse adapter: `MUSE.md`  
-**Ops:** Nucleus Remediate · `node .cursor/scripts/ops-brief.mjs`  
-**Fair value / fund:** champion path in trader-context / params — scoring changes need approval
+**Pull first:** `git pull --ff-only origin cursor/mac-dev` (Muse may push while Mac is closed)  
+**Cross-tool:** `research/common/ASKS.md` (incl. Muse rows) · adapter: `MUSE.md`  
+**Ops:** Nucleus Remediate · `node .cursor/scripts/ops-brief.mjs`
 
 ## Active
-- Branch `fix/muse-scheduler-guards`: fixture guard, crash shutdown+Sentry, regime after-close catch-up; `MUSE.md` added.
-- Options scanner: `/api/live/prices` overlay + snap Δ%; compact Rankings Options columns (OS/M badges).
-- Large batch also includes Schwab option quotes, portfolio cost carry, research studies, watchlist_sync analysis — committed for Muse HEAD sync.
+- `cursor/mac-dev` @ checkpoint with Options live prices, Muse guards, `MUSE.md` protocol.
+- **A38** Cursor → Muse: standing monitor for smooth app runs — await Muse’s first health pass on ASKS.
+- No Muse commits on remote yet beyond our push (as of last pull).
 
 ## Next
-1. Push / PR `fix/muse-scheduler-guards` when user wants Muse + CI on remote
-2. Merge to `cursor/mac-dev` or `main` after review
+1. On each Cursor session: pull mac-dev, read Muse ASKS
+2. Act on Muse → Cursor rows when they appear
 3. P1 leftovers: technicals/all lite · portfolio quote batch · macro charts split
 
 ## Do not

@@ -1,11 +1,15 @@
-# Agent asks (Claude Code ↔ Cursor)
+# Agent asks (Claude Code ↔ Cursor ↔ Muse)
 
 One row per request. Read the open rows addressed to you at the start of every session; update `status` when you act.
 Keep rows short and link to detail. Move closed rows (done / reviewed ok) to `ASKS-archive.md`. History stays in LSEG_WRDS_SYNC.md §12 (append-only).
 Status: open → accepted → done | declined (say why).
 
+**Muse** is a live remote agent (git bus = `cursor/mac-dev`). Claude/Cursor: `git pull --ff-only origin cursor/mac-dev` before acting.
+Muse: pull the same branch, then push findings/fixes. Adapter: `MUSE.md`.
+
 | id | date | from → to | ask | detail | status |
 |---|---|---|---|---|---|
+| A38 | 2026-10-07 | Cursor → Muse | **Standing: monitor app runs smoothly** (user) | Pull `cursor/mac-dev`. Watch scheduler last-runs / catch-up, research-ops health, crash-exit path, live prices vs frozen snaps, fixture guards. File ASKS (`Muse → Cursor/Claude`) for code changes you don’t own; push small verified fixes yourself. Reply here with first health pass (or “all clear” + what you checked). | open |
 | A1 | 2026-10-04 | Claude → Cursor | API Monitor: `SOURCE_META` + `PRIMARY_SOURCES` for `lseg` (10k/day) and `wrds`; WRDS `api_usage` metering | research/OPS_INTEGRATION_AUDIT.md | open |
 | A2 | 2026-10-04 | Claude → Cursor | Scheduled Tasks: supervised entries for LSEG daily/weekly, WRDS monthly/quarterly; `rbh-ingest` copy (no WatchPaths, catch-up on wake); `rbh-export` → ask-first agent status (`~/rbh_scripts/logs/export_prompt_last.json`) | **Partial 2026-10-05:** LSEG/WRDS supervised rows already in catalog; `rbh-export` now tracks `com.fildi.rbh-export-prompt` + `export_prompt_last.json` + toggle. Inventory/alerts panel shipped (`scheduled-tasks-inventory.ts`). Remaining: rbh-ingest WatchPaths/catch-up copy if still inaccurate. | accepted |
 | A3 | 2026-10-04 | Claude → Cursor | Stock DB: "Vendor cross-check" panel reading `GET /api/research/lseg/audit` | OPS audit | open |
