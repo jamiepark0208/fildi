@@ -74,10 +74,12 @@ export function StreetSynthesisCard({
   street: StreetSynthesisData | null | undefined;
   ticker: string;
 }) {
+  // Prefer WRDS when LSEG cache/desktop is absent — avoid opening an empty LSEG tab by default.
   const [lane, setLane] = useState<"wrds" | "lseg">("wrds");
   if (!street) {
     return <p className="text-[10px] text-amber-100 italic">Street synthesis unavailable.</p>;
   }
+  const lsegLive = street.sources.includes("lseg");
 
   const { line, title } = humanHeader(street);
   const hasConflict = street.conflicts.length > 0;
@@ -114,17 +116,21 @@ export function StreetSynthesisCard({
               ["lseg", "LSEG"],
             ] as const).map(([key, label]) => {
               const on = lane === key;
+              const lsegEmpty = key === "lseg" && !lsegLive;
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setLane(key)}
-                  title={laneExplainer(key)}
+                  title={lsegEmpty
+                    ? "No LSEG cache for this ticker (Workspace offline or not entitled) — Yahoo/WRDS still drive Street tone"
+                    : laneExplainer(key)}
                   className={cn(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors",
                     on
                       ? "bg-[#d4af37] border-[#d4af37] text-black"
                       : "bg-transparent border-white/25 text-amber-100 hover:border-[#d4af37] hover:text-[#d4af37]",
+                    lsegEmpty && !on && "opacity-50",
                   )}
                 >
                   {label}

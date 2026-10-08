@@ -27,8 +27,9 @@ export function ResearchOpsBanner({ lane }: { lane: "wrds" | "lseg" }) {
   if (lane === "lseg" && !data.lseg.desktopProxy.reachable) {
     return (
       <p className="text-[9px] text-amber-200/50 italic leading-snug">
-        LSEG Workspace offline (no :9000) — showing last cached snapshot. Open Workspace to refresh
-        signals; scores keep using WRDS/local fund data.
+        LSEG Workspace unreachable (desktop closed or account not entitled) — showing last local
+        cache only. Fund/tech/options scores and Yahoo/Schwab/WRDS keep working; refresh signals
+        after Workspace access is restored.
       </p>
     );
   }

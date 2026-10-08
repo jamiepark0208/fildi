@@ -429,8 +429,14 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
 
   const yahooLatest = yahoo.length ? barYmd(yahoo[yahoo.length - 1]!) : null;
   let sourced: SourcedBar[] = yahoo.map((b) => ({ ...b, source: "yahoo" as const }));
-  // Always consult LSEG when Yahoo is thin/stale *or* LSEG has a newer date (Yahoo often lags a session).
-  const lseg = await fetchOHLCVFromLseg(key, period1);
+  // Soft LSEG fill when Yahoo is thin/stale *or* LSEG has a newer date. Never required —
+  // entitlement / Workspace down / missing schema must not break Yahoo-only names.
+  let lseg: YahooBar[] = [];
+  try {
+    lseg = await fetchOHLCVFromLseg(key, period1);
+  } catch (err) {
+    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: LSEG daily_history fallback skipped");
+  }
   if (lseg.length >= 15) {
     const lsegLatest = barYmd(lseg[lseg.length - 1]!);
     const lsegAhead = !yahooLatest || lsegLatest > yahooLatest;
