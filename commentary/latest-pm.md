@@ -1,46 +1,59 @@
-# Evening Market Recap — Thursday, October 8, 2026 (post-close)
+# Evening market recap — Friday, October 9, 2026 (post-close)
 
-**S&P 500 7,765.36 (−0.47%) · Dow 51,231.64 (+0.10%) · Nasdaq 27,193.34 (−1.25%) · 10Y 5.232% (−4.9bp) · Brent ≈$104.3 (+4.1%, best day in a month) · VIX 15.56 (+3.4%)**
+**Banner:** S&P 500 7,811.54 +0.59% · Dow 51,654.95 +0.83% · Nasdaq 27,366.17 +0.64% · 10Y 5.243% (+1.1bp) · Brent ~$103 −1.2% · VIX 14.84 −3.7%
 
 ## What moved today
 
-- **Oil, not rates, set the tone.** Iran struck a vessel near Qatar and Hormuz tanker attacks hit wartime highs; Hurricane Isaias cut Gulf output. Brent settled +4.1% — its best day in a month (intraday $105.10); WTI +3.6% to $91.49. Trump's pledge of no Iran attack before the midterms did nothing to cool it.
-- **AI-profit doubts sank tech.** The FT reported OpenAI's annualized revenue run-rate is $20B below the previously signaled $70B. SOXX −3.5%, Roundhill DRAM −5%, MAGS −1%; INTC and ORCL −5.5%, NVDA −3%, MSFT −1.4%. Second straight down day for S&P/Nasdaq; the Nasdaq's −1.3% was its biggest drop in nearly two months.
-- **Bonds rallied into a strong $22B 30-year auction.** The 10Y faded from its 24-year intraday high (5.36–5.37%, highest since 2002) to close 5.232% (−4.9bp); the 30Y closed 5.606% (−5.5bp, lowest since Oct 1); 2Y 4.753% (−0.8bp). The curve flattened the most in three weeks.
-- **Fed stayed hawkish, labor stayed tight.** Waller said more hikes are needed with "flexibility" on pace; the Sept 15–16 FOMC minutes kept a year-end hike on the table; CME FedWatch puts December hike odds near 69%. Jobless claims 197K vs 200K consensus — a fourth week under 200K, near 57-year lows; continuing claims 1,716K.
+- **Iran de-escalation unwind.** Trump said the U.S. would not strike Iran before the Nov 3 midterms; Brent eased ~1% to ~$103 while WTI held $91.85 (+0.4%) in New York. A Trump–Putin diesel deal (Russian diesel to the U.S. in coming months) capped the fuel bid further. [WSJ][Reuters]
+- **Tech rebounded, but semis didn't.** Mag 7 bounced (MAGS +1%+) after Thursday's OpenAI run-rate selloff; SMH/SOXX still fell ~0.5% on NVDA, AMD, INTC, MU weakness. Selective risk-on, not broad. [Investopedia][Stocktwits]
+- **SpaceX spectrum shock, day two.** TMUS, T, VZ sank 8.5–13% — the three worst S&P names — while tower operators went the other way: CCI, SBAC, AMT +7–16%. Structural repricing still playing out. [Investopedia]
+- **Bonds steady at the ceiling.** 10Y 5.243% (+1.1bp), 30Y 5.598%, 2Y 4.789% — pinned near multi-decade highs; no relief rally even after Thursday's solid 30Y auction. [WSJ]
+- **Singles:** HUM +11% (improved 2027 Medicare Advantage star ratings); DAL ~flat after an EPS miss and a 2026 outlook cut on fuel costs. [Investopedia][WSJ]
 
 ## Breadth and leadership
 
-- Six of eleven S&P sectors up, five down: **energy +3%** led, **chips −4%** lagged. The Dow eked out +0.1% on defensives (HD +3.5%); small caps lagged, with the Russell 2000 taking its second straight loss (~−2.3% over two sessions).
-- **Rates/vol context:** the 10Y is off its intraday high but still 5.23% — an orderly repricing, not panic. VIX closed 15.56 (+3.4%), well inside the year's range: hedging, not fear. Gold flat at ≈$4,140 (failed to hold $4,160 despite geopolitics — the pull of a 5.3% risk-free rate); bitcoin −2.5% to ≈$81.3K.
-- **Global:** Nikkei −1.4% to 69,042, KOSPI −2% (third straight decline), Hang Seng −1.4%, Shanghai −0.8% on its post–Golden Week reopen, DAX −1.2%, FTSE −0.6%; India −1.6% (Sensex −1,045) after the RBI hiked 25bp to 5.50%. France's 10Y is +67bp in a month; UK gilts sit at a 19-year high.
-- **Single names:** Chipotle +6% on a Starbucks takeover report (SBUX −5.3%), Palantir +2% on a Goldman upgrade to Buy ($230 PT), PepsiCo +1.1% on a Q3 beat but a cut to FY2027 guidance; Wolfspeed −2.6% on a $1.5B Pentagon financing; SpaceX −2.3%.
+- All three majors ended the week green: S&P +1.2%, Dow +0.9%, Nasdaq +0.6% — the Nasdaq's fourth straight weekly gain. The S&P closed just off its record (set Tuesday). [Barron's]
+- Leadership was mixed under the green index: defensives/old-economy held the bid, mag-7 rebounded, semis lagged, telecoms collapsed. Narrow-ish internals.
+- Rates and vol: 10Y pinned at 5.24% (24-year high 5.364% hit Wednesday); VIX fell 3.7% to 14.84 — fear got cheaper into the rally. [PortfolioTerminal][Morning]
+- Asia/Europe: Nikkei −1.1% (chip/metals on energy costs; SoftBank −6.4%), Asia-Pac ex-Japan −0.16%, Korea/Taiwan shut for holiday. Europe closed softer Thursday (Euro Stoxx 50 −0.94%, DAX −1.12%); Friday's European tape was thin on verified closes. [Reuters][Newsquawk]
 
 ## What changed vs the morning thesis
 
-*(No morning edition was archived to the repo today, so the day's thesis is established fresh below rather than compared against one.)*
+- **Right:** the green open held and extended — the +0.4% S&P futures bounce became +0.59% cash; oil eased on the no-strike headline; the 10Y stayed parked at ~5.24%; the expected tech rebound arrived.
+- **Wrong/softer:** the Dow (+0.83%) beat the futures script while the Nasdaq (+0.64%) lagged it — semis never joined the rebound. The telecom bleed was worse than the premarket print (−8.5 to −13% vs −5 to −8% premarket).
+- **Shifted:** U. Michigan sentiment underwhelmed — prelim 46.3 vs 48.1 prior (est ~47.7). Two new headlines: the Trump–Putin diesel arrangement, and a White House committee reviewing mortgage-fraud allegations against Fed governor Lisa Cook (Nov 5 hearing) — the Fed-independence risk stays in the tape. [WSJ][Morning]
+- **Validated:** the morning's "fear is cheap" read. VIX −3.7% to 14.84 on a +0.6% S&P day with the 10Y at 5.24% and Brent above $100 — implieds got cheaper into exactly the backdrop that argues they should be richer.
 
-- The morning setup was rates-first: 10Y at ~5.32–5.35%, low claims reinforcing the hawkish read, oil spiking, and the 1pm ET 30-year auction as the swing factor.
-- What shifted: the strong 30Y auction flipped the rates story intraday (10Y closed down ~5bp); the equity tape was then hijacked midday by the FT/OpenAI revenue-gap report — the session became an **AI-doubt selloff, not a rates selloff**. The Dow finished green while the Nasdaq lost 1.25%: dispersion, not a broad derisk.
+## Book impact
 
-## Book impact (put-seller lens)
+*(Mac offline — no live snapshot; generic premium commentary.)*
 
-- **Vol stayed bid-light:** VIX 15.6 and an orderly tape favor short-premium decay; nothing in today's tape threatens standard put structures — keep collecting, keep sizing normal.
-- **Semi single-name IV likely richened** (SOXX −3.5%, NVDA −3%): attractive for put sellers only with wider strikes and smaller size into Q3 reports starting next week; don't add delta into the tape's weakest complex.
-- **Energy +4% crude day:** if carrying energy shorts, premium is holding up but Hormuz/Isaias headline risk argues for short expiries and conservative strikes.
-- **Event windows ahead:** CPI lands Wed Oct 14 and FOMC is Oct 27–28 — those are the real tests. DTE posture: prefer expiries that don't sit through CPI unless paid; 0DTE only on clean setups.
+- A green Friday with VIX down to 14.84 is a decay day for open short premium. Fills into today's rally pay the compression the morning brief warned about — the "sell after red, not green" discipline held up.
+- The next real gamma is CPI Wednesday (Oct 14) plus big-bank earnings next week (JPM, Morgan Stanley, Wells Fargo). Keep new exposure on the near wing light into that window; the FOMC minutes showed a 16–2 majority still sees ≥1 more hike this year, so the rate ceiling isn't lifting.
+- DTE posture into Monday: weekend headline risk is oil/Iran (Brent >$100, Hormuz pressure, Hurricane Isaias offshore shut-ins). Keep energy-adjacent short puts ≥14–21 DTE; 0DTE stays index-only, selective, sized down.
+- Telecoms remain hands-off — structural repricing, no edge in selling premium into it. Semis/AI names carry headline gap risk (one FT story moved the Nasdaq 1.25% Thursday) — keep 1–2% gap allowance on strikes.
 
-## Risk / events for tomorrow (Fri Oct 9, ET)
+## Risk/events for tomorrow
 
-- **Overnight:** Asia reopens after today's rout (KOSPI's third straight down day, Shanghai post-holiday); any Hormuz/Iran headlines; Isaias track into Gulf production.
-- **10:00** — U. Michigan consumer sentiment (Oct prelim; cons ~47.6–48.0 vs 48.1) plus 1y/5y inflation expectations (prior 4.6% / 3.4%).
-- **12:00** — USDA WASDE report. **16:00** — Fed's Collins speaks.
-- **Monday Oct 12:** Indigenous Peoples' Day — bond markets closed, equities open. **CPI lands Wednesday Oct 14.**
+Saturday — cash markets closed. Weekend swing factors: Iran/oil headlines, Hurricane Isaias offshore-production impact, weekend China data. Equity futures reopen Sunday 6:00 p.m. ET.
 
-## Context
+- **Monday Oct 12:** Columbus Day — U.S. equities open, bond market closed (thin rates tape). Asia opens Sunday night ET.
+- **Next week:** Q3 earnings kick off — JPMorgan, Morgan Stanley, Wells Fargo report; TSMC full results. CPI Wednesday Oct 14 is the macro make-or-break for the December-hike repricing (83% odds per CME FedWatch, per this morning's read).
 
-- **S&P 500:** 1d −0.47% (7,765.36); 1w +1.3% (from 7,666.45 on Oct 1); ~0.7% below Tuesday's record 7,818.93. The index has held 7,620–7,800 since August — today's close puts it back inside the range, with 7,800 now overhead resistance.
-- **10Y:** 5.232% (1d −4.9bp); 1w ≈−1bp (5.243% on Oct 1); 1m +43bp (~4.80% → 5.23%, per Dow Jones Market Data via Reuters). Still near 24-year highs.
-- **Brent:** settled +4.1% (≈$104.3, best day in a month); 1w up from $102.25 (Oct 1 close); 1m from the mid-$90s before September's escalation — roughly +8–10% on the month on war risk.
+## Context (verified prices only)
 
-**Sources:** [WSJ](https://www.wsj.com/finance/stocks/u-s-stocks-mixed-as-oil-spikes-ai-profit-doubts-hit-tech-79e35aaa) · [Reuters Trading Day](https://www.reuters.com/commentary/reuters-open-interest/global-markets-trading-day-graphic-2026-10-08/) · [Investopedia](https://www.investopedia.com/stock-market-today-dow-jones-s-and-p-500-10082026-12164066) · [LA Post/Reuters](https://www.lapost.com/content/wall-st-futures-decline-as-oil-surge-high-yields-stoke-inflation-worries) · [TradingNews](https://www.tradingnews.com/news/sp-500-slips-below-7800-nasdaq-0-56-percent-dow-under-51000-on-105-usd-oil) · [Barron's](https://www.barrons.com/articles/stock-movers-532e65a3) · [NordFX market pulse](https://nordfx.com/market-news/market-pulse-october-08-2026) · [sigmanomics VIX](https://sigmanomics.com/index-markets/vix) · [CoinDesk](https://www.coindesk.com/markets/2026/10/08/bitcoin-breaks-below-usd83-000-as-oil-jumps-on-iran-strike-plan-report) · [Morningstar week ahead](https://www.morningstar.com/markets/whats-happening-markets-this-week-26)
+| | Last | 1d | 1w |
+|---|---|---|---|
+| S&P 500 | 7,811.54 (Fri) | +0.59% | +1.2% (record Tue) |
+| 10Y yield | 5.243% (Fri) | +1.1bp | 24-yr high 5.364% Wed |
+| Brent | ~$103 (Fri) | −1.2% | +4% Thu spike to ~$105 |
+
+(1-month figures not verifiable from this evening's sources — omitted rather than invented.)
+
+---
+
+**Sources:** WSJ "U.S. Stocks Rise as Iran Escalation Fears Subside" (wsj.com/finance/stocks/u-s-stocks-rise-as-iran-escalation-fears-subside-2ad4f362) · Investopedia "Stock Market Today: Indexes Jump Friday" (investopedia.com/stock-market-today-dow-jones-s-and-p-500-10092026-12165767) · Barron's "S&P 500 Closes Just Off Record High" (barrons.com/livecoverage/stock-market-news-today-100926/card/s-p-500-closes-just-off-record-high-here-come-the-earnings--780GpA4fD7iep2VUrbi8) · Stocktwits "S&P 500, Nasdaq 100, Dow End Week Higher" (stocktwits.com/news-articles/markets/equity/s-and-p-500-nasdaq-100-dow-end-week-higher-with-traders-eyeing-earnings-season/cZxGPMYRBnl) · Reuters "Global Markets Wrapup" (reuters.com/world/china/global-markets-wrapup-1-2026-10-09/) · Newsquawk European Equity Opening News, Oct 9 (newsquawk.com/headlines/newsquawk-daily-european-equity-opening-news---9th-october-2026) · Portfolio Terminal VIX close (portfolio-terminal.com/markets/vix) · Morning = this morning's brief (commentary/2026-10-09-am.md)
+
+_Close data as of Friday, October 9, 2026, 4:00 p.m. ET. No AI trading: data streamlining only._
+
+Systems: Mac offline — unverified
