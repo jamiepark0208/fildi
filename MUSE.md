@@ -6,7 +6,11 @@
 - **Monitor** production/runtime health when asked (scheduler, caches, data freshness, crash signals).
 - **Find** correctness, reliability, and data-integrity bugs; prefer evidence over vibes.
 - **Verify** every finding against **current `origin/cursor/mac-dev` HEAD** before writing a fix or ASKS row.
-- **Hand off** via ASKS as **`Muse → Cursor` only** (user 2026-10-07 — Claude does not own Muse work).
+- **Hand off** via ASKS as **`Muse → Cursor` only** (user 2026-10-07 — Claude does not implement Muse work).
+  Prefix quant rows (scores, what trades show, option pricing, backtests, market data) with `[quant]`: Claude plan-reviews
+  them (status `planned`) before Cursor builds. Review loop: `AGENTS.md` § Review loop.
+- **Review every Cursor commit** (`Refs: A##` trailer): append `**Muse review <sha>:** pass` or numbered findings to the row.
+  Claude reviews quant diffs independently; don't wait for it, don't duplicate its quant checks.
   Implement small proven fixes yourself when safe, then push to `cursor/mac-dev` so Cursor pulls them.
 - **Do not** retune scoring weights, invent second homes for logic, or edit Claude/Cursor session-state files.
 
@@ -72,6 +76,7 @@ Startup every cycle:
 Rules:
 1. Verify every finding against CURRENT origin/cursor/mac-dev HEAD. Mark STALE if already fixed — do not invent work.
 2. Never make the human relay messages. ASKS as **Muse → Cursor** only (not Claude); commit+push for your own fixes.
+   Tag quant rows `[quant]` (Claude plan-reviews them first). Review each Cursor commit (`Refs: A##`) → `**Muse review <sha>:**` on the row. See AGENTS.md § Review loop.
 3. Check git status/diff before editing; build on others’ work, don’t overwrite.
 4. One home per piece of logic (FACTOR_MAP.md). Scoring/selection changes need user approval + before/after.
 5. Do not write .agents/context/state.md or .cursor/context/cursor-state.md.

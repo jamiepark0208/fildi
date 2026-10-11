@@ -33,5 +33,24 @@ Practical rules:
    `.cursor/context/cursor-state.md`. Muse uses ASKS only.
 7. Scoring/selection changes need user approval + before/after; bug fixes and display changes don’t.
 
+## Review loop (user decision 2026-10-11)
+Muse plans → Claude plan-reviews (quant rows only) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
+
+**Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines. Everything else skips Claude.
+
+1. **Muse files** `Muse → Cursor` (unchanged). Quant rows: put `[quant]` at the start of the ask.
+2. **Claude plan review** (quant rows, before build): checks overlap with existing code + `research/studies/INDEX.md`,
+   adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
+   `**Claude plan <date>:** …` to the row and sets status `planned`. Claude never implements Muse rows.
+   Cursor builds quant rows from `planned`; if Claude hasn't reviewed in 48 h, Cursor may build and Claude reviews the commit.
+3. **Cursor builds**, commit message carries `Refs: A##` (one trailer per row).
+4. **Commit review, independent + parallel:** Muse = bugs/ops/UX; Claude = quant diffs only (look-ahead,
+   units, eval run vs the plan's acceptance check). Claude writes its review **before reading Muse's verdict** on that SHA.
+   Append `**Muse review <sha>:**` / `**Claude review <sha>:**` to the row: `pass` or numbered findings (claim / evidence / fix).
+5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
+
+Statuses: `open → planned → accepted → done → verified | declined` (say why).
+Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewed SHA:`) and reviews `git log <sha>..HEAD` at session start.
+
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`

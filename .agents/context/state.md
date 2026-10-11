@@ -122,3 +122,8 @@ Per-ticker thresholds: `.claude/skills/signal-filters.md` (authoritative). MFI t
 Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist_sync.model_params`; portfolio-sized ideas, Needs Review, Manage Open Positions).
 Updated daily by the Robinhood export session (COLLECT_PROTOCOL Steps 13–14 → `scripts/watchlist_sync/daily.py`). Learning loop `learn.py` (bounded auto-promotion).
 Health strip in the Model List header shows pipeline freshness. Next: first live grades 2026-10-09/12; Cursor A17–A21 (IBES coverage batches, AVB deactivation). Details: `scripts/watchlist_sync/NEXT_SESSION.md`.
+
+## Review loop codified (2026-10-11, user YES)
+AGENTS.md § Review loop (+ MUSE.md, CURSOR.md, CLAUDE.md startup, ASKS header). Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
+A47, A49, A51–A57 tagged `[quant]` + `planned` (plan review = A59). A46/A48/A50 non-quant → no Claude gate.
+Last reviewed SHA: 4acb1ad

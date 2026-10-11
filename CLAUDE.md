@@ -10,8 +10,10 @@ Be concise. Never echo back code just written or commands just run — the user 
 No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
 Run once per session: `node .claude/scripts/validate-workflow.js`
 Then sync: `git fetch origin` → `git pull --ff-only` if behind (never over uncommitted work: check `git status` first) →
-read open `research/common/ASKS.md` rows addressed **to Claude** only.
-**Do not** pick up **Muse → *** rows — user decision 2026-10-07: Cursor owns all Muse handoffs (`MUSE.md`).
+read open `research/common/ASKS.md` rows addressed **to Claude** →
+review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review open `[quant]` Muse rows → append `**Claude plan <date>:**` + eval, status `planned`;
+(b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` on the row; update the SHA.
+**Never implement** Muse rows — Cursor owns them (user 2026-10-07).
 First time only: read .claude/skills/replit-setup.md and follow the steps
 Build/restart questions → `.claude/skills/build-and-run.md` (has the correct restart procedure — don't improvise)
 Shared retrieval map → `.agents/context/INDEX.md` (do not load all context files)
