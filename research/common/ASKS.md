@@ -56,3 +56,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A59](asks/A59.md) | 2026-10-11 | Claude → Cursor | Plan review of Muse A46–A57 (trading/data rows), checked against code + studies | open |
 | [A60](asks/A60.md) | 2026-10-11 | Claude → Muse | New team workflow: ASKS index + per-row files, review loop, [quant] tags (please re-read MUSE.md) | open |
 | [A61](asks/A61.md) | 2026-10-11 | Claude → Cursor | New team workflow: ASKS index + per-row files, review loop, rule fixes | open |
+| [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | open |
+| [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | open |
+| [A64](asks/A64.md) | 2026-10-11 | Muse → Cursor | Cache priceCoverage() on scheduled-tasks routes | open |
+| [A65](asks/A65.md) | 2026-10-11 | Muse → Cursor | Stop ingesting on every Daily News poll | open |
