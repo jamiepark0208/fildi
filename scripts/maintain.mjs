@@ -279,6 +279,23 @@ function daysSinceEnrichment() {
   return Number.isFinite(n) ? n : 99;
 }
 
+/** scripts/watchlist_sync/daily.py --if-needed (own Python venv; loads .env.local itself). */
+function runModelListDaily() {
+  const dir = join(ROOT, "scripts/watchlist_sync");
+  const r = spawnSync(join(dir, ".venv/bin/python"), ["daily.py", "--if-needed"], {
+    encoding: "utf8",
+    cwd: dir,
+    timeout: 45 * 60 * 1000,
+  });
+  return {
+    status: r.status,
+    signal: r.signal ?? null,
+    error: r.error ? String(r.error.message || r.error) : null,
+    stdoutTail: (r.stdout || "").slice(-800),
+    stderrTail: (r.stderr || "").slice(-400),
+  };
+}
+
 function runApiTsx(scriptRel, extraArgs = []) {
   const envFile = "/tmp/fildi-env-export.sh";
   const cmd = `
@@ -579,6 +596,7 @@ async function main() {
   let enrichMissing = null;
   let enrichUnscored = null;
   let enrichEarnings = null;
+  let modelList = null;
   let peerHealth = null;
   let postMerge = null;
 
@@ -605,6 +623,15 @@ async function main() {
     // (a3) Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
     const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
     actions.push(`backfill_stale_prices_exit_${stalePrices.status}`);
+
+    // (a4) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
+    //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
+    //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
+    modelList = runModelListDaily();
+    actions.push(`model_list_exit_${modelList.status}`);
+    if (modelList.status !== 0) {
+      notifyMac("Fildi Model List not updated", (modelList.stdoutTail || modelList.stderrTail || "see maintain-last.json").slice(-180));
+    }
 
     // (b) Earnings-window stale refresh (bounded) — every weekday when due.
     enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
@@ -791,6 +818,7 @@ async function main() {
     enrichMissing,
     enrichUnscored,
     enrichEarnings,
+    modelList,
     drain,
     peerHealth,
     postMerge,

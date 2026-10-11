@@ -1,20 +1,20 @@
-# fit model versions (2026-10-05)
+# fit model versions (2026-10-11)
 
-Same point-in-time inputs (2026-10-06 05:32), 253 non-ETF names; fit-1.3 shown as a fixed baseline.
+Same point-in-time inputs (2026-10-11 23:38), 254 non-ETF names; fit-1.3 shown as a fixed baseline.
 
 | verdict | fit-1.3 | fit-1.4.3 |
 |---|---|---|
-| green | 37 | 57 |
-| yellow | 24 | 23 |
-| red | 50 | 39 |
-| none | 142 | 134 |
+| green | 38 | 59 |
+| yellow | 9 | 8 |
+| red | 49 | 38 |
+| none | 158 | 149 |
 
 ## fit-1.4.3: transitions vs fit-1.3
 
 | from → to | n | tickers |
 |---|---|---|
-| red → none | 18 | ACHR AMT APP CELH CLNE CMPS HIMS JOBY LQDA MGM NKE NTLA OKLO QBTS RIVN SG USAR WYNN |
-| none → green | 14 | AAPL ADBE AVGO CAT CI CRM DIS HUBS MDT PSX SKHY V VLO VRTX |
-| none → red | 7 | CRWV LUMN MSTR NBIS REBN RUM SPCE |
-| yellow → green | 6 | FORM KLAC MO TEAM TOST UBER |
-| none → yellow | 5 | BP F NFLX TMUS WFC |
+| none → green | 19 | AAPL AVGO BP CAT CI DUOL FORM HUBS KLAC LLY MDT MO PSX SKHY TECK UBER VIST VLO VRTX |
+| red → none | 18 | ALOY CELH CLNE CMPS COMP HON IONQ JOBY MRK NTLA OKLO QBTS QUBT RDW RIVN SOUN USAR WYNN |
+| none → red | 7 | CRWV MSTR NBIS NCLH REBN SPCE VNET |
+| yellow → green | 2 | PINS TOST |
+| none → yellow | 1 | HAL |

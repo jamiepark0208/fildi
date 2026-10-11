@@ -23,6 +23,7 @@ import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getMarketOpenUtc, isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
+import { runModelListIntradayCheck } from "./model-list-intraday.js";
 import { runEventBulletCheck } from "./event-bullets.js";
 import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
@@ -534,6 +535,8 @@ export async function runRegimeCheckpoints() {
       await runEntrySignals().catch(err =>
         logger.error({ err }, "scheduler: entry-signal recompute failed"),
       );
+      // Model List re-check rides the same checkpoints, in session only (fire-and-forget child process).
+      if (minutesSinceOpen() != null) runModelListIntradayCheck();
     }
     lastRegimeCheckpointRun = new Date();
   } finally {

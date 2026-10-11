@@ -31,6 +31,7 @@ import fit_model as F13
 import params as PM
 
 OUT = Path(__file__).with_name("out") / "step2"
+LSEG_MAX_AGE_DAYS = 7   # 2026-10-11: older LSEG signals / IV = pipeline gap ('incomplete'), never scored as current
 
 
 def wavg0(parts):
@@ -95,13 +96,15 @@ def street_adj(i: dict, street: float | None, P: dict) -> tuple[float, dict]:
 
 def iv_ranks(conn, tickers) -> dict[str, float]:
     """1-year percentile of today's 30d ATM put IV within its own history (lseg_research.daily_history)."""
-    hist = defaultdict(list)
-    for r in rows(conn, """SELECT ticker, iv30_put::float8 v FROM lseg_research.daily_history
+    hist, last = defaultdict(list), {}
+    for r in rows(conn, """SELECT ticker, date, iv30_put::float8 v FROM lseg_research.daily_history
                            WHERE ticker = ANY(%s) AND date > CURRENT_DATE - 365 AND iv30_put > 0 ORDER BY ticker, date""", (list(tickers),)):
         hist[r["ticker"]].append(r["v"])
+        last[r["ticker"]] = r["date"]
     out = {}
     for t, v in hist.items():
-        if len(v) >= 120:
+        # "today's" IV must be recent, or the rank describes a past week (no rank → PREMIUM uses its other parts)
+        if len(v) >= 120 and (date.today() - last[t]).days <= LSEG_MAX_AGE_DAYS:
             s = sorted(v[:-1])
             out[t] = bisect_right(s, v[-1]) / len(s)
     return out
@@ -129,7 +132,9 @@ def score_all(S: list[dict], P: dict, ivr: dict) -> list[dict]:
                         "conf": None, "risk": 0, "risks": [], "detail": {}, "filled": {}, "eff": None})
             continue
         levered = i.get("peer") in F13.LEVERED_FINANCIALS
-        synced = i.get("iv_fetched_at") is not None
+        fetched = i.get("iv_fetched_at")
+        stale = fetched is not None and (date.today() - fetched.date()).days > LSEG_MAX_AGE_DAYS
+        synced = fetched is not None and not stale
         filled, notes = {}, []
         for k in ("credit", "cam", "arm", "drift", "ps"):
             if k == "credit" and levered:
@@ -162,7 +167,8 @@ def score_all(S: list[dict], P: dict, ivr: dict) -> list[dict]:
             why.append(f"risk {risk:.1f} ≥ {T['red_risk']}: " + "; ".join(r for _, r in risks))
         elif not synced:
             v = ""
-            why.append("incomplete: no LSEG data synced (pipeline gap), so it can't be tagged green/yellow")
+            why.append(f"incomplete: LSEG data is stale (last synced {fetched:%Y-%m-%d}), so it can't be tagged green/yellow" if stale
+                       else "incomplete: no LSEG data synced (pipeline gap), so it can't be tagged green/yellow")
         elif eff_tags is not None and eff_tags >= T["green_own"] and credit_ok:
             v = "green"
         elif prem is not None and prem >= T["yellow_premium"] and (eff_tags or 0) >= T["yellow_own"] and (s["fit"] or 0) >= T["yellow_fit"] and not risks:

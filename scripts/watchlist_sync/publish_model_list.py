@@ -62,7 +62,12 @@ def champion_scores(conn) -> tuple[dict, str, dict]:
     return out, version, P
 
 
-def spy_20d(conn) -> float | None:
+def spy_20d(conn, live: float | None = None) -> float | None:
+    """SPY 20-session return. With a live intraday price (intraday.py), today counts as session 0 vs the close 20 sessions back."""
+    if live:
+        prev = [r["c"] for r in rows(conn, """SELECT close::float8 c FROM prices_historical
+                                              WHERE ticker = 'SPY' AND date < CURRENT_DATE ORDER BY date DESC LIMIT 20""")]
+        return live / prev[-1] - 1 if len(prev) == 20 else None
     spy = [r["c"] for r in rows(conn, "SELECT close::float8 c FROM prices_historical WHERE ticker = 'SPY' ORDER BY date DESC LIMIT 21")]
     return spy[0] / spy[-1] - 1 if len(spy) == 21 else None
 
@@ -226,7 +231,7 @@ def precheck(conn, plan_id: int) -> tuple[set[int], list[str]]:
     return keep, skipped
 
 
-def build(conn) -> tuple[dict, list[dict]]:
+def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
     # newest plan whose trade ideas were verified on live Robinhood quotes (a fresher unverified draft has no ideas to show)
     plan = (rows(conn, "SELECT id, created_at, status FROM watchlist_sync.plans WHERE status = 'verified' ORDER BY id DESC LIMIT 1")
             or rows(conn, "SELECT id, created_at, status FROM watchlist_sync.plans ORDER BY id DESC LIMIT 1"))[0]
@@ -234,7 +239,7 @@ def build(conn) -> tuple[dict, list[dict]]:
     fit_run_at = max((r["computed_at"] for r in fit.values()), default=None)
     out: list[dict] = []
     candidates: list[dict] = []
-    spy20 = spy_20d(conn)
+    spy20 = spy_20d(conn, live_spy)
     wr = W.latest(conn)
     atm = W.atm_iv(conn)
     rv20, next_er, record = contract_context(conn)
@@ -405,9 +410,10 @@ def build(conn) -> tuple[dict, list[dict]]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--live-spy", type=float, help="intraday.py: live SPY price for the regime pause (else last close)")
     a = ap.parse_args()
     with connect() as conn:
-        meta, items = build(conn)
+        meta, items = build(conn, a.live_spy)
         summary = defaultdict(int)
         for o in items:
             summary[o["folder_key"]] += 1

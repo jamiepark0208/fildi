@@ -11,8 +11,10 @@ Stages (in order):
              monthly.py (lab + gate re-tests + "wins historically" rebuild, every 28 days; a no-op on other days) ·
              learn propose (new challenger only when evidence moved; promotion stays approval-gated)
 
-Usage: .venv/bin/python daily.py [--from STAGE] [--until STAGE] [--only STAGE] [--verified] [--no-lseg]
-Daily (inside the Robinhood export session): Step 13 `daily.py --until model` + quote fetch, Step 14 `daily.py --from verify`.
+Usage: .venv/bin/python daily.py [--from STAGE] [--until STAGE] [--only STAGE] [--verified] [--no-lseg] [--if-needed]
+Scheduled (2026-10-11): scripts/maintain.mjs runs `daily.py --if-needed` every morning → full run on trading days when no plan
+exists yet for today. With no Robinhood quotes, verify re-prices the plan on Schwab live quotes (verify_plan.schwab_as_raw).
+Optional (inside the Robinhood export session): Step 13 `daily.py --until model` + RH quote fetch, Step 14 `daily.py --from verify`.
 Run during market hours (LSEG IV and Robinhood quotes are only trustworthy in session).
 """
 from __future__ import annotations
@@ -67,12 +69,20 @@ def quotes_ingested() -> bool:
     return r[0]["n"] > 0
 
 
+def plan_built_on(d) -> bool:
+    sys.path.insert(0, str(HERE))
+    from build_plan import connect, rows
+    with connect() as conn:
+        r = rows(conn, "SELECT COUNT(*) n FROM watchlist_sync.plans WHERE (created_at AT TIME ZONE 'America/New_York')::date = %s", (d,))
+    return r[0]["n"] > 0
+
+
 def run(name, py, cwd, args) -> dict:
     t0 = time.time()
     p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=1800)
     out = "\n".join(l for l in (p.stdout + p.stderr).splitlines() if "Warning" not in l)
     tail = "\n".join(out.splitlines()[-4:])
-    return {"step": name, "ok": p.returncode == 0, "seconds": round(time.time() - t0, 1), "tail": tail}
+    return {"step": name, "ok": p.returncode == 0, "code": p.returncode, "seconds": round(time.time() - t0, 1), "tail": tail}
 
 
 def main() -> None:
@@ -82,7 +92,16 @@ def main() -> None:
     ap.add_argument("--until", choices=ORDER, help="stop after this stage (the export session runs --until model, then fetches quotes)")
     ap.add_argument("--verified", action="store_true", help="Robinhood L2 data has been ingested for the latest plan")
     ap.add_argument("--no-lseg", action="store_true")
+    ap.add_argument("--if-needed", action="store_true", help="scheduled run: skip unless a trading day with no plan built today (ET)")
     a = ap.parse_args()
+    if a.if_needed:
+        today = datetime.now(R.ET).date()
+        if not R.is_trading_day(today):
+            print(f"skip: {today} is not a trading day")
+            return
+        if plan_built_on(today):
+            print(f"skip: a plan was already built on {today}")
+            return
     stages = [a.only] if a.only else ORDER[ORDER.index(a.start):(ORDER.index(a.until) + 1 if a.until else None)]
     if a.no_lseg:
         stages = [s for s in stages if s != "lseg"]
@@ -95,12 +114,9 @@ def main() -> None:
             # quotes normally arrive from the Robinhood export session (COLLECT_PROTOCOL Step 13); the optional deterministic
             # client is used only if it was ever logged in (rh_client.py login)
             login = subprocess.run([str(PY), "rh_client.py", "status"], cwd=HERE, capture_output=True, text=True)
-            if login.returncode != 0:
-                status = "awaiting_verification"
-                print("→ no Robinhood quotes for today's plan yet: the export session's Step 13 fetches them, then Step 14 runs "
-                      "`daily.py --from verify`")
-                break
-            STAGES["verify"] = [("Robinhood quotes (rh_client)", PY, HERE, ["rh_client.py", "fetch"])]
+            if login.returncode == 0:
+                STAGES["verify"] = [("Robinhood quotes (rh_client)", PY, HERE, ["rh_client.py", "fetch"])]
+            # else: verify_plan evaluate re-prices on Schwab live quotes (exit 3 if Schwab is unavailable too)
         for name, py, cwd, args in STAGES[st]:
             r = run(name, py, cwd, args)
             log["steps"].append(r)
@@ -110,6 +126,10 @@ def main() -> None:
                 log.setdefault("warnings", []).append(f"{name} failed; continuing on last synced LSEG data")
                 print(f"  ↳ continuing without fresh LSEG data ({r['tail'].splitlines()[-1][:120] if r['tail'] else ''})")
                 continue
+            if st == "verify" and r["code"] == 3:
+                status = "awaiting_verification"
+                print("→ no Robinhood quotes and Schwab unavailable: plan built but not verified/published; re-run `daily.py --from verify`")
+                break
             if not r["ok"]:
                 status = f"failed at {name}"
                 print(r["tail"])

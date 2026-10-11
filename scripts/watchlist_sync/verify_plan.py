@@ -9,6 +9,8 @@ Flow (inside a Claude session that has the Robinhood MCP; read-only tools only):
   3. evaluate --plan N               → per-item verify_status + checks; plan → 'verified'
 
 Every raw response is stored in watchlist_sync.rh_raw (audit trail). Usage: .venv/bin/python verify_plan.py <cmd> --plan N
+No Robinhood quotes (scheduled daily run) or --schwab (intraday.py re-check): evaluate builds the same quote shapes from Schwab
+live quotes (schwab_as_raw) and runs the same checks; each item's live.source records which broker priced it.
 """
 from __future__ import annotations
 
@@ -133,17 +135,60 @@ def schwab_quotes(items: list[dict]) -> dict[tuple, dict]:
     return out
 
 
+EQ_API = "http://127.0.0.1:8080/api/schwab/equity-prices"
+
+
+def schwab_as_raw(items: list[dict], sq: dict[tuple, dict]):
+    """No Robinhood quotes for this plan (scheduled run outside the export session): build the same instruments / option /
+    equity quote shapes from Schwab so evaluate_option runs its checks unchanged. Realistic fill = bid + ¼ spread, the
+    convention Robinhood's high_fill_rate_sell_price follows (median 23% of the spread, rules.LIMIT_SPREAD_FRACTION).
+    A contract Schwab quotes is treated as listed + tradable; the tradability check stays Robinhood-only."""
+    import urllib.request
+    instruments, oquotes, equotes = {}, {}, {}
+    for it in items:
+        if it["kind"] != "option":
+            continue
+        key = (it["ticker"], str(it["expiry"]), float(it["strike"]), it["option_type"])
+        q = sq.get(key)
+        if not q:
+            continue
+        occ = f"schwab:{it['ticker']}|{it['expiry']}|{float(it['strike']):g}|{it['option_type']}"
+        instruments[(it["ticker"], str(it["expiry"]), round(float(it["strike"]), 4), it["option_type"])] = {
+            "id": occ, "state": "active", "tradability": "tradable"}
+        bid, ask = _f(q.get("bid")), _f(q.get("ask"))
+        fill = round(bid + R.LIMIT_SPREAD_FRACTION * (ask - bid), 2) if bid and ask and ask >= bid else bid
+        oquotes[occ] = {"bid_price": bid, "ask_price": ask, "mark_price": q.get("mark"), "high_fill_rate_sell_price": fill,
+                        "open_interest": q.get("openInterest"), "volume": q.get("volume"), "delta": q.get("delta"),
+                        "implied_volatility": q.get("iv"), "updated_at": q.get("quoteTime")}
+        if q.get("underlying") and q.get("quoteTime"):
+            equotes[it["ticker"]] = {"state": "active", "last_trade_price": q["underlying"], "venue_last_trade_time": q["quoteTime"]}
+    stocks = sorted({it["ticker"] for it in items if it["kind"] != "option"} - set(equotes))
+    if stocks:
+        try:
+            req = urllib.request.Request(EQ_API, data=json.dumps({"tickers": stocks}).encode(), headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                prices = json.load(r)["prices"]
+            now = datetime.now(timezone.utc).isoformat()
+            for t, p in prices.items():
+                if p.get("price"):
+                    equotes[t] = {"state": "active", "last_trade_price": p["price"], "venue_last_trade_time": now}
+        except Exception as e:
+            print(f"  (live stock prices unavailable: {e})")
+    return instruments, oquotes, equotes
+
+
 def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> tuple[str, list[dict], dict]:
     c: list[dict] = []
+    src = it.get("_src", "Robinhood")
     key = (it["ticker"], str(it["expiry"]), round(float(it["strike"]), 4), it["option_type"])
     ins = instruments.get(key)
     c.append(chk("contract_tradable", bool(ins) and ins.get("state") == "active" and ins.get("tradability") == "tradable",
-                 f"{ins.get('state')}/{ins.get('tradability')}" if ins else "contract not found on Robinhood"))
+                 f"{ins.get('state')}/{ins.get('tradability')}" if ins else f"contract not found on {src}"))
     if not ins:
         return "fail", c, {}
     q = oquotes.get(ins["id"])
     if not q:
-        c.append(chk("quote_present", False, "no Robinhood quote"))
+        c.append(chk("quote_present", False, f"no {src} quote"))
         return "fail", c, {"instrument_id": ins["id"]}
 
     bid, ask, mark = _f(q.get("bid_price")), _f(q.get("ask_price")), _f(q.get("mark_price"))
@@ -210,10 +255,10 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     else:
         c.append(chk("still_otm", False, "no live stock price"))
     lo, hi = R.PUT_DELTA if it["option_type"] == "put" else R.CALL_DELTA
-    c.append(chk("live_delta_band", delta is not None and lo <= delta <= hi, f"Robinhood delta {delta}"))
+    c.append(chk("live_delta_band", delta is not None and lo <= delta <= hi, f"{src} delta {delta}"))
     if iv and it["model_iv"]:
         dis = abs(iv / float(it["model_iv"]) - 1)
-        c.append(chk("iv_agrees", dis <= R.MAX_IV_DISAGREEMENT, f"RH IV {iv:.2f} vs Fildi {float(it['model_iv']):.2f}", "warn"))
+        c.append(chk("iv_agrees", dis <= R.MAX_IV_DISAGREEMENT, f"{src} IV {iv:.2f} vs Fildi {float(it['model_iv']):.2f}", "warn"))
 
     blocked = any(not x["pass"] and x["severity"] == "block" for x in c)
     status = "fail" if blocked else ("pass_after_hours" if after_hours else "pass")
@@ -224,24 +269,33 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     return status, c, live
 
 
-def cmd_evaluate(conn, pid: int) -> None:
-    instruments, oquotes, equotes = load_raw(conn, pid)
+def cmd_evaluate(conn, pid: int, force_schwab: bool = False) -> None:
+    instruments, oquotes, equotes = ({}, {}, {}) if force_schwab else load_raw(conn, pid)
     now = datetime.now(timezone.utc)
     items = rows(conn, "SELECT * FROM watchlist_sync.plan_items WHERE plan_id = %s AND l1_pass ORDER BY list_key, rank", (pid,))
     import params as PM
     floor = PM.champion(conn)[1]["thresholds"]["min_weekly_realistic"]
     counts: dict[str, int] = {}
     sq = schwab_quotes(items)
+    source = "robinhood"
+    if not oquotes:   # no Robinhood quotes (or --schwab: intraday re-check, where morning RH quotes are stale)
+        if not sq:
+            print(f"plan #{pid}: no Robinhood quotes and Schwab is unavailable → not verified (re-run when the API server / Schwab is up)")
+            sys.exit(3)
+        instruments, oquotes, equotes = schwab_as_raw(items, sq)
+        source = "schwab"
+        print(f"plan #{pid}: no Robinhood quotes → verifying on Schwab live quotes ({len(oquotes)} contracts)")
     for it in items:
         if it["kind"] == "option":
             key = (it["ticker"], str(it["expiry"]), float(it["strike"]), it["option_type"])
-            status, checks, live = evaluate_option({**it, "_floor": floor, "_schwab": sq.get(key)}, instruments, oquotes, equotes, now)
+            status, checks, live = evaluate_option({**it, "_floor": floor, "_schwab": sq.get(key), "_src": source.capitalize()}, instruments, oquotes, equotes, now)
         else:
             eq = equotes.get(it["ticker"])
             ok = bool(eq) and eq.get("state") == "active"
             checks = [chk("symbol_active", ok, f"state {eq.get('state') if eq else 'not found'}")]
             spot, ts = live_spot(eq or {})
             status, live = ("pass" if ok else "fail"), {"spot": spot, "spot_ts": ts}
+        live["source"] = source
         counts[status] = counts.get(status, 0) + 1
         conn.execute("UPDATE watchlist_sync.plan_items SET verify_status = %s, verify_checks = %s, live = %s WHERE id = %s",
                      (status, json.dumps(checks), json.dumps(live), it["id"]))
@@ -263,6 +317,7 @@ def main() -> None:
     ap.add_argument("kind", nargs="?", choices=["instruments", "option_quotes", "equity_quotes"])
     ap.add_argument("--plan", type=int)
     ap.add_argument("--all", action="store_true", help="requests: quote every L1 survivor (skip the cheap pre-check)")
+    ap.add_argument("--schwab", action="store_true", help="evaluate on Schwab live quotes even if Robinhood quotes exist (intraday.py)")
     a = ap.parse_args()
     with connect() as conn:
         pid = a.plan or latest_plan(conn)
@@ -273,7 +328,7 @@ def main() -> None:
                 sys.exit("ingest needs a kind")
             cmd_ingest(conn, pid, a.kind)
         else:
-            cmd_evaluate(conn, pid)
+            cmd_evaluate(conn, pid, a.schwab)
 
 
 if __name__ == "__main__":
