@@ -11,8 +11,8 @@ No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt fo
 Run once per session: `node .claude/scripts/validate-workflow.js`
 Then sync: `git fetch origin` → `git pull --ff-only` if behind (never over uncommitted work: check `git status` first) →
 read open `research/common/ASKS.md` rows addressed **to Claude** →
-review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review open `[quant]` Muse rows → append `**Claude plan <date>:**` + eval, status `planned`;
-(b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` on the row; update the SHA.
+review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review open `[quant]` Muse rows → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
+(b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` in `asks/A##.md` § Reviews; update the SHA.
 **Never implement** Muse rows — Cursor owns them (user 2026-10-07).
 First time only: read .claude/skills/replit-setup.md and follow the steps
 Build/restart questions → `.claude/skills/build-and-run.md` (has the correct restart procedure — don't improvise)
@@ -62,12 +62,12 @@ Use before touching any source file (call it yourself — no hook runs codegraph
    - `pnpm-lock.yaml`, `package-lock.json`, `generated/api.ts`
 
 ## CONTEXT MANAGEMENT
-- If a prompt > 120 words: load the relevant skill file before responding — don't derive from memory
-- Auto-compact fires at 25% (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings.local.json) — do not fight it
+- Load a skill when the task matches a row in the SKILLS table (not by prompt length) — don't derive skill content from memory
+- Auto-compact fires at 50% (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings.local.json; was 25% until 2026-10-11: too many lossy compactions + re-reads) — do not fight it
 - Cost driver is session length (whole context re-sent each turn), not md files. One task per session: update state.md, then the user runs /clear
 - Read code with codegraph or `grep -n` + small ranges; never `cat`/`sed` whole files. Cap command output (`| head`, `tail -20`)
 - Batch independent commands into one turn; edit with Edit, not rewrite heredocs of whole files
-- research/common/ASKS.md: read open rows only; move closed rows to ASKS-archive.md
+- research/common/ASKS.md is a one-line index: read it, open `asks/A##.md` only for rows you act on; never paste details into the index; move closed index lines to ASKS-archive.md
 - Facts that must survive compaction go in files, not chat: decisions/next steps → state.md, durable lessons → memory. Write them when they happen, not at the end
 - Prefer a deliberate `/compact <what to keep>` or /clear at a task boundary over letting auto-compact fire mid-task
 

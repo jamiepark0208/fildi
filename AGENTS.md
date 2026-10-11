@@ -21,7 +21,7 @@
 Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval rules).
 
 **Muse is a live remote agent** (runs while Mac is closed). Bus = **git** on `cursor/mac-dev` + ASKS.
-**User 2026-10-07:** Cursor **owns all Muse tasks** (`Muse → Cursor`). Claude must **not** act on Muse ASKS.
+**User 2026-10-07:** Cursor **owns all Muse tasks** (`Muse → Cursor`). Claude never implements them (it plan-reviews `[quant]` ones, below).
 
 Practical rules:
 1. **Never make the user relay messages.** ASKS is the log; it never blocks finishing work.
@@ -38,15 +38,18 @@ Muse plans → Claude plan-reviews (quant rows only) → Cursor builds → Muse 
 
 **Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines. Everything else skips Claude.
 
-1. **Muse files** `Muse → Cursor` (unchanged). Quant rows: put `[quant]` at the start of the ask.
+**ASKS format (2026-10-11):** `research/common/ASKS.md` is a one-line index (id link · date · from → to · title · status).
+Everything else — spec, replies, status notes, reviews — lives in `research/common/asks/A##.md` (template `asks/_TEMPLATE.md`). Read the index; open a file only to act on it.
+
+1. **Muse files** `Muse → Cursor` (unchanged): new `asks/A##.md` + one index line. Quant rows: title starts with `[quant]`.
 2. **Claude plan review** (quant rows, before build): checks overlap with existing code + `research/studies/INDEX.md`,
    adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
-   `**Claude plan <date>:** …` to the row and sets status `planned`. Claude never implements Muse rows.
+   `**Claude plan <date>:** …` to the file's `## Reviews` and sets the index status to `planned`. Claude never implements Muse rows.
    Cursor builds quant rows from `planned`; if Claude hasn't reviewed in 48 h, Cursor may build and Claude reviews the commit.
 3. **Cursor builds**, commit message carries `Refs: A##` (one trailer per row).
 4. **Commit review, independent + parallel:** Muse = bugs/ops/UX; Claude = quant diffs only (look-ahead,
    units, eval run vs the plan's acceptance check). Claude writes its review **before reading Muse's verdict** on that SHA.
-   Append `**Muse review <sha>:**` / `**Claude review <sha>:**` to the row: `pass` or numbered findings (claim / evidence / fix).
+   Append `**Muse review <sha>:**` / `**Claude review <sha>:**` to the file's `## Reviews`: `pass` or numbered findings (claim / evidence / fix).
 5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
 
 Statuses: `open → planned → accepted → done → verified | declined` (say why).

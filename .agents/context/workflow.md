@@ -125,5 +125,5 @@ Active hooks (in `.claude/settings.local.json`):
 **Manual equivalent for other agents:**
 - Session start: Check API health: `curl -s http://localhost:8080/api/daily-brief | head -c 60`
 - Session end: `node .claude/scripts/session-wrap.js`
-- Context management (no hook — apply manually): if a prompt > 120 words, load the relevant skill file first; if context > 40%, compact before starting a large task
+- Context management (no hook — apply manually): load a skill when the task matches the CLAUDE.md SKILLS table (not by prompt length); if context > 40%, compact before starting a large task
 - Auto-compact fires at 45% in Claude Code (CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=45)
