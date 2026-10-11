@@ -36,14 +36,14 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session — user-triggered only, at ~90-95% context, never automatic | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
-| Yahoo/Redis fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
+| Market-data fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
 | Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
 
 
 ---
 
 ## AGENTS
-verifier = tsc + lint + tests | data-agent = fetch/cache | ui-agent = React components
+verifier = tsc + tests (no linter configured) | data-agent = fetch/cache | ui-agent = React components
 Full catalog: .agents/AGENTS.md
 
 ## CODEGRAPH
@@ -58,7 +58,7 @@ Use before touching any source file (call it yourself — no hook runs codegraph
 3. If grep is insufficient → use grep/codegraph to find the exact line numbers first, then Read with offset+limit (never load the whole file)
    Never read at all — no value, always noise:
    - `node_modules/**`
-   - `dist/**`, `*.mjs` (compiled output)
+   - `dist/**` (compiled output; tracked `*.mjs` files like `scripts/maintain.mjs` are source — read them normally)
    - `pnpm-lock.yaml`, `package-lock.json`, `generated/api.ts`
 
 ## CONTEXT MANAGEMENT

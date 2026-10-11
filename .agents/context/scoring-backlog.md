@@ -164,10 +164,8 @@ min 5** — the `MIN_SECTOR_PEERS = 3` concern was investigated and is NOT a rea
 - **`pnpm typecheck` is RED repo-wide** — `scripts/src/analyze-move-coverage.ts` and
   `analyze-news-triggers.ts` fail on a missing `yahoo-finance2` dependency. Pre-existing
   (commit 9c916c6), unrelated to this session, but it means the gate catches nothing.
-- **No `lint` script exists anywhere**, though `CLAUDE.md` defines
-  `verifier = tsc + lint + tests`. A third of that contract silently no-ops.
-- **Line ratchet failing**: `stocks.ts` 1101→1217, `profile.tsx` 792→1043,
-  `nightly-enrichment.ts`, `stock-breakdown.tsx`, `settings.tsx` all grew.
+- ~~No lint script~~ — resolved 2026-10-11: verifier contract is now tsc + tests.
+- ~~Line ratchet failing~~ — obsolete 2026-10-11: file-size check is advisory now (user: "big" is subjective).
 - **`checkTriangulation` only logs.** It flags FMP vs Yahoo divergence >20% on 5 fields
   and then does nothing — a divergent value still scores at full weight. Consider gating
   or down-weighting flagged fields.

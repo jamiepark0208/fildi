@@ -3,7 +3,7 @@
  "artifacts/api-server/src/scripts/nightly-enrichment.ts": 1031,
  "artifacts/stock-compare/src/components/ui/sidebar.tsx": 727,
  "artifacts/stock-compare/src/components/settings/StockDBTab.tsx": 1214,
- "artifacts/stock-compare/src/components/portfolio-analysis.tsx": 1367,
+ "artifacts/stock-compare/src/components/portfolio-analysis.tsx": 1379,
  "artifacts/stock-compare/src/components/price-chart.tsx": 614,
  "artifacts/stock-compare/src/components/stock-breakdown.tsx": 683,
  "artifacts/stock-compare/src/lib/rankings-helpers.test.ts": 843,

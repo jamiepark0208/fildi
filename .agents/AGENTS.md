@@ -9,7 +9,7 @@ Canonical reference for all agents working on TradeDash. Read this before spawni
 | **sonnet** (default) | claude-sonnet-4-6 | UI, API design, filter logic, debugging, orchestration | Architecture rewrites | — |
 | **opus** | claude-opus-4-8 | Architecture rewrites | `/opus` flag required | — |
 | **haiku** | claude-haiku-4-5 | Data scaffolding, cache boilerplate, verifier runs | Scorer logic, UI | — |
-| **verifier** | haiku | tsc + lint + tests | Code fixes | `.claude/agents/verifier.md` |
+| **verifier** | haiku | tsc + tests | Code fixes | `.claude/agents/verifier.md` |
 | **data-agent** | haiku | Fetch wrappers, cron scaffolding | Scorer logic, UI decisions | `.claude/agents/data-agent.md` |
 | **ui-agent** | sonnet | React components (props-driven) | Data fetching, API design | `.claude/agents/ui-agent.md` |
 | **Kiro** | varies | Parallel feature work, code generation | Claude Code hooks, session state | `.kiro/steering/` |

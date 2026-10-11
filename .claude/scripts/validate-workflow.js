@@ -24,11 +24,7 @@ const preHooks = settings?.hooks?.PreToolUse ?? [];
 const readHook = preHooks.find(h => h.matcher?.includes('Read') && h.hooks?.[0]?.command?.includes('codegraph-precheck'));
 check('Read guard hook active', !!readHook, readHook ? 'matcher: ' + readHook.matcher : 'MISSING — add Read to matcher in settings.local.json');
 
-// 2. Playwright note still present in rehydrate (case-insensitive — the note
-// uses capital P; the old check silently passed vacuously... i.e. failed)
-const rehydrate = fs.readFileSync(path.join(ROOT, '.claude/scripts/rehydrate.js'), 'utf8');
-const hasPw = /playwright/i.test(rehydrate);
-check('Playwright status in rehydrate', hasPw, hasPw ? 'ok' : 'MISSING — re-add playwright note to rehydrate.js');
+// 2. (removed 2026-10-11: Playwright-note-in-rehydrate check — the rehydrate hook was dropped 2026-10-06)
 
 // 3. codegraph_node includeCode guidance is in CLAUDE.md (was a Replit-only memory-file path;
 // CLAUDE.md is loaded every session on every machine, so the rule lives there).
@@ -36,28 +32,26 @@ const cgClaudeMd = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');
 const hasCgRule = /codegraph_node`? with `?includeCode:true/.test(cgClaudeMd) && /includeCode:false/.test(cgClaudeMd);
 check('codegraph_node includeCode rule in CLAUDE.md', hasCgRule, hasCgRule ? 'ok' : 'MISSING — restore the codegraph_node includeCode line in CLAUDE.md');
 
-// 4. Line-count ratchet: every file >600L has its current size locked as a
-// ceiling in .claude/line-ratchet.json. Growing one fails; shrinking one
-// auto-lowers its ceiling. Big files are the main AI-analysis tax (windowed
-// reads invalidate, edits churn unrelated context) — the ratchet forces them
-// to only ever shrink. Files split below 600L drop out of the ratchet.
+// 4. Large-file report (advisory, user 2026-10-11: "big" is subjective, so size never blocks work).
+// Tracks files >600L in .claude/line-ratchet.json and reports growth once (the new size is recorded).
+// Size alone is not a reason to split: split only when a file mixes unrelated jobs, never to dodge this report,
+// and never by creating a second home for logic (AGENTS rule 5). Reads stay cheap via grep + offset/limit.
 const RATCHET = path.join(ROOT, '.claude/line-ratchet.json');
 try {
-  const ratchet = JSON.parse(fs.readFileSync(RATCHET, 'utf8'));
+  const sizes = JSON.parse(fs.readFileSync(RATCHET, 'utf8'));
   const grew = [];
-  let lowered = 0;
-  for (const [rel, ceiling] of Object.entries(ratchet)) {
+  for (const [rel, prev] of Object.entries(sizes)) {
     const abs = path.join(ROOT, rel);
-    if (!fs.existsSync(abs)) { delete ratchet[rel]; lowered++; continue; } // deleted/split — drop
+    if (!fs.existsSync(abs)) { delete sizes[rel]; continue; }
     const text = fs.readFileSync(abs, 'utf8');
     const lines = text.split('\n').length - (text.endsWith('\n') ? 1 : 0); // same as wc -l
-    if (lines > ceiling) grew.push(`${path.basename(rel)} ${ceiling}→${lines}L`);
-    else if (lines < ceiling) { ratchet[rel] = lines <= 600 ? undefined : lines; if (ratchet[rel] === undefined) delete ratchet[rel]; lowered++; }
+    if (lines > prev) grew.push(`${path.basename(rel)} ${prev}→${lines}L`);
+    if (lines <= 600) delete sizes[rel]; else sizes[rel] = lines;
   }
-  if (lowered) fs.writeFileSync(RATCHET, JSON.stringify(ratchet, null, 1) + '\n');
-  check('Line ratchet (no big file grew)', grew.length === 0,
-    grew.length ? `GREW: ${grew.join(', ')} — split out the code you're adding instead` : `${Object.keys(ratchet).length} ceilings held${lowered ? `, ${lowered} lowered` : ''}`);
-} catch { check('Line ratchet (no big file grew)', false, '.claude/line-ratchet.json missing/corrupt — regenerate'); }
+  fs.writeFileSync(RATCHET, JSON.stringify(sizes, null, 1) + '\n');
+  check('Large files (advisory)', true,
+    grew.length ? `grew: ${grew.join(', ')} — fine if the code belongs there` : `${Object.keys(sizes).length} tracked`);
+} catch { check('Large files (advisory)', true, '.claude/line-ratchet.json missing/corrupt — skipped'); }
 
 // 5. macro-static.ts and macro-page-types.ts exist (splits intact)
 for (const rel of [
