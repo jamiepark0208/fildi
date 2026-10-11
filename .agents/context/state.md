@@ -71,7 +71,7 @@ Not done: DB backfill of snapshot 13 avg cost (auto-mode denied; next export ing
   (scheduled-tasks-inventory.ts, wired in routes/scheduled-tasks.ts); tech snapshot asOf = last session. Tests 257/257, tsc 0.
   Sunday live test: 568/570 fresh for 10/09 (EQR delisted, WBD halted since 10/05); deleted+refilled AAPL/NVDA 10/09 → source schwab,
   identical OHLC. Weekend tech_score_snapshots dupes (10/10 + 10/11, 1,140 rows) deleted with user OK 2026-10-11 (backup in session scratchpad).
-  Commit: user says WAIT for Cursor to finish its uncommitted work first; then commit only Claude's files.
+  Committed + pushed by Cursor in a68c3d1 (checkpoint incl. Claude's work, 2026-10-11). Told Cursor via ASKS A58 (impacts + Muse overlaps).
   Option snapshots keep calendar asOf on purpose (live chain quotes; re-dating would overwrite Friday). Bug: tech_score_snapshots asOf uses UTC date (wrote 2026-10-10 at 22:45 PT).
 
 ## FactSet Proxy — LIVE ✅
