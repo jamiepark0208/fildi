@@ -186,6 +186,57 @@ export async function getSchwabQuotes(symbols: string[]): Promise<Map<string, Sc
   return out;
 }
 
+export interface SchwabDailyBar {
+  /** ET trading date YYYY-MM-DD */
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** Schwab /pricehistory candle → ET trading date (candles are stamped at local midnight CT). */
+export function schwabCandleYmd(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+/**
+ * Split-adjusted daily OHLCV from `startYmd` through today (regular session only). One call per symbol.
+ * Null when Schwab is unavailable or the symbol is unknown — callers fall back to Yahoo.
+ */
+export async function getSchwabDailyBars(symbol: string, startYmd: string): Promise<SchwabDailyBar[] | null> {
+  if (!schwabCredentialsConfigured()) return null;
+  const data = await schwabGet<{ candles?: SchwabCandle[]; empty?: boolean }>("/pricehistory", {
+    symbol: symbol.toUpperCase(),
+    periodType: "year",
+    frequencyType: "daily",
+    frequency: "1",
+    startDate: String(Date.parse(`${startYmd}T00:00:00Z`)),
+    endDate: String(Date.now()),
+    needExtendedHoursData: "false",
+  });
+  if (!data || data.empty || !data.candles?.length) return null;
+  const byDate = new Map<string, SchwabDailyBar>();
+  for (const c of data.candles) {
+    const close = num(c.close);
+    if (close == null || close <= 0 || c.datetime == null) continue;
+    byDate.set(schwabCandleYmd(c.datetime), {
+      date: schwabCandleYmd(c.datetime),
+      open: num(c.open) ?? close,
+      high: num(c.high) ?? close,
+      low: num(c.low) ?? close,
+      close,
+      volume: num(c.volume) ?? 0,
+    });
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+interface SchwabCandle {
+  open?: number; high?: number; low?: number; close?: number; volume?: number; datetime?: number;
+}
+
 interface SchwabQuotePayload {
   quote?: {
     lastPrice?: number;

@@ -1,5 +1,5 @@
 /**
- * Safeguards for Daily News Haiku output — reject empty / shallow-teaser copy.
+ * Safeguards for Daily News Haiku output — reject empty / shallow-teaser / Muse-paraphrase copy.
  */
 
 export interface QualityResult {
@@ -13,17 +13,20 @@ const SHALLOW_CITE_RE =
 const FILLER_RE =
   /\b(worth watching|stay tuned|more to come|as always|nothing material|no major news)\b/i;
 
+const MUSE_PARAPHRASE_RE =
+  /^#\s*Morning market brief|^#\s*Evening Market Recap|\*\*Banner:\*\*/im;
+
 /** Strip bullets/lines that only restate TipRanks count teasers. */
 export function sanitizeDailyNewsContent(content: string): string {
   const lines = content.split("\n");
   const kept: string[] = [];
   for (const line of lines) {
+    if (MUSE_PARAPHRASE_RE.test(line)) continue;
     if (SHALLOW_CITE_RE.test(line) && !/\b(Wells|Morgan|Goldman|JP|UBS|Barclays|Deutsche|Piper|Cantor|Freedom|Rosenblatt)\b/i.test(line)) {
       continue;
     }
     kept.push(line);
   }
-  // Drop empty ## headings (heading followed by blank or another heading)
   const out: string[] = [];
   for (let i = 0; i < kept.length; i++) {
     const line = kept[i]!;
@@ -39,14 +42,20 @@ export function sanitizeDailyNewsContent(content: string): string {
 export function assessDailyNewsQuality(content: string): QualityResult {
   const reasons: string[] = [];
   const trimmed = content.trim();
-  if (trimmed.length < 120) reasons.push("content too short");
+  if (trimmed.length < 40) reasons.push("content too short");
 
   if (SHALLOW_CITE_RE.test(trimmed)) {
     reasons.push("cites TipRanks count teaser without firm/grade");
   }
+  if (MUSE_PARAPHRASE_RE.test(trimmed)) {
+    reasons.push("paraphrases or pastes Muse brief title/banner");
+  }
 
-  if (!/##\s*Overnight\s*\/\s*Macro/i.test(trimmed)) {
-    reasons.push("missing Overnight / Macro section");
+  // Accept new append-only structure OR legacy overnight (during transition)
+  const hasDeskAdds = /##\s*Desk adds/i.test(trimmed);
+  const hasLegacyMacro = /##\s*Overnight\s*\/\s*Macro/i.test(trimmed);
+  if (!hasDeskAdds && !hasLegacyMacro) {
+    reasons.push("missing Desk adds (or legacy Overnight / Macro) section");
   }
   if (!/##\s*Put-seller takeaway/i.test(trimmed)) {
     reasons.push("missing Put-seller takeaway section");
@@ -61,22 +70,25 @@ export function assessDailyNewsQuality(content: string): QualityResult {
       (/^[A-Z0-9*$]/.test(t) && t.length >= 20 && !t.startsWith("##"))
     );
   });
+  const noAddsOk = /No material desk adds/i.test(trimmed);
   const substantive = bullets.filter(
     (l) =>
-      /[%$]|bps|\d+\.\d+|PT\s*\$|upgrade|downgrade|maintain|reiterate|initiate|futures|yield|WTI|Brent|earnings|S&P|Nasdaq|VIX/i.test(
+      (/[%$]|bps|\d+\.\d+|PT\s*\$|upgrade|downgrade|maintain|reiterate|initiate|futures|yield|WTI|Brent|earnings|S&P|Nasdaq|VIX|sell put|sell call|no model contract|No material desk adds/i.test(
         l,
-      ) && !SHALLOW_CITE_RE.test(l),
+      ) && !SHALLOW_CITE_RE.test(l)),
   );
-  if (substantive.length < 3) {
-    reasons.push("fewer than 3 substantive catalyst bullets");
+  if (!noAddsOk && substantive.length < 2) {
+    reasons.push("fewer than 2 substantive append bullets");
   }
 
-  // Empty heading: "## Overnight / Macro" followed by another ## with nothing in between
-  if (/##\s*Overnight\s*\/\s*Macro\s*\n+(?:##|$)/i.test(trimmed)) {
+  if (hasDeskAdds && /##\s*Desk adds\s*\n+(?:##|$)/i.test(trimmed)) {
+    reasons.push("Desk adds section is empty");
+  }
+  if (hasLegacyMacro && /##\s*Overnight\s*\/\s*Macro\s*\n+(?:##|$)/i.test(trimmed)) {
     reasons.push("Overnight / Macro section is empty");
   }
 
-  if (FILLER_RE.test(trimmed) && substantive.length < 4) {
+  if (FILLER_RE.test(trimmed) && substantive.length < 2 && !noAddsOk) {
     reasons.push("filler language without enough hard facts");
   }
 

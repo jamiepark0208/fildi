@@ -297,9 +297,38 @@ function runApiTsx(scriptRel, extraArgs = []) {
   });
   return {
     status: r.status,
+    signal: r.signal ?? null,
+    error: r.error ? String(r.error.message || r.error) : null,
     stdoutTail: (r.stdout || "").slice(-800),
     stderrTail: (r.stderr || "").slice(-400),
   };
+}
+
+/** Transient DNS/network (or null exit from killed/timeout child) — warn, don't hard-fail Maintain. */
+const TRANSIENT_NET_RE =
+  /ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENETUNREACH|fetch failed|getaddrinfo/i;
+
+function isTransientEnrichResult(r) {
+  if (!r) return false;
+  const blob = `${r.stdoutTail || ""}\n${r.stderrTail || ""}\n${r.error || ""}`;
+  if (TRANSIENT_NET_RE.test(blob)) return true;
+  // spawnSync timeout/signal → status null
+  if (
+    r.status == null &&
+    (r.signal || /timed out|SIGTERM|SIGKILL/i.test(blob + String(r.signal || "")))
+  ) {
+    return true;
+  }
+  // null exit + vendor fetch noise already covered; bare null with empty tails stays hard
+  return false;
+}
+
+/** Hard enrich fail = non-zero exit that is NOT a clear vendor DNS/network blip. */
+function isHardEnrichFail(r) {
+  if (!r) return false;
+  if (r.status === 0) return false;
+  if (isTransientEnrichResult(r)) return false;
+  return r.status !== 0; // includes null when not classified transient
 }
 
 function runEnrichmentCatchup() {
@@ -573,8 +602,8 @@ async function main() {
     enrichUnscored = runApiTsx("src/scripts/enrich-unscored-fundamentals.ts", ["--max=20"]);
     actions.push(`enrich_unscored_exit_${enrichUnscored.status}`);
 
-    // (a3) Stale prices_historical — technicals used to skip Yahoo once ≥200 bars (A12).
-    const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts", ["--max=120"]);
+    // (a3) Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
+    const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
     actions.push(`backfill_stale_prices_exit_${stalePrices.status}`);
 
     // (b) Earnings-window stale refresh (bounded) — every weekday when due.
@@ -690,21 +719,36 @@ async function main() {
     actions.push(`anomalies:${budget.anomalies.join("|")}`);
   }
 
-  const enrichFail =
-    (enrichMissing && enrichMissing.status !== 0) ||
-    (enrichUnscored && enrichUnscored.status !== 0) ||
-    (enrichEarnings && enrichEarnings.status !== 0) ||
-    (enrich && enrich.status !== 0) ||
-    (peerHealth && peerHealth.status !== 0) ||
-    (postMerge && postMerge.status !== 0);
+  const enrichResults = [
+    ["enrich_missing", enrichMissing],
+    ["enrich_unscored", enrichUnscored],
+    ["enrich_earnings", enrichEarnings],
+    ["enrichment_catchup", enrich],
+    ["peer_health", peerHealth],
+    ["post_merge", postMerge],
+  ];
+  const enrichSoftWarns = [];
+  for (const [name, r] of enrichResults) {
+    if (!r || r.status === 0) continue;
+    if (isTransientEnrichResult(r)) {
+      enrichSoftWarns.push(name);
+      actions.push(`enrich_soft_warn:${name}`);
+      console.warn(
+        `[maintain] soft enrich warn ${name} (DNS/network/timeout) — not hard-fail`,
+        (r.stderrTail || r.stdoutTail || "").slice(-200),
+      );
+    }
+  }
+  const enrichFail = enrichResults.some(([, r]) => isHardEnrichFail(r));
 
-  // UI / LaunchAgent "ok": local stack healthy after heal attempts. Vendor blips ≠ job failure.
+  // UI / LaunchAgent "ok": local stack healthy after heal attempts.
+  // Transient vendor DNS/timeouts → soft warn only (no macOS FAILED banner / exit 1).
   const jobOk = finalFlags.processOk && !enrichFail;
   const failureClass = !finalFlags.processOk
     ? "process"
     : enrichFail
       ? "enrich"
-      : finalFlags.vendorFailed.length
+      : enrichSoftWarns.length || finalFlags.vendorFailed.length
         ? "vendor"
         : null;
 
@@ -737,6 +781,7 @@ async function main() {
     failedChecks: (health.results || []).filter((r) => !r.ok).map((r) => r.name),
     processFailed: finalFlags.processFailed,
     vendorFailed: finalFlags.vendorFailed,
+    enrichSoftWarns,
     apiPid,
     vitePid,
     apiAgeDays: apiAgeDays != null ? Number(apiAgeDays.toFixed(2)) : null,
@@ -791,6 +836,7 @@ async function main() {
   console.log(`  health: ${report.healthOk ? "OK" : "DEGRADED"} (${report.healthPass ?? "?"} pass / ${report.healthFail ?? "?"} fail)`);
   if (report.processFailed?.length) console.log(`  process failed: ${report.processFailed.join(", ")}`);
   if (report.vendorFailed?.length) console.log(`  vendor warn: ${report.vendorFailed.join(", ")}`);
+  if (enrichSoftWarns.length) console.log(`  enrich soft: ${enrichSoftWarns.join(", ")}`);
   console.log(`  api pid=${apiPid ?? "—"} age_days=${report.apiAgeDays ?? "—"}  vite pid=${vitePid ?? "—"}`);
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
   if (budget.goldCoverage) {

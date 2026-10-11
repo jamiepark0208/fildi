@@ -286,6 +286,8 @@ export function detectOpsAlerts(opts: {
   installedLaunchAgents?: string[];
   research?: ResearchOpsAlertInput | null;
   opsDigest?: OpsDigestAlertInput | null;
+  /** Daily-bar coverage (lib/price-coverage.ts); null/omitted = not checked */
+  priceCoverage?: { expected: string; fresh: number; active: number; pct: number; staleSample: string[] } | null;
 }): OpsAlert[] {
   const { tasks, enrichmentDisabled } = opts;
   const alerts: OpsAlert[] = [];
@@ -484,6 +486,19 @@ export function detectOpsAlerts(opts: {
         fix: "Run Mac Maintain · full, or Run Weekly Ops Digest (digest-only)",
       });
     }
+  }
+
+  const pc = opts.priceCoverage;
+  if (pc && pc.active > 0 && pc.pct < 0.95) {
+    alerts.push({
+      id: "prices-coverage",
+      severity: pc.pct < 0.8 ? "critical" : "warn",
+      title: "Daily price bars missing",
+      detail: `${pc.fresh}/${pc.active} names have the ${pc.expected} bar (${Math.round(pc.pct * 100)}%). ` +
+        `Oldest: ${pc.staleSample.join(", ")}`,
+      taskIds: ["maintain"],
+      fix: "cd artifacts/api-server && pnpm exec tsx src/scripts/backfill-stale-prices.ts (Schwab → Yahoo)",
+    });
   }
 
   // Sort critical → warn → info

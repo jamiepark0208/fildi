@@ -11,7 +11,7 @@ import {
   positionLabel, isOptionsPosition, isShortPosition,
   premiumReceived, daysToExpiry, cashCollateral,
 } from "@/hooks/use-portfolio";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatMdYy } from "@/lib/format";
 import { dbToEntries } from "@/lib/portfolio-db-entries";
 import {
   Plus, Trash2, TrendingUp, AlertTriangle,
@@ -869,6 +869,7 @@ export default function Portfolio() {
                       realizedEvents={rhData?.realizedEvents ?? []}
                       tickerEarnings={rhData?.tickerEarnings ?? []}
                       earningsCalendar={rhData?.earningsCalendar ?? {}}
+                      lastImportedAt={rhData?.snapshot?.importedAt ?? null}
                       onUploadSuccess={() => refetchRh()}
                     />
                   )}
@@ -955,18 +956,9 @@ export default function Portfolio() {
                       ))}
                     </div>
                     <div className="flex items-center gap-1.5 ml-auto">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Updated</span>
+                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Last imported</span>
                       <span className="font-mono tabular-nums text-white/70" title={snapshot.importedAt}>
-                        {(() => {
-                          const t = new Date(snapshot.importedAt).getTime();
-                          if (!Number.isFinite(t)) return '—';
-                          const h = Math.floor((Date.now() - t) / 3_600_000);
-                          if (h < 1) return '<1h ago';
-                          if (h < 48) return `${h}h ago`;
-                          return new Date(snapshot.importedAt).toLocaleString('en-US', {
-                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                          });
-                        })()}
+                        {formatMdYy(snapshot.importedAt)}
                       </span>
                     </div>
                   </div>

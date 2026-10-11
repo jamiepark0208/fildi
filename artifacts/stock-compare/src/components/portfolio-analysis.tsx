@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatCurrency, formatCompactCurrency } from "@/lib/format";
+import { formatCurrency, formatCompactCurrency, formatMdYy } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   formatStrike, PALETTE, SECTOR_OVERRIDES, BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS,
@@ -63,10 +63,12 @@ interface PortfolioAnalysisProps {
   realizedEvents?: RealizedEvent[];
   tickerEarnings?: TickerEarningsRow[];
   earningsCalendar?: Record<string, string | null>;
+  /** Latest Robinhood CSV ingest (`portfolio_snapshots.imported_at`) — export + import are the same event. */
+  lastImportedAt?: string | null;
   onUploadSuccess?: () => void;
 }
 
-export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], earningsCalendar = {}, onUploadSuccess }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], earningsCalendar = {}, lastImportedAt = null, onUploadSuccess }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
   const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
   const filtered = useMemo(() =>
@@ -545,7 +547,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       {/* Header + filter */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Portfolio Analysis</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Portfolio Analysis</h2>
+            {lastImportedAt && (
+              <span
+                className="text-[10px] text-muted-foreground/80 tabular-nums normal-case tracking-normal font-normal"
+                title={lastImportedAt}
+              >
+                last imported {formatMdYy(lastImportedAt)}
+              </span>
+            )}
+          </div>
           <p className="text-[10px] text-amber-200/40 mt-0.5">
             Allocation · Sector · Risk · Delta · Income
             {risk.coveredCallCount > 0 && ` · ${risk.coveredCallCount} covered call${risk.coveredCallCount > 1 ? "s" : ""}`}

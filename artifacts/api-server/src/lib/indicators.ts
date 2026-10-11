@@ -5,6 +5,7 @@ import { db, pool, pricesHistorical, indicatorCache } from "@workspace/db";
 import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
+import { getSchwabDailyBars } from "./schwab-client.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -393,13 +394,21 @@ function barYmd(b: YahooBar): string {
   return b.date.toISOString().slice(0, 10);
 }
 
-type SourcedBar = YahooBar & { source: "yahoo" | "lseg" };
+type SourcedBar = YahooBar & { source: "schwab" | "yahoo" | "lseg" };
+
+/** Merge by date: Schwab wins on conflict; Yahoo fills dates Schwab lacks (or the whole series when Schwab is down). */
+export function mergeSchwabYahoo(schwab: YahooBar[], yahoo: YahooBar[]): SourcedBar[] {
+  const byDate = new Map<string, SourcedBar>();
+  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: "yahoo" });
+  for (const b of schwab) byDate.set(barYmd(b), { ...b, source: "schwab" });
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+}
 
 /** Merge by date: prefer Yahoo OHLC when present; fill missing/newer dates from LSEG. */
-function mergeYahooLseg(yahoo: YahooBar[], lseg: YahooBar[]): SourcedBar[] {
+function mergeYahooLseg(yahoo: (YahooBar & { source?: SourcedBar["source"] })[], lseg: YahooBar[]): SourcedBar[] {
   const byDate = new Map<string, SourcedBar>();
   for (const b of lseg) byDate.set(barYmd(b), { ...b, source: "lseg" });
-  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: "yahoo" }); // Yahoo wins on conflict
+  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: b.source ?? "yahoo" }); // Schwab/Yahoo win on conflict
   return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, v]) => v);
@@ -416,19 +425,34 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   const period1 = cutoffStr();
   const period2 = todayStr();
 
-  let yahoo: YahooBar[] = [];
+  // Source rank: Schwab (broker, same feed as live quotes/chains) → Yahoo → LSEG soft fill.
+  // Yahoo is only called when Schwab is down, unknown symbol, thin or stale.
+  let schwab: YahooBar[] = [];
   try {
-    yahoo = await yahooFinance.historical(
-      key,
-      { period1, period2, interval: "1d" },
-      { validateResult: false },
-    ) as YahooBar[];
+    const bars = await getSchwabDailyBars(upper, period1);
+    schwab = (bars ?? []).map((b) => ({
+      date: new Date(`${b.date}T16:00:00.000Z`), open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
+    }));
   } catch (err) {
-    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Yahoo historical failed");
+    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Schwab pricehistory failed");
+  }
+  const schwabOk = schwab.length >= 15 && !isOHLCVStale(barYmd(schwab[schwab.length - 1]!));
+
+  let yahoo: YahooBar[] = [];
+  if (!schwabOk) {
+    try {
+      yahoo = await yahooFinance.historical(
+        key,
+        { period1, period2, interval: "1d" },
+        { validateResult: false },
+      ) as YahooBar[];
+    } catch (err) {
+      logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Yahoo historical failed");
+    }
   }
 
-  const yahooLatest = yahoo.length ? barYmd(yahoo[yahoo.length - 1]!) : null;
-  let sourced: SourcedBar[] = yahoo.map((b) => ({ ...b, source: "yahoo" as const }));
+  let sourced: SourcedBar[] = mergeSchwabYahoo(schwab, yahoo);
+  const primaryLatest = sourced.length ? barYmd(sourced[sourced.length - 1]!) : null;
   // Soft LSEG fill when Yahoo is thin/stale *or* LSEG has a newer date. Never required —
   // entitlement / Workspace down / missing schema must not break Yahoo-only names.
   let lseg: YahooBar[] = [];
@@ -439,14 +463,15 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   }
   if (lseg.length >= 15) {
     const lsegLatest = barYmd(lseg[lseg.length - 1]!);
-    const lsegAhead = !yahooLatest || lsegLatest > yahooLatest;
-    if (yahoo.length < 15 || isOHLCVStale(yahooLatest) || lsegAhead) {
-      sourced = yahoo.length ? mergeYahooLseg(yahoo, lseg) : lseg.map((b) => ({ ...b, source: "lseg" as const }));
+    const lsegAhead = !primaryLatest || lsegLatest > primaryLatest;
+    if (sourced.length < 15 || isOHLCVStale(primaryLatest) || lsegAhead) {
+      sourced = sourced.length ? mergeYahooLseg(sourced, lseg) : lseg.map((b) => ({ ...b, source: "lseg" as const }));
       logger.info(
         {
           ticker: key,
+          schwabRows: schwab.length,
           yahooRows: yahoo.length,
-          yahooLatest,
+          primaryLatest,
           lsegRows: lseg.length,
           lsegLatest,
           merged: sourced.length,

@@ -1,45 +1,187 @@
 {
-  "date": "2026-10-06",
-  "sessionStartPt": "2026-10-06",
-  "content": "# DESK COMMENTARY — 2026-10-06 PT\n\n## Overnight / Macro\n- **S&P 500 +0.58%, Nasdaq flat near records** — breadth best since early August; small caps lagged (R2K −0.59%).\n- **10-year Treasury yield holding above 5.3%** — Bessent rhetoric attempts to cap upside; energy rallies (WTI $89.44, Nat Gas +1.6%) support inflation narrative.\n\n## Cross-asset / Politics\n- **Defense tailwind: Anduril $3.7B Maryland shipyard** investment backed by $2.9B Navy contract signals continued mil-industrial support.\n- **Senate control fight heating** — Maine debate highlights spending risk; monitor policy uncertainty for rate/fiscal outlook.\n\n## Sector & Tickers\n- **Comms Equipment +4.5% led Tech** — CIEN +13.9% on AI switch demand; IT Index +0.5%.\n- **Staples XLP +0.9% outperforms** — LW +7.5% post-earnings beat/raise; CPG resilience.\n- **Apple smart-home ecosystem** expansion (doorbell, lock, thermostat w/ LG codevelop) broadens Services TAM.\n- **Wells Fargo maintains GOOGL Overweight** — stable positioning into earnings season.\n\n## Put-Seller Takeaway\n- **Lean in on defined short calls** — sticky rallies, record highs, and +0.6% breadth favor premium capture; avoid size in small caps.\n- **Watch IV decay into NFLX (10/20), ALOY (10/14)** — earnings volatility may spike; theta favorable until then.",
-  "generatedAt": "2026-10-06T21:47:35.725Z",
-  "emailCount": 28,
-  "includedCount": 28,
-  "maxReceivedAt": "2026-10-06T21:15:41.000Z",
+  "date": "2026-10-09",
+  "sessionStartPt": "2026-10-09",
+  "content": "## Desk adds\n\n- **JOBY: Barclays downgrade Equal-Weight→Underweight (2026-10-09).** Urban air mobility sentiment cools amid cost inflation and capital intensity headwinds; sentiment shift into earnings season. Book holds open position.\n\n- **Week ahead: CPI/PPI Wed–Thu; bank earnings kick off Tue (C, GS, JPM, WFC).** Inflation prints will anchor rate expectations (83% odds Dec hike per CME); earnings begin stress-test for credit spreads and net-interest-margin resilience under 5.2% yields. VIX ~15.7 may compress if data benign.\n\n- **Trade tariff win for importers; Alaska oil/gas exempted from environmental review.** Class-action ruling expands tariff refunds for small importers (de-risk trade litigation); Alaska exemption unlocks wintertime E&P activity (modest marginal Brent support, already priced at $102.9).\n\n## Sector & tickers\n\n- **JOBY: Equal-Weight→Underweight (Barclays, 2026-10-09).** Downgrade reflects capital burn and competition from larger aerospace players; no model contract.\n\n## Put-seller takeaway\n\n- **NFLX: sell put $65 exp 2026-10-16 @ $0.515.** Earnings 2026-10-20 (post-expiry); premium tight at $0.515 on $65 strike; monitor IV crush into print.\n\n- **ONDS: sell call $7 exp 2026-10-09 @ (no premium cited).** Expiry today; manage for Friday close.\n\n- **No material desk adds** beyond geopolitical de-escalation (Iran) and week-ahead inflation/earnings calendar already noted in Muse macro triad.",
+  "generatedAt": "2026-10-09T19:35:52.175Z",
+  "emailCount": 22,
+  "includedCount": 22,
+  "maxReceivedAt": "2026-10-09T18:24:23.000Z",
   "sources": [
     "tipranks",
-    "beehiiv",
     "factset_streetaccount",
     "bloomberg",
-    "zerohedge",
-    "danelfin"
+    "thedailyupside",
+    "readthejoe"
   ],
   "categories": [
     "research_note",
-    "newsletter_digest",
-    "market_recap",
     "sector",
     "overnight",
+    "newsletter_digest",
     "macro",
     "politics",
     "other"
   ],
   "digFacts": [
     {
-      "ticker": "GOOGL",
-      "kind": "analyst_rating",
-      "detail": "Wells Fargo maintain Overweight (2026-10-06)",
+      "ticker": "DA",
+      "kind": "price_target",
+      "detail": "PT $1,040",
+      "source": "tipranks"
+    },
+    {
+      "ticker": "JOBY",
+      "kind": "downgrade",
+      "detail": "Barclays downgrade Equal-Weight→Underweight (2026-10-09)",
       "source": "analyst_events:yahoo"
     },
     {
-      "ticker": "CRWV",
+      "ticker": "TSLA",
       "kind": "analyst_rating",
-      "detail": "Freedom Capital Markets maintain Buy (2026-10-05)",
+      "detail": "Tigress Financial maintain Buy (2026-10-08)",
       "source": "analyst_events:yahoo"
     }
   ],
   "bookHits": [
-    "SPCX"
+    "JOBY",
+    "TSLA"
   ],
-  "earningsNear": "NFLX 2026-10-20, ALOY 2026-10-14"
+  "earningsNear": "BOOK: 2026-10-14: ALOY; 2026-10-20: NFLX; 2026-10-21: TSLA\nMAJORS (not in book): 2026-10-13: C, GS, JNJ, JPM, WFC; 2026-10-14: BAC, TSM; 2026-10-15: USB; 2026-10-21: INTC; 2026-10-22: INTC",
+  "earningsNearRows": [
+    {
+      "date": "2026-10-14",
+      "tickers": [
+        "ALOY"
+      ],
+      "scope": "book"
+    },
+    {
+      "date": "2026-10-20",
+      "tickers": [
+        "NFLX"
+      ],
+      "scope": "book"
+    },
+    {
+      "date": "2026-10-21",
+      "tickers": [
+        "TSLA"
+      ],
+      "scope": "book"
+    }
+  ],
+  "marketEarningsRows": [
+    {
+      "date": "2026-10-13",
+      "tickers": [
+        "C",
+        "GS",
+        "JNJ",
+        "JPM",
+        "WFC"
+      ],
+      "scope": "market"
+    },
+    {
+      "date": "2026-10-14",
+      "tickers": [
+        "BAC",
+        "TSM"
+      ],
+      "scope": "market"
+    },
+    {
+      "date": "2026-10-15",
+      "tickers": [
+        "USB"
+      ],
+      "scope": "market"
+    },
+    {
+      "date": "2026-10-21",
+      "tickers": [
+        "INTC"
+      ],
+      "scope": "market"
+    },
+    {
+      "date": "2026-10-22",
+      "tickers": [
+        "INTC"
+      ],
+      "scope": "market"
+    }
+  ],
+  "modelContracts": [
+    {
+      "ticker": "NFLX",
+      "side": "put",
+      "strike": 65,
+      "expiry": "2026-10-16",
+      "premium": 0.515,
+      "folder": "sell_puts",
+      "verdict": "yellow",
+      "status": "ok"
+    },
+    {
+      "ticker": "NVDA",
+      "side": "call",
+      "strike": 245,
+      "expiry": "2026-10-09",
+      "premium": null,
+      "folder": "manage",
+      "verdict": "green",
+      "status": "review"
+    },
+    {
+      "ticker": "ONDS",
+      "side": "put",
+      "strike": 7,
+      "expiry": "2026-10-09",
+      "premium": null,
+      "folder": "manage",
+      "verdict": "red",
+      "status": "ok"
+    },
+    {
+      "ticker": "POET",
+      "side": "call",
+      "strike": 8.5,
+      "expiry": "2026-10-09",
+      "premium": 0.044,
+      "folder": "sell_calls",
+      "verdict": "",
+      "status": "ok"
+    },
+    {
+      "ticker": "SOFI",
+      "side": "put",
+      "strike": 15,
+      "expiry": "2026-10-09",
+      "premium": 0.031,
+      "folder": "review",
+      "verdict": "",
+      "status": "review"
+    },
+    {
+      "ticker": "TTD",
+      "side": "put",
+      "strike": 11.5,
+      "expiry": "2026-10-16",
+      "premium": 0.214,
+      "folder": "review",
+      "verdict": "",
+      "status": "review"
+    },
+    {
+      "ticker": "USAR",
+      "side": "put",
+      "strike": 12.5,
+      "expiry": "2026-10-09",
+      "premium": null,
+      "folder": "manage",
+      "verdict": "",
+      "status": "ok"
+    }
+  ]
 }

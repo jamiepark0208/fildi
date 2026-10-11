@@ -40,6 +40,26 @@ async function fetchSession(): Promise<SessionResponse> {
   return r.json();
 }
 
+/** Compact when: m/d h:mm (no comma). */
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  let h = d.getHours();
+  const min = String(d.getMinutes()).padStart(2, "0");
+  const am = h < 12;
+  h = h % 12 || 12;
+  return `${m}/${day} ${h}:${min}${am ? "a" : "p"}`;
+}
+
+function catTag(cat: string): { label: string; compact: boolean } {
+  if (cat === "newsletter_digest" || cat.startsWith("newsletter")) {
+    return { label: "nl", compact: true };
+  }
+  return { label: cat.replace(/^newsletter:/, ""), compact: false };
+}
+
 export function NewsInboxPanel() {
   const [filter, setFilter] = useState<"all" | "in" | "out">("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -69,7 +89,7 @@ export function NewsInboxPanel() {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-zinc-400">
+      <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-white/80">
         <span className="text-[#d4af37]/80">{data?.sessionLabel ?? "session…"}</span>
         {data && (
           <span>
@@ -99,15 +119,23 @@ export function NewsInboxPanel() {
       </div>
 
       {byCat.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {byCat.map(([cat, n]) => (
-            <span
-              key={cat}
-              className="rounded border border-zinc-700/80 bg-zinc-950 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400"
-            >
-              {cat} · {n}
-            </span>
-          ))}
+        <div className="flex flex-wrap gap-1 items-center">
+          {byCat.map(([cat, n]) => {
+            const t = catTag(cat);
+            return (
+              <span
+                key={cat}
+                title={cat}
+                className={cn(
+                  "inline-flex items-center font-mono text-zinc-300 border border-zinc-700/80 bg-zinc-950",
+                  t.compact ? "px-1 py-0 text-[8px] leading-4 rounded-sm" : "px-1.5 py-0.5 text-[9px] rounded",
+                )}
+              >
+                {t.label}
+                <span className="text-zinc-500 ml-0.5">{n}</span>
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -118,8 +146,6 @@ export function NewsInboxPanel() {
         <table className="w-full">
           <thead className="bg-black text-[#d4af37]">
             <tr className="border-b border-[#d4af37]/20">
-              <th className={cn(TH, "w-8")}>In</th>
-              <th className={cn(TH, "text-right w-10")}>N</th>
               <th className={TH}>Cat</th>
               <th className={TH}>Source</th>
               <th className={cn(TH, "text-right")}>When</th>
@@ -129,47 +155,47 @@ export function NewsInboxPanel() {
           <tbody className="divide-y divide-zinc-800/80">
             {items.map((r) => {
               const open = expandedId === r.id;
-              const when = new Date(r.receivedAt).toLocaleString("en-US", {
-                month: "numeric",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              });
+              const when = formatWhen(r.receivedAt);
+              const cat = r.category ?? r.kind ?? "?";
+              const tag = catTag(cat);
               return (
                 <Fragment key={r.id}>
                   <tr
                     className={cn(
                       "cursor-pointer hover:bg-amber-500/5",
-                      r.includeInBrief ? "bg-zinc-900/50" : "bg-zinc-950/80 opacity-70",
+                      r.includeInBrief ? "bg-zinc-900/50" : "bg-zinc-950/80 opacity-55",
                     )}
                     onClick={() => setExpandedId(open ? null : r.id)}
+                    title={r.includeInBrief ? "in brief" : `filtered · noise ${r.noiseScore ?? "—"}`}
                   >
-                    <td className={cn(TD, r.includeInBrief ? "text-emerald-400" : "text-zinc-600")}>
-                      {r.includeInBrief ? "●" : "○"}
+                    <td className={cn(TD, "text-zinc-300")}>
+                      <span
+                        title={cat}
+                        className={cn(
+                          "inline-block font-mono",
+                          tag.compact ? "text-[8px] text-zinc-400 uppercase" : "text-[10px]",
+                        )}
+                      >
+                        {tag.label}
+                      </span>
                     </td>
-                    <td
-                      className={cn(
-                        TD, "text-right",
-                        (r.noiseScore ?? 0) >= 70 ? "text-red-400" : (r.noiseScore ?? 0) >= 40 ? "text-amber-300" : "text-sky-300/70",
-                      )}
-                    >
-                      {r.noiseScore ?? "—"}
-                    </td>
-                    <td className={cn(TD, "text-zinc-300")}>{r.category ?? r.kind}</td>
                     <td className={cn(TD, "text-amber-200/70 truncate max-w-[7rem]")} title={r.fromDomain ?? r.source}>
                       {r.source.replace(/^newsletter:/, "")}
                     </td>
-                    <td className={cn(TD, "text-right text-zinc-500 whitespace-nowrap")}>{when}</td>
+                    <td className={cn(TD, "text-right text-white/70 whitespace-nowrap text-[10px]")}>
+                      {when}
+                    </td>
                     <td className={cn(TD, "text-white/90 font-sans text-[11px] truncate max-w-[20rem]")}>
                       {r.subject}
                     </td>
                   </tr>
                   {open && (
                     <tr className="bg-black/40">
-                      <td colSpan={6} className="px-2 py-1.5 text-[11px] text-zinc-400 space-y-1">
+                      <td colSpan={4} className="px-2 py-1.5 text-[11px] text-zinc-400 space-y-1">
                         <p className="text-amber-50/80 leading-snug">{r.synopsis || "(no synopsis)"}</p>
                         <p className="font-mono text-[10px] text-zinc-500">
-                          noise: {(r.noiseReasons ?? []).join(", ") || "—"}
+                          {r.includeInBrief ? "in brief" : "filtered"}
+                          {" · "}noise: {(r.noiseReasons ?? []).join(", ") || "—"}
                           {" · "}links: {r.contentLinkCount}
                           {Array.isArray(r.tickersMentioned) && r.tickersMentioned.length > 0 && (
                             <> · tickers: {r.tickersMentioned.slice(0, 10).join(", ")}</>
@@ -183,7 +209,7 @@ export function NewsInboxPanel() {
             })}
             {!isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-2 py-3 text-[11px] text-zinc-500 text-center">
+                <td colSpan={4} className="px-2 py-3 text-[11px] text-zinc-500 text-center">
                   No emails in this session yet.
                 </td>
               </tr>

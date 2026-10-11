@@ -116,6 +116,29 @@ export function etDateKey(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+/** True when `ymd` (YYYY-MM-DD, ET calendar) is a NYSE trading day (weekday, not a full-day holiday). */
+export function isTradingDayYmd(ymd: string): boolean {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  const dow = d.getUTCDay();
+  return dow !== 0 && dow !== 6 && !nyseHolidays(Number(ymd.slice(0, 4))).has(ymd);
+}
+
+/**
+ * The latest session whose daily bar should exist: today after the 16:00 ET close on a trading day,
+ * otherwise the previous trading day (weekends, holidays, pre-close and overnight all roll back).
+ */
+export function lastCompletedSessionYmd(now: Date = new Date()): string {
+  const { minutesOfDay } = etParts(now);
+  let ymd = etDateKey(now);
+  if (isTradingDayYmd(ymd) && minutesOfDay >= MARKET_CLOSE_MIN) return ymd;
+  do {
+    const d = new Date(`${ymd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    ymd = d.toISOString().slice(0, 10);
+  } while (!isTradingDayYmd(ymd));
+  return ymd;
+}
+
 /** UTC instant of 9:30 ET on `now`'s calendar date, or null on a non-trading day. */
 export function getMarketOpenUtc(now: Date = new Date()): Date | null {
   const { weekday } = etParts(now);

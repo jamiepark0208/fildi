@@ -13,7 +13,16 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
-import { db, deskCommentaries, deskNewsFeedback, earningsCalendar, positions, watchlist } from "@workspace/db";
+import {
+  db,
+  deskCommentaries,
+  deskNewsFeedback,
+  earningsCalendar,
+  portfolioPositions,
+  portfolioSnapshots,
+  positions,
+  watchlist,
+} from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 import { callHaiku } from "../lib/haiku.js";
@@ -35,16 +44,45 @@ import {
   sanitizeDailyNewsContent,
 } from "../lib/desk-daily-news-quality.js";
 
+export interface EarningsNearRow {
+  date: string;
+  tickers: string[];
+  /** book = watchlist∪holdings∪positions; market = notable majors outside the book */
+  scope?: "book" | "market";
+}
+
+/** Majors we surface even when not on the book (banks / mega-cap prints). */
+const MARKET_EARNINGS_MAJORS = new Set([
+  "JPM", "BAC", "C", "WFC", "GS", "MS", "USB", "PNC", "TFC",
+  "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "NVDA", "TSLA", "NFLX",
+  "TSM", "AVGO", "AMD", "INTC", "JNJ", "UNH", "XOM", "CVX",
+]);
+
+export interface ModelContractRow {
+  ticker: string;
+  side: string;
+  strike: number | null;
+  expiry: string | null;
+  premium: number | null;
+  folder: string;
+  verdict: string;
+  status: string;
+}
+
 async function loadBookTickers(userId: number | undefined): Promise<{
   watch: string[];
   book: string[];
+  holdings: string[];
   all: Set<string>;
   promptBlock: string;
 }> {
   if (userId == null) {
-    return { watch: [], book: [], all: new Set(), promptBlock: "(no user — skip book bias)" };
+    return {
+      watch: [], book: [], holdings: [], all: new Set(),
+      promptBlock: "(no user — skip book bias)",
+    };
   }
-  const [wl, open] = await Promise.all([
+  const [wl, open, latestSnap] = await Promise.all([
     db.select({ ticker: watchlist.ticker })
       .from(watchlist)
       .where(eq(watchlist.userId, userId))
@@ -53,28 +91,55 @@ async function loadBookTickers(userId: number | undefined): Promise<{
       .from(positions)
       .where(and(eq(positions.userId, userId), isNull(positions.closedAt)))
       .limit(40),
+    db.select({ id: portfolioSnapshots.id })
+      .from(portfolioSnapshots)
+      .orderBy(desc(portfolioSnapshots.id))
+      .limit(1),
   ]);
+  const snapId = latestSnap[0]?.id;
+  const holdRows = snapId == null
+    ? []
+    : await db.select({ symbol: portfolioPositions.symbol })
+      .from(portfolioPositions)
+      .where(eq(portfolioPositions.snapshotId, snapId))
+      .limit(80);
   const watch = [...new Set(wl.map((r) => r.ticker.toUpperCase()))].slice(0, 40);
   const book = [...new Set(open.map((r) => r.ticker.toUpperCase()))].slice(0, 25);
+  const holdings = [...new Set(
+    holdRows
+      .map((r) => r.symbol.toUpperCase())
+      .filter((t) => /^[A-Z]{1,5}$/.test(t)),
+  )].slice(0, 40);
   const shorts = open
     .filter((r) => r.positionType === "short_put" || r.positionType === "short_call")
     .map((r) => `${r.ticker.toUpperCase()}(${r.positionType === "short_put" ? "SP" : "SC"})`);
   const shortUniq = [...new Set(shorts)].slice(0, 20);
-  const all = new Set([...watch, ...book]);
+  const all = new Set([...watch, ...book, ...holdings]);
   return {
     watch,
     book,
+    holdings,
     all,
     promptBlock: [
       `Open positions: ${book.length ? book.join(", ") : "(none)"}`,
       shortUniq.length ? `Short options: ${shortUniq.join(", ")}` : null,
+      `Portfolio holdings: ${holdings.length ? holdings.join(", ") : "(none)"}`,
       `Watchlist: ${watch.length ? watch.join(", ") : "(empty)"}`,
     ].filter(Boolean).join("\n"),
   };
 }
 
-async function loadNearEarnings(book: Set<string>): Promise<string> {
-  if (book.size === 0) return "(none in book)";
+function reportDateKey(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  const s = String(d ?? "");
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+}
+
+async function loadNearEarnings(book: Set<string>): Promise<{
+  text: string;
+  rows: EarningsNearRow[];
+  marketRows: EarningsNearRow[];
+}> {
   const today = new Date();
   const start = today.toISOString().slice(0, 10);
   const end = new Date(today.getTime() + 14 * 86_400_000).toISOString().slice(0, 10);
@@ -88,12 +153,108 @@ async function loadNearEarnings(book: Set<string>): Promise<string> {
       gte(earningsCalendar.reportDate, start),
       lte(earningsCalendar.reportDate, end),
     ))
-    .limit(200);
-  const hits = rows
-    .filter((r) => book.has(r.ticker.toUpperCase()))
-    .slice(0, 12)
-    .map((r) => `${r.ticker.toUpperCase()} ${r.reportDate}`);
-  return hits.length ? hits.join(", ") : "(none in book next 14d)";
+    .limit(400);
+
+  const bookByDate = new Map<string, string[]>();
+  const mktByDate = new Map<string, string[]>();
+  for (const r of rows) {
+    const t = r.ticker.toUpperCase();
+    const key = reportDateKey(r.reportDate);
+    if (book.has(t)) {
+      const list = bookByDate.get(key) ?? [];
+      if (!list.includes(t)) list.push(t);
+      bookByDate.set(key, list);
+    } else if (MARKET_EARNINGS_MAJORS.has(t)) {
+      const list = mktByDate.get(key) ?? [];
+      if (!list.includes(t)) list.push(t);
+      mktByDate.set(key, list);
+    }
+  }
+  const grouped: EarningsNearRow[] = [...bookByDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, tickers]) => ({ date, tickers: tickers.sort(), scope: "book" as const }));
+  const marketRows: EarningsNearRow[] = [...mktByDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, tickers]) => ({ date, tickers: tickers.sort(), scope: "market" as const }));
+  const text = grouped.length
+    ? grouped.map((g) => `${g.date}: ${g.tickers.join(", ")}`).join("; ")
+    : "(none in book next 14d)";
+  const mktText = marketRows.length
+    ? marketRows.map((g) => `${g.date}: ${g.tickers.join(", ")}`).join("; ")
+    : "(none)";
+  return {
+    text: `BOOK: ${text}\nMAJORS (not in book): ${mktText}`,
+    rows: grouped,
+    marketRows,
+  };
+}
+
+type SqlRows<T> = { rows?: T[] } | T[];
+const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
+
+/** Latest Model List contracts for book tickers — ground truth for put-seller takeaway. */
+async function loadModelContracts(tickers: Set<string>): Promise<{
+  text: string;
+  rows: ModelContractRow[];
+}> {
+  if (tickers.size === 0) return { text: "(no book tickers)", rows: [] };
+  const list = [...tickers];
+  const items = rowsOf(await db.execute(sql`
+    SELECT i.ticker, i.folder_key, i.verdict, i.status, i.contract
+    FROM watchlist_sync.model_items i
+    WHERE i.run_id = (SELECT MAX(id) FROM watchlist_sync.model_runs)
+      AND UPPER(i.ticker) IN (${sql.join(list.map((t) => sql`${t}`), sql`, `)})
+    ORDER BY i.ticker, i.folder_key
+  `) as SqlRows<{
+    ticker: string;
+    folder_key: string;
+    verdict: string | null;
+    status: string | null;
+    contract: Record<string, unknown> | null;
+  }>);
+
+  const prefer = (folder: string) => {
+    const f = folder.toLowerCase();
+    if (f.includes("sell_put") || f === "income") return 0;
+    if (f.includes("manage") || f.includes("trim")) return 1;
+    if (f.includes("sell_call") || f.includes("call")) return 2;
+    if (f.includes("avoid") || f.includes("rebalance")) return 3;
+    return 4;
+  };
+
+  const best = new Map<string, ModelContractRow>();
+  const notes: string[] = [];
+  for (const it of items) {
+    const t = String(it.ticker).toUpperCase();
+    const c = it.contract && typeof it.contract === "object" ? it.contract : null;
+    const side = c?.type != null ? String(c.type).toLowerCase() : "";
+    if (side === "put" || side === "call") {
+      const row: ModelContractRow = {
+        ticker: t,
+        side,
+        strike: typeof c?.strike === "number" ? c.strike : c?.strike != null ? Number(c.strike) : null,
+        expiry: c?.expiry != null ? String(c.expiry).slice(0, 10) : null,
+        premium: typeof c?.premium === "number" ? c.premium : c?.premium != null ? Number(c.premium) : null,
+        folder: String(it.folder_key),
+        verdict: String(it.verdict ?? ""),
+        status: String(it.status ?? ""),
+      };
+      const prev = best.get(t);
+      if (!prev || prefer(row.folder) < prefer(prev.folder)) best.set(t, row);
+    } else if (it.verdict === "red" || /avoid|trim_risk|rebalance/i.test(String(it.folder_key))) {
+      notes.push(`${t}: ${it.folder_key}${it.verdict ? `/${it.verdict}` : ""} — no sellable model contract`);
+    }
+  }
+
+  const rows = [...best.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const lines = rows.map((r) => {
+    const prem = r.premium != null && Number.isFinite(r.premium) ? ` @ $${r.premium}` : "";
+    const strike = r.strike != null && Number.isFinite(r.strike) ? `$${r.strike}` : "?";
+    return `${r.ticker}: sell ${r.side} ${strike} exp ${r.expiry ?? "?"}${prem} (${r.folder}${r.verdict ? `, ${r.verdict}` : ""}${r.status ? `, ${r.status}` : ""})`;
+  });
+  const uniqNotes = [...new Set(notes)].slice(0, 12);
+  const text = [...lines, ...uniqNotes].join("\n") || "(no model contracts for book)";
+  return { text, rows };
 }
 
 interface DeskRowLite {
@@ -138,6 +299,117 @@ const router = Router();
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const CACHE_PATH = join(__dir, "..", "..", "desk-daily-news.json");
+/** Repo-root `commentary/` — Muse AM/PM briefs (A45). */
+const COMMENTARY_DIR = join(__dir, "..", "..", "..", "..", "commentary");
+
+export interface MuseBrief {
+  edition: "am" | "pm";
+  file: string;
+  title: string;
+  banner: string;
+  /** Concise bullets for the Daily News top strip */
+  bullets: string[];
+  /** Truncated raw markdown for Haiku skeleton (not full file) */
+  promptExcerpt: string;
+}
+
+function ptHourNow(): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(new Date());
+  return Number(parts.find((p) => p.type === "hour")?.value ?? "12");
+}
+
+/** Prefer PM after 1pm PT; fall back to the other edition if missing. */
+function loadMuseBrief(): MuseBrief | null {
+  try {
+    if (!existsSync(COMMENTARY_DIR)) return null;
+    const preferPm = ptHourNow() >= 13;
+    const order: Array<"am" | "pm"> = preferPm ? ["pm", "am"] : ["am", "pm"];
+    for (const edition of order) {
+      const file = edition === "am" ? "latest-am.md" : "latest-pm.md";
+      const path = join(COMMENTARY_DIR, file);
+      if (!existsSync(path)) continue;
+      const raw = readFileSync(path, "utf8");
+      if (raw.trim().length < 80) continue;
+      const lines = raw.split("\n");
+      const title = (lines.find((l) => l.startsWith("# ")) ?? "").replace(/^#\s+/, "").trim()
+        || (edition === "am" ? "Morning market brief" : "Evening market recap");
+      const bannerLine = lines.find((l) => /^\*\*Banner:\*\*/i.test(l) || /^\*\*S&P\b/i.test(l))
+        ?? lines.find((l) => l.startsWith("**") && l.includes("·"));
+      const banner = (bannerLine ?? "")
+        .replace(/^\*\*Banner:\*\*\s*/i, "")
+        .replace(/^\*\*|\*\*$/g, "")
+        .trim();
+
+      const sectionBullets = (headingRe: RegExp, max: number): string[] => {
+        const out: string[] = [];
+        let inSec = false;
+        for (const line of lines) {
+          if (line.startsWith("## ")) {
+            inSec = headingRe.test(line);
+            continue;
+          }
+          if (!inSec) continue;
+          if (line.startsWith("## ")) break;
+          const m = line.match(/^-\s+\*\*(.+?)\*\*\.?\s*(.*)$/) ?? line.match(/^-\s+(.+)$/);
+          if (!m) continue;
+          const text = m[2] != null
+            ? `${m[1]}${m[2] ? ` — ${m[2].replace(/\s*\[[^\]]+\]/g, "").trim()}` : ""}`
+            : m[1]!.replace(/\s*\[[^\]]+\]/g, "").trim();
+          const clean = text.replace(/\s+/g, " ").trim();
+          if (clean.length >= 20) out.push(clean.length > 180 ? `${clean.slice(0, 177)}…` : clean);
+          if (out.length >= max) break;
+        }
+        return out;
+      };
+
+      const moving = sectionBullets(/what'?s moving|what moved/i, 3);
+      const why = sectionBullets(/why it matters/i, 2);
+      const impl = sectionBullets(/implications/i, 2);
+      const bullets = [...moving, ...why, ...impl].slice(0, 6);
+      if (!bullets.length && !banner) continue;
+
+      // Skeleton for Haiku: banner + moving + why + implications (cap size)
+      const keepHeadings = /^(# |## What's moving|## What moved|## Why it matters|## Implications|\*\*Banner|\*\*S&P|- )/i;
+      const excerptLines: string[] = [];
+      let chars = 0;
+      for (const line of lines) {
+        if (!keepHeadings.test(line) && !line.startsWith("- ")) {
+          if (line.startsWith("## ")) {
+            // skip other sections entirely until next keep? simpler: stop at ## Data / ## Single / ## Context / ## Breadth
+            if (/^##\s+(Data|Single|Context|Breadth|What to watch)/i.test(line)) break;
+          }
+          continue;
+        }
+        if (/^##\s+(Data|Single|Context|Breadth|What to watch|Sources)/i.test(line)) break;
+        excerptLines.push(line);
+        chars += line.length;
+        if (chars > 2200) break;
+      }
+
+      return {
+        edition,
+        file,
+        title,
+        banner,
+        bullets,
+        promptExcerpt: excerptLines.join("\n").slice(0, 2400),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+interface BannerLevel {
+  key: string; // es | ym | nq | brent | tnx | vix
+  value: number; // % change (or yield level for tnx)
+  kind: "pct" | "yield";
+}
 
 interface DailyNewsCache {
   date: string; // PT dateKey when generated
@@ -152,6 +424,153 @@ interface DailyNewsCache {
   digFacts?: DigFact[];
   bookHits?: string[];
   earningsNear?: string;
+  earningsNearRows?: EarningsNearRow[];
+  marketEarningsRows?: EarningsNearRow[];
+  modelContracts?: ModelContractRow[];
+  /** A45 edition stamp */
+  editionId?: string;
+  museFile?: string | null;
+  museBanner?: string | null;
+  bannerLevels?: BannerLevel[];
+}
+
+function parseBannerLevels(banner: string | null | undefined): BannerLevel[] {
+  if (!banner) return [];
+  const out: BannerLevel[] = [];
+  const parts = banner.split(/\s*[·|]\s*/);
+  for (const part of parts) {
+    const p = part.trim();
+    const pct = p.match(/([+\u2212\u2013\-]\s*\d+(?:\.\d+)?)\s*%/);
+    const yieldM = p.match(/\b10\s*Y\b.*?(\d+\.\d+)\s*%?/i);
+    let key = "";
+    if (/S&P\s*fut|ES\b/i.test(p)) key = "es";
+    else if (/Dow\s*fut|YM\b/i.test(p)) key = "ym";
+    else if (/Nasdaq|NQ\b/i.test(p)) key = "nq";
+    else if (/Brent/i.test(p)) key = "brent";
+    else if (/\bVIX\b/i.test(p)) key = "vix";
+    else if (/\b10\s*Y\b/i.test(p)) key = "tnx";
+    if (!key) continue;
+    if (key === "tnx" && yieldM) {
+      out.push({ key, value: parseFloat(yieldM[1]!), kind: "yield" });
+    } else if (pct) {
+      const n = parseFloat(pct[1]!.replace(/[\u2212\u2013]/g, "-"));
+      if (Number.isFinite(n)) out.push({ key, value: n, kind: "pct" });
+    }
+  }
+  return out;
+}
+
+function bannerMovedMaterial(prev: BannerLevel[] | undefined, next: BannerLevel[]): string[] {
+  if (!prev?.length || !next.length) return [];
+  const by = new Map(prev.map((b) => [b.key, b]));
+  const reasons: string[] = [];
+  const thr: Record<string, number> = { es: 0.5, ym: 0.5, nq: 0.5, brent: 2, vix: 2 };
+  for (const n of next) {
+    const p = by.get(n.key);
+    if (!p) continue;
+    if (n.kind === "yield" && p.kind === "yield") {
+      const bp = Math.abs(n.value - p.value) * 100;
+      if (bp >= 5) reasons.push(`10Y ${bp.toFixed(0)}bp`);
+    } else if (n.kind === "pct" && p.kind === "pct") {
+      const lim = thr[n.key] ?? 0.5;
+      if (Math.abs(n.value - p.value) >= lim) {
+        reasons.push(`${n.key.toUpperCase()} Δ${(n.value - p.value).toFixed(1)}%`);
+      }
+    }
+  }
+  return reasons;
+}
+
+function formatPtShort(iso: string | null | undefined): string {
+  if (!iso) return "?";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return iso.slice(11, 16);
+  }
+}
+
+function digCandidateSubject(subject: string, synopsis: string | null): boolean {
+  return /watchlist|new activity|analyst|price target|rating|portfolio digest|continue reading/i.test(
+    `${subject} ${synopsis ?? ""}`,
+  );
+}
+
+function assessMateriality(opts: {
+  cache: DailyNewsCache | null;
+  rows: Array<{
+    receivedAt: Date;
+    subject: string;
+    synopsis: string | null;
+    tickersMentioned: unknown;
+    noiseScore: number | null;
+    category: string | null;
+    meta: unknown;
+  }>;
+  included: Array<{
+    receivedAt: Date;
+    subject: string;
+    synopsis: string | null;
+    tickersMentioned: unknown;
+  }>;
+  newSince: number;
+  museBrief: MuseBrief | null;
+  book: Set<string> | null;
+}): { material: boolean; reasons: string[]; statusLine: string; editionId: string | null } {
+  const { cache, rows, included, newSince, museBrief, book } = opts;
+  const reasons: string[] = [];
+  const editionId = cache?.editionId
+    ?? (cache ? `${cache.date}:${cache.generatedAt}` : null);
+
+  if (!cache) {
+    return {
+      material: true,
+      reasons: ["no prior Desk adds"],
+      statusLine: `${included.length} emails ready · no Desk adds yet`,
+      editionId: null,
+    };
+  }
+
+  if (museBrief?.file && cache.museFile && museBrief.file !== cache.museFile) {
+    reasons.push(`new Muse ${museBrief.edition}`);
+  } else if (museBrief?.banner && cache.museBanner && museBrief.banner !== cache.museBanner) {
+    reasons.push("Muse banner changed");
+  }
+
+  const nextLevels = parseBannerLevels(museBrief?.banner);
+  reasons.push(...bannerMovedMaterial(cache.bannerLevels, nextLevels));
+
+  if (newSince > 0) {
+    const sinceMs = new Date(cache.maxReceivedAt ?? cache.generatedAt).getTime();
+    const fresh = included.filter((r) => r.receivedAt.getTime() > sinceMs);
+    const bookHit = book
+      ? fresh.some((r) =>
+          extractTickersClean(`${r.subject} ${r.synopsis ?? ""}`).some((t) => book.has(t))
+          || (Array.isArray(r.tickersMentioned)
+            && (r.tickersMentioned as string[]).some((t) => book.has(String(t).toUpperCase()))),
+        )
+      : false;
+    const digHit = fresh.some((r) => digCandidateSubject(r.subject, r.synopsis));
+    if (bookHit) reasons.push(`${fresh.length} new · book hit`);
+    else if (digHit) reasons.push(`${fresh.length} new · diggable`);
+    else if (fresh.length >= 3) reasons.push(`${fresh.length} new emails`);
+    else if (fresh.length > 0) {
+      // noise-only trickle — not material alone
+    }
+  }
+
+  const material = reasons.length > 0;
+  const museBit = museBrief ? `Muse ${museBrief.edition}` : "no Muse";
+  const statusLine = material
+    ? `${reasons.slice(0, 3).join(" · ")} · last Desk adds ${formatPtShort(cache.generatedAt)}`
+    : `No material update since ${formatPtShort(cache.generatedAt)} · ${museBit}`
+      + (newSince > 0 ? ` · ${newSince} new (noise/covered)` : "");
+
+  return { material, reasons, statusLine, editionId };
 }
 
 function loadCache(dateKey: string): DailyNewsCache | null {
@@ -220,7 +639,7 @@ async function loadRecentFeedback(sessionDate: string, limit = 12) {
   }
 }
 
-router.get("/desk-commentaries/daily-news", async (_req, res) => {
+router.get("/desk-commentaries/daily-news", async (req, res) => {
   try {
     await ingestDeskCommentaries({ sinceMs: Date.now() - 6 * 60 * 60 * 1000 }).catch(() => null);
     const { win, rows } = await sessionDeskRows();
@@ -237,6 +656,24 @@ router.get("/desk-commentaries/daily-news", async (_req, res) => {
       newSince = rows.length;
     }
 
+    // Live book earnings + model contracts + Muse brief (cheap) so UI is fresh without Haiku refresh.
+    const book = await loadBookTickers(req.session.userId).catch(() => null);
+    const liveEarn = book
+      ? await loadNearEarnings(book.all).catch(() => null)
+      : null;
+    const liveModel = book
+      ? await loadModelContracts(book.all).catch(() => null)
+      : null;
+    const museBrief = loadMuseBrief();
+    const material = assessMateriality({
+      cache,
+      rows,
+      included,
+      newSince: cache ? newSince : rows.length,
+      museBrief,
+      book: book?.all ?? null,
+    });
+
     return res.json({
       date: win.dateKey,
       sessionStartPt: win.startDatePt,
@@ -247,6 +684,10 @@ router.get("/desk-commentaries/daily-news", async (_req, res) => {
       excludedCount: rows.length - included.length,
       maxReceivedAt,
       newSinceLastSummary: cache ? newSince : rows.length,
+      statusLine: material.statusLine,
+      editionId: material.editionId ?? cache?.editionId ?? null,
+      materialSuggested: material.material,
+      materialReasons: material.reasons,
       summary: cache
         ? {
             content: cache.content,
@@ -259,9 +700,18 @@ router.get("/desk-commentaries/daily-news", async (_req, res) => {
             sessionStartPt: cache.sessionStartPt,
             digFacts: filterDisplayDigFacts(cache.digFacts ?? []),
             bookHits: cache.bookHits ?? [],
-            earningsNear: cache.earningsNear ?? "",
+            earningsNear: liveEarn?.text ?? cache.earningsNear ?? "",
+            earningsNearRows: liveEarn?.rows ?? cache.earningsNearRows ?? [],
+            marketEarningsRows: liveEarn?.marketRows ?? cache.marketEarningsRows ?? [],
+            modelContracts: liveModel?.rows ?? cache.modelContracts ?? [],
+            editionId: cache.editionId ?? null,
           }
         : null,
+      // Available even before first Haiku generate
+      earningsNearRows: liveEarn?.rows ?? [],
+      marketEarningsRows: liveEarn?.marketRows ?? [],
+      modelContracts: liveModel?.rows ?? [],
+      museBrief,
     });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -291,7 +741,80 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     }
 
     const book = await loadBookTickers(req.session.userId);
-    const earningsNear = await loadNearEarnings(book.all).catch(() => "(earnings lookup failed)");
+    const force =
+      req.body?.force === true
+      || req.body?.force === "1"
+      || String(req.query.force ?? "") === "1";
+    const prior = loadCache(win.dateKey);
+    let newSince = 0;
+    if (prior?.maxReceivedAt || prior?.generatedAt) {
+      const sinceMs = new Date(prior.maxReceivedAt ?? prior.generatedAt).getTime();
+      if (Number.isFinite(sinceMs)) {
+        newSince = rows.filter((r) => r.receivedAt.getTime() > sinceMs).length;
+      }
+    } else {
+      newSince = rows.length;
+    }
+    const museBriefEarly = loadMuseBrief();
+    const material = assessMateriality({
+      cache: prior,
+      rows,
+      included,
+      newSince,
+      museBrief: museBriefEarly,
+      book: book.all,
+    });
+    if (prior && !force && !material.material) {
+      return res.json({
+        date: win.dateKey,
+        sessionStartPt: win.startDatePt,
+        sessionLabel: win.label,
+        isWeekendPack: win.isWeekendPack,
+        todayCount: rows.length,
+        includedCount: included.length,
+        excludedCount: rows.length - included.length,
+        newSinceLastSummary: newSince,
+        maxReceivedAt: rows[0]?.receivedAt?.toISOString() ?? null,
+        statusLine: material.statusLine,
+        editionId: prior.editionId ?? material.editionId,
+        materialSuggested: false,
+        materialReasons: material.reasons,
+        skipped: true,
+        message: material.statusLine,
+        summary: {
+          content: prior.content,
+          generatedAt: prior.generatedAt,
+          emailCount: prior.emailCount,
+          includedCount: prior.includedCount ?? prior.emailCount,
+          maxReceivedAt: prior.maxReceivedAt,
+          sources: prior.sources,
+          categories: prior.categories ?? [],
+          sessionStartPt: prior.sessionStartPt,
+          digFacts: filterDisplayDigFacts(prior.digFacts ?? []),
+          bookHits: prior.bookHits ?? [],
+          earningsNear: prior.earningsNear ?? "",
+          earningsNearRows: prior.earningsNearRows ?? [],
+          marketEarningsRows: prior.marketEarningsRows ?? [],
+          modelContracts: prior.modelContracts ?? [],
+          editionId: prior.editionId ?? null,
+        },
+        museBrief: museBriefEarly,
+      });
+    }
+    const earningsPack = await loadNearEarnings(book.all).catch(
+      (): { text: string; rows: EarningsNearRow[]; marketRows: EarningsNearRow[] } => ({
+        text: "(earnings lookup failed)",
+        rows: [],
+        marketRows: [],
+      }),
+    );
+    const earningsNear = earningsPack.text;
+    const earningsNearRows = earningsPack.rows;
+    const marketEarningsRows = earningsPack.marketRows;
+    const modelPack = await loadModelContracts(book.all).catch(
+      (): { text: string; rows: ModelContractRow[] } => ({ text: "(model lookup failed)", rows: [] }),
+    );
+    const museBrief = museBriefEarly;
 
     const digCandidates = included
       .filter((r) =>
@@ -380,55 +903,58 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     const digBlock = formatDigFactsForPrompt(allDigFacts);
     const bookHits = [...new Set(allDigFacts.map((f) => f.ticker).filter((t) => book.all.has(t)))];
     const bookCtx = book.promptBlock;
-    const promptBase = `You write a pre-market / session DESK COMMENTARY for a ${DESK_BRIEF_PREFS.role}.
-This is NOT a list of rating chips. It is a short morning-meeting note: what the tape is doing, why, what matters into the cash session, and what a put-seller should do with that.
+    const promptBase = `You APPEND desk-email findings to an existing Muse market brief for a ${DESK_BRIEF_PREFS.role}.
+The UI already shows Muse's brief. Your job is NOT to rewrite or paraphrase that brief.
 
 Session: ${win.label} (PT date ${win.dateKey}).
 
-A good daily stock-market commentary has:
-1) Tape / open bias — futures or cash indices, risk-on vs risk-off in one line with levels/%
-2) Macro drivers — rates/Fed, oil/energy, credit/VIX/USD when the emails mention them (numbers stay)
-3) Cross-asset or politics only if path-to-markets is clear
-4) Sector / single-name catalysts from the emails (earnings, upgrades with firm+grade, movers)
-5) Put-seller takeaway — bias for short premium: lean in / stay light / watch IV into named events
+Process (in order):
+1) Read MUSE BRIEF below (already published).
+2) Read DESK EMAILS + DIG. Keep only facts that are (a) material to a put-seller and (b) NOT already covered by Muse (same event/level/story).
+3) If a desk fact updates a Muse level (new print, revised figure), one short "update" bullet is OK.
+4) If nothing material is new, write one bullet under Desk adds: **No material desk adds** (Muse brief stands).
 
-WANT to surface:
+WANT:
 ${DESK_BRIEF_PREFS.want.map((w) => `- ${w}`).join("\n")}
 
-AVOID / ignore:
+AVOID:
 ${DESK_BRIEF_PREFS.avoid.map((w) => `- ${w}`).join("\n")}
-- TipRanks/email teasers that only say "N new analyst rating(s)" with no firm, grade, upgrade/downgrade, or PT — NEVER surface those.
-- Empty sections. Do not leave a heading with zero bullets.
+- Paraphrasing Muse bullets, banner, or title (UI shows them).
+- TipRanks "N new analyst rating(s)" without firm/grade/PT.
+- Vague "lean into HOOD/NVDA/OPEN" without put|call, strike, expiry, premium from MODEL CONTRACTS.
+- Em-dashes (—). Use parentheses for asides, e.g. **Lead** (detail with number).
+- Starting the output with "# " or restating "Morning market brief".
 
-BOOK CONTEXT (priority bias only — do NOT invent news about these names):
+MUSE BRIEF (do not rewrite; only ADD beyond this):
+${museBrief?.promptExcerpt ?? "(no Muse brief file — then Desk adds may include light macro from emails only)"}
+
+BOOK CONTEXT:
 ${bookCtx}
-- Prefer desk facts that touch open shorts / watchlist tickers.
-- Macro-only items still belong when they move vol/rates for the book.
 
-NEAR EARNINGS (book ∩ next 14d):
+NEAR EARNINGS:
 ${earningsNear}
 
-SECONDARY DIG (analyst/PT — firm/grade/date when present; ground truth, not the whole brief):
+MODEL CONTRACTS (cite only these for side/strike/expiry/premium):
+${modelPack.text}
+
+DIG (firm/grade/PT when present):
 ${digBlock}
 
-User feedback from prior generates this session (honor these):
+User feedback:
 ${feedbackBlock}
 
 Rules:
-- 6–10 bullets total across sections. Overnight/Macro MUST have ≥2 bullets if any macro/overnight email is in the pack.
-- EACH bullet: start with "- " then **Lead fact with number** — one short clause (≤28 words).
-- Tickers in CAPS. *italics* only for caveats.
-- MUST include confirmed DIG (firm/grade/PT) that touch the book; dig is a supporting strip, not a substitute for macro.
-- NEVER write "N new analyst rating(s)" or "Monitor TipRanks".
-- Use ONLY facts in DESK EMAILS / DIG — do not invent levels, firms, or sectors.
-- Put-seller takeaway is mandatory when there is any usable tape/macro (1–2 bullets).
-- Keep under 220 words total.
-- ${excludedN} noisy/promo emails were already filtered out — do not ask for them.
-- If weekend pack: emphasize week-ahead risk into Monday open.
+- 3–8 bullets total. Prefer fewer high-signal adds.
+- Bullet form: "- **Lead with number** (one clause ≤28 words)."
+- Tickers CAPS. Dates YYYY-MM-DD (UI → m/d/yy).
+- Sector & tickers: upgrades/downgrades/PTs from DIG/emails that Muse did not cover.
+- Put-seller takeaway: one bullet per named ticker using MODEL CONTRACTS:
+  **- TICKER: sell put|call $STRIKE exp YYYY-MM-DD @ $PREMIUM** (why). Else "no model contract".
+- ${excludedN} emails already noise-filtered.
+- Keep under 180 words.
 
-Structure exactly (omit a heading only if truly zero bullets for that theme):
-## Overnight / Macro
-## Cross-asset / Politics
+Structure exactly:
+## Desk adds
 ## Sector & tickers
 ## Put-seller takeaway
 
@@ -438,7 +964,7 @@ ${pack || "(all emails filtered as noise — say so briefly)"}`;
     let content = (
       await callHaiku({
         prompt: promptBase,
-        maxTokens: 420,
+        maxTokens: 560,
         trigger: "desk-daily-news",
         surfaceType: "desk-daily-news",
         userId: req.session.userId,
@@ -455,7 +981,7 @@ ${pack || "(all emails filtered as noise — say so briefly)"}`;
 QUALITY FAIL on prior draft — rewrite and fix: ${quality.reasons.join("; ")}.
 Prior draft (do not repeat its mistakes):
 ${content.slice(0, 600)}`,
-          maxTokens: 420,
+          maxTokens: 560,
           trigger: "desk-daily-news-retry",
           surfaceType: "desk-daily-news",
           userId: req.session.userId,
@@ -468,18 +994,20 @@ ${content.slice(0, 600)}`,
       content = sanitizeDailyNewsContent(content);
       if (!content.trim()) {
         content =
-          "## Overnight / Macro\n**Desk pack thin on confirmed catalysts** — macro emails only; analyst teasers omitted pending firm/grade.\n\n## Put-seller takeaway\nNo actionable rating detail confirmed; lean on levels from macro pack, not TipRanks counts.";
+          "## Desk adds\n- **No material desk adds** (Muse brief stands; dig lacked firm/grade).\n\n## Sector & tickers\n- **No confirmed rating/PT adds** beyond Muse.\n\n## Put-seller takeaway\n- **No model contract named** (see Model contracts strip).";
       }
     }
 
     const sources = [...new Set(ranked.map((r) => r.source))];
     const categories = [...new Set(ranked.map((r) => r.category ?? r.kind).filter(Boolean))] as string[];
     const maxReceivedAt = rows[0]?.receivedAt?.toISOString() ?? null;
+    const generatedAt = new Date().toISOString();
+    const editionId = `${win.dateKey}:${museBrief?.edition ?? "desk"}:${generatedAt}`;
     const cache: DailyNewsCache = {
       date: win.dateKey,
       sessionStartPt: win.startDatePt,
       content,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       emailCount: rows.length,
       includedCount: included.length,
       maxReceivedAt,
@@ -488,6 +1016,13 @@ ${content.slice(0, 600)}`,
       digFacts: filterDisplayDigFacts(allDigFacts).slice(0, 24),
       bookHits,
       earningsNear,
+      earningsNearRows,
+      marketEarningsRows,
+      modelContracts: modelPack.rows,
+      editionId,
+      museFile: museBrief?.file ?? null,
+      museBanner: museBrief?.banner ?? null,
+      bannerLevels: parseBannerLevels(museBrief?.banner),
     };
     saveCache(cache);
 
@@ -501,6 +1036,11 @@ ${content.slice(0, 600)}`,
       excludedCount: excludedN,
       newSinceLastSummary: 0,
       maxReceivedAt,
+      statusLine: `Desk adds ${formatPtShort(generatedAt)} · ${included.length} emails`,
+      editionId,
+      materialSuggested: false,
+      materialReasons: force ? ["forced"] : material.reasons,
+      skipped: false,
       summary: {
         content: cache.content,
         generatedAt: cache.generatedAt,
@@ -513,7 +1053,13 @@ ${content.slice(0, 600)}`,
         digFacts: cache.digFacts,
         bookHits,
         earningsNear,
+        earningsNearRows,
+        marketEarningsRows,
+        modelContracts: modelPack.rows,
+        editionId,
       },
+      marketEarningsRows,
+      museBrief,
     });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

@@ -52,6 +52,28 @@ Not done: DB backfill of snapshot 13 avg cost (auto-mode denied; next export ing
 - Research library: `research/studies/` (INDEX catalog S001–S013, METHODS, README, cards S011/S012); `out/**/*.md` now versioned.
 - Next: block audit first grades 10/09; re-run timing study after ≥ 100 new trades; exit-rule study once chain history ≥ 3 months.
 
+## Daily reflection S014 (2026-10-07, uncommitted)
+- User: only Cursor completes Muse tasks (CLAUDE.md startup already says skip Muse rows).
+- `analysis/daily_reflection.py` (in daily.py publish stage) → `out/reflection/<date>.md` + `report.md` + cumulative `log.csv`.
+  Today's prices via new localhost `POST /api/schwab/equity-prices` (routes/schwab.ts, shared 60s livePriceCache). tsc 0.
+- Day 1 (10/07): IC raw +0.05 / IV-fixed +0.02 (no signal yet); 14 trader opens all off-Model-List, 10 no-dip puts (ONDS ×7, red fit);
+  data gaps: prices_historical 10/06 bar missing for ~410/569 names; LQDA 9/30 snapshot spot 53.22 vs close 30.26.
+- Stop rule in INDEX "Next studies": decide on option_score at ≥ 8 expiries / ≥ 100 ideas; a mistake kind on ≥ 5 days → own study.
+- 10/09: reflections for 10/08 + 10/09 run manually (daily.py hasn't run since 10/05 → no Model List since run 19, no 10/07 snapshots,
+  prices_historical ~305/569 names 10/06–10/08). Fixed log.csv date typing. 10/09 expiry: top-half score 81% won vs bottom 84% (361);
+  put raw IC −0.2..−0.3 (high score = high IV), IV-fixed ≈ 0. found_wrong log re-counts the same contract each day (dedupe TODO).
+- Price-gap root cause (10/09): no scheduled universe-wide daily-bar job; prices_historical only refreshes on server startup (cap 25),
+  page views, or manual `backfill-stale-prices.ts` (STALE_DAYS=4 misses 1–3 day gaps). Yahoo path works without LSEG. Backfilled
+  566 names → 568/570 bars 10/06–10/09. Schwab /pricehistory not implemented. User YES 2026-10-11 → DONE (uncommitted): `getSchwabDailyBars`
+  (schwab-client.ts) first in `fetchAndStoreOHLCV` (Schwab → Yahoo only if Schwab thin/stale → LSEG soft fill; `mergeSchwabYahoo`);
+  `lastCompletedSessionYmd`/`isTradingDayYmd` (market-hours.ts); backfill-stale-prices.ts selects active names missing the last
+  session, no cap in maintain.mjs, exit 2 when coverage < 95%; `lib/price-coverage.ts` + `prices-coverage` ops alert
+  (scheduled-tasks-inventory.ts, wired in routes/scheduled-tasks.ts); tech snapshot asOf = last session. Tests 257/257, tsc 0.
+  Sunday live test: 568/570 fresh for 10/09 (EQR delisted, WBD halted since 10/05); deleted+refilled AAPL/NVDA 10/09 → source schwab,
+  identical OHLC. Weekend tech_score_snapshots dupes (10/10 + 10/11, 1,140 rows) deleted with user OK 2026-10-11 (backup in session scratchpad).
+  Commit: user says WAIT for Cursor to finish its uncommitted work first; then commit only Claude's files.
+  Option snapshots keep calendar asOf on purpose (live chain quotes; re-dating would overwrite Friday). Bug: tech_score_snapshots asOf uses UTC date (wrote 2026-10-10 at 22:45 PT).
+
 ## FactSet Proxy — LIVE ✅
 - Oracle Cloud VM `146.235.223.94` — Ubuntu 22.04, VM.Standard.E2.1.Micro (Oracle Always Free)
 - SSH: `ssh -i ~/Desktop/ssh-key-2026-06-14.key ubuntu@146.235.223.94` (key on Mac Desktop only)

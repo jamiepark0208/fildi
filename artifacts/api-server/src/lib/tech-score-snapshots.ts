@@ -7,10 +7,8 @@ import { db, tickerTechnicals, techScoreSnapshots, pool } from "@workspace/db";
 import { scoreTechnicalRowV2 } from "./technical-scorer-v2.js";
 import { getChampionScorecardParams } from "./scorecard-params.js";
 import { logger } from "./logger.js";
+import { lastCompletedSessionYmd } from "./market-hours.js";
 
-function etDateKey(d = new Date()): string {
-  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
 
 export async function ensureTechScoreSnapshotTables(): Promise<void> {
   await pool.query(`
@@ -38,7 +36,8 @@ export async function persistTechScoreSnapshots(opts?: {
   trigger?: string;
 }): Promise<{ asOf: string; written: number; modelVersion: string }> {
   await ensureTechScoreSnapshotTables();
-  const asOf = opts?.asOf ?? etDateKey();
+  // Session the bars belong to, not the ET calendar day (a 22:45 PT run used to stamp tomorrow's date).
+  const asOf = opts?.asOf ?? lastCompletedSessionYmd();
   const trigger = opts?.trigger ?? "daily";
   const { version, params } = await getChampionScorecardParams("tech");
   const weights = (params.weights ?? {}) as Record<string, number>;

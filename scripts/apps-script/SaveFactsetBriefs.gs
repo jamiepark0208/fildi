@@ -337,8 +337,17 @@ function hasGmailId_(nameMap, gmailId) {
   return false;
 }
 
+/**
+ * Prefer filename date prefix YYYY-MM-DD (stable after Drive desktop remtime).
+ * Fall back to getDateCreated when the name has no date.
+ */
 function pruneOldFiles_(folder, retentionDays) {
-  var cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  var cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  var cutoffYmd = Utilities.formatDate(
+    new Date(cutoffMs),
+    Session.getScriptTimeZone(),
+    'yyyy-MM-dd'
+  );
   var it = folder.getFiles();
   var n = 0;
   while (it.hasNext()) {
@@ -346,7 +355,14 @@ function pruneOldFiles_(folder, retentionDays) {
     var name = f.getName();
     if (!/\.(eml|json)$/i.test(name)) continue;
     try {
-      if (f.getDateCreated().getTime() < cutoff) {
+      var m = /^(\d{4}-\d{2}-\d{2})_/.exec(name);
+      var stale = false;
+      if (m) {
+        stale = m[1] < cutoffYmd;
+      } else {
+        stale = f.getDateCreated().getTime() < cutoffMs;
+      }
+      if (stale) {
         f.setTrashed(true);
         n++;
       }

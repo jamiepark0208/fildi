@@ -2,6 +2,7 @@
  * Admin scheduled-task manager: status + purpose + logs + run/enable/disable.
  * Covers LaunchAgents (maintain, RH ingest) and in-process API scheduler jobs.
  */
+import { priceCoverage } from "../lib/price-coverage.js";
 import { Router } from "express";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { spawn, execFileSync } from "node:child_process";
@@ -1465,6 +1466,7 @@ router.get("/admin/scheduled-tasks", requireAdmin, async (_req, res) => {
     nowMinutesPt: pt.minutes,
     research: researchAlert,
     opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+    priceCoverage: await priceCoverage().catch(() => null),
   });
   const getAlertCount = () => countOpenAlerts(alerts);
   const remediateLast = await finalizeRemediateIfPending(getAlertCount);
@@ -1565,6 +1567,7 @@ router.post("/admin/ops/remediate", requireAdmin, async (req, res) => {
       nowMinutesPt: pt.minutes,
       research: researchAlert,
       opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+      priceCoverage: await priceCoverage().catch(() => null),
     });
     const alertsBefore = countOpenAlerts(alerts);
     const body = (req.body ?? {}) as { taskIds?: unknown; trigger?: unknown };
@@ -1601,6 +1604,7 @@ router.post("/admin/ops/remediate", requireAdmin, async (req, res) => {
             nowMinutesPt: ptParts().minutes,
             research: researchAlert,
             opsDigest: { lastTs: digTs, ageDays: digAgeDays },
+            priceCoverage: await priceCoverage().catch(() => null),
           });
           return countOpenAlerts(freshAlerts);
         },

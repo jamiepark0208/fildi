@@ -22,6 +22,7 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 | S011 | 10-06 | Does the trader's own entry timing (puts after dips/support, calls after rallies) work? | Yes in direction: put ITM 17% after a dip vs 26.5% without; calls 10% after a rally vs 20% without; P&L gap not yet significant | display (setup tag) · open | `S011-rh-entry-timing.md` · `analysis/timing_rh_trades.py` |
 | S012 | 10-06 | Robinhood strategy review: what is it, is it viable, how should verify price contracts? | Weekly high-IV wheel; +$40.4k wheel P&L (HOOD +$21k); viable as VRP harvest, edge is selection + timing; RH fill = bid + ~23% of spread; spread blocks were mostly close-of-day quotes | adopted (spread rule, Schwab re-price, margin rule, FILDI folder) | `S012-rh-strategy-review.md` |
 | S013 | 10-06 → | Are the Robinhood verify blocks right? (counterfactual grade of every checked contract) | First grades 10/09; decide per check at ≥ 30 rows | open | `out/block_audit/report.md` · `analysis/block_audit.py` (daily) |
+| S014 | 10-07 → | Daily reflection: market, ideas found-but-wrong / real-but-missed, trader's day vs our scores, option_score rank IC (IV fixed) | Day 1: IC ≈ 0 (raw +0.05, IV fixed +0.02, 10 day-sides); trader's 14 opens on 10/07 all off the Model List, 10 were no-dip puts | open | `out/reflection/<date>.md` · `log.csv` · `analysis/daily_reflection.py` (daily) |
 
 ## Topic lookup (what we already know)
 
@@ -38,6 +39,7 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 | Backtest biases (survivorship, fills, vol mechanics) | S010, METHODS.md, S012 (fill position) |
 | Wheel P&L, assignment outcomes | S005, S012 (`wheel.py`) |
 | Verify checks, spreads, fills, Schwab vs Robinhood prices | S012, S013 |
+| Daily mistakes, missed ideas, does option_score rank ideas live | S014 |
 | Portfolio limits, margin, concentration | S012 (FILDI), `portfolio.py` |
 
 ## Next studies (pre-registered; claim one by adding an ID before starting)
@@ -49,4 +51,5 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 | Index put-write (SPY/QQQ/XSP) for FILDI | Cboe PUT/WPUT data or chain history | Sharpe ≥ SPY with drawdown ≤ 60% of SPY's |
 | Setup tag live validation (S011) | live ledger, ≥ 100 own trades after 10/06 | same sign as S011 and bootstrap CI excluding 0 → propose as a score input |
 | Verify thresholds (S013) | ≥ 30 graded rows per check | blocked group return ≥ passed group → loosen that check |
+| Score ranking live (S014) | ≥ 8 distinct expiries graded, ≥ 100 ideas | mean IV-fixed IC ≤ 0 → option_score adds nothing over IV; > 0 with t ≥ 2 clustered by expiry → keep. A mistake kind repeating on ≥ 5 days → pre-register its own study |
 | Fair value re-test | ~6 months of `fair_value_snapshots` (≈ 2027-04) | S009 pass marks |

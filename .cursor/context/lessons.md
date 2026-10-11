@@ -106,3 +106,10 @@ Add a lesson **only if all true:**
 - **Fix:** usageCalendarDate() America/Los_Angeles; UI localIsoDate(); never UTC for daily budgets
 - **Verify:** At evening PT, Monitor Today matches api_usage date = CURRENT_DATE
 - **Status:** active
+
+### L-2026-10-09-01: Daily News density: one strip, no grey-on-grey, tooltips not columns
+- **Trigger:** Daily News UI / Live news styling / densify briefing panel
+- **Mistake:** Shipped two banners (session + LIVE), grey meta (session 2026-10-09, AM BRIEF, 22 in/22), same-hue filled boxes with same-color text, duplicate Muse paraphrase sections, earnings split by source, and inbox IN/N columns that were always green/0 — user had to re-ask the same density rules every session.
+- **Fix:** Header = Daily News · m/d/yy only (white meta). One LIVE strip (Muse levels + Yahoo 1d % labeled). Cards: orange border (#d4af37) + zinc-950 fill, never tinted fill matching text. Sources/folder/verdict = title tooltips on bullets/tickers, not grey columns. Merge earnings by date (book gold / major violet). Haiku = Desk adds only (never paraphrase Muse). Inbox: drop IN/N; compact WHEN m/d h:mma; small nl tags.
+- **Verify:** No sessionLabel/AM BRIEF/in-total in header; single Live strip; hover dig/bullet shows source; inbox table has Cat/Source/When/Subject only.
+- **Status:** active

@@ -6,6 +6,9 @@ import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js
 import { getSchwabUsageStats, schwabAvailable } from "../lib/schwab-client.js";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 import { getSchwabOptionQuotes, occSymbol, type OptionContractRef } from "../lib/schwab-option-quotes.js";
+import { getLivePrices } from "../lib/live-quote.js";
+
+const LOCAL = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
 
 const router = Router();
 
@@ -63,8 +66,7 @@ router.get("/schwab/status", async (_req, res) => {
  * Localhost only (called by scripts/watchlist_sync/verify_plan.py to re-price plan contracts at verify time).
  */
 router.post("/schwab/option-quotes", async (req, res) => {
-  const ip = req.socket.remoteAddress ?? "";
-  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(ip)) return res.status(403).json({ error: "localhost only" });
+  if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
   const list = (req.body?.contracts ?? []) as OptionContractRef[];
   const contracts = list
     .filter((c) => c && typeof c.ticker === "string" && /^\d{4}-\d{2}-\d{2}$/.test(String(c.expiry)) && Number(c.strike) > 0
@@ -75,6 +77,20 @@ router.post("/schwab/option-quotes", async (req, res) => {
   const quotes = await getSchwabOptionQuotes(contracts);
   if (!quotes) return res.status(503).json({ error: "schwab unavailable" });
   return res.json({ quotes, symbols: Object.fromEntries(contracts.map((c) => [`${c.ticker}|${c.expiry}|${c.strike}|${c.type}`, occSymbol(c)])) });
+});
+
+/**
+ * POST /api/schwab/equity-prices {tickers: [...]} → {prices: {T: {price, changePercent}}}
+ * Localhost only (scripts/watchlist_sync/analysis/daily_reflection.py prices today before the nightly bar sync lands).
+ * Reads through the shared 60s livePriceCache (Schwab → Yahoo).
+ */
+router.post("/schwab/equity-prices", async (req, res) => {
+  if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
+  const tickers = [...new Set(((req.body?.tickers ?? []) as unknown[]).filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim().toUpperCase()).filter(Boolean))].slice(0, 1000);
+  if (tickers.length === 0) return res.status(400).json({ error: "tickers is required" });
+  const live = await getLivePrices(tickers);
+  return res.json({ prices: Object.fromEntries(tickers.map((t) => [t, { price: live.get(t)?.price ?? null, changePercent: live.get(t)?.changePercent ?? null }])) });
 });
 
 export default router;

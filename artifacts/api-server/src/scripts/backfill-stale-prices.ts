@@ -1,7 +1,8 @@
 /**
- * Backfill prices_historical (+ recompute ticker_technicals) for tickers whose
- * latest close is older than STALE_OHLCV_DAYS. Fixes A12: technicals refresh only
- * bootstrapped Yahoo when row-count < 200, so full-window names froze in July.
+ * Backfill prices_historical (+ recompute ticker_technicals) for every active ticker (a bar in the last
+ * ACTIVE_DAYS) missing the last completed session's bar. Sources: Schwab → Yahoo → LSEG (fetchAndStoreOHLCV).
+ * Runs daily from scripts/maintain.mjs. Prints universe coverage; exits 2 when coverage < MIN_COVERAGE so the
+ * maintain report flags it. (2026-10-09: the old 4-calendar-day rule skipped 1–3 day gaps → ~265 names stale.)
  *
  *   pnpm exec tsx src/scripts/backfill-stale-prices.ts
  *   pnpm exec tsx src/scripts/backfill-stale-prices.ts --max=60
@@ -10,13 +11,16 @@
 import { pool } from "@workspace/db";
 import { fetchAndStoreOHLCV } from "../lib/indicators.js";
 import { refreshTechnicals } from "../lib/technicals-db.js";
+import { lastCompletedSessionYmd } from "../lib/market-hours.js";
+import { priceCoverage, MIN_PRICE_COVERAGE as MIN_COVERAGE } from "../lib/price-coverage.js";
 
-const STALE_DAYS = 4;
+const ACTIVE_DAYS = 30;
 const maxArg = process.argv.find((a) => a.startsWith("--max="));
 const tickersArg = process.argv.find((a) => a.startsWith("--tickers="));
-const MAX = maxArg ? Number(maxArg.split("=")[1]) : 200;
+const MAX = maxArg ? Number(maxArg.split("=")[1]) : 1000;
 
 async function main() {
+  const expected = lastCompletedSessionYmd();
   let tickers: string[];
   if (tickersArg) {
     tickers = tickersArg
@@ -29,21 +33,23 @@ async function main() {
       `SELECT UPPER(p.ticker) AS ticker, max(p.date)::text AS last_date
        FROM prices_historical p
        GROUP BY 1
-       HAVING max(p.date) < CURRENT_DATE - $1::int
+       HAVING max(p.date) < $1::date AND max(p.date) >= $1::date - $2::int
        ORDER BY max(p.date) ASC, 1
-       LIMIT $2`,
-      [STALE_DAYS, Math.max(1, MAX)],
+       LIMIT $3`,
+      [expected, ACTIVE_DAYS, Math.max(1, MAX)],
     );
     tickers = r.rows.map((row) => row.ticker);
   }
 
   if (tickers.length === 0) {
-    console.log(JSON.stringify({ ok: true, skipped: true, reason: "none stale" }));
+    const coverage = await priceCoverage(expected);
+    console.log(JSON.stringify({ ok: true, skipped: true, reason: "none stale", coverage }));
     await pool.end();
+    if (coverage.pct < MIN_COVERAGE) process.exitCode = 2;
     return;
   }
 
-  console.error(`[backfill-stale-prices] ${tickers.length} tickers (stale>${STALE_DAYS}d)`);
+  console.error(`[backfill-stale-prices] ${tickers.length} tickers missing the ${expected} bar`);
   const ok: string[] = [];
   const failed: { ticker: string; err: string }[] = [];
 
@@ -72,10 +78,13 @@ async function main() {
     [ok],
   );
 
+  const coverage = await priceCoverage(expected);
   console.log(
     JSON.stringify(
       {
-        ok: failed.length === 0,
+        ok: failed.length === 0 && coverage.pct >= MIN_COVERAGE,
+        expected,
+        coverage,
         refreshed: ok.length,
         failed,
         latest: Object.fromEntries(check.rows.map((r) => [r.ticker, r.last_date])),
@@ -85,6 +94,7 @@ async function main() {
     ),
   );
   await pool.end();
+  if (coverage.pct < MIN_COVERAGE) process.exitCode = 2;
 }
 
 main().catch(async (e) => {

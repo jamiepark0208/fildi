@@ -22,10 +22,22 @@ If Session email is blank in Apps Script, set Script Property `ACCOUNT_TAG=usc` 
 
 `v2` = label-only query + HTML/outboundLinks. Paste SoT from `scripts/apps-script/SaveFactsetBriefs.gs`.
 
+### Redeploy checklist (both Gmail accounts)
+
+Live Drive JSON with `script: desk_v1` / `account: desk` means **Code.gs is stale** — repo SoT was never pasted into that Apps Script project.
+
+1. Open Apps Script for `parkjami@usc.edu` **and** `jamiepark0208@gmail.com` (two projects).
+2. Replace entire `Code.gs` with [`scripts/apps-script/SaveFactsetBriefs.gs`](../../scripts/apps-script/SaveFactsetBriefs.gs).
+3. Project Settings → Script properties → `ACCOUNT_TAG` = `usc` or `personal` (required when Session email is blank).
+4. Keep / recreate time-driven trigger every 15 min → `saveDeskBriefs` (or `saveFactsetBriefs`).
+5. Run once manually; Executions log must show `[usc_v2]` or `[personal_v2]` (not `desk_v1`).
+6. Confirm a new Drive file has `parserVersion: 2`, `bodyHtml`, `outboundLinks`.
+7. Prune uses **filename** `YYYY-MM-DD_` (not Drive create-date) so remtimed sync still drops >21d `.eml`/`.json`.
+
 ### Every scheduled run (automatic)
 
 1. Trash `.eml` when same-stem `.json` exists
-2. Prune Drive files older than **21 days**
+2. Prune Drive files older than **21 days** (by filename date prefix)
 3. Save new labeled mail as **one `.json`** (plain + html + links)
 
 ### Multi-account
