@@ -9,7 +9,8 @@
  * Session window: calendar day PT on weekdays; Fri→now on Sat/Sun / early Mon.
  */
 import { Router } from "express";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
@@ -311,6 +312,23 @@ export interface MuseBrief {
   bullets: string[];
   /** Truncated raw markdown for Haiku skeleton (not full file) */
   promptExcerpt: string;
+  /** Brief calendar day YYYY-MM-DD (from dated filename or title) */
+  asOfYmd: string | null;
+  /** Content fingerprint — materiality must compare this, not latest-am|pm filename (A70) */
+  contentHash: string;
+  /** True when asOfYmd is before the current Daily News session date (A62) */
+  stale: boolean;
+}
+
+/** A65: GET polls every ~60s — don't hit Gmail/Drive each time. POST refresh always ingests. */
+const DESK_INGEST_MIN_MS = 15 * 60 * 1000;
+let lastDeskIngestAt = 0;
+
+async function maybeIngestDeskOnGet(): Promise<void> {
+  const now = Date.now();
+  if (now - lastDeskIngestAt < DESK_INGEST_MIN_MS) return;
+  lastDeskIngestAt = now;
+  await ingestDeskCommentaries({ sinceMs: now - 6 * 60 * 60 * 1000 }).catch(() => null);
 }
 
 function ptHourNow(): number {
@@ -322,8 +340,43 @@ function ptHourNow(): number {
   return Number(parts.find((p) => p.type === "hour")?.value ?? "12");
 }
 
+const MONTHS: Record<string, string> = {
+  january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+  july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+};
+
+/** Resolve brief day from dated `YYYY-MM-DD-am|pm.md` sibling or title ("October 12, 2026"). */
+function resolveBriefAsOfYmd(edition: "am" | "pm", title: string, contentHash: string): string | null {
+  try {
+    const dated = readdirSync(COMMENTARY_DIR)
+      .map((n) => {
+        const m = n.match(/^(\d{4}-\d{2}-\d{2})-(am|pm)\.md$/i);
+        if (!m || m[2]!.toLowerCase() !== edition) return null;
+        const p = join(COMMENTARY_DIR, n);
+        try {
+          const h = createHash("sha256").update(readFileSync(p, "utf8")).digest("hex").slice(0, 16);
+          return h === contentHash ? m[1]! : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter((x): x is string => !!x)
+      .sort()
+      .at(-1);
+    if (dated) return dated;
+  } catch { /* ignore */ }
+
+  const m = title.match(
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})\b/i,
+  );
+  if (!m) return null;
+  const mo = MONTHS[m[1]!.toLowerCase()];
+  if (!mo) return null;
+  return `${m[3]}-${mo}-${String(m[2]).padStart(2, "0")}`;
+}
+
 /** Prefer PM after 1pm PT; fall back to the other edition if missing. */
-function loadMuseBrief(): MuseBrief | null {
+function loadMuseBrief(sessionDateKey?: string): MuseBrief | null {
   try {
     if (!existsSync(COMMENTARY_DIR)) return null;
     const preferPm = ptHourNow() >= 13;
@@ -334,6 +387,7 @@ function loadMuseBrief(): MuseBrief | null {
       if (!existsSync(path)) continue;
       const raw = readFileSync(path, "utf8");
       if (raw.trim().length < 80) continue;
+      const contentHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
       const lines = raw.split("\n");
       const title = (lines.find((l) => l.startsWith("# ")) ?? "").replace(/^#\s+/, "").trim()
         || (edition === "am" ? "Morning market brief" : "Evening market recap");
@@ -379,7 +433,6 @@ function loadMuseBrief(): MuseBrief | null {
       for (const line of lines) {
         if (!keepHeadings.test(line) && !line.startsWith("- ")) {
           if (line.startsWith("## ")) {
-            // skip other sections entirely until next keep? simpler: stop at ## Data / ## Single / ## Context / ## Breadth
             if (/^##\s+(Data|Single|Context|Breadth|What to watch)/i.test(line)) break;
           }
           continue;
@@ -390,6 +443,17 @@ function loadMuseBrief(): MuseBrief | null {
         if (chars > 2200) break;
       }
 
+      const asOfYmd = resolveBriefAsOfYmd(edition, title, contentHash)
+        ?? (() => {
+          try {
+            const d = new Date(statSync(path).mtimeMs);
+            return d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+          } catch {
+            return null;
+          }
+        })();
+      const stale = !!sessionDateKey && (!asOfYmd || asOfYmd < sessionDateKey);
+
       return {
         edition,
         file,
@@ -397,6 +461,9 @@ function loadMuseBrief(): MuseBrief | null {
         banner,
         bullets,
         promptExcerpt: excerptLines.join("\n").slice(0, 2400),
+        asOfYmd,
+        contentHash,
+        stale,
       };
     }
     return null;
@@ -431,6 +498,8 @@ interface DailyNewsCache {
   editionId?: string;
   museFile?: string | null;
   museBanner?: string | null;
+  /** A70 — content fingerprint of Muse brief when Desk adds were generated */
+  museContentHash?: string | null;
   bannerLevels?: BannerLevel[];
 }
 
@@ -535,7 +604,10 @@ function assessMateriality(opts: {
     };
   }
 
-  if (museBrief?.file && cache.museFile && museBrief.file !== cache.museFile) {
+  // A70: filename is always latest-am|pm — compare content hash (or banner) for same-edition updates.
+  if (museBrief?.contentHash && cache.museContentHash && museBrief.contentHash !== cache.museContentHash) {
+    reasons.push(`Muse ${museBrief.edition} brief updated`);
+  } else if (museBrief?.file && cache.museFile && museBrief.file !== cache.museFile) {
     reasons.push(`new Muse ${museBrief.edition}`);
   } else if (museBrief?.banner && cache.museBanner && museBrief.banner !== cache.museBanner) {
     reasons.push("Muse banner changed");
@@ -641,7 +713,8 @@ async function loadRecentFeedback(sessionDate: string, limit = 12) {
 
 router.get("/desk-commentaries/daily-news", async (req, res) => {
   try {
-    await ingestDeskCommentaries({ sinceMs: Date.now() - 6 * 60 * 60 * 1000 }).catch(() => null);
+    // A65: serve DB + cache; ingest at most every 15 min (POST refresh still always ingests).
+    await maybeIngestDeskOnGet();
     const { win, rows } = await sessionDeskRows();
     const included = rows.filter(includeRow);
     const cache = loadCache(win.dateKey);
@@ -664,15 +737,22 @@ router.get("/desk-commentaries/daily-news", async (req, res) => {
     const liveModel = book
       ? await loadModelContracts(book.all).catch(() => null)
       : null;
-    const museBrief = loadMuseBrief();
+    const museBriefRaw = loadMuseBrief(win.dateKey);
+    // A62: don't present a prior-day brief as today's — null it on weekday sessions when stale.
+    const museBrief = museBriefRaw && museBriefRaw.stale && !win.isWeekendPack
+      ? null
+      : museBriefRaw;
     const material = assessMateriality({
       cache,
       rows,
       included,
       newSince: cache ? newSince : rows.length,
-      museBrief,
+      museBrief: museBriefRaw,
       book: book?.all ?? null,
     });
+    const statusLine = museBriefRaw?.stale && !win.isWeekendPack
+      ? `No brief yet today · last Muse ${museBriefRaw.asOfYmd ?? "?"} ${museBriefRaw.edition} · ${material.statusLine}`
+      : material.statusLine;
 
     return res.json({
       date: win.dateKey,
@@ -684,7 +764,7 @@ router.get("/desk-commentaries/daily-news", async (req, res) => {
       excludedCount: rows.length - included.length,
       maxReceivedAt,
       newSinceLastSummary: cache ? newSince : rows.length,
-      statusLine: material.statusLine,
+      statusLine,
       editionId: material.editionId ?? cache?.editionId ?? null,
       materialSuggested: material.material,
       materialReasons: material.reasons,
@@ -712,6 +792,7 @@ router.get("/desk-commentaries/daily-news", async (req, res) => {
       marketEarningsRows: liveEarn?.marketRows ?? [],
       modelContracts: liveModel?.rows ?? [],
       museBrief,
+      museBriefStale: museBriefRaw?.stale ? museBriefRaw : null,
     });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
@@ -721,6 +802,7 @@ router.get("/desk-commentaries/daily-news", async (req, res) => {
 router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, async (req, res) => {
   try {
     await ensureDeskCommentariesTable().catch(() => null);
+    lastDeskIngestAt = Date.now();
     await ingestDeskCommentaries({ sinceMs: Date.now() - 36 * 60 * 60 * 1000 }).catch(() => null);
     const { win, rows } = await sessionDeskRows();
     const included = rows.filter(includeRow);
@@ -755,7 +837,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     } else {
       newSince = rows.length;
     }
-    const museBriefEarly = loadMuseBrief();
+    const museBriefEarly = loadMuseBrief(win.dateKey);
     const material = assessMateriality({
       cache: prior,
       rows,
@@ -1022,6 +1104,7 @@ ${content.slice(0, 600)}`,
       editionId,
       museFile: museBrief?.file ?? null,
       museBanner: museBrief?.banner ?? null,
+      museContentHash: museBrief?.contentHash ?? null,
       bannerLevels: parseBannerLevels(museBrief?.banner),
     };
     saveCache(cache);

@@ -67,6 +67,9 @@ interface MuseBrief {
   title: string;
   banner: string;
   bullets: string[];
+  asOfYmd?: string | null;
+  contentHash?: string;
+  stale?: boolean;
 }
 
 interface DailyNewsResponse {
@@ -89,6 +92,8 @@ interface DailyNewsResponse {
   marketEarningsRows?: EarningsNearRow[];
   modelContracts?: ModelContractRow[];
   museBrief?: MuseBrief | null;
+  /** Prior-day brief when today's isn't ready yet (A62) — status line carries the signal */
+  museBriefStale?: MuseBrief | null;
   message?: string;
 }
 
@@ -821,8 +826,13 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                     <Sparkles className="w-3 h-3" />
                     {museBrief.edition === "am" ? "Morning brief" : "Evening recap"}
                   </div>
-                  <span className="text-[9px] font-mono text-white truncate" title={museBrief.title}>
-                    {museBrief.file}
+                  <span
+                    className="text-[9px] font-mono text-white truncate"
+                    title={museBrief.title}
+                  >
+                    {museBrief.asOfYmd
+                      ? `as of ${Number(museBrief.asOfYmd.slice(5, 7))}/${Number(museBrief.asOfYmd.slice(8, 10))}`
+                      : museBrief.file}
                   </span>
                 </div>
                 <ul className="space-y-1">
@@ -833,6 +843,21 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {!museBrief && data?.museBriefStale && (
+              <div className={cn("rounded-md border border-amber-500/30 p-2.5", CARD_TONE)}>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
+                  <Sparkles className="w-3 h-3" />
+                  No brief yet today
+                </div>
+                <p className="mt-1 text-[11px] text-white/85">
+                  Last Muse {data.museBriefStale.edition.toUpperCase()}
+                  {data.museBriefStale.asOfYmd
+                    ? ` · ${Number(data.museBriefStale.asOfYmd.slice(5, 7))}/${Number(data.museBriefStale.asOfYmd.slice(8, 10))}`
+                    : ""}{" "}
+                  is from a prior session — waiting for today’s brief.
+                </p>
               </div>
             )}
 
