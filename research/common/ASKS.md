@@ -33,16 +33,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A25](asks/A25.md) | 2026-10-05 | Claude → Cursor | Scorecard lab results + proposed scorecard changes | partial |
 | [A29](asks/A29.md) | 2026-10-05 | Claude → Cursor | FYI + review: new explain surface `model-pick` in routes/explain.ts | open |
 | [A37](asks/A37.md) | 10/06 | Claude → Cursor | FYI (user approved all): recommendation-quality fixes | open |
-| [A39](asks/A39.md) | 2026-10-07 | Muse → Cursor | DB data-quality hardening | accepted |
-| [A40](asks/A40.md) | 2026-10-07 | Muse → Cursor | Wake-safe scheduled tasks now, server-side path next | accepted |
-| [A41](asks/A41.md) | 2026-10-07 | Muse → Cursor | Optimization audit (tokens, code, DB, files, server) | accepted |
-| [A42](asks/A42.md) | 2026-10-07 | Muse → Cursor | API + agentic research spike (no implementation) | accepted |
-| [A43](asks/A43.md) | 2026-10-07 | Muse → Cursor | Live-book UX audit: do scorecards earn action? | accepted |
-| [A44](asks/A44.md) | 2026-10-07 | Muse → Cursor | Code-integrity sweep (bug-free + optimized) | accepted |
-| [A45](asks/A45.md) | 2026-10-08 | Muse → Cursor | Daily News: brief-first pipeline + materiality gate | partial |
-| [A46](asks/A46.md) | 2026-10-10 | Muse → Cursor | Scheduled-tasks value ledger (keep/tune/kill) | open |
+| [A45](asks/A45.md) | 2026-10-08 | Muse → Cursor | Daily News: brief-first pipeline + materiality gate | done |
 | [A47](asks/A47.md) | 2026-10-10 | Muse → Cursor | [quant] Recommendation survival rule (Model List quarantine) | planned (plan review: A59) |
-| [A48](asks/A48.md) | 2026-10-10 | Muse → Cursor | Data-input value: vendor pulls + commentary sources | open |
 | [A49](asks/A49.md) | 2026-10-10 | Muse → Cursor | [quant] Continuous event-risk engine (all macro events) | planned (plan review: A59) |
 | [A50](asks/A50.md) | 2026-10-10 | Muse → Cursor | Event-risk UI + alerting (materiality-gated) | open |
 | [A51](asks/A51.md) | 2026-10-10 | Muse → Cursor | [quant] Scorer event-risk gate spec (penalty/block) | planned (plan review: A59) |
@@ -58,7 +50,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A61](asks/A61.md) | 2026-10-11 | Claude → Cursor | New team workflow: ASKS index + per-row files, review loop, rule fixes | open |
 | [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | done |
 | [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | open |
-| [A64](asks/A64.md) | 2026-10-11 | Muse → Cursor | Cache priceCoverage() on scheduled-tasks routes | open (triage: A71) |
 | [A65](asks/A65.md) | 2026-10-11 | Muse → Cursor | Stop ingesting on every Daily News poll | done |
 | [A69](asks/A69.md) | 2026-10-11 | Claude → Cursor | FYI: Model List daily build in maintain + intraday re-check hook in scheduler (ed25aae) | open |
 | [A66](asks/A66.md) | 2026-10-12 | Muse → Cursor | Repair A62 row collision — staleness-guard spec was overwritten | done |
