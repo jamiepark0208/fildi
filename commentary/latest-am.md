@@ -1,68 +1,60 @@
-# Morning market brief — Monday, October 12, 2026 (pre-market)
+# Morning Brief — Tuesday, October 13, 2026 (pre-market)
 
-**Banner:** S&P fut ~+0.2% (7,867) · Dow fut +0.2% · Nasdaq 100 fut ~flat · 10Y 5.24% (cash closed — Columbus Day) · Brent $103.3 −1.4% · VIX 14.84 (Fri close, −3.7%)
+**Banner:** S&P fut -0.1% | Dow fut +0.8% | Nasdaq fut -0.7% | 10Y 5.19% (-5bp) | Brent $104.5 (-1.7%) | VIX ~15.4 (+1%)
 
 ## What's moving the banner
-
-- **Flat-to-higher futures after a record week.** S&P 500 closed Friday at 7,811.54 (+1.2% on the week, second-highest close ever, +14.1% YTD); the bull market turned four years old this morning. Positioning ahead of bank earnings Tuesday, not conviction, is driving the tape. [barrons][summa]
-- **Oil pulls back on the "energy ceasefire" — but it's two-way.** Trump declared an immediate Russia-Ukraine energy ceasefire Sunday, pulling Brent off ~$105 toward ~$103 (−1.4%) and WTI to ~$90–91. But Houthi strikes on Riyadh's main airport killed 12 over the weekend and Trump floated the U.S. joining Saudi Arabia in strikes on the Houthis; Hurricane Isaias (Cat 3) is curtailing Gulf production. Brent still >$100. [ibd][summa][samuelandco]
-- **Bonds closed, yields pinned.** Cash Treasuries are shut for Columbus Day; 10Y frozen at 5.24% after backing off last week's 24-year high of ~5.36%. No yield input means today's equity tape is thin and can mislead. [fnarena][wsnext]
-- **Asia thin, Europe starts from Friday's rally.** Nikkei closed (Sports Day); Shanghai −0.43%; Hang Seng +0.25%; KOSPI −3.6% after North Korea's latest missile launch (emergency meeting in Seoul). Friday: Euro Stoxx 50 +0.81% (6,176), DAX +1.19% (25,102), FTSE 100 +1.06% (10,552). [newsquawk][upstox]
-- **Gold firm, bitcoin soft.** Gold ~$4,228 (+0.3%) — $4,200 level holding as the hedge bid stays on. Bitcoin ~$82.8k, pinned below $83k by yields, a firm dollar, and pre-CPI caution. [ic.com][ibd]
+- **Bank earnings kickoff, mixed.** JPM missed (EPS $5.75 vs $5.93 est; revenue $50.17B vs $51.23B; FICC trading -4%), while Goldman beat cleanly (+3% premarket), Citi posted its best Q3 revenue in a decade, and Wells missed on net interest income (-2%). Dow futures lifted by GS and UNH.
+- **Second-day global memory-chip selloff.** China's CXMT claimed a denser-DRAM breakthrough plus a server-memory product by year-end. KOSPI -5.5% (trading paused), Samsung -7.4%, SK Hynix -10%, MU -4%, SNDK -5%, SOXX -2%. Broadcom CEO Hock Tan likened some AI investment flow to "casino gambling."
+- **Oil down.** Brent ~$104.5 and WTI ~$92.2 (both ~-1.6%) on prospects of more Russian diesel supply plus a technical pullback after Monday's Saudi-attack spike.
+- **Yields eased.** 10Y 5.19%, 30Y 5.557% — well under last week's 24-year highs (5.365% / 5.733%). First cash session of the week (bond market was closed Monday).
+- **Overnight:** Nikkei -1.8%, Shanghai -0.4%, Taiwan -2.0%, Hang Seng +0.2%. Europe: STOXX 600 +0.44% (638.44), FTSE +1%, tech -1.5%, chemicals +2%.
 
 ## Why it matters
+- Rotation test: can banks broaden the rally beyond tech while semis correct? LSEG expects S&P Q3 earnings +30.6% y/y, with tech and energy leading.
+- The CXMT story is supply-side — a regime threat to memory pricing power, not a one-day fade.
+- Everything is staging for Wednesday's CPI: 19% Oct-hike pricing, three hikes priced over the next 12 months. Bond desks are waiting.
 
-- The calm is a scheduling artifact, not information. Today's tape is positioning; the real repricing events are Tuesday (bank earnings before the open) and Wednesday 8:30 a.m. ET (CPI).
-- Vol looks cheap against the headline risk. VIX 14.84 with Brent >$100, the 10Y at 5.24%, and active Hormuz/Houthi headlines means implieds aren't pricing a $3–5 one-day oil move — which is exactly the move one headline can deliver.
-- The September FOMC minutes keep the hawkish bid on: most participants see another hike this year, and September CPI prints Wednesday with energy prices elevated and 1-year inflation expectations at 4.7% (Friday UoM).
-- Earnings season is the other leg: big-bank results Tuesday morning (JPM, GS, C, WFC) and the ASML/TSMC pair midweek are the first real tests of whether fundamentals justify 2026's AI-led multiples.
-
-## What to watch today (all times ET)
-
-- **12:50 PM** — Cleveland Fed's Hammack speaks on the economic outlook. [fidelity.econoday]
-- **8:00 PM** — Boston Fed's Collins speaks (Fed Crypto Events calendar / Fed calendar). [coingabbar]
-- **No U.S. data today**; bond market closed for Columbus Day — no Treasury auctions, no settlements. Canada closed for Thanksgiving.
-- **Earnings — none today** (no before-open or after-close reporters). Tomorrow before open: JPM, GS, C, WFC, UNH, JNJ, DPZ, ACI. Wed before open: ASML, BAC, MS, BLK, STT, FAST. Thu: TSM, BNY, PNC, USB. Fri: MTB, RF, TRV. [schwab]
-- **Flag for tomorrow:** NFIB small-business optimism 6:00 a.m., existing home sales 10:00 a.m.; big-bank earnings all hit before the open. [econoday]
+## What to watch today (ET)
+- 7:00a — Fed's Goolsbee
+- 8:00a — UNH earnings call
+- 8:15a — ADP weekly employment change
+- 10:00a — Sep existing home sales; Goolsbee again
+- 11:30a — T-bill auctions: $95B 13-wk, $82B 26-wk
+- 1:00p — $95B 6-wk bills; Fed's Barkin
+- 2:00p — Sep federal budget balance
+- 4:00p — Fed's Collins
+- After close: AZZ (EPS est $1.82); IMF/World Bank annual meetings, day 2
+- **Tomorrow:** Sep CPI 8:30a — headline 3.6% y/y expected (vs 3.4% prior), core 2.6%. BAC, MS, STT, BLK report.
 
 ## Data
+- NFIB small-business optimism (Sep): 97.9 vs 98.2 est — out
+- Germany Sep final CPI: +3.3% y/y, in line with prelim — out
 
-- **No U.S. economic prints today** (federal holiday — banks and federal offices closed; stocks open, bonds closed). [econoday]
-- **Friday recap — U. Michigan sentiment (Oct prelim):** 46.3 vs 47.5 expected; 1-yr inflation expectations 4.7% (up) — the expectations line matters more than the headline for the hike narrative. [optionsplay][ic.com]
-- **Wednesday CPI (Sep):** consensus headline 3.6% vs 3.4% prior; **Thursday 8:30:** retail sales 0.8% vs 1.1% prior, PPI 5.3% vs 5.4%, jobless claims 197k flat; **Thu 4:30 PM:** Fed Chair Warsh speaks. FOMC is Oct 27–28. [therighttrader][cambridge][coingabbar]
-
-## Single names (premarket, with the so-what)
-
-- **CRM +4%** (BofA's Tal Liani upgraded to buy from underperform, PT $285, on improving AI-product monetization). So what: upgrade gaps often retrace — no fresh short puts into the spike; watch whether $285-pull premium holds past midday.
-- **CVX +1%** (oil bid). So what: energy-adjacent premium looks rich but is binary — any headline can gap it; keep any energy exposure far OTM and small.
-- **NVDA −0.4%** (4th straight down session), GOOGL/AMZN modestly lower, **MRVL/ARM/INTC each >−1%** (chip/AI-infra weakness). So what: premium compression on green days, premium gift on red ones — today's chip softness is the side of the tape to harvest, not chase.
-- **TMUS/T/VZ hangover:** Friday's −13.3%/−10.8%/−10.1% on SpaceX's ~$8B low-band spectrum deal was a structural derate, not a one-day event. So what: telecoms stay off the short-put list until the repricing digests.
-- **HUM follow-through** (managed-care bid after CMS finalized a 2.48% Medicare Advantage rate increase for 2027, worth ~$13B+ to private plans). So what: Friday's +11.6% was fundamental; if it holds flat today, premium there is honestly priced — small size only.
+## Single names
+- **GS +3%:** clean beat, capital-markets resilience. *So what:* post-print IV crush makes GS a premium-selling candidate — don't chase the pop.
+- **JPM wavered:** FICC -4%, asset/wealth missed ($6.9B vs $7.55B est). *So what:* trading revenue uneven — keep bank puts sized for idiosyncratic misses.
+- **UNH +2–5%:** beat + raised FY guidance. *So what:* healthcare ballast for the Dow; supports index-level put selling.
+- **JNJ / DPZ / ACI each -2%:** narrow misses across healthcare, discretionary, staples. *So what:* consumer read-through softening; DPZ is the demand tell.
+- **MU -4%, SNDK -5%, WDC/STX -3.5–4.5%, DRAM ETF -5%:** CXMT supply shock. *So what:* premium rich but headline gap risk — widen strikes or skip short puts.
+- **NVDA -0.5–1%:** China AI-chip share fell to 34% (IDC) as Huawei gained; pulling back to the 50-day. *So what:* mega-cap tech leadership wobbling — no fresh short-dated tech premium.
+- **Mag 7 split:** AAPL +1%, MSFT +0.4%, GOOGL +0.2% vs META -1%, TSLA -0.8%. *So what:* dispersion rising — index puts cleaner than single-name.
+- **LVMH** edged up despite a Q3 sales miss (China consumer soft); **Nokia -4.4%** (sold Enterprise Campus Edge to Aurelius); **ASML -3.2%**.
+- Burry flagged a possible "bull trap" but is holding back from new bearish bets.
 
 ## Implications (option-selling book)
+1. **CPI tomorrow 8:30a is the book's main event window** (also the pre-registered A51 study print). Keep new short premium light today — don't fade the pre-CPI vol bid.
+2. VIX ~15 with 19% Oct-hike pricing and 3 hikes/12m priced looks cheap into the event stack. Favor SPX/index puts over single-name tech where dispersion is spiking.
+3. Memory semis: multi-day supply narrative. Short puts on MU/SNDK/WDC/STX = pennies in front of a headline steamroller — widen strikes or stand aside.
+4. Post-earnings IV crush on GS/C/UNH is the clean setup — sell after the print, not before. New positions expiring this week should carry DTE past Wednesday's CPI.
 
-- **Event window: keep new short puts past Wednesday morning.** Today's calm is noise; the gamma arrives with bank earnings Tuesday before the open and CPI Wednesday 8:30 a.m. ET. Sell only strikes that sleep through both. 0DTE stays selective — index-only, defined-risk, sized down.
-- **Premium is thin vs. tail risk.** VIX 14.84 with the 10Y at 5.24% and Brent >$100 means you're not getting paid for a weekend-style oil headline. Prefer wider strikes on any new short strangles; don't reach for yield into the calm.
-- **Oil is two-way and instant.** The ceasefire can break with one headline, and the Houthi/Hormuz escalation is live. Energy-exposed underlyings stay off the short-put list (or ≥20 delta-hedged wide) while Brent is >$100.
-- **Thin tape caution.** Bonds closed + holiday-thinned desks = liquidity gaps. Intraday wicks can be exaggerated today; any "cheap premium" print this afternoon deserves a second look before acting.
+## Context
+- S&P 7,807.24: 1d -0.1% / 1m +2.0% / YTD +14.1%
+- Nasdaq 27,245.90: 1d -0.4% / 1m +3.5% / YTD +17.2%
+- Dow 51,850.55: 1d +0.4% / 1m -1.4% / YTD +7.9%
+- 10Y ~5.19% vs ~5.24% Friday close; last-week high 5.365% (24-year)
+- Brent ~$104.5 (-1.7% today); longer-term context unverified — skipped
 
-## Context (verified prices only)
-
-| | Last | 1d | 1w |
-|---|---|---|---|
-| S&P 500 | 7,811.54 (Fri) | +0.59% Fri | +1.2% (2nd-highest close ever) |
-| 10Y yield | 5.24% (cash closed today) | — | off 24-yr high 5.36% |
-| 30Y yield | ~5.60% (Fri) | — | tested 5.73% 24-yr high last week |
-| Brent | ~$103.3 (premarket) | −1.4% premarket | ~$105.6 overnight high |
-| Gold | ~$4,228/oz | +0.3% | — |
-| BTC | ~$82.8k | ~−1% | — |
-
-(1-month figures not verifiable from this morning's sources — omitted rather than invented.)
+*Systems: Mac online; API/scheduler/prices unverified — no probe path (Mac file access not enabled).*
 
 ---
-
-**Sources:** summa money "Stock market today: Dow, S&P 500, Nasdaq futures rise" · IBD "Stock Market Today: Dow Wavers Amid Trump's 'Energy Ceasefire'" · Barron's "Stock Futures Edge Higher to Start Week Ahead of Bank Reports" · Samuel & Co US Open Market Brief 12 Oct 2026 · FNArena Monday Report 12 Oct 2026 · Newsquawk European Equity Opening News 12 Oct 2026 · Schwab Network "Week Ahead: Banks Kick Off Earnings, PPI and CPI" · Fidelity Econoday U.S. economic calendar week of Oct 12 · therighttrader.com U.S. economic calendar this week · cambridgecurrencies weekly currency forecast 12 Oct 2026 · OptionsPlay DailyPlay Ideas 12 Oct 2026 · IC blog Monday 12 Oct 2026 · coingabbar Fed crypto events Oct 12–16
-
-_Pre-market data as of ~8:00–8:30 a.m. ET / 5:00–5:30 a.m. PT, Monday, October 12, 2026. Futures and premarket moves drift — re-check before any action. No AI trading: data streamlining only._
-
-**Systems: Mac offline — unverified**
+Sources: [Investopedia](https://www.investopedia.com/5-things-to-know-before-the-stock-market-opens-on-tuesday-october-13-2026-12171477) · [WSJ](https://www.wsj.com/finance/stocks/nasdaq-futures-fall-as-global-ai-selloff-intensifies-fe149717) · [Reuters](https://www.reuters.com/business/sp-500-futures-muted-investors-await-big-bank-earnings-chip-weakness-weighs-2026-10-13/) · [Investors.com](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-jpmorgan-goldman-earnings-micron-sandisk-sk-hynix/) · [Morningstar/DJ](https://www.morningstar.com/news/dow-jones/20261013616/us-treasury-yields-fall-as-markets-look-to-us-inflation-data) · [WSJ yields](https://www.wsj.com/economy/central-banking/treasury-eurozone-yields-fall-as-markets-look-to-u-s-inflation-data-412d95a4) · [ZeroHedge](https://www.zerohedge.com/markets/nasdaq-futures-slide-ai-casino-hangover-crushes-kospi-sp-flat-after-jpm-ficc-miss) · [Cboe VIX](https://www.cboe.com/tradable-products/vix) · [wallstreetnumbers](https://wallstreetnumbers.com/indexes/vix/price) · [Reuters Europe](https://www.reuters.com/markets/europe/european-shares-edge-higher-lower-oil-prices-lift-sentiment-2026-10-13/) · [XTB calendar](https://www.xtb.com/int/market-analysis/news-and-research/economic-calendar-start-of-wall-street-earnings-season-hawkish-rba-and-middle-east-tensions-13-10-2026) · [Investors.com banks](https://www.investors.com/news/jpmorgan-chase-goldman-sachs-earnings-wells-fargo-citigroup/)
