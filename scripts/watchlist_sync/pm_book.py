@@ -15,11 +15,14 @@ Status per account: RED = margin call under assignment alone, or crash equity dr
 crash, or assignment need > cash; GREEN otherwise. Thresholds are the user's to set (PM_RULES); defaults are labeled as such.
 
     .venv/bin/python pm_book.py            # → out/pm/book-latest.json + book-latest.md
+    .venv/bin/python pm_book.py --live     # re-price spot + put marks/IV from Schwab (API server) before scoring
 """
 from __future__ import annotations
 
 import json
 import math
+import sys
+import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 
@@ -29,7 +32,8 @@ OUT = Path(__file__).resolve().parent / "out" / "pm"
 ACCOUNTS = {"772445425": "IRA", "5QU47796": "FILDI"}
 PM_RULES = {  # defaults pending user choice (2026-10-14); see S015 + state.md
     "crash_move": -0.30,     # typical worst 5-day move of the book's names (−25% … −52% observed)
-    "crash_budget": 0.25,    # max equity drop tolerated in that crash week
+    "crash_budget": 0.25,    # max equity drop in that crash week → RED (user 2026-10-14: "25% is fine")
+    "crash_warn": 0.20,      # → AMBER early warning (user: "maybe even lower")
     "bad_week_itm": 0.53,    # S015: 1 in 10 expiries ends with ~53% of puts ITM
 }
 N = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
@@ -41,6 +45,42 @@ def p_otm(spot: float, k: float, iv: float | None, days: float) -> float | None:
     t = max(days, 0.5) / 252
     d2 = (math.log(spot / k) - 0.5 * iv * iv * t) / (iv * math.sqrt(t))
     return N(d2)
+
+
+API = "http://127.0.0.1:8080/api/schwab"
+
+
+def _post(path: str, body: dict) -> dict:
+    try:
+        req = urllib.request.Request(f"{API}/{path}", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read())
+    except Exception:
+        return {}
+
+
+def live_reprice(puts: list[dict], longs: list[dict]) -> str | None:
+    """Overwrite spot/mark/iv with Schwab quotes in place; long market values rescaled to live price. Returns quote time or None."""
+    tickers = sorted({p["t"] for p in puts} | {x["t"] for x in longs})
+    px = _post("equity-prices", {"tickers": tickers}).get("prices", {})
+    q = _post("option-quotes", {"contracts": [{"ticker": p["t"], "expiry": str(p["exp"]), "strike": p["k"], "type": "put"} for p in puts]})
+    quotes, syms = q.get("quotes", {}), q.get("symbols", {})
+    if not px and not quotes:
+        return None
+    for x in longs:
+        live = (px.get(x["t"]) or {}).get("price")
+        if live and x["q"]:
+            x["mv"] = live * x["q"]
+    t = None
+    for p in puts:
+        live = (px.get(p["t"]) or {}).get("price")
+        if live:
+            p["spot"] = live
+        oq = quotes.get(syms.get(f"{p['t']}|{p['exp']}|{p['k']:g}|put", ""), {}) or quotes.get(syms.get(f"{p['t']}|{p['exp']}|{p['k']}|put", ""), {})
+        if oq.get("mark") is not None:
+            p["mark"], p["iv"] = oq["mark"], oq.get("iv") or p["iv"]
+            t = max(t or "", oq.get("quoteTime") or "")
+    return t or datetime.now().isoformat(timespec="seconds")
 
 
 def trading_days(a: date, b: date) -> int:
@@ -65,6 +105,7 @@ def main() -> None:
                                 (SELECT close::float8 FROM prices_historical p WHERE p.ticker = UPPER(o.symbol) ORDER BY date DESC LIMIT 1) AS spot
                          FROM portfolio_options o WHERE o.snapshot_id = %s AND o.direction = 'short' AND o.option_type = 'put'
                            AND o.expiration >= CURRENT_DATE""", (snap,))
+    priced = live_reprice(puts, longs) if "--live" in sys.argv else None
     today = date.today()
     positions, books = [], {}
     for p in puts:
@@ -109,14 +150,15 @@ def main() -> None:
         else:
             red = (b["crash_drop_pct"] or 0) > PM_RULES["crash_budget"]
             amber = assign_itm > max(a["cash"] or 0, 0) + 1
+        amber = amber or (b["crash_drop_pct"] or 0) > PM_RULES["crash_warn"]
         b["status"] = "red" if red else "amber" if amber else "green"
         books[name] = b
-    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "snapshot_at": taken.isoformat(),
+    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "snapshot_at": taken.isoformat(), "live_priced_at": priced,
            "rules": PM_RULES, "accounts": books, "positions": sorted(positions, key=lambda x: (x["expiry"], x["account"], -x["move_needed"]))}
     (OUT / "book-latest.json").write_text(json.dumps(out, indent=1, default=str))
 
     f = lambda v: f"${v:,.0f}"  # noqa: E731
-    L = [f"# Book — snapshot {snap} ({taken:%Y-%m-%d %H:%M})", ""]
+    L = [f"# Book — snapshot {snap} ({taken:%Y-%m-%d %H:%M})" + (f" · live Schwab prices {priced}" if priced else " · snapshot prices"), ""]
     for b in books.values():
         L.append(f"**{b['account']}** {b['status'].upper()} · equity {f(b['equity'])} · cash {f(b['cash'])} · {b['itm_puts']}/{b['short_puts']} puts ITM · "
                  f"assign if ITM now {f(b['assign_if_itm_now'])} · crash ({crash:.0%}) equity {f(b['crash_equity'])} ({-b['crash_drop_pct']:.0%})")

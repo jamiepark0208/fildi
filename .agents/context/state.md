@@ -12,7 +12,7 @@
 
 ## Next tasks (priority order)
 
-0. **PM agent (user 2026-10-14: Claude = portfolio manager, Cursor = dev, Muse = ideation).** S015 done (08b8ce6): picks fine, assignment neutral, breaches cluster by expiry (p90 expiry = 53% of puts ITM). Proposed: Book card + Expiry desk + decision journal + stress-at-p90 rule + phone push — awaiting user OK on rules/UX. This week: 12/13 short puts ITM exp 10/16; FILDI (margin, cash −$20.3k) assignment ≈ $11.6k → margin-call risk.
+0. **PM agent (user 2026-10-14: Claude = portfolio manager, Cursor = dev, Muse = ideation).** S015 (08b8ce6): picks fine, assignment EV-neutral, breaches cluster by expiry. Built: `pm_book.py` (--live Schwab re-price; crash-week stress, margin headroom, P(OTM)/close cost) + `pm_alerts.py` (state-deduped; macOS + email-to-self via `scripts/apps-script/PmAlertMail.gs`) + LaunchAgent `com.fildi.pm-alerts` (15 min, weekdays 06–20 PT; installer `scripts/install-pm-alerts-launchd.sh`). **User decisions 10-14:** crash budget 25% RED / 20% AMBER (PM_RULES); alerts in Fildi + no phone-app download (email bridge needs user's 2-min Apps Script deploy → PM_ALERT_WEBHOOK/SECRET in .env.local); Claude plan-reviews **every** Muse row (AGENTS.md updated). UI = A76 (Claude → Cursor). Next: pm_book adds premium-vs-P&L + earnings-in-DTE (A68 gap); decision journal / weekly grade. 10/14 close: FILDI RED (assign → headroom −$4.6k), IRA RED (crash −30%); 12/13 puts ITM exp 10/16.
 
 1. **Model List live grades** — first expiries 2026-10-09..12: grade vs win-rate table, then A24 (RH trade tiers → learn.py).
 2. **fair value re-test** — after ~6 months of `fair_value_snapshots` (see memory fair-value).

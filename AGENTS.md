@@ -21,7 +21,7 @@
 Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval rules).
 
 **Muse is a live remote agent** (runs while Mac is closed). Bus = **git** on `cursor/mac-dev` + ASKS.
-**User 2026-10-07:** Cursor **owns all Muse tasks** (`Muse → Cursor`). Claude never implements them (it plan-reviews `[quant]` ones, below).
+**User 2026-10-07:** Cursor **owns all Muse tasks** (`Muse → Cursor`). Claude never implements them (it plan-reviews all of them, below).
 
 Practical rules:
 1. **Never make the user relay messages.** ASKS is the log; it never blocks finishing work.
@@ -34,18 +34,19 @@ Practical rules:
 7. Scoring/selection changes need user approval + before/after; bug fixes and display changes don’t.
 
 ## Review loop (user decision 2026-10-11)
-Muse plans → Claude plan-reviews (quant rows only) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
+Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
 
-**Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines. Everything else skips Claude.
+**Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines.
+Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impact, simpler/cheaper path); commit review stays quant-only.
 
 **ASKS format (2026-10-11):** `research/common/ASKS.md` is a one-line index (id link · date · from → to · title · status).
 Everything else — spec, replies, status notes, reviews — lives in `research/common/asks/A##.md` (template `asks/_TEMPLATE.md`). Read the index; open a file only to act on it.
 
 1. **Muse files** `Muse → Cursor` (unchanged): new `asks/A##.md` + one index line. Quant rows: title starts with `[quant]`.
-2. **Claude plan review** (quant rows, before build): checks overlap with existing code + `research/studies/INDEX.md`,
+2. **Claude plan review** (every Muse row, before build; user 2026-10-14): checks overlap with existing code + `research/studies/INDEX.md`,
    adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
    `**Claude plan <date>:** …` to the file's `## Reviews` and sets the index status to `planned`. Claude never implements Muse rows.
-   Cursor builds quant rows from `planned`; if Claude hasn't reviewed in 48 h, Cursor may build and Claude reviews the commit.
+   Cursor builds from `planned`; if Claude hasn't reviewed in 48 h, Cursor may build and Claude reviews the commit.
 3. **Cursor builds**, commit message carries `Refs: A##` (one trailer per row).
 4. **Commit review, independent + parallel:** Muse = bugs/ops/UX; Claude = quant diffs only (look-ahead,
    units, eval run vs the plan's acceptance check). Claude writes its review **before reading Muse's verdict** on that SHA.

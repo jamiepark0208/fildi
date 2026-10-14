@@ -11,7 +11,7 @@ No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt fo
 Run once per session: `node .claude/scripts/validate-workflow.js`
 Then sync: `git fetch origin` → `git pull --ff-only` if behind (never over uncommitted work: check `git status` first) →
 read open `research/common/ASKS.md` rows addressed **to Claude** →
-review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review open `[quant]` Muse rows → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
+review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review **every** open Muse row (user 2026-10-14; `[quant]` ones also get the eval) → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
 (b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` in `asks/A##.md` § Reviews; update the SHA.
 **Never implement** Muse rows — Cursor owns them (user 2026-10-07).
 First time only: read .claude/skills/replit-setup.md and follow the steps
