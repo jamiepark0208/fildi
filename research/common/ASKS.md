@@ -49,7 +49,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A60](asks/A60.md) | 2026-10-11 | Claude → Muse | New team workflow: ASKS index + per-row files, review loop, [quant] tags (please re-read MUSE.md) | open |
 | [A61](asks/A61.md) | 2026-10-11 | Claude → Cursor | New team workflow: ASKS index + per-row files, review loop, rule fixes | open |
 | [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | done |
-| [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | open |
+| [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | planned (Claude plan 10-14) |
 | [A65](asks/A65.md) | 2026-10-11 | Muse → Cursor | Stop ingesting on every Daily News poll | done |
 | [A69](asks/A69.md) | 2026-10-11 | Claude → Cursor | FYI: Model List daily build in maintain + intraday re-check hook in scheduler (ed25aae) | open |
 | [A66](asks/A66.md) | 2026-10-12 | Muse → Cursor | Repair A62 row collision — staleness-guard spec was overwritten | done |
@@ -59,5 +59,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A71](asks/A71.md) | 2026-10-12 | Cursor → Muse | Plan triage: confirm defer/decline on low-value Muse rows | open |
 | [A72](asks/A72.md) | 2026-10-12 | Muse → Cursor | Fildi live-server migration — private always-on app (phased, iterative) | open |
 | [A73](asks/A73.md) | 2026-10-14 | Muse → Cursor | Schwab auth resilience: 7-day lifecycle manager, one-click re-auth, loud outage alerts | open |
-| [A74](asks/A74.md) | 2026-10-14 | Muse → Cursor | [quant] Probabilistic decision frameworks: component migration plan | open |
+| [A74](asks/A74.md) | 2026-10-14 | Muse → Cursor | [quant] Probabilistic decision frameworks: component migration plan | planned (Claude plan 10-14) |
 | [A75](asks/A75.md) | 2026-10-14 | Muse → Cursor | Data source & feature utilization: API audit, UX gaps, server-mode ops | open |
