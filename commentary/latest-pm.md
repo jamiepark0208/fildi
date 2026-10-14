@@ -1,58 +1,46 @@
-# Evening market recap — Monday, October 12, 2026 (post-close)
+# Evening Recap — Tuesday, October 13, 2026 (post-close)
 
-**Banner:** S&P 500 7,807.24 −0.06% · Dow 51,850.55 +0.38% · Nasdaq 27,245.90 −0.44% · 10Y 5.24% (cash closed — Columbus Day) · Brent $106.09 +1.3% · VIX 15.21 +2.5%
+**Banner:** S&P 7,805.45 (-0.02%) | Dow 51,670.10 (-0.35%) | Nasdaq 27,204.38 (-0.15%) | 10Y ~5.22% (flat) | Brent $105.69 (-0.9%) | VIX 15.28 (+0.5%)
 
 ## What moved today
-
-- **Rotation, not risk-off.** The Dow closed at a near three-week high while the Nasdaq lagged — money moved buckets inside equities. Energy +1.44%, staples +1.16%, comm services +0.94%, financials +0.58%; tech −1.22% was the laggard. [ts2][marketbriefer]
-- **The "energy ceasefire" died within hours.** Trump's Sunday announcement faded as Russia struck Ukrainian power plants and the Kremlin never confirmed the deal. Houthi strikes on Riyadh's airport (operations suspended), plus tanker/drone incidents near Hormuz, kept the bid on. Brent round-tripped $102.33–$106.17 to close $106.09, +1.3%; WTI $93.28, +1.5%. [investopedia][babypips]
-- **Memory-chip selloff dragged tech.** Reports of progress by China's CXMT on denser DRAM hit the complex: SanDisk −6%+, Micron −3.1%, SOXX −2.6%, Lumentum −10%, Semtech −10.15%, Marvell −3.42%. [marketbriefer][fool]
-- **Columbus Day tape was thin.** S&P volume 2.26B shares — 55% below the three-month average — with the cash Treasury market closed. Intraday wicks deserve a second look before acting on them. [ts2]
-- **Hammack stayed hawkish but noncommittal on October.** In a Reuters interview she said rates need to move higher to cool demand ("we're only being challenged on one side of the mandate"), prefers smaller, more frequent adjustments, and goes into the Oct 27–28 meeting with an "open mind." Markets barely reacted; investors still expect a hold in October. [reuters][babypips]
+- **The Dow gave back 400 points.** It opened +394 on the bank-earnings cluster and surrendered all of it by midday — the bid faded as the memory liquidation compounded. Buyers rotated *out of* the earnings winners, not into them. The index never saw green again.
+- **Bank tape was mixed and the bar beat the print.** Goldman beat big ($17.01 vs ~$15.05 est; equities trading revenue +72%) yet faded -0.2%. JPM missed ($5.75 vs $5.93, FICC soft) but guided 2026 NII up, -0.9%. Citi posted decade-high revenue and still fell 5.6%. Wells dropped 3.1% on an NII miss.
+- **CXMT day two went global.** KOSPI -5.46% (the epicenter), Nikkei reopened to -1.82% with SoftBank -8.5%, MU -3.6%, AMAT -7%. The PHLX chip index fell for a fifth straight day. Mainland China and Hong Kong (Hang Seng +0.30%) held steady — the markets most exposed to memory production fell hardest.
+- **Williams gave bonds a late bid.** NY Fed President John Williams told Bloomberg one more hike this year still looks appropriate, but no 2027 hikes needed, and inflation will slow "quite a bit" toward 2% next year. Bonds and metals popped late on it.
+- **Oil erased the morning washout.** Brent fell to ~$103.5 early, then bounced to $105.69 (-0.9%); WTI settled $94.14 (+0.4%) on Hormuz/Houthi supply risk plus Hurricane Isaias curtailing Gulf output. Paul Tudor Jones called for another $20–25 leg higher on the unresolved U.S.–Iran standoff — and warned 2027 could be "really, really challenging" for stocks on a dot-com-style equity supply tsunami.
+- **Data kept the CPI setup intact.** NFIB optimism 97.9, ADP weekly employment +24.75k, existing home sales 3.99M (+1.5% m/m, above ~3.95M consensus) with the median price at a September record $417,500. RBA minutes showed a unanimous hike to 4.60% with the door open to more — the global easing story is over.
 
 ## Breadth and leadership
-
-- Breadth was better than the flat close: roughly 60% of S&P members advanced and 8 of 11 sectors finished higher — equal-weight S&P edged +0.07% while the cap-weighted index slipped. [ts2][marketindex]
-- Rates were a non-factor by construction: 10Y pinned at 5.24% with cash closed. Vol picked up modestly — VIX 15.21, +2.5% — mid-teens pricing for a week with bank earnings and CPI, not a breakdown bid. [marketindex][tradingnews]
-- Leaders: energy, defensives, telecoms (T-Mobile/AT&T/Verizon bounced after Friday's SpaceX-spectrum selloff). Salesforce +~2% on BofA's double upgrade helped the Dow; Meta +3.4% on its "Muse Wonder" model launch. Laggards: memory and AI-hardware. [marketbriefer][fool]
-- Overseas: Europe finished green (FTSE +0.99%, DAX +0.76%); Asia mixed (Hang Seng +0.25%, Shanghai −0.43%, Nikkei −0.02%, Nifty −0.76%). Gold $4,167.56, −0.64%; bitcoin ~$82.8k, −0.8%. [marketindex]
+- Sector leadership was defensive-ish: energy led on crude's bounce; industrials (CAT -3%+, the Dow's biggest drag) and healthcare (JNJ -6%) trailed. Tech was pressured all day.
+- Narrow market, still: the S&P is up ~14% in 2026 but the median stock is up less than 5%, and 200+ components are down for the year. The index is doing the work of a handful of mega-caps — AAPL tagged an intraday record $348.15 (~$4.98T market cap) before closing +0.1% at $341.27; META rose ~3%.
+- Rates/vol context: 10Y ~5.22% roughly flat after the Williams pop, 30Y 5.60%, 2Y higher into CPI. DXY 102.20 (-0.4%), off 18-month highs. Gold $4,177 (-0.3%), silver -1.6% to $59.53, BTC ~$83,171 (+0.2%). Swap pricing still points to ~1-in-5 odds of an October hike and a near-locked December — VIX 15.28 (+0.5%) looks cheap with the print 15 hours away.
 
 ## What changed vs the morning thesis
-
-- **Right:** today was positioning, not information — thin tape, mixed indices, waiting on bank earnings Tuesday and CPI Wednesday 8:30 a.m. ET.
-- **Wrong:** the oil fade. The morning brief had Brent pulling back on the ceasefire; by the close the ceasefire had unraveled and Brent was back above $106. Energy-adjacent risk is back on.
-- **Shifted:** Hammack delivered the expected hawkish tone — but with an explicit "open mind" on October rather than a firm lean. October hike odds nudged to ~19% from ~17.7% Friday; December ~88%. The strip keeps creeping up.
-- **Single names played out:** the CRM upgrade held into the close (+~2% vs +4% premarket — the expected retrace started); the chip-softness side of the tape was the premium gift, as flagged.
+- **Right:** mixed bank tape (GS beat / JPM FICC miss), second-day CXMT washout, yields off last week's highs, CPI flagged as the book's main event window.
+- **Wrong/shifted:** Dow futures pointed to +470 pre-open and the cash opened +394 — all of it gone within an hour. The morning read was "rotation test: can banks broaden the rally?" The answer was no. JNJ went from -2% premarket to -6% on the MedTech sales miss (profit beat and raised guidance didn't save it). Citi's -5.6% on a double beat is the day's lesson: the bar matters more than the print.
+- **New:** Williams' dovish-leaning 2027 take gave the late-day bond bounce; Brent clawed back the morning's deeper losses; the IMF lifted 2026 global growth to 3.1% (credit to AI investment, warning on wars and energy). Europe gave back its early gains — STOXX 600 closed -0.10% after the morning's +0.44%.
 
 ## Book impact (option-selling book)
+1. **CPI is the only position that matters.** Wednesday 8:30a ET, headline +0.6% m/m expected (prior +0.4%) — also the pre-registered A51 study print. Don't add short premium into it tonight; let theta work on what's already open.
+2. **Memory semis stay untouchable.** Fifth straight down day for SOX, and the CXMT supply narrative is multi-day, not a one-day fade. No short puts on MU/SNDK/WDC/AMAT — pennies in front of a headline steamroller.
+3. **Sell premium after prints, not before.** GS beat by 13% and still faded; Citi's -5.6% on a double beat is exactly why you don't sell bank strangles into earnings. Post-print IV crush on GS is the textbook setup — tomorrow's BAC/MS/STT/BLK prints are the next ones to wait out.
+4. **Keep new DTE past the print.** Anything new written today should expire after Wednesday's CPI (and ideally Thursday's PPI). With dispersion this wide — median stock +5% vs index +14% — short-dated SPX/index puts are the cleaner expression than single-name.
 
-- **CPI Wednesday 8:30 a.m. ET is the gamma event.** Keep new short puts wide of it. VIX at 15.2 prices the week's knowns, not a shock — don't reach for yield into a mid-teens VIX with Brent at $106. Event windows: bank earnings Tue before the open, CPI Wed 8:30, PPI and retail sales Thu.
-- **Tech premium got richer.** The chip selloff widened put premiums in memory and AI-hardware names — but the catalyst (CXMT) is still developing and ASML reports Wednesday, TSMC Thursday. Harvest selectively; don't short puts into unresolved news flow.
-- **Energy stays off the short-put list.** One headline can deliver a $3–5 Brent move in either direction. Far OTM and small only while Brent is above $100.
-- **Tomorrow's tape re-normalizes.** Bonds reopen, banks report before the open — today's cheap premium prints may re-mark. 0DTE stays selective: index-only, defined-risk, sized down.
+## Risk/events for tomorrow (ET)
+- **8:30a — Sep CPI:** headline M/M +0.6% exp (prior +0.4%), Y/Y 3.6% (prior 3.4%); core M/M +0.2% (prior +0.3%), Y/Y 2.5% (prior 2.4%). The book's main event window.
+- **Pre-open bank earnings:** BAC, MS, STT, BLK.
+- **10:30a — EIA petroleum status report.**
+- **Overnight:** Asia follow-through on the chip selloff; Europe open. AZZ reported after the close today (pending at write time).
+- **Thursday:** Sep PPI 8:30a — the second half of the inflation one-two.
 
-## Risk/events for tomorrow (all times ET)
+## Context
+- S&P 7,805.45: 1d -0.02% / 1m +2.0% / YTD +14%
+- Dow 51,670.10: 1d -0.35% / 1m -1.4% / YTD +7.9%
+- Nasdaq 27,204.38: 1d -0.15% / YTD +17.2%
+- 10Y ~5.22% vs ~5.19% premarket; last week's high 5.365% (24-year)
+- Brent $105.69 (-0.9% today) vs ~$104.5 premarket; Monday closed $106.15
 
-- **6:00 AM** — NFIB small-business optimism (Sep)
-- **Before the open** — JPM, GS, WFC, C, JNJ, UNH, DPZ, ACI report
-- **10:00 AM** — Existing home sales (Sep)
-- **Fed speakers** — Waller at the Bloomberg New Economy Forum (New Delhi); Treasury cash market reopens — watch the 10Y's first real price discovery since Friday's 5.24%
-- **Overnight** — LVMH reports after the European close; read-through for luxury and the consumer complex
-
-## Context (verified prices only)
-
-| | Close | 1d | 1w |
-|---|---|---|---|
-| S&P 500 | 7,807.24 | −0.06% | ~+1.2% record week; 0.15% below Oct 6 record 7,818.93 |
-| 10Y yield | 5.24% (cash closed) | — | off 24-yr high ~5.36–5.37% |
-| Brent | $106.09 | +1.3% | traded $102.33–$106.17 today |
-
-The bull market turned four years old today (median S&P stock up barely 4% in 2026 — the rally stays narrow). 1-month figures not verifiable from today's sources — omitted rather than invented.
+*Systems: Mac offline — unverified.*
 
 ---
-
-**Sources:** ts2.tech "S&P 500 Ends 0.15% Below Record as Holiday Volume Falls 55%" · marketbriefer "The Global Close: October 12, 2026" · Investopedia markets news 10/12 · Motley Fool "Stock Market Today, Oct. 12" · Reuters "Fed's Hammack: Hope to cool demand, and inflation, without job market pain" 10/12 · WSJ week-ahead live coverage · BabyPips market recap 10/12 · marketindex morning wrap · tradingnews.com 10/12
-
-_Post-close data as of ~4:00–4:30 p.m. ET / 1:00–1:30 p.m. PT, Monday, October 12, 2026. Mac offline, so no live book snapshot — book section written from generic premium commentary. No AI trading: data streamlining only._
-
-**Systems: Mac offline — unverified**
+Sources: [VistapGlobal](https://vistapglobal.com/stock-market-today-october-13-2026-dow-falls-180-points-as-chip-selloff-and-inflation-risks-weigh-aapl-bmbl-eprx-gs-modd-nvda-ser-unh/) · [Motley Fool](https://www.fool.com/coverage/stock-market-today/2026/10/13/stock-market-today-oct-13-markets-edge-lower-as-earnings-season-kicks-off/) · [Investrade](https://investrade.com/market-review-october-13-2026/) · [MarketBriefer](https://marketbriefer.com/the-global-close-october-13-2026-chips-rout-asia-wall-street-holds-its-breath-for-cpi/) · [DevDiscourse/Reuters](https://www.devdiscourse.com/article/international/3991806-us-stocks-nasdaq-ends-down-as-chipmakers-fall-and-bank-earnings-roll-in) · [Babypips](https://www.babypips.com/news/financial-forex-market-recap-2026-10-13) · [TradingNews](https://www.tradingnews.com/news/dow-gives-back-395-points-to-51837-sp-500-dips-to-7798-nasdaq-holds-27200) · [ShareCafe](https://www.sharecafe.com.au/2026/10/14/asx-set-to-fall-0-3-as-wall-street-slips/)
