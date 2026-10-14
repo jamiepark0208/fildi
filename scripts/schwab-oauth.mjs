@@ -223,3 +223,4 @@ const code = await done;
 console.log("Got authorization code — exchanging…");
 const tokens = await exchangeCode(code);
 await probeAndSave(tokens);
+process.exit(0); // keep-alive socket + 3-min timer would otherwise hold the terminal open

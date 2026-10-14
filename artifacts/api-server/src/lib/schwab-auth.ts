@@ -3,7 +3,7 @@
  * Tokens live at ~/.tradedash/schwab-tokens.json (from scripts/schwab-oauth.mjs).
  * Access ~30m; refresh ~7d then full browser re-auth required.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { logger } from "./logger.js";
@@ -26,6 +26,8 @@ export interface SchwabTokenFile {
 }
 
 let memory: SchwabTokenFile | null = null;
+/** mtime of the file `memory` came from — re-read when schwab-oauth.mjs writes new tokens. */
+let memoryMtimeMs = 0;
 let refreshInFlight: Promise<string | null> | null = null;
 
 function clientId(): string | undefined {
@@ -43,11 +45,21 @@ export function getSchwabTokenPath(): string {
   return TOKEN_PATH;
 }
 
+function fileMtimeMs(): number {
+  try {
+    return statSync(TOKEN_PATH).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
 function loadFile(): SchwabTokenFile | null {
-  if (memory) return memory;
+  const mtime = fileMtimeMs();
+  if (memory && mtime === memoryMtimeMs) return memory;
   try {
     if (!existsSync(TOKEN_PATH)) return null;
     memory = JSON.parse(readFileSync(TOKEN_PATH, "utf8")) as SchwabTokenFile;
+    memoryMtimeMs = mtime;
     return memory;
   } catch (err) {
     logger.warn({ err: String(err) }, "schwab-auth: failed to read token file");
@@ -59,6 +71,14 @@ function saveFile(t: SchwabTokenFile): void {
   mkdirSync(join(homedir(), ".tradedash"), { recursive: true });
   writeFileSync(TOKEN_PATH, JSON.stringify(t, null, 2), { mode: 0o600 });
   memory = t;
+  memoryMtimeMs = fileMtimeMs();
+}
+
+/** Record a refresh failure without clobbering tokens a re-auth wrote meanwhile. */
+function saveError(t: SchwabTokenFile, err: string): void {
+  const disk = loadFile();
+  if (disk && disk.refresh_token !== t.refresh_token) return;
+  saveFile({ ...t, lastError: err });
 }
 
 /** Days until refresh token expires (7d from obtainedAt). Pure — used by status + tests. */
@@ -146,7 +166,7 @@ async function refreshAccessToken(t: SchwabTokenFile): Promise<string | null> {
     };
     if (!res.ok || !json.access_token) {
       const err = json.error_description || json.error || `HTTP ${res.status}`;
-      saveFile({ ...t, lastError: String(err) });
+      saveError(t, String(err));
       logger.warn({ err, status: res.status }, "schwab-auth: refresh failed — re-run scripts/schwab-oauth.mjs");
       return null;
     }
@@ -168,7 +188,7 @@ async function refreshAccessToken(t: SchwabTokenFile): Promise<string | null> {
     return next.access_token;
   } catch (err) {
     const msg = String((err as Error)?.message ?? err);
-    saveFile({ ...t, lastError: msg });
+    saveError(t, msg);
     logger.warn({ err: msg }, "schwab-auth: refresh threw");
     return null;
   }
