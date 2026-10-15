@@ -36,7 +36,8 @@ import {
 } from "./breakdown/stock-breakdown-parts";
 import { MemoHeader } from "./breakdown/memo-header";
 import { ShortInterestPanel } from "./breakdown/short-interest-panel";
-import { EarningsCallPanel } from "./breakdown/earnings-call-panel";
+import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
+import { AssumptionsTab } from "./breakdown/assumptions-tab";
 
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export function StockBreakdown({
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
   const [tvOpen, setTvOpen] = useState(false);
   const [peerEditOpen, setPeerEditOpen] = useState(false);
-  const [digTab, setDigTab] = useState<"news" | "history" | "accounting">("news");
+  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "calls">("news");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -605,6 +606,8 @@ export function StockBreakdown({
                               ["news", "News"],
                               ["history", "Score history"],
                               ["accounting", "Accounting"],
+                              ["assumptions", "Assumptions"],
+                              ["calls", "Earnings calls"],
                             ] as const
                           ).map(([id, label]) => (
                             <button
@@ -650,6 +653,8 @@ export function StockBreakdown({
                         {digTab === "accounting" && activeTicker && (
                           <AccountingStatementsSection ticker={activeTicker} />
                         )}
+                        {digTab === "assumptions" && activeTicker && <AssumptionsTab ticker={activeTicker} />}
+                        {digTab === "calls" && activeTicker && <EarningsCallsTab ticker={activeTicker} />}
                       </div>
                     </div>
                   </div>

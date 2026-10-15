@@ -166,3 +166,18 @@ describe("computeFairValues", () => {
     assert.ok(r.fairValue != null && r.fairValue / 15.46 < 4, `got ${r.fairValue}`);
   });
 });
+
+describe("profitableUseStandard (cohort label vs the stock's own profitability)", () => {
+  const sw = (ticker: string, over: Partial<FvTickerInput> = {}) => stock({ ticker, mode: "pre_revenue_ok", peerGroupId: "sw", ...over });
+  const inputs = universe([sw("PROF"), sw("BURN", { forwardEps: -1, fcf: -5e8 })]);
+  it("off (fv-1.0.0): a pre_revenue_ok cohort gets no model value, profitable or not", () => {
+    const r = new Map(computeFairValues(inputs, M, P).map((x) => [x.ticker, x]));
+    assert.equal(r.get("PROF")!.fairValue, null);
+    assert.equal(r.get("PROF")!.nullReason, "mode_pre_revenue_ok");
+  });
+  it("on: profitable members are valued with the standard methods; loss-makers still are not", () => {
+    const r = new Map(computeFairValues(inputs, M, { ...P, profitableUseStandard: ["pre_revenue_ok"] }).map((x) => [x.ticker, x]));
+    assert.ok(r.get("PROF")!.fairValue! > 0);
+    assert.equal(r.get("BURN")!.fairValue, null);
+  });
+});

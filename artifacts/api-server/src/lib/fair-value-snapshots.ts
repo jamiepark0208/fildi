@@ -14,6 +14,7 @@ import { fetchFredLatest } from "./macro/macro-fred.js";
 import { loadMacroCache } from "./macro/macro-cache.js";
 import { logger } from "./logger.js";
 import { TTLCache } from "./ttl-cache.js";
+import { activeAssumptions, computeAdjusted, ensureAssumptionTables, recordInputs } from "./fv-assumptions.js";
 
 function etDateKey(d = new Date()): string {
   return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -268,6 +269,21 @@ async function runFairValueSnapshots(opts?: { asOf?: string; trigger?: string })
          trigger = EXCLUDED.trigger, cyclical = EXCLUDED.cyclical, value_trap = EXCLUDED.value_trap, computed_at = now()`,
       values.slice(s * COLS, (s + CHUNK) * COLS),
     );
+  }
+
+  // Assumption trail (fv-assumptions.ts): store changed input sets, then the adjusted value for stocks with active judgement.
+  try {
+    await ensureAssumptionTables();
+    await recordInputs(inputs, asOf);
+    const adjusted = computeAdjusted(inputs, market, p, await activeAssumptions(asOf));
+    await pool.query(`UPDATE fair_value_snapshots SET adjusted_fair_value = NULL, adjustments = NULL
+                      WHERE as_of = $1 AND adjustments IS NOT NULL`, [asOf]);
+    for (const [ticker, a] of adjusted) {
+      await pool.query(`UPDATE fair_value_snapshots SET adjusted_fair_value = $3, adjustments = $4::jsonb WHERE ticker = $1 AND as_of = $2`,
+        [ticker, asOf, a.result.fairValue, JSON.stringify({ applied: a.applied, confidence: a.result.confidence, votes: a.result.votes })]);
+    }
+  } catch (err) {
+    logger.warn({ err: String(err) }, "fair value: assumption trail failed (base values unaffected)");
   }
 
   const summary = summarize(results, prev, asOf, version, market);

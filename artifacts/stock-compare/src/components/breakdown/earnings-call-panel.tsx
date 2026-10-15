@@ -13,7 +13,7 @@ type Summary = {
   model_inputs?: { revenue_growth_pct: number | null; gross_margin_pct: number | null; op_margin_pct: number | null; capex_usd_m: number | null; fcf_usd_m: number | null; period: string | null; note?: string };
   kpis?: { name: string; value: string; change: string }[];
   tone_prepared?: number; tone_qa?: number; tone?: number; analyst_concerns?: string[];
-  financing?: string; risks?: string[]; catalysts?: string[]; bullets?: string[];
+  financing?: string; demand?: string; margins?: string; risks?: string[]; catalysts?: string[]; bullets?: string[];
 };
 type Call = { quarter: string; summary: Summary; av_sentiment: number | null };
 type Street = { revenue_mean_fy1: number | null; eps_mean_fy1: number | null; fy1_period: string | null; eps_mean_fq1: number | null; as_of: string } | null;
@@ -60,9 +60,8 @@ function Tone({ v, label }: { v?: number; label: string }) {
   );
 }
 
-export function EarningsCallPanel({ ticker }: { ticker: string }) {
-  const [more, setMore] = useState(false);
-  const { data, isLoading } = useQuery({
+function useCalls(ticker: string) {
+  return useQuery({
     queryKey: ["earnings-call", ticker],
     queryFn: async (): Promise<{ calls: Call[]; street: Street }> => {
       const r = await fetch(`/api/stocks/${encodeURIComponent(ticker)}/earnings-call`, { credentials: "include" });
@@ -71,12 +70,14 @@ export function EarningsCallPanel({ ticker }: { ticker: string }) {
     },
     staleTime: 60 * 60_000,
   });
-  if (isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
-  const calls = data?.calls ?? [];
-  if (calls.length === 0) return <p className="text-[10px] text-amber-200/40 italic">No call summary yet — queued (book names first, ≤ 20 calls/day).</p>;
-  const [c, ...prior] = calls;
+}
+
+const EMPTY = <p className="text-[10px] text-amber-200/40 italic">No call summary yet — queued (book names first, ≤ 20 calls/day).</p>;
+
+function CallView({ c, prior, street, full }: { c: Call; prior: Call[]; street: Street; full: boolean }) {
+  const [more, setMore] = useState(full);
   const s = c.summary;
-  const items = (s.guidance_items ?? []).filter((g) => g.metric !== "other").slice(0, more ? 12 : 4);
+  const items = (s.guidance_items ?? []).filter((g) => full || g.metric !== "other").slice(0, more ? 20 : 4);
   const mi = s.model_inputs;
   const miParts = mi ? [
     mi.revenue_growth_pct != null && `rev growth ${mi.revenue_growth_pct}%`, mi.gross_margin_pct != null && `GM ${mi.gross_margin_pct}%`,
@@ -97,21 +98,20 @@ export function EarningsCallPanel({ ticker }: { ticker: string }) {
           </span>
         )}
       </div>
+      {s.guidance_detail && full && <div className="text-amber-200/60">{s.guidance_detail}</div>}
 
       {items.length > 0 && (
         <table className="w-full text-[10.5px]">
           <tbody>
             {items.map((g, i) => {
-              const vs = vsStreet(g, data!.street);
+              const vs = vsStreet(g, street);
               const moved = g.prior_low != null || g.prior_high != null;
               return (
                 <tr key={i} className="border-t border-[#d4af37]/10">
-                  <td className="py-0.5 pr-1 text-amber-200/60 truncate max-w-[9rem]">{g.label}</td>
+                  <td className="py-0.5 pr-1 text-amber-200/60 truncate max-w-[12rem]">{g.label}</td>
                   <td className="pr-1 text-amber-200/40">{g.period}</td>
                   <td className="pr-1 tabular-nums">{range(g.low, g.high, g.unit)}</td>
-                  <td className="text-[10px] text-amber-200/40">
-                    {moved && <>was {range(g.prior_low, g.prior_high, g.unit)} </>}{vs}
-                  </td>
+                  <td className="text-[10px] text-amber-200/40">{moved && <>was {range(g.prior_low, g.prior_high, g.unit)} </>}{vs}</td>
                 </tr>
               );
             })}
@@ -137,16 +137,83 @@ export function EarningsCallPanel({ ticker }: { ticker: string }) {
 
       {more && (
         <div className="space-y-0.5">
+          {s.demand && <div><span className="text-amber-200/50">Demand:</span> {s.demand}</div>}
+          {s.margins && <div><span className="text-amber-200/50">Margins:</span> {s.margins}</div>}
           {!!s.analyst_concerns?.length && <div><span className="text-amber-200/50">Analysts pushed on:</span> {s.analyst_concerns.join(" · ")}</div>}
           {s.financing && <div><span className="text-amber-200/50">Financing / dilution:</span> {s.financing}</div>}
           {!!s.risks?.length && <div><span className="text-amber-200/50">Risks:</span> {s.risks.join(" · ")}</div>}
           {!!s.catalysts?.length && <div><span className="text-amber-200/50">Catalysts:</span> {s.catalysts.join(" · ")}</div>}
         </div>
       )}
-      <button type="button" onClick={() => setMore(!more)} className="text-[10px] text-[#d4af37]/70 hover:text-[#d4af37]">
-        {more ? "Less" : "More: all guidance, analyst pushback, financing, risks"}
-      </button>
-      <p className="text-[9px] text-amber-200/30">Haiku summary of the call transcript (Alpha Vantage). Street = LSEG consensus today.</p>
+      {!full && (
+        <button type="button" onClick={() => setMore(!more)} className="text-[10px] text-[#d4af37]/70 hover:text-[#d4af37]">
+          {more ? "Less" : "More: all guidance, analyst pushback, financing, risks"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Compact: latest call only (Breakdown grid panel). */
+export function EarningsCallPanel({ ticker }: { ticker: string }) {
+  const { data, isLoading } = useCalls(ticker);
+  if (isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
+  const calls = data?.calls ?? [];
+  if (calls.length === 0) return EMPTY;
+  return (
+    <div className="space-y-1">
+      <CallView c={calls[0]} prior={calls.slice(1)} street={data!.street} full={false} />
+      <p className="text-[9px] text-amber-200/30">Haiku summary of the call transcript (Alpha Vantage). Street = LSEG consensus today. All quarters: Earnings calls tab below.</p>
+    </div>
+  );
+}
+
+/** Full: every stored call + how each guided figure moved across calls (Breakdown › Earnings calls tab). */
+export function EarningsCallsTab({ ticker }: { ticker: string }) {
+  const { data, isLoading } = useCalls(ticker);
+  const [sel, setSel] = useState(0);
+  if (isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
+  const calls = data?.calls ?? [];
+  if (calls.length === 0) return EMPTY;
+  const c = calls[Math.min(sel, calls.length - 1)];
+  // guidance across calls: one row per (label, period), one column per call (oldest → newest)
+  const cols = [...calls].reverse();
+  const keys = new Map<string, { label: string; period: string; unit: string }>();
+  for (const k of cols) for (const g of k.summary.guidance_items ?? []) {
+    if (g.metric === "other") continue;
+    keys.set(`${g.metric}|${g.period}`, { label: g.label, period: g.period, unit: g.unit });
+  }
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap gap-1">
+        {calls.map((k, i) => (
+          <button key={k.quarter} type="button" onClick={() => setSel(i)}
+            className={cn("rounded px-1.5 py-0.5 text-[10px]", i === sel ? "bg-[#d4af37]/80 text-black" : "border border-[#d4af37]/20 text-amber-200/60 hover:text-[#d4af37]")}>
+            {k.quarter}
+          </button>
+        ))}
+      </div>
+      <CallView c={c} prior={calls.slice(sel + 1)} street={data!.street} full />
+      {keys.size > 0 && cols.length > 1 && (
+        <section>
+          <div className="text-[10px] font-semibold text-[#d4af37]/80 mb-0.5">Guidance across calls</div>
+          <table className="w-full text-[10.5px]">
+            <thead><tr className="text-amber-200/40 text-left"><th className="font-normal">Item</th>{cols.map((k) => <th key={k.quarter} className="font-normal">{k.quarter}</th>)}</tr></thead>
+            <tbody>
+              {[...keys.entries()].map(([key, m]) => (
+                <tr key={key} className="border-t border-[#d4af37]/10">
+                  <td className="py-0.5 pr-2 text-amber-200/60">{m.label} <span className="text-amber-200/30">{m.period}</span></td>
+                  {cols.map((k) => {
+                    const g = (k.summary.guidance_items ?? []).find((x) => `${x.metric}|${x.period}` === key);
+                    return <td key={k.quarter} className="pr-2 tabular-nums">{g ? range(g.low, g.high, g.unit) : <span className="text-amber-200/20">·</span>}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+      <p className="text-[9px] text-amber-200/30">Haiku extraction from the transcript (Alpha Vantage). Your names get the last 4 calls; others the latest. Street = LSEG consensus today.</p>
     </div>
   );
 }

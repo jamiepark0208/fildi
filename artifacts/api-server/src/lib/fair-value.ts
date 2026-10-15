@@ -43,6 +43,9 @@ export interface FairValueParams {
   /** Value-trap flag: fair/price ≥ this AND 12-1 momentum below the universe median. Lab: Graham-gap IC −0.128
    *  (t −2.5) among bottom-half momentum vs +0.024 top half; difference t 3.4 (research/fair_value/hypothesis_tests.py). */
   valueTrapMinGap?: number;
+  /** Modes whose *profitable* members (forward EPS > 0 and FCF > 0) are valued with the standard methods: the cohort label
+   *  (e.g. Enterprise Software = pre_revenue_ok) describes the group, not each stock — IBM/ADBE/CRM got no value under it. */
+  profitableUseStandard?: string[];
 }
 
 /**
@@ -399,7 +402,9 @@ function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: Pe
     valueTrap: false,
   };
   if (!pos(t.price)) return { ...base, nullReason: "no_price" };
-  const methods = p.methodsByMode[t.mode] ?? p.methodsByMode["standard"] ?? [];
+  const profitable = pos(t.forwardEps) && pos(t.fcf);
+  const route = profitable && (p.profitableUseStandard ?? []).includes(t.mode) ? "standard" : t.mode;
+  const methods = p.methodsByMode[route] ?? p.methodsByMode["standard"] ?? [];
   if (methods.length === 0) return { ...base, nullReason: `mode_${t.mode}` };
 
   const excluded = new Set(t.metricExclusions.map((x) => x.toLowerCase()));
