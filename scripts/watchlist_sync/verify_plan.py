@@ -177,6 +177,34 @@ def schwab_as_raw(items: list[dict], sq: dict[tuple, dict]):
     return instruments, oquotes, equotes
 
 
+def store_schwab_raw(conn, pid: int, instruments: dict, oquotes: dict, equotes: dict) -> None:
+    """Write Schwab-built shapes into rh_raw so health strip / audit see the same trail as RH ingest."""
+    if instruments:
+        payload = {"data": {"instruments": [
+            {"id": ins["id"], "chain_symbol": t, "expiration_date": exp, "strike_price": str(strike),
+             "type": otype, "state": ins.get("state"), "tradability": ins.get("tradability")}
+            for (t, exp, strike, otype), ins in instruments.items()
+        ]}}
+        conn.execute(
+            "INSERT INTO watchlist_sync.rh_raw (plan_id, kind, payload) VALUES (%s, %s, %s)",
+            (pid, "instruments", json.dumps(payload)),
+        )
+    if oquotes:
+        payload = {"data": {"results": [{"quote": {**q, "instrument_id": iid}} for iid, q in oquotes.items()]}}
+        conn.execute(
+            "INSERT INTO watchlist_sync.rh_raw (plan_id, kind, payload) VALUES (%s, %s, %s)",
+            (pid, "option_quotes", json.dumps(payload)),
+        )
+    if equotes:
+        payload = {"data": {"results": [
+            {"quote": {**q, "symbol": sym}} for sym, q in equotes.items()
+        ]}}
+        conn.execute(
+            "INSERT INTO watchlist_sync.rh_raw (plan_id, kind, payload) VALUES (%s, %s, %s)",
+            (pid, "equity_quotes", json.dumps(payload)),
+        )
+
+
 def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> tuple[str, list[dict], dict]:
     c: list[dict] = []
     src = it.get("_src", "Robinhood")
@@ -287,6 +315,8 @@ def cmd_evaluate(conn, pid: int, force_schwab: bool = False) -> None:
             sys.exit(3)
         instruments, oquotes, equotes = schwab_as_raw(items, sq)
         source = "schwab"
+        # Persist so Model List health `quotes_at` is not null (stock-only plans use equity_quotes).
+        store_schwab_raw(conn, pid, instruments, oquotes, equotes)
         print(
             f"plan #{pid}: no Robinhood quotes → verifying on Schwab "
             f"({len(oquotes)} option contracts, {len(equotes)} equities)"

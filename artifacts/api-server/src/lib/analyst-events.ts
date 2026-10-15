@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
-import { sql, inArray, eq } from "drizzle-orm";
+import { sql, inArray } from "drizzle-orm";
 import { db, yahooAnalystActions, analystEvents } from "@workspace/db";
 import { yahooEpochToMs, yahooEpochToDateStr, type CatalystAnalystAction } from "./catalysts.js";
 import { logger } from "./logger.js";
 import { STALE_DAYS } from "./data-ops-config.js";
 
 const CUTOFF_DAYS = 365;
-const MAX_ACTIONS = 10;
+/** Cap on events returned to the breakdown UI (full firm history; UI groups by firm). */
+const MAX_HISTORY = 100;
 
 const ACTION_NORMALIZED: Record<string, string> = {
   up: "upgrade",
@@ -16,19 +17,16 @@ const ACTION_NORMALIZED: Record<string, string> = {
   reit: "reiterate",
 };
 
-/** Dedup Yahoo's raw upgradeDowngradeHistory to one row per firm (most recent, last 365d, top 10). */
+/** Yahoo upgradeDowngradeHistory → flat events (last 365d). UI groups by firm + expand for history. */
 export function parseAnalystHistory(rawHistory: unknown[]): CatalystAnalystAction[] {
   const cutoff = Date.now() - CUTOFF_DAYS * 24 * 60 * 60 * 1000;
-  const firmMap = new Map<string, any>();
-  for (const item of rawHistory as any[]) {
-    const ts = yahooEpochToMs(item.epochGradeDate);
-    if (!ts || ts < cutoff) continue;
-    const firm = (item.firm ?? "Unknown") as string;
-    if (!firmMap.has(firm)) firmMap.set(firm, item);
-  }
-  return Array.from(firmMap.values())
+  return (rawHistory as any[])
+    .filter(item => {
+      const ts = yahooEpochToMs(item.epochGradeDate);
+      return ts && ts >= cutoff;
+    })
     .sort((a, b) => yahooEpochToMs(b.epochGradeDate) - yahooEpochToMs(a.epochGradeDate))
-    .slice(0, MAX_ACTIONS)
+    .slice(0, MAX_HISTORY)
     .map(item => ({
       firm: item.firm ?? "Unknown",
       toGrade: item.toGrade ?? "",
@@ -120,7 +118,7 @@ export async function writeAnalystEvents(ticker: string, rawHistory: unknown[]):
   });
 }
 
-/** Read gold analyst_events for a ticker, mapped to the route's existing shape. */
+/** Read Yahoo gold analyst_events for a ticker (flat history; UI groups by firm). */
 export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystAnalystAction[]> {
   const rows = await db
     .select({
@@ -131,9 +129,9 @@ export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystA
       eventDate: analystEvents.eventDate,
     })
     .from(analystEvents)
-    .where(eq(analystEvents.ticker, ticker.toUpperCase()))
+    .where(sql`${analystEvents.ticker} = ${ticker.toUpperCase()} AND ${analystEvents.source} = 'yahoo'`)
     .orderBy(sql`${analystEvents.eventDate} DESC`)
-    .limit(MAX_ACTIONS);
+    .limit(MAX_HISTORY);
 
   return rows.map(r => ({
     firm: r.firm,

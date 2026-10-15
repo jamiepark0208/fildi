@@ -9,6 +9,7 @@ import {
 } from "@/hooks/use-model-list";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ModelThesis } from "@/components/model-thesis-report";
 
 /** Shared Model/My value cols — ch widths so numbers don't ellipsis. */
@@ -310,11 +311,11 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
       label: "quotes",
       tone: quotesTone,
       title: !quotesVerified
-        ? `Option quotes not verified · plan status is "${h.plan_status ?? "none"}" (need verified). Last fetch ${fmtWhen(h.quotes_at)}.`
+        ? `Quotes not verified · plan status is "${h.plan_status ?? "none"}" (need verified). Last ${fmtWhen(h.quotes_at)}.`
         : whyLine(
             quotesS.tone,
-            `Option quotes OK · ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel})`,
-            `Option quotes stale · last ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel}). Re-run watchlist_sync quote check for the published plan.`,
+            `Quotes OK · ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel})`,
+            `Quotes stale · last ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel}). Re-run verify/publish for the plan (Schwab or Robinhood).`,
           ),
     },
     {
@@ -336,33 +337,58 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
       ),
     },
     {
-      label: `g${grades}`,
+      // Count of your graded Model List outcomes (win/loss feedback). Grey = none yet, not stale.
+      label: grades > 0 ? `g${grades}` : "grades",
       tone: gradesS.tone,
       title:
         grades > 0
           ? whyLine(
               gradesS.tone,
-              `Graded picks OK · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel})`,
+              `${grades} graded pick${grades === 1 ? "" : "s"} · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel})`,
               `Grades stale · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel}).`,
             )
-          : "No graded picks yet (g0) — nothing in watchlist_sync.grades; grey until you grade a Model List pick.",
+          : "grades = your scored Model List picks (win/loss). 0 so far — grey means none yet, not a failure. Grade a pick from the list to start the learning loop.",
     },
   ];
+  const champTip = `Champion model ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`;
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       {parts.map((p) => (
-        <span key={p.label} title={p.title} className="flex items-center gap-0.5 cursor-help">
-          <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[p.tone])} />
-          {p.label}
-        </span>
+        <Tooltip key={p.label} delayDuration={150}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-0.5 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[p.tone])} />
+              {p.label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+          >
+            {p.title}
+          </TooltipContent>
+        </Tooltip>
       ))}
-      <span
-        title={`Champion ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`}
-        className="cursor-help text-amber-200/40"
-      >
-        m{h.champion ?? "?"}
-        {h.challengers ? `+${h.challengers}` : ""}
-      </span>
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="rounded-sm text-amber-200/40 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+          >
+            m{h.champion ?? "?"}
+            {h.challengers ? `+${h.challengers}` : ""}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+        >
+          {champTip}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

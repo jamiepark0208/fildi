@@ -1,26 +1,17 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-07 (Cursor owns all Muse ASKS)
+**Last updated:** 2026-10-14
 
 ## Phase
-**build** — Muse queue is Cursor-only; Claude must ignore `Muse → *`
-
-## READ FIRST
-**Pull:** `git pull --ff-only origin cursor/mac-dev`  
-**Muse queue (accepted):** A44 code-integrity · A39 DB quality · A40 wake-safe tasks · A41 optimization audit · A42 API research · A43 live-book UX  
-**Standing:** A38 Cursor → Muse monitor (Muse replies with health passes)  
-**Adapter:** `MUSE.md` · Claude instructed in `CLAUDE.md` not to take Muse rows
+**review / triage** — Claude plan-reviewed A88–A95; Cursor shipped A73/A76/A77/A78/A84 (`4acebe5`); Claude commit-reviewed + follow-up `0dc1d3a`.
 
 ## Active
-- Pulled Muse push `732e0e5` (ASKS plans). Retargeted to `Muse → Cursor`; renumbered duplicate A38 → A44.
-- Next Muse work: A44 verify 3 bugs STALE on HEAD, then reliability sweep; then A39–A43 in order user prefers.
-
-## Next
-1. A44 code-integrity (finish verify + remaining sweep)
-2. A40 / A39 (ops) or A43 (UX) — ask user if priority unclear
-3. A41 / A42 are research deliverables (no silent behavior changes)
+- **A84 open finding:** polygon bronze last-resort + fund-score before/after before next merge (Needs Jamie if score moves).
+- **Needs Jamie:** A91 (parked money-flow — build minimal TIC/ICI or not).
+- **High-value next (Claude-narrowed):** A92 track record (day-10 exit), A93 Phase 1 zoom bug, A87 no-price tickers, A88 read-only Agent work board.
 
 ## Do not
-- Expect Claude to handle Muse ASKS
-- Commit secrets / retune scores without approval
+- Merge-trusted until A84 before/after posted
+- Build declined rows (A89/A90/A80/A47/A51/A57/A68)
+- Push scoring changes without user approval

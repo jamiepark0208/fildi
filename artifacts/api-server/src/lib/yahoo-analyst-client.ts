@@ -2,7 +2,7 @@ import { yahooFinance } from "./yahoo-client.js";
 import { logApiCall } from "./api-logger.js";
 
 
-/** Raw Yahoo upgradeDowngradeHistory items — unparsed, caller dedups/maps via parseAnalystHistory. */
+/** Raw Yahoo upgradeDowngradeHistory items — unparsed; caller maps via parseAnalystHistory (UI groups by firm). */
 export async function fetchYahooAnalystActions(ticker: string): Promise<unknown[]> {
   const symbol = ticker.toUpperCase().replace(".", "-");
 

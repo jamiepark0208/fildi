@@ -105,7 +105,15 @@ router.get("/watchlist/model", async (req, res) => {
         (SELECT version FROM watchlist_sync.model_params WHERE status = 'champion') AS champion,
         (SELECT COUNT(*) FROM watchlist_sync.model_params WHERE status = 'challenger')::int AS challengers,
         (SELECT status FROM watchlist_sync.plans WHERE id = ${run0PlanId(runs)}::bigint) AS plan_status,
-        (SELECT MAX(fetched_at) FROM watchlist_sync.rh_raw WHERE plan_id = ${run0PlanId(runs)}::bigint AND kind = 'option_quotes') AS quotes_at,
+        -- Live quote freshness for the published plan. Prefer rh_raw option_quotes; fall back to
+        -- equity_quotes (stock-only plans) then plans.verified_at (Schwab verify that skipped rh_raw).
+        (SELECT COALESCE(
+          (SELECT MAX(fetched_at) FROM watchlist_sync.rh_raw
+            WHERE plan_id = ${run0PlanId(runs)}::bigint AND kind = 'option_quotes'),
+          (SELECT MAX(fetched_at) FROM watchlist_sync.rh_raw
+            WHERE plan_id = ${run0PlanId(runs)}::bigint AND kind = 'equity_quotes'),
+          (SELECT verified_at FROM watchlist_sync.plans WHERE id = ${run0PlanId(runs)}::bigint)
+        )) AS quotes_at,
         (SELECT MAX(imported_at) FROM portfolio_snapshots) AS snapshot_at,
         (SELECT MAX(date) FROM lseg_research.daily_history) AS lseg_history_date,
         (SELECT MAX(as_of) FROM lseg_research.signals_daily) AS lseg_signals_date,

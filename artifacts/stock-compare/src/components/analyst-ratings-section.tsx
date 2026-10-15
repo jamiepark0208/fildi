@@ -1,3 +1,5 @@
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { formatMdYy } from "@/lib/format";
@@ -139,6 +141,37 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
   );
 }
 
+function firmKey(firm: string): string {
+  return firm.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** One row per firm (latest event); older events available via expand. */
+function groupActionsByFirm(actions: AnalystAction[]): Array<{ firm: string; latest: AnalystAction; history: AnalystAction[] }> {
+  const byFirm = new Map<string, AnalystAction[]>();
+  for (const a of actions) {
+    const k = firmKey(a.firm);
+    const list = byFirm.get(k);
+    if (list) list.push(a);
+    else byFirm.set(k, [a]);
+  }
+  const groups = Array.from(byFirm.values()).map(list => {
+    const sorted = [...list].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+    return { firm: sorted[0]!.firm, latest: sorted[0]!, history: sorted.slice(1) };
+  });
+  groups.sort((a, b) => (b.latest.date ?? "").localeCompare(a.latest.date ?? ""));
+  return groups;
+}
+
+function shortGrade(g: string): string {
+  return g.replace(/\bequal[\s-]?weight\b/gi, "Equal");
+}
+
+function gradeLabel(a: AnalystAction): string {
+  const from = a.fromGrade ? shortGrade(a.fromGrade) : "";
+  const to = a.toGrade ? shortGrade(a.toGrade) : "";
+  return from && to && from !== to ? `${from} → ${to}` : (to || "—");
+}
+
 export function AnalystRatingsSection({
   recs, metrics, analystActions, analystPriceTargets, priceTargetRange,
 }: {
@@ -149,6 +182,16 @@ export function AnalystRatingsSection({
   priceTargetRange: PriceTargetRange | null;
 }) {
   const m = metrics;
+  const firmGroups = useMemo(() => groupActionsByFirm(analystActions), [analystActions]);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggleFirm = (key: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const pt = priceTargetRange;
   const hasRange = pt && pt.low != null && pt.high != null && m.currentPrice != null;
@@ -220,7 +263,7 @@ export function AnalystRatingsSection({
             </div>
           )}
 
-          {analystActions.length > 0 && (
+          {firmGroups.length > 0 && (
             <div>
               <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">
                 Rating changes
@@ -235,25 +278,62 @@ export function AnalystRatingsSection({
                   </tr>
                 </thead>
                 <tbody>
-                  {analystActions.map((a, i) => {
+                  {firmGroups.map(g => {
+                    const key = firmKey(g.firm);
+                    const a = g.latest;
                     const color = GRADE_COLOR_CLASS[classifyGrade(a.toGrade)];
-                    const gradeLabel = a.fromGrade && a.toGrade && a.fromGrade !== a.toGrade
-                      ? `${a.fromGrade} → ${a.toGrade}`
-                      : (a.toGrade || "—");
+                    const hasHistory = g.history.length > 0;
+                    const isOpen = expanded.has(key);
                     return (
-                      <tr key={i} className="border-b border-border/20 last:border-0">
-                        <td className="py-1 pr-1.5 text-[10px] font-medium text-foreground whitespace-nowrap">
-                          <span className="flex items-center gap-1">
-                            {a.firm}
-                            <SourceBadge source={a.source} />
-                          </span>
-                        </td>
-                        <td className={cn("py-1 pr-1.5 text-[10px] font-bold whitespace-nowrap", color)}>{gradeLabel}</td>
-                        <td className="py-1 pr-1.5 text-[10px] font-mono text-foreground text-right whitespace-nowrap">
-                          {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
-                        </td>
-                        <td className="py-1 text-[10px] text-amber-100 text-right whitespace-nowrap">{formatMdYy(a.date)}</td>
-                      </tr>
+                      <Fragment key={key}>
+                        <tr className="border-b border-border/20">
+                          <td className="py-1 pr-1 text-[10px] font-medium text-foreground whitespace-nowrap">
+                            <span className="flex items-center gap-0 min-w-0">
+                              <span className="truncate">{a.firm}</span>
+                              {hasHistory && (
+                                <span className="text-[9px] font-normal text-amber-200/40 tabular-nums leading-none">
+                                  ({g.history.length + 1})
+                                </span>
+                              )}
+                              <SourceBadge source={a.source} />
+                              {hasHistory && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleFirm(key)}
+                                  className="inline-flex shrink-0 p-0 ml-0.5 text-amber-200/60 hover:text-[#d4af37] transition-colors"
+                                  aria-expanded={isOpen}
+                                  aria-label={isOpen ? "Hide prior ratings" : `Show ${g.history.length} prior`}
+                                  title={isOpen ? "Hide prior" : `${g.history.length} prior`}
+                                >
+                                  {isOpen
+                                    ? <ChevronDown className="w-2.5 h-2.5" />
+                                    : <ChevronRight className="w-2.5 h-2.5" />}
+                                </button>
+                              )}
+                            </span>
+                          </td>
+                          <td className={cn("py-1 pr-1.5 text-[10px] font-bold whitespace-nowrap", color)}>{gradeLabel(a)}</td>
+                          <td className="py-1 pr-1.5 text-[10px] font-mono text-foreground text-right whitespace-nowrap">
+                            {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
+                          </td>
+                          <td className="py-1 text-[10px] text-amber-100 text-right whitespace-nowrap">{formatMdYy(a.date)}</td>
+                        </tr>
+                        {isOpen && g.history.map((h, hi) => {
+                          const hColor = GRADE_COLOR_CLASS[classifyGrade(h.toGrade)];
+                          return (
+                            <tr key={`${key}-h${hi}`} className="border-b border-border/10 bg-secondary/10">
+                              <td className="py-0.5 pr-1.5 pl-4 text-[9px] text-amber-200/50 whitespace-nowrap">
+                                {h.action}
+                              </td>
+                              <td className={cn("py-0.5 pr-1.5 text-[9px] font-medium whitespace-nowrap", hColor)}>{gradeLabel(h)}</td>
+                              <td className="py-0.5 pr-1.5 text-[9px] font-mono text-amber-100/60 text-right whitespace-nowrap">
+                                {h.priceTarget != null ? `$${h.priceTarget.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="py-0.5 text-[9px] text-amber-100/50 text-right whitespace-nowrap">{formatMdYy(h.date)}</td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
                     );
                   })}
                 </tbody>
