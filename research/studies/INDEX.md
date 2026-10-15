@@ -25,6 +25,11 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 | S014 | 10-07 → | Daily reflection: market, ideas found-but-wrong / real-but-missed, trader's day vs our scores, option_score rank IC (IV fixed) | Day 1: IC ≈ 0 (raw +0.05, IV fixed +0.02, 10 day-sides); trader's 14 opens on 10/07 all off the Model List, 10 were no-dip puts | open | `out/reflection/<date>.md` · `log.csv` · `analysis/daily_reflection.py` (daily) |
 | S015 | 10-14 | Which of the trader's short puts were mistakes vs bad luck? (935 puts, Feb–Oct 2026) | Picks fine (+0.36% of collateral/trade, no entry feature survives Holm except earnings-in-window, confounded: trader went wider + richer IV, 27 events). Assignment neutral (fwd excess ≈ 0 at 5/10/20d, trader + 3k broad sim). Closing ITM puts ≈ neutral; buying back OTM puts cost $3.7k (92% didn't help). Breaches cluster by expiry (SD 0.23 vs 0.09, p<0.001) → risk is book size, not picks | open (PM rules: stress at bad-week breach rate) | `out/mistakes/report.md` · `analysis/trade_mistakes.py` |
 | S016 | 10-14 | Are market-implied (IV) assignment odds calibrated on the trader's puts, and how correlated are breaches? | Yes: 926 puts, predicted 18% ITM vs 21% realized, ratio 1.14 (week-cluster 90% CI 0.73–1.55), bins monotone. Per-expiry ITM SD 0.236 is matched by a one-factor model with ρ ≈ 0.6 (0.231) | adopted (pm_alerts: IV odds unadjusted, RHO 0.6) | `scripts/watchlist_sync/pm_alerts.py` docstring · S015 `out/mistakes/trades.csv` |
+| S017 | 10-14 | Close weekly short puts early (50 % / 75 % / 2× stop / ITM day-before) or hold? | pending — data loading | open (pre-registered) | `research/studies/S017-S021-option-history.md` · `analysis/option_history.py` |
+| S018 | 10-14 | Per name: is the earnings move priced too high (sell through) or too low (skip)? | pending | open (pre-registered) | same |
+| S019 | 10-14 | True IV rank (built from option closes) vs today's realized-vol "ivRank" | pending | open (pre-registered) | same |
+| S020 | 10-14 | Put spreads / strangles / straddles vs cash-secured puts on the same entries | pending | open (pre-registered) | same |
+| S021 | 10-14 | Were S003's model-priced puts close to real option prices? | pending | open (pre-registered) | same |
 
 ## Topic lookup (what we already know)
 
@@ -48,8 +53,8 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 
 | Question | Needs | Stop rule / pass mark |
 |---|---|---|
-| Exit rules: close at 50% / at 21 DTE / roll vs hold weeklies to expiry | `option_chain_history` (accruing from 10/06) ≥ 3 months, or own RH closes | beat hold-to-expiry on wheel P&L per collateral, both halves |
-| Put spreads vs cash-secured puts on speculative names | chain history | lower worst week at ≥ 70% of the premium kept |
+| **claimed S017** · Exit rules: close at 50% / at 21 DTE / roll vs hold weeklies to expiry | `option_chain_history` (accruing from 10/06) ≥ 3 months, or own RH closes | beat hold-to-expiry on wheel P&L per collateral, both halves |
+| **claimed S020** · Put spreads vs cash-secured puts on speculative names | chain history | lower worst week at ≥ 70% of the premium kept |
 | Index put-write (SPY/QQQ/XSP) for FILDI | Cboe PUT/WPUT data or chain history | Sharpe ≥ SPY with drawdown ≤ 60% of SPY's |
 | Setup tag live validation (S011) | live ledger, ≥ 100 own trades after 10/06 | same sign as S011 and bootstrap CI excluding 0 → propose as a score input |
 | Verify thresholds (S013) | ≥ 30 graded rows per check | blocked group return ≥ passed group → loosen that check |
