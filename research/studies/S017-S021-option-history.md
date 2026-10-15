@@ -20,11 +20,63 @@
 | Guidance direction / tone per call (forward only) | transcripts.py | `watchlist_sync.earnings_transcripts` |
 | StarMine predicted surprise, EPS dispersion (forward only, from 10-04) | LSEG | `lseg_research.signals_daily` |
 
-Loader: `analysis/option_history.py` (resumable; ~35 h of calls at 5/min: underlying → trades → earnings → IV rank).
-Universe: trader tickers ∪ book ∪ 30 most frequent Model List tickers (55 names).
+Loader: `analysis/option_history.py` (resumable; ~15 h at 5 calls/min: underlying → trades → earnings → IV rank).
+Universe: trader tickers ∪ book ∪ 30 most frequent Model List tickers (55 names); IV rank = 7 book names (user 10-14 cut).
+Storage ~20 MB (bars keep high/close/volume as real; strikes within ±30 % of entry spot).
 
 **Cost haircut, all studies:** option closes are last trades, not fills. Each leg pays half the median bid-ask spread (as % of mid),
 by price bucket, measured on `option_chain_history` (Schwab, live). Results are reported with and without it.
+
+## How the data becomes decisions (one engine, one test, one card)
+
+Five studies, but only three pieces of code. Everything else is configuration.
+
+**1. Replay engine** (`analysis/opt_replay.py`). Input: a position (legs = contract + ±qty), an entry date and an exit rule.
+It walks the daily bars to expiry and returns: P&L, exit day and reason, capital at risk, and worst mark-to-market along the way.
+- S017's exit rules and S020's structures are just (legs × rule) combinations. 935 entries × 5 structures × 5 rules ≈ 23k
+  replays, which takes seconds. No per-study simulator.
+- Fills, decided now so they can't be tuned later:
+  - **Profit-take** triggers on the **close**. Conservative: a resting limit order would often fill earlier.
+  - **2× stop** triggers on the day's **high**, filled at 2× premium.
+  - **Expiry:** in the money → intrinsic from the stock close (S015: assignment itself is EV-neutral, so the stock leg isn't
+    re-modelled here; A92 handles that).
+  - **Every leg** pays half the Schwab bid-ask spread (median by price bucket from `option_chain_history`).
+- **Stale or illiquid contracts:** a leg with no traded bar on more than 30 % of its days is excluded. The count excluded is
+  reported, never silently dropped.
+
+**2. Paired decision test** (`decide(variant, baseline)`). Every comparison is on the **same entries**: variant minus baseline,
+per entry.
+- Pairing removes stock-picking noise. That matters because we only have ~36 expiry weeks of your trades.
+- Unit: **$ per $10k of capital at risk per week**. Freed capital earns the Model List's median weekly yield.
+- Confidence interval: bootstrap by expiry week, since breaches move together (S016, ρ 0.6). 90 % CI.
+- Also reported: sign in each half of the sample, and worst single week.
+- Verdict, one of three:
+  - **PASS:** CI excludes 0 and both halves agree.
+  - **FAIL:** CI includes 0, or the halves disagree.
+  - **NOT ENOUGH:** fewer than 8 expiries or 100 entries (METHODS 9). This is an allowed answer, not a failure to hide.
+- Subgroups (regime, IV/RV, earnings in window, cohort) only through an **interaction test**: the difference must itself differ
+  between groups. Holm-adjusted across the pre-declared subgroups. This stops "slicing until something wins".
+
+**3. Recommendation card** (one per PASS, written to the report and to `state.md`):
+> **Rule** · **Effect** ($/10k/week, CI) · **What it would have changed on your actual 935 trades** ($ total, worst week before → after) ·
+> **Applies to** (all / subgroup) · **Cost** (extra trades, spread paid, capital tied up) · **Evidence** (n weeks, n trades) ·
+> **Where it shows in Fildi** · **Needs your approval?** (yes if it changes the Model List or scores)
+
+A FAIL gets one line ("tested, no edge: hold stays") so it isn't retried. The counterfactual on your own trades is the headline
+number, because "+0.4 %/week" means less than "+$1,240 over Feb–Oct and the worst week goes from −$6.1k to −$3.9k".
+
+**Known limits, stated up front:**
+- The sample is your trades: your names, Feb–Oct 2026, mostly a rising market. Conclusions are "for this style of trading in
+  this kind of market", and the regime interaction is the check on that.
+- Daily closes only, no intraday path, so the stop study is approximate.
+- Dividends are ignored, and early exercise is ignored for short-dated puts.
+
+**Per-study specifics** (anything not covered by the engine and test):
+- **S018 (earnings)** also uses the engine: your usual put held over the report vs the same z-distance put the following week,
+  paired by ticker. The implied-move ratio adds a per-name persistence test (Spearman, previous ratio vs next).
+- **S019 (true IV rank)** adds one function, Black-Scholes IV from put closes (vectorized root-find). Then the same `decide()`
+  with IV rank as the subgroup, holding IV level fixed (METHODS 2).
+- **S021** is a straight join, model premium vs real close, by moneyness bucket.
 
 ## S017 — Close early or hold? (claims the "Exit rules" row)
 - **Question:** for weekly short puts, does a pre-set exit beat holding to expiry?
@@ -49,8 +101,8 @@ by price bucket, measured on `option_chain_history` (Schwab, live). Results are 
 - **Where:** Breakdown › Earnings calls tab (moves table + chart); Model List "earnings in window" row gets the name's ratio.
 
 ## S019 — True IV rank
-- **Build:** ~30-day ATM implied vol per name per day, by Black-Scholes inversion of put closes (rate = 3-month T-bill from FRED),
-  interpolated between the near-spot strikes we stored. IV rank = percentile of today's value over the past 252 days.
+- **Build:** ~30-day ATM implied vol per name per day, by Black-Scholes inversion of the near-spot put's close each day
+  (rate = 3-month T-bill from FRED); one contract per month, rolled. IV rank = percentile of today's value over the past 252 days.
 - **Validation gate:** on overlap days (10-08 onward) the built IV must match Schwab chain IV with correlation ≥ 0.9 and median
   absolute error ≤ 3 vol points. If it fails, stop here.
 - **Question:** does true IV rank carry what S004's "IV rank" was meant to carry? (Today `technicals-math.ts` ivRank is a
@@ -62,8 +114,9 @@ by price bucket, measured on `option_chain_history` (Schwab, live). Results are 
 - **Same entries as S017** (trader's 935 puts; Model List recs added as they accrue). Variants on each entry:
   cash-secured put (baseline) · put spread 1 and 2 strikes wide · short strangle (sold put + call mirrored around spot) ·
   short straddle (ATM put + call). Iron condors need call wings we didn't fetch; added only if a spread passes.
-- **Targets:** P&L per capital at risk (spread: width − credit; CSP: collateral), worst expiry-week loss, and the book stress the
-  structure would have left: replay each week through the pm_alerts Monte Carlo (P(margin call), crash-budget drawdown).
+- **Targets:** P&L per capital at risk (spread: width − credit; CSP: collateral), worst expiry-week loss of the whole book
+  (realized, from the replay summed per week; simpler and more honest than re-running the Monte Carlo), and the capital freed
+  (spread margin = width), which is what lowers margin-call odds going forward.
 - **Fildi strata:** name class (speculative / pre-revenue / profitable from fair-value cohort), regime, IV rank (S019 if it passes),
   earnings in window (S018).
 - **Pass mark (from the pre-registered row):** a spread is offered for a name class if its worst week is lower while keeping

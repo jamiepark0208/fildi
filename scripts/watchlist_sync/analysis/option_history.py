@@ -13,8 +13,9 @@ Queue, in priority order (each step skips what is already stored → safe to sto
                  the strike nearest spot on entry day (ATM put + call = straddle), the call mirrored around spot (strangle)
   3 earnings     each report in the last 2 years for the study universe: ATM put + call on the first Friday expiry after the
                  report, priced the close before (implied move vs realized move)
-  4 ivrank       per ticker, monthly expiries over 2 years: puts whose strike sits near spot 20–45 days before expiry
-                 → constant-maturity ~30-day ATM IV (true IV rank; technicals-math ivRank is a realized-vol rank)
+  4 ivrank       book names only, monthly expiries over 2 years: the put nearest spot 30 days before expiry
+                 → ~30-day ATM IV series (true IV rank; technicals-math ivRank is a realized-vol rank). User 10-14 cut scope.
+Storage (user 10-14): bars keep high/close/volume as real; only strikes within ±30 % of entry spot are stored (~20 MB total).
 
 Study universe = trader tickers ∪ current book names ∪ the 30 most frequent model_recs tickers.
 Shares Polygon's 5/min with lib/short-interest.ts (a 429 waits 65 s and retries). Calls counted in api_usage ('polygon').
@@ -32,7 +33,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -52,8 +53,7 @@ CREATE TABLE IF NOT EXISTS optlab.contracts (occ text PRIMARY KEY, underlying te
 CREATE INDEX IF NOT EXISTS idx_optlab_contracts ON optlab.contracts (underlying, expiry, type, strike);
 CREATE TABLE IF NOT EXISTS optlab.chains_fetched (underlying text, expiry date, n int, fetched_at timestamptz DEFAULT now(),
   PRIMARY KEY (underlying, expiry));
-CREATE TABLE IF NOT EXISTS optlab.bars (occ text, date date, o double precision, h double precision, l double precision,
-  c double precision, v double precision, vw double precision, PRIMARY KEY (occ, date));
+CREATE TABLE IF NOT EXISTS optlab.bars (occ text, date date, h real, c real, v real, PRIMARY KEY (occ, date));
 CREATE TABLE IF NOT EXISTS optlab.bars_fetched (occ text PRIMARY KEY, n int, fetched_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS optlab.underlying (ticker text, date date, o double precision, h double precision,
   l double precision, c double precision, v double precision, PRIMARY KEY (ticker, date));
@@ -99,6 +99,10 @@ def get(path: str) -> dict:
     return {}
 
 
+def day(ms: int) -> date:
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).date()
+
+
 def flush_usage(conn) -> None:
     global _calls
     if not _calls:
@@ -120,14 +124,14 @@ def fetch_underlying(conn, t: str) -> None:
     res = d.get("results") or []
     with conn.cursor() as cur:
         cur.executemany("""INSERT INTO optlab.underlying VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
-                        [(t, datetime.utcfromtimestamp(r["t"] / 1000).date(), r.get("o"), r.get("h"), r.get("l"),
+                        [(t, day(r["t"]), r.get("o"), r.get("h"), r.get("l"),
                           r.get("c"), r.get("v")) for r in res])
         cur.execute("INSERT INTO optlab.underlying_fetched (ticker, n) VALUES (%s, %s) ON CONFLICT DO NOTHING", (t, len(res)))
     conn.commit()
 
 
-def chain(conn, t: str, exp: date) -> list[dict]:
-    """Every listed contract for (t, exp); one call (two if > 250 contracts)."""
+def chain(conn, t: str, exp: date, ref: float | None = None) -> list[dict]:
+    """Listed contracts for (t, exp), one call; only strikes within ±30 % of `ref` (spot when the study enters) are stored."""
     if not conn.execute("SELECT 1 FROM optlab.chains_fetched WHERE underlying = %s AND expiry = %s", (t, exp)).fetchone():
         res, path = [], f"/v3/reference/options/contracts?underlying_ticker={t}&expiration_date={exp}&expired=true&limit=1000"
         if exp >= TODAY:
@@ -136,7 +140,8 @@ def chain(conn, t: str, exp: date) -> list[dict]:
         res += d.get("results") or []
         with conn.cursor() as cur:
             cur.executemany("INSERT INTO optlab.contracts VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                            [(r["ticker"], t, exp, r["contract_type"], float(r["strike_price"])) for r in res])
+                            [(r["ticker"], t, exp, r["contract_type"], float(r["strike_price"])) for r in res
+                             if not ref or abs(float(r["strike_price"]) / ref - 1) <= 0.30])
             cur.execute("INSERT INTO optlab.chains_fetched (underlying, expiry, n) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
                         (t, exp, len(res)))
         conn.commit()
@@ -151,9 +156,8 @@ def fetch_bars(conn, occ: str, exp: date) -> None:
     d = get(f"/v2/aggs/ticker/{occ}/range/1/day/{lo}/{exp}?adjusted=false&sort=asc&limit=50000")
     res = d.get("results") or []
     with conn.cursor() as cur:
-        cur.executemany("INSERT INTO optlab.bars VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                        [(occ, datetime.utcfromtimestamp(r["t"] / 1000).date(), r.get("o"), r.get("h"), r.get("l"),
-                          r.get("c"), r.get("v"), r.get("vw")) for r in res])
+        cur.executemany("INSERT INTO optlab.bars VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        [(occ, day(r["t"]), r.get("h"), r.get("c"), r.get("v")) for r in res])
         cur.execute("INSERT INTO optlab.bars_fetched (occ, n) VALUES (%s,%s) ON CONFLICT DO NOTHING", (occ, len(res)))
     conn.commit()
 
@@ -183,6 +187,11 @@ def load_trades() -> list[dict]:
         return list(csv.DictReader(fh))
 
 
+def book_names() -> list[str]:
+    book = HERE.parent / "out/pm/book-latest.json"
+    return sorted({p["ticker"] for p in json.loads(book.read_text()).get("positions", []) if p.get("ticker")}) if book.is_file() else []
+
+
 def universe(conn, trades: list[dict]) -> list[str]:
     tick = Counter(t["ticker"] for t in trades)
     out = list(tick)
@@ -201,7 +210,8 @@ def run_trades(conn, trades: list[dict]) -> None:
     for i, tr in enumerate(trades):
         t, exp, k = tr["ticker"], date.fromisoformat(tr["exp"]), float(tr["k"])
         d0 = date.fromisoformat(tr["d0"])
-        cs = chain(conn, t, exp)
+        s = spot(conn, t, d0 - timedelta(days=1)) or float(tr["prev"] or 0)
+        cs = chain(conn, t, exp, s or k)
         if not cs:
             continue
         kk = f"{tr['account']}|{t}|{tr['d0']}|{tr['exp']}|{k}"
@@ -210,7 +220,6 @@ def run_trades(conn, trades: list[dict]) -> None:
         lower = [c for c in cs if c["type"] == "put" and c["strike"] < k - 1e-6]
         for j, c in enumerate(reversed(lower[-2:])):
             leg(conn, "trades", kk, f"long_put_{j + 1}", c, exp)
-        s = spot(conn, t, d0 - timedelta(days=1)) or float(tr["prev"] or 0)
         if s:
             leg(conn, "trades", kk, "atm_put", nearest(cs, "put", s), exp)
             leg(conn, "trades", kk, "atm_call", nearest(cs, "call", s), exp)
@@ -234,7 +243,7 @@ def run_earnings(conn, tickers: list[str]) -> None:
         if not s:
             continue
         for exp in fridays_after(d, 3):  # weeklies first; small names may only list monthlies
-            cs = chain(conn, t, exp)
+            cs = chain(conn, t, exp, s)
             if cs:
                 kk = f"{t}|{d}"
                 leg(conn, "earnings", kk, "atm_put", nearest(cs, "put", s), exp)
@@ -260,15 +269,11 @@ def third_fridays() -> list[date]:
 def run_ivrank(conn, tickers: list[str]) -> None:
     for i, t in enumerate(tickers):
         for exp in third_fridays():
-            px = [r[0] for r in conn.execute("""SELECT c FROM optlab.underlying WHERE ticker = %s AND date BETWEEN %s AND %s""",
-                                             (t, exp - timedelta(days=45), exp - timedelta(days=20))).fetchall()]
-            if not px:
+            s = spot(conn, t, exp - timedelta(days=30))
+            if not s:
                 continue
-            cs = chain(conn, t, exp)
-            picked = {nearest(cs, "put", k)["occ"]: nearest(cs, "put", k) for k in (min(px), sorted(px)[len(px) // 2], max(px))
-                      if nearest(cs, "put", k)}
-            for c in picked.values():
-                leg(conn, "ivrank", f"{t}|{exp}", f"put_{c['strike']}", c, exp)
+            c = nearest(chain(conn, t, exp, s), "put", s)
+            leg(conn, "ivrank", f"{t}|{exp}", "atm30_put", c, exp)
         progress(conn, f"ivrank {i + 1}/{len(tickers)} ({t})")
 
 
@@ -301,7 +306,7 @@ def main() -> None:
     progress(conn, "trades done")
     run_earnings(conn, uni)
     progress(conn, "earnings done")
-    run_ivrank(conn, uni)
+    run_ivrank(conn, book_names())  # user 10-14: book only, 1 strike/month (~2 h, not ~20 h)
     progress(conn, "all done")
 
 
