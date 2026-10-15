@@ -37,6 +37,7 @@ import {
 import { MemoHeader } from "./breakdown/memo-header";
 import { ShortInterestPanel } from "./breakdown/short-interest-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
+import { OptionsHistoryTab } from "./breakdown/options-history-tab";
 import { AssumptionsTab } from "./breakdown/assumptions-tab";
 
 
@@ -59,7 +60,7 @@ export function StockBreakdown({
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
   const [tvOpen, setTvOpen] = useState(false);
   const [peerEditOpen, setPeerEditOpen] = useState(false);
-  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "calls">("news");
+  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "calls" | "options">("news");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -608,6 +609,7 @@ export function StockBreakdown({
                               ["accounting", "Accounting"],
                               ["assumptions", "Assumptions"],
                               ["calls", "Earnings calls"],
+                              ["options", "Options history"],
                             ] as const
                           ).map(([id, label]) => (
                             <button
@@ -655,6 +657,7 @@ export function StockBreakdown({
                         )}
                         {digTab === "assumptions" && activeTicker && <AssumptionsTab ticker={activeTicker} />}
                         {digTab === "calls" && activeTicker && <EarningsCallsTab ticker={activeTicker} />}
+                        {digTab === "options" && activeTicker && <OptionsHistoryTab ticker={activeTicker} isAdmin={!!isAdmin} />}
                       </div>
                     </div>
                   </div>

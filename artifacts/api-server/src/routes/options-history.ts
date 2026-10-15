@@ -1,0 +1,85 @@
+/**
+ * Option price history views (Claude, PM role, user 2026-10-14). Tables written by scripts/watchlist_sync/analysis/option_derive.py
+ * (schema optlab, Polygon EOD option bars); this route only reads.
+ * GET /api/stocks/:ticker/options-history → earnings moves (implied vs actual) + 30-day IV / realized vol / true IV rank
+ * GET /api/pm/trades/:ticker   (admin)   → the trader's short puts on this name + each sold contract's daily closes
+ * GET /api/pm/playbook         (admin)   → study verdicts (optlab.findings) → Live › Portfolio Alerts › Playbook
+ * GET /api/research/studies    (admin)   → research/studies/INDEX.md catalog rows → Settings › Research
+ */
+import { Router } from "express";
+import { sql } from "drizzle-orm";
+import { readFileSync, statSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { db } from "@workspace/db";
+import { requireAdmin } from "../middleware/requireAdmin.js";
+
+const router = Router();
+type SqlRows<T> = T[] | { rows?: T[] };
+const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
+const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const STUDIES = resolve(ROOT, "research/studies/INDEX.md");
+
+/** optlab exists only once the loader has run; a missing table means "no data yet", not an error. */
+async function safe<T>(q: ReturnType<typeof sql>): Promise<T[]> {
+  try {
+    return rowsOf<T>((await db.execute(q)) as SqlRows<never>);
+  } catch {
+    return [];
+  }
+}
+
+router.get("/stocks/:ticker/options-history", async (req, res) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  const earnings = await safe(sql`SELECT report_date::text AS date, implied::float8, realized::float8, ratio::float8
+    FROM optlab.earnings_moves WHERE ticker = ${t} ORDER BY report_date`);
+  const iv = await safe(sql`SELECT date::text, iv::float8, rv20::float8, iv_rank::float8 AS "ivRank"
+    FROM optlab.iv30 WHERE ticker = ${t} ORDER BY date`);
+  return res.json({ ticker: t, earnings, iv });
+});
+
+router.get("/pm/trades/:ticker", requireAdmin, async (req, res) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  const trades = await safe<{ occ: string | null; [k: string]: unknown }>(sql`
+    SELECT key, account, d0::text, expiry::text, strike::float8, premium::float8, qty::float8, breached, closed_early AS "closedEarly", occ
+    FROM optlab.trades WHERE ticker = ${t} ORDER BY d0`);
+  const occs = trades.map((x) => x.occ).filter((x): x is string => !!x);
+  const bars = occs.length
+    ? await safe<{ occ: string; date: string; c: number }>(sql`SELECT occ, date::text, c::float8 FROM optlab.bars
+        WHERE occ IN (${sql.join(occs.map((o) => sql`${o}`), sql`, `)}) ORDER BY date`)
+    : [];
+  const path = new Map<string, { date: string; c: number }[]>();
+  for (const b of bars) path.set(b.occ, [...(path.get(b.occ) ?? []), { date: b.date, c: b.c }]);
+  return res.json({ ticker: t, trades: trades.map(({ occ, ...x }) => ({ ...x, path: occ ? path.get(occ) ?? [] : [] })) });
+});
+
+router.get("/pm/playbook", requireAdmin, async (_req, res) => {
+  const findings = await safe(sql`SELECT study, title, verdict, headline, card, updated_at::text AS "updatedAt"
+    FROM optlab.findings ORDER BY study`);
+  return res.json({ findings });
+});
+
+let studiesCache: { mtime: number; rows: Record<string, string>[] } | null = null;
+router.get("/research/studies", requireAdmin, (_req, res) => {
+  try {
+    const mtime = statSync(STUDIES).mtimeMs;
+    if (!studiesCache || studiesCache.mtime !== mtime) {
+      const rows: Record<string, string>[] = [];
+      for (const line of readFileSync(STUDIES, "utf8").split("\n")) {
+        const m = line.match(/^\| (S\d{3}) \|/);
+        if (!m) continue;
+        const c = line.split("|").slice(1, -1).map((x) => x.trim());
+        rows.push({ id: c[0], date: c[1], question: c[2], answer: c[3], status: c[4], report: c[5] ?? "" });
+      }
+      studiesCache = { mtime, rows };
+    }
+    return res.json({ studies: studiesCache.rows });
+  } catch {
+    return res.json({ studies: [] });
+  }
+});
+
+export default router;

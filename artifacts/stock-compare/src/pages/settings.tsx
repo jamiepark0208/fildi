@@ -9,6 +9,7 @@ import { StockDBTab } from "@/components/settings/StockDBTab";
 import { PeerGroupsTab } from "@/components/settings/PeerGroupsTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
+import { ResearchTab } from "@/components/settings/ResearchTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -651,7 +652,7 @@ function CacheMonitorTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks";
+type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks" | "research";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -666,6 +667,7 @@ export default function Settings() {
     { id: "peer-groups",     label: "Sector Peers",    adminOnly: true },
     { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
     { id: "feedback",        label: "Feedback",        adminOnly: true },
+    { id: "research",        label: "Research",        adminOnly: true },
   ];
 
   // Persisted tab may point at an admin-only tab from a prior admin session —
@@ -733,6 +735,7 @@ export default function Settings() {
           {tab === "peer-groups" && isAdmin && <PeerGroupsTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
           {tab === "feedback"    && isAdmin && <FeedbackTab />}
+          {tab === "research"    && isAdmin && <ResearchTab />}
         </div>
       </main>
     </div>

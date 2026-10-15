@@ -171,6 +171,10 @@
 | GET | /api/fair-value/:ticker/assumptions/history?field= | Every value of one input + its overrides |
 | POST | /api/fair-value/assumptions | New proposed/active override (admin; reason ≥ 5 chars; expiry = next earnings) |
 | POST | /api/fair-value/assumptions/:id | accept / reject / retire (admin) → recompute |
+| GET | /api/stocks/:ticker/options-history | Earnings moves (priced vs actual) + 30-day IV / realized / true IV rank (`optlab`) |
+| GET | /api/pm/trades/:ticker | Your short puts on a name + each contract's daily closes (admin) |
+| GET | /api/pm/playbook | Study verdicts S017–S021 (`optlab.findings`, admin) |
+| GET | /api/research/studies | research/studies/INDEX.md rows → Settings › Research (admin) |
 
 ## Admin
 | Method | Path | Auth | Purpose |
@@ -196,6 +200,7 @@ routes/enrichment-runs.ts  → /api/admin/enrichment-runs
 routes/explain.ts          → /api/explain/*
 routes/pm-alerts.ts        → /api/pm/{alerts,names,book}
 routes/stock-context.ts    → /api/stocks/:ticker/{short-interest,earnings-call}
+routes/options-history.ts  → /api/stocks/:ticker/options-history, /api/pm/{trades/:ticker,playbook}, /api/research/studies
 routes/fair-value-assumptions.ts → /api/fair-value/:ticker/assumptions*, /api/fair-value/assumptions*
 routes/feed.ts             → /api/feed/*
 routes/fundamentals.ts     → /api/fundamentals/* (rankings, status, refresh)

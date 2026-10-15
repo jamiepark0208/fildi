@@ -38,6 +38,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE))
 from build_plan import connect, rows  # noqa: E402
 
 API = "https://api.polygon.io"
@@ -307,6 +308,8 @@ def main() -> None:
     run_earnings(conn, uni)
     progress(conn, "earnings done")
     run_ivrank(conn, book_names())  # user 10-14: book only, 1 strike/month (~2 h, not ~20 h)
+    import option_derive  # UI tables (Breakdown › Options history, Playbook)
+    option_derive.main()
     progress(conn, "all done")
 
 

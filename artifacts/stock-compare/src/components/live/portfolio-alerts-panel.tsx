@@ -5,6 +5,8 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type Bullet = { key: string; level: "red" | "amber" | "green"; text: string; change: "new" | "worse" | "better" | null };
@@ -113,6 +115,50 @@ function YourNames() {
   );
 }
 
+type Finding = { study: string; title: string; verdict: "running" | "pass" | "fail" | "not_enough"; headline: string;
+  card: Record<string, string> | null; updatedAt: string };
+const VERDICT: Record<Finding["verdict"], [string, string]> = {
+  pass: ["bg-emerald-500", "rule"], fail: ["bg-zinc-500", "no edge"], not_enough: ["bg-amber-400", "too little data"], running: ["bg-sky-500/70", "running"],
+};
+
+/** Study verdicts on your own trades (S017–S021, optlab.findings). Card details sit in the ⓘ tooltip (user rule: point first). */
+function Playbook() {
+  const { data } = useQuery({
+    queryKey: ["pm-playbook"],
+    queryFn: async (): Promise<Finding[]> => {
+      const r = await fetch("/api/pm/playbook", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return (await r.json()).findings;
+    },
+    staleTime: 30 * 60_000,
+  });
+  if (!data?.length) return null;
+  return (
+    <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-3">
+      <div className="text-[11px] font-semibold text-[#d4af37] mb-1">Playbook · tested on your trades</div>
+      <ul className="space-y-0.5">
+        {data.map((f) => (
+          <li key={f.study} className="flex items-center gap-2 text-[11px]">
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", VERDICT[f.verdict]?.[0] ?? "bg-zinc-500")} />
+            <span className="text-amber-100">{f.title}</span>
+            <span className="text-amber-200/50 truncate">{f.verdict === "running" ? VERDICT.running[1] : f.headline}</span>
+            <Tooltip delayDuration={150}>
+              <TooltipTrigger asChild>
+                <button type="button" className="ml-auto text-amber-200/40 hover:text-amber-200/80"><Info className="w-3 h-3" /></button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-[320px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
+                <div className="font-semibold">{f.study} · {VERDICT[f.verdict]?.[1]}</div>
+                <div>{f.headline}</div>
+                {f.card && Object.entries(f.card).map(([k, v]) => <div key={k}><span className="text-amber-200/60">{k}:</span> {v}</div>)}
+              </TooltipContent>
+            </Tooltip>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function PortfolioAlertsPanel() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["pm-alerts"],
@@ -169,6 +215,7 @@ export function PortfolioAlertsPanel() {
         </p>
       </div>
       <YourNames />
+      <Playbook />
     </div>
   );
 }
