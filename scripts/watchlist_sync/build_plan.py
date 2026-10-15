@@ -53,7 +53,10 @@ def load_context(conn) -> dict:
     ctx["recs"] = rows(conn, """
         SELECT ticker, side, expiry, strike::float8, spot::float8, premium::float8, bid_is_live, weekly_income_pct::float8,
                delta::float8, strike_iv::float8, dte::float8, option_score::float8, macro_regime, vol_regime
-        FROM model_recs WHERE snapshot_date = %s AND expiry > CURRENT_DATE""", (snap,))
+        FROM model_recs WHERE snapshot_date = %s""", (snap,))
+    ctx["model_date"] = snap
+    reprice_from_chains(conn, ctx)
+    ctx["recs"] = [r for r in ctx["recs"] if r["expiry"] > date.today()]
     ctx["close"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker) AS ticker, date, close::float8
         FROM prices_historical ORDER BY UPPER(ticker), date DESC""")}
@@ -94,12 +97,51 @@ def load_context(conn) -> dict:
     return ctx
 
 
+def _settle_offset(expiry: date) -> int:
+    return {4: 3, 5: 2, 6: 1}.get(expiry.weekday(), 1)  # options settle T+1 business day (lib/options.ts settlementOffsetDays)
+
+
+def reprice_from_chains(conn, ctx: dict) -> None:
+    """model_recs is written on Fridays only, so Mon–Thu every pick failed fresh_snapshot (user approved the fix 2026-10-14).
+    Keep the model's picks (the track record stays one weekly cohort) but re-price each from the latest daily chain
+    (option_chain_history, saved by the noon option-score snapshot; no extra API calls): same contract if its expiry is still
+    ≥ DTE min, else roll to the nearest expiry that is, at the strike with the closest delta. option_score stays the model's."""
+    last = R.last_close_date()
+    if R.trading_days_between(ctx["snapshot_date"], last) <= R.MAX_SNAPSHOT_AGE_TRADING_DAYS:
+        return
+    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
+    if not as_of or as_of <= ctx["snapshot_date"] or R.trading_days_between(as_of, last) > R.MAX_SNAPSHOT_AGE_TRADING_DAYS:
+        return
+    tickers = sorted({r["ticker"] for r in ctx["recs"]})
+    chain: dict[tuple, list[dict]] = {}
+    for c in rows(conn, """SELECT ticker, side, expiry, strike::float8, dte::float8, spot::float8, bid::float8, iv::float8, delta::float8
+                           FROM option_chain_history WHERE as_of = %s AND ticker = ANY(%s) AND bid > 0""", (as_of, tickers)):
+        chain.setdefault((c["ticker"], c["side"]), []).append(c)
+    for r in ctx["recs"]:
+        cs = chain.get((r["ticker"], r["side"]), [])
+        exps = sorted({c["expiry"] for c in cs if c["dte"] >= R.DTE[0]})
+        if not exps:
+            continue
+        exp = r["expiry"] if r["expiry"] in exps else exps[0]
+        cs = [c for c in cs if c["expiry"] == exp and c["delta"] is not None]
+        same = [c for c in cs if exp == r["expiry"] and abs(c["strike"] - r["strike"]) < 1e-6]
+        pick = same[0] if same else min(cs, key=lambda c: abs(c["delta"] - (r["delta"] or 0)), default=None)
+        if not pick:
+            continue
+        rolled = exp != r["expiry"]
+        r.update(expiry=exp, strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"],
+                 strike_iv=pick["iv"], dte=pick["dte"],
+                 weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(exp)),
+                 repriced=f"{ctx['model_date']} model pick re-priced from {as_of} chain" + (" (rolled to next expiry, nearest delta)" if rolled else ""))
+    ctx["snapshot_date"] = as_of
+
+
 def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     t, side = rec["ticker"], rec["side"]
     c: list[dict] = []
     age = R.trading_days_between(ctx["snapshot_date"], R.last_close_date())
     c.append(chk("fresh_snapshot", age <= R.MAX_SNAPSHOT_AGE_TRADING_DAYS,
-                 f"model_recs from {ctx['snapshot_date']} ({age} trading day(s) before last close)"))
+                 f"priced {ctx['snapshot_date']} ({age} trading day(s) before last close; model {ctx.get('model_date', ctx['snapshot_date'])})"))
     c.append(chk("live_bid", bool(rec["bid_is_live"]) and (rec["premium"] or 0) > 0, f"Fildi premium ${rec['premium']}"))
     lo, hi = R.PUT_DELTA if side == "put" else R.CALL_DELTA
     d = rec["delta"]
@@ -184,7 +226,8 @@ def build(show_rejected: bool) -> int:
         ctx = load_context(conn)
         close = R.last_close_date()
         inputs = {
-            "model_recs_snapshot": str(ctx["snapshot_date"]),
+            "model_recs_snapshot": str(ctx["model_date"]),
+            "priced_from": str(ctx["snapshot_date"]),
             "portfolio_snapshot": f"#{ctx['portfolio_snapshot']['id']} {ctx['portfolio_snapshot']['imported_at']:%Y-%m-%d %H:%M}",
             "last_close": str(close),
             "regime": ctx["recs"][0]["macro_regime"] if ctx["recs"] else None,
@@ -212,6 +255,8 @@ def build(show_rejected: bool) -> int:
                         b["ok"] = False
                         b["checks"].append(chk("list_cap", False, f"beyond top {R.MAX_ITEMS}"))
                 reasons = [f"Fildi option score {r['option_score']:.0f}", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
+                if r.get("repriced"):
+                    reasons.append(r["repriced"])
                 items.append((pid, key, r["ticker"], rank if b["ok"] else None, r["option_score"], "option", side, r["strike"], r["expiry"],
                               b["account"], r["premium"], r["spot"], r["delta"], r["strike_iv"], b["ok"], json.dumps(b["checks"], default=str),
                               json.dumps(reasons), "pending" if b["ok"] else "not_required"))
