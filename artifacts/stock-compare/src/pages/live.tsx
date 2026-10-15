@@ -17,6 +17,7 @@ import {
 import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers";
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
+import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
@@ -170,7 +171,7 @@ function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: Hotli
   );
 }
 
-type PageTab = "market" | "news";
+type PageTab = "market" | "news" | "alerts";
 type SubTab = "sell" | "candidates";
 
 function PageTabToggle({ tab, onChange }: { tab: PageTab; onChange: (t: PageTab) => void }) {
@@ -179,6 +180,7 @@ function PageTabToggle({ tab, onChange }: { tab: PageTab; onChange: (t: PageTab)
       {([
         ["market", "Market"],
         ["news", "News"],
+        ["alerts", "Portfolio Alerts"],
       ] as const).map(([value, label]) => (
         <button
           key={value}
@@ -414,7 +416,9 @@ export default function Live() {
             )}
           </div>
 
-          {pageTab === "news" ? (
+          {pageTab === "alerts" ? (
+            <PortfolioAlertsPanel />
+          ) : pageTab === "news" ? (
             <div className="space-y-3">
               <DailyNewsPanel compact />
               <NewsInboxPanel />

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PM alerts (Claude, user 2026-10-14) — every 15 min; pm_alerts.py itself stays quiet weekends + outside 06:00–20:00 PT.
+# PM alerts (Claude, user 2026-10-14) — fires every 15 min; pm_alerts.py runs each time in market hours, every 2 h otherwise.
+# Output feeds Live › Portfolio Alerts (no push notifications).
 # Install: ./scripts/install-pm-alerts-launchd.sh   ·   uninstall: --uninstall
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,4 +38,4 @@ EOF
 
 launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Installed ${LABEL} → every 15 min (active weekdays 06:00–20:00 PT)"
+echo "Installed ${LABEL} → every 15 min in market hours, 2 h otherwise"
