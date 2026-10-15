@@ -308,6 +308,13 @@ def progress(conn, msg: str) -> None:
 
 
 def main() -> None:
+    import fcntl
+    lock = open("/tmp/fildi-logs/option-history.lock", "w")
+    try:  # nightly LaunchAgent + manual runs never overlap
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("another option_history run holds the lock; exiting")
+        return
     conn = connect()
     for stmt in DDL.split(";"):
         if stmt.strip():

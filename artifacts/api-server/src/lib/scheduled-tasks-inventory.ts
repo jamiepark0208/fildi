@@ -77,6 +77,7 @@ export const EXPECTED_LAUNCH_AGENTS = [
   "com.fildi.rbh-export-prompt",
   "com.fildi.pm-alerts",
   "com.fildi.transcripts",
+  "com.fildi.option-history",
 ] as const;
 
 /** Static catalog — keep in sync with buildTasks ids (catalog rows only). */
@@ -201,6 +202,13 @@ const INVENTORY_SPEC: Record<
     mutex: "AV budget 25/day (reserve 5)",
     cadence: "daily 5:30 AM PT",
     primary: true,
+  },
+  "option-history": {
+    owner: "launchd · com.fildi.option-history → analysis/option_history.py",
+    writes: ["optlab.* (contracts, bars, legs, earnings_moves, iv30, trades, findings)", "api_usage (polygon)"],
+    mutex: "file lock /tmp/fildi-logs/option-history.lock; Polygon 5 calls/min",
+    cadence: "nightly 3:00 AM PT (resumable; minutes once backfilled)",
+    primary: false,
   },
   "rbh-export": {
     owner: "launchd · com.fildi.rbh-export-prompt → Claude session",
@@ -355,6 +363,8 @@ export function detectOpsAlerts(opts: {
             ? ["pm-alerts"]
             : label.includes("transcripts")
               ? ["transcripts"]
+            : label.includes("option-history")
+              ? ["option-history"]
           : label.includes("rbh-daily")
             ? ["rbh-ingest"]
             : label.includes("stack")
@@ -369,6 +379,8 @@ export function detectOpsAlerts(opts: {
                 ? "scripts/install-pm-alerts-launchd.sh"
                 : label === "com.fildi.transcripts"
                   ? "scripts/install-transcripts-launchd.sh"
+                : label === "com.fildi.option-history"
+                  ? "scripts/install-option-history-launchd.sh"
               : "Reinstall from ~/rbh_scripts / install scripts",
       });
     }

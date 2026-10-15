@@ -238,6 +238,11 @@ export async function computeAndPersistOptionScores(opts?: {
     chainsByTicker = fetched.chainsByTicker;
     failures = fetched.failures;
     if (!dryRun) await persistChainHistory(chainsByTicker, asOf); // same chains, no extra API calls
+    if (!dryRun) {
+      // Index chains for dealer-gamma research (A109; user 10-15): 2 extra calls, history only — never scored.
+      const idx = await fetchChainsForTickers(["SPY", "QQQ"], { concurrency: 2, logLabel: "option-chain-history:index" });
+      await persistChainHistory(idx.chainsByTicker, asOf);
+    }
   }
 
   const allIVs: number[] = [];
