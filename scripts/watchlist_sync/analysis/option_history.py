@@ -95,7 +95,7 @@ def get(path: str) -> dict:
             if e.code in (403, 404):
                 return {}
             time.sleep(15 * (attempt + 1))
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):  # resets, sleep/wake drops, truncated JSON
             time.sleep(15 * (attempt + 1))
     return {}
 
@@ -236,7 +236,7 @@ def fridays_after(d: date, n: int) -> list[date]:
 
 def run_earnings(conn, tickers: list[str]) -> None:
     # Report dates: LSEG first (true announcement dates); earnings_calendar only for names LSEG lacks, minus fiscal period ends
-    # that the earnings backfill stores as report dates (A98) — POET: LSEG 08-13 vs calendar 08-19 / 06-30.
+    # that the earnings backfill stores as report dates (A114) — POET: LSEG 08-13 vs calendar 08-19 / 06-30.
     ev = rows(conn, """SELECT ticker AS t, report_date AS d FROM lseg_research.earnings_moves
                        WHERE ticker = ANY(%(t)s) AND report_date BETWEEN %(a)s AND %(b)s
                        UNION

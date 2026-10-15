@@ -87,7 +87,7 @@ def earnings_moves(conn) -> int:
         t, rd = g["key"].split("|")
         rd = date.fromisoformat(rd)
         if rd.strftime("%m-%d") in ("03-31", "06-30", "09-30", "12-31") or (t in lseg_names and (t, rd) not in lseg):
-            continue  # not a real report date: fiscal period end (A98) or a calendar date LSEG contradicts
+            continue  # not a real report date: fiscal period end (A114) or a calendar date LSEG contradicts
         ds, cs = cache.setdefault(t, closes(conn, t))
         i = bisect_left(ds, rd)  # ds[i-1] = last close before the report; first close after = ds[j]
         j = i + 1 if i < len(ds) and ds[i] == rd else i

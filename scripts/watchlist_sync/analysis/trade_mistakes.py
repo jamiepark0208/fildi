@@ -135,7 +135,7 @@ def load(conn):
     for r in rows(conn, """SELECT UPPER(ticker) AS t, report_date::date AS d FROM lseg_research.earnings_moves
                            UNION SELECT UPPER(ticker), report_date::date FROM earnings_calendar c
                            WHERE to_char(report_date, 'MM-DD') NOT IN ('03-31', '06-30', '09-30', '12-31')  -- period ends, not
-                             AND NOT EXISTS (SELECT 1 FROM lseg_research.earnings_moves m WHERE m.ticker = UPPER(c.ticker))"""):  # reports (A98)
+                             AND NOT EXISTS (SELECT 1 FROM lseg_research.earnings_moves m WHERE m.ticker = UPPER(c.ticker))"""):  # reports (A114)
         earn[r["t"]].append(r["d"])
     for v in earn.values():
         v.sort()
