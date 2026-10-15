@@ -357,9 +357,18 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   }
 
-  // Fetch spot price — reuse raw0 if available, otherwise fetch first target
+  // Fetch spot price — reuse raw0 if available, otherwise fetch first target.
+  // Prefer golden-source live quote (A7): Yahoo options.quote.regularMarketPrice
+  // often lags a session behind during RTH / right after the open.
   if (!raw0) raw0 = await fetchChain(key, targets[0]);
-  const spot = raw0.quote?.regularMarketPrice;
+  let spot = raw0.quote?.regularMarketPrice;
+  try {
+    const { getLivePrices } = await import("./live-quote.js");
+    const livePx = (await getLivePrices([key])).get(key)?.price;
+    if (livePx != null && livePx > 0) spot = livePx;
+  } catch {
+    /* keep Yahoo options quote */
+  }
   if (!spot) throw new Error(`No spot price for ${key}`);
 
   // The first raw fetch already contains puts for its expiry — reuse if DTE matches target[0]

@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
+import { PmBookCard } from "@/components/portfolio/pm-book-card";
 import { LazyMount } from "@/components/lazy-mount";
 import { useAuth } from "@/context/AuthContext";
 
@@ -157,7 +158,7 @@ function PositionDialog({
   }, [entries, portfolio, posType]);
 
   const inputCls = "w-full h-9 px-3 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
-  const labelCls = "block text-xs font-medium text-muted-foreground mb-1";
+  const labelCls = "block text-xs font-medium text-white mb-1";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -175,7 +176,7 @@ function PositionDialog({
                 className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 hover:border-primary/40 transition-all text-left">
                 <div>
                   <div className={cn("font-semibold text-sm", pt.color)}>{pt.label}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{pt.desc}</div>
+                  <div className="text-xs text-white mt-0.5">{pt.desc}</div>
                 </div>
               </button>
             ))}
@@ -197,7 +198,7 @@ function PositionDialog({
               <div>
                 <label className={labelCls}>
                   Ticker *
-                  {posType === "crypto" && <span className="ml-1 font-normal text-muted-foreground/70">(e.g. BTC-USD)</span>}
+                  {posType === "crypto" && <span className="ml-1 font-normal text-white">(e.g. BTC-USD)</span>}
                 </label>
                 {posType === "short_call" && longTickersInPortfolio.length > 0 ? (
                   <>
@@ -206,7 +207,7 @@ function PositionDialog({
                       <option value="">— select —</option>
                       {longTickersInPortfolio.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
-                    <p className="text-[10px] text-muted-foreground mt-1">
+                    <p className="text-[10px] text-white mt-1">
                       Covered calls restricted to {portfolio} longs.
                     </p>
                   </>
@@ -309,7 +310,7 @@ function AddPortfolioDialog({ open, onClose, onAdd, existing }: {
         </DialogHeader>
         <div className="space-y-4 pt-1">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Portfolio Name *</label>
+            <label className="block text-xs font-medium text-white mb-1">Portfolio Name *</label>
             <input
               className={inputCls}
               placeholder="e.g. Roth IRA, Margin, TFSA"
@@ -421,7 +422,7 @@ function PositionRow({ entry, currentPrice, earningsDate, onRemove, onEdit }: {
         </td>
         <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
           {entry.qty}
-          <span className="text-muted-foreground text-xs ml-1">
+          <span className="text-white text-xs ml-1">
             {isOpt ? "contracts" : entry.positionType === "crypto" ? "coins" : "shares"}
           </span>
         </td>
@@ -432,7 +433,7 @@ function PositionRow({ entry, currentPrice, earningsDate, onRemove, onEdit }: {
           {entry.positionType === "short_put" ? (
             <div className="flex flex-col items-end">
               <span className="text-yellow-400">{formatCurrency(collateral)}</span>
-              <span className="text-[10px] text-muted-foreground">collateral</span>
+              <span className="text-[10px] text-white">collateral</span>
             </div>
           ) : isOpt ? (
             <span className={isShort ? "text-green-400" : "text-red-400"}>
@@ -441,45 +442,45 @@ function PositionRow({ entry, currentPrice, earningsDate, onRemove, onEdit }: {
           ) : (
             currentPrice != null
               ? <span>{formatCurrency(currentPrice * entry.qty)}</span>
-              : <span className="text-muted-foreground">—</span>
+              : <span className="text-white">—</span>
           )}
         </td>
         <td className="py-2.5 px-4 text-right font-mono tabular-nums text-sm">
           {entry.positionType === "stock" ? (
             pnl !== null
               ? <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}</span>
-              : <span className="text-muted-foreground">—</span>
+              : <span className="text-white">—</span>
           ) : entry.positionType === "crypto" ? (
             cryptoPnl !== null
               ? <span className={cryptoPnl >= 0 ? "text-green-400" : "text-red-400"}>{cryptoPnl >= 0 ? "+" : ""}{formatCurrency(cryptoPnl)}</span>
-              : <span className="text-muted-foreground">—</span>
+              : <span className="text-white">—</span>
           ) : isOpt && optPnl !== null ? (
             <div className="flex flex-col items-end">
               <span className={cn("tabular-nums", optPnl >= 0 ? "text-green-400" : "text-red-400")}>
                 {optPnl >= 0 ? "+" : ""}{formatCurrency(optPnl)}
               </span>
-              <span className="text-[10px] text-muted-foreground">@ ${optQuote!.midPrice!.toFixed(2)}</span>
+              <span className="text-[10px] text-white">@ ${optQuote!.midPrice!.toFixed(2)}</span>
             </div>
           ) : entry.positionType === "short_put" ? (
             <span className="text-green-400">+{formatCurrency(premium)}</span>
           ) : isOpt && entry.expiry ? (
             <span className={cn(
               "text-xs flex items-center justify-end gap-1",
-              isExpired ? "text-muted-foreground/50" : expiryWarning ? "text-yellow-400" : "text-muted-foreground"
+              isExpired ? "text-white" : expiryWarning ? "text-yellow-400" : "text-white"
             )}>
               {expiryWarning && <AlertTriangle className="w-3 h-3" />}
               {isExpired ? "Expired" : dte === 0 ? "Today" : `${dte}d`}
             </span>
-          ) : <span className="text-muted-foreground">—</span>}
+          ) : <span className="text-white">—</span>}
         </td>
         <td className="py-2.5 px-4 text-right">
           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
             <button onClick={() => onEdit(entry)}
-              className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-primary">
+              className="p-1 hover:bg-background/80 rounded transition-all text-white hover:text-primary">
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button onClick={() => onRemove(entry.id)}
-              className="p-1 hover:bg-background/80 rounded transition-all text-muted-foreground hover:text-red-400">
+              className="p-1 hover:bg-background/80 rounded transition-all text-white hover:text-red-400">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -488,7 +489,7 @@ function PositionRow({ entry, currentPrice, earningsDate, onRemove, onEdit }: {
       {isOpt && (hasLiveData || breakeven != null) && (
         <tr className="border-b border-border/20 bg-secondary/5">
           <td colSpan={7} className="px-4 py-1.5">
-            <div className="flex items-center gap-5 text-xs font-mono tabular-nums text-muted-foreground">
+            <div className="flex items-center gap-5 text-xs font-mono tabular-nums text-white">
               {optQuote?.delta != null && (
                 <span>Δ <span className="text-foreground/70">{optQuote.delta.toFixed(3)}</span></span>
               )}
@@ -567,10 +568,10 @@ function PortfolioBox({ name, entries, priceMap, stockDataMap, onEdit, onRemove,
           className="flex items-center gap-2 hover:text-foreground transition-colors text-left"
         >
           {collapsed
-            ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-            : <ChevronDown  className="w-4 h-4 text-muted-foreground shrink-0" />}
+            ? <ChevronRight className="w-4 h-4 text-white shrink-0" />
+            : <ChevronDown  className="w-4 h-4 text-white shrink-0" />}
           <span className="font-bold text-sm">{name}</span>
-          <span className="text-xs text-white/60">
+          <span className="text-xs text-white">
             {entries.length} position{entries.length !== 1 ? "s" : ""}
           </span>
         </button>
@@ -580,19 +581,19 @@ function PortfolioBox({ name, entries, priceMap, stockDataMap, onEdit, onRemove,
           <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
             {stats.collateral > 0 && (
               <span className="text-yellow-400">
-                <span className="text-white/60 font-sans mr-1">collateral</span>
+                <span className="text-white font-sans mr-1">collateral</span>
                 {formatCurrency(stats.collateral)}
               </span>
             )}
             {stats.premium > 0 && (
               <span className="text-green-400">
-                <span className="text-white/60 font-sans mr-1">premium</span>
+                <span className="text-white font-sans mr-1">premium</span>
                 +{formatCurrency(stats.premium)}
               </span>
             )}
             {stats.stockValue > 0 && (
               <span className="text-blue-400">
-                <span className="text-white/60 font-sans mr-1">stock</span>
+                <span className="text-white font-sans mr-1">stock</span>
                 {formatCurrency(stats.stockValue)}
               </span>
             )}
@@ -618,7 +619,7 @@ function PortfolioBox({ name, entries, priceMap, stockDataMap, onEdit, onRemove,
         <CardContent className="p-0">
           {entries.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-muted-foreground">No positions in {name} yet.</p>
+              <p className="text-sm text-white">No positions in {name} yet.</p>
               <button
                 onClick={() => onAddPosition(name)}
                 className="mt-2 text-xs text-primary hover:underline"
@@ -838,11 +839,11 @@ export default function Portfolio() {
           {entries.length === 0 && portfolioNames.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 gap-5 text-center">
               <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
-                <TrendingUp className="w-8 h-8 text-muted-foreground/50" />
+                <TrendingUp className="w-8 h-8 text-white" />
               </div>
               <div>
                 <p className="text-sm font-medium">No positions tracked yet</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                <p className="text-xs text-white mt-1 max-w-xs">
                   {isAdmin
                     ? "Upload a Robinhood CSV below to get started."
                     : "Create portfolios (IRA, FILDI, MOM) then add positions to each."}
@@ -858,6 +859,7 @@ export default function Portfolio() {
             <>
               {isAdmin ? (
                 <>
+                  <PmBookCard />
                   {/* Portfolio Analysis first — Street Radar is heavy; lazy-mount below */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis
@@ -876,14 +878,14 @@ export default function Portfolio() {
                   <LazyMount
                     minHeight={160}
                     fallback={
-                      <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-zinc-500">
+                      <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-white">
                         Street Radar · scroll to load
                       </div>
                     }
                   >
                     <Suspense
                       fallback={
-                        <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-zinc-500">
+                        <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-white">
                           Loading Street Radar…
                         </div>
                       }
@@ -957,7 +959,7 @@ export default function Portfolio() {
                     </div>
                     <div className="flex items-center gap-1.5 ml-auto">
                       <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Last imported</span>
-                      <span className="font-mono tabular-nums text-white/70" title={snapshot.importedAt}>
+                      <span className="font-mono tabular-nums text-white" title={snapshot.importedAt}>
                         {formatMdYy(snapshot.importedAt)}
                       </span>
                     </div>

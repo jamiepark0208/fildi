@@ -32,7 +32,7 @@ from statistics import mean, median, pstdev
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build_plan import connect, rows  # noqa: E402
-from street_scenarios import spearman  # noqa: E402
+from analysis.street_scenarios import spearman  # noqa: E402
 from analysis.timing_rh_trades import ET, ACCOUNTS, rsi  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / "out" / "mistakes"

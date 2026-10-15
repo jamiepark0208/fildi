@@ -1,7 +1,7 @@
 // ── Palette ───────────────────────────────────────────────────────────────────
 
 // Dense data-grid look matching RobinhoodPortfolio's Equity Positions table.
-export const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-muted-foreground";
+export const TTH = "py-2 px-3 font-medium text-[10px] uppercase tracking-widest text-white";
 export const TTD = "py-2 px-3 text-xs tabular-nums";
 
 // Whole strikes render without decimals; fractional strikes (e.g. 6.5) keep only as many as needed.

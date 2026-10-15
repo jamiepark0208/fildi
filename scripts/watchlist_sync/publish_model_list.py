@@ -427,6 +427,23 @@ def main() -> None:
         if a.dry_run:
             return
         conn.execute("ALTER TABLE watchlist_sync.model_items ADD COLUMN IF NOT EXISTS adjustments jsonb")   # model_list.sql, 2026-10-05
+        # Unique index keys (run_id, folder_key, ticker, contract.type, contract.account).
+        # PF.manage can emit the same open short twice (multi-account / duplicate rows) — keep first.
+        seen: set[tuple] = set()
+        deduped = []
+        for o in items:
+            c = o.get("contract") or {}
+            uk = (o["folder_key"], o["ticker"], str(c.get("type") or ""), str(c.get("account") or ""))
+            if uk in seen:
+                continue
+            seen.add(uk)
+            deduped.append(o)
+        if len(deduped) < len(items):
+            print(f"  (deduped {len(items) - len(deduped)} duplicate folder/ticker/contract rows before insert)")
+        items = deduped
+        summary = defaultdict(int)
+        for o in items:
+            summary[o["folder_key"]] += 1
         run_id = rows(conn, """INSERT INTO watchlist_sync.model_runs (model_version, plan_id, fit_run_at, summary)
                                VALUES (%s, %s, %s, %s) RETURNING id""",
                       (meta["version"], meta["plan_id"], meta["fit_run_at"], json.dumps(summary)))[0]["id"]

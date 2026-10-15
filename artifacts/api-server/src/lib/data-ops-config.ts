@@ -27,6 +27,9 @@ export const FMP_MAX_DAILY_CALLS = 220;
 
 export const AV_MAX_DAILY_CALLS = 25;
 
+/** OVERVIEW leg of nightly enrich — leave headroom for transcripts.py (≤20/day). */
+export const AV_OVERVIEW_DAILY_CAP = 5;
+
 /** Nightly peer-expansion cap (bug/9 — avoid unbounded fan-out). */
 export const PEER_EXPANSION_CAP = 25;
 
@@ -39,12 +42,11 @@ export const COHORT_MODULUS = 14;
 
 export const SCARCE_SOURCES = new Set(["fmp", "alpha_vantage"]);
 
-/** Cheap → scarce. Matches nightly SOURCE_ORDER. */
+/** Cheap → scarce. Matches nightly SOURCE_ORDER. Polygon financials removed (A84: endpoint GONE). */
 export const SOURCE_ORDER = [
   "yahoo",
   "edgar",
   "finnhub",
-  "polygon",
   "alpha_vantage",
   "fmp",
 ] as const;
@@ -60,7 +62,6 @@ export const FREE_ENRICH_SOURCES: EnrichSource[] = [
   "yahoo",
   "edgar",
   "finnhub",
-  "polygon",
 ];
 
 /** Stable hash → cohort bucket 0..COHORT_MODULUS-1. */

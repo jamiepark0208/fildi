@@ -20,4 +20,11 @@ describe("computeRefreshDaysLeft", () => {
   it("returns null for garbage obtainedAt", () => {
     assert.equal(computeRefreshDaysLeft("not-a-date"), null);
   });
+
+  it("≤2d is the A73 warn threshold (banner)", () => {
+    const now = Date.parse("2026-10-14T12:00:00Z");
+    const obtainedAt = new Date(now - 5.5 * 24 * 60 * 60 * 1000).toISOString(); // 5.5d ago → ~1.5d left
+    const days = computeRefreshDaysLeft(obtainedAt, now);
+    assert.ok(days != null && days! <= 2 && days! > 1, `expected 1–2d left, got ${days}`);
+  });
 });

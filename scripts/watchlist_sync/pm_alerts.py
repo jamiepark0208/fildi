@@ -69,7 +69,8 @@ def realized_vol(conn, tickers: list[str]) -> dict[str, float]:
 
 def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random) -> dict | None:
     b = book["accounts"][acct]
-    puts = [p for p in book["positions"] if p["account"] == acct and p["iv"]]
+    puts = [p for p in book["positions"]
+            if p["account"] == acct and p.get("iv") and p.get("status") != "unknown" and p.get("spot")]
     if not puts:
         return None
     near = min(p["expiry"] for p in puts)
@@ -169,8 +170,21 @@ def main() -> None:
     conn.commit()
     if "--now" not in sys.argv and not due(conn, now):
         return
-    # always try Schwab (after hours = closing quotes; RH snapshot IVs disagree with Schwab's, e.g. USAR 1.79 vs 1.01); pm_book falls back
-    subprocess.run([sys.executable, str(HERE / "pm_book.py"), "--live"], cwd=HERE, check=True, capture_output=True)
+    # always try Schwab (after hours = closing quotes; RH snapshot IVs disagree with Schwab's); pm_book falls back
+    r = subprocess.run([sys.executable, str(HERE / "pm_book.py"), "--live"], cwd=HERE, capture_output=True, text=True)
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "pm_book failed")[:280]
+        payload = {
+            "generated": now.isoformat(timespec="seconds"), "priced_at": now.isoformat(timespec="seconds"),
+            "prices": "failed", "snapshot_at": None,
+            "bullets": [{"key": "book_failed", "level": "amber", "text": f"Book check failed: {err}", "value": 0, "change": "new"}],
+            "cleared": [], "model": {}, "accounts": {},
+        }
+        conn.execute("INSERT INTO watchlist_sync.pm_alerts (payload) VALUES (%s)", (json.dumps(payload, default=str),))
+        conn.commit()
+        if "--now" in sys.argv:
+            print(f"[amber] Book check failed: {err}")
+        return
     book = json.loads((OUT / "book-latest.json").read_text())
     acct_ids = {"IRA": "772445425", "FILDI": "5QU47796"}
     snap = book["snapshot_id"]

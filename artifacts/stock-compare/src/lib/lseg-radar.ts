@@ -32,7 +32,7 @@ export type RadarTech = {
 export type RadarRow = {
   ticker: string;
   tier: number;
-  label: "held" | "traded" | "watchlist" | "lookalike" | "book";
+  label: "held" | "traded" | "watchlist" | "lookalike" | "book" | "model" | "benchmark";
   reason: string;
   signals: LsegSignals | null;
   tech: RadarTech;
@@ -167,10 +167,13 @@ export function scoreOpportunity(r: RadarRow): Opportunity {
   const raw = 0.4 * street + 0.35 * premium + 0.25 * timing - penalty;
   const order: Record<Tone, number> = { bad: 0, warn: 1, good: 2, neutral: 3 };
   bullets.sort((a, b) => order[a.tone] - order[b.tone]);
+  // Prefer the strongest scoring bullet — coverage.reason is ops metadata
+  // ("scored by the watchlist-sync fit model"), not why this name ranks.
+  const top = bullets.find((b) => b.tone === "good" || b.tone === "bad" || b.tone === "warn");
   return {
     ticker: r.ticker,
     label: r.label,
-    why: r.reason,
+    why: top?.text ?? bullets[0]?.text ?? "No Street/premium/timing signal yet",
     score: Math.round(clamp01(raw) * 100),
     parts: { street, premium, timing, penalty },
     bullets,

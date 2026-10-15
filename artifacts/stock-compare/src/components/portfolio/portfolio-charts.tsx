@@ -16,7 +16,7 @@ export function ChartTooltip({ active, payload, format }: {
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2 min-w-[120px]">
           <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.fill ?? p.color }} />
-          <span className="text-muted-foreground flex-1">{p.name ?? p.dataKey}</span>
+          <span className="text-white flex-1">{p.name ?? p.dataKey}</span>
           <span className="font-mono font-semibold">{format ? format(p.value) : p.value}</span>
         </div>
       ))}
@@ -33,20 +33,20 @@ export function PieTooltip({ active, payload }: any) {
     <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs max-w-[220px]">
       <div className="flex items-center gap-2">
         <div className="w-2 h-2 rounded-full" style={{ background: d.payload.color }} />
-        <span className="text-muted-foreground">{d.name}</span>
+        <span className="text-white">{d.name}</span>
       </div>
       <div className="font-mono font-semibold mt-0.5">{formatCurrency(displayValue)}</div>
-      <div className="text-muted-foreground">{d.payload.pct?.toFixed(1)}%</div>
+      <div className="text-white">{d.payload.pct?.toFixed(1)}%</div>
       {breakdown && breakdown.length > 0 && (
         <div className="mt-1.5 pt-1.5 border-t border-border/60 space-y-0.5">
           {breakdown.slice(0, 8).map(b => (
             <div key={b.name} className="flex items-center justify-between gap-3 font-mono">
-              <span className="text-muted-foreground">{b.name}</span>
-              <span>{formatCurrency(b.value)} <span className="text-muted-foreground">({b.pct.toFixed(1)}%)</span></span>
+              <span className="text-white">{b.name}</span>
+              <span>{formatCurrency(b.value)} <span className="text-white">({b.pct.toFixed(1)}%)</span></span>
             </div>
           ))}
           {breakdown.length > 8 && (
-            <div className="text-muted-foreground">+{breakdown.length - 8} more</div>
+            <div className="text-white">+{breakdown.length - 8} more</div>
           )}
         </div>
       )}
@@ -61,7 +61,7 @@ export function DonutChart({ data, total, label }: {
   total: number; label: string;
 }) {
   if (!data.length) return (
-    <div className="h-[180px] flex items-center justify-center text-xs text-muted-foreground">No data</div>
+    <div className="h-[180px] flex items-center justify-center text-xs text-white">No data</div>
   );
   return (
     <div className="relative">
@@ -76,7 +76,7 @@ export function DonutChart({ data, total, label }: {
       </ResponsiveContainer>
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="text-center">
-          <div className="text-[10px] text-muted-foreground leading-none">{label}</div>
+          <div className="text-[10px] text-white leading-none">{label}</div>
           <div className="text-sm font-bold font-mono mt-0.5 leading-none">{formatCurrency(total)}</div>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function PieLegend({ data }: { data: { name: string; value: number; color
         {data.map((d, i) => (
           <div key={i} className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
         ))}
-        <span className="text-[10px] text-muted-foreground ml-1">
+        <span className="text-[10px] text-white ml-1">
           {data.length} · hover for detail
         </span>
       </div>
@@ -104,7 +104,7 @@ export function PieLegend({ data }: { data: { name: string; value: number; color
           {data.map((d, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-              <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
+              <span className="text-white flex-1 truncate">{d.name}</span>
               <span className="font-mono tabular-nums text-right">{d.pct?.toFixed(1)}%</span>
             </div>
           ))}
@@ -121,11 +121,11 @@ export function RiskStat({ label, value, sub, icon, color }: {
 }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/20 border border-border/50">
-      <div className={cn("mt-0.5 shrink-0", color ?? "text-muted-foreground")}>{icon}</div>
+      <div className={cn("mt-0.5 shrink-0", color ?? "text-white")}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{label}</div>
+        <div className="text-[10px] text-white font-medium uppercase tracking-wide">{label}</div>
         <div className="text-lg font-bold font-mono tabular-nums leading-tight">{value}</div>
-        {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+        {sub && <div className="text-[10px] text-white mt-0.5">{sub}</div>}
       </div>
     </div>
   );

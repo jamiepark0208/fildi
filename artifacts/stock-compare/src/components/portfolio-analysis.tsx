@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatCurrency, formatCompactCurrency, formatMdYy } from "@/lib/format";
+import { formatCurrency, formatCompactCurrency, formatCompactCurrencyInt, formatMdYy, formatMYy } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   formatStrike, PALETTE, SECTOR_OVERRIDES, BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS,
@@ -551,17 +551,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <h2 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Portfolio Analysis</h2>
             {lastImportedAt && (
               <span
-                className="text-[10px] text-muted-foreground/80 tabular-nums normal-case tracking-normal font-normal"
+                className="text-[10px] text-white tabular-nums normal-case tracking-normal font-normal"
                 title={lastImportedAt}
               >
                 last imported {formatMdYy(lastImportedAt)}
               </span>
             )}
           </div>
-          <p className="text-[10px] text-amber-200/40 mt-0.5">
-            Allocation · Sector · Risk · Delta · Income
-            {risk.coveredCallCount > 0 && ` · ${risk.coveredCallCount} covered call${risk.coveredCallCount > 1 ? "s" : ""}`}
-          </p>
         </div>
         <div className="flex items-center gap-2.5">
           {onUploadSuccess && <PortfolioUpload onSuccess={onUploadSuccess} />}
@@ -569,7 +565,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             {tabs.map(t => (
               <button key={t} onClick={() => setActivePortfolio(t)}
                 className={cn("px-2.5 py-1 transition-colors",
-                  activePortfolio === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                  activePortfolio === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
                 {t}
               </button>
             ))}
@@ -606,9 +602,8 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <DonutChart data={allocationData} total={totalValue} label="Net Value" />
             <PieLegend data={allocationData} />
             {allocationMarginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 text-[10px] text-muted-foreground">
-                Net of <span className="font-mono font-semibold text-yellow-400">{formatCurrency(allocationMarginUsed)}</span> margin used —
-                Sector Exposure/Ticker Holdings show gross stock notional, so their totals run higher on this account.
+              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 text-[10px] text-white">
+                Margin: <span className="font-mono font-semibold text-yellow-400">${Math.round(allocationMarginUsed).toLocaleString("en-US")}</span>
               </div>
             )}
           </CardContent>
@@ -631,15 +626,15 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <PieLegend data={sectorData.items.slice(0, 6)} />
             <div className="mt-2 pt-2 border-t border-[#d4af37]/15 grid grid-cols-3 gap-x-2 text-[10px]">
               <div>
-                <div className="text-muted-foreground uppercase tracking-wide">HHI</div>
+                <div className="text-white uppercase tracking-wide">HHI</div>
                 <div className="font-mono font-semibold">{concentration.hhi}</div>
               </div>
               <div>
-                <div className="text-muted-foreground uppercase tracking-wide">Top-5 %</div>
+                <div className="text-white uppercase tracking-wide">Top-5 %</div>
                 <div className="font-mono font-semibold">{concentration.top5Pct.toFixed(1)}%</div>
               </div>
               <div className="truncate">
-                <div className="text-muted-foreground uppercase tracking-wide">Largest</div>
+                <div className="text-white uppercase tracking-wide">Largest</div>
                 <div className="font-mono font-semibold truncate">
                   {concentration.topTicker ?? "—"} {concentration.topTickerPct != null ? `${concentration.topTickerPct.toFixed(1)}%` : ""}
                 </div>
@@ -647,7 +642,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             </div>
             {marginUsage.marginUsed > 0 && (
               <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
+                <span className="text-white uppercase tracking-wide">Margin Used</span>
                 <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
               </div>
             )}
@@ -663,7 +658,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <PieLegend data={tickerData.items.slice(0, 6)} />
             {marginUsage.marginUsed > 0 && (
               <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground uppercase tracking-wide">Margin Used</span>
+                <span className="text-white uppercase tracking-wide">Margin Used</span>
                 <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
               </div>
             )}
@@ -722,7 +717,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   key: "yield",
                   lines: ["Inc.", "Yield"],
                   value: `${risk.incomeYield.toFixed(1)}%`,
-                  color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-muted-foreground",
+                  color: risk.incomeYield >= 20 ? "text-green-400" : risk.incomeYield >= 10 ? "text-yellow-400" : "text-white",
                   hint: "Annualized premium income vs cash locked in short puts — rough run-rate if you keep rolling similar trades.",
                 },
                 {
@@ -787,42 +782,42 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   key: "atrisk",
                   lines: ["At-risk", "puts"],
                   value: String(risk.atRiskPositions),
-                  color: risk.atRiskPositions > 0 ? "text-red-400" : "text-muted-foreground",
+                  color: risk.atRiskPositions > 0 ? "text-red-400" : "text-white",
                   hint: "Short puts where the stock is within ~8% above the strike — close enough that a bad day can force assignment.",
                 },
                 {
                   key: "exp",
                   lines: ["Exp", "≤7d"],
                   value: String(risk.expiringSoon),
-                  color: risk.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground",
+                  color: risk.expiringSoon > 0 ? "text-orange-400" : "text-white",
                   hint: "Positions that expire within a week. Decide now: close, roll, or let assign/expire.",
                 },
                 {
                   key: "earn",
                   lines: ["Earn.", "risk"],
                   value: String(earningsRiskPositions.length),
-                  color: earningsRiskPositions.length > 0 ? "text-red-400" : "text-muted-foreground",
+                  color: earningsRiskPositions.length > 0 ? "text-red-400" : "text-white",
                   hint: "Open options that still expire after the next earnings date — gap and IV crush risk around the print.",
                 },
                 {
                   key: "cc",
                   lines: ["Covered", "CC"],
                   value: String(risk.coveredCallCount),
-                  color: risk.coveredCallCount > 0 ? "text-blue-400" : "text-muted-foreground",
+                  color: risk.coveredCallCount > 0 ? "text-blue-400" : "text-white",
                   hint: "Tickers where you own stock and also sold calls against it. Caps upside; stock is the collateral.",
                 },
                 {
                   key: "wide",
                   lines: ["Wide", "spr."],
                   value: liquidityRisk.checked > 0 ? `${liquidityRisk.wide}/${liquidityRisk.checked}` : "—",
-                  color: liquidityRisk.wide > 0 ? "text-red-400" : "text-muted-foreground",
+                  color: liquidityRisk.wide > 0 ? "text-red-400" : "text-white",
                   hint: "Option contracts with a very wide bid/ask (≥40% of mid). Hard to exit without giving up a lot of premium.",
                 },
                 {
                   key: "mod",
                   lines: ["Mod", "spr."],
                   value: liquidityRisk.checked > 0 ? `${liquidityRisk.moderate}/${liquidityRisk.checked}` : "—",
-                  color: liquidityRisk.moderate > 0 ? "text-yellow-400" : "text-muted-foreground",
+                  color: liquidityRisk.moderate > 0 ? "text-yellow-400" : "text-white",
                   hint: "Contracts with a middling spread (20–40% of mid). Tradeable, but expect slippage vs mid.",
                 },
                 ...(marginUsage.marginUsed > 0 || marginUsage.buyingPower > 0
@@ -896,7 +891,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                           >
                             <UiTooltip delayDuration={200}>
                               <TooltipTrigger asChild>
-                                <span className="w-[2.75rem] shrink-0 cursor-help text-[8px] uppercase tracking-wide text-zinc-500 leading-[1.05] border-b border-dotted border-zinc-600">
+                                <span className="w-[2.75rem] shrink-0 cursor-help text-[8px] uppercase tracking-wide text-white leading-[1.05] border-b border-dotted border-white/40">
                                   {m.lines.map((ln) => (
                                     <span key={ln} className="block">{ln}</span>
                                   ))}
@@ -928,7 +923,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       <LazyMount
         minHeight={280}
         fallback={
-          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-8 text-[10px] text-zinc-500 text-center">
+          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-8 text-[10px] text-white text-center">
             Charts · scroll to load
           </div>
         }
@@ -943,13 +938,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                   Beta Contribution
                 </CardTitle>
-                <p className="text-[10px] text-white/70">weighted β · covered calls adjusted to δ×0.70</p>
+                <p className="text-[10px] text-white">weighted β · covered calls adjusted to δ×0.70</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {topBetaData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -965,9 +960,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                           {d.ticker}
                           {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
                         </div>
-                        <div className="flex justify-between gap-4"><span className="text-white/70">β Contribution</span><span className="font-mono font-semibold">{d.contribution.toFixed(3)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white/70">Beta</span><span className="font-mono">{d.beta}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white/70">Weight</span><span className="font-mono">{d.weight}%</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white">β Contribution</span><span className="font-mono font-semibold">{d.contribution.toFixed(3)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white">Beta</span><span className="font-mono">{d.beta}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white">Weight</span><span className="font-mono">{d.weight}%</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1000,28 +995,28 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                   Cumulative P&amp;L by Trade Type
                 </CardTitle>
-                <p className="text-[10px] text-white/70">realized + unrealized · scoped to {activePortfolio}</p>
+                <p className="text-[10px] text-white">realized + unrealized · scoped to {activePortfolio}</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {tradeTypeChartData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="category" interval={0} tick={{ fontSize: 11, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrency(v)} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
                       <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
                         <div className="font-semibold">{d.category}</div>
-                        <div className="flex justify-between gap-4"><span className="text-white/70">Realized</span><span className="font-mono font-semibold">{formatCurrency(d.realized)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white/70">Unrealized</span><span className="font-mono font-semibold">{formatCurrency(d.unrealized)}</span></div>
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/70">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white/80">Realized</span><span className="font-mono font-semibold">{formatCurrency(d.realized)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-white/80">Unrealized</span><span className="font-mono font-semibold">{formatCurrency(d.unrealized)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/80">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1053,13 +1048,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                   Cumulative P&amp;L — Tickers
                 </CardTitle>
-                <p className="text-[10px] text-white/70">all accounts · realized + unrealized</p>
+                <p className="text-[10px] text-white">all accounts · realized + unrealized</p>
               </div>
               <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
                 {([{ key: "top", label: "Top 8" }, { key: "all", label: "All" }] as const).map(t => (
                   <button key={t.key} onClick={() => setTickerChartScope(t.key)}
                     className={cn("px-2 py-0.5 transition-colors",
-                      tickerChartScope === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                      tickerChartScope === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
                     {t.label}
                   </button>
                 ))}
@@ -1068,7 +1063,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {topTickersPnlChartData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -1082,9 +1077,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
                         <div className="font-semibold">{d.ticker}</div>
                         {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
-                          <div key={key} className="flex justify-between gap-4"><span className="text-white/70">{label}</span><span className="font-mono">{formatCurrency(d[key])}</span></div>
+                          <div key={key} className="flex justify-between gap-4"><span className="text-white">{label}</span><span className="font-mono">{formatCurrency(d[key])}</span></div>
                         ))}
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/70">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1114,7 +1109,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
                   Cumulative P&amp;L
                 </CardTitle>
-                <p className="text-[10px] text-white/70">
+                <p className="text-[10px] text-white">
                   {cumPnlView === "realized" && "stock + options + dividends · includes assignment lots · scoped to " + activePortfolio}
                   {cumPnlView === "unrealized" && "live mark-to-market on open positions, today · flat line (no daily history kept) · scoped to " + activePortfolio}
                   {cumPnlView === "total" && "realized history + live unrealized added at today · scoped to " + activePortfolio}
@@ -1131,14 +1126,14 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   ] as const).map(t => (
                     <button key={t.key} onClick={() => setCumPnlView(t.key)}
                       className={cn("px-2 py-0.5 transition-colors",
-                        cumPnlView === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                        cumPnlView === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
                       {t.label}
                     </button>
                   ))}
                 </div>
                 {cumPnlView !== "table" && (
                   <div className="text-right">
-                    <div className="text-[10px] text-white/70 uppercase tracking-wide">
+                    <div className="text-[10px] text-white uppercase tracking-wide">
                       {cumPnlView === "realized" && "Total Realized"}
                       {cumPnlView === "unrealized" && "Live Unrealized"}
                       {cumPnlView === "total" && "Total (incl. live)"}
@@ -1150,7 +1145,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 )}
                 {cumPnlView === "table" && (
                   <div className="text-right">
-                    <div className="text-[10px] text-white/70 uppercase tracking-wide">Grand Total</div>
+                    <div className="text-[10px] text-white uppercase tracking-wide">Grand Total</div>
                     <div className={cn("text-sm font-bold font-mono tabular-nums", pnlTotals.grandTotal.total >= 0 ? "text-green-400" : "text-red-400")}>
                       {pnlTotals.grandTotal.total >= 0 ? "+" : ""}{formatCurrency(pnlTotals.grandTotal.total)}
                     </div>
@@ -1171,9 +1166,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   </colgroup>
                   <thead>
                     <tr className="border-b border-[#d4af37]/15">
-                      <th className="text-left py-1 px-1 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider" />
+                      <th className="text-left py-1 px-1 text-[9px] font-semibold text-white uppercase tracking-wider" />
                       {["Realized", "Unreal.", "Total"].map(h => (
-                        <th key={h} className="text-right py-1 px-1 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                        <th key={h} className="text-right py-1 px-1 text-[9px] font-semibold text-white uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1183,7 +1178,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                         <td className="py-1.5 px-1 font-medium truncate" title={row.label}>{row.label}</td>
                         {[row.realized, row.unrealized, row.total].map((v, i) => (
                           <td key={i} className={cn("py-1.5 px-1 text-right font-mono tabular-nums font-semibold",
-                            v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                            v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-white")}>
                             {v >= 0 ? "+" : ""}{formatCompactCurrency(v)}
                           </td>
                         ))}
@@ -1193,7 +1188,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       <td className="py-1.5 px-1 font-bold">Total</td>
                       {[pnlTotals.grandTotal.realized, pnlTotals.grandTotal.unrealized, pnlTotals.grandTotal.total].map((v, i) => (
                         <td key={i} className={cn("py-1.5 px-1 text-right font-mono tabular-nums font-bold",
-                          v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                          v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-white")}>
                           {v >= 0 ? "+" : ""}{formatCompactCurrency(v)}
                         </td>
                       ))}
@@ -1202,7 +1197,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </table>
               </div>
             ) : cumulativePnlTimeline.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white/70">No data</div>
+              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={cumulativePnlTimeline} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -1215,17 +1210,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#ffffff" }}
                     axisLine={false} tickLine={false}
-                    tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })} />
+                    tickFormatter={(d: string) => formatMYy(d)} />
                   <YAxis tick={{ fontSize: 11, fill: "#ffffff" }} axisLine={false} tickLine={false}
-                    width={44} tickFormatter={(v) => formatCompactCurrency(v)} />
+                    width={44} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
                       <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 text-white">
-                        <div className="font-semibold">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>
+                        <div className="font-semibold">{formatMdYy(d.date)}</div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-white/70">Cumulative</span>
+                          <span className="text-white/80">Cumulative</span>
                           <span className={cn("font-mono font-semibold", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                             {formatCurrency(d.cumulative)}
                           </span>
@@ -1248,7 +1243,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       <LazyMount
         minHeight={200}
         fallback={
-          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-6 text-[10px] text-zinc-500 text-center">
+          <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-6 text-[10px] text-white text-center">
             Holdings detail · scroll to load
           </div>
         }
@@ -1260,7 +1255,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               {DETAIL_TABS.map(t => (
                 <button key={t.key} onClick={() => setDetailTab(t.key)}
                   className={cn("px-2.5 py-1 transition-colors whitespace-nowrap",
-                    detailTab === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                    detailTab === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
                   {t.label}
                 </button>
               ))}
@@ -1272,13 +1267,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     {ACCOUNT_TABS.map(t => (
                       <button key={t.key} onClick={() => detailTab === "tickers" ? setTickersTab(t.key) : setSummaryTab(t.key)}
                         className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
-                          (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                          (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-white hover:text-foreground")}>
                         {t.label}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground/60 italic">
+                  <span className="text-[10px] text-white/80 italic">
                     scoped to {activePortfolio} (top filter)
                   </span>
                 )}
@@ -1288,7 +1283,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       onClick={() => detailTab === "tickers" ? setTickersScope(t.key) : setSummaryScope(t.key)}
                       className={cn("px-2 py-0.5 transition-colors",
                         (detailTab === "tickers" ? tickersScope : summaryScope) === t.key
-                          ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]")}>
+                          ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
                       {t.label}
                     </button>
                   ))}
@@ -1296,7 +1291,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </div>
             )}
           </div>
-          <p className="text-[10px] text-muted-foreground normal-case pt-1.5">
+          <p className="text-[10px] text-white normal-case pt-1.5">
             {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD (stock sales include assignment exits when exported)"}
             {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends (not calendar-YTD clipped)"}
             {detailTab === "income" && `Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1 · scoped to ${activePortfolio}`}
@@ -1310,10 +1305,10 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono tabular-nums pt-1.5 pb-0.5">
               <span className="text-yellow-400">VaR 95% {formatCompactCurrency(portfolioRisk.var95Usd)} ({portfolioRisk.var95Pct.toFixed(1)}%)</span>
               <span className="text-red-400">CVaR {formatCompactCurrency(portfolioRisk.cvar95Usd)} ({portfolioRisk.cvar95Pct.toFixed(1)}%)</span>
-              <span className="text-zinc-300">Vol {portfolioRisk.dailyVolatilityPct.toFixed(2)}%</span>
-              <span className="text-zinc-500">{portfolioRisk.tickers.length} names</span>
+              <span className="text-white">Vol {portfolioRisk.dailyVolatilityPct.toFixed(2)}%</span>
+              <span className="text-white">{portfolioRisk.tickers.length} names</span>
               {portfolioRisk.skippedTickers.length > 0 && (
-                <span className="text-zinc-600 truncate max-w-[220px]" title={portfolioRisk.skippedTickers.join(", ")}>
+                <span className="text-white/80 truncate max-w-[220px]" title={portfolioRisk.skippedTickers.join(", ")}>
                   no hx: {portfolioRisk.skippedTickers.slice(0, 6).join(", ")}
                   {portfolioRisk.skippedTickers.length > 6 ? ` +${portfolioRisk.skippedTickers.length - 6}` : ""}
                 </span>
@@ -1323,19 +1318,19 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           {detailTab === "income" && (
             <div className="flex items-center gap-5 pt-2 pb-1">
               <div>
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">YTD Earned</div>
+                <div className="text-[10px] text-white uppercase tracking-wide">YTD Earned</div>
                 <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.ytdActual >= 0 ? "text-green-400" : "text-red-400")}>
                   {optionsIncomeTimeline.ytdActual >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.ytdActual)}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">Avg Monthly</div>
+                <div className="text-[10px] text-white uppercase tracking-wide">Avg Monthly</div>
                 <div className="text-sm font-bold font-mono tabular-nums text-white">
                   {formatCurrency(optionsIncomeTimeline.avgMonthlyEarned)}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-white/70 uppercase tracking-wide">Projected Annual</div>
+                <div className="text-[10px] text-white uppercase tracking-wide">Projected Annual</div>
                 <div className={cn("text-sm font-bold font-mono tabular-nums", optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "text-green-400" : "text-red-400")}>
                   {optionsIncomeTimeline.projectedAnnualTotal >= 0 ? "+" : ""}{formatCurrency(optionsIncomeTimeline.projectedAnnualTotal)}
                 </div>
@@ -1357,13 +1352,13 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         {(detailTab === "equity" || detailTab === "options") && (
         <CardContent className="px-0 pb-0">
           {snapshotLoading && (
-            <p className="text-xs text-amber-200/40 animate-pulse px-3 py-3">Loading portfolio…</p>
+            <p className="text-xs text-white/80 animate-pulse px-3 py-3">Loading portfolio…</p>
           )}
           {!!snapshotError && (
             <p className="text-xs text-red-400 px-3 py-3">Failed to load portfolio data.</p>
           )}
           {!snapshotLoading && !snapshotError && !snapshotData?.snapshot && (
-            <p className="text-xs text-amber-200/40 px-3 py-3">No snapshot yet — upload a Robinhood CSV above.</p>
+            <p className="text-xs text-white/80 px-3 py-3">No snapshot yet — upload a Robinhood CSV above.</p>
           )}
           {!snapshotLoading && !snapshotError && snapshotData?.snapshot && (
             detailTab === "equity"

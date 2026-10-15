@@ -26,7 +26,6 @@ import {
   yahooFundamentals,
   edgarFundamentals,
   finnhubFundamentals,
-  polygonFundamentals,
   avFundamentals,
   fmpFundamentals,
   sourceFundamentals,
@@ -37,19 +36,20 @@ import { runPopulateSourceFundamentals } from "./populate-source-fundamentals.js
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
 import { fetchEdgarFundamentals, bootstrapCikCache } from "../lib/edgar-client.js";
 import { fetchFinnhubFundamentals }  from "../lib/finnhub-client.js";
-import { fetchPolygonFundamentals }  from "../lib/polygon-client.js";
 import { fetchAVOverview }           from "../lib/alpha-vantage-client.js";
 import { fetchFMPFundamentals }      from "../lib/fmp-client.js";
 import { resetDataSourceDailyCountersIfNeeded } from "../lib/reset-data-source-counters.js";
 import { runFactsetReferee } from "../lib/factset-referee.js";
 import {
   AV_MAX_DAILY_CALLS,
+  AV_OVERVIEW_DAILY_CAP,
   CALLS_PER_TICKER as SHARED_CALLS_PER_TICKER,
   FMP_MAX_DAILY_CALLS,
   PEER_EXPANSION_CAP as SHARED_PEER_CAP,
   SOURCE_ORDER as SHARED_SOURCE_ORDER,
   STALE_DAYS as SHARED_STALE_DAYS,
 } from "../lib/data-ops-config.js";
+import { isFmpPremiumError, isFmpRestricted, markFmpRestricted } from "../lib/fmp-restricted.js";
 import {
   EARNINGS_STALE_DAYS,
   getEarningsWindowTickers,
@@ -89,17 +89,15 @@ const TICKER_FILTER: Set<string> | null = TICKERS_ARG
   ? new Set(TICKERS_ARG.split(",").map(s => s.trim().toUpperCase()))
   : null;
 
-const AV_API_KEY      = process.env.AV_API_KEY      ?? "";
+// .env.local uses ALPHA_VANTAGE_API_KEY (A84); keep AV_API_KEY as legacy alias.
+const AV_API_KEY      = process.env.ALPHA_VANTAGE_API_KEY ?? process.env.AV_API_KEY ?? "";
 const FMP_API_KEY     = process.env.FMP_API_KEY     ?? "";
-const POLYGON_API_KEY = process.env.POLYGON_API_KEY ?? "";
-
 // Daily call limits (Infinity = no hard limit, rate-limited only)
 const SOURCE_DAILY_LIMITS: Record<string, number> = {
   yahoo:         Infinity,
   edgar:         Infinity,
   finnhub:       Infinity,
-  polygon:       Infinity,
-  alpha_vantage: AV_MAX_DAILY_CALLS,
+  alpha_vantage: AV_MAX_DAILY_CALLS, // then capped to AV_OVERVIEW_DAILY_CAP after shared api_usage
   fmp:           FMP_MAX_DAILY_CALLS,
 };
 
@@ -108,12 +106,12 @@ export const CALLS_PER_TICKER: Record<string, number> = { ...SHARED_CALLS_PER_TI
 
 // Rate-limit sleeps
 const BATCH_SLEEP_MS: Record<string, number> = {
-  yahoo: 1000, edgar: 3500, finnhub: 3500, polygon: 12000,
+  yahoo: 1000, edgar: 3500, finnhub: 3500,
   alpha_vantage: 12000, fmp: 1000,
 };
 
 const BATCH_CONCURRENT: Record<string, number> = {
-  yahoo: 3, edgar: 3, finnhub: 3, polygon: 1, alpha_vantage: 1, fmp: 1,
+  yahoo: 3, edgar: 3, finnhub: 3, alpha_vantage: 1, fmp: 1,
 };
 
 // Process order: cheapest first (shared with on-demand enrich-and-merge)
@@ -190,11 +188,10 @@ async function buildFetchTargets(
   const earningsStaleThreshold = new Date(Date.now() - EARNINGS_STALE_DAYS * 86_400_000);
 
   // Load staging freshness for all sources in one pass
-  const [yahooRows, edgarRows, finnhubRows, polyRows, avRows, fmpRows] = await Promise.all([
+  const [yahooRows, edgarRows, finnhubRows, avRows, fmpRows] = await Promise.all([
     db.select({ ticker: yahooFundamentals.ticker, fetchedAt: yahooFundamentals.fetchedAt }).from(yahooFundamentals).where(inArray(yahooFundamentals.ticker, tickers)),
     db.select({ ticker: edgarFundamentals.ticker, fetchedAt: edgarFundamentals.fetchedAt }).from(edgarFundamentals).where(inArray(edgarFundamentals.ticker, tickers)),
     db.select({ ticker: finnhubFundamentals.ticker, fetchedAt: finnhubFundamentals.fetchedAt }).from(finnhubFundamentals).where(inArray(finnhubFundamentals.ticker, tickers)),
-    db.select({ ticker: polygonFundamentals.ticker, fetchedAt: polygonFundamentals.fetchedAt }).from(polygonFundamentals).where(inArray(polygonFundamentals.ticker, tickers)),
     db.select({ ticker: avFundamentals.ticker, fetchedAt: avFundamentals.fetchedAt }).from(avFundamentals).where(inArray(avFundamentals.ticker, tickers)),
     db.select({ ticker: fmpFundamentals.ticker, fetchedAt: fmpFundamentals.fetchedAt, fmpPeRatio: fmpFundamentals.fmpPeRatio, fmpNetIncome: fmpFundamentals.fmpNetIncome }).from(fmpFundamentals).where(inArray(fmpFundamentals.ticker, tickers)),
   ]);
@@ -215,7 +212,6 @@ async function buildFetchTargets(
   setBoth("yahoo", yahooRows);
   setBoth("edgar", edgarRows);
   setBoth("finnhub", finnhubRows);
-  setBoth("polygon", polyRows);
   setBoth("alpha_vantage", avRows);
   // Real-data check for fmp uses peRatio/netIncome, not wacc/roic — those are FMP-exclusive
   // but legitimately null for most tickers (need a specific balance sheet shape), which made
@@ -534,35 +530,13 @@ async function fetchFinnhub(ticker: string): Promise<"ok" | "fail" | "nodata"> {
   return "ok";
 }
 
-async function fetchPolygon(ticker: string): Promise<"ok" | "fail" | "nodata"> {
-  const data = await fetchPolygonFundamentals(ticker, POLYGON_API_KEY);
-  const nonNull = Object.values(data as Record<string,unknown>).filter(v => v != null).length;
-  if (nonNull === 0) return "nodata";
-  await db.insert(polygonFundamentals).values({
-    ticker, fetchedAt: new Date(),
-    polygonTotalRevenue:               data.totalRevenue              != null ? String(data.totalRevenue)              : null,
-    polygonNetIncome:                  data.netIncome                 != null ? String(data.netIncome)                 : null,
-    polygonInterestExpense:            data.interestExpense           != null ? String(data.interestExpense)           : null,
-    polygonGrossMargin:                data.grossMargin               != null ? String(data.grossMargin)               : null,
-    polygonOperatingMargin:            data.operatingMargin           != null ? String(data.operatingMargin)           : null,
-    polygonTotalDebt:                  data.totalDebt                 != null ? String(data.totalDebt)                 : null,
-    polygonTotalStockholdersEquity:    data.totalStockholdersEquity   != null ? String(data.totalStockholdersEquity)   : null,
-    polygonQuarterlyOperatingCashFlow: data.quarterlyOperatingCashFlow != null ? String(data.quarterlyOperatingCashFlow) : null,
-  }).onConflictDoUpdate({ target: polygonFundamentals.ticker, set: {
-    fetchedAt:                         sql`now()`,
-    polygonTotalRevenue:               sql`excluded.polygon_total_revenue`,
-    polygonNetIncome:                  sql`excluded.polygon_net_income`,
-    polygonInterestExpense:            sql`excluded.polygon_interest_expense`,
-    polygonGrossMargin:                sql`excluded.polygon_gross_margin`,
-    polygonOperatingMargin:            sql`excluded.polygon_operating_margin`,
-    polygonTotalDebt:                  sql`excluded.polygon_total_debt`,
-    polygonTotalStockholdersEquity:    sql`excluded.polygon_total_stockholders_equity`,
-    polygonQuarterlyOperatingCashFlow: sql`excluded.polygon_quarterly_operating_cash_flow`,
-  }});
-  return "ok";
+/** A84: Polygon /vX/reference/financials is GONE — kept as no-op stub if anything still references it. */
+async function fetchPolygon(_ticker: string): Promise<"ok" | "fail" | "nodata"> {
+  return "nodata";
 }
 
 async function fetchAV(ticker: string): Promise<"ok" | "fail" | "nodata"> {
+  if (!AV_API_KEY) return "fail";
   const data = await fetchAVOverview(ticker, AV_API_KEY);
   const nonNull = Object.values(data as Record<string,unknown>).filter(v => v != null).length;
   if (nonNull === 0) return "nodata";
@@ -599,7 +573,17 @@ async function fetchAV(ticker: string): Promise<"ok" | "fail" | "nodata"> {
 }
 
 async function fetchFMP(ticker: string): Promise<"ok" | "fail" | "nodata"> {
-  const data = await fetchFMPFundamentals(ticker, FMP_API_KEY, "nightly-enrichment", true);
+  if (await isFmpRestricted(ticker)) return "nodata";
+  let data: Awaited<ReturnType<typeof fetchFMPFundamentals>>;
+  try {
+    data = await fetchFMPFundamentals(ticker, FMP_API_KEY, "nightly-enrichment", true);
+  } catch (err: any) {
+    if (isFmpPremiumError(err)) {
+      await markFmpRestricted(ticker);
+      return "nodata";
+    }
+    throw err;
+  }
   const nonNull = Object.values(data as Record<string,unknown>).filter(v => v != null).length;
   if (nonNull === 0) return "nodata";
   await db.insert(fmpFundamentals).values({
@@ -889,6 +873,15 @@ async function main(trigger: "scheduled" | "manual" | "maintain_full" = "manual"
 
   // 5. Check remaining budgets
   budgets = await getRemainingBudgets(SOURCE_ORDER, SOURCE_DAILY_LIMITS);
+  // Share api_usage source=av with transcripts.py (≤20/day) — OVERVIEW takes ≤5 leftover.
+  const avRem = budgets.get("alpha_vantage");
+  if (avRem != null && avRem !== Infinity) {
+    budgets.set("alpha_vantage", Math.min(avRem, AV_OVERVIEW_DAILY_CAP));
+  }
+  if (!AV_API_KEY) {
+    budgets.set("alpha_vantage", 0);
+    log("alpha_vantage: ALPHA_VANTAGE_API_KEY unset — OVERVIEW leg disabled");
+  }
   log("API budgets today:");
   for (const src of SOURCE_ORDER) {
     const rem = budgets.get(src)!;

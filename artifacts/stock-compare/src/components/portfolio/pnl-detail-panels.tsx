@@ -8,7 +8,7 @@ import type { buildTopTickersByAccount, buildCumulativeSummaryByAccount, buildOp
 import type { PortfolioRiskResult } from "./portfolio-risk-calc";
 
 /** Dense correlation cells — grid stretches to fill the detail card. */
-const CORR_TH = "p-0 text-[8px] font-bold uppercase tracking-tight text-muted-foreground text-center leading-none align-middle";
+const CORR_TH = "p-0 text-[8px] font-bold uppercase tracking-tight text-white text-center leading-none align-middle";
 const CORR_TD = "p-0 text-[9px] tabular-nums text-center leading-none align-middle";
 
 type TopTickerRow = ReturnType<typeof buildTopTickersByAccount>["All"][number];
@@ -18,7 +18,7 @@ export function TopTickersPanel({ rows }: { rows: TopTickerRow[] }) {
   return (
       <CardContent className="px-0 pb-0">
         {rows.length === 0 ? (
-          <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
+          <div className="h-[60px] flex items-center justify-center text-xs text-white">
             No trades closed this year yet
           </div>
         ) : (
@@ -37,14 +37,14 @@ export function TopTickersPanel({ rows }: { rows: TopTickerRow[] }) {
             <tbody>
               {rows.map((t, i) => (
                 <tr key={t.symbol} className={cn("border-b border-border/20 hover:bg-secondary/10 transition-colors", i % 2 === 0 ? "" : "bg-secondary/5")}>
-                  <td className={cn(TTD, "text-muted-foreground")}>{i + 1}</td>
+                  <td className={cn(TTD, "text-white")}>{i + 1}</td>
                   <td className={cn(TTD, "text-left font-bold")}>{t.symbol}</td>
-                  <td className={cn(TTD, "text-right text-muted-foreground")}>{t.puts || "—"}</td>
-                  <td className={cn(TTD, "text-right text-muted-foreground")}>{t.calls || "—"}</td>
-                  <td className={cn(TTD, "text-right text-muted-foreground")}>{t.stockSales || "—"}</td>
-                  <td className={cn(TTD, "text-right text-muted-foreground")}>{t.count}</td>
+                  <td className={cn(TTD, "text-right text-white")}>{t.puts || "—"}</td>
+                  <td className={cn(TTD, "text-right text-white")}>{t.calls || "—"}</td>
+                  <td className={cn(TTD, "text-right text-white")}>{t.stockSales || "—"}</td>
+                  <td className={cn(TTD, "text-right text-white")}>{t.count}</td>
                   <td className={cn(TTD, "text-right font-semibold",
-                    t.netPnl > 0 ? "text-green-400" : t.netPnl < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    t.netPnl > 0 ? "text-green-400" : t.netPnl < 0 ? "text-red-400" : "text-white")}>
                     {t.netPnl >= 0 ? "+" : ""}{formatCurrency(t.netPnl)}
                   </td>
                 </tr>
@@ -60,7 +60,7 @@ export function CumulativeSummaryPanel({ rows }: { rows: SummaryRow[] }) {
   return (
       <CardContent className="px-0 pb-0">
         {rows.length === 0 ? (
-          <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">
+          <div className="h-[60px] flex items-center justify-center text-xs text-white">
             No activity for this account yet
           </div>
         ) : (
@@ -85,7 +85,7 @@ export function CumulativeSummaryPanel({ rows }: { rows: SummaryRow[] }) {
               <tbody>
                 {rows.map((r, i) => {
                   const cell = (v: number) => (
-                    <td className={cn(TTD, "text-right", v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    <td className={cn(TTD, "text-right", v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-white")}>
                       {v !== 0 ? `${v >= 0 ? "+" : ""}${formatCurrency(v)}` : "—"}
                     </td>
                   );
@@ -94,7 +94,7 @@ export function CumulativeSummaryPanel({ rows }: { rows: SummaryRow[] }) {
                       <td className={cn(TTD, "text-left font-bold")}>{r.ticker}</td>
                       {cell(r.totalUnrealized)}
                       {cell(r.totalRealized)}
-                      <td className={cn(TTD, "text-right font-bold", r.totalEarned > 0 ? "text-green-400" : r.totalEarned < 0 ? "text-red-400" : "text-muted-foreground")}>
+                      <td className={cn(TTD, "text-right font-bold", r.totalEarned > 0 ? "text-green-400" : r.totalEarned < 0 ? "text-red-400" : "text-white")}>
                         {r.totalEarned >= 0 ? "+" : ""}{formatCurrency(r.totalEarned)}
                       </td>
                       {cell(r.sellPut)}
@@ -120,7 +120,7 @@ export function CorrelationPanel({ risk, scaleMax }: { risk: PortfolioRiskResult
   return (
       <CardContent className="px-2 pb-2 pt-1">
         {!risk || risk.tickers.length < 2 ? (
-          <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+          <div className="h-[200px] flex items-center justify-center text-xs text-white">
             Need price history on at least two names for a correlation matrix
           </div>
         ) : (
@@ -168,7 +168,7 @@ export function CorrelationPanel({ risk, scaleMax }: { risk: PortfolioRiskResult
                             return (
                               <td
                                 key={j}
-                                className={cn(CORR_TD, "text-muted-foreground/50")}
+                                className={cn(CORR_TD, "text-white")}
                                 title={isExcluded ? "Same underlying — excluded from color scale" : undefined}
                               >
                                 {v.toFixed(1)}
@@ -202,7 +202,7 @@ export function OptionsIncomePanel({ timeline }: { timeline: ReturnType<typeof b
   return (
       <CardContent className="px-4 pb-4">
         {timeline.chartData.length === 0 ? (
-          <div className="h-[220px] flex items-center justify-center text-xs text-white/70">No data</div>
+          <div className="h-[220px] flex items-center justify-center text-xs text-white">No data</div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={timeline.chartData} barSize={12} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -216,9 +216,9 @@ export function OptionsIncomePanel({ timeline }: { timeline: ReturnType<typeof b
                   <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 text-white">
                     <div className="font-semibold">{d.label}{d.isFuture ? " (projected)" : ""}</div>
                     {d.isFuture ? (
-                      <div className="flex justify-between gap-4"><span className="text-white/70">Projected</span><span className="font-mono font-semibold">{formatCurrency(d.projected)}</span></div>
+                      <div className="flex justify-between gap-4"><span className="text-white">Projected</span><span className="font-mono font-semibold">{formatCurrency(d.projected)}</span></div>
                     ) : (
-                      <div className="flex justify-between gap-4"><span className="text-white/70">Earned</span><span className="font-mono font-semibold">{formatCurrency(d.actual)}</span></div>
+                      <div className="flex justify-between gap-4"><span className="text-white">Earned</span><span className="font-mono font-semibold">{formatCurrency(d.actual)}</span></div>
                     )}
                   </div>
                 );

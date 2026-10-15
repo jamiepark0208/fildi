@@ -231,15 +231,34 @@ function etTradingDaysBehind(fromYmd: string, toYmd = etYmd()): number {
   return n;
 }
 
-function ageTone(ts: string | null | undefined, mode: "clock" | "trading" = "clock"): string {
-  if (!ts) return "bg-red-500";
+type Tone = "ok" | "warn" | "bad" | "idle";
+
+function ageStatus(
+  ts: string | null | undefined,
+  mode: "clock" | "trading" = "clock",
+): { tone: Tone; lagLabel: string } {
+  if (!ts) return { tone: "bad", lagLabel: "never" };
   if (mode === "trading") {
     const lag = etTradingDaysBehind(String(ts).slice(0, 10));
-    return lag <= 1 ? "bg-green-500" : lag <= 3 ? "bg-amber-400" : "bg-red-500";
+    const lagLabel = lag === 0 ? "today" : `${lag} trading day${lag === 1 ? "" : "s"} behind`;
+    return { tone: lag <= 1 ? "ok" : lag <= 3 ? "warn" : "bad", lagLabel };
   }
   const days = (Date.now() - new Date(ts).getTime()) / DAY_MS;
-  return days <= 1.5 ? "bg-green-500" : days <= 3.5 ? "bg-amber-400" : "bg-red-500";
+  const lagLabel =
+    days < 1 / 24
+      ? "just now"
+      : days < 1
+        ? `${Math.round(days * 24)}h ago`
+        : `${days.toFixed(1)}d ago`;
+  return { tone: days <= 1.5 ? "ok" : days <= 3.5 ? "warn" : "bad", lagLabel };
 }
+
+const TONE_DOT: Record<Tone, string> = {
+  ok: "bg-green-500",
+  warn: "bg-amber-400",
+  bad: "bg-red-500",
+  idle: "bg-white/30",
+};
 
 function fmtWhen(ts: string | null | undefined): string {
   if (!ts) return "never";
@@ -255,46 +274,91 @@ function fmtWhen(ts: string | null | undefined): string {
   });
 }
 
+function whyLine(tone: Tone, whenOk: string, whenBad: string): string {
+  if (tone === "ok") return whenOk;
+  return whenBad;
+}
+
 function HealthStrip({ h }: { h: ModelListHealth }) {
   const priceAsOf =
     [h.prices_date, h.prices_universe_date]
       .filter((x): x is string => !!x)
       .sort()
       .at(-1) ?? null;
-  const parts: Array<{ label: string; tone: string; title: string }> = [
-    { label: "export", tone: ageTone(h.snapshot_at, "clock"), title: `Robinhood snapshot: ${fmtWhen(h.snapshot_at)}` },
+
+  const exportS = ageStatus(h.snapshot_at, "clock");
+  const quotesVerified = h.plan_status === "verified";
+  const quotesS = ageStatus(h.quotes_at, "clock");
+  const quotesTone: Tone = !quotesVerified ? "bad" : quotesS.tone;
+  const lsegAsOf = h.lseg_signals_date ?? h.lseg_history_date;
+  const lsegS = ageStatus(lsegAsOf, "trading");
+  const pricesS = ageStatus(priceAsOf, "trading");
+  const grades = h.grades ?? 0;
+  const gradesS = grades > 0 ? ageStatus(h.last_graded_at, "clock") : { tone: "idle" as Tone, lagLabel: "" };
+
+  const parts: Array<{ label: string; tone: Tone; title: string }> = [
+    {
+      label: "export",
+      tone: exportS.tone,
+      title: whyLine(
+        exportS.tone,
+        `RH portfolio snapshot OK · ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel})`,
+        `RH portfolio export stale/missing · last ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel}). Re-run the Robinhood portfolio import.`,
+      ),
+    },
     {
       label: "quotes",
-      tone: h.plan_status === "verified" ? ageTone(h.quotes_at, "clock") : "bg-red-500",
-      title: `Quote check: ${h.plan_status ?? "no plan"} · ${fmtWhen(h.quotes_at)}`,
+      tone: quotesTone,
+      title: !quotesVerified
+        ? `Option quotes not verified · plan status is "${h.plan_status ?? "none"}" (need verified). Last fetch ${fmtWhen(h.quotes_at)}.`
+        : whyLine(
+            quotesS.tone,
+            `Option quotes OK · ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel})`,
+            `Option quotes stale · last ${fmtWhen(h.quotes_at)} (${quotesS.lagLabel}). Re-run watchlist_sync quote check for the published plan.`,
+          ),
     },
     {
       label: "LSEG",
-      tone: ageTone(h.lseg_signals_date ?? h.lseg_history_date, "trading"),
-      title: `LSEG signals ${fmtWhen(h.lseg_signals_date)} · history ${fmtWhen(h.lseg_history_date)}`,
+      tone: lsegS.tone,
+      title: whyLine(
+        lsegS.tone,
+        `LSEG OK · signals ${fmtWhen(h.lseg_signals_date)} · history ${fmtWhen(h.lseg_history_date)}`,
+        `LSEG stale/stopped · signals ${fmtWhen(h.lseg_signals_date)} · history ${fmtWhen(h.lseg_history_date)} (${lsegS.lagLabel}). Feed may be revoked or nightly LSEG job not writing.`,
+      ),
     },
     {
       label: "prices",
-      tone: ageTone(priceAsOf, "trading"),
-      title: `Prices SPY ${fmtWhen(h.prices_date)} · universe ${fmtWhen(h.prices_universe_date)}`,
+      tone: pricesS.tone,
+      title: whyLine(
+        pricesS.tone,
+        `Prices OK · SPY ${fmtWhen(h.prices_date)} · universe ${fmtWhen(h.prices_universe_date)}`,
+        `Prices lagging · SPY ${fmtWhen(h.prices_date)} · universe ${fmtWhen(h.prices_universe_date)} (${pricesS.lagLabel}). Check price refresh / Yahoo fallback.`,
+      ),
     },
     {
-      label: `g${h.grades ?? 0}`,
-      tone: (h.grades ?? 0) > 0 ? ageTone(h.last_graded_at, "clock") : "bg-white/30",
-      title: (h.grades ?? 0) > 0 ? `Last graded ${fmtWhen(h.last_graded_at)}` : "No graded picks yet",
+      label: `g${grades}`,
+      tone: gradesS.tone,
+      title:
+        grades > 0
+          ? whyLine(
+              gradesS.tone,
+              `Graded picks OK · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel})`,
+              `Grades stale · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel}).`,
+            )
+          : "No graded picks yet (g0) — nothing in watchlist_sync.grades; grey until you grade a Model List pick.",
     },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       {parts.map((p) => (
         <span key={p.label} title={p.title} className="flex items-center gap-0.5 cursor-help">
-          <span className={cn("w-1.5 h-1.5 rounded-full", p.tone)} />
+          <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[p.tone])} />
           {p.label}
         </span>
       ))}
       <span
-        title={`Champion${h.challengers ? `; ${h.challengers} challenger(s)` : ""}`}
-        className="cursor-help"
+        title={`Champion ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`}
+        className="cursor-help text-amber-200/40"
       >
         m{h.champion ?? "?"}
         {h.challengers ? `+${h.challengers}` : ""}
@@ -339,7 +403,6 @@ export function ModelListPanel({
     );
   }
 
-  const run = data.run;
   const byKind = KIND_ORDER.map((kind) => ({
     kind,
     folders: data.folders.filter((f) => f.kind === kind),
@@ -347,17 +410,11 @@ export function ModelListPanel({
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
-      <div className="px-2 py-1 border-b border-[#d4af37]/20 text-[9px] text-amber-200/50 leading-snug shrink-0">
-        #{run.id} · {run.modelVersion} ·{" "}
-        {new Date(run.createdAt).toLocaleString([], {
-          month: "numeric",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        })}
-        <div className="text-amber-200/30">Model only · not on RH</div>
-        {data.health && <HealthStrip h={data.health} />}
-      </div>
+      {data.health ? (
+        <div className="px-2 py-1 border-b border-[#d4af37]/20 text-[9px] text-amber-200/50 leading-snug shrink-0">
+          <HealthStrip h={data.health} />
+        </div>
+      ) : null}
       {byKind.map(({ kind, folders }) => (
         <div key={kind}>
           <div className="px-2 py-0.5 text-[8px] uppercase tracking-[0.12em] text-zinc-600 bg-zinc-900/80 border-b border-zinc-800/60 sticky top-0 z-[11]">

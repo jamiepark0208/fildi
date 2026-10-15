@@ -1,5 +1,8 @@
 /**
  * GET /api/schwab/status — auth / refresh-token health + light usage stats (no secrets).
+ * POST /api/schwab/oauth/start — begin in-app OAuth capture (session required).
+ * GET  /api/schwab/oauth/status — poll capture progress.
+ * POST /api/schwab/oauth/complete — paste redirect URL fallback.
  */
 import { Router } from "express";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js";
@@ -7,10 +10,23 @@ import { getSchwabUsageStats, schwabAvailable } from "../lib/schwab-client.js";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 import { getSchwabOptionQuotes, occSymbol, type OptionContractRef } from "../lib/schwab-option-quotes.js";
 import { getLivePrices } from "../lib/live-quote.js";
+import {
+  startSchwabOAuthCapture,
+  getSchwabOAuthCaptureStatus,
+  completeSchwabOAuthFromRedirect,
+} from "../lib/schwab-oauth-capture.js";
 
 const LOCAL = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
 
 const router = Router();
+
+function requireSession(req: { session?: { userId?: unknown } }, res: { status: (n: number) => { json: (b: unknown) => unknown } }, next: () => void) {
+  if (!req.session?.userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
 
 router.get("/schwab/status", async (_req, res) => {
   let s = getSchwabAuthStatus();
@@ -38,16 +54,16 @@ router.get("/schwab/status", async (_req, res) => {
     reauthHint =
       "API missing SCHWAB_CLIENT_ID/SCHWAB_SECRET — restart stack with .env.local loaded (./scripts/dev-restart.sh)";
   } else if (!s.hasTokens) {
-    reauthHint = "Run: node --env-file=.env.local scripts/schwab-oauth.mjs";
+    reauthHint = "Re-auth from Settings → API Monitor (or: node --env-file=.env.local scripts/schwab-oauth.mjs)";
   } else if (!s.accessValid) {
     reauthHint =
       s.lastError
         ? `Access refresh failed: ${s.lastError}`
-        : "Access token invalid — check SCHWAB_* env and re-run schwab-oauth if needed";
+        : "Access token invalid — re-auth from Settings → API Monitor";
   } else if (refreshDaysLeft != null && refreshDaysLeft < 1) {
-    reauthHint = "Refresh token expires within 24h — re-run scripts/schwab-oauth.mjs";
+    reauthHint = "Refresh token expires within 24h — re-auth from Settings → API Monitor";
   } else if (refreshDaysLeft != null && refreshDaysLeft < 2) {
-    reauthHint = "Refresh token expires within 48h — plan re-auth soon";
+    reauthHint = "Refresh token expires within 48h — re-auth soon from Settings → API Monitor";
   }
 
   return res.json({
@@ -59,6 +75,32 @@ router.get("/schwab/status", async (_req, res) => {
     /** Process-lifetime: live option chains served via Schwab vs Yahoo fallback */
     optionsChainSource: getOptionsChainSourceStats(),
   });
+});
+
+router.post("/schwab/oauth/start", requireSession, async (_req, res) => {
+  try {
+    const started = await startSchwabOAuthCapture();
+    return res.json({ ok: true, ...started, ...getSchwabOAuthCaptureStatus() });
+  } catch (err) {
+    return res.status(500).json({ error: String((err as Error)?.message ?? err) });
+  }
+});
+
+router.get("/schwab/oauth/status", requireSession, (_req, res) => {
+  return res.json(getSchwabOAuthCaptureStatus());
+});
+
+router.post("/schwab/oauth/complete", requireSession, async (req, res) => {
+  const pasted = typeof req.body?.redirectUrl === "string" ? req.body.redirectUrl
+    : typeof req.body?.code === "string" ? req.body.code
+    : "";
+  if (!pasted.trim()) return res.status(400).json({ error: "redirectUrl or code required" });
+  try {
+    await completeSchwabOAuthFromRedirect(pasted.trim());
+    return res.json({ ok: true, ...getSchwabOAuthCaptureStatus() });
+  } catch (err) {
+    return res.status(400).json({ error: String((err as Error)?.message ?? err) });
+  }
 });
 
 /**

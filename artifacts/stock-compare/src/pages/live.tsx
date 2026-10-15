@@ -18,6 +18,7 @@ import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers"
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
+import { PmBookCard } from "@/components/portfolio/pm-book-card";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
@@ -417,7 +418,10 @@ export default function Live() {
           </div>
 
           {pageTab === "alerts" ? (
-            <PortfolioAlertsPanel />
+            <div className="space-y-2">
+              <PmBookCard />
+              <PortfolioAlertsPanel />
+            </div>
           ) : pageTab === "news" ? (
             <div className="space-y-3">
               <DailyNewsPanel compact />

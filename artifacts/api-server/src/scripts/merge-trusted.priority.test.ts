@@ -33,7 +33,7 @@ function resolveFromIndex(
 const PRIORITY_LOCKS: Record<string, string[]> = {
   peRatio:         ["yahoo", "finnhub", "fmp", "alpha_vantage", "factset"],
   forwardPe:       ["yahoo", "fmp", "alpha_vantage", "factset"],
-  grossMargin:     ["yahoo", "finnhub", "fmp", "polygon", "factset"],
+  grossMargin:     ["yahoo", "finnhub", "fmp", "factset"],
   netMargin:       ["yahoo", "finnhub", "fmp", "alpha_vantage", "factset"],
   analystTargetPrice: ["fmp", "alpha_vantage"],
   dividendYield:   ["yahoo", "finnhub", "fmp"],

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── Data Health types ─────────────────────────────────────────────────────────
 
@@ -109,9 +110,65 @@ function formatAge(sec: number | null): string {
   return `${Math.floor(sec / 3600)}h`;
 }
 
-function Dot({ ok, orphan }: { ok: boolean; orphan?: boolean }) {
-  const color = orphan ? "bg-amber-400" : ok ? "bg-green-500" : "bg-red-500";
+/** Compact M/D or M/D Ha (local). */
+function shortWhen(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const md = `${d.getMonth() + 1}/${d.getDate()}`;
+  const h = d.getHours();
+  const m = d.getMinutes();
+  if (h === 0 && m === 0) return md;
+  const h12 = ((h + 11) % 12) + 1;
+  const ap = h < 12 ? "a" : "p";
+  return m === 0 ? `${md} ${h12}${ap}` : `${md} ${h12}:${String(m).padStart(2, "0")}${ap}`;
+}
+
+function ageLabel(ageMs: number | null | undefined): string {
+  if (ageMs == null) return "—";
+  const h = ageMs / 3_600_000;
+  if (h < 48) return `${Math.max(1, Math.round(h))}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
+type Tone = "ok" | "warn" | "down" | "idle";
+
+function Dot({ tone }: { tone: Tone }) {
+  const color =
+    tone === "ok" ? "bg-green-500"
+    : tone === "warn" ? "bg-amber-400"
+    : tone === "idle" ? "bg-zinc-500"
+    : "bg-red-500";
   return <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", color)} />;
+}
+
+/** Dot + name under; metrics only in Radix tooltip (native title often fails under overflow). */
+function Chip({
+  label, tone, tip,
+}: { label: string; tone: Tone; tip: string }) {
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex flex-col items-center gap-px px-0.5 shrink-0 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+        >
+          <Dot tone={tone} />
+          <span className="text-[8px] leading-none text-amber-100/65 whitespace-nowrap">{label}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+      >
+        {tip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function tipJoin(...parts: (string | null | undefined | false)[]): string {
+  return parts.filter(Boolean).join(" · ");
 }
 
 export function ApiMonitorTab() {
@@ -163,6 +220,8 @@ export function ApiMonitorTab() {
     hasTokens: boolean;
     accessValid: boolean;
     refreshDaysLeft: number | null;
+    refreshExpiresAt: string | null;
+    warningLevel: "ok" | "warn" | "urgent" | "down";
     reauthHint: string | null;
     lastError: string | null;
     usage?: {
@@ -189,19 +248,28 @@ export function ApiMonitorTab() {
     refetchInterval: 5 * 60_000,
   });
 
+  const startSchwabOAuth = async () => {
+    const res = await fetch("/api/schwab/oauth/start", { method: "POST", credentials: "include" });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? "oauth start failed");
+    window.open(body.authorizeUrl as string, "schwab-oauth", "noopener,noreferrer");
+  };
+
   type ResearchOps = {
     checkedAt: string;
+    localDb?: { ok: boolean; error: string | null };
     wrds: {
       overall: string;
       schema: boolean;
-      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null }[];
+      envHint?: string | null;
+      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null; ageMs?: number | null }[];
       lastError: { dataset: string; error: string; finishedAt: string | null } | null;
     };
     lseg: {
       overall: string;
       schema: boolean;
       desktopProxy: { reachable: boolean };
-      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null }[];
+      datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null; ageMs?: number | null }[];
       lastError: { dataset: string; error: string; finishedAt: string | null } | null;
     };
     fixHints: string[];
@@ -235,92 +303,173 @@ export function ApiMonitorTab() {
     return a.localeCompare(b);
   });
 
+  const todayIso = dates[0]?.iso;
+  const todayCalls = (src: string) => (todayIso ? (pivot.get(src)?.get(todayIso) ?? 0) : 0);
+  const vendorTone = (src: string): Tone => {
+    const n = todayCalls(src);
+    if (n > 0) return "ok";
+    return "idle"; // configured in grid; no live probe — idle ≠ down
+  };
+  const wrdsTone: Tone =
+    !researchOps ? "idle"
+    : researchOps.wrds.overall === "ok" ? "ok"
+    : researchOps.wrds.overall === "warn" ? "warn"
+    : "down";
+  const lsegTone: Tone =
+    !researchOps ? "idle"
+    : researchOps.lseg.overall === "ok" && researchOps.lseg.desktopProxy.reachable ? "ok"
+    : researchOps.lseg.overall === "down" ? "down"
+    : "warn";
+  const schwabTone: Tone =
+    !schwab ? "idle"
+    : schwab.clientReady ? "ok"
+    : schwab.warningLevel === "warn" || schwab.warningLevel === "urgent" ? "warn"
+    : "down";
+  const ageFromLastOk = (datasets: { lastOkAt: string | null; ageMs?: number | null }[] | undefined) => {
+    if (!datasets?.length) return null;
+    const fromMs = datasets.map((d) => d.ageMs).filter((a): a is number => a != null);
+    if (fromMs.length) return Math.min(...fromMs);
+    const ages = datasets
+      .map((d) => (d.lastOkAt ? Date.now() - new Date(d.lastOkAt).getTime() : null))
+      .filter((a): a is number => a != null);
+    return ages.length ? Math.min(...ages) : null;
+  };
+
+  const vendorTip = (src: string, label: string) => {
+    const n = todayCalls(src);
+    return tipJoin(
+      n > 0 ? "ok" : "idle",
+      n > 0 ? `${n} today` : "0 today",
+      SOURCE_META[src]?.rateNote ?? label,
+    );
+  };
+
   return (
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl space-y-3">
-      {localStack?.enabled && (
-        <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
-          <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[10px]">Local stack</span>
-          <span className="flex items-center gap-1.5 text-amber-100/80">
-            <Dot ok={localStack.api.up} orphan={localStack.api.orphan} />
-            API :{localStack.api.port}
-            <span className="text-amber-200/40 tabular-nums">
-              {localStack.api.up ? `up · ${formatAge(localStack.api.ageSec)}` : "down"}
-              {localStack.api.pid != null ? ` · pid ${localStack.api.pid}` : ""}
-            </span>
-          </span>
-          <span className="flex items-center gap-1.5 text-amber-100/80">
-            <Dot ok={localStack.vite.up} orphan={localStack.vite.orphan} />
-            Vite :{localStack.vite.port}
-            <span className="text-amber-200/40 tabular-nums">
-              {localStack.vite.up ? `up · ${formatAge(localStack.vite.ageSec)}` : "down"}
-              {localStack.vite.pid != null ? ` · pid ${localStack.vite.pid}` : ""}
-            </span>
-          </span>
-          {localStack.orphans.length > 0 ? (
-            <span className="text-amber-400">
-              {localStack.orphans.length} orphan{localStack.orphans.length === 1 ? "" : "s"} —{" "}
-              <span className="font-mono">node scripts/local-stack.mjs heal</span>
-            </span>
-          ) : (
-            <span className="text-green-500/70">no drift</span>
-          )}
-          <span className="text-amber-200/30 ml-auto">stop: ./scripts/dev-down.sh · restart: ./scripts/dev-restart.sh</span>
-        </div>
-      )}
-
-      {schwab && (
-        <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
-          <span className="font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[10px]">Schwab MD</span>
-          <span className="flex items-center gap-1.5 text-amber-100/80">
-            <Dot
-              ok={schwab.clientReady}
-              orphan={!schwab.configured || (schwab.hasTokens && !schwab.accessValid)}
+      {/* One strip: local stack + vendors + research caches. Hover chip for metrics. */}
+      <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-2 py-1.5 flex flex-nowrap items-end gap-x-1 overflow-x-auto">
+        <span className="self-center font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[9px] shrink-0 pr-0.5">
+          Conn
+        </span>
+        {localStack?.enabled && (
+          <>
+            <Chip
+              label="API"
+              tone={localStack.api.up ? (localStack.api.orphan ? "warn" : "ok") : "down"}
+              tip={tipJoin(
+                localStack.api.up ? "up" : "down",
+                localStack.api.up ? `up ${formatAge(localStack.api.ageSec)}` : null,
+                localStack.api.pid != null ? `pid ${localStack.api.pid}` : null,
+                localStack.api.orphan ? "orphan" : null,
+                `:${localStack.api.port}`,
+              )}
             />
-            {schwab.clientReady
-              ? "ready"
-              : !schwab.configured
-                ? "env missing"
-                : !schwab.hasTokens
-                  ? "not linked"
-                  : !schwab.accessValid
-                    ? "token issue"
-                    : "not ready"}
-          </span>
-          {schwab.refreshDaysLeft != null && (
-            <span className={cn(
-              "tabular-nums",
-              schwab.refreshDaysLeft < 1 ? "text-red-400" : schwab.refreshDaysLeft < 2 ? "text-amber-300" : "text-amber-200/50",
-            )}>
-              refresh token ~{schwab.refreshDaysLeft.toFixed(1)}d left
-            </span>
-          )}
-          {schwab.usage && (
-            <span className="tabular-nums text-amber-200/50">
-              {schwab.usage.requestsLast60s}/{schwab.usage.rpmBudget} rpm
-              {schwab.usage.chainCache.entryCount > 0
-                ? ` · chain cache ${schwab.usage.chainCache.entryCount} (${schwab.usage.chainCache.hitRate})`
-                : ""}
-              {schwab.usage.last429At ? " · 429 recent" : ""}
-            </span>
-          )}
-          {schwab.optionsChainSource && schwab.optionsChainSource.total > 0 && (
-            <span className="tabular-nums text-amber-100/70" title="Live option chains this API process">
-              chains {schwab.optionsChainSource.schwabSharePct}% Schwab /{" "}
-              {100 - (schwab.optionsChainSource.schwabSharePct ?? 0)}% Yahoo
-              <span className="text-amber-200/40"> (n={schwab.optionsChainSource.total})</span>
-            </span>
-          )}
-          {schwab.reauthHint && (
-            <span className="text-amber-400/90 font-mono text-[10px]">{schwab.reauthHint}</span>
-          )}
-        </div>
-      )}
+            <Chip
+              label="Vite"
+              tone={localStack.vite.up ? (localStack.vite.orphan ? "warn" : "ok") : "down"}
+              tip={tipJoin(
+                localStack.vite.up ? "up" : "down",
+                localStack.vite.up ? `up ${formatAge(localStack.vite.ageSec)}` : null,
+                localStack.vite.pid != null ? `pid ${localStack.vite.pid}` : null,
+                localStack.vite.orphan ? "orphan" : null,
+                `:${localStack.vite.port}`,
+                "long-lived OK — restart only if HMR/memory bad",
+              )}
+            />
+          </>
+        )}
+        {researchOps?.localDb && (
+          <Chip
+            label="DB"
+            tone={researchOps.localDb.ok ? "ok" : "down"}
+            tip={tipJoin(
+              researchOps.localDb.ok ? "ok" : "down",
+              researchOps.localDb.error ?? "Postgres",
+            )}
+          />
+        )}
+        {schwab && (
+          <Chip
+            label="Schwab"
+            tone={schwabTone}
+            tip={tipJoin(
+              schwab.clientReady ? "ready" : (schwab.hasTokens ? "auth needed" : "not linked"),
+              schwab.refreshDaysLeft != null ? `refresh ${schwab.refreshDaysLeft.toFixed(0)}d` : null,
+              schwab.refreshExpiresAt ? `exp ${shortWhen(schwab.refreshExpiresAt)}` : null,
+              schwab.usage ? `${schwab.usage.requestsLast60s}/${schwab.usage.rpmBudget} rpm` : null,
+              schwab.optionsChainSource?.total
+                ? `chains ${schwab.optionsChainSource.schwabSharePct}% Sw / ${100 - (schwab.optionsChainSource.schwabSharePct ?? 0)}% Y`
+                : null,
+              schwab.reauthHint,
+            )}
+          />
+        )}
+        <Chip
+          label="Yahoo"
+          tone="ok"
+          tip={tipJoin("ok", "quotes/chains fallback", `${todayCalls("yahoo")} funda today`)}
+        />
+        <Chip label="FS" tone={vendorTone("factset")} tip={vendorTip("factset", "FactSet")} />
+        <Chip label="FH" tone={vendorTone("finnhub")} tip={vendorTip("finnhub", "Finnhub")} />
+        <Chip label="FMP" tone={vendorTone("fmp")} tip={vendorTip("fmp", "FMP")} />
+        <Chip label="Poly" tone={vendorTone("polygon")} tip={vendorTip("polygon", "Polygon")} />
+        <Chip label="AV" tone={vendorTone("av")} tip={vendorTip("av", "Alpha Vantage")} />
+        <Chip label="EDG" tone={vendorTone("edgar")} tip={vendorTip("edgar", "EDGAR")} />
+        {researchOps && (
+          <>
+            <Chip
+              label="WRDS"
+              tone={wrdsTone}
+              tip={tipJoin(
+                `cache ${researchOps.wrds.overall}`,
+                `freshest ${ageLabel(ageFromLastOk(researchOps.wrds.datasets))}`,
+                !researchOps.wrds.schema ? "schema missing" : null,
+                "monthly supervised sync (Duo) — not LaunchAgent",
+              )}
+            />
+            <Chip
+              label="LSEG"
+              tone={lsegTone}
+              tip={tipJoin(
+                `cache ${researchOps.lseg.overall}`,
+                researchOps.lseg.desktopProxy.reachable ? "desk on :9000" : "desk off",
+                `freshest ${ageLabel(ageFromLastOk(researchOps.lseg.datasets))}`,
+                "weekday supervised sync — not LaunchAgent",
+              )}
+            />
+          </>
+        )}
+        {localStack?.orphans && localStack.orphans.length > 0 && (
+          <Tooltip delayDuration={150}>
+            <TooltipTrigger asChild>
+              <span className="self-center text-[9px] text-amber-400 shrink-0 cursor-help">
+                {localStack.orphans.length}!
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]"
+            >
+              orphan listener — node scripts/local-stack.mjs heal
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {schwab && (
+          <button
+            type="button"
+            onClick={() => { void startSchwabOAuth().catch((e) => alert(String(e?.message ?? e))); }}
+            className="self-center ml-1 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#d4af37] border border-[#d4af37]/30 rounded px-1.5 py-0.5 hover:bg-[#d4af37]/10"
+          >
+            Re-auth
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center justify-between mb-0">
         <div>
           <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">API Monitor</h2>
           <p className="text-[10px] text-amber-200/40 mt-0.5">
-            Pacific-day call counts · single SoT (api_usage) · gold merge is priority-first (sources do not overwrite each other)
+            PT day counts · api_usage
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -401,31 +550,35 @@ export function ApiMonitorTab() {
       </div>
 
       <p className="text-[10px] text-amber-200/40 mt-2">
-        FMP counts ~9 units per fundamentals fetch (matches budget). On-demand enrich uses free sources only; FMP/AV are nightly/cohort. LSEG/WRDS count CLI syncs. Yahoo quotes/options chains are not in this grid.
+        Grid = api_usage (funda). LSEG/WRDS increment only on CLI sync. Yahoo quotes/chains not counted.
       </p>
 
       {/* ── Research caches (WRDS / LSEG local) ─────────────── */}
       {researchOps && (
         <div className="mt-4 pt-3 border-t border-[#d4af37]/25 space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Research caches</h2>
-            <span className="text-[10px] text-amber-200/40">
-              probed {new Date(researchOps.checkedAt).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}
-            </span>
+            <span className="text-[10px] text-amber-200/40 tabular-nums">{shortWhen(researchOps.checkedAt)}</span>
           </div>
-          <div className="flex flex-wrap gap-3 text-[11px]">
-            <span className="flex items-center gap-1.5">
-              <Dot ok={researchOps.wrds.overall === "ok"} orphan={researchOps.wrds.overall === "warn"} />
-              <span className="text-amber-100/80">WRDS {researchOps.wrds.overall}</span>
-              {!researchOps.wrds.schema && <span className="text-red-400">schema missing</span>}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Dot ok={researchOps.lseg.overall === "ok"} orphan={researchOps.lseg.overall === "warn"} />
-              <span className="text-amber-100/80">LSEG {researchOps.lseg.overall}</span>
-              <span className="text-amber-200/40">
-                desktop {researchOps.lseg.desktopProxy.reachable ? "up" : "down"}
-              </span>
-            </span>
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+            <Chip
+              label="WRDS"
+              tone={wrdsTone}
+              tip={tipJoin(
+                `cache ${researchOps.wrds.overall}`,
+                !researchOps.wrds.schema ? "schema missing" : null,
+                `freshest ${ageLabel(ageFromLastOk(researchOps.wrds.datasets))}`,
+              )}
+            />
+            <Chip
+              label="LSEG"
+              tone={lsegTone}
+              tip={tipJoin(
+                `cache ${researchOps.lseg.overall}`,
+                researchOps.lseg.desktopProxy.reachable ? "desk on" : "desk off",
+                `freshest ${ageLabel(ageFromLastOk(researchOps.lseg.datasets))}`,
+              )}
+            />
           </div>
           <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
             <table className="w-full text-xs">
@@ -453,7 +606,7 @@ export function ApiMonitorTab() {
                       {d.status}
                     </td>
                     <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">
-                      {d.lastOkAt ? new Date(d.lastOkAt).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+                      {shortWhen(d.lastOkAt)}
                     </td>
                     <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">{d.lastRows ?? "—"}</td>
                   </tr>

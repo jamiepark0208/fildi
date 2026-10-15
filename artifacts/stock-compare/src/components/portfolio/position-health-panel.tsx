@@ -15,7 +15,7 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
   if (putPositions.length === 0 && callPositions.length === 0) {
     return (
       <CardContent className="px-4 pb-4">
-        <div className="h-[60px] flex items-center justify-center text-xs text-muted-foreground">No open option positions</div>
+        <div className="h-[60px] flex items-center justify-center text-xs text-white">No open option positions</div>
       </CardContent>
     );
   }
@@ -26,7 +26,7 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
         { label: "Calls", rows: callPositions, isPut: false },
       ].filter(g => g.rows.length > 0).map(({ label, rows, isPut }) => (
         <div key={label}>
-          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+          <div className="text-[10px] font-semibold text-white uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
             <span className={cn("w-1.5 h-1.5 rounded-full", isPut ? "bg-yellow-400" : "bg-blue-400")} />
             {label}
           </div>
@@ -84,18 +84,18 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
                           {isShort ? "Short" : "Long"}
                         </span>
                       </td>
-                      <td className={cn(TTD, "text-right text-muted-foreground")}>{p.qty}</td>
+                      <td className={cn(TTD, "text-right text-white")}>{p.qty}</td>
                       <td className={cn(TTD, "text-right")}>{formatStrike(p.strike)}</td>
                       <td className={cn(TTD, "text-right text-green-400")}>{isShort ? "+" : "−"}${p.premium.toFixed(2)}</td>
                       <td className={cn(TTD, "text-right")}>${p.breakEven.toFixed(2)}</td>
                       <td className={cn(TTD, "text-right")}>
-                        {p.currentPrice !== null ? `$${p.currentPrice.toFixed(2)}` : <span className="text-muted-foreground">—</span>}
+                        {p.currentPrice !== null ? `$${p.currentPrice.toFixed(2)}` : <span className="text-white">—</span>}
                       </td>
                       <td className={cn(TTD, "text-right font-semibold",
-                        safe ? "text-green-400" : warn ? "text-yellow-400" : atRisk ? "text-red-400" : "text-muted-foreground")}>
+                        safe ? "text-green-400" : warn ? "text-yellow-400" : atRisk ? "text-red-400" : "text-white")}>
                         {displayMness !== null ? `${displayMness > 0 ? "+" : ""}${displayMness.toFixed(1)}%` : "—"}
                       </td>
-                      <td className={cn(TTD, "text-right", p.collateral !== null ? "text-yellow-400 font-semibold" : "text-muted-foreground")}>
+                      <td className={cn(TTD, "text-right", p.collateral !== null ? "text-yellow-400 font-semibold" : "text-white")}>
                         {p.collateral !== null ? formatCurrency(p.collateral) : "—"}
                       </td>
                       <td className={cn(TTD, "text-right")}>
@@ -104,17 +104,17 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
                             safe   ? "bg-green-500/15 text-green-400" :
                             warn   ? "bg-yellow-500/15 text-yellow-400" :
                             atRisk ? "bg-red-500/15 text-red-400" :
-                            "bg-secondary text-muted-foreground")}>
+                            "bg-secondary text-white")}>
                             {safe ? "Safe" : warn ? "Watch" : atRisk ? "At Risk" : "—"}
                           </span>
                         ) : (
                           <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                            safe ? "bg-blue-500/15 text-blue-400" : "bg-secondary text-muted-foreground")}>
+                            safe ? "bg-blue-500/15 text-blue-400" : "bg-secondary text-white")}>
                             {safe ? "ITM" : "OTM"}
                           </span>
                         )}
                       </td>
-                      <td className={cn(TTD, "text-right", liveDelta != null && Math.abs(liveDelta) > ASSIGNMENT_RISK_DELTA ? "text-orange-400 font-semibold" : "text-muted-foreground")}>
+                      <td className={cn(TTD, "text-right", liveDelta != null && Math.abs(liveDelta) > ASSIGNMENT_RISK_DELTA ? "text-orange-400 font-semibold" : "text-white")}>
                         {liveDelta != null ? liveDelta.toFixed(2) : "—"}
                       </td>
                       <td className={cn(TTD, "text-right")}>
@@ -127,7 +127,7 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
                             Consider Roll
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-white">—</span>
                         )}
                       </td>
                     </tr>
@@ -138,7 +138,7 @@ export function PositionHealthPanel({ putPositions, callPositions, liveDeltaById
           </div>
         </div>
       ))}
-      <p className="text-[10px] text-muted-foreground/50">
+      <p className="text-[10px] text-white">
         Puts OTM% = (price/strike−1)×100 · Calls ITM% = (price/strike−1)×100 · At Risk: short within 8% of strike
       </p>
     </CardContent>

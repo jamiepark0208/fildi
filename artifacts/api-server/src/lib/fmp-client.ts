@@ -1,6 +1,7 @@
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
 import { fetchJsonWithRetry, sleep } from "./http-client.js";
+import { isFmpPremiumError, isFmpRestricted, markFmpRestricted } from "./fmp-restricted.js";
 
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 
@@ -87,6 +88,12 @@ async function fetchSerial(urls: string[], gapMs = 300): Promise<any[]> {
   return results;
 }
 
+function fmpBodyError(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const msg = (raw as Record<string, unknown>)["Error Message"] ?? (raw as Record<string, unknown>).error;
+  return typeof msg === "string" ? msg : null;
+}
+
 export async function fetchFMPFundamentals(
   ticker: string,
   apiKey: string,
@@ -94,6 +101,10 @@ export async function fetchFMPFundamentals(
   serial = false,
 ): Promise<FMPFundamentalsData> {
   const t = ticker.toUpperCase();
+  if (await isFmpRestricted(t)) {
+    logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "failure", error: "fmp restricted (cached 30d)", requestedFields: "skip", calls: 0 });
+    return {};
+  }
   const q = `symbol=${t}&apikey=${apiKey}`;
   try {
 
@@ -117,6 +128,15 @@ export async function fetchFMPFundamentals(
       : await Promise.all(endpoints.map((url, i) =>
           [4, 7].includes(i) ? fetchWithRetry(url).catch(() => null) : fetchWithRetry(url)
         ));
+
+  for (const raw of [kmRaw, ratiosRaw, incomeRaw]) {
+    const bodyErr = fmpBodyError(raw);
+    if (bodyErr && /Premium Query Parameter/i.test(bodyErr)) {
+      await markFmpRestricted(t);
+      logApiCall({ source: "fmp", fn: "fetchFMPFundamentals", trigger, ticker: t, outcome: "failure", error: bodyErr, requestedFields: "premium-restricted", calls: 9 });
+      return {};
+    }
+  }
 
   const km      = firstOf(kmRaw);
   const r       = firstOf(ratiosRaw);
@@ -218,6 +238,7 @@ export async function fetchFMPFundamentals(
   });
   return result;
   } catch (err: any) {
+    if (isFmpPremiumError(err)) await markFmpRestricted(t);
     logApiCall({
       source: "fmp",
       fn: "fetchFMPFundamentals",

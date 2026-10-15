@@ -278,13 +278,19 @@ def cmd_evaluate(conn, pid: int, force_schwab: bool = False) -> None:
     counts: dict[str, int] = {}
     sq = schwab_quotes(items)
     source = "robinhood"
+    option_items = [it for it in items if it["kind"] == "option"]
     if not oquotes:   # no Robinhood quotes (or --schwab: intraday re-check, where morning RH quotes are stale)
-        if not sq:
+        # Empty sq is normal when L1 survivors are stock-only (no option contracts to quote).
+        # Only treat as Schwab-down when we needed option quotes and got none.
+        if option_items and not sq:
             print(f"plan #{pid}: no Robinhood quotes and Schwab is unavailable → not verified (re-run when the API server / Schwab is up)")
             sys.exit(3)
         instruments, oquotes, equotes = schwab_as_raw(items, sq)
         source = "schwab"
-        print(f"plan #{pid}: no Robinhood quotes → verifying on Schwab live quotes ({len(oquotes)} contracts)")
+        print(
+            f"plan #{pid}: no Robinhood quotes → verifying on Schwab "
+            f"({len(oquotes)} option contracts, {len(equotes)} equities)"
+        )
     for it in items:
         if it["kind"] == "option":
             key = (it["ticker"], str(it["expiry"]), float(it["strike"]), it["option_type"])

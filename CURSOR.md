@@ -19,6 +19,7 @@
 | `codegraph.mdc` | Y | Codegraph before multi-file reads/refactors | auto |
 | `token-efficiency.mdc` | Y | Compress long prompts/responses | auto |
 | `lessons-learned.mdc` | N | Grep lessons before repeating infra mistakes | say “check lessons” |
+| `ui-density.mdc` | N (globs stock-compare) | One-line status strips; Radix tips not `title=` | auto on UI files |
 | `product-manager.mdc` | N | Backlog / task writing | say “PM mode” |
 | `task-reviewer.mdc` | N | PRD/DoR review of `.cursor/tasks` | say “review this task” |
 

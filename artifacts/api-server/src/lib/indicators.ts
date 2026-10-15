@@ -6,6 +6,7 @@ import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
 import { getSchwabDailyBars } from "./schwab-client.js";
+import { lastCompletedSessionYmd } from "./market-hours.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +56,13 @@ function todayStr(): string {
 function cutoffStr(): string {
   const d = new Date();
   d.setDate(d.getDate() - 420); // 420 calendar days ≈ 300 trading days; supports MA200 + 100d warmup
+  return d.toISOString().slice(0, 10);
+}
+
+/** Yahoo chart/historical treats period2 as an exclusive end date — pass the day after the last session we need. */
+function yahooPeriod2Exclusive(): string {
+  const d = new Date(`${lastCompletedSessionYmd()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -331,15 +339,17 @@ export function etTradingDaysBehind(fromYmd: string | null, toYmd?: string): num
 }
 
 /**
- * Stale if more than STALE_OHLCV_DAYS calendar days *or* >1 ET trading day behind.
- * Weekend: Friday bar on Monday is NOT stale (0–1 trading days).
+ * Stale if missing the last completed ET session bar, or > STALE_OHLCV_DAYS calendar days.
+ * After the 4pm ET close, yesterday's bar is stale (Schwab often lags Yahoo by hours —
+ * without this, schwabOk short-circuits and never calls Yahoo for today's bar).
+ * Weekend / Mon pre-open: Friday still equals lastCompletedSessionYmd → not stale.
  */
 export function isOHLCVStale(latestDate: string | null): boolean {
   if (!latestDate) return true;
   const ymd = String(latestDate).slice(0, 10);
+  if (ymd < lastCompletedSessionYmd()) return true;
   const calDays = (Date.now() - new Date(`${ymd}T16:00:00-04:00`).getTime()) / 86_400_000;
-  if (calDays > STALE_OHLCV_DAYS) return true;
-  return etTradingDaysBehind(ymd) > 1;
+  return calDays > STALE_OHLCV_DAYS;
 }
 
 /** Ensure prices_historical has a fresh window; used by indicators + technicals. */
@@ -423,7 +433,7 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   }
   ohlcvFetchAttemptAt.set(upper, Date.now());
   const period1 = cutoffStr();
-  const period2 = todayStr();
+  const period2 = yahooPeriod2Exclusive();
 
   // Source rank: Schwab (broker, same feed as live quotes/chains) → Yahoo → LSEG soft fill.
   // Yahoo is only called when Schwab is down, unknown symbol, thin or stale.

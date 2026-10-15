@@ -113,3 +113,10 @@ Add a lesson **only if all true:**
 - **Fix:** Header = Daily News · m/d/yy only (white meta). One LIVE strip (Muse levels + Yahoo 1d % labeled). Cards: orange border (#d4af37) + zinc-950 fill, never tinted fill matching text. Sources/folder/verdict = title tooltips on bullets/tickers, not grey columns. Merge earnings by date (book gold / major violet). Haiku = Desk adds only (never paraphrase Muse). Inbox: drop IN/N; compact WHEN m/d h:mma; small nl tags.
 - **Verify:** No sessionLabel/AM BRIEF/in-total in header; single Live strip; hover dig/bullet shows source; inbox table has Cat/Source/When/Subject only.
 - **Status:** active
+
+### L-2026-10-14-01: Status strips: one line, Radix tooltips, no side metrics
+- **Trigger:** API Monitor / Connections / Settings status chips / dense UI strips
+- **Mistake:** Put metrics next to dots (40, fb, 195h), used native title= under overflow-hidden, and flex-wrap/gaps that shoved Re-auth to a second row — user re-asked every session.
+- **Fix:** Dot+short label under; metrics in Radix Tooltip portal; flex-nowrap gap-x-1; see .cursor/rules/ui-density.mdc
+- **Verify:** Connections stays one row with Re-auth; hover chip shows tip bubble
+- **Status:** active

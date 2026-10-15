@@ -1,0 +1,24 @@
+---
+description: Dense one-line Settings/status strips — minimal gaps, metrics in Radix tooltips
+globs: artifacts/stock-compare/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# UI density (TradeDash)
+
+User preference (repeated): status/connection strips must stay **one line**, concise, minimal blank space.
+
+## Status / connection chips
+- Layout: **dot above, short label below** — no metrics beside the dot
+- Metrics (uptime, call counts, expiry, cache age) → **Radix `Tooltip`**, never bare `title=` (parent `overflow-hidden` / Electron often breaks native tooltips)
+- Pack chips with `flex-nowrap gap-x-1` (or tighter); avoid `min-w-*`, large `gap-x-2+`, `flex-wrap` that pushes actions (e.g. Re-auth) to a second row
+- Prefer short labels (FS, FH, Poly); full name lives in the tooltip
+- Section chrome: small padding (`px-2 py-1.5`), short section word (“Conn” not a banner)
+
+## Copy
+- Dates: `M/D` or `M/D Ha` — not full `toLocaleString`
+- Drop filler (“cache”, “ready”, “Pacific-day…”) when color already conveys state
+- One strip > stacked banners for the same health signal
+
+## Related
+- Daily News densify lesson: `L-2026-10-09-01` in `.cursor/context/lessons.md`

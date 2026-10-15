@@ -13,18 +13,25 @@ import { logger } from "./logger.js";
 const LSEG_HOST = "127.0.0.1";
 const LSEG_PORT = 9000;
 const STALE_MS = {
-  ibes_statsum: 40 * 24 * 60 * 60 * 1000, // monthly TTL + grace
+  // WRDS — monthly / infrequent pulls (false-stale at default 7d was noisy in API Monitor)
+  ibes_statsum: 40 * 24 * 60 * 60 * 1000,
   ibes_surpsum: 40 * 24 * 60 * 60 * 1000,
   crsp_dsf: 45 * 24 * 60 * 60 * 1000,
-  signals_daily: 36 * 60 * 60 * 1000, // expect weekday refresh
-  events: 36 * 60 * 60 * 1000,
-  // sync_ids TTL is 30d — 14d was false-stale; give 5d grace
+  security_map_wrds: 40 * 24 * 60 * 60 * 1000,
+  calibrate_starmine: 40 * 24 * 60 * 60 * 1000,
+  reconcile_consensus: 40 * 24 * 60 * 60 * 1000,
+  event_windows: 40 * 24 * 60 * 60 * 1000,
+  finratio_snapshot: 40 * 24 * 60 * 60 * 1000,
+  // LSEG — weekday vs weekly
+  signals_daily: 36 * 60 * 60 * 1000,
+  daily_history: 36 * 60 * 60 * 1000,
+  events: 10 * 24 * 60 * 60 * 1000, // macro calendar; weekly refresh ok
   security_map_ids: 35 * 24 * 60 * 60 * 1000,
   starmine_history: 90 * 24 * 60 * 60 * 1000,
   earnings_moves: 8 * 24 * 60 * 60 * 1000,
-  holders_top: 8 * 24 * 60 * 60 * 1000,
-  coverage: 8 * 24 * 60 * 60 * 1000,
-  gold_audit: 8 * 24 * 60 * 60 * 1000,
+  holders_top: 14 * 24 * 60 * 60 * 1000,
+  coverage: 14 * 24 * 60 * 60 * 1000,
+  gold_audit: 14 * 24 * 60 * 60 * 1000,
 } as const;
 
 export type PullError = {

@@ -67,9 +67,9 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "depreciationAmortization", priority: [["edgar","depreciationAmortization"]] },
   { tfCol: "ffoProxy",           priority: [] },
 
-  // ── Margins & returns (TTM: yahoo → finnhub → fmp → polygon → av → factset) ────────
-  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["polygon","grossMargin"], ["factset","grossMargin"]] },
-  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["polygon","operatingMargin"], ["alpha_vantage","operatingMargin"], ["factset","operatingMargin"]] },
+  // ── Margins & returns (TTM: yahoo → finnhub → fmp → av → factset) ─────────────
+  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["factset","grossMargin"]] },
+  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["alpha_vantage","operatingMargin"], ["factset","operatingMargin"]] },
   { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"], ["factset","netMargin"]] },
   { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"], ["factset","returnOnEquity"]] },
   { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"], ["factset","returnOnAssets"]] },
@@ -104,21 +104,21 @@ export const FIELD_DEFS: FieldDef[] = [
   // bank deposits, e.g. GS=$1.68T; EDGAR often captures only long-term debt, e.g. MSFT=$43B).
   // The residual Yahoo-vs-FMP gap is genuine operating-lease inclusion — see DIVERGENCE_TOL.
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
-  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"]] },
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
-  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["polygon","totalRevenue"],  ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"]] },
-  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["polygon","netIncome"],  ["edgar","netIncome"], ["factset","netIncome"]] },
+  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"]] },
+  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"], ["factset","netIncome"]] },
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },
   // totalAssets: Yahoo wide table has no totalAssets col; EDGAR gold map has none yet — FMP only until those land.
   { tfCol: "totalAssets",        priority: [["fmp","totalAssets"]] },
   { tfCol: "annualOperatingCashFlow", priority: [["yahoo","annualOperatingCashFlow"], ["fmp","annualOperatingCashFlow"]] },
-  { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["polygon","interestExpense"], ["edgar","interestExpense"]] },
+  { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["edgar","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["yahoo","wacc"],             ["fmp","wacc"]] },
 

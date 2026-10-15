@@ -1,6 +1,6 @@
 /**
- * Street Radar (LSEG) — opportunities you don't hold + risk flags on what you do.
- * Compact table UI; LSEG panel mounts only when a row is expanded.
+ * Street Radar (LSEG) — CSP opportunity rank for names you don't hold + risk flags on what you do.
+ * Compact table; LSEG panel mounts only when a row is expanded.
  */
 import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,33 +19,46 @@ const TONE_TEXT: Record<Tone, string> = {
   good: "text-green-400",
   bad: "text-red-400",
   warn: "text-amber-300",
-  neutral: "text-zinc-400",
+  neutral: "text-white/80",
 };
 const TONE_ICON: Record<Tone, typeof Info> = { good: CheckCircle2, bad: TrendingDown, warn: AlertTriangle, neutral: Info };
 
 const LABEL_CHIP: Record<string, { text: string; cls: string }> = {
-  lookalike: { text: "lookalike", cls: "border-sky-500/30 text-sky-300" },
-  traded: { text: "traded", cls: "border-violet-500/30 text-violet-300" },
-  watchlist: { text: "watch", cls: "border-amber-400/30 text-amber-200" },
-  book: { text: "book", cls: "border-zinc-600 text-zinc-400" },
-  held: { text: "held", cls: "border-green-500/30 text-green-300" },
+  lookalike: { text: "similar", cls: "border-sky-400/50 bg-sky-500/15 text-sky-200" },
+  traded: { text: "traded", cls: "border-violet-400/50 bg-violet-500/15 text-violet-200" },
+  watchlist: { text: "watch", cls: "border-amber-400/50 bg-amber-500/15 text-amber-100" },
+  book: { text: "book", cls: "border-zinc-500/50 bg-zinc-700/40 text-white" },
+  model: { text: "model", cls: "border-emerald-400/50 bg-emerald-500/15 text-emerald-200" },
+  held: { text: "held", cls: "border-green-400/50 bg-green-500/15 text-green-200" },
+  benchmark: { text: "bench", cls: "border-zinc-500/50 bg-zinc-700/40 text-white" },
 };
 
-const FILTERS = ["all", "lookalike", "traded", "watchlist", "book"] as const;
+const FILTERS = ["all", "lookalike", "traded", "watchlist", "model", "book"] as const;
 
 const ROW =
-  "grid grid-cols-[1rem_1.25rem_2.75rem_4.5rem_minmax(0,1fr)_auto] items-center gap-x-1.5 text-[10px] py-0.5";
+  "grid grid-cols-[1rem_1.25rem_2.75rem_4.5rem_minmax(0,1fr)_5.5rem] items-center gap-x-1.5 text-[10px] py-0.5";
 
 function ScoreBar({ score }: { score: number }) {
-  const tone = score >= 65 ? "bg-green-500/80" : score >= 45 ? "bg-zinc-400/70" : "bg-red-500/70";
+  const tone = score >= 65 ? "bg-green-500" : score >= 45 ? "bg-amber-400" : "bg-red-500";
   return (
     <div className="flex items-center gap-1 w-[4.5rem] shrink-0">
-      <div className="relative h-1 flex-1 rounded-full bg-zinc-800 overflow-hidden">
+      <div className="relative h-1.5 flex-1 rounded-full bg-zinc-800 overflow-hidden">
         <div className={cn("absolute inset-y-0 left-0 rounded-full", tone)} style={{ width: `${score}%` }} />
       </div>
-      <span className="font-mono text-[9px] text-zinc-300 w-5 text-right">{score}</span>
+      <span className="font-mono text-[9px] text-white w-5 text-right font-semibold">{score}</span>
     </div>
   );
+}
+
+function whyTone(text: string): Tone {
+  const t = text.toLowerCase();
+  if (t.includes("negative") || t.includes("fragile") || t.includes("avoid") || t.includes("falling-knife") || t.includes("extreme"))
+    return "bad";
+  if (t.includes("constructive") || t.includes("rich") || t.includes("oversold") || t.includes("beat"))
+    return "good";
+  if (t.includes("thin") || t.includes("overbought") || t.includes("earnings") || t.includes("short"))
+    return "warn";
+  return "neutral";
 }
 
 export function StreetRadar() {
@@ -77,15 +90,15 @@ export function StreetRadar() {
       <div className="flex flex-wrap items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <Radar className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
-          <span className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Street Radar · LSEG</span>
-          <span className="text-[9px] text-zinc-500 truncate">
-            {rows.length} names{data?.coverageAt ? ` · ${data.coverageAt}` : ""}
+          <span className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Street Radar</span>
+          <span className="text-[9px] text-white/80 truncate">
+            CSP ideas · {rows.length} names
           </span>
         </div>
         <div className="flex gap-0.5 text-[9px]">
           {(
             [
-              ["opps", `Opps ${opps.length}`],
+              ["opps", `Ideas ${opps.length}`],
               ["held", `Held${flagged ? ` · ${flagged}⚠` : ""}`],
             ] as const
           ).map(([k, label]) => (
@@ -93,8 +106,8 @@ export function StreetRadar() {
               key={k}
               onClick={() => setTab(k)}
               className={cn(
-                "px-1.5 py-0.5 rounded border",
-                tab === k ? "border-[#d4af37]/50 text-[#d4af37] bg-amber-500/10" : "border-zinc-800 text-zinc-500 hover:text-zinc-300",
+                "px-1.5 py-0.5 rounded border font-semibold",
+                tab === k ? "border-[#d4af37]/60 text-[#d4af37] bg-amber-500/15" : "border-zinc-700 text-white/80 hover:text-white",
               )}
             >
               {label}
@@ -104,19 +117,16 @@ export function StreetRadar() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground py-2 justify-center">
+        <div className="flex items-center gap-2 text-[10px] text-white py-2 justify-center">
           <Loader2 className="w-3 h-3 animate-spin" /> Loading…
         </div>
       )}
-      {error && <p className="text-[9px] text-red-400/80 italic">{(error as Error).message}</p>}
-      {data && !data.available && <p className="text-[9px] text-amber-200/50 italic">{data.reason}</p>}
+      {error && <p className="text-[9px] text-red-400 italic">{(error as Error).message}</p>}
+      {data && !data.available && <p className="text-[9px] text-amber-300 italic">{data.reason}</p>}
 
       {data?.available && tab === "opps" && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-1">
-            <p className="text-[9px] text-zinc-500 max-w-2xl leading-snug">
-              CSP rank: Street momentum · premium richness · entry timing. Expand a row for LSEG detail.
-            </p>
+          <div className="flex flex-wrap items-center justify-end gap-1">
             <div className="flex gap-0.5 text-[9px]">
               {FILTERS.map((f) => (
                 <button
@@ -124,44 +134,47 @@ export function StreetRadar() {
                   onClick={() => setFilter(f)}
                   className={cn(
                     "px-1 py-0.5 rounded border",
-                    filter === f ? "border-zinc-500 text-zinc-100" : "border-zinc-800 text-zinc-600 hover:text-zinc-300",
+                    filter === f ? "border-[#d4af37]/50 text-white bg-amber-500/10" : "border-zinc-800 text-white/70 hover:text-white",
                   )}
                 >
-                  {f === "all" ? "all" : LABEL_CHIP[f].text}
+                  {f === "all" ? "all" : (LABEL_CHIP[f]?.text ?? f)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="divide-y divide-zinc-800/60 border border-zinc-800/50 rounded overflow-hidden">
-            <div className={cn(ROW, "px-1.5 bg-zinc-950 text-[8px] uppercase tracking-wider text-zinc-600")}>
+            <div className={cn(ROW, "px-1.5 bg-zinc-900 text-[8px] uppercase tracking-wider text-white/80 font-semibold")}>
               <span />
               <span>#</span>
               <span>Tkr</span>
               <span>Score</span>
               <span>Why</span>
-              <span className="text-right">Meta</span>
+              <span className="text-right">IV · ER</span>
             </div>
             {visible.map((o, i) => {
               const r = byTicker.get(o.ticker)!;
               const isOpen = open === o.ticker;
               const chip = LABEL_CHIP[o.label] ?? LABEL_CHIP.book;
+              const wt = whyTone(o.why);
               return (
                 <div key={o.ticker} className="bg-zinc-900/40">
                   <button onClick={() => setOpen(isOpen ? null : o.ticker)} className="w-full text-left px-1.5 hover:bg-amber-500/5">
                     <div className={ROW}>
-                      {isOpen ? <ChevronDown className="w-3 h-3 text-zinc-500" /> : <ChevronRight className="w-3 h-3 text-zinc-500" />}
-                      <span className="text-zinc-600 font-mono">{i + 1}</span>
-                      <span className="font-mono font-bold text-zinc-100">{o.ticker}</span>
+                      {isOpen ? <ChevronDown className="w-3 h-3 text-white/70" /> : <ChevronRight className="w-3 h-3 text-white/70" />}
+                      <span className="text-white/60 font-mono">{i + 1}</span>
+                      <span className="font-mono font-bold text-white">{o.ticker}</span>
                       <ScoreBar score={o.score} />
-                      <span className="truncate text-zinc-500">
-                        <span className={cn("mr-1 px-1 py-px rounded border text-[8px]", chip.cls)}>{chip.text}</span>
-                        {o.why}
+                      <span className="truncate min-w-0">
+                        <span className={cn("mr-1 px-1 py-px rounded border text-[8px] font-semibold", chip.cls)}>{chip.text}</span>
+                        <span className={cn(TONE_TEXT[wt])}>{o.why}</span>
                       </span>
-                      <span className="flex gap-2 font-mono text-[9px] text-zinc-500 shrink-0">
-                        {r.tech.iv != null && <span>IV {r.tech.iv.toFixed(0)}</span>}
+                      <span className="flex justify-end gap-2 font-mono text-[9px] text-white shrink-0">
+                        {r.tech.iv != null && <span className="text-sky-300">IV {r.tech.iv.toFixed(0)}</span>}
                         {r.nextEarnings && (
-                          <span className={r.nextEarnings.daysUntil <= 35 ? "text-amber-300" : ""}>ER {r.nextEarnings.daysUntil}d</span>
+                          <span className={r.nextEarnings.daysUntil <= 35 ? "text-amber-300 font-semibold" : "text-white/80"}>
+                            ER {r.nextEarnings.daysUntil}d
+                          </span>
                         )}
                       </span>
                     </div>
@@ -170,7 +183,7 @@ export function StreetRadar() {
                     <div className="px-2 pb-2 max-w-3xl">
                       <Suspense
                         fallback={
-                          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 py-2">
+                          <div className="flex items-center gap-1.5 text-[10px] text-white py-2">
                             <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
                           </div>
                         }
@@ -184,7 +197,7 @@ export function StreetRadar() {
             })}
           </div>
           {filtered.length > 10 && (
-            <button onClick={() => setShowAll(!showAll)} className="text-[9px] text-zinc-500 hover:text-zinc-300">
+            <button onClick={() => setShowAll(!showAll)} className="text-[9px] text-white/80 hover:text-white">
               {showAll ? "Show top 10" : `Show all ${filtered.length}`}
             </button>
           )}
@@ -200,13 +213,13 @@ export function StreetRadar() {
               <div key={p.ticker} className="bg-zinc-900/40">
                 <button onClick={() => setOpen(isOpen ? null : p.ticker)} className="w-full text-left px-1.5 py-0.5 hover:bg-amber-500/5">
                   <div className="grid grid-cols-[1rem_2.75rem_1rem_minmax(0,1fr)] items-center gap-x-1.5 text-[10px]">
-                    {isOpen ? <ChevronDown className="w-3 h-3 text-zinc-500" /> : <ChevronRight className="w-3 h-3 text-zinc-500" />}
-                    <span className="font-mono font-bold text-zinc-100">{p.ticker}</span>
+                    {isOpen ? <ChevronDown className="w-3 h-3 text-white/70" /> : <ChevronRight className="w-3 h-3 text-white/70" />}
+                    <span className="font-mono font-bold text-white">{p.ticker}</span>
                     <Icon className={cn("w-3 h-3 shrink-0", TONE_TEXT[p.tone])} />
                     <span className={cn("truncate", TONE_TEXT[p.tone])}>{p.verdict}</span>
                   </div>
                   {p.flags.length > 0 && (
-                    <div className="pl-8 text-[9px] text-zinc-500 truncate">
+                    <div className="pl-8 text-[9px] text-white/80 truncate">
                       {p.flags.slice(0, 2).map((f) => f.title).join(" · ")}
                     </div>
                   )}
@@ -215,7 +228,7 @@ export function StreetRadar() {
                   <div className="px-2 pb-2 max-w-3xl">
                     <Suspense
                       fallback={
-                        <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 py-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-white py-2">
                           <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
                         </div>
                       }
@@ -229,11 +242,6 @@ export function StreetRadar() {
           })}
         </div>
       )}
-
-      <p className="text-[8px] text-zinc-600 leading-snug">
-        Local LSEG cache + technicals · not a fund/tech score input · refresh via{" "}
-        <span className="font-mono">research/lseg/sync_signals.py</span>
-      </p>
     </div>
   );
 }

@@ -12,6 +12,8 @@ const TOKEN_PATH = join(homedir(), ".tradedash", "schwab-tokens.json");
 /** Refresh access token this many ms before expiry. */
 const ACCESS_SKEW_MS = 90_000;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** A73: persistent UI warning when refresh token has ≤ this many days left. */
+export const SCHWAB_REAUTH_WARN_DAYS = 2;
 
 export interface SchwabTokenFile {
   obtainedAt: string;
@@ -100,11 +102,17 @@ function accessStillValid(t: SchwabTokenFile): boolean {
   return obtained + ttl - Date.now() > ACCESS_SKEW_MS;
 }
 
+export type SchwabAuthWarning = "ok" | "warn" | "urgent" | "down";
+
 export function getSchwabAuthStatus(): {
   configured: boolean;
   hasTokens: boolean;
   accessValid: boolean;
   refreshDaysLeft: number | null;
+  /** ISO when the 7-day refresh token expires (obtainedAt + 7d). */
+  refreshExpiresAt: string | null;
+  /** ok | warn (≤2d) | urgent (≤1d) | down (expired / invalid_grant / unlinked). */
+  warningLevel: SchwabAuthWarning;
   obtainedAt: string | null;
   lastError: string | null;
   tokenPath: string;
@@ -117,6 +125,8 @@ export function getSchwabAuthStatus(): {
       hasTokens: false,
       accessValid: false,
       refreshDaysLeft: null,
+      refreshExpiresAt: null,
+      warningLevel: configured ? "down" : "down",
       obtainedAt: null,
       lastError: t?.lastError ?? null,
       tokenPath: TOKEN_PATH,
@@ -125,14 +135,60 @@ export function getSchwabAuthStatus(): {
   // Anchor on obtainedAt (refresh-token issue / last rotation) — NOT lastRefreshAt.
   // Access-token refresh every ~30m must not reset the 7-day re-auth clock.
   const refreshDaysLeft = computeRefreshDaysLeft(t.obtainedAt);
+  const anchor = Date.parse(t.obtainedAt);
+  const refreshExpiresAt = Number.isFinite(anchor)
+    ? new Date(anchor + REFRESH_TTL_MS).toISOString()
+    : null;
+  const invalidGrant = /invalid_grant/i.test(t.lastError ?? "");
+  let warningLevel: SchwabAuthWarning = "ok";
+  if (invalidGrant || (refreshDaysLeft != null && refreshDaysLeft <= 0) || (t.lastError && !accessStillValid(t))) {
+    warningLevel = "down";
+  } else if (refreshDaysLeft != null && refreshDaysLeft <= 1) {
+    warningLevel = "urgent";
+  } else if (refreshDaysLeft != null && refreshDaysLeft <= SCHWAB_REAUTH_WARN_DAYS) {
+    warningLevel = "warn";
+  }
   return {
     configured,
     hasTokens: true,
     accessValid: accessStillValid(t),
     refreshDaysLeft,
+    refreshExpiresAt,
+    warningLevel,
     obtainedAt: t.obtainedAt,
     lastError: t.lastError ?? null,
     tokenPath: TOKEN_PATH,
+  };
+}
+
+/** Persist tokens from authorization-code exchange (UI oauth or schwab-oauth.mjs). */
+export function saveSchwabOAuthTokens(tokens: {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  callback?: string;
+}): void {
+  const expiresIn = tokens.expires_in ?? 1800;
+  saveFile({
+    obtainedAt: new Date().toISOString(),
+    expiresIn,
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    callback: tokens.callback,
+    accessExpiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    lastRefreshAt: new Date().toISOString(),
+    lastError: null,
+  });
+}
+
+export function getSchwabOAuthClient(): { clientId: string; clientSecret: string; callback: string } | null {
+  const id = clientId();
+  const secret = clientSecret();
+  if (!id || !secret) return null;
+  return {
+    clientId: id,
+    clientSecret: secret,
+    callback: process.env["SCHWAB_CALLBACK_URL"] || "https://127.0.0.1:8182",
   };
 }
 

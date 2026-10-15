@@ -1,16 +1,47 @@
 /**
  * GET /api/pm/alerts → latest Portfolio Alerts run (Live › Portfolio Alerts).
  * GET /api/pm/names  → "Your names": short interest (LSEG), next earnings, latest earnings-call summary (transcripts.py).
- * Written by scripts/watchlist_sync/pm_alerts.py (Claude, PM role) into watchlist_sync.pm_alerts; this route only reads it.
+ * GET /api/pm/book   → book-latest.json (A76 Book card / Expiry desk).
+ * Written by scripts/watchlist_sync/pm_alerts.py + pm_book.py (Claude, PM role); this route only reads.
  */
 import { Router } from "express";
 import { sql } from "drizzle-orm";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 
 const router = Router();
 type SqlRows<T> = T[] | { rows?: T[] };
 const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const BOOK_PATH = resolve(ROOT, "scripts/watchlist_sync/out/pm/book-latest.json");
+let bookCache: { mtimeMs: number; at: number; body: unknown } | null = null;
+const BOOK_TTL_MS = 60_000;
+
+function readPmBook(): unknown | null {
+  if (!existsSync(BOOK_PATH)) return null;
+  const mtimeMs = statSync(BOOK_PATH).mtimeMs;
+  const now = Date.now();
+  if (bookCache && bookCache.mtimeMs === mtimeMs && now - bookCache.at < BOOK_TTL_MS) {
+    return bookCache.body;
+  }
+  try {
+    const body = JSON.parse(readFileSync(BOOK_PATH, "utf8"));
+    bookCache = { mtimeMs, at: now, body };
+    return body;
+  } catch {
+    return null;
+  }
+}
+
+router.get("/pm/book", requireAdmin, (_req, res) => {
+  const book = readPmBook();
+  if (!book) return res.json({ book: null });
+  return res.json({ book });
+});
 
 router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
   try {
