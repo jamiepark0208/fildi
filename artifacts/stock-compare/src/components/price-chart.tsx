@@ -137,6 +137,8 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   const emaSeriesRef = useRef<{ ema50: ISeriesApi<"Line"> | null; ema200: ISeriesApi<"Line"> | null }>({ ema50: null, ema200: null });
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLineHandlesRef = useRef<IPriceLine[]>([]);
+  /** Fit zoom only when tickers or period change — refetches must not wipe the user's pan/zoom (A93). */
+  const viewKeyRef = useRef<string>("");
 
   useEffect(() => {
     const container = containerRef.current;
@@ -206,6 +208,12 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    const viewKey = `${series.map(s => s.ticker).join(",")}|${period}`;
+    const viewChanged = viewKeyRef.current !== viewKey;
+    viewKeyRef.current = viewKey;
+    const ts = chart.timeScale();
+    const savedRange = viewChanged ? null : ts.getVisibleLogicalRange();
+
     const seen = new Set(series.map(s => s.ticker));
     seriesMapRef.current.forEach((s, ticker) => {
       if (!seen.has(ticker)) {
@@ -229,8 +237,12 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       }
       s.setData(spec.data);
     });
-    chart.timeScale().fitContent();
-  }, [series]);
+    if (viewChanged || savedRange == null) {
+      ts.fitContent();
+    } else {
+      ts.setVisibleLogicalRange(savedRange);
+    }
+  }, [series, period]);
 
   useEffect(() => {
     const chart = chartRef.current;
