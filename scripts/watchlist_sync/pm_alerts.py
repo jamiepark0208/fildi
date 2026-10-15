@@ -182,7 +182,8 @@ def main() -> None:
     now = datetime.now(PT)
     conn = connect()
     for stmt in DDL.split(";"):
-        conn.execute(stmt)
+        if stmt.strip():
+            conn.execute(stmt)
     conn.commit()
     if "--now" not in sys.argv and not due(conn, now):
         return
@@ -234,4 +235,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # startup/DB failure → Settings › Scheduled Tasks shows "failed", not a stale "ok" (A112)
+        write_last(False, f"crashed: {type(e).__name__}: {str(e)[:120]}", datetime.now(PT))
+        raise

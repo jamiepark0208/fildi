@@ -98,6 +98,8 @@ function EarningsMoves({ moves }: { moves: Move[] }) {
 
 function ImpliedVol({ iv }: { iv: Iv[] }) {
   const last = iv[iv.length - 1];
+  const yearAgo = last ? new Date(new Date(last.date).getTime() - 365 * 864e5).toISOString().slice(0, 10) : "";
+  const n = last ? iv.filter((x) => x.date >= yearAgo).length : 0;
   return (
     <div className="space-y-1">
       <Head
@@ -105,7 +107,7 @@ function ImpliedVol({ iv }: { iv: Iv[] }) {
         value={last ? pct(last.iv) : "—"}
         sub={last ? <>rank {last.ivRank == null ? "—" : Math.round(last.ivRank * 100)} · realized {pct(last.rv20)}</> : "book names first; others as data loads"}
         info={<>~30-day implied vol from the near-the-money monthly put's closing price (Black-Scholes). Rank = where today sits in the past
-          year (0 = lowest, 100 = highest). Realized = last 20 trading days. The gap between the lines is what option sellers are paid.
+          year (0 = lowest, 100 = highest); this one rests on {n} days of history (shown from 60; under ~250 it is rough). Realized = last 20 trading days. The gap between the lines is what option sellers are paid.
           Fildi's current "IV rank" elsewhere is a realized-vol rank; study S019 tests whether this one predicts better.</>}
       />
       {iv.length > 0 && (

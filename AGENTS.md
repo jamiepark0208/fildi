@@ -54,6 +54,11 @@ Everything else — spec, replies, status notes, reviews — lives in `research/
 5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
 
 Statuses: `open → planned → accepted → done → verified | declined` (say why).
+**Decline check (user 2026-10-15)** — guards against declining a misread ask. Every decline/park states: (1) **Need** — the
+underlying want in Jamie's words (from the ask's Context), separate from the proposed method; (2) **Met by / fails because** —
+the existing feature, row, or study that covers the need, or the probe/study number showing the need itself doesn't hold;
+(3) **Revisit trigger** — the concrete event that reopens it. Decline the method, rarely the need. Muse (or Cursor) may rebut
+once with a need Claude missed → Claude re-reviews. When a study a decline cites changes, Claude re-audits that decline.
 Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewed SHA:`) and reviews `git log <sha>..HEAD` at session start.
 
 ## Do not load unless the task needs them

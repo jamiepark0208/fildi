@@ -30,6 +30,8 @@ Status: **adopted** (changed the live model) · **display** (shown, not scored) 
 | S019 | 10-14 | True IV rank (built from option closes) vs today's realized-vol "ivRank" | pending | open (pre-registered) | same |
 | S020 | 10-14 | Put spreads / strangles / straddles vs cash-secured puts on the same entries | pending | open (pre-registered) | same |
 | S021 | 10-14 | Were S003's model-priced puts close to real option prices? | pending | open (pre-registered) | same |
+| S022 | 10-15 | Do sector ETF fund flows (4-week Δshares × NAV, z vs own 1 y; SSGA navhist back to 1998) predict next-4-week sector return or put breach rate in that sector (S003 puts)? Pass: Holm p < 0.05 over 11 sectors, same sign both halves | pending | open (pre-registered; A98 data) | `research/common/asks/A98.md` |
+| S023 | 10-15 | Does a sector-laggard entry (stock − sector ETF 1w/1m return, z) improve short-put outcomes? S003 ~17k puts + 935 real. Pass: Holm p < 0.05, same sign both halves, ≥ 0.2 % of collateral. Prior: S015 no entry feature survives, S004 tech totals don't predict | pending | open (pre-registered; Claude runs; gates A101 flag) | `research/common/asks/A101.md` |
 
 ## Topic lookup (what we already know)
 

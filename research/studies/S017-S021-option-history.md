@@ -102,7 +102,10 @@ number, because "+0.4 %/week" means less than "+$1,240 over Feb–Oct and the wo
 
 ## S019 — True IV rank
 - **Build:** ~30-day ATM implied vol per name per day, by Black-Scholes inversion of the near-spot put's close each day
-  (rate = 3-month T-bill from FRED); one contract per month, rolled. IV rank = percentile of today's value over the past 252 days.
+  (rate fixed at 4.25 %, error < 0.5 vol pt at 30 days; FRED not needed); one contract per month, rolled. IV rank = percentile of today's value over the past 365 calendar days.
+  **History minimum (decided 10-15, A111):** the test uses only days with ≥ 120 prior IV points (~6 months); 60 is a
+  sensitivity check, not the result. Display shows rank from ≥ 60 points (~3 months; newer names otherwise show nothing) and
+  the tooltip says how much history it rests on. Changed from 120 to 60 in 9bee247 without a note; this records it.
 - **Validation gate:** on overlap days (10-08 onward) the built IV must match Schwab chain IV with correlation ≥ 0.9 and median
   absolute error ≤ 3 vol points. If it fails, stop here.
 - **Question:** does true IV rank carry what S004's "IV rank" was meant to carry? (Today `technicals-math.ts` ivRank is a

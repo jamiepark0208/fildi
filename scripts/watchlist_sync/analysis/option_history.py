@@ -55,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_optlab_contracts ON optlab.contracts (underlying,
 CREATE TABLE IF NOT EXISTS optlab.chains_fetched (underlying text, expiry date, n int, fetched_at timestamptz DEFAULT now(),
   PRIMARY KEY (underlying, expiry));
 CREATE TABLE IF NOT EXISTS optlab.bars (occ text, date date, h real, c real, v real, PRIMARY KEY (occ, date));
+ALTER TABLE optlab.chains_fetched ADD COLUMN IF NOT EXISTS lo real, ADD COLUMN IF NOT EXISTS hi real;
 CREATE TABLE IF NOT EXISTS optlab.bars_fetched (occ text PRIMARY KEY, n int, fetched_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS optlab.underlying (ticker text, date date, o double precision, h double precision,
   l double precision, c double precision, v double precision, PRIMARY KEY (ticker, date));
@@ -132,19 +133,28 @@ def fetch_underlying(conn, t: str) -> None:
 
 
 def chain(conn, t: str, exp: date, ref: float | None = None) -> list[dict]:
-    """Listed contracts for (t, exp), one call; only strikes within ±30 % of `ref` (spot when the study enters) are stored."""
-    if not conn.execute("SELECT 1 FROM optlab.chains_fetched WHERE underlying = %s AND expiry = %s", (t, exp)).fetchone():
+    """Listed contracts for (t, exp), one call; only strikes within ±30 % of `ref` (spot when the study enters) are stored.
+    Re-fetches when a later study's ref needs strikes outside the stored window (±20 % of ref not covered) and keeps the
+    union (A110); rows from before lo/hi existed use the stored min/max strike as their window."""
+    have = conn.execute("""SELECT COALESCE(f.lo, MIN(c.strike)), COALESCE(f.hi, MAX(c.strike)) FROM optlab.chains_fetched f
+                           LEFT JOIN optlab.contracts c ON c.underlying = f.underlying AND c.expiry = f.expiry
+                           WHERE f.underlying = %s AND f.expiry = %s GROUP BY f.lo, f.hi""", (t, exp)).fetchone()
+    covered = have is not None and (not ref or (have[0] is not None and have[0] <= ref * 0.8 and have[1] >= ref * 1.2))
+    if not covered:
         res, path = [], f"/v3/reference/options/contracts?underlying_ticker={t}&expiration_date={exp}&expired=true&limit=1000"
         if exp >= TODAY:
             path = path.replace("&expired=true", "")
         d = get(path)
         res += d.get("results") or []
+        lo, hi = (ref * 0.7, ref * 1.3) if ref else (None, None)
         with conn.cursor() as cur:
             cur.executemany("INSERT INTO optlab.contracts VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                             [(r["ticker"], t, exp, r["contract_type"], float(r["strike_price"])) for r in res
                              if not ref or abs(float(r["strike_price"]) / ref - 1) <= 0.30])
-            cur.execute("INSERT INTO optlab.chains_fetched (underlying, expiry, n) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
-                        (t, exp, len(res)))
+            cur.execute("""INSERT INTO optlab.chains_fetched (underlying, expiry, n, lo, hi) VALUES (%s,%s,%s,%s,%s)
+                           ON CONFLICT (underlying, expiry) DO UPDATE SET n = excluded.n, fetched_at = now(),
+                           lo = LEAST(COALESCE(optlab.chains_fetched.lo, excluded.lo), excluded.lo),
+                           hi = GREATEST(COALESCE(optlab.chains_fetched.hi, excluded.hi), excluded.hi)""", (t, exp, len(res), lo, hi))
         conn.commit()
     return rows(conn, "SELECT occ, type, strike FROM optlab.contracts WHERE underlying = %s AND expiry = %s ORDER BY strike",
                 (t, exp))
@@ -157,7 +167,7 @@ def fetch_bars(conn, occ: str, exp: date) -> None:
     d = get(f"/v2/aggs/ticker/{occ}/range/1/day/{lo}/{exp}?adjusted=false&sort=asc&limit=50000")
     res = d.get("results") or []
     with conn.cursor() as cur:
-        cur.executemany("INSERT INTO optlab.bars VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+        cur.executemany("INSERT INTO optlab.bars (occ, date, h, c, v) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                         [(occ, day(r["t"]), r.get("h"), r.get("c"), r.get("v")) for r in res])
         cur.execute("INSERT INTO optlab.bars_fetched (occ, n) VALUES (%s,%s) ON CONFLICT DO NOTHING", (occ, len(res)))
     conn.commit()
