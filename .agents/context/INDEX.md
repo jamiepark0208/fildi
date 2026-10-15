@@ -15,6 +15,7 @@
 | Sector / peer scoring | `.agents/context/plans/fundamental-sector-scoring.md` | `.cursor/context/archive/` · `.cursor/plans/archive/` |
 | Fund-score treatments (profit/financial/style) | `.cursor/context/plans/fund-score-treatment-framework.md` | — |
 | Free API field inventories (CET1/FFO gaps) | `.agents/context/data-source-fields/INDEX.md` | — |
+| **Which API endpoints our keys can call (all sources, probed)** | `.agents/context/data-source-fields/endpoint-entitlements.md` | Re-researching vendor docs |
 | Desk commentaries (any labeled email → Live Daily News, JSON-only Drive) | `.agents/context/desk-commentaries.md` | — |
 | Schwab Market Data (options/quotes P0, RPM + 7d refresh) | `.agents/context/schwab-market-data.md` | — |
 | Efficiency (AI tokens, RPM, drift, compute) | `.agents/context/efficiency-playbook.md` | — |
@@ -34,7 +35,7 @@
 | API catalog | `.agents/context/api-endpoints.md` | — |
 | Workflow / build | `.agents/context/workflow.md` | — |
 | Agent routing | `.agents/AGENTS.md` | — |
-| Muse AI (live remote; Cursor owns handoffs) | `MUSE.md` · ASKS `Muse → Cursor` · pull `origin/cursor/mac-dev` | Cursor implements Muse rows (2026-10-07); Claude plan-reviews `[quant]` rows + reviews quant commits (2026-10-11, AGENTS.md § Review loop). ASKS = index + `research/common/asks/A##.md` |
+| Muse AI (live remote; Cursor owns handoffs) | `MUSE.md` · ASKS `Muse → Cursor` · pull `origin/cursor/mac-dev` | Cursor implements Muse rows (2026-10-07); Claude plan-reviews every Muse row (2026-10-14) + reviews quant commits (AGENTS.md § Review loop). ASKS = index + `research/common/asks/A##.md` |
 | Weekly ops checklist | `.cursor/skills/weekly-data-ops-check.md` | — |
 | Cursor lessons (grep) | `.cursor/context/lessons.md` | `lessons-archive.md` unless needed |
 | Claude memory (grep) | `.agents/memory/MEMORY.md` | Load whole memory dir |
