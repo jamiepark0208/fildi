@@ -159,6 +159,19 @@
 | POST | /api/auth/logout | public | Destroy session |
 | GET | /api/auth/me | requireAuth | Current user info |
 
+## PM / Portfolio Alerts / Stock context (Claude PM role, 2026-10-14)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | /api/pm/alerts | Latest Portfolio Alerts run (admin; `watchlist_sync.pm_alerts`) |
+| GET | /api/pm/names | Book names: LSEG short %, next earnings, latest call summary (admin) |
+| GET | /api/pm/book | Book card / expiry desk (admin; `watchlist_sync.pm_book_latest`, file fallback) |
+| GET | /api/stocks/:ticker/short-interest | Polygon short-interest history (stored, 7-day refresh) + LSEG current % float |
+| GET | /api/stocks/:ticker/earnings-call | Summarized earnings calls + LSEG street (Breakdown › Earnings calls) |
+| GET | /api/fair-value/:ticker/assumptions | Shared rules, cohort, inputs + last changed, judgement rows, FV history |
+| GET | /api/fair-value/:ticker/assumptions/history?field= | Every value of one input + its overrides |
+| POST | /api/fair-value/assumptions | New proposed/active override (admin; reason ≥ 5 chars; expiry = next earnings) |
+| POST | /api/fair-value/assumptions/:id | accept / reject / retire (admin) → recompute |
+
 ## Admin
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -181,6 +194,9 @@ routes/daily-brief.ts      → /api/daily-brief/*
 routes/data-health.ts      → /api/admin/data-health
 routes/enrichment-runs.ts  → /api/admin/enrichment-runs
 routes/explain.ts          → /api/explain/*
+routes/pm-alerts.ts        → /api/pm/{alerts,names,book}
+routes/stock-context.ts    → /api/stocks/:ticker/{short-interest,earnings-call}
+routes/fair-value-assumptions.ts → /api/fair-value/:ticker/assumptions*, /api/fair-value/assumptions*
 routes/feed.ts             → /api/feed/*
 routes/fundamentals.ts     → /api/fundamentals/* (rankings, status, refresh)
 routes/fundamentals-provenance.ts → /api/fundamentals/provenance/*, /api/fundamentals/override*

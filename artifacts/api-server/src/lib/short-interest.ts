@@ -10,6 +10,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { logger } from "./logger.js";
+import { recordApiUsage } from "./api-usage.js";
 
 type SqlRows<T> = T[] | { rows?: T[] };
 const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
@@ -47,6 +48,7 @@ async function fetchPolygon(ticker: string): Promise<void> {
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   const url = `https://api.polygon.io/stocks/v1/short-interest?ticker=${encodeURIComponent(ticker)}&limit=1000&sort=settlement_date.asc&apiKey=${key}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  void recordApiUsage("polygon", 1).catch(() => {});
   if (!res.ok) {
     logger.warn({ ticker, status: res.status }, "short-interest: polygon fetch failed");
     return;

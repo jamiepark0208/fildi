@@ -75,6 +75,8 @@ export const EXPECTED_LAUNCH_AGENTS = [
   "com.fildi.stack-ensure",
   "com.fildi.rbh-daily-export",
   "com.fildi.rbh-export-prompt",
+  "com.fildi.pm-alerts",
+  "com.fildi.transcripts",
 ] as const;
 
 /** Static catalog — keep in sync with buildTasks ids (catalog rows only). */
@@ -184,6 +186,20 @@ const INVENTORY_SPEC: Record<
     writes: ["wrds_research.crsp_dsf"],
     mutex: "Duo / WRDS session",
     cadence: "quarterly",
+    primary: true,
+  },
+  "pm-alerts": {
+    owner: "launchd · com.fildi.pm-alerts → pm_alerts.py (+ pm_book --live)",
+    writes: ["watchlist_sync.pm_alerts", "watchlist_sync.pm_book_latest"],
+    mutex: "none (read-only Schwab quotes; self-throttles: 15 min market hours, 2 h otherwise)",
+    cadence: "every 15 min (wakes) · runs 15 min 6:30–1:15 PT, 2 h otherwise",
+    primary: true,
+  },
+  transcripts: {
+    owner: "launchd · com.fildi.transcripts → transcripts.py",
+    writes: ["watchlist_sync.earnings_transcripts", "watchlist_sync.transcript_checks", "api_usage (av/finnhub/anthropic)"],
+    mutex: "AV budget 25/day (reserve 5)",
+    cadence: "daily 5:30 AM PT",
     primary: true,
   },
   "rbh-export": {
@@ -335,6 +351,10 @@ export function detectOpsAlerts(opts: {
         detail: `${label}.plist not found under ~/Library/LaunchAgents.`,
         taskIds: label.includes("rbh-export-prompt")
           ? ["rbh-export"]
+          : label.includes("pm-alerts")
+            ? ["pm-alerts"]
+            : label.includes("transcripts")
+              ? ["transcripts"]
           : label.includes("rbh-daily")
             ? ["rbh-ingest"]
             : label.includes("stack")
@@ -345,6 +365,10 @@ export function detectOpsAlerts(opts: {
             ? "scripts/install-stack-ensure-launchd.sh"
             : label === "com.fildi.maintain"
               ? "scripts/install-maintenance-launchd.sh"
+              : label === "com.fildi.pm-alerts"
+                ? "scripts/install-pm-alerts-launchd.sh"
+                : label === "com.fildi.transcripts"
+                  ? "scripts/install-transcripts-launchd.sh"
               : "Reinstall from ~/rbh_scripts / install scripts",
       });
     }

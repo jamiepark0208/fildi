@@ -1,7 +1,7 @@
 /**
  * GET /api/pm/alerts → latest Portfolio Alerts run (Live › Portfolio Alerts).
  * GET /api/pm/names  → "Your names": short interest (LSEG), next earnings, latest earnings-call summary (transcripts.py).
- * GET /api/pm/book   → book-latest.json (A76 Book card / Expiry desk).
+ * GET /api/pm/book   → watchlist_sync.pm_book_latest (written each pm_alerts run); book-latest.json fallback (A76 Book card / Expiry desk).
  * Written by scripts/watchlist_sync/pm_alerts.py + pm_book.py (Claude, PM role); this route only reads.
  */
 import { Router } from "express";
@@ -37,10 +37,12 @@ function readPmBook(): unknown | null {
   }
 }
 
-router.get("/pm/book", requireAdmin, (_req, res) => {
-  const book = readPmBook();
-  if (!book) return res.json({ book: null });
-  return res.json({ book });
+router.get("/pm/book", requireAdmin, async (_req, res) => {
+  try {
+    const row = rowsOf<{ book: unknown }>((await db.execute(sql`SELECT book FROM watchlist_sync.pm_book_latest WHERE id = 1`)) as SqlRows<never>)[0];
+    if (row?.book) return res.json({ book: row.book });
+  } catch { /* table not created yet → file */ }
+  return res.json({ book: readPmBook() });
 });
 
 router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {

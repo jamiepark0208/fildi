@@ -92,6 +92,19 @@ const RBH_LOG = join(homedir(), "rbh_scripts/logs/daily_export.log");
 const RBH_LAST = join(homedir(), "rbh_scripts/logs/last_run.json");
 const RBH_SCRIPT = join(homedir(), "rbh_scripts/daily_export.sh");
 const RBH_EXPORT_PROMPT_LAST = join(homedir(), "rbh_scripts/logs/export_prompt_last.json");
+/** PM jobs (Claude, PM role): each writes {ts, ok, detail} after a run. */
+const PM_ALERTS_LAST = "/tmp/fildi-logs/pm-alerts-last.json";
+const TRANSCRIPTS_LAST = "/tmp/fildi-logs/transcripts-last.json";
+const PM_PY = join(ROOT, "scripts/watchlist_sync/.venv/bin/python");
+function readLast(path: string): { ts: string; ok: boolean; detail: string } | null {
+  try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; }
+}
+function pmJobStatus(last: { ts: string; ok: boolean } | null, maxAgeH: number, label: string): TaskStatus {
+  if (launchdState(label) !== "loaded") return "off";
+  if (!last) return "never";
+  if (!last.ok) return "failed";
+  return Date.now() - new Date(last.ts).getTime() > maxAgeH * 3_600_000 ? "warn" : "ok";
+}
 
 /** Same labels as Live RegimeBanner — keep in sync with regime-banner.tsx */
 const CHECKPOINT_TIME_PT: Record<number, string> = {
@@ -1383,6 +1396,60 @@ function buildTasks(
           : [],
       }, pt);
     })(),
+    (() => {
+      const last = readLast(PM_ALERTS_LAST);
+      const ld = launchdState("com.fildi.pm-alerts");
+      return withToday({
+        id: "pm-alerts",
+        name: "Portfolio Alerts",
+        summary: "Book odds → Live › Portfolio Alerts",
+        purpose: "pm_book --live (Schwab quotes) → Monte Carlo odds of margin call / assignment > cash / crash budget → bullets only when a level changes. Also stores the Book card (pm_book_latest).",
+        schedule: "Every 15 min 6:30 AM–1:15 PM PT · every 2 h otherwise",
+        frequencyRank: 5,
+        frequency: "intraday",
+        lastRun: last?.ts ?? null,
+        running: false,
+        runner: "launchd",
+        status: pmJobStatus(last, 3, "com.fildi.pm-alerts"),
+        canRun: true,
+        canToggle: true,
+        enabled: ld === "loaded",
+        detail: last?.detail ?? null,
+        outcome: last?.detail ?? null,
+        logFiles: [PM_ALERTS_LAST, "/tmp/fildi-logs/pm-alerts.err"],
+        dueToday: true,
+        dueTimeLabel: "every 15 min",
+        dueMinutesPt: null,
+        verifyChecks: [vcheck(ld === "loaded", "LaunchAgent loaded", "scripts/install-pm-alerts-launchd.sh")],
+      }, pt);
+    })(),
+    (() => {
+      const last = readLast(TRANSCRIPTS_LAST);
+      const ld = launchdState("com.fildi.transcripts");
+      return withToday({
+        id: "transcripts",
+        name: "Earnings Call Transcripts",
+        summary: "AV transcripts → Haiku summary (≤ 20/day)",
+        purpose: "Rotates book names → plan names → model universe through the Alpha Vantage 25/day budget; summarizes guidance, model inputs, tone. Feeds Breakdown › Earnings calls and Portfolio Alerts › Your names.",
+        schedule: "Daily 5:30 AM PT",
+        frequencyRank: 20,
+        frequency: "daily",
+        lastRun: last?.ts ?? null,
+        running: false,
+        runner: "launchd",
+        status: pmJobStatus(last, 30, "com.fildi.transcripts"),
+        canRun: true,
+        canToggle: true,
+        enabled: ld === "loaded",
+        detail: last?.detail ?? null,
+        outcome: last?.detail ?? null,
+        logFiles: [TRANSCRIPTS_LAST, "/tmp/fildi-logs/transcripts.err"],
+        dueToday: true,
+        dueTimeLabel: "5:30 AM PT",
+        dueMinutesPt: 5 * 60 + 30,
+        verifyChecks: [vcheck(ld === "loaded", "LaunchAgent loaded", "scripts/install-transcripts-launchd.sh")],
+      }, pt);
+    })(),
     withToday({
       id: "enrichment-api",
       name: "In-process Enrichment",
@@ -1658,6 +1725,19 @@ router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => 
       res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached" });
       return;
     }
+    if (id === "pm-alerts" || id === "transcripts") {
+      const script = join(ROOT, "scripts/watchlist_sync", id === "pm-alerts" ? "pm_alerts.py" : "transcripts.py");
+      const child = spawn(PM_PY, id === "pm-alerts" ? [script, "--now"] : [script], {
+        cwd: join(ROOT, "scripts/watchlist_sync"),
+        detached: true,
+        stdio: "ignore",
+        env: process.env,
+      });
+      child.unref();
+      res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached" });
+      return;
+    }
+
     if (id === "rbh-ingest") {
       if (!existsSync(RBH_SCRIPT)) {
         res.status(500).json({ error: "daily_export.sh missing", path: RBH_SCRIPT });
@@ -1739,6 +1819,8 @@ router.post("/admin/scheduled-tasks/:id/enable", requireAdmin, (req, res) => {
       : id === "stack-ensure" ? "com.fildi.stack-ensure"
       : id === "rbh-ingest" ? "com.fildi.rbh-daily-export"
       : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
+      : id === "pm-alerts" ? "com.fildi.pm-alerts"
+      : id === "transcripts" ? "com.fildi.transcripts"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });
@@ -1772,6 +1854,8 @@ router.post("/admin/scheduled-tasks/:id/disable", requireAdmin, (req, res) => {
       : id === "stack-ensure" ? "com.fildi.stack-ensure"
       : id === "rbh-ingest" ? "com.fildi.rbh-daily-export"
       : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
+      : id === "pm-alerts" ? "com.fildi.pm-alerts"
+      : id === "transcripts" ? "com.fildi.transcripts"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });

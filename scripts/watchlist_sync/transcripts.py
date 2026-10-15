@@ -20,7 +20,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 
 from build_plan import connect, rows
 
@@ -73,14 +73,19 @@ def get_json(url: str, timeout: int = 60, data: bytes | None = None, headers: di
 
 
 def av_used_today(conn) -> int:
-    r = conn.execute("SELECT calls_made FROM api_usage WHERE source = 'av' AND date = CURRENT_DATE").fetchone()
+    r = conn.execute("SELECT calls_made FROM api_usage WHERE source = 'av' AND date = (now() AT TIME ZONE 'America/Los_Angeles')::date").fetchone()
     return r[0] if r else 0
 
 
-def av_count(conn) -> None:
-    conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES ('av', CURRENT_DATE, 1, now())
-                    ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + 1, updated_at = now()""")
+def usage(conn, source: str) -> None:
+    """One call → api_usage (Settings › API Monitor; same table every client writes)."""
+    conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES (%s, (now() AT TIME ZONE 'America/Los_Angeles')::date, 1, now())
+                    ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + 1, updated_at = now()""", (source,))
     conn.commit()
+
+
+def av_count(conn) -> None:
+    usage(conn, "av")
 
 
 def queue(conn) -> list[tuple[int, str]]:
@@ -102,7 +107,11 @@ def queue(conn) -> list[tuple[int, str]]:
     return out
 
 
+_CALLS: dict[str, int] = {}  # anthropic / finnhub calls this run → api_usage at the end
+
+
 def latest_quarter(ticker: str) -> str | None:
+    _CALLS["finnhub"] = _CALLS.get("finnhub", 0) + 1
     d = get_json(f"https://finnhub.io/api/v1/stock/earnings?symbol={urllib.parse.quote(ticker)}&token={env('FINNHUB_API_KEY')}", 30)
     done = [x for x in d if isinstance(x, dict) and x.get("actual") is not None and x.get("year") and x.get("quarter")] if isinstance(d, list) else []
     return f"{done[0]['year']}Q{done[0]['quarter']}" if done else None
@@ -142,6 +151,7 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
         text = text[: MAX_CHARS - 15_000] + "\n…\n" + text[-15_000:]
     body = json.dumps({"model": MODEL, "max_tokens": 3500,
                        "messages": [{"role": "user", "content": PROMPT.format(ticker=ticker, quarter=quarter, text=text)}]}).encode()
+    _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
     r = get_json("https://api.anthropic.com/v1/messages", 120, body,
                  {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
     out = "".join(c.get("text", "") for c in r.get("content", []))
@@ -234,7 +244,18 @@ def main() -> None:
     latest_pass([x for x in q if x[0] == 1])
     backfill_pass()
     latest_pass([x for x in q if x[0] > 1])
-    print(f"{date.today()}: fetched {fetched}, AV budget left {budget}")
+    for src, n in _CALLS.items():
+        conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES (%s, (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
+                        ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made, updated_at = now()""", (src, n))
+    conn.commit()
+    msg = f"fetched {fetched}, AV budget left {budget}"
+    try:
+        os.makedirs("/tmp/fildi-logs", exist_ok=True)
+        with open("/tmp/fildi-logs/transcripts-last.json", "w") as fh:  # Settings › Scheduled Tasks reads this
+            json.dump({"ts": datetime.now().astimezone().isoformat(timespec="seconds"), "ok": True, "detail": msg}, fh)
+    except OSError:
+        pass
+    print(f"{date.today()}: {msg}")
 
 
 if __name__ == "__main__":

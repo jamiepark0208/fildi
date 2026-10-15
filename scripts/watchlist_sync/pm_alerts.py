@@ -13,7 +13,8 @@ How it decides (probabilistic core, deterministic thresholds the user owns):
   The crash-week budget (25% red / 20% amber, user 2026-10-14) is a scenario, not a probability: stated as "if", never as odds.
 
 Schedule: LaunchAgent com.fildi.pm-alerts (every 15 min); this script runs every call in market hours (06:30–13:15 PT weekdays) and at
-most every 2 h otherwise. Output: table watchlist_sync.pm_alerts (one row per run, payload jsonb) → GET /api/pm/alerts.
+most every 2 h otherwise. Output: table watchlist_sync.pm_alerts (one row per run) → GET /api/pm/alerts; the full book → watchlist_sync.pm_book_latest
+(one row) → GET /api/pm/book (Portfolio › Book card). Last run → /tmp/fildi-logs/pm-alerts-last.json (Settings › Scheduled Tasks).
 
     .venv/bin/python pm_alerts.py           # scheduled run (skips when not due)
     .venv/bin/python pm_alerts.py --now     # run now and print the bullets
@@ -32,6 +33,7 @@ from zoneinfo import ZoneInfo
 from build_plan import connect, rows
 
 HERE = Path(__file__).resolve().parent
+LAST_RUN = Path("/tmp/fildi-logs/pm-alerts-last.json")  # Settings › Scheduled Tasks reads this
 OUT = HERE / "out" / "pm"
 PT = ZoneInfo("America/Los_Angeles")
 RHO = 0.6          # calibrated to S015 expiry clustering (see docstring)
@@ -42,9 +44,19 @@ THRESH = {          # defaults pending user tuning
     "assign_listed": 0.50,                      # list a put in the expiry bullet when P(assign) ≥ this and ≤ 2 trading days left
 }
 DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.pm_alerts (
-  id serial PRIMARY KEY, generated_at timestamptz NOT NULL DEFAULT now(), payload jsonb NOT NULL)"""
+  id serial PRIMARY KEY, generated_at timestamptz NOT NULL DEFAULT now(), payload jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS watchlist_sync.pm_book_latest (
+  id int PRIMARY KEY CHECK (id = 1), generated_at timestamptz NOT NULL, book jsonb NOT NULL)"""
 f = lambda v: f"${v:,.0f}"  # noqa: E731
 LEVEL = {"green": 0, "amber": 1, "red": 2}
+
+
+def write_last(ok: bool, detail: str, now: datetime) -> None:
+    try:
+        LAST_RUN.parent.mkdir(parents=True, exist_ok=True)
+        LAST_RUN.write_text(json.dumps({"ts": now.isoformat(timespec="seconds"), "ok": ok, "detail": detail}))
+    except OSError:
+        pass
 
 
 def market_hours(now: datetime) -> bool:
@@ -155,6 +167,9 @@ def bullets(book: dict, sims: dict) -> list[dict]:
                 names = ", ".join(f"{p['ticker']} {p['strike']:g}P {p['p_assign']:.0%}" for p in top[:5]) + (f" +{len(top) - 5} more" if len(top) > 5 else "")
                 out.append({"key": f"{acct}:expiry", "level": "amber", "value": len(likely),
                             "text": f"{acct}: likely assigned {s['expiry'][5:]}: {names}; cash needed if all {f(sum(p['assign_cash'] for p in likely))}."})
+        if b.get("unknown_puts"):
+            out.append({"key": f"{acct}:unknown", "level": "amber", "value": b["unknown_puts"],
+                        "text": f"{acct}: {b['unknown_puts']} put(s) have no price, so they are left out of the odds above (risk understated)."})
         drop, rules = b.get("crash_drop_pct") or 0, book["rules"]
         if drop > rules["crash_warn"]:
             out.append({"key": f"{acct}:crash", "level": "red" if drop > rules["crash_budget"] else "amber", "value": drop,
@@ -166,7 +181,8 @@ def bullets(book: dict, sims: dict) -> list[dict]:
 def main() -> None:
     now = datetime.now(PT)
     conn = connect()
-    conn.execute(DDL)
+    for stmt in DDL.split(";"):
+        conn.execute(stmt)
     conn.commit()
     if "--now" not in sys.argv and not due(conn, now):
         return
@@ -184,6 +200,7 @@ def main() -> None:
         conn.commit()
         if "--now" in sys.argv:
             print(f"[amber] Book check failed: {err}")
+        write_last(False, f"pm_book failed: {err[:120]}", now)
         return
     book = json.loads((OUT / "book-latest.json").read_text())
     acct_ids = {"IRA": "772445425", "FILDI": "5QU47796"}
@@ -207,7 +224,10 @@ def main() -> None:
                "accounts": {a: {"status": b["status"], **({"risk": sims[a]["risk"], "expiry": sims[a]["expiry"]} if sims.get(a) else {})}
                             for a, b in book["accounts"].items()}}
     conn.execute("INSERT INTO watchlist_sync.pm_alerts (payload) VALUES (%s)", (json.dumps(payload, default=str),))
+    conn.execute("""INSERT INTO watchlist_sync.pm_book_latest (id, generated_at, book) VALUES (1, now(), %s)
+                    ON CONFLICT (id) DO UPDATE SET generated_at = now(), book = excluded.book""", (json.dumps(book, default=str),))
     conn.commit()
+    write_last(True, f"{len(bl)} bullet(s) · {payload['prices']}", now)
     if "--now" in sys.argv:
         for x in bl:
             print(f"[{x['level']}{' · ' + x['change'] if x['change'] else ''}] {x['text']}")
