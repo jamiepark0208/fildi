@@ -1,4 +1,4 @@
-# S015 — trade mistakes vs bad luck (2026-10-14)
+# S015 — trade mistakes vs bad luck (2026-10-15)
 
 Trades: 935 filled sell-to-open puts with an expiry close (2026-02-02 → 2026-10-09), 198 ended ITM (21%). Hold-to-expiry P&L mean +0.36% of collateral, worst -10.4%.
 
@@ -31,7 +31,7 @@ Pattern = Holm p < 0.05 and same sign in both halves. Week-cluster bootstrap.
 | feature | n | IC | p | Holm p | 1st half | 2nd half | pattern | detail |
 |---|---|---|---|---|---|---|---|---|
 | IV ÷ realized vol (rich premium) | 926 | +0.074 | 0.198 | 0.792 | +0.047 | +0.126 | no | low third P&L +0.34% ITM 19% · high third P&L +0.50% ITM 20% |
-| earnings before expiry | 935 | +0.248 | 0.000 | 0.000 | +0.298 | +0.196 | **yes** | yes n=104 P&L +1.42% ITM 5% · no n=831 P&L +0.23% ITM 23% |
+| earnings before expiry | 935 | +0.196 | 0.023 | 0.207 | +0.271 | +0.075 | no | yes n=63 P&L +1.59% ITM 8% · no n=872 P&L +0.27% ITM 22% |
 | 5-day return before entry (dip = negative) | 935 | -0.107 | 0.112 | 0.672 | -0.212 | -0.061 | no | low third P&L +0.62% ITM 17% · high third P&L +0.02% ITM 25% |
 | price vs 200-day average | 935 | +0.019 | 0.731 | 1.000 | -0.003 | +0.065 | no | low third P&L +0.43% ITM 23% · high third P&L +0.41% ITM 20% |
 | SPY vs its 50-day average | 935 | -0.138 | 0.127 | 0.672 | -0.267 | -0.067 | no | low third P&L +0.82% ITM 12% · high third P&L +0.00% ITM 26% |

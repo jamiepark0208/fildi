@@ -74,15 +74,20 @@ def closes(conn, t: str) -> tuple[list[date], list[float]]:
 
 def earnings_moves(conn) -> int:
     n = 0
+    conn.execute("DELETE FROM optlab.earnings_moves")
     legs = rows(conn, """SELECT key, MAX(occ) FILTER (WHERE role = 'atm_put') AS p, MAX(occ) FILTER (WHERE role = 'atm_call') AS c,
                                 MAX(occ) FILTER (WHERE role = 'expiry') AS e
                          FROM optlab.legs WHERE study = 'earnings' GROUP BY key""")
     cache: dict[str, tuple[list[date], list[float]]] = {}
+    lseg = {(t, d) for t, d in conn.execute("SELECT ticker, report_date FROM lseg_research.earnings_moves").fetchall()}
+    lseg_names = {t for t, _ in lseg}
     for g in legs:
         if not (g["p"] and g["c"] and g["e"]):
             continue
         t, rd = g["key"].split("|")
         rd = date.fromisoformat(rd)
+        if rd.strftime("%m-%d") in ("03-31", "06-30", "09-30", "12-31") or (t in lseg_names and (t, rd) not in lseg):
+            continue  # not a real report date: fiscal period end (A98) or a calendar date LSEG contradicts
         ds, cs = cache.setdefault(t, closes(conn, t))
         i = bisect_left(ds, rd)  # ds[i-1] = last close before the report; first close after = ds[j]
         j = i + 1 if i < len(ds) and ds[i] == rd else i
@@ -129,7 +134,7 @@ def iv30(conn) -> int:
                 m = sum(lr) / 20
                 rv = math.sqrt(sum((x - m) ** 2 for x in lr) / 19 * 252)
             past = [cands[x][1] for x in days if d - timedelta(days=365) <= x <= d]
-            rank = sum(1 for x in past if x < cands[d][1]) / (len(past) - 1) if len(past) >= 120 else None
+            rank = sum(1 for x in past if x < cands[d][1]) / (len(past) - 1) if len(past) >= 60 else None
             conn.execute("""INSERT INTO optlab.iv30 VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (ticker, date) DO UPDATE SET
                             iv = excluded.iv, rv20 = excluded.rv20, iv_rank = excluded.iv_rank, occ = excluded.occ""",
                          (t, d, cands[d][1], rv, rank, cands[d][2]))

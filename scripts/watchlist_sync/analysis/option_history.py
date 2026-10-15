@@ -235,9 +235,17 @@ def fridays_after(d: date, n: int) -> list[date]:
 
 
 def run_earnings(conn, tickers: list[str]) -> None:
-    ev = rows(conn, """SELECT DISTINCT UPPER(ticker) AS t, report_date AS d FROM earnings_calendar
-                       WHERE UPPER(ticker) = ANY(%s) AND report_date BETWEEN %s AND %s ORDER BY d DESC""",
-              (tickers, START + timedelta(days=30), TODAY - timedelta(days=3)))
+    # Report dates: LSEG first (true announcement dates); earnings_calendar only for names LSEG lacks, minus fiscal period ends
+    # that the earnings backfill stores as report dates (A98) — POET: LSEG 08-13 vs calendar 08-19 / 06-30.
+    ev = rows(conn, """SELECT ticker AS t, report_date AS d FROM lseg_research.earnings_moves
+                       WHERE ticker = ANY(%(t)s) AND report_date BETWEEN %(a)s AND %(b)s
+                       UNION
+                       SELECT UPPER(ticker), report_date FROM earnings_calendar c
+                       WHERE UPPER(ticker) = ANY(%(t)s) AND report_date BETWEEN %(a)s AND %(b)s
+                         AND to_char(report_date, 'MM-DD') NOT IN ('03-31', '06-30', '09-30', '12-31')
+                         AND NOT EXISTS (SELECT 1 FROM lseg_research.earnings_moves m WHERE m.ticker = UPPER(c.ticker))
+                       ORDER BY d DESC""",
+              {"t": tickers, "a": START + timedelta(days=30), "b": TODAY - timedelta(days=3)})
     for i, e in enumerate(ev):
         t, d = e["t"], e["d"]
         s = spot(conn, t, d - timedelta(days=1))
@@ -259,9 +267,9 @@ def run_earnings(conn, tickers: list[str]) -> None:
 
 def third_fridays() -> list[date]:
     out, d = [], date(START.year, START.month, 1)
-    while d < TODAY:
+    while d < TODAY + timedelta(days=60):
         f = d + timedelta(days=(4 - d.weekday()) % 7 + 14)
-        if START + timedelta(days=45) <= f < TODAY:
+        if START + timedelta(days=45) <= f < TODAY + timedelta(days=60):  # incl. the next 2 monthlies → IV "today"
             out.append(f)
         d = date(d.year + (d.month == 12), d.month % 12 + 1, 1)
     return out
