@@ -35,6 +35,8 @@ import {
   type ClassificationTagType, type WatchlistTagEntry,
 } from "./breakdown/stock-breakdown-parts";
 import { MemoHeader } from "./breakdown/memo-header";
+import { ShortInterestPanel } from "./breakdown/short-interest-panel";
+import { EarningsCallPanel } from "./breakdown/earnings-call-panel";
 
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -581,6 +583,14 @@ export function StockBreakdown({
                       {hasSentiment ? (
                         <MarketSentimentSection recs={data.recommendations} />
                       ) : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel title="Short interest" empty="No short-interest data." scrollMax="max-h-[260px]">
+                      {activeTicker ? <ShortInterestPanel ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel title="Earnings call" empty="No call summary yet." scrollMax="max-h-[260px]">
+                      {activeTicker ? <EarningsCallPanel ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
                     {/* News / Score history / Accounting — one dig panel with sub-tabs */}

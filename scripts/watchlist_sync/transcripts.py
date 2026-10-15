@@ -31,16 +31,27 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.earnings_transcripts (
   ticker text NOT NULL, quarter text NOT NULL, status text NOT NULL, fetched_at timestamptz NOT NULL DEFAULT now(),
   segments int, av_sentiment float8, transcript jsonb, summary jsonb, summary_model text, PRIMARY KEY (ticker, quarter));
 CREATE TABLE IF NOT EXISTS watchlist_sync.transcript_checks (ticker text PRIMARY KEY, checked_at timestamptz NOT NULL, quarter text)"""
-PROMPT = """You are summarizing an earnings call for a trader who sells weekly cash-secured puts on this stock.
-Return ONLY a JSON object with these keys:
- "guidance": revenue/EPS outlook vs prior: one of "raised","maintained","lowered","withdrawn","initiated","none" (cost/opex cuts are not "lowered");
- "guidance_detail": short string (numbers if given);
- "tone": integer -2..2 (management confidence vs last quarter if mentioned);
+SCHEMA_VERSION = 2
+PROMPT = """You are an equity analyst extracting model inputs from an earnings call, for a trader who sells weekly puts and keeps an
+FCF / fair-value model on this stock. Return ONLY one JSON object, every string ≤ 25 words, numbers as plain numbers (USD in millions,
+percents as 12.5 for 12.5%). Use null when the call doesn't say. No advice.
+Keys:
+ "guidance": revenue/EPS outlook vs prior: "raised","maintained","lowered","withdrawn","initiated","none" (cost/opex cuts are not "lowered");
+ "guidance_detail": short string;
+ "guidance_items": list of {{"metric": "revenue"|"eps"|"ebitda"|"gross_margin"|"op_margin"|"fcf"|"capex"|"opex"|"other",
+     "label": short name, "period": "FY2026" or "Q4 FY2026" style (fiscal), "low": number|null, "high": number|null, "unit": "usd_m"|"usd_per_share"|"pct"|"other",
+     "prior_low": number|null, "prior_high": number|null}};
+ "model_inputs": {{"revenue_growth_pct": number|null, "gross_margin_pct": number|null, "op_margin_pct": number|null,
+     "capex_usd_m": number|null, "fcf_usd_m": number|null, "period": string|null, "note": short string}} — management's stated or implied figures for the
+     next fiscal year; null if not stated (do not invent);
+ "kpis": up to 4 {{"name": short, "value": short string, "change": short string}} — company-specific operating metrics (backlog, bookings, ARR, units…);
+ "tone_prepared": integer -2..2; "tone_qa": integer -2..2 (management under analyst questioning);
+ "analyst_concerns": up to 3 short strings (what analysts pushed on);
  "demand": short string; "margins": short string;
- "financing": short string about capital raises, ATM programs, converts, cash runway or dilution ("none mentioned" if none);
+ "financing": capital raises, ATM, converts, buybacks, cash runway, dilution ("none mentioned" if none);
  "risks": up to 3 short strings; "catalysts": up to 3 short strings with dates if given;
  "bullets": exactly 5 short bullets a trader needs, most important first.
-Every string ≤ 20 words. Be factual; no advice. Ticker {ticker}, fiscal quarter {quarter}.
+Ticker {ticker}, fiscal quarter {quarter}.
 
 TRANSCRIPT:
 {text}"""
@@ -97,11 +108,39 @@ def latest_quarter(ticker: str) -> str | None:
     return f"{done[0]['year']}Q{done[0]['quarter']}" if done else None
 
 
+def prev_quarter(q: str) -> str:
+    y, n = int(q[:4]), int(q[5])
+    return f"{y - 1}Q4" if n == 1 else f"{y}Q{n - 1}"
+
+
+def fetch_store(conn, t: str, quarter: str) -> str:
+    """One AV call → stored row. Returns 'ok' | 'empty' | 'limit' | 'error'."""
+    try:
+        d = get_json("https://www.alphavantage.co/query?" + urllib.parse.urlencode(
+            {"function": "EARNINGS_CALL_TRANSCRIPT", "symbol": t, "quarter": quarter, "apikey": env("ALPHA_VANTAGE_API_KEY")}), 100)
+    except Exception:  # noqa: BLE001
+        return "error"
+    av_count(conn)
+    if isinstance(d, dict) and ("Information" in d or "Note" in d):
+        return "limit"
+    segs = (d.get("transcript") or []) if isinstance(d, dict) else []
+    sent = [float(x["sentiment"]) for x in segs if x.get("sentiment") not in (None, "")]
+    summary = summarize(t, quarter, segs) if segs else None
+    if summary:
+        summary["schema"] = SCHEMA_VERSION
+    conn.execute("""INSERT INTO watchlist_sync.earnings_transcripts (ticker, quarter, status, segments, av_sentiment, transcript, summary, summary_model)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (ticker, quarter) DO NOTHING""",
+                 (t, quarter, "ok" if segs else "empty", len(segs), sum(sent) / len(sent) if sent else None,
+                  json.dumps(segs) if segs else None, json.dumps(summary) if summary else None, MODEL if summary else None))
+    conn.commit()
+    return "ok" if segs else "empty"
+
+
 def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
     text = "\n".join(f"{s.get('speaker', '')} ({s.get('title', '')}): {s.get('content', '')}" for s in segs)
     if len(text) > MAX_CHARS:
         text = text[: MAX_CHARS - 15_000] + "\n…\n" + text[-15_000:]
-    body = json.dumps({"model": MODEL, "max_tokens": 2500,
+    body = json.dumps({"model": MODEL, "max_tokens": 3500,
                        "messages": [{"role": "user", "content": PROMPT.format(ticker=ticker, quarter=quarter, text=text)}]}).encode()
     r = get_json("https://api.anthropic.com/v1/messages", 120, body,
                  {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
@@ -114,9 +153,11 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
 
 def resummarize(conn) -> None:
     """Summaries that failed (or a prompt change): re-run from stored transcripts; no AV calls."""
-    for r in rows(conn, "SELECT ticker, quarter, transcript FROM watchlist_sync.earnings_transcripts WHERE status = 'ok' AND summary IS NULL"):
+    for r in rows(conn, """SELECT ticker, quarter, transcript FROM watchlist_sync.earnings_transcripts
+                         WHERE status = 'ok' AND (summary IS NULL OR COALESCE((summary->>'schema')::int, 1) < %s)""", (SCHEMA_VERSION,)):
         s = summarize(r["ticker"], r["quarter"], r["transcript"])
         if s:
+            s["schema"] = SCHEMA_VERSION
             conn.execute("UPDATE watchlist_sync.earnings_transcripts SET summary = %s, summary_model = %s WHERE ticker = %s AND quarter = %s",
                          (json.dumps(s), MODEL, r["ticker"], r["quarter"]))
             conn.commit()
@@ -138,38 +179,61 @@ def main() -> None:
         print(" ".join(f"{t}:{n}" for t, n in q[:40]))
         return
     fetched = 0
-    for tier, t in q:
-        if budget <= 0:
-            break
-        try:
-            quarter = latest_quarter(t)
-        except Exception:  # noqa: BLE001
-            continue
-        time.sleep(1.1)  # Finnhub 60/min
-        conn.execute("""INSERT INTO watchlist_sync.transcript_checks (ticker, checked_at, quarter) VALUES (%s, now(), %s)
-                        ON CONFLICT (ticker) DO UPDATE SET checked_at = now(), quarter = excluded.quarter""", (t, quarter))
-        conn.commit()
-        if not quarter or (t, quarter) in have:
-            continue
-        try:
-            d = get_json("https://www.alphavantage.co/query?" + urllib.parse.urlencode(
-                {"function": "EARNINGS_CALL_TRANSCRIPT", "symbol": t, "quarter": quarter, "apikey": env("ALPHA_VANTAGE_API_KEY")}), 100)
-        except Exception:  # noqa: BLE001
-            continue
-        av_count(conn)
-        budget -= 1
-        if isinstance(d, dict) and ("Information" in d or "Note" in d):
-            break  # AV says the daily limit is hit
-        segs = d.get("transcript") or [] if isinstance(d, dict) else []
-        sent = [float(s["sentiment"]) for s in segs if s.get("sentiment") not in (None, "")]
-        summary = summarize(t, quarter, segs) if segs else None
-        conn.execute("""INSERT INTO watchlist_sync.earnings_transcripts (ticker, quarter, status, segments, av_sentiment, transcript, summary, summary_model)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (ticker, quarter) DO NOTHING""",
-                     (t, quarter, "ok" if segs else "empty", len(segs), sum(sent) / len(sent) if sent else None,
-                      json.dumps(segs) if segs else None, json.dumps(summary) if summary else None, MODEL if summary else None))
-        conn.commit()
-        fetched += 1
-        time.sleep(1.5)
+    # order: book names' latest call → book names' prior 3 calls (tone/guidance trend) → everyone else's latest
+    def latest_pass(items):
+        nonlocal budget, fetched
+        for tier, t in items:
+            if budget <= 0:
+                break
+            try:
+                quarter = latest_quarter(t)
+            except Exception:  # noqa: BLE001
+                continue
+            time.sleep(1.1)  # Finnhub 60/min
+            conn.execute("""INSERT INTO watchlist_sync.transcript_checks (ticker, checked_at, quarter) VALUES (%s, now(), %s)
+                            ON CONFLICT (ticker) DO UPDATE SET checked_at = now(), quarter = excluded.quarter""", (t, quarter))
+            conn.commit()
+            if not quarter or (t, quarter) in have:
+                continue
+            status = fetch_store(conn, t, quarter)
+            if status == "error":
+                continue
+            budget -= 1
+            if status == "limit":
+                budget = 0
+                break
+            fetched += 1
+            time.sleep(1.5)
+
+    def backfill_pass():
+        nonlocal budget, fetched
+        # tone/guidance trend: back-fill up to 3 prior quarters for book names (tier 1) once the latest quarters are done
+        PRIOR = 3
+        for tier, t in q:
+            if tier != 1 or budget <= 0:
+                break
+            latest = conn.execute("SELECT quarter FROM watchlist_sync.transcript_checks WHERE ticker = %s", (t,)).fetchone()
+            if not latest or not latest[0]:
+                continue
+            pq = latest[0]
+            for _ in range(PRIOR):
+                pq = prev_quarter(pq)
+                if (t, pq) in have or budget <= 0:
+                    continue
+                status = fetch_store(conn, t, pq)
+                have.add((t, pq))
+                if status != "error":
+                    budget -= 1
+                if status == "limit":
+                    budget = 0
+                if status in ("empty", "limit"):
+                    break
+                fetched += 1
+                time.sleep(1.5)
+
+    latest_pass([x for x in q if x[0] == 1])
+    backfill_pass()
+    latest_pass([x for x in q if x[0] > 1])
     print(f"{date.today()}: fetched {fetched}, AV budget left {budget}")
 
 

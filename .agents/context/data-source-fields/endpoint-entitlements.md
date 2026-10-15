@@ -14,7 +14,7 @@ Tools: positions/orders/tax lots/realized P&L, `review_option_order` (pre-trade 
 Positions/history overlap the existing RH CSV export (user already has it), so the new value is only `review_option_order` and RH-app alerts. Token lifetime is undocumented.
 
 ## Polygon / Massive (free Basic: 5 calls/min, end-of-day, ~2 y history)
-✅ `/v2/aggs/ticker/{T}/range|prev` · ✅ `/v2/aggs/grouped/.../{date}` (whole market, 1 call) · ✅ `/v3/reference/tickers/{T}` · ✅ `/v2/reference/news` · ✅ dividends, splits · ✅ `/v1/marketstatus/now|upcoming` · ✅ `/v3/reference/options/contracts` · ✅ **option contract daily bars** `/v2/aggs/ticker/O:{OCC}/range` (end-of-day only) · ✅ `/v1/open-close` · ✅ `/v1/indicators/rsi` · ✅ `stocks/v1/short-interest`, `stocks/v1/short-volume`.
+✅ `/v2/aggs/ticker/{T}/range|prev` · ✅ `/v2/aggs/grouped/.../{date}` (whole market, 1 call) · ✅ `/v3/reference/tickers/{T}` · ✅ `/v2/reference/news` · ✅ dividends, splits · ✅ `/v1/marketstatus/now|upcoming` · ✅ `/v3/reference/options/contracts` · ✅ **option contract daily bars** `/v2/aggs/ticker/O:{OCC}/range` (end-of-day only) · ✅ `/v1/open-close` · ✅ `/v1/indicators/rsi` · ✅ **used** `stocks/v1/short-interest` (1 call = full history since 2020; `lib/short-interest.ts` → Breakdown › Short interest), ✅ `stocks/v1/short-volume`.
 ❌ `/v3/snapshot/options/*` (live chain) · ❌ `/v2/snapshot/...tickers` · ❌ `/v3/trades`. ⚠ **`/vX/reference/financials` is GONE** (deprecated; `lib/polygon-client.ts` still calls it).
 
 ## FMP (free) — ⚠ **symbol-restricted**
@@ -29,7 +29,7 @@ Per-symbol endpoints (`quote`, `key-metrics`, `price-target-consensus`, `grades-
 ## Alpha Vantage (free, 25 calls/day; counted in `api_usage` source `av`)
 ✅ **used** `EARNINGS_CALL_TRANSCRIPT` (fiscal `YYYYQn`; per-segment sentiment; `scripts/watchlist_sync/transcripts.py`, ≤ 20/day) · ✅ `OVERVIEW` · ✅ `EARNINGS_CALENDAR` (CSV with `timeOfTheDay`) · ✅ `ANALYTICS_FIXED_WINDOW` · ✅ `TOP_GAINERS_LOSERS` · ✅ `INSIDER_TRANSACTIONS` (empty for small caps).
 ❌ `NEWS_SENTIMENT`, `REALTIME_OPTIONS`, `HISTORICAL_OPTIONS`.
-⚠ `nightly-enrichment.ts` reads `AV_API_KEY`, but `.env.local` names it `ALPHA_VANTAGE_API_KEY`, so its AV leg never runs.
+✅ Fixed A84: nightly enrich reads `ALPHA_VANTAGE_API_KEY` (legacy `AV_API_KEY` alias) and caps OVERVIEW at 5/day so transcripts.py can use ≤20.
 
 ## SEC EDGAR (keyless; User-Agent required, ≤ 10 req/s)
 ✅ **used** `companyfacts`, `submissions`, `company_tickers.json` · ✅ full-text `efts.sec.gov/LATEST/search-index` (⚠ ticker text matching is noisy, so use `submissions` by CIK and filter forms S-3 / 424B* for offerings).
