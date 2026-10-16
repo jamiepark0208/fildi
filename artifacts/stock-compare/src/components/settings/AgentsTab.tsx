@@ -55,6 +55,7 @@ type Data = {
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
   limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
+  openjev?: OpenJev;
   subagents?: Sub[]; jobs?: Jobs; procs?: Proc[]; gitHour?: { t: string; agent: string; text: string }[];
 };
 /** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
@@ -73,7 +74,10 @@ const NODES: Record<string, { label: string; row: number; kinds: string[] }> = {
   api: { label: "APIs", row: 3, kinds: ["api"] },
   web: { label: "Web", row: 4, kinds: ["web"] },
 };
-const GITHUB = "#a5b4fc", JOBS = "#f59e0b";
+const GITHUB = "#a5b4fc", JOBS = "#f59e0b", OJ_COLOR = "#fb7185";
+/** OpenJev = local calibrated-probability model (A129): runs a daily batch (load → answer → unload), writes the forecast ledger. */
+type OpenJev = { running: boolean; proc: boolean; doing: string | null; pingAt: string | null; pingWhat: string | null;
+  last: { at: string; ok: boolean; detail: string | null; answered: number | null; questions: number | null; peakGb: number | null; totalS: number | null } | null };
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
 
@@ -412,6 +416,8 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   // compact layout (~20 % smaller): resource stack at x = NX on the left, agents on a ring around You to its right
   const R = 118, CX = 70, NX = -230, NGAP = 66, NR = 22;
   const JP = { x: -125, y: 75 }; // Fildi's own scheduled jobs, just right of the resource stack
+  const OJP = { x: -140, y: 150 }; // OpenJev, below Jobs (writes the forecast ledger → Database)
+  const ojPing = useRef<{ at: string | null; t0: number }>({ at: null, t0: 0 }); // flash ~1.5 s per new batch event
   const pos = (id: Id) => { if (id === "jamie") return { x: CX, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: CX + Math.cos(a) * R, y: Math.sin(a) * R }; };
   const npos = (n: string) => ({ x: NX, y: (NODES[n].row - 1.5) * NGAP });
   /** Hover info for an agent → node link: who, latest action, start of this streak, and a script's ETA if one is running for it. */
@@ -539,6 +545,19 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
     ctx.fillStyle = "#ffffff"; ctx.font = "700 11px ui-sans-serif"; ctx.fillText("Jobs", JP.x, JP.y);
     ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+    // OpenJev: dim when idle, ring + OpenJev → Database beam while running, one bright flash per new batch event
+    const oj = d.openjev;
+    if (oj?.pingAt && oj.pingAt !== ojPing.current.at) ojPing.current = { at: oj.pingAt, t0: ojPing.current.at === null && !oj.running ? 0 : now };
+    const flash = Math.max(0, 1 - (now - ojPing.current.t0) / 1500);
+    if (oj?.running) pulseLink(OJP, npos("db"), OJ_COLOR, 1, { title: "OpenJev → Database", what: oj.doing ?? "answering forecast questions", etaS: null, etaMethod: "unknown" });
+    if (flash > 0 && !reduce) {
+      ctx.globalAlpha = flash; ctx.strokeStyle = OJ_COLOR; ctx.lineWidth = 3; ctx.shadowColor = OJ_COLOR; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(OJP.x, OJP.y, 15 + 14 * (1 - flash), 0, 7); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    }
+    drawOrb(ctx, OJP.x, OJP.y, 13, oj?.running || flash > 0 ? OJ_COLOR : "#71717a", { working: !!oj?.running, now, reduce });
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
+    ctx.fillStyle = "#ffffff"; ctx.font = "700 9px ui-sans-serif"; ctx.fillText("OpenJev", OJP.x, OJP.y + 24);
+    ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     // Git: commit → Code Repo pulse · push → agent → Code Repo → GitHub · pull → GitHub → Code Repo (each ~10 s from first sight);
     // Muse commits from the cloud (last 2 min) → GitHub → Code Repo
     const nowMs2 = Date.now();
@@ -637,6 +656,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 28) return id; }
     for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 28) return `n:${n}`; }
     if (Math.hypot(JP.x - x, JP.y - y) < 22) return "jobs";
+    if (Math.hypot(OJP.x - x, OJP.y - y) < 18) return "openjev";
     for (const bp of subPos.current) if (Math.hypot(bp.x - x, bp.y - y) < 8) return bp.key;
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     for (const pp of procPos.current) if (Math.hypot(pp.x - x, pp.y - y) < 9) return pp.key;
@@ -673,6 +693,13 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       return <Lines color={JOBS} a="Scheduled jobs"
         b={now.length ? `running: ${now.join(", ")}` : last ? `last finished ${ago(last.at)} ago (${last.name})` : "idle"}
         c={jb?.links.api || jb?.links.db ? "beams = this job → APIs / DB (not two jobs)" : undefined} />;
+    }
+    if (id === "openjev") {
+      const oj = d.openjev, l = oj?.last;
+      const res = !l ? "never ran" : l.ok ? `${l.answered ?? "?"}${l.questions ? `/${l.questions}` : ""} questions answered` : `failed: ${(l.detail ?? "").slice(0, 50)}`;
+      return <Lines color={OJ_COLOR} a={oj?.running ? `OpenJev · running${oj.doing ? ` · ${oj.doing.slice(0, 40)}` : ""}` : "OpenJev · idle"}
+        b={l ? `last run ${ago(l.at)} ago · ${res}` : res}
+        c={l?.peakGb != null ? `peak RAM ${l.peakGb.toFixed(1)} GB${l.totalS != null ? ` · ${Math.round(l.totalS)} s` : ""}` : "local model · daily batch, then unloads"} />;
     }
     if (id === "n:github") {
       const n = (d.gitHour ?? []).length;

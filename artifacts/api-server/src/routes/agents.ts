@@ -419,6 +419,37 @@ async function museRunning(): Promise<boolean> {
   return running;
 }
 
+/** OpenJev (local calibrated-probability model, A129): running = its server process is up (batch runs load → answer → unload)
+ *  or an "openjev" hook-format event < 2 min old that isn't a stop; ping = latest batch event (UI flashes once per new one);
+ *  last = newest openjev_runs row, else /tmp/fildi-logs/openjev-last.json. Cached 15 s (one pgrep + one small query). */
+let ojCache: { at: number; body: unknown } | null = null;
+async function openjevStatus(live: LiveEv[], nowMs: number) {
+  if (ojCache && Date.now() - ojCache.at < 15_000) return ojCache.body;
+  let proc = false;
+  try { await run("pgrep", ["-f", "python -m openjev"]); proc = true; } catch { proc = false; }
+  const evs = live.filter((e) => e.agent === "openjev");
+  const lastEv = evs.at(-1) ?? null;
+  const evLive = !!lastEv && nowMs - Date.parse(lastEv.t) < 2 * 60_000 && !["stop", "session-end"].includes(lastEv.event);
+  const ping = [...evs].reverse().find((e) => e.event !== "stop" && e.event !== "start") ?? null;
+  let last: { at: string; ok: boolean; detail: string | null; answered: number | null; questions: number | null; peakGb: number | null; totalS: number | null } | null = null;
+  try {
+    const r = (await db.execute(sql`SELECT run_at, ok, detail, answered, questions, peak_gb, total_s FROM watchlist_sync.openjev_runs ORDER BY run_at DESC LIMIT 1`)) as unknown as Record<string, unknown>[] | { rows?: Record<string, unknown>[] };
+    const row = (Array.isArray(r) ? r : r.rows ?? [])[0];
+    if (row) last = { at: new Date(row.run_at as string).toISOString(), ok: !!row.ok, detail: (row.detail as string) ?? null, answered: row.answered as number ?? null,
+      questions: row.questions as number ?? null, peakGb: row.peak_gb == null ? null : Number(row.peak_gb), totalS: row.total_s == null ? null : Number(row.total_s) };
+  } catch { /* table not created yet */ }
+  if (!last) {
+    try {
+      const j = JSON.parse(readFileSync("/tmp/fildi-logs/openjev-last.json", "utf8"));
+      last = { at: new Date(j.ts).toISOString(), ok: !!j.ok, detail: j.detail ?? null, answered: j.answered ?? null, questions: j.questions ?? null, peakGb: j.peak_gb ?? null, totalS: j.total_s ?? null };
+    } catch { /* never ran */ }
+  }
+  const body = { running: proc || evLive, proc, doing: evLive ? lastEv?.detail ?? lastEv?.event ?? null : null,
+    pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last };
+  ojCache = { at: Date.now(), body };
+  return body;
+}
+
 /** Fildi's own scheduled jobs (not agents), read-only and cheap: one ps call, one small api_usage query, the
  *  /tmp/fildi-logs/*-last.json run stamps. Active = process running now, or an API source / run stamp updated < 2 min ago. */
 const JOB_PROCS: [RegExp, string][] = [
@@ -599,6 +630,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     needsUnread: await needsUnread(),
     jamieUnread: await jamieUnread(),
     muse: { running: await museRunning() },
+    openjev: await openjevStatus(live, nowMs),
     ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits
     gitHour: (await commits("1 hour ago").catch((): Ev[] => [])).map((c) => ({ t: c.t, agent: c.from, text: c.text.slice(0, 70) })),
