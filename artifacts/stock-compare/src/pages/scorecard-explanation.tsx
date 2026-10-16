@@ -109,14 +109,14 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           <Tabs value={tab} onValueChange={setTab}>
             <div className="flex items-center gap-3 mb-2 flex-wrap">
               <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-hidden">
-                <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
-                <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
-                <TabsTrigger value="options" className="text-[11px] font-semibold px-2.5 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Options</TabsTrigger>
+                <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
+                <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
+                <TabsTrigger value="options" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Options</TabsTrigger>
               </TabsList>
 
               {isAdmin && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-amber-200/40">Presets:</span>
+                  <span className="text-[11px] text-white/70">Presets:</span>
                   <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden">
                     {Object.entries(SCORING_PRESETS).map(([key, p]) => (
                       <button
@@ -126,7 +126,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                           "text-[11px] font-semibold px-2 h-6 transition-colors",
                           preset === key
                             ? "bg-[#d4af37] text-black"
-                            : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                            : "bg-zinc-950 text-white/70 hover:text-[#d4af37]",
                         )}
                       >
                         {p.label}
@@ -145,9 +145,9 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
               />
               <FundamentalTreatmentPanel />
               {isAdmin && (
-                <p className="text-[10px] text-amber-200/40 border border-[#d4af37]/15 rounded px-2 py-1.5">
+                <p className="text-[10px] text-white/70 border border-[#d4af37]/15 rounded px-2 py-1.5">
                   Admin note: preset/weight editors below apply to <em>technical &amp; options</em> layers
-                  and a legacy client preset — they do <strong className="text-amber-200/60">not</strong> rewrite
+                  and a legacy client preset — they do <strong className="text-white/80">not</strong> rewrite
                   persisted fund scores. Change scoring via engine treatments + recompute.
                 </p>
               )}
@@ -175,7 +175,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 chips={status.chipsFor?.("options")}
                 text={status.stripFor("options")}
               />
-              <p className="text-xs text-amber-200/50">Rank stocks → score strikes → liquidity gate + macro regime</p>
+              <p className="text-xs text-white/70">Rank stocks → score strikes → liquidity gate + macro regime</p>
               <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock rank layer</p>
               <GuideMetricGrid
                 rows={OPTIONS_STOCK_ROWS}
@@ -200,14 +200,14 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
               <Button size="sm" className="text-xs h-7 bg-[#d4af37] text-black hover:bg-[#d4af37]/90" disabled={isSaving} onClick={handleSave}>
                 {isSaving ? "Saving…" : "Save weights"}
               </Button>
-              <Button size="sm" variant="outline" className="text-xs h-7 border-[#d4af37]/25 text-amber-200/70 hover:bg-amber-500/10" disabled={isSaving} onClick={handleReset}>
+              <Button size="sm" variant="outline" className="text-xs h-7 border-[#d4af37]/25 text-white hover:bg-amber-500/10" disabled={isSaving} onClick={handleReset}>
                 Reset defaults
               </Button>
               {error && <span className="text-xs text-red-400">{error}</span>}
             </div>
           )}
 
-          <p className="text-[11px] text-amber-200/40 mt-2">
+          <p className="text-[11px] text-white/70 mt-2">
             Peer-group relative. Missing/excluded metrics drop weight (not scored as 0). Persisted in DB.
           </p>
           <p className="text-[11px] mt-1">

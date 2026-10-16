@@ -135,15 +135,20 @@ router.get("/fundamentals/status", async (_req, res) => {
 // GET /fundamentals/rankings — fundamental quality score per watchlist ticker for Option Scorer.
 // Computes a PUT_SELLER-aligned score using stored DB fields (no live price fetch needed).
 // Cross-sectional percentile ranks each metric, then weights by quality/growth/safety families.
-router.get("/fundamentals/rankings", async (_req, res) => {
+router.get("/fundamentals/rankings", async (req, res) => {
   try {
     const regime = await getLatestRegime();
 
     // Serve persisted scores when fresh; recompute if stale or missing
     const cached = await readPersistedScores(regime);
-    if (cached) return res.json(cached);
-
-    const results = await computeAndPersistFundamentalScores(regime);
+    const results = cached ?? await computeAndPersistFundamentalScores(regime);
+    // Options / Live only need ticker + totalScore (~23KB vs ~1.4MB with metricScores).
+    if (String(req.query["slim"] ?? "") === "1") {
+      return res.json(results.map((r: { ticker: string; totalScore: number | null }) => ({
+        ticker: r.ticker,
+        totalScore: r.totalScore,
+      })));
+    }
     return res.json(results);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

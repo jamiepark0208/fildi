@@ -26,6 +26,30 @@ router.get("/watchlist", async (req, res) => {
   return res.json(rows);
 });
 
+// GET /watchlist/meta — registry name/sector/industry for the caller's list (DB-only, no Yahoo).
+// Powers breakdown tag-match popups without the fat /stocks/quotes fan-out.
+router.get("/watchlist/meta", async (req, res) => {
+  const rows = await db
+    .select({
+      ticker: watchlist.ticker,
+      companyName: tickerRegistry.name,
+      sector: tickerRegistry.sector,
+      industry: tickerRegistry.industryGroup,
+    })
+    .from(watchlist)
+    .leftJoin(tickerRegistry, eq(watchlist.ticker, tickerRegistry.ticker))
+    .where(eq(watchlist.userId, req.session.userId!));
+  const out: Record<string, { companyName: string | null; sector: string | null; industry: string | null }> = {};
+  for (const r of rows) {
+    out[r.ticker] = {
+      companyName: r.companyName ?? null,
+      sector: r.sector ?? null,
+      industry: r.industry ?? null,
+    };
+  }
+  return res.json(out);
+});
+
 // GET /watchlist/user/:username — another user's tagged watchlist, for profile viewing.
 // Any signed-in user can view (mirrors existing /api/feed/buckets/:username visibility).
 router.get("/watchlist/user/:username", async (req, res) => {

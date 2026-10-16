@@ -10,6 +10,8 @@
  *   - Log to logs/backfill-analyst-{date}.log
  *
  * Run: cd artifacts/api-server && tsx src/scripts/backfill-analyst-events.ts
+ *      cd artifacts/api-server && tsx src/scripts/backfill-analyst-events.ts --force
+ * `--force` re-fetches every ticker (A97: rewrite Yahoo rows with price targets).
  */
 
 import fs from "node:fs";
@@ -73,7 +75,8 @@ async function processTicker(ticker: string, staleSet: Set<string>): Promise<Tic
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  appendLog("backfill-analyst-events starting");
+  const force = process.argv.includes("--force");
+  appendLog(`backfill-analyst-events starting${force ? " (--force)" : ""}`);
 
   const allTickers = (await db
     .select({ ticker: tickerRegistry.ticker })
@@ -83,9 +86,11 @@ async function main(): Promise<void> {
     .map(r => r.ticker);
   appendLog(`${allTickers.length} tickers (fetch_fundamentals=true)`);
 
-  const staleTickers = await getStaleAnalystTickers(allTickers);
+  const staleTickers = force ? allTickers : await getStaleAnalystTickers(allTickers);
   const staleSet = new Set(staleTickers);
-  appendLog(`${allTickers.length - staleSet.size} tickers already fresh — will skip`);
+  appendLog(force
+    ? `force: re-fetching all ${staleSet.size}`
+    : `${allTickers.length - staleSet.size} tickers already fresh — will skip`);
 
   const results: TickerResult[] = [];
   for (let i = 0; i < allTickers.length; i += MAX_CONCURRENT) {

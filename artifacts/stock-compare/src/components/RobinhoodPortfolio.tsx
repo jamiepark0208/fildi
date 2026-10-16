@@ -145,24 +145,47 @@ function AccountGroup({
   )
 }
 
-function equityGroupMetrics(rows: DBPosition[]): MetricPill[] {
-  let mktVal = 0, pnl = 0, costBasis = 0
+/** Prefer live quote % when present; else snapshot CSV dayChangePct. */
+function resolveDayPct(symbol: string, csv: string | null, livePctByTicker?: Record<string, number | null>): string | null {
+  const live = livePctByTicker?.[symbol.toUpperCase()] ?? livePctByTicker?.[symbol]
+  if (live != null && Number.isFinite(live)) return String(live)
+  return csv
+}
+
+function equityGroupMetrics(rows: DBPosition[], livePctByTicker?: Record<string, number | null>): MetricPill[] {
+  let mktVal = 0, pnl = 0, costBasis = 0, dodWeighted = 0, dodWeight = 0
   for (const r of rows) {
-    if (r.marketValue != null) mktVal += parseFloat(r.marketValue)
+    const mv = r.marketValue != null ? parseFloat(r.marketValue) : 0
+    if (r.marketValue != null) mktVal += mv
     if (r.unrealizedPnL != null) pnl += parseFloat(r.unrealizedPnL)
     if (r.costBasis != null) costBasis += parseFloat(r.costBasis)
+    const d = resolveDayPct(r.symbol, r.dayChangePct, livePctByTicker)
+    if (d != null && mv > 0) {
+      dodWeighted += parseFloat(d) * mv
+      dodWeight += mv
+    }
   }
   const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : null
-  const pnlColor = pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : undefined
+  const pnlTone = pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : undefined
+  const dod = dodWeight > 0 ? dodWeighted / dodWeight : null
+  const dodTone = dod != null ? (dod > 0 ? 'text-green-400' : dod < 0 ? 'text-red-400' : undefined) : undefined
   return [
     { label: 'Mkt Value', value: fmt.format(mktVal) },
-    { label: 'Unrealized P&L', value: `${pnl >= 0 ? '+' : ''}${fmt.format(pnl)}`, color: pnlColor },
-    ...(pnlPct != null ? [{ label: 'P&L %', value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, color: pnlColor }] : []),
+    ...(dod != null ? [{ label: 'DoD', value: `${dod >= 0 ? '+' : ''}${dod.toFixed(2)}%`, color: dodTone }] : []),
+    { label: 'Unrealized P&L', value: `${pnl >= 0 ? '+' : ''}${fmt.format(pnl)}`, color: pnlTone },
+    ...(pnlPct != null ? [{ label: 'P&L %', value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, color: pnlTone }] : []),
     { label: 'Holdings', value: String(rows.length) },
   ]
 }
 
-function EquityTable({ positions }: { positions: DBPosition[] }) {
+function EquityTable({
+  positions,
+  livePctByTicker,
+}: {
+  positions: DBPosition[]
+  /** Live day-change % (already ×100, e.g. 1.25 = +1.25%). */
+  livePctByTicker?: Record<string, number | null>
+}) {
   const groups = groupByAccount(positions)
   const order = [...KNOWN_PORTFOLIOS, ...Array.from(groups.keys()).filter(k => !KNOWN_PORTFOLIOS.includes(k))]
   const orderedGroups = order.filter(k => groups.has(k))
@@ -174,7 +197,7 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
   return (
     <div>
       {orderedGroups.map(acct => (
-        <AccountGroup key={acct} name={acct} metrics={equityGroupMetrics(groups.get(acct)!)}>
+        <AccountGroup key={acct} name={acct} metrics={equityGroupMetrics(groups.get(acct)!, livePctByTicker)}>
           <table className="w-full">
             <thead>
               <tr className="border-y border-[#d4af37]/20 bg-black">
@@ -182,28 +205,33 @@ function EquityTable({ positions }: { positions: DBPosition[] }) {
                 <th className={`${TH} text-right`}>Qty</th>
                 <th className={`${TH} text-right`}>Avg Cost</th>
                 <th className={`${TH} text-right`}>Last</th>
+                <th className={`${TH} text-right`}>DoD</th>
                 <th className={`${TH} text-right`}>Mkt Value</th>
                 <th className={`${TH} text-right`}>Unrealized P&L</th>
                 <th className={`${TH} text-right`}>P&L %</th>
               </tr>
             </thead>
             <tbody>
-              {groups.get(acct)!.map((p, i) => (
-                <tr key={p.id} className={cn('border-b border-zinc-800 hover:bg-amber-500/10 transition-colors', i % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/60')}>
-                  <td className={`${TD} text-left font-semibold text-white`}>{p.symbol}</td>
-                  <td className={TDr}>{fmtNum(p.quantity)}</td>
-                  <td className={TDr}>{fmtUsd(p.avgCost)}</td>
-                  <td className={TDr}>{fmtUsd(p.lastPrice)}</td>
-                  <td className={TDr}>{fmtUsd(p.marketValue)}</td>
-                  <td className={cn(TDr, pnlColor(p.unrealizedPnL))}>
-                    <span className="inline-flex items-center justify-end gap-1">
-                      <PnlIcon v={p.unrealizedPnL} />
-                      {fmtUsd(p.unrealizedPnL)}
-                    </span>
-                  </td>
-                  <td className={cn(TDr, pnlColor(p.pnlPct))}>{fmtPct(p.pnlPct)}</td>
-                </tr>
-              ))}
+              {groups.get(acct)!.map((p, i) => {
+                const dod = resolveDayPct(p.symbol, p.dayChangePct, livePctByTicker)
+                return (
+                  <tr key={p.id} className={cn('border-b border-zinc-800 hover:bg-amber-500/10 transition-colors', i % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/60')}>
+                    <td className={`${TD} text-left font-semibold text-white`}>{p.symbol}</td>
+                    <td className={TDr}>{fmtNum(p.quantity)}</td>
+                    <td className={TDr}>{fmtUsd(p.avgCost)}</td>
+                    <td className={TDr}>{fmtUsd(p.lastPrice)}</td>
+                    <td className={cn(TDr, pnlColor(dod))}>{fmtPct(dod)}</td>
+                    <td className={TDr}>{fmtUsd(p.marketValue)}</td>
+                    <td className={cn(TDr, pnlColor(p.unrealizedPnL))}>
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <PnlIcon v={p.unrealizedPnL} />
+                        {fmtUsd(p.unrealizedPnL)}
+                      </span>
+                    </td>
+                    <td className={cn(TDr, pnlColor(p.pnlPct))}>{fmtPct(p.pnlPct)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </AccountGroup>
@@ -242,7 +270,16 @@ function isExpired(expiration: string | null): boolean {
   return new Date(expiration + 'T16:00:00') < today;
 }
 
-function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap: Map<string, string> }) {
+function OptionsTable({
+  options,
+  accountMap,
+  livePctByTicker,
+}: {
+  options: DBOption[]
+  accountMap: Map<string, string>
+  /** Underlying equity DoD % (×100). */
+  livePctByTicker?: Record<string, number | null>
+}) {
   const withNickname = options
     .filter(o => !isExpired(o.expiration))
     .map(o => ({ ...o, accountNickname: accountMap.get(o.account) ?? o.account }))
@@ -267,39 +304,44 @@ function OptionsTable({ options, accountMap }: { options: DBOption[]; accountMap
                 <th className={`${TH} text-right`}>Expiry</th>
                 <th className={`${TH} text-right`}>Qty</th>
                 <th className={`${TH} text-right`}>Mark</th>
+                <th className={`${TH} text-right`}>U DoD</th>
                 <th className={`${TH} text-right`}>Unrealized P&L</th>
                 <th className={`${TH} text-right`}>P&L %</th>
               </tr>
             </thead>
             <tbody>
-              {groups.get(acct)!.map((o, i) => (
-                <tr key={o.id} className={cn('border-b border-zinc-800 hover:bg-amber-500/10 transition-colors', i % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/60')}>
-                  <td className={`${TD} text-left font-semibold text-white`}>{o.symbol}</td>
-                  <td className={`${TD} text-left`}>
-                    <span className={cn(
-                      'inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded',
-                      o.direction?.toLowerCase() === 'short'
-                        ? 'bg-green-500/15 text-green-400'
-                        : 'bg-blue-500/15 text-blue-400'
-                    )}>
-                      {o.direction?.toLowerCase() === 'short' ? 'Short' : 'Long'} {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1).toLowerCase()}
-                    </span>
-                  </td>
-                  <td className={TDr}>{o.strike ? `$${parseFloat(o.strike).toFixed(0)}` : '—'}</td>
-                  <td className={TDr}>{o.expiration ?? '—'}</td>
-                  <td className={TDr}>{fmtNum(o.qty)}</td>
-                  <td className={TDr}>{fmtUsd(o.markPrice)}</td>
-                  <td className={cn(TDr, pnlColor(o.unrealizedPnL))}>
-                    <span className="inline-flex items-center justify-end gap-1">
-                      <PnlIcon v={o.unrealizedPnL} />
-                      {fmtUsd(o.unrealizedPnL)}
-                    </span>
-                  </td>
-                  <td className={cn(TDr, pnlColor(o.pnlPct))}>
-                    {fmtPct(o.pnlPct)}
-                  </td>
-                </tr>
-              ))}
+              {groups.get(acct)!.map((o, i) => {
+                const dod = resolveDayPct(o.symbol, null, livePctByTicker)
+                return (
+                  <tr key={o.id} className={cn('border-b border-zinc-800 hover:bg-amber-500/10 transition-colors', i % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/60')}>
+                    <td className={`${TD} text-left font-semibold text-white`}>{o.symbol}</td>
+                    <td className={`${TD} text-left`}>
+                      <span className={cn(
+                        'inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded',
+                        o.direction?.toLowerCase() === 'short'
+                          ? 'bg-green-500/15 text-green-400'
+                          : 'bg-blue-500/15 text-blue-400'
+                      )}>
+                        {o.direction?.toLowerCase() === 'short' ? 'Short' : 'Long'} {o.optionType?.charAt(0).toUpperCase()}{o.optionType?.slice(1).toLowerCase()}
+                      </span>
+                    </td>
+                    <td className={TDr}>{o.strike ? `$${parseFloat(o.strike).toFixed(0)}` : '—'}</td>
+                    <td className={TDr}>{o.expiration ?? '—'}</td>
+                    <td className={TDr}>{fmtNum(o.qty)}</td>
+                    <td className={TDr}>{fmtUsd(o.markPrice)}</td>
+                    <td className={cn(TDr, pnlColor(dod))}>{fmtPct(dod)}</td>
+                    <td className={cn(TDr, pnlColor(o.unrealizedPnL))}>
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <PnlIcon v={o.unrealizedPnL} />
+                        {fmtUsd(o.unrealizedPnL)}
+                      </span>
+                    </td>
+                    <td className={cn(TDr, pnlColor(o.pnlPct))}>
+                      {fmtPct(o.pnlPct)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </AccountGroup>

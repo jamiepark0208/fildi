@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import { TopNav } from "@/components/top-nav";
 import { cn } from "@/lib/utils";
-import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-rankings";
+import { type TechnicalRow } from "@/lib/technical-rankings";
+
+const MacroEmbedded = lazy(() => import("@/pages/macro"));
 import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint } from "@/components/live/regime-banner";
 import { PatternDigestCard } from "@/components/live/pattern-digest-card";
 import {
@@ -18,7 +20,6 @@ import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers"
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
-import { PmBookCard } from "@/components/portfolio/pm-book-card";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
@@ -172,24 +173,27 @@ function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: Hotli
   );
 }
 
-type PageTab = "market" | "news" | "alerts";
+type PageTab = "market" | "macro" | "news" | "alerts";
 type SubTab = "sell" | "candidates";
+
+const PAGE_TABS: { id: PageTab; label: string }[] = [
+  { id: "market", label: "Market" },
+  { id: "macro", label: "Macro" },
+  { id: "news", label: "News" },
+  { id: "alerts", label: "Portfolio Alerts" },
+];
 
 function PageTabToggle({ tab, onChange }: { tab: PageTab; onChange: (t: PageTab) => void }) {
   return (
     <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
-      {([
-        ["market", "Market"],
-        ["news", "News"],
-        ["alerts", "Portfolio Alerts"],
-      ] as const).map(([value, label]) => (
+      {PAGE_TABS.map(({ id, label }) => (
         <button
-          key={value}
+          key={id}
           type="button"
-          onClick={() => onChange(value)}
+          onClick={() => onChange(id)}
           className={cn(
             "px-2.5 py-1 transition-colors",
-            tab === value ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+            tab === id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
           )}
         >
           {label}
@@ -246,9 +250,20 @@ export default function Live() {
   const isRally = side === "rally";
 
   const [pageTab, setPageTab] = useState<PageTab>(() => {
-    try { return (localStorage.getItem("fildi_live_page") as PageTab) || "market"; } catch { return "market"; }
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("page");
+      if (fromUrl && PAGE_TABS.some((t) => t.id === fromUrl)) return fromUrl as PageTab;
+      const stored = localStorage.getItem("fildi_live_page") as PageTab | null;
+      if (stored && PAGE_TABS.some((t) => t.id === stored)) return stored;
+    } catch { /* */ }
+    return "market";
   });
   useEffect(() => { try { localStorage.setItem("fildi_live_page", pageTab); } catch { /* */ } }, [pageTab]);
+  // Deep-link: /live?page=macro (&tab=… handled by Macro)
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("page");
+    if (fromUrl && PAGE_TABS.some((t) => t.id === fromUrl)) setPageTab(fromUrl as PageTab);
+  }, []);
 
   const [subTab, setSubTab] = useState<SubTab>("sell");
 
@@ -260,11 +275,13 @@ export default function Live() {
     staleTime: 60_000,
   });
 
-  const { data: movers, isLoading: moversLoading } = useQuery({
+  const { data: movers, isLoading: moversLoading, isFetching: moversFetching } = useQuery({
     queryKey: ["live-movers"],
     queryFn: fetchMovers,
     // Match Yahoo screener TTL (5m) — efficiency-playbook Live movers row.
     staleTime: 5 * 60_000,
+    // Keep last board while refetching so Live never blanks to "Loading movers…".
+    placeholderData: (prev) => prev,
   });
 
   const { data: regime } = useQuery({
@@ -294,9 +311,9 @@ export default function Live() {
   });
 
   const { data: fundRankingsData } = useQuery({
-    queryKey: ["fundamentals", "rankings"],
+    queryKey: ["fundamentals", "rankings", "slim"],
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
-      const res = await fetch("/api/fundamentals/rankings");
+      const res = await fetch("/api/fundamentals/rankings?slim=1");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
       return res.json();
     },
@@ -305,14 +322,27 @@ export default function Live() {
     enabled: needCandidates,
   });
 
+  const techSide: "put" | "call" = isRally ? "call" : "put";
   const { data: allTechnicalsData } = useQuery({
-    queryKey: queryKeys.technicalsAll,
+    queryKey: queryKeys.technicalsAllSlim,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all");
-      if (!res.ok) throw new Error("technicals/all fetch failed");
+      const res = await fetch("/api/technicals/all?slim=1");
+      if (!res.ok) throw new Error("technicals/all slim fetch failed");
       return res.json();
     },
     staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    enabled: needCandidates,
+  });
+
+  const { data: techRankingsData } = useQuery({
+    queryKey: queryKeys.technicalsRankings(techSide),
+    queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
+      const res = await fetch(`/api/technicals/rankings?side=${techSide}`);
+      if (!res.ok) throw new Error("technicals/rankings fetch failed");
+      return res.json();
+    },
+    staleTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needCandidates,
   });
@@ -322,15 +352,11 @@ export default function Live() {
     [fundRankingsData],
   );
 
-  // Side-aware V2 technical scores: put components (oversold/reversal) for dip,
-  // call components (overbought/exhaustion) for rally — same switch as the scanner.
+  // Side-aware V2 totals from API (same put/call switch as Options).
   const techScoreMap = useMemo(() => {
-    if (!allTechnicalsData?.length) return new Map<string, number>();
-    return new Map(
-      computeTechnicalRankingsV2(allTechnicalsData, {}, undefined, isRally ? "call" : "put")
-        .map(s => [s.ticker, s.totalScore]),
-    );
-  }, [allTechnicalsData, isRally]);
+    if (!techRankingsData?.length) return new Map<string, number>();
+    return new Map(techRankingsData.map((s) => [s.ticker, s.totalScore]));
+  }, [techRankingsData]);
 
   // Raw technicals rows by ticker — ER proximity / IV rank / support levels / falling-knife
   // are all already computed nightly and shipped in this payload; no extra fetch.
@@ -379,9 +405,12 @@ export default function Live() {
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
-      <main className="pt-14 p-6">
-        <div className="max-w-5xl mx-auto space-y-3">
-          <div className="flex items-center gap-2 flex-nowrap overflow-x-auto">
+      <main className={cn("pt-14", pageTab === "macro" ? "px-0 pb-0" : "p-6")}>
+        <div className={cn(pageTab === "macro" ? "w-full" : "max-w-5xl mx-auto space-y-3")}>
+          <div className={cn(
+            "flex items-center gap-2 flex-nowrap overflow-x-auto",
+            pageTab === "macro" && "px-6 py-2 border-b border-[#d4af37]/15 bg-zinc-950",
+          )}>
             <PageTabToggle tab={pageTab} onChange={setPageTab} />
             {pageTab === "market" && (
               <>
@@ -417,11 +446,16 @@ export default function Live() {
             )}
           </div>
 
-          {pageTab === "alerts" ? (
-            <div className="space-y-2">
-              <PmBookCard />
-              <PortfolioAlertsPanel />
-            </div>
+          {pageTab === "macro" ? (
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-[40vh]">
+                <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
+              </div>
+            }>
+              <MacroEmbedded embedded />
+            </Suspense>
+          ) : pageTab === "alerts" ? (
+            <PortfolioAlertsPanel />
           ) : pageTab === "news" ? (
             <div className="space-y-3">
               <DailyNewsPanel compact />
@@ -443,7 +477,10 @@ export default function Live() {
                 {moversLoading && !movers ? (
                   <p className="text-[11px] text-amber-200/40">Loading movers…</p>
                 ) : (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="relative grid grid-cols-3 gap-3">
+                    {moversFetching && movers && (
+                      <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
+                    )}
                     <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
                     <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
                     <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />

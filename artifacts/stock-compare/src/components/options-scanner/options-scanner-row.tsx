@@ -9,7 +9,10 @@ import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
 import { RecConflictChip } from "@/components/live/rec-conflict-chip";
-import { pfNum, type OptionRow, type OptionsChainResult, type ScorecardRow, type IvTermPoint } from "./options-scanner-types";
+import {
+  pfNum, OPTIONS_BOARD_COLS, columnHeatStyle, type ColRange, type OptionRow, type OptionsChainResult,
+  type ScorecardRow, type IvTermPoint,
+} from "./options-scanner-types";
 import { viableOptionStrikes, optionStrikeSummary, buildReasoning } from "./options-scanner-helpers";
 import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
 import { ExpirySection } from "./options-expiry-section";
@@ -72,6 +75,14 @@ interface ScannerRowProps {
   isOverbought?: boolean;
   /** Latest Model List verdict is red (Avoid). This scanner's ranking is unvalidated, so the Model List wins. */
   modelAvoid?: boolean;
+  /** Per-column min/max across the visible board — continuous heat (not 3-bin GY/R). */
+  heat?: {
+    opt?: ColRange | null;
+    stock?: ColRange | null;
+    iv?: ColRange | null;
+    inc?: ColRange | null;
+    buf?: ColRange | null;
+  };
 }
 
 export function ScannerRow({
@@ -107,6 +118,7 @@ export function ScannerRow({
   modelAvoid = false,
   livePrice = null,
   snapSpot = null,
+  heat,
 }: ScannerRowProps) {
   const { data: tickerRecords } = useTickerTrackRecord();
 
@@ -241,9 +253,10 @@ export function ScannerRow({
     : null;
 
   // Prefer ivCurrent from scorecard (always loaded); fall back to options chain iv
-  const ivPct = indicator?.ivCurrent && indicator.ivCurrent > 0
-    ? indicator.ivCurrent.toFixed(0)
-    : firstIV != null ? (firstIV * 100).toFixed(0) : null;
+  const ivNum = indicator?.ivCurrent && indicator.ivCurrent > 0
+    ? (indicator.ivCurrent <= 1.5 ? indicator.ivCurrent * 100 : indicator.ivCurrent)
+    : firstIV != null ? firstIV * 100 : null;
+  const ivPct = ivNum != null ? ivNum.toFixed(0) : null;
   const ivDisplay = ivPct != null ? `IV ${ivPct}%` : "IV —";
 
   const summary = optionsLoading ? null : optionStrikeSummary(optionsData, minIncome, isCall);
@@ -262,16 +275,16 @@ export function ScannerRow({
 
   return (
     <div className={cn("border-b border-zinc-800 last:border-b-0", rowIndex % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60")}>
-      {/* Collapsed header row — dense fixed columns; badges must not spill into Price */}
+      {/* Collapsed header row — same grid track as column headers */}
       <div
-        className="flex items-center gap-1 px-1.5 py-0.5 cursor-pointer hover:bg-amber-500/10 transition-colors select-none min-w-[560px]"
+        className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-0.5 cursor-pointer hover:bg-amber-500/10 transition-colors select-none")}
         style={{ borderLeft: `3px solid ${borderColor}` }}
         onClick={onExpand}
         onMouseEnter={onPrefetch}
         onFocus={onPrefetch}
       >
         {/* Rank */}
-        <div className="w-5 shrink-0 text-center">
+        <div className="text-center">
           {rank != null && (
             <span className={cn(
               "inline-flex w-4 h-4 rounded-full items-center justify-center font-bold text-[9px]",
@@ -286,7 +299,7 @@ export function ScannerRow({
         </div>
 
         {/* Ticker + tiny flags (clipped so they never overlap Price) */}
-        <div className="w-[92px] shrink-0 flex items-center min-w-0 overflow-hidden">
+        <div className="flex items-center min-w-0 overflow-hidden">
           <span
             className="font-bold text-[11px] tracking-wide font-mono shrink-0"
             style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
@@ -313,32 +326,31 @@ export function ScannerRow({
           )}
         </div>
 
-        {/* Price — live; Δ vs nightly options snapshot when it moved */}
-        <div className="w-[58px] shrink-0 flex flex-col justify-center leading-none">
+        {/* Price + Δ on one line (keeps row height to a single track) */}
+        <div
+          className="flex items-baseline gap-1 min-w-0 whitespace-nowrap overflow-hidden"
+          title={snapSpot != null && snapSpot > 0 && price != null
+            ? `Live ${price.toFixed(2)} · snapshot ${snapSpot.toFixed(2)}${vsSnapPct != null ? ` (${vsSnapPct >= 0 ? "+" : ""}${vsSnapPct.toFixed(1)}%)` : ""}`
+            : "Live equity quote (Schwab→Yahoo cache)"}
+        >
           {price != null ? (
-            <span
-              className="text-[11px] font-mono font-semibold text-cyan-400 tabular-nums"
-              title={snapSpot != null && snapSpot > 0
-                ? `Live ${price.toFixed(2)} · snapshot ${snapSpot.toFixed(2)}${vsSnapPct != null ? ` (${vsSnapPct >= 0 ? "+" : ""}${vsSnapPct.toFixed(1)}%)` : ""}`
-                : "Live equity quote (Schwab→Yahoo cache)"}
-            >
+            <span className="text-[11px] font-mono font-semibold text-cyan-400 tabular-nums">
               ${price.toFixed(2)}
             </span>
           ) : null}
           {vsSnapPct != null && Math.abs(vsSnapPct) >= 1 && (
             <span
               className={cn(
-                "text-[8px] font-mono font-semibold tabular-nums",
+                "text-[9px] font-mono font-semibold tabular-nums",
                 vsSnapPct <= -1 ? "text-red-400" : vsSnapPct >= 1 ? "text-emerald-400" : "text-muted-foreground",
               )}
-              title="Change vs nightly options-ranking snapshot spot"
             >
               {vsSnapPct >= 0 ? "+" : ""}{vsSnapPct.toFixed(1)}%
             </span>
           )}
         </div>
 
-        <div className="w-[36px] shrink-0 flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 min-w-0">
           <SignalBadge signal={signal} />
           {callWarnings.length > 0 && (
             <span className="text-amber-400 text-[9px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
@@ -346,7 +358,7 @@ export function ScannerRow({
         </div>
 
         {/* Win/loss — compact W-L; Sharpe/StkΔ in tooltip */}
-        <div className="w-[44px] shrink-0 overflow-hidden">
+        <div className="min-w-0 overflow-hidden">
           <TickerRecordBadge
             record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]}
             livePrice={price}
@@ -359,7 +371,7 @@ export function ScannerRow({
         {/* RSI */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold w-[34px] shrink-0 tabular-nums",
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
             indicator == null ? "text-white" :
             (isCall ? indicator.rsi >= 65 : indicator.rsiOk) ? "text-green-400" : "text-orange-400",
           )}
@@ -369,65 +381,80 @@ export function ScannerRow({
         </span>
 
         {/* Option Score */}
-        <span className={cn(
-          "text-[11px] w-[48px] shrink-0 font-mono font-semibold tabular-nums",
-          bestOptionScore == null ? "text-white" :
-          bestOptionScore >= 70 ? "text-green-400" :
-          bestOptionScore >= 50 ? "text-yellow-400" : "text-white",
-        )}>
+        <span
+          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          style={columnHeatStyle(bestOptionScore, heat?.opt)}
+        >
           {bestOptionScore != null ? bestOptionScore.toFixed(1) : "—"}
         </span>
 
         {/* Stock Score */}
-        <span className={cn(
-          "text-[11px] w-[48px] shrink-0 font-mono font-semibold tabular-nums",
-          stockScore == null ? "text-white" :
-          stockScore >= 70 ? "text-green-400" :
-          stockScore >= 50 ? "text-yellow-400" : "text-white",
-        )}>
+        <span
+          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          style={columnHeatStyle(stockScore, heat?.stock)}
+        >
           {stockScore != null ? stockScore.toFixed(1) : "—"}
         </span>
 
         {/* IV */}
-        <span className="text-[11px] font-mono font-semibold text-amber-400 w-[34px] shrink-0 tabular-nums">
+        <span
+          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          style={columnHeatStyle(ivNum, heat?.iv)}
+        >
           {ivPct != null ? `${ivPct}%` : "—"}
         </span>
 
         {/* Income% */}
-        <span className="text-[11px] font-mono font-semibold text-white w-[48px] shrink-0 tabular-nums">
+        <span
+          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          style={columnHeatStyle(bestIncome, heat?.inc)}
+        >
           {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "—"}
         </span>
 
-        {/* Buffer */}
-        <span className="text-[11px] font-mono font-semibold text-white w-[40px] shrink-0 tabular-nums">
+        {/* Buffer — σ of expected move to recommended strike */}
+        <span
+          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          style={columnHeatStyle(bestBuffer, heat?.buf)}
+          title="OTM distance ÷ (strike IV × √(DTE/365)) for the snapshot strike"
+        >
           {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "—"}
         </span>
 
-        <div className="flex-1 min-w-0" />
-
-        {/* Actions */}
-        <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+        {/* Actions + expand chevron (must stay in this grid cell — a 13th item wraps a second row).
+            stopPropagation only on refresh/delete so they don't toggle expand; the chevron must fire onExpand. */}
+        <div className="flex items-center justify-end gap-0.5 h-5">
           {onRefresh && (
             <button
+              type="button"
               className="p-0.5 rounded hover:bg-secondary text-white transition-colors"
-              onClick={onRefresh}
+              onClick={e => { e.stopPropagation(); onRefresh(); }}
               title="Refresh options"
             >
               <RefreshCw className="w-2.5 h-2.5" />
             </button>
           )}
           <button
+            type="button"
             className="p-0.5 rounded hover:bg-secondary text-white hover:text-red-400 transition-colors"
-            onClick={onDelete}
+            onClick={e => { e.stopPropagation(); onDelete(); }}
             title="Remove from scanner"
           >
             <X className="w-2.5 h-2.5" />
           </button>
+          <button
+            type="button"
+            className="p-0.5 rounded hover:bg-secondary text-white transition-colors"
+            onClick={e => { e.stopPropagation(); onExpand(); }}
+            title={expanded ? "Collapse" : "Expand"}
+            aria-expanded={expanded}
+          >
+            {expanded
+              ? <ChevronDown className="w-3 h-3 shrink-0" />
+              : <ChevronRight className="w-3 h-3 shrink-0" />
+            }
+          </button>
         </div>
-        {expanded
-          ? <ChevronDown className="w-3 h-3 text-white shrink-0" />
-          : <ChevronRight className="w-3 h-3 text-white shrink-0" />
-        }
       </div>
 
       {/* Expanded panel */}

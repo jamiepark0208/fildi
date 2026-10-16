@@ -6,6 +6,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Info, Loader2, Radar, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMdYy } from "@/lib/format";
 import { positionRisks, rankOpportunities, type RadarRow } from "@/lib/lseg-radar";
 import type { Tone } from "@/lib/lseg-interpret";
 
@@ -50,18 +51,8 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function whyTone(text: string): Tone {
-  const t = text.toLowerCase();
-  if (t.includes("negative") || t.includes("fragile") || t.includes("avoid") || t.includes("falling-knife") || t.includes("extreme"))
-    return "bad";
-  if (t.includes("constructive") || t.includes("rich") || t.includes("oversold") || t.includes("beat"))
-    return "good";
-  if (t.includes("thin") || t.includes("overbought") || t.includes("earnings") || t.includes("short"))
-    return "warn";
-  return "neutral";
-}
 
-export function StreetRadar() {
+export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState<"opps" | "held">("opps");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [open, setOpen] = useState<string | null>(null);
@@ -86,16 +77,16 @@ export function StreetRadar() {
   const flagged = risks.filter((r) => r.flags.length > 0).length;
 
   return (
-    <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-2 space-y-1.5">
-      <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Radar className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+    <div className={cn(
+      "space-y-1",
+      !embedded && "rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-2",
+    )}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {!embedded && <Radar className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />}
+        {!embedded && (
           <span className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Street Radar</span>
-          <span className="text-[9px] text-white/80 truncate">
-            CSP ideas · {rows.length} names
-          </span>
-        </div>
-        <div className="flex gap-0.5 text-[9px]">
+        )}
+        <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
           {(
             [
               ["opps", `Ideas ${opps.length}`],
@@ -104,16 +95,34 @@ export function StreetRadar() {
           ).map(([k, label]) => (
             <button
               key={k}
+              type="button"
               onClick={() => setTab(k)}
               className={cn(
-                "px-1.5 py-0.5 rounded border font-semibold",
-                tab === k ? "border-[#d4af37]/60 text-[#d4af37] bg-amber-500/15" : "border-zinc-700 text-white/80 hover:text-white",
+                "px-2 py-0.5 transition-colors whitespace-nowrap",
+                tab === k ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]",
               )}
             >
               {label}
             </button>
           ))}
         </div>
+        {tab === "opps" && data?.available && (
+          <div className="flex gap-0.5 text-[9px] ml-auto">
+            {FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "px-1 py-0.5 rounded border",
+                  filter === f ? "border-[#d4af37]/50 text-white bg-amber-500/10" : "border-zinc-800 text-white/70 hover:text-white",
+                )}
+              >
+                {f === "all" ? "all" : (LABEL_CHIP[f]?.text ?? f)}
+              </button>
+            ))}
+          </div>
+        )}
+        <span className="text-[9px] text-white/50 tabular-nums">{rows.length} names</span>
       </div>
 
       {isLoading && (
@@ -126,23 +135,6 @@ export function StreetRadar() {
 
       {data?.available && tab === "opps" && (
         <>
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            <div className="flex gap-0.5 text-[9px]">
-              {FILTERS.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={cn(
-                    "px-1 py-0.5 rounded border",
-                    filter === f ? "border-[#d4af37]/50 text-white bg-amber-500/10" : "border-zinc-800 text-white/70 hover:text-white",
-                  )}
-                >
-                  {f === "all" ? "all" : (LABEL_CHIP[f]?.text ?? f)}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="divide-y divide-zinc-800/60 border border-zinc-800/50 rounded overflow-hidden">
             <div className={cn(ROW, "px-1.5 bg-zinc-900 text-[8px] uppercase tracking-wider text-white/80 font-semibold")}>
               <span />
@@ -156,7 +148,7 @@ export function StreetRadar() {
               const r = byTicker.get(o.ticker)!;
               const isOpen = open === o.ticker;
               const chip = LABEL_CHIP[o.label] ?? LABEL_CHIP.book;
-              const wt = whyTone(o.why);
+              const wt = (o.bullets.find((b) => b.text === o.why) ?? o.bullets[0])?.tone ?? "neutral";
               return (
                 <div key={o.ticker} className="bg-zinc-900/40">
                   <button onClick={() => setOpen(isOpen ? null : o.ticker)} className="w-full text-left px-1.5 hover:bg-amber-500/5">
@@ -169,26 +161,26 @@ export function StreetRadar() {
                         <span className={cn("mr-1 px-1 py-px rounded border text-[8px] font-semibold", chip.cls)}>{chip.text}</span>
                         <span className={cn(TONE_TEXT[wt])}>{o.why}</span>
                       </span>
-                      <span className="flex justify-end gap-2 font-mono text-[9px] text-white shrink-0">
-                        {r.tech.iv != null && <span className="text-sky-300">IV {r.tech.iv.toFixed(0)}</span>}
+                      <span className="flex justify-end gap-1.5 font-mono text-[9px] text-white shrink-0">
+                        {r.tech.iv != null && <span className="text-sky-300">{r.tech.iv.toFixed(0)}%</span>}
                         {r.nextEarnings && (
                           <span className={r.nextEarnings.daysUntil <= 35 ? "text-amber-300 font-semibold" : "text-white/80"}>
-                            ER {r.nextEarnings.daysUntil}d
+                            {formatMdYy(r.nextEarnings.date)}
                           </span>
                         )}
                       </span>
                     </div>
                   </button>
                   {isOpen && (
-                    <div className="px-2 pb-2 max-w-3xl">
+                    <div className="px-1.5 pb-1.5">
                       <Suspense
                         fallback={
-                          <div className="flex items-center gap-1.5 text-[10px] text-white py-2">
+                          <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
                             <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
                           </div>
                         }
                       >
-                        <LsegStreetPanel ticker={o.ticker} />
+                        <LsegStreetPanel ticker={o.ticker} embedded />
                       </Suspense>
                     </div>
                   )}
@@ -225,15 +217,15 @@ export function StreetRadar() {
                   )}
                 </button>
                 {isOpen && (
-                  <div className="px-2 pb-2 max-w-3xl">
+                  <div className="px-1.5 pb-1.5">
                     <Suspense
                       fallback={
-                        <div className="flex items-center gap-1.5 text-[10px] text-white py-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
                           <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
                         </div>
                       }
                     >
-                      <LsegStreetPanel ticker={p.ticker} />
+                      <LsegStreetPanel ticker={p.ticker} embedded />
                     </Suspense>
                   </div>
                 )}

@@ -3,7 +3,7 @@ import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AuthProvider, useAuth, readCachedUser } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
@@ -20,13 +20,21 @@ const Technical = lazy(() => import("@/pages/technical"));
 const Portfolio = lazy(() => import("@/pages/portfolio"));
 const ScorecardExplanation = lazy(() => import("@/pages/scorecard-explanation"));
 const OptionsScanner = lazy(() => import("@/pages/options-scanner"));
-const Macro = lazy(() => import("@/pages/macro"));
 const Settings = lazy(() => import("@/pages/settings"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Feed = lazy(() => import("@/pages/feed"));
 const Sentiment = lazy(() => import("@/pages/sentiment"));
 const Live = lazy(() => import("@/pages/live"));
+const Agents = lazy(() => import("@/pages/agents"));
 const TrackRecord = lazy(() => import("@/pages/track-record"));
+
+/** Old /macro bookmarks → Live › Macro (keeps ?tab=). */
+function MacroToLiveRedirect() {
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  params.set("page", "macro");
+  const q = params.toString();
+  return <Redirect to={`/live${q ? `?${q}` : ""}`} />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,14 +60,25 @@ function RouteBoundary({ children }: { children: ReactNode }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) {
+  // Sticky across Vite HMR / API restarts — never kick to login while the
+  // browser still has a cached session user.
+  const stickyUser = user ?? readCachedUser();
+  if (isLoading && !stickyUser) {
     return (
       <div className="min-h-[100dvh] bg-background flex items-center justify-center">
         <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>
       </div>
     );
   }
-  if (!user) return <Redirect to="/login" />;
+  if (!stickyUser) {
+    try {
+      const path = `${window.location.pathname}${window.location.search}`;
+      if (path && !path.startsWith("/login")) {
+        sessionStorage.setItem("fildi_return_to", path);
+      }
+    } catch { /* private mode */ }
+    return <Redirect to="/login" />;
+  }
   return <RouteBoundary>{children}</RouteBoundary>;
 }
 
@@ -114,7 +133,10 @@ function Router() {
         <ProtectedRoute><OptionsScanner /></ProtectedRoute>
       </Route>
       <Route path="/macro">
-        <ProtectedRoute><Macro /></ProtectedRoute>
+        <ProtectedRoute><MacroToLiveRedirect /></ProtectedRoute>
+      </Route>
+      <Route path="/agents">
+        <ProtectedRoute><Agents /></ProtectedRoute>
       </Route>
       <Route path="/settings">
         <ProtectedRoute><Settings /></ProtectedRoute>

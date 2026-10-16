@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
 import { queryKeys } from "@/lib/query-keys";
-import { computeTechnicalRankingsV2, type TechnicalRow } from "@/lib/technical-rankings";
+import { type TechnicalRow } from "@/lib/technical-rankings";
 import { pickBestStrike, type StockContext } from "@/lib/option-scorer";
 import { type MacroRegime, CALL_STRIKE_WEIGHTS } from "@/lib/option-scorer-constants";
 
@@ -161,13 +161,25 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   const needBatchFallback = isLoaded && displayTickers.length > 0 && fromSnapshots.length < Math.min(3, n);
 
   const { data: allTechnicalsData } = useQuery({
-    queryKey: queryKeys.technicalsAll,
+    queryKey: queryKeys.technicalsAllSlim,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all");
-      if (!res.ok) throw new Error("technicals/all fetch failed");
+      const res = await fetch("/api/technicals/all?slim=1");
+      if (!res.ok) throw new Error("technicals/all slim fetch failed");
       return res.json();
     },
     staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    enabled: needBatchFallback,
+  });
+
+  const { data: techRankingsData } = useQuery({
+    queryKey: queryKeys.technicalsRankings(side),
+    queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
+      const res = await fetch(`/api/technicals/rankings?side=${side}`);
+      if (!res.ok) throw new Error("technicals/rankings fetch failed");
+      return res.json();
+    },
+    staleTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needBatchFallback,
   });
@@ -197,9 +209,9 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   });
 
   const { data: fundRankingsData } = useQuery({
-    queryKey: queryKeys.fundamentalsRankings,
+    queryKey: ["fundamentals", "rankings", "slim"],
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
-      const res = await fetch("/api/fundamentals/rankings");
+      const res = await fetch("/api/fundamentals/rankings?slim=1");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
       return res.json();
     },
@@ -208,11 +220,9 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   });
 
   const fromBatch = useMemo((): TopOptionRow[] => {
-    if (!needBatchFallback || !allTechnicalsData?.length || !batchOptionsData) return [];
+    if (!needBatchFallback || !allTechnicalsData?.length || !techRankingsData?.length || !batchOptionsData) return [];
 
-    const rankings = new Map(
-      computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, side).map(s => [s.ticker, s]),
-    );
+    const rankings = new Map(techRankingsData.map((s) => [s.ticker, s.totalScore]));
     const techRowMap = new Map(allTechnicalsData.map(r => [r.ticker, r]));
     const fundScoreMap = new Map((fundRankingsData ?? []).map(r => [r.ticker, r.totalScore]));
 
@@ -243,7 +253,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
         swingHigh50d:          pfNum(techRow.swingHigh50d),
         pivotR1:               pfNum(techRow.pivotR1),
         nearestSupportDistPct: pfNum(techRow.nearestSupportDistPct),
-        techTotalScore:        rankings.get(ticker)?.totalScore ?? null,
+        techTotalScore:        rankings.get(ticker) ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
         earningsDaysOut:       techRow.earningsDaysOut ?? null,
       };
@@ -277,7 +287,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
     }
 
     return picked.sort((a, b) => b.optionScore - a.optionScore).slice(0, n);
-  }, [needBatchFallback, allTechnicalsData, batchOptionsData, fundRankingsData, macroRegimeData, weights, effectiveStrikeWeights, side, isCall, displayTickers, n, pickOpts]);
+  }, [needBatchFallback, allTechnicalsData, techRankingsData, batchOptionsData, fundRankingsData, macroRegimeData, effectiveStrikeWeights, side, isCall, displayTickers, n, pickOpts]);
 
   const rows = fromSnapshots.length >= Math.min(3, n) || fromSnapshots.length >= fromBatch.length
     ? fromSnapshots

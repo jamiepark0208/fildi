@@ -48,6 +48,13 @@ async function commits(since = "7 days ago"): Promise<Ev[]> {
 type Idea = {
   id: string; date: string; from: AgentId; to: AgentId; title: string; status: string;
   phase: string; quant: boolean; blurb: string;
+  /** Latest agent touch (ASKS status note / Reviews line), YYYY-MM-DD. */
+  touchedAt: string | null;
+  touchedBy: AgentId | null;
+  /** accepted/partial / explicit in-progress — cube pulses until it leaves this state. */
+  inProgress: boolean;
+  /** Same calendar day as the newest touch across the board → "this wave" glow. */
+  hot: boolean;
 };
 
 function ideaBlurb(id: string): string {
@@ -71,6 +78,40 @@ function ideaPhase(status: string): string {
   return "filed";
 }
 
+function normalizeTouchDate(raw: string, fallbackYear: number): string | null {
+  const full = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (full) return `${full[1]}-${full[2]}-${full[3]}`;
+  const short = raw.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (!short) return null;
+  const mm = short[1]!.padStart(2, "0");
+  const dd = short[2]!.padStart(2, "0");
+  return `${fallbackYear}-${mm}-${dd}`;
+}
+
+/** Latest Cursor/Claude/Muse/Jamie stamp in the ask file + index status cell. */
+function ideaTouch(id: string, status: string, filed: string): { at: string | null; by: AgentId | null } {
+  const year = Number((filed.match(/^(\d{4})/) ?? [])[1]) || new Date().getFullYear();
+  let bestAt: string | null = null;
+  let bestBy: AgentId | null = null;
+  const consider = (rawDate: string, whoRaw: string) => {
+    const at = normalizeTouchDate(rawDate, year);
+    const by = who(whoRaw);
+    if (!at || !by) return;
+    if (!bestAt || at > bestAt) { bestAt = at; bestBy = by; }
+  };
+  for (const m of status.matchAll(/\b(Cursor|Claude|Muse|Jamie)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b/gi)) {
+    consider(m[2]!, m[1]!);
+  }
+  try {
+    const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
+    // **Cursor 2026-10-16:** / **Claude plan 2026-10-15:** / **Muse review abc:**
+    for (const m of txt.matchAll(/\*\*(Cursor|Claude|Muse|Jamie)\b[^*]{0,40}?\b(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b[^*]*\*\*/gi)) {
+      consider(m[2]!, m[1]!);
+    }
+  } catch { /* missing file */ }
+  return { at: bestAt, by: bestBy };
+}
+
 /** ASKS index → hand-offs (7d) + Muse idea board (all open/active rows). */
 function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0 };
@@ -88,16 +129,28 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (Date.parse(d) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
     // Muse idea cubes: Muse → Cursor rows still on the board (not archived)
     if (from === "muse" && dest === "cursor") {
+      const st = status.trim();
+      const phase = ideaPhase(st);
+      const touch = ideaTouch(id!, st, d!);
+      const inProgress = phase === "building" || /\bin progress\b/i.test(st);
       ideas.push({
-        id, date: d, from, to: dest,
-        title: title.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
-        status: status.trim(),
-        phase: ideaPhase(status),
-        quant: /\[quant\]/i.test(title),
-        blurb: ideaBlurb(id),
+        id: id!, date: d!, from, to: dest,
+        title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
+        status: st,
+        phase,
+        quant: /\[quant\]/i.test(title!),
+        blurb: ideaBlurb(id!),
+        touchedAt: touch.at,
+        touchedBy: touch.by,
+        inProgress,
+        hot: false,
       });
     }
   }
+  // Rolling wave: newest touch day among ideas → those cubes glow until a newer wave appears.
+  const wave = ideas.reduce<string | null>((best, i) => (i.touchedAt && (!best || i.touchedAt > best) ? i.touchedAt : best), null);
+  if (wave) for (const i of ideas) i.hot = i.touchedAt === wave;
+
   const rank: Record<string, number> = {
     "needs you": 0, filed: 1, reviewed: 2, building: 3, done: 4, verified: 5, parked: 6,
   };
@@ -107,7 +160,11 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     for (const block of txt.split(/\n(?=## )/).filter((b) => b.startsWith("## "))) {
       const [head, ...body] = block.split("\n");
       const m = head.match(/^## (J\d+) (.+)$/);
-      if (m) ideas.push({ id: m[1], date: "", from: "claude", to: "jamie", title: m[2].trim(), status: "needs you", phase: "needs you", quant: false, blurb: body.join("\n").trim() });
+      if (m) ideas.push({
+        id: m[1]!, date: "", from: "claude", to: "jamie", title: m[2]!.trim(), status: "needs you",
+        phase: "needs you", quant: false, blurb: body.join("\n").trim(),
+        touchedAt: null, touchedBy: null, inProgress: false, hot: false,
+      });
     }
   } catch { /* none */ }
   ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || b.date.localeCompare(a.date));
@@ -484,11 +541,17 @@ async function jobs(nowMs: number, ps: Proc[]) {
       WHERE date >= current_date - 1 AND updated_at > now() - interval '1 hour' ORDER BY updated_at DESC`)) as unknown as typeof sources | { rows?: typeof sources };
     sources = Array.isArray(r) ? r : r.rows ?? [];
   } catch { sources = []; }
-  const activeSources = sources.filter((s) => nowMs - Date.parse(s.at) < 2 * 60_000).map((s) => s.source);
+  // Only attribute API traffic to Jobs when a scheduled job is actually running —
+  // otherwise browsing the app (or any process) writing api_usage lights Jobs→APIs
+  // and looks like "a second job". Same for DB: a *-last.json stamp is "just finished",
+  // not a live Jobs→Database beam.
+  const activeSources = running.length > 0
+    ? sources.filter((s) => nowMs - Date.parse(s.at) < 2 * 60_000).map((s) => s.source)
+    : [];
   const recentRun = ran.some((r) => nowMs - Date.parse(r.at) < 2 * 60_000);
   return {
-    running, ran, sources, activeSources,
-    links: { api: activeSources.length > 0, db: running.length > 0 || recentRun },
+    running, ran, sources, activeSources, recentRun,
+    links: { api: running.length > 0 && activeSources.length > 0, db: running.length > 0 },
   };
 }
 

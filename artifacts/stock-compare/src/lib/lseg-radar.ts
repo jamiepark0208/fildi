@@ -16,6 +16,7 @@ import {
   type Takeaway,
   type Tone,
 } from "./lseg-interpret.ts";
+import { formatMdYy } from "./format.ts";
 import { dispersionNote, earningsHistoryNote, earningsPremium } from "./lseg-earnings.ts";
 
 export type RadarTech = {
@@ -87,12 +88,18 @@ export function scoreOpportunity(r: RadarRow): Opportunity {
   const t = r.tech;
   const bullets: Bullet[] = [];
 
-  // Street (0–1): StarMine revisions + overall rank.
+  // Street (0–1): StarMine revisions + overall rank. Keep Why-column copy terse.
   const ranks = [s?.armRank, s?.combinedAlphaRank].filter((x): x is number => x != null);
   const street = ranks.length ? ranks.reduce((a, b) => a + b, 0) / ranks.length / 100 : 0.5;
-  if (!ranks.length) bullets.push({ tone: "neutral", text: "No analyst coverage, so the Street can't help here." });
-  else if (street >= 0.7) bullets.push({ tone: "good", text: `Street is constructive (StarMine revisions ${s?.armRank ?? "—"}, overall ${s?.combinedAlphaRank ?? "—"}/100).` });
-  else if (street <= 0.3) bullets.push({ tone: "bad", text: `Street is negative (StarMine revisions ${s?.armRank ?? "—"}, overall ${s?.combinedAlphaRank ?? "—"}/100).` });
+  if (!ranks.length) {
+    bullets.push({ tone: "neutral", text: "No StarMine" });
+  } else {
+    const st: Tone = street >= 0.7 ? "good" : street <= 0.3 ? "bad" : "neutral";
+    bullets.push({
+      tone: st,
+      text: `StarMine: ${s?.armRank ?? "—"}, overall ${s?.combinedAlphaRank ?? "—"}/100`,
+    });
+  }
 
   // Premium (0–1): is IV rich vs realized moves, and is there enough of it?
   const richness = t.ivVsRealized != null ? clamp01((t.ivVsRealized - 0.8) / 0.6) : 0.4;
@@ -101,21 +108,18 @@ export function scoreOpportunity(r: RadarRow): Opportunity {
   // Extreme IV: richness vs realized is meaningless when the market is pricing a one-off jump.
   const premium = extremeIv ? 0.5 * level : 0.6 * richness + 0.4 * level;
   if (extremeIv) {
-    bullets.push({
-      tone: "warn",
-      text: `IV ${t.iv!.toFixed(0)}% is extreme. The market is pricing a binary event (trial data, FDA, financing). That's gap risk, not free premium.`,
-    });
+    bullets.push({ tone: "warn", text: `IV ${t.iv!.toFixed(0)}% extreme (binary)` });
   } else if (t.iv != null && t.ivVsRealized != null) {
     if (t.ivVsRealized >= 1.15)
-      bullets.push({ tone: "good", text: `Premium is rich: IV ${t.iv.toFixed(0)}% is ${t.ivVsRealized.toFixed(2)}× how much it actually moves.` });
+      bullets.push({ tone: "good", text: `IV ${t.iv.toFixed(0)}% · ${t.ivVsRealized.toFixed(2)}× RV` });
     else if (t.ivVsRealized < 0.85)
-      bullets.push({ tone: "warn", text: `Premium is thin vs real moves: IV ${t.iv.toFixed(0)}% but it's moving more than that (${t.ivVsRealized.toFixed(2)}×).` });
+      bullets.push({ tone: "warn", text: `IV ${t.iv.toFixed(0)}% · ${t.ivVsRealized.toFixed(2)}× RV thin` });
   }
 
   // Timing (0–1): put sellers want weakness, not strength.
   const timing = t.rsi != null ? clamp01((70 - t.rsi) / 35) : 0.5;
-  if (t.rsi != null && t.rsi <= 35) bullets.push({ tone: "good", text: `Oversold (RSI ${t.rsi.toFixed(0)}), a better entry for selling puts.` });
-  else if (t.rsi != null && t.rsi >= 70) bullets.push({ tone: "warn", text: `Overbought (RSI ${t.rsi.toFixed(0)}). Waiting for a pullback gets better strikes.` });
+  if (t.rsi != null && t.rsi <= 35) bullets.push({ tone: "good", text: `RSI ${t.rsi.toFixed(0)}` });
+  else if (t.rsi != null && t.rsi >= 70) bullets.push({ tone: "warn", text: `RSI ${t.rsi.toFixed(0)}` });
 
   // Penalties.
   let penalty = 0;
@@ -125,43 +129,37 @@ export function scoreOpportunity(r: RadarRow): Opportunity {
   const er = r.nextEarnings;
   const erInWindow = er != null && er.daysUntil <= PUT_WINDOW_DAYS;
   const prem = premiumFor(r);
+  const erMd = er?.date ? formatMdYy(er.date) : "";
   if (er && erInWindow) {
     if (ps != null && ps <= -PRED_SURPRISE_SIGNAL) {
       penalty += 0.25;
-      bullets.push({ tone: "bad", text: `Earnings ${er.date} (${er.daysUntil}d) and StarMine leans MISS (${ps.toFixed(1)}%). Avoid expiries past it.` });
+      bullets.push({ tone: "bad", text: `ER ${erMd} · MISS ${ps.toFixed(1)}%` });
     } else if (prem) {
       if (prem.verdict === "cheap") penalty += 0.1;
       if (prem.verdict === "rich") penalty -= 0.05;
       bullets.push({
         tone: prem.verdict === "rich" ? "good" : prem.verdict === "cheap" ? "bad" : "warn",
-        text: `Earnings ${er.date}: options price ±${prem.impliedMovePct.toFixed(1)}% vs ±${prem.fairMovePct.toFixed(1)}% from its history → premium ${prem.verdict.toUpperCase()}.`,
+        text: `ER ${erMd} · IV ±${prem.impliedMovePct.toFixed(0)}% vs hist ±${prem.fairMovePct.toFixed(0)}% (${prem.verdict})`,
       });
     } else {
-      const hist = earningsHistoryNote(r.pastMovesPct ?? []);
-      bullets.push({
-        tone: "warn",
-        text: `Earnings ${er.date} (${er.daysUntil}d). ${hist ? `${hist.text} ` : ""}Expire before it, or size for that gap.`,
-      });
+      bullets.push({ tone: "warn", text: `ER ${erMd} · ${er.daysUntil}d` });
     }
   } else if (ps != null && ps >= PRED_SURPRISE_SIGNAL) {
-    bullets.push({ tone: "good", text: `StarMine leans BEAT next quarter (+${ps.toFixed(1)}%).` });
+    bullets.push({ tone: "good", text: `PredSurp +${ps.toFixed(1)}%` });
   }
   if (t.fallingKnife) {
     penalty += 0.2;
-    bullets.push({ tone: "bad", text: "Falling-knife pattern on the chart. Let it base first." });
+    bullets.push({ tone: "bad", text: "Falling knife" });
   }
   const cr = s?.creditRank ?? null;
   if (cr != null && cr <= CREDIT_WEAK) {
     penalty += cr <= CREDIT_SEVERE ? 0.25 : 0.15;
-    bullets.push({
-      tone: "bad",
-      text: `Fragile balance sheet: StarMine credit ${cr}/100. Assignment could mean owning a company that needs to raise cash.`,
-    });
+    bullets.push({ tone: "bad", text: `Credit ${cr}/100` });
   }
   const sf = s?.shortPctFloat ?? s?.shortPct ?? null;
   if (sf != null && sf >= SHORT_HEAVY) {
     penalty += 0.05;
-    bullets.push({ tone: "warn", text: `${sf.toFixed(0)}% of float sold short: rich premium, gap risk both ways.` });
+    bullets.push({ tone: "warn", text: `Short ${sf.toFixed(0)}% float` });
   }
 
   const raw = 0.4 * street + 0.35 * premium + 0.25 * timing - penalty;

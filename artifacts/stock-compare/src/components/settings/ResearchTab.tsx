@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { SUI } from "@/components/settings/settings-ui";
 
 type Score = { item: string; source: string; promised: string; live: string; n: string; verdict: string; checkedAt: string };
 type Correction = { date: string; agent: string; claim: string; correction: string; caughtBy: string };
@@ -30,43 +31,57 @@ function Scoreboard() {
   const c = data.corrections;
   return (
     <div className="space-y-2">
-      <div className="text-[10px] uppercase tracking-wide text-amber-200/60">Is it working? (live since adoption)</div>
-      <table className="w-full text-[11px]">
-        <tbody>
-          {data.scoreboard.map((s) => (
-            <tr key={s.item} className="border-t border-white/5 align-top">
-              <td className="py-1 pr-2 w-24"><span className={cn("inline-block rounded border px-1 py-px text-[10px]", VERDICT[s.verdict] ?? VERDICT["too early"])}>{s.verdict}</span></td>
-              <td className="py-1 pr-2 text-amber-100">
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild><span className="cursor-default">{s.item}</span></TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[380px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
-                    Promised ({s.source}): {s.promised}<br />Sample: {s.n} · checked {s.checkedAt?.slice(0, 16)}<br />
-                    Too early = under 8 expiry weeks (put outcomes move together within a week, so weeks are the sample).
-                  </TooltipContent>
-                </Tooltip>
-              </td>
-              <td className="py-1 text-amber-200/70">{s.live}</td>
+      <div className={SUI.headRow}>
+        <h2 className={SUI.title}>Is it working?</h2>
+        <p className={SUI.sub}>live since adoption</p>
+      </div>
+      <div className={SUI.tableWrap}>
+        <table className={SUI.table}>
+          <thead className={SUI.thead}>
+            <tr className="border-b border-[#d4af37]/25">
+              <th className={cn(SUI.th, "w-24")}>Verdict</th>
+              <th className={SUI.th}>Item</th>
+              <th className={SUI.th}>Live</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <button type="button" onClick={() => setOpen(!open)} className="text-[10px] text-amber-200/60 hover:text-amber-200">
-        {open ? "▾" : "▸"} Agent corrections: {c.length} ({c.filter((x) => x.caughtBy.startsWith("user")).length} caught by you)
-      </button>
-      {open && (
-        <table className="w-full text-[11px]">
-          <tbody>
-            {[...c].reverse().map((x, i) => (
-              <tr key={i} className="border-t border-white/5 align-top">
-                <td className="py-1 pr-2 w-12 text-amber-200/50 tabular-nums">{x.date}</td>
-                <td className="py-1 pr-2 w-14 text-amber-200/60">{x.agent}</td>
-                <td className="py-1 pr-2 text-amber-100">{md(x.claim)}</td>
-                <td className="py-1 pr-2 text-amber-200/70">{md(x.correction)}</td>
-                <td className="py-1 w-24 text-amber-200/50">{x.caughtBy}</td>
+          </thead>
+          <tbody className="divide-y divide-zinc-800">
+            {data.scoreboard.map((s) => (
+              <tr key={s.item} className={cn(SUI.tr, "align-top")}>
+                <td className={SUI.td}><span className={cn("inline-block rounded border px-1 py-px text-[10px]", VERDICT[s.verdict] ?? VERDICT["too early"])}>{s.verdict}</span></td>
+                <td className={SUI.td}>
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild><span className="cursor-default text-white">{s.item}</span></TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[380px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
+                      Promised ({s.source}): {s.promised}<br />Sample: {s.n} · checked {s.checkedAt?.slice(0, 16)}<br />
+                      Too early = under 8 expiry weeks (put outcomes move together within a week, so weeks are the sample).
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
+                <td className={SUI.td}>{s.live}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      <button type="button" onClick={() => setOpen(!open)} className="text-[10px] text-white hover:text-white">
+        {open ? "▾" : "▸"} Agent corrections: {c.length} ({c.filter((x) => x.caughtBy.startsWith("user")).length} caught by you)
+      </button>
+      {open && (
+        <div className={SUI.tableWrap}>
+          <table className={SUI.table}>
+            <tbody className="divide-y divide-zinc-800">
+              {[...c].reverse().map((x, i) => (
+                <tr key={i} className={cn(SUI.tr, "align-top")}>
+                  <td className={cn(SUI.td, "w-12 tabular-nums")}>{x.date}</td>
+                  <td className={cn(SUI.td, "w-14")}>{x.agent}</td>
+                  <td className={SUI.td}>{md(x.claim)}</td>
+                  <td className={SUI.td}>{md(x.correction)}</td>
+                  <td className={cn(SUI.td, "w-24")}>{x.caughtBy}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -99,38 +114,51 @@ export function ResearchTab() {
     const all = [...(data ?? [])].reverse();
     return needle ? all.filter((s) => `${s.id} ${s.question} ${s.answer} ${s.status}`.toLowerCase().includes(needle)) : all;
   }, [data, q]);
-  if (isLoading) return <p className="text-xs text-amber-200/40">Loading…</p>;
+  if (isLoading) return <p className="text-xs text-white">Loading…</p>;
   return (
-    <div className="space-y-4">
+    <div className={SUI.panel}>
       <Scoreboard />
-      <div className="space-y-2">
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search studies (e.g. earnings, IV, fair value)"
-        className="w-full max-w-sm rounded border border-[#d4af37]/20 bg-zinc-950 px-2 py-1 text-xs text-amber-100 placeholder:text-amber-200/30" />
-      <table className="w-full text-[11px]">
-        <thead className="text-amber-200/50 text-left">
-          <tr><th className="py-1 pr-2 w-12">ID</th><th className="pr-2">Question</th><th className="pr-2">Answer</th><th className="w-28">Status</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((s) => (
-            <tr key={s.id} className="border-t border-white/5 align-top">
-              <td className="py-1 pr-2 text-amber-200/60 tabular-nums">{s.id}</td>
-              <td className="py-1 pr-2 text-amber-100">{md(s.question)}</td>
-              <td className="py-1 pr-2">
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <span className="line-clamp-2 text-amber-200/70 cursor-default">{md(s.answer)}</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[420px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
-                    <div>{md(s.answer)}</div>
-                    <div className="mt-1 text-amber-200/50">{s.date} · {md(s.report)}</div>
-                  </TooltipContent>
-                </Tooltip>
-              </td>
-              <td className="py-1"><span className={cn("inline-block rounded border px-1 py-px text-[10px]", tone(s.status))}>{md(s.status)}</span></td>
+      <div className={SUI.headRow}>
+        <div>
+          <h2 className={SUI.title}>Studies</h2>
+          <p className={SUI.sub}>research/studies — answers already on the books</p>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search studies…"
+          className={cn(SUI.input, "w-56")} />
+      </div>
+      <div className={SUI.tableWrap}>
+        <table className={SUI.table}>
+          <thead className={SUI.thead}>
+            <tr className="border-b border-[#d4af37]/25">
+              <th className={cn(SUI.th, "w-12")}>ID</th>
+              <th className={SUI.th}>Question</th>
+              <th className={SUI.th}>Answer</th>
+              <th className={cn(SUI.th, "w-28")}>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-zinc-800">
+            {rows.map((s) => (
+              <tr key={s.id} className={cn(SUI.tr, "align-top")}>
+                <td className={cn(SUI.td, "tabular-nums")}>{s.id}</td>
+                <td className={SUI.td}>{md(s.question)}</td>
+                <td className={SUI.td}>
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <span className="line-clamp-2 text-white cursor-default">{md(s.answer)}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[420px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
+                      <div>{md(s.answer)}</div>
+                      <div className="mt-1 text-white">{s.date} · {md(s.report)}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
+                <td className={SUI.td}>
+                  <span className={cn("inline-block rounded border px-1 py-px text-[10px]", tone(s.status))}>{md(s.status)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

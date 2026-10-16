@@ -13,6 +13,7 @@ const ROOT = join(__dirname, "..", "..", "..");
 
 const CACHE_FILE        = join(ROOT, "macro-data.json");
 const CHARTS_CACHE_FILE = join(ROOT, "macro-charts.json");
+const SECTOR_CACHE_FILE = join(ROOT, "macro-sector-rotation.json");
 
 export function loadMacroCache(): MacroData | null {
   try {
@@ -61,5 +62,28 @@ export function saveChartsCache(data: MacroCharts): void {
 }
 
 export function isChartsCacheStale(data: MacroCharts, ttlHours = 4): boolean {
+  return Date.now() - new Date(data.fetchedAt).getTime() > ttlHours * 3_600_000;
+}
+
+/** Disk cache for sector rotation (~5KB). Avoids cold Yahoo×50 on Heatmap/Liquidity open. */
+export type SectorRotationDisk = { fetchedAt: string; points: unknown[] };
+
+export function loadSectorRotationCache(): SectorRotationDisk | null {
+  try {
+    if (!existsSync(SECTOR_CACHE_FILE)) return null;
+    const data = JSON.parse(readFileSync(SECTOR_CACHE_FILE, "utf-8")) as SectorRotationDisk;
+    if (!Array.isArray(data.points) || !data.fetchedAt) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSectorRotationCache(points: unknown[]): void {
+  const payload: SectorRotationDisk = { fetchedAt: new Date().toISOString(), points };
+  writeFileSync(SECTOR_CACHE_FILE, JSON.stringify(payload), "utf-8");
+}
+
+export function isSectorRotationCacheStale(data: SectorRotationDisk, ttlHours = 12): boolean {
   return Date.now() - new Date(data.fetchedAt).getTime() > ttlHours * 3_600_000;
 }

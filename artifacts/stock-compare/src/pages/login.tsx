@@ -12,11 +12,18 @@ export default function Login() {
   const { user, refetch } = useAuth();
   const [, navigate] = useLocation();
 
-  // Navigate once auth state is confirmed — avoids race where ProtectedRoute
-  // sees stale null user between refetch() resolving and React re-rendering.
+  // Return to the page they were on (or Watchlist) — never force Profile.
+  // Forcing /profile/me after every auth recovery was the logout→Profile bounce.
   useEffect(() => {
-    if (user) navigate("/profile/me");
-  }, [user]);
+    if (!user) return;
+    let dest = "/watchlist";
+    try {
+      const saved = sessionStorage.getItem("fildi_return_to");
+      if (saved && saved.startsWith("/") && !saved.startsWith("/login")) dest = saved;
+      sessionStorage.removeItem("fildi_return_to");
+    } catch { /* */ }
+    navigate(dest);
+  }, [user, navigate]);
 
   async function handleSignIn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

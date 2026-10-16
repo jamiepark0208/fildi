@@ -25,7 +25,7 @@ const STALE_MS = {
   // LSEG — weekday vs weekly
   signals_daily: 36 * 60 * 60 * 1000,
   daily_history: 36 * 60 * 60 * 1000,
-  events: 10 * 24 * 60 * 60 * 1000, // macro calendar; weekly refresh ok
+  events: 14 * 24 * 60 * 60 * 1000, // macro calendar; weekly refresh (was 10d — false Conn orange)
   security_map_ids: 35 * 24 * 60 * 60 * 1000,
   starmine_history: 90 * 24 * 60 * 60 * 1000,
   earnings_moves: 8 * 24 * 60 * 60 * 1000,

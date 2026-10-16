@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
@@ -27,6 +27,7 @@ import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsC
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
 import { SectorRotationBubbles, SectorHeatmapGrid } from "@/components/macro/macro-sector-rotation";
+import { ExpandableChartFrame } from "@/components/macro/expandable-chart-frame";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
 import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
 import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
@@ -50,7 +51,8 @@ const TTD = "px-3 py-1.5 text-sm font-mono text-white";
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function MacroDashboard() {
+/** `embedded` — render inside Live (no TopNav / full-page chrome). */
+export default function MacroDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
@@ -64,13 +66,38 @@ export default function MacroDashboard() {
   const [selectedMacroCotId, setSelectedMacroCotId] = useState("sp500");
   const [selectedSentCotId, setSelectedSentCotId] = useState("gold");
 
-  // ?tab= query param overrides the session-persisted tab on load (e.g. /macro?tab=volatility)
+  // ?tab= overrides session tab (e.g. /live?page=macro&tab=volatility)
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab && MACRO_TABS.some((t) => t.id === tab)) {
       setActiveTab(tab as MacroTab);
     }
   }, []);
+
+  const shell = (body: ReactNode, opts?: { center?: boolean }) => {
+    if (embedded) {
+      return (
+        <div className={cn(
+          "flex flex-col bg-zinc-900",
+          opts?.center ? "min-h-[50vh] items-center justify-center" : "h-[calc(100dvh-3.5rem-2.5rem)] overflow-hidden",
+        )}>
+          {body}
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-[100dvh] bg-zinc-900">
+        <TopNav />
+        <div className={cn(
+          opts?.center
+            ? "flex items-center justify-center mt-14 h-[calc(100vh-3.5rem)]"
+            : "flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden",
+        )}>
+          {body}
+        </div>
+      </div>
+    );
+  };
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +106,22 @@ export default function MacroDashboard() {
   const needsRegimeExtras = activeTab === "regime";
   const needsPolicy = activeTab === "policy";
   const needsCatalyst = activeTab === "catalyst";
+  // Defer /macro/charts until idle so Regime shell isn't blocked by ~800KB JSON.
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    if (!needsCharts) { setChartsReady(false); return; }
+    let cancelled = false;
+    const arm = () => { if (!cancelled) setChartsReady(true); };
+    const ric = typeof window !== "undefined" && "requestIdleCallback" in window
+      ? window.requestIdleCallback(arm, { timeout: 900 })
+      : null;
+    const t = window.setTimeout(arm, ric == null ? 50 : 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      if (ric != null && "cancelIdleCallback" in window) window.cancelIdleCallback(ric);
+    };
+  }, [needsCharts]);
 
   const { data: macroData, isLoading, isError, refetch: macroRefetch } = useQuery<MacroData>({
     queryKey: ["macro-data"],
@@ -96,7 +139,7 @@ export default function MacroDashboard() {
     queryFn: () => fetch("/api/macro/charts").then((r) => r.json()),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: needsCharts,
+    enabled: needsCharts && chartsReady,
   });
 
   const { data: sectorRotation } = useQuery<SectorRotationPoint[]>({
@@ -241,31 +284,22 @@ export default function MacroDashboard() {
   // ── Loading / Error ───────────────────────────────────────────────────────────
 
   if (isLoading) {
-    return (
-      <div className="h-screen">
-        <TopNav />
-        <div className="flex items-center justify-center mt-14 h-[calc(100vh-3.5rem)]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
+    return shell(<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />, { center: true });
   }
 
   if (isError || (!isLoading && !macroData)) {
-    return (
-      <div className="h-screen">
-        <TopNav />
-        <div className="flex flex-col items-center justify-center gap-4 mt-14 h-[calc(100vh-3.5rem)]">
-          <AlertTriangle className="h-8 w-8 text-red-400" />
-          <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
-          <button
-            onClick={() => macroRefetch()}
-            className="text-xs px-3 py-1.5 rounded-md bg-zinc-950 text-amber-200/70 border border-[#d4af37]/25 hover:bg-[#d4af37] hover:text-black transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
+    return shell(
+      <div className="flex flex-col items-center justify-center gap-4">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+        <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
+        <button
+          onClick={() => macroRefetch()}
+          className="text-xs px-3 py-1.5 rounded-md bg-zinc-950 text-amber-200/70 border border-[#d4af37]/25 hover:bg-[#d4af37] hover:text-black transition-colors"
+        >
+          Retry
+        </button>
+      </div>,
+      { center: true },
     );
   }
 
@@ -275,11 +309,8 @@ export default function MacroDashboard() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="min-h-[100dvh] bg-zinc-900">
-      <TopNav />
-
-      <main className="flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden">
+  return shell(
+      <>
         {/* ── Sub-tabs ────────────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2 overflow-x-auto">
           <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
@@ -334,76 +365,80 @@ export default function MacroDashboard() {
                 <CompactStat label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
               </div>
 
-              {/* Yield Curve + 10Y History */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <YieldCurveChart yieldCurve={macroData!.yieldCurve} period={treasuryPeriod} onPeriodChange={setTreasuryPeriod} />
-                <RateHistoryChart title="10Y Treasury" data={macroCharts?.tenYearHistory ?? []} color="#a78bfa" loading={!macroCharts} />
-              </div>
-
-              {/* IG/HY Credit Spread + Copper/Gold Ratio */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <DualLineHistoryChart
-                  title="Credit Spreads — IG & HY OAS %"
-                  data1={macroCharts?.igSpreadHistory ?? []}
-                  data2={macroCharts?.hySpreadHistory ?? []}
-                  color1="#60a5fa"
-                  color2="#fb923c"
-                  label1="IG OAS"
-                  label2="HY OAS"
-                  loading={!macroCharts}
-                  yFormatter={(v: number) => `${v.toFixed(1)}%`}
-                  tooltipFormatter={(v: number, name: string) => [`${v.toFixed(2)}%`, name]}
-                  referenceLines={[{ y: 4, label: "HY Risk-On", color: "#22c55e" }, { y: 7, label: "HY Stress", color: "#ef4444" }]}
-                />
-                <RateHistoryChart
-                  title="Copper / Gold Ratio"
-                  data={macroCharts?.copperGoldHistory ?? []}
-                  color="#f59e0b" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(4)}
-                  tooltipFormatter={(v: number) => [v.toFixed(5)]}
-                />
-              </div>
-
-              {/* Supply Chain + Liquidity */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RateHistoryChart
-                  title="GSCPI — Global Supply Chain Pressure"
-                  data={macroCharts?.gscpiHistory ?? []}
-                  color="#34d399" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(2)}
-                  tooltipFormatter={(v: number) => [v.toFixed(2)]}
-                  referenceLines={[{ y: 0, label: "Neutral", color: "#94a3b8" }, { y: 1.5, label: "Elevated", color: "#f59e0b" }, { y: -1, label: "Easing", color: "#22c55e" }]}
-                />
-                <RateHistoryChart
-                  title="Money Market Fund AUM ($B)"
-                  data={macroCharts?.moneyMarketHistory ?? []}
-                  color="#60a5fa" loading={!macroCharts}
-                  yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
-                  tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
-                />
-              </div>
-
-              {/* Financial Conditions + Dollar Strength */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RateHistoryChart
-                  title="Chicago Fed NFCI — Financial Conditions"
-                  data={macroCharts?.nfciHistory ?? []}
-                  color="#c084fc" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(2)}
-                  tooltipFormatter={(v: number) => [v.toFixed(3)]}
-                  referenceLines={[
-                    { y: 0,    label: "Avg (0)",  color: "#94a3b8" },
-                    { y: 0.5,  label: "Tight",    color: "#ef4444" },
-                    { y: -0.5, label: "Easy",     color: "#22c55e" },
-                  ]}
-                />
-                <RateHistoryChart
-                  title="DXY — US Dollar Index"
-                  data={macroCharts?.dxyHistory ?? []}
-                  color="#38bdf8" loading={!macroCharts}
-                  yFormatter={(v: number) => v.toFixed(1)}
-                  tooltipFormatter={(v: number) => [v.toFixed(2)]}
-                />
+              {/* Regime history charts — 3 per row; click to expand */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <ExpandableChartFrame title="Yield Curve">
+                  <YieldCurveChart yieldCurve={macroData!.yieldCurve} period={treasuryPeriod} onPeriodChange={setTreasuryPeriod} />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="10Y Treasury">
+                  <RateHistoryChart title="10Y Treasury" data={macroCharts?.tenYearHistory ?? []} color="#a78bfa" loading={!macroCharts} />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="Credit Spreads — IG & HY OAS %">
+                  <DualLineHistoryChart
+                    title="Credit Spreads — IG & HY OAS %"
+                    data1={macroCharts?.igSpreadHistory ?? []}
+                    data2={macroCharts?.hySpreadHistory ?? []}
+                    color1="#60a5fa"
+                    color2="#fb923c"
+                    label1="IG OAS"
+                    label2="HY OAS"
+                    loading={!macroCharts}
+                    yFormatter={(v: number) => `${v.toFixed(1)}%`}
+                    tooltipFormatter={(v: number, name: string) => [`${v.toFixed(2)}%`, name]}
+                    referenceLines={[{ y: 4, label: "HY Risk-On", color: "#22c55e" }, { y: 7, label: "HY Stress", color: "#ef4444" }]}
+                  />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="Copper / Gold Ratio">
+                  <RateHistoryChart
+                    title="Copper / Gold Ratio"
+                    data={macroCharts?.copperGoldHistory ?? []}
+                    color="#f59e0b" loading={!macroCharts}
+                    yFormatter={(v: number) => v.toFixed(4)}
+                    tooltipFormatter={(v: number) => [v.toFixed(5)]}
+                  />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="GSCPI — Global Supply Chain Pressure">
+                  <RateHistoryChart
+                    title="GSCPI — Global Supply Chain Pressure"
+                    data={macroCharts?.gscpiHistory ?? []}
+                    color="#34d399" loading={!macroCharts}
+                    yFormatter={(v: number) => v.toFixed(2)}
+                    tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                    referenceLines={[{ y: 0, label: "Neutral", color: "#94a3b8" }, { y: 1.5, label: "Elevated", color: "#f59e0b" }, { y: -1, label: "Easing", color: "#22c55e" }]}
+                  />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="Money Market Fund AUM ($B)">
+                  <RateHistoryChart
+                    title="Money Market Fund AUM ($B)"
+                    data={macroCharts?.moneyMarketHistory ?? []}
+                    color="#60a5fa" loading={!macroCharts}
+                    yFormatter={(v: number) => `$${(v / 1000).toFixed(1)}T`}
+                    tooltipFormatter={(v: number) => [`$${v.toFixed(0)}B`]}
+                  />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="Chicago Fed NFCI — Financial Conditions">
+                  <RateHistoryChart
+                    title="Chicago Fed NFCI — Financial Conditions"
+                    data={macroCharts?.nfciHistory ?? []}
+                    color="#c084fc" loading={!macroCharts}
+                    yFormatter={(v: number) => v.toFixed(2)}
+                    tooltipFormatter={(v: number) => [v.toFixed(3)]}
+                    referenceLines={[
+                      { y: 0,    label: "Avg (0)",  color: "#94a3b8" },
+                      { y: 0.5,  label: "Tight",    color: "#ef4444" },
+                      { y: -0.5, label: "Easy",     color: "#22c55e" },
+                    ]}
+                  />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="DXY — US Dollar Index">
+                  <RateHistoryChart
+                    title="DXY — US Dollar Index"
+                    data={macroCharts?.dxyHistory ?? []}
+                    color="#38bdf8" loading={!macroCharts}
+                    yFormatter={(v: number) => v.toFixed(1)}
+                    tooltipFormatter={(v: number) => [v.toFixed(2)]}
+                  />
+                </ExpandableChartFrame>
               </div>
 
               {/* Economic Indicators */}
@@ -829,8 +864,7 @@ export default function MacroDashboard() {
           )}
 
         </div>
-      </main>
-    </div>
+      </>
   );
 }
 

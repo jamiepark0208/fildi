@@ -71,9 +71,9 @@ export function ResearchReportShell({
             : "rounded-md border border-[#d4af37]/20 bg-zinc-900/50 px-2.5 py-2 hover:border-[#d4af37]/45 hover:bg-zinc-900/80 transition-colors",
         )}
       >
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-start gap-1.5">
+          <div className={cn("min-w-0 flex-1", embedded ? "space-y-0.5" : "space-y-1.5")}>
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span
                 className={cn(
                   "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
@@ -84,27 +84,53 @@ export function ResearchReportShell({
               </span>
               <span className="text-[9px] uppercase tracking-widest text-amber-200/45">{title}</span>
               {subtitle && <span className="text-[9px] font-mono text-zinc-600">{subtitle}</span>}
+              {!embedded && (
+                <p className="text-[12px] text-zinc-100 leading-snug font-medium line-clamp-2 w-full basis-full">
+                  {summaryLine}
+                </p>
+              )}
+              {embedded && (
+                <span className="text-[11px] text-zinc-100 font-medium truncate min-w-0 flex-1">
+                  {summaryLine}
+                </span>
+              )}
             </div>
-            <p className="text-[12px] text-zinc-100 leading-snug font-medium line-clamp-2">{summaryLine}</p>
             {chips && chips.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                {chips.map((c) => (
-                  <span
-                    key={c.label}
-                    className={cn(
-                      "rounded border bg-zinc-950/80 px-1.5 py-1 min-w-0",
-                      CHIP_TONE[c.tone ?? "neutral"],
-                    )}
-                  >
-                    <div className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">{c.label}</div>
-                    <div className="font-mono text-[12px] leading-tight truncate">{c.value}</div>
-                    {c.hint && (
-                      <div className="text-[8.5px] text-zinc-500 leading-tight truncate" title={c.hint}>
-                        {c.hint}
-                      </div>
-                    )}
-                  </span>
-                ))}
+              <div
+                className={cn(
+                  embedded
+                    ? "flex flex-wrap gap-x-2 gap-y-0.5"
+                    : "grid grid-cols-2 sm:grid-cols-3 gap-1",
+                )}
+              >
+                {chips.map((c) =>
+                  embedded ? (
+                    <span
+                      key={c.label}
+                      title={c.hint}
+                      className={cn("font-mono text-[10px] tabular-nums", CHIP_TONE[c.tone ?? "neutral"])}
+                    >
+                      <span className="text-zinc-500">{c.label} </span>
+                      {c.value}
+                    </span>
+                  ) : (
+                    <span
+                      key={c.label}
+                      className={cn(
+                        "rounded border bg-zinc-950/80 px-1.5 py-1 min-w-0",
+                        CHIP_TONE[c.tone ?? "neutral"],
+                      )}
+                    >
+                      <div className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">{c.label}</div>
+                      <div className="font-mono text-[12px] leading-tight truncate">{c.value}</div>
+                      {c.hint && (
+                        <div className="text-[8.5px] text-zinc-500 leading-tight truncate" title={c.hint}>
+                          {c.hint}
+                        </div>
+                      )}
+                    </span>
+                  ),
+                )}
               </div>
             )}
             {sparkline}
@@ -113,7 +139,7 @@ export function ResearchReportShell({
           </div>
           <span className="shrink-0 flex flex-col items-center gap-0.5 text-[10px] text-[#d4af37]/80 group-hover:text-[#d4af37] mt-0.5">
             <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-[8px] uppercase tracking-wider">Open</span>
+            {!embedded && <span className="text-[8px] uppercase tracking-wider">Open</span>}
           </span>
         </div>
       </button>

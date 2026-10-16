@@ -4,6 +4,8 @@ export interface CatalystAnalystAction {
   fromGrade: string;
   action: string;
   date: string | null;
+  /** Per-firm target from Yahoo currentPriceTarget / FMP — UI Tgt column. */
+  priceTarget?: number | null;
 }
 
 export interface CatalystNewsItem {

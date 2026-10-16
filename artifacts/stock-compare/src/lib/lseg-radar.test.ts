@@ -29,8 +29,8 @@ describe("scoreOpportunity", () => {
       row({ tech: { iv: 70, ivVsRealized: 1.3, impliedMoveWeekly: 0.07, rsi: 32, z: -1.6, regime: "NEUTRAL", fallingKnife: false } }, { armRank: 90, combinedAlphaRank: 85 }),
     );
     assert.ok(o.score >= 75, `score ${o.score}`);
-    assert.ok(o.bullets.some((b) => /Premium is rich/.test(b.text)));
-    assert.ok(o.bullets.some((b) => /Oversold/.test(b.text)));
+    assert.ok(o.bullets.some((b) => /× RV/.test(b.text)));
+    assert.ok(o.bullets.some((b) => /RSI /.test(b.text)));
   });
   it("predicted miss before typical expiry is penalised and explained", () => {
     const base = row({ nextEarnings: { date: "2026-10-20", type: "EarningsReleases", title: null, daysUntil: 16 } });
@@ -38,13 +38,13 @@ describe("scoreOpportunity", () => {
     const miss = scoreOpportunity({ ...base, signals: sig({ predSurprisePct: -6 }) });
     assert.ok(miss.score < ok.score);
     assert.equal(miss.bullets[0].tone, "bad");
-    assert.match(miss.bullets[0].text, /leans MISS/);
+    assert.match(miss.bullets[0].text, /MISS/);
   });
   it("extreme IV (CABA 184%) is not ranked as free premium", () => {
     const tech = { iv: 184, ivVsRealized: 2.46, impliedMoveWeekly: 0.2, rsi: 26, z: -2, regime: "NEUTRAL", fallingKnife: false };
     const o = scoreOpportunity(row({ tech }, { armRank: 40, combinedAlphaRank: 38 }));
-    assert.ok(o.bullets.some((b) => /binary event/.test(b.text)));
-    assert.ok(!o.bullets.some((b) => /Premium is rich/.test(b.text)));
+    assert.ok(o.bullets.some((b) => /extreme \(binary\)/.test(b.text)));
+    assert.ok(!o.bullets.some((b) => /× RV/.test(b.text)));
     assert.ok(o.score < 60, `score ${o.score}`);
   });
   it("weak street can't be carried by premium + timing (TTD-like)", () => {
@@ -57,11 +57,11 @@ describe("scoreOpportunity", () => {
     const ok = scoreOpportunity(row({}, { creditRank: 60 }));
     const weak = scoreOpportunity(row({}, { creditRank: 1 }));
     assert.ok(ok.score - weak.score >= 20, `${ok.score} vs ${weak.score}`);
-    assert.match(weak.bullets[0].text, /Fragile balance sheet/);
+    assert.match(weak.bullets[0].text, /Credit \d+\/100/);
   });
   it("falling knife penalised", () => {
     const k = scoreOpportunity(row({ tech: { iv: 60, ivVsRealized: 1, impliedMoveWeekly: 0.06, rsi: 25, z: -2.5, regime: "BEARISH", fallingKnife: true } }));
-    assert.ok(k.bullets.some((b) => /Falling-knife/.test(b.text)));
+    assert.ok(k.bullets.some((b) => /Falling knife/.test(b.text)));
   });
 });
 

@@ -30,6 +30,7 @@ import {
   type Interpretation,
   type TradeHints,
 } from "@/lib/lseg-interpret";
+import { formatMdYy } from "@/lib/format";
 import { dispersionNote, earningsHistoryNote, earningsPremium, type EarningsPremium } from "@/lib/lseg-earnings";
 import {
   LSEG_GLOSSARY,
@@ -188,7 +189,7 @@ function lsegCompactChips(data: LsegPayload, r: Interpretation): RelChip[] {
     chips.push({
       label: "ER",
       value: `${data.nextEarnings.daysUntil}d`,
-      hint: data.nextEarnings.date,
+      hint: formatMdYy(data.nextEarnings.date),
       tone: data.nextEarnings.daysUntil <= 7 ? "warn" : "neutral",
     });
   }
@@ -476,7 +477,7 @@ function LsegReport({
           )}
           {upcoming.map((e, i) => (
             <div key={i} className="flex justify-between font-mono text-[10px]">
-              <span className="text-zinc-400">{e.date}</span>
+              <span className="text-zinc-400">{formatMdYy(e.date)}</span>
               <span className={cn(e.type === "EarningsReleases" && e.daysUntil <= 14 ? "text-amber-300" : "text-zinc-500")}>
                 {EVENT_LABEL[e.type]} · {e.daysUntil}d
               </span>
@@ -581,7 +582,7 @@ export function LsegStreetPanel({ ticker, embedded }: { ticker: string; embedded
     <ResearchReportShell
       lane="lseg"
       title={ticker}
-      subtitle={data.signals.asOf}
+      subtitle={formatMdYy(data.signals.asOf)}
       verdictLabel={r.verdict.tone}
       verdictClass={TONE_BADGE[r.verdict.tone]}
       summaryLine={summaryBits.join(" · ")}

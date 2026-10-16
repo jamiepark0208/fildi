@@ -17,6 +17,9 @@ import {
   loadChartsCache,
   saveChartsCache,
   isChartsCacheStale,
+  loadSectorRotationCache,
+  saveSectorRotationCache,
+  isSectorRotationCacheStale,
   FED_MEMBERS,
   ECONOMIC_EVENTS,
   BANK_RESEARCH_DEFAULT,
@@ -101,15 +104,21 @@ router.get("/charts", async (_req: Request, res: Response) => {
 
 router.get("/sector-rotation", async (_req: Request, res: Response) => {
   try {
-    // Same key as explain-context's getSectorRotation, so the two paths share one fetch.
-    return res.json(await sectorRotationCache.getOrCompute("sector-rotation", fetchSectorRotation));
+    // Memory TTL + disk (~5KB) so Heatmap/Liquidity don't re-hit Yahoo×50 after API restart.
+    return res.json(
+      await sectorRotationCache.getOrCompute("sector-rotation", async () => {
+        const disk = loadSectorRotationCache();
+        if (disk && !isSectorRotationCacheStale(disk)) return disk.points;
+        const fresh = await fetchSectorRotation();
+        try { saveSectorRotationCache(fresh); } catch { /* ignore disk write */ }
+        return fresh;
+      }),
+    );
   } catch (err) {
     console.error("[macro] sector-rotation failed:", err);
     return res.status(500).json({ error: "Failed to fetch sector rotation" });
   }
-});
-
-// ── Indicator history ─────────────────────────────────────────────────────────
+});// ── Indicator history ─────────────────────────────────────────────────────────
 
 router.get("/indicator-history", async (req: Request, res: Response) => {
   const key = req.query["key"] as string | undefined;

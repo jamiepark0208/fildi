@@ -750,6 +750,51 @@ router.post('/feed/portfolio/reset', async (req, res) => {
   return res.json({ closedHoldings: closes.length, realizedPnl: totalRealizedPnl, cashBalance: newCashBalance })
 })
 
+// ── POST /api/feed/portfolio/reset-stats ─────────────────────────────────────
+// Clean-slate track record: delete all trade_posts (win rate / streak / idea P&L).
+// Keep stock_holdings (stock views) but mark cost basis to latest close so
+// unrealized P&L reads 0. Cash unchanged. Likes/comments cascade with posts.
+router.post('/feed/portfolio/reset-stats', async (req, res) => {
+  const userId = req.session.userId!
+
+  const deleted = await db.delete(tradePosts).where(eq(tradePosts.userId, userId)).returning({ id: tradePosts.id })
+
+  const openHoldings = await db.select().from(stockHoldings)
+    .where(and(eq(stockHoldings.userId, userId), eq(stockHoldings.status, 'OPEN')))
+
+  let rebated = 0
+  if (openHoldings.length > 0) {
+    const tickers = [...new Set(openHoldings.map(h => h.ticker))]
+    const priceResult = await db.execute(sql`
+      SELECT DISTINCT ON (ticker) ticker, close
+      FROM ${pricesHistorical}
+      WHERE ticker IN (${sql.join(tickers.map(t => sql`${t}`), sql`, `)})
+      ORDER BY ticker, date DESC
+    `)
+    const priceRows = (priceResult as unknown as { rows?: Array<{ ticker: string; close: string | null }> }).rows
+      ?? (Array.isArray(priceResult) ? priceResult as unknown as Array<{ ticker: string; close: string | null }> : [])
+    const closeByTicker = new Map<string, number>()
+    for (const r of priceRows) {
+      if (r.close != null) closeByTicker.set(r.ticker, Number(r.close))
+    }
+    for (const h of openHoldings) {
+      const px = closeByTicker.get(h.ticker)
+      if (px == null || !(px > 0)) continue
+      await db.update(stockHoldings)
+        .set({ costBasis: String(px), realizedPnl: null })
+        .where(eq(stockHoldings.id, h.id))
+      rebated++
+    }
+  }
+
+  // Closed lots' realized P&L also feeds ticker charts — zero those out too.
+  await db.update(stockHoldings)
+    .set({ realizedPnl: '0' })
+    .where(and(eq(stockHoldings.userId, userId), eq(stockHoldings.status, 'CLOSED')))
+
+  return res.json({ deletedPosts: deleted.length, holdingsMarkedToMarket: rebated })
+})
+
 // ── GET /api/feed/buckets — all users' picks (public within the app) ──────────
 
 router.get('/feed/buckets', async (req, res) => {

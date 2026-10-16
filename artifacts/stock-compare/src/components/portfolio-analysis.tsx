@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   Cell, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatCurrency, formatCompactCurrency, formatCompactCurrencyInt, formatMdYy, formatMYy } from "@/lib/format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { cn } from "@/lib/utils";
 import {
   formatStrike, PALETTE, SECTOR_OVERRIDES, BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS,
@@ -23,7 +24,7 @@ import { PositionHealthPanel } from "./portfolio/position-health-panel";
 import { TopTickersPanel, CumulativeSummaryPanel, CorrelationPanel, OptionsIncomePanel } from "./portfolio/pnl-detail-panels";
 import { VolBacktestPanel, type IvRankBacktest } from "./portfolio/vol-backtest-panel";
 import {
-  type RealizedEvent, type TickerEarningsRow, type AccountTabKey, ACCOUNT_TABS,
+  type RealizedEvent, type TickerEarningsRow, type AccountTabKey,
   canonicalizeAccount, scopeRealizedEvents, computePnlTotals, buildRealizedTimeline,
   buildTopTickersByAccount, buildCumulativeSummaryByAccount, buildOptionsIncomeTimeline,
 } from "./portfolio/portfolio-pnl-calc";
@@ -41,14 +42,13 @@ import { LazyMount } from "@/components/lazy-mount";
 const OPTION_QUOTE_PREVIEW = 12;
 
 const DETAIL_TABS = [
-  { key: "tickers", label: "Top Tickers" },
-  { key: "summary", label: "Cumulative Summary" },
-  { key: "income", label: "Options Income" },
-  { key: "corr", label: "Correlation" },
-  { key: "health", label: "Position Health" },
-  { key: "backtest", label: "Vol Backtest" },
-  { key: "equity", label: "Equity Holdings" },
-  { key: "options", label: "Options Holdings" },
+  { key: "tickers", label: "Tickers" },
+  { key: "summary", label: "Summary" },
+  { key: "income", label: "Income" },
+  { key: "corr", label: "Corr" },
+  { key: "health", label: "Health" },
+  { key: "backtest", label: "Vol" },
+  { key: "holdings", label: "Holdings" },
 ] as const;
 type DetailTabKey = (typeof DETAIL_TABS)[number]["key"];
 
@@ -71,6 +71,15 @@ interface PortfolioAnalysisProps {
 export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNames, accountSummaries = [], realizedEvents = [], tickerEarnings = [], earningsCalendar = {}, lastImportedAt = null, onUploadSuccess }: PortfolioAnalysisProps) {
   const [activePortfolio, setActivePortfolio] = useState<string>("All");
   const [detailTab, setDetailTab] = useState<DetailTabKey>("tickers");
+  const [holdingsKind, setHoldingsKind] = useState<"equity" | "options">("equity");
+  /** Live DoD % already ×100 for Equity/Options tables. */
+  const liveDayPctByTicker = useMemo(() => {
+    const m: Record<string, number | null> = {};
+    for (const [t, s] of Object.entries(stockDataMap)) {
+      m[t] = s.dayChangePercent != null ? s.dayChangePercent * 100 : null;
+    }
+    return m;
+  }, [stockDataMap]);
   const filtered = useMemo(() =>
     (activePortfolio === "All"
       ? entries
@@ -105,22 +114,21 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   // Total Value by construction, so this is the single reconciled source of truth for
   // the donut (previously computed bottom-up from individual positions, which drifted
   // from the Portfolio Value banner by the value of un-modeled short-option liability).
-  const { allocationData, totalValue, marginUsed: allocationMarginUsed } = useMemo(() => {
+  const { allocationData, totalValue } = useMemo(() => {
     const scopedSummaries = activePortfolio === "All"
       ? accountSummaries
       : accountSummaries.filter(a => (a.nickname ?? a.account) === activePortfolio);
-    let stockVal = 0, cash = 0, crypto = 0, total = 0, marginUsed = 0;
+    let stockVal = 0, cash = 0, crypto = 0, total = 0;
     scopedSummaries.forEach(a => {
       stockVal   += parseFloat(a.equityValue ?? "0");
       cash       += parseFloat(a.cash ?? "0");
       crypto     += parseFloat(a.cryptoValue ?? "0");
       total      += parseFloat(a.totalValue ?? "0");
-      marginUsed += parseFloat(a.marginUsed ?? "0");
     });
     const stockPositions = filtered.filter(e => e.positionType === "stock");
     // Covered calls need no separate wedge — their collateral is the underlying
-    // shares, already counted in Stock Equity. Cash-secured puts are the one type
-    // of option that actually locks up capital outside of Stock Equity, so they get
+    // shares, already counted in Stock. Cash-secured puts are the one type
+    // of option that actually locks up capital outside of Stock, so they get
     // carved out of Cash below instead of lumping all options into one P&L wedge.
     const shortPuts     = filtered.filter(e => e.positionType === "short_put");
     const putCollateral = shortPuts.reduce((s, e) => s + cashCollateral(e), 0);
@@ -131,12 +139,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     // margin means), so adding a same-size Margin wedge on top double-counts it
     // (verified: wedges summed to ~150% of gross total on the FILDI test account).
     // `total` stays Robinhood's net account value (assets minus the margin loan);
-    // marginUsed is surfaced as a separate stat below, not folded into the pie.
+    // margin used lives in Risk Metrics, not folded into the pie.
     return {
       totalValue: total,
-      marginUsed,
       allocationData: [
-        { name: "Stock Equity",   value: stockVal,     color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0,
+        { name: "Stock",          value: stockVal,     color: "#38bdf8", pct: total > 0 ? (stockVal/total)*100 : 0,
           breakdown: tickerBreakdown(stockPositions) },
         { name: "Cash (Free)",    value: cashFree,      color: "#a78bfa", pct: total > 0 ? (cashFree/total)*100 : 0 },
         { name: "Put Collateral", value: putCollateral, color: "#fbbf24", pct: total > 0 ? (putCollateral/total)*100 : 0,
@@ -447,12 +454,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       .sort((a, b) => b.total - a.total),
     [pnlTotals]);
 
-  const [tickersTab, setTickersTab] = useState<AccountTabKey>("All");
-  const [summaryTab, setSummaryTab] = useState<AccountTabKey>("All");
   const [tickersScope, setTickersScope] = useState<"top" | "all">("top");
   const [summaryScope, setSummaryScope] = useState<"top" | "all">("top");
   const [tickerChartScope, setTickerChartScope] = useState<"top" | "all">("top");
   const TOP_N = 10;
+
+  // One account scope for the whole page: top All/FILDI/IRA only (no second picker in detail).
+  const accountTab: AccountTabKey = useMemo(() => {
+    if (activePortfolio === "All") return "All";
+    const canon = canonicalizeAccount(activePortfolio, accountNickMap);
+    return canon === "FILDI" || canon === "IRA" ? canon : "All";
+  }, [activePortfolio, accountNickMap]);
 
   // ── Top tickers by trade frequency, net realized P&L YTD — split by account ──
   const topTickersByAccount = useMemo(
@@ -465,9 +477,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
     [realizedEvents, entries, accountNickMap, tickerEarnings],
   );
 
-  // ── Cumulative P&L — tickers chart (all accounts or scoped) ──
+  // ── Cumulative P&L — tickers chart (respects top account filter) ──
   const topTickersPnlChartData = useMemo(() => {
-    const rows = cumulativeSummaryByAccount.All;
+    const rows = cumulativeSummaryByAccount[accountTab] ?? [];
     const sorted = [...rows].sort((a, b) => b.totalEarned - a.totalEarned);
     const sliced = tickerChartScope === "top" ? sorted.slice(0, 8) : sorted;
     return sliced.map(r => ({
@@ -477,28 +489,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       longCall: r.longCall, longPut: r.longPut,
       totalEarned: r.totalEarned,
     }));
-  }, [cumulativeSummaryByAccount, tickerChartScope]);
-
-  // When the page's top-level account filter is already scoped to one account,
-  // these cards' OWN All/FILDI/IRA picker becomes a second, redundant filter —
-  // same class of issue as the Cumulative P&L chart's duplicate picker (fixed
-  // 2026-10-03). Fix: the global filter wins whenever it's not "All"; the
-  // local picker only matters (and is only shown) when viewing "All".
-  const effectiveAccountTab = (local: AccountTabKey): AccountTabKey => {
-    if (activePortfolio === "All") return local;
-    const canon = canonicalizeAccount(activePortfolio, accountNickMap);
-    return canon === "FILDI" || canon === "IRA" ? canon : local;
-  };
+  }, [cumulativeSummaryByAccount, tickerChartScope, accountTab]);
 
   const displayedTopTickers = useMemo(() => {
-    const all = topTickersByAccount[effectiveAccountTab(tickersTab)] ?? [];
+    const all = topTickersByAccount[accountTab] ?? [];
     return tickersScope === "top" ? all.slice(0, TOP_N) : all;
-  }, [topTickersByAccount, tickersTab, tickersScope, activePortfolio, accountNickMap]);
+  }, [topTickersByAccount, tickersScope, accountTab]);
 
   const displayedSummary = useMemo(() => {
-    const all = cumulativeSummaryByAccount[effectiveAccountTab(summaryTab)] ?? [];
+    const all = cumulativeSummaryByAccount[accountTab] ?? [];
     return summaryScope === "top" ? all.slice(0, TOP_N) : all;
-  }, [cumulativeSummaryByAccount, summaryTab, summaryScope, activePortfolio, accountNickMap]);
+  }, [cumulativeSummaryByAccount, summaryScope, accountTab]);
 
   // ── Detail panel — Top Tickers / Summary / Income / Health / Equity / Options,
   // shown as one sub-tabbed card (live tab's SubTabToggle styling) instead of stacked rows.
@@ -519,13 +520,25 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
   // Same queryKey as the page-level snapshot query — react-query dedupes, no extra request.
   const { data: snapshotData, isLoading: snapshotLoading, error: snapshotError } = useSnapshotQuery();
-  const holdingsPositions = snapshotData?.positions ?? [];
-  const holdingsOptions = snapshotData?.options ?? [];
   const holdingsAccountMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const p of holdingsPositions) { if (p.accountNickname) m.set(p.account, p.accountNickname); }
+    for (const p of snapshotData?.positions ?? []) {
+      if (p.accountNickname) m.set(p.account, p.accountNickname);
+    }
     return m;
-  }, [holdingsPositions]);
+  }, [snapshotData?.positions]);
+
+  const holdingsPositions = useMemo(() => {
+    const rows = snapshotData?.positions ?? [];
+    if (accountTab === "All") return rows;
+    return rows.filter((p) => canonicalizeAccount(p.accountNickname ?? p.account, holdingsAccountMap) === accountTab);
+  }, [snapshotData?.positions, accountTab, holdingsAccountMap]);
+
+  const holdingsOptions = useMemo(() => {
+    const rows = snapshotData?.options ?? [];
+    if (accountTab === "All") return rows;
+    return rows.filter((o) => canonicalizeAccount(holdingsAccountMap.get(o.account) ?? o.account, holdingsAccountMap) === accountTab);
+  }, [snapshotData?.options, accountTab, holdingsAccountMap]);
 
   // Scoped by the page's top-level account filter (fixed 2026-10-03, same as pnlTotals).
   const optionsIncomeTimeline = useMemo(() => buildOptionsIncomeTimeline(scopedRealizedEvents), [scopedRealizedEvents]);
@@ -598,14 +611,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Capital Allocation</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-4 overflow-visible">
             <DonutChart data={allocationData} total={totalValue} label="Net Value" />
             <PieLegend data={allocationData} />
-            {allocationMarginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 text-[10px] text-white">
-                Margin: <span className="font-mono font-semibold text-yellow-400">${Math.round(allocationMarginUsed).toLocaleString("en-US")}</span>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -621,31 +629,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-4 overflow-visible">
             <DonutChart data={sectorData.items} total={sectorData.total} label="Notional" />
-            <PieLegend data={sectorData.items.slice(0, 6)} />
-            <div className="mt-2 pt-2 border-t border-[#d4af37]/15 grid grid-cols-3 gap-x-2 text-[10px]">
-              <div>
-                <div className="text-white uppercase tracking-wide">HHI</div>
-                <div className="font-mono font-semibold">{concentration.hhi}</div>
-              </div>
-              <div>
-                <div className="text-white uppercase tracking-wide">Top-5 %</div>
-                <div className="font-mono font-semibold">{concentration.top5Pct.toFixed(1)}%</div>
-              </div>
-              <div className="truncate">
-                <div className="text-white uppercase tracking-wide">Largest</div>
-                <div className="font-mono font-semibold truncate">
-                  {concentration.topTicker ?? "—"} {concentration.topTickerPct != null ? `${concentration.topTickerPct.toFixed(1)}%` : ""}
-                </div>
-              </div>
-            </div>
-            {marginUsage.marginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
-                <span className="text-white uppercase tracking-wide">Margin Used</span>
-                <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
-              </div>
-            )}
+            <PieLegend data={sectorData.items} />
           </CardContent>
         </Card>
 
@@ -653,25 +639,19 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Ticker Holdings</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-4 overflow-visible">
             <DonutChart data={tickerData.items} total={tickerData.total} label="Notional" />
-            <PieLegend data={tickerData.items.slice(0, 6)} />
-            {marginUsage.marginUsed > 0 && (
-              <div className="mt-2 pt-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[10px]">
-                <span className="text-white uppercase tracking-wide">Margin Used</span>
-                <span className="font-mono font-semibold text-yellow-400">{formatCurrency(marginUsage.marginUsed)}</span>
-              </div>
-            )}
+            <PieLegend data={tickerData.items} />
           </CardContent>
         </Card>
 
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 min-w-0 flex flex-col">
-          <CardHeader className="px-2 pt-2 pb-0 shrink-0">
-            <CardTitle className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-wide leading-none">
+          <CardHeader className="px-3 pt-3 pb-1.5 shrink-0">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide leading-none">
               Risk Metrics
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-0 pb-0 pt-1 flex-1 min-h-0 flex flex-col">
+          <CardContent className="px-2 pb-2 pt-0 flex-1 min-h-0 flex flex-col">
             {(() => {
               const shortPuts = filtered.filter((e) => e.positionType === "short_put").length;
               const shortCalls = filtered.filter((e) => e.positionType === "short_call").length;
@@ -867,51 +847,56 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               const rows: Metric[][] = [];
               for (let i = 0; i < metrics.length; i += 2) rows.push(metrics.slice(i, i + 2));
               return (
-                <div className="flex flex-col h-full min-h-0 border-t border-zinc-800/50">
-                  {rows.map((pair, ri) => (
-                    <div
-                      key={ri}
-                      className={cn(
-                        "flex flex-1 min-h-[28px] border-b border-zinc-800/40 hover:bg-amber-500/[0.04]",
-                        ri % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/50",
-                      )}
-                    >
-                      {([0, 1] as const).map((ci) => {
-                        const m = pair[ci];
-                        if (!m) {
-                          return <div key={ci} className="flex-1 border-r border-zinc-800/40 last:border-r-0" />;
-                        }
-                        return (
-                          <div
-                            key={m.key}
-                            className={cn(
-                              "flex flex-1 items-center min-w-0 gap-1 px-1.5",
-                              ci === 0 && "border-r border-zinc-800/60",
-                            )}
-                          >
-                            <UiTooltip delayDuration={200}>
-                              <TooltipTrigger asChild>
-                                <span className="w-[2.75rem] shrink-0 cursor-help text-[8px] uppercase tracking-wide text-white leading-[1.05] border-b border-dotted border-white/40">
-                                  {m.lines.map((ln) => (
-                                    <span key={ln} className="block">{ln}</span>
-                                  ))}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="top"
-                                className="max-w-[240px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
-                              >
-                                {m.hint}
-                              </TooltipContent>
-                            </UiTooltip>
-                            <span className={cn("flex-1 min-w-0 text-right font-mono tabular-nums text-[10px] font-semibold truncate leading-none", m.color)}>
-                              {m.value}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                <div className={cn(GRID_WRAP, "flex-1 min-h-0 overflow-auto")}>
+                  <table className="w-full border-collapse table-fixed">
+                    <thead className={GRID_HEADER}>
+                      <tr>
+                        <th className={cn(GRID_TH, "text-left w-[22%] py-0.5 px-1.5 text-[9px]")}>Metric</th>
+                        <th className={cn(GRID_TH, "text-right w-[28%] py-0.5 px-1.5 text-[9px]")}>Value</th>
+                        <th className={cn(GRID_TH, "text-left w-[22%] py-0.5 px-1.5 text-[9px]")}>Metric</th>
+                        <th className={cn(GRID_TH, "text-right w-[28%] py-0.5 px-1.5 text-[9px]")}>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((pair, ri) => (
+                        <tr key={ri} className={gridRow(ri)}>
+                          {([0, 1] as const).map((ci) => {
+                            const m = pair[ci];
+                            if (!m) {
+                              return (
+                                <Fragment key={ci}>
+                                  <td className={cn(GRID_TD, "py-0.5 px-1.5")} />
+                                  <td className={cn(GRID_TD, "py-0.5 px-1.5")} />
+                                </Fragment>
+                              );
+                            }
+                            return (
+                              <Fragment key={m.key}>
+                                <td className={cn(GRID_TD, "py-0.5 px-1.5 text-[9px] uppercase tracking-wide text-zinc-400 whitespace-nowrap")}>
+                                  <UiTooltip delayDuration={200}>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help border-b border-dotted border-zinc-500/60">
+                                        {m.lines.join(" ")}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="max-w-[240px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+                                    >
+                                      {m.hint}
+                                    </TooltipContent>
+                                  </UiTooltip>
+                                </td>
+                                <td className={cn(GRID_TD, "py-0.5 px-1.5 text-right font-mono tabular-nums text-[10px] font-semibold truncate", m.color)}>
+                                  {m.value}
+                                </td>
+                              </Fragment>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               );
             })()}
@@ -955,14 +940,14 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[140px] text-white">
-                        <div className="font-semibold flex items-center gap-1">
+                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[140px] text-zinc-100">
+                        <div className="font-semibold flex items-center gap-1 text-white">
                           {d.ticker}
                           {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
                         </div>
-                        <div className="flex justify-between gap-4"><span className="text-white">β Contribution</span><span className="font-mono font-semibold">{d.contribution.toFixed(3)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white">Beta</span><span className="font-mono">{d.beta}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white">Weight</span><span className="font-mono">{d.weight}%</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-zinc-400">β Contribution</span><span className="font-mono font-semibold tabular-nums">{d.contribution.toFixed(3)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Beta</span><span className="font-mono tabular-nums">{d.beta}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Weight</span><span className="font-mono tabular-nums">{d.weight}%</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1012,11 +997,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
-                        <div className="font-semibold">{d.category}</div>
-                        <div className="flex justify-between gap-4"><span className="text-white/80">Realized</span><span className="font-mono font-semibold">{formatCurrency(d.realized)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-white/80">Unrealized</span><span className="font-mono font-semibold">{formatCurrency(d.unrealized)}</span></div>
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white/80">Total</span><span className="font-mono font-bold">{formatCurrency(d.total)}</span></div>
+                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
+                        <div className="font-semibold text-white">{d.category}</div>
+                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Realized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.realized)}</span></div>
+                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Unrealized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.unrealized)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.total)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1069,17 +1054,17 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                   <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrency(v)} />
+                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
                   <Tooltip content={(p) => {
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 min-w-[150px] text-white">
-                        <div className="font-semibold">{d.ticker}</div>
+                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
+                        <div className="font-semibold text-white">{d.ticker}</div>
                         {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
-                          <div key={key} className="flex justify-between gap-4"><span className="text-white">{label}</span><span className="font-mono">{formatCurrency(d[key])}</span></div>
+                          <div key={key} className="flex justify-between gap-4"><span className="text-zinc-400">{label}</span><span className="font-mono tabular-nums">{formatCurrency(d[key])}</span></div>
                         ))}
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-white">Total Earned</span><span className="font-mono font-bold">{formatCurrency(d.totalEarned)}</span></div>
+                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total Earned</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.totalEarned)}</span></div>
                       </div>
                     );
                   }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1217,11 +1202,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                     const d = p.payload?.[0]?.payload;
                     if (!p.active || !d) return null;
                     return (
-                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-xl text-xs space-y-1 text-white">
-                        <div className="font-semibold">{formatMdYy(d.date)}</div>
+                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 text-zinc-100">
+                        <div className="font-semibold text-white">{formatMdYy(d.date)}</div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-white/80">Cumulative</span>
-                          <span className={cn("font-mono font-semibold", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
+                          <span className="text-zinc-400">Cumulative</span>
+                          <span className={cn("font-mono font-semibold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                             {formatCurrency(d.cumulative)}
                           </span>
                         </div>
@@ -1250,56 +1235,51 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       >
       <Card className="overflow-hidden min-w-0 bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
         <CardHeader className="px-4 pt-4 pb-0">
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-1.5">
-            <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
-              {DETAIL_TABS.map(t => (
-                <button key={t.key} onClick={() => setDetailTab(t.key)}
-                  className={cn("px-2.5 py-1 transition-colors whitespace-nowrap",
-                    detailTab === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
-                  {t.label}
-                </button>
-              ))}
+          <div className="flex items-center gap-2 mb-1.5 min-w-0">
+            <div className="min-w-0 flex-1 overflow-x-auto">
+              <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
+                {DETAIL_TABS.map(t => (
+                  <button key={t.key} onClick={() => setDetailTab(t.key)}
+                    className={cn("px-1.5 sm:px-2 py-1 transition-colors whitespace-nowrap",
+                      detailTab === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
             {(detailTab === "tickers" || detailTab === "summary") && (
-              <div className="flex items-center gap-2 flex-wrap">
-                {activePortfolio === "All" ? (
-                  <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-lg">
-                    {ACCOUNT_TABS.map(t => (
-                      <button key={t.key} onClick={() => detailTab === "tickers" ? setTickersTab(t.key) : setSummaryTab(t.key)}
-                        className={cn("px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-colors",
-                          (detailTab === "tickers" ? tickersTab : summaryTab) === t.key ? "bg-background text-foreground shadow-sm" : "text-white hover:text-foreground")}>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-[10px] text-white/80 italic">
-                    scoped to {activePortfolio} (top filter)
-                  </span>
-                )}
-                <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
-                  {([{ key: "top", label: `Top ${TOP_N}` }, { key: "all", label: "All" }] as const).map(t => (
-                    <button key={t.key}
-                      onClick={() => detailTab === "tickers" ? setTickersScope(t.key) : setSummaryScope(t.key)}
-                      className={cn("px-2 py-0.5 transition-colors",
-                        (detailTab === "tickers" ? tickersScope : summaryScope) === t.key
-                          ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold shrink-0">
+                {([{ key: "top", label: `Top ${TOP_N}` }, { key: "all", label: "All" }] as const).map(t => (
+                  <button key={t.key}
+                    onClick={() => detailTab === "tickers" ? setTickersScope(t.key) : setSummaryScope(t.key)}
+                    className={cn("px-1.5 py-0.5 transition-colors",
+                      (detailTab === "tickers" ? tickersScope : summaryScope) === t.key
+                        ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {detailTab === "holdings" && (
+              <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold shrink-0">
+                {([{ key: "equity", label: "Equity" }, { key: "options", label: "Options" }] as const).map(t => (
+                  <button key={t.key} onClick={() => setHoldingsKind(t.key)}
+                    className={cn("px-1.5 py-0.5 transition-colors",
+                      holdingsKind === t.key ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]")}>
+                    {t.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
-          <p className="text-[10px] text-white normal-case pt-1.5">
-            {detailTab === "tickers" && "Top Tickers — by frequency, net realized P&L YTD (stock sales include assignment exits when exported)"}
-            {detailTab === "summary" && "Cumulative Summary — realized + unrealized + dividends (not calendar-YTD clipped)"}
-            {detailTab === "income" && `Options Income Timeline — sold calls + sold puts · net gain/loss · bi-weekly since 1/1 · scoped to ${activePortfolio}`}
-            {detailTab === "corr" && "Correlation & VaR — 3mo daily returns, weight-ranked names · hover a cell for the pair"}
-            {detailTab === "health" && "Option Position Health — break-even, moneyness, and assignment/exercise risk per leg"}
-            {detailTab === "backtest" && "Vol-Rank Backtest — does selling premium in a higher-volatility regime actually pay off for YOUR trades? (realized-vol proxy, not true IV history)"}
-            {detailTab === "equity" && "Equity Holdings — grouped by account"}
-            {detailTab === "options" && "Options Holdings — grouped by account, active contracts"}
+          <p className="text-[10px] text-white/70 normal-case pt-1">
+            {detailTab === "tickers" && "By frequency · net realized P&L YTD"}
+            {detailTab === "summary" && "Realized + unrealized + dividends"}
+            {detailTab === "income" && `Sold calls/puts · bi-weekly · ${activePortfolio}`}
+            {detailTab === "corr" && "3mo corr · VaR · hover cells"}
+            {detailTab === "health" && "Break-even · moneyness · assign risk"}
+            {detailTab === "backtest" && "Vol-rank vs your premium sells (RV proxy)"}
+            {detailTab === "holdings" && (holdingsKind === "equity" ? "Equity by account · DoD from live quotes" : "Active options · underlying DoD")}
           </p>
           {detailTab === "corr" && portfolioRisk && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono tabular-nums pt-1.5 pb-0.5">
@@ -1349,7 +1329,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
 
         {detailTab === "backtest" && <VolBacktestPanel data={ivRankBacktest} loading={ivRankLoading} />}
 
-        {(detailTab === "equity" || detailTab === "options") && (
+        {detailTab === "holdings" && (
         <CardContent className="px-0 pb-0">
           {snapshotLoading && (
             <p className="text-xs text-white/80 animate-pulse px-3 py-3">Loading portfolio…</p>
@@ -1361,9 +1341,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
             <p className="text-xs text-white/80 px-3 py-3">No snapshot yet — upload a Robinhood CSV above.</p>
           )}
           {!snapshotLoading && !snapshotError && snapshotData?.snapshot && (
-            detailTab === "equity"
-              ? <EquityTable positions={holdingsPositions} />
-              : <OptionsTable options={holdingsOptions} accountMap={holdingsAccountMap} />
+            holdingsKind === "equity"
+              ? <EquityTable positions={holdingsPositions} livePctByTicker={liveDayPctByTicker} />
+              : <OptionsTable options={holdingsOptions} accountMap={holdingsAccountMap} livePctByTicker={liveDayPctByTicker} />
           )}
         </CardContent>
         )}

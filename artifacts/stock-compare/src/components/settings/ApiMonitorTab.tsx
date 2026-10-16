@@ -151,10 +151,10 @@ function Chip({
       <TooltipTrigger asChild>
         <button
           type="button"
-          className="inline-flex flex-col items-center gap-px px-0.5 shrink-0 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+          className="inline-flex flex-1 min-w-0 flex-col items-center justify-end gap-px px-0.5 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
         >
           <Dot tone={tone} />
-          <span className="text-[8px] leading-none text-amber-100/65 whitespace-nowrap">{label}</span>
+          <span className="text-[8px] leading-none text-white/65 whitespace-nowrap">{label}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent
@@ -362,8 +362,8 @@ export function ApiMonitorTab() {
   return (
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 max-w-4xl space-y-3">
       {/* One strip: local stack + vendors + research caches. Hover chip for metrics. */}
-      <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-2 py-1.5 flex flex-nowrap items-end gap-x-1 overflow-x-auto">
-        <span className="self-center font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[9px] shrink-0 pr-0.5">
+      <div className="rounded-md border border-[#d4af37]/20 bg-black/40 px-2 py-1.5 flex flex-nowrap items-end w-full gap-0">
+        <span className="self-center font-semibold text-[#d4af37]/80 uppercase tracking-wide text-[9px] shrink-0 pr-1">
           Conn
         </span>
         {localStack?.enabled && (
@@ -482,8 +482,8 @@ export function ApiMonitorTab() {
 
       <div className="flex items-center justify-between mb-0">
         <div>
-          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">API Monitor</h2>
-          <p className="text-[10px] text-amber-200/40 mt-0.5">
+          <h2 className="text-xs font-semibold text-white uppercase tracking-wide">API Monitor</h2>
+          <p className="text-[10px] text-white mt-0.5">
             PT day counts · api_usage
           </p>
           {aiSpend && (
@@ -505,11 +505,11 @@ export function ApiMonitorTab() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {lastUpdated && <span className="text-[10px] text-amber-200/40">as of {lastUpdated}</span>}
+          {lastUpdated && <span className="text-[10px] text-white">as of {lastUpdated}</span>}
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-1.5 text-xs text-amber-200/50 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs text-white hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
           >
             {isFetching ? "Refreshing…" : "Refresh"}
           </button>
@@ -537,7 +537,7 @@ export function ApiMonitorTab() {
               return (
                 <tr key={source} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 font-medium text-white">{meta.label}</td>
-                  <td className="px-2.5 py-1 text-amber-200/40">
+                  <td className="px-2.5 py-1 text-white">
                     {meta.limitKind === "daily" ? (
                       <span>{meta.dailyLimit}/day</span>
                     ) : (
@@ -554,7 +554,7 @@ export function ApiMonitorTab() {
                       return (
                         <td key={d.iso} className="px-2.5 py-1 text-right">
                           <div className="flex flex-col items-end gap-1">
-                            <span className={cn("tabular-nums font-semibold", calls > 0 ? usageTextColor(pct) : "text-amber-200/40")}>
+                            <span className={cn("tabular-nums font-semibold", calls > 0 ? usageTextColor(pct) : "text-white")}>
                               {calls}/{limit}
                             </span>
                             <div className="w-16 h-1 rounded-full bg-zinc-800 overflow-hidden">
@@ -569,7 +569,7 @@ export function ApiMonitorTab() {
                     }
 
                     return (
-                      <td key={d.iso} className={cn("px-2.5 py-1 text-right tabular-nums", calls === 0 ? "text-amber-200/40" : "text-amber-200/40")}>
+                      <td key={d.iso} className="px-2.5 py-1 text-right tabular-nums text-white">
                         {calls === 0 ? "—" : calls}
                       </td>
                     );
@@ -581,7 +581,7 @@ export function ApiMonitorTab() {
         </table>
       </div>
 
-      <p className="text-[10px] text-amber-200/40 mt-2">
+      <p className="text-[10px] text-white mt-2">
         Grid = api_usage (funda). LSEG/WRDS increment only on CLI sync. Yahoo quotes/chains not counted.
       </p>
 
@@ -590,7 +590,7 @@ export function ApiMonitorTab() {
         <div className="mt-4 pt-3 border-t border-[#d4af37]/25 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Research caches</h2>
-            <span className="text-[10px] text-amber-200/40 tabular-nums">{shortWhen(researchOps.checkedAt)}</span>
+            <span className="text-[10px] text-white/70 tabular-nums">{shortWhen(researchOps.checkedAt)}</span>
           </div>
           <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
             <Chip
@@ -629,7 +629,7 @@ export function ApiMonitorTab() {
                   ...researchOps.lseg.datasets.map((d) => ({ lane: "LSEG", ...d })),
                 ].map((d) => (
                   <tr key={`${d.lane}-${d.dataset}`} className="bg-zinc-900/70 even:bg-zinc-800/60">
-                    <td className="px-2.5 py-1 text-amber-200/50">{d.lane}</td>
+                    <td className="px-2.5 py-1 text-white/70">{d.lane}</td>
                     <td className="px-2.5 py-1 font-mono text-white">{d.dataset}</td>
                     <td className={cn(
                       "px-2.5 py-1",
@@ -637,10 +637,10 @@ export function ApiMonitorTab() {
                     )}>
                       {d.status}
                     </td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">
+                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">
                       {shortWhen(d.lastOkAt)}
                     </td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">{d.lastRows ?? "—"}</td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">{d.lastRows ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -681,7 +681,7 @@ export function ApiMonitorTab() {
             {" · "}
             <span className="text-red-400">Never fetched</span>{` ${health.neverFetched}`}
             {" · "}
-            <span className="text-amber-200/60">Tracked</span>{` ${health.totalActive}`}
+            <span className="text-white/80">Tracked</span>{` ${health.totalActive}`}
           </span>
 
           <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
@@ -696,13 +696,13 @@ export function ApiMonitorTab() {
                 {health.topNullFields.map(({ field, nullCount }) => (
                   <tr key={field} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                     <td className="px-2.5 py-1 font-mono text-white">{field}</td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-200/40">{nullCount}</td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">{nullCount}</td>
                   </tr>
                 ))}
                 <tr className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 font-medium text-white">Divergent fields (sources disagree &gt;20%)</td>
                   <td className="px-2.5 py-1 text-right tabular-nums">
-                    <span className={cn(health.divergentCount > 50 ? "text-orange-400" : "text-amber-200/40")}>
+                    <span className={cn(health.divergentCount > 50 ? "text-orange-400" : "text-white/70")}>
                       {health.divergentCount}
                     </span>
                   </td>
@@ -714,7 +714,7 @@ export function ApiMonitorTab() {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
                     )}
                   </td>
-                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.polygonRows === 0 ? "text-red-400" : "text-amber-200/40")}>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.polygonRows === 0 ? "text-red-400" : "text-white/70")}>
                     {health.bronze.polygonRows}
                   </td>
                 </tr>
@@ -725,7 +725,7 @@ export function ApiMonitorTab() {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
                     )}
                   </td>
-                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.avRows === 0 ? "text-red-400" : "text-amber-200/40")}>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.avRows === 0 ? "text-red-400" : "text-white/70")}>
                     {health.bronze.avRows}
                   </td>
                 </tr>
@@ -733,7 +733,7 @@ export function ApiMonitorTab() {
             </table>
           </div>
 
-          <p className="text-[10px] text-amber-200/40 mt-2">
+          <p className="text-[10px] text-white/70 mt-2">
             Last enrichment:{" "}
             {health.lastEnrichmentRun
               ? new Date(health.lastEnrichmentRun).toLocaleString()

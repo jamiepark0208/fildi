@@ -193,9 +193,11 @@ export const analystEvents = pgTable('analyst_events', {
   fromGrade:   text('from_grade'),
   toGrade:     text('to_grade'),
   eventDate:   date('event_date').notNull(),
-  // Per-firm price target — only populated for fmp-target rows (FMP's grades feed and
-  // price-target feed are separate un-mergeable streams; see analyst-price-target skill note).
+  // Per-firm price target — Yahoo upgradeDowngradeHistory.currentPriceTarget + fmp-target.
   priceTarget: numeric('price_target'),
+  // Yahoo priorPriceTarget (0 = initiation → store null) + priceTargetAction (Raises/Lowers/…).
+  priorPriceTarget: numeric('prior_price_target'),
+  priceTargetAction: text('price_target_action'),
   newsTitle:   text('news_title'),
   fetchedAt:   timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({

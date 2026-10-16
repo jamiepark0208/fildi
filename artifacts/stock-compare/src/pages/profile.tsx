@@ -568,17 +568,20 @@ function TopTickers({ posts, tickerPnl }: { posts: TradePost[]; tickerPnl: Ticke
 
 export default function Profile() {
   const { username: routeUsername } = useParams<{ username: string }>()
-  const { user: me } = useAuth()
+  const { user: me, isLoading: authLoading } = useAuth()
   const qc = useQueryClient()
   const username = routeUsername === "me" ? (me?.username ?? "") : routeUsername
+  const waitingForMe = routeUsername === "me" && (!me || authLoading)
   const [showForm, setShowForm] = useState(false)
 
-  const { data, isLoading, error } = useQuery<ProfileData>({
+  const { data, isLoading, error, isFetching } = useQuery<ProfileData>({
     queryKey: ["feed", "profile", username],
     queryFn: () => apiFeed(`/profile/${username}`),
     enabled: !!username,
     staleTime: 60000,
     refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: 400,
   })
 
   const isOwnerProfile = !!me && data?.user.username === me.username
@@ -604,11 +607,11 @@ export default function Profile() {
 
   const [resetting, setResetting] = useState(false)
   async function handleReset() {
-    if (!confirm("Reset your paper-trading account? Any gain on open holdings will be locked in as cash; losses are forgiven. Cash and holdings reset — your trade ideas, win rate, and streak stay exactly as they are."))
+    if (!confirm("Reset paper-trading stats to a clean slate? Clears trade ideas, win rate, streak, and P&L. Stock holdings stay (cost basis marked to market so unrealized = 0). Cash unchanged."))
       return
     setResetting(true)
     try {
-      await apiFeed("/portfolio/reset", { method: "POST" })
+      await apiFeed("/portfolio/reset-stats", { method: "POST" })
       invalidate()
     } finally { setResetting(false) }
   }
@@ -624,8 +627,12 @@ export default function Profile() {
           </Link>
         )}
 
-        {isLoading && <span className="text-xs text-white/70 animate-pulse">Loading…</span>}
-        {error    && <div className="text-sm text-red-400">Failed to load profile.</div>}
+        {(isLoading || waitingForMe || (isFetching && !data)) && (
+          <span className="text-xs text-white/70 animate-pulse">Loading…</span>
+        )}
+        {error && !waitingForMe && !isFetching && (
+          <div className="text-sm text-red-400">Failed to load profile.</div>
+        )}
 
         {data && (
           <>
@@ -660,10 +667,10 @@ export default function Profile() {
                     <button
                       onClick={handleReset}
                       disabled={resetting}
-                      title="Reset cash and holdings — trade ideas, win rate, and streak are preserved"
+                      title="Clear win rate, streak, P&L — keep stock holdings"
                       className="text-[11px] font-semibold px-3 py-1.5 rounded border border-[#d4af37]/20 bg-zinc-900 text-white/70 hover:text-red-400 hover:border-red-400/40 transition-all disabled:opacity-40"
                     >
-                      {resetting ? "Resetting…" : "Reset Account"}
+                      {resetting ? "Resetting…" : "Reset Stats"}
                     </button>
                     <button
                       onClick={() => setShowForm(v => !v)}

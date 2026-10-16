@@ -1,18 +1,36 @@
+import { useEffect } from "react";
+import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 
+/**
+ * Real 404s are rare in-app. During Vite HMR, a stale lazy chunk can briefly
+ * land here ("Did you forget…") — auto-recover once instead of flashing logout UI.
+ */
 export default function NotFound() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("fildi_notfound_reload") === "1") {
+        sessionStorage.removeItem("fildi_notfound_reload");
+        return;
+      }
+      sessionStorage.setItem("fildi_notfound_reload", "1");
+      const t = window.setTimeout(() => window.location.reload(), 150);
+      return () => window.clearTimeout(t);
+    } catch { /* */ }
+  }, []);
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-zinc-900">
+      <Card className="w-full max-w-md mx-4 border-[#d4af37]/25 bg-zinc-950">
+        <CardContent className="pt-6">
+          <div className="flex mb-4 gap-2 items-center">
+            <AlertCircle className="h-6 w-6 text-amber-400" />
+            <h1 className="text-lg font-bold text-white">Page not found</h1>
+          </div>
+          <p className="text-sm text-white">
+            Reloading… If this sticks, go back to{" "}
+            <Link href="/watchlist" className="text-[#d4af37] underline">Watchlist</Link>.
           </p>
         </CardContent>
       </Card>

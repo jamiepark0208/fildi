@@ -23,6 +23,18 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: { componentStack: string }) {
     Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    // Stale Vite lazy chunk after HMR — one silent reload instead of a scary card.
+    const msg = error?.message ?? "";
+    if (/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg)) {
+      try {
+        if (sessionStorage.getItem("fildi_chunk_reload") !== "1") {
+          sessionStorage.setItem("fildi_chunk_reload", "1");
+          window.location.reload();
+          return;
+        }
+        sessionStorage.removeItem("fildi_chunk_reload");
+      } catch { /* */ }
+    }
   }
 
   private handleRetry = () => {

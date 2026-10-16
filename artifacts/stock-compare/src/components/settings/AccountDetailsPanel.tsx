@@ -119,6 +119,11 @@ export function AccountDetailsButton() {
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
   const handleLogout = async () => {
+    try {
+      sessionStorage.setItem("fildi_explicit_logout", "1");
+      sessionStorage.removeItem("fildi_auth_user_v1");
+      sessionStorage.removeItem("fildi_return_to");
+    } catch { /* */ }
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     queryClient.removeQueries({ queryKey: ["watchlist"] });
     queryClient.removeQueries({ queryKey: ["portfolio-snapshot-latest"] });

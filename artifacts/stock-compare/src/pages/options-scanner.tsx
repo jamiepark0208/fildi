@@ -5,7 +5,6 @@ import { TopNav } from "@/components/top-nav";
 import { cn } from "@/lib/utils";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import {
-  computeTechnicalRankingsV2,
   type TechnicalRow,
   type TechnicalScore,
 } from "@/lib/technical-rankings";
@@ -26,6 +25,8 @@ import {
   pfNum,
   RED_TAG,
   SortableHeader,
+  OPTIONS_BOARD_COLS,
+  colRange,
   type OptionRow,
   type OptionsChainResult,
   type MacroRegimeResult,
@@ -126,15 +127,29 @@ export function OptionsScannerContent({
 
   const { entries, isLoaded: watchlistLoaded } = useWatchlist();
 
-  // ── V2 technicals — full universe (Overall candidates + self-relative scoring) ─
+  // ── Slim technicals (StockContext / relativeMove) + side-aware V2 totals ─
+  // Raw rows live in DB; put/call totals come from /technicals/rankings (TTL),
+  // not one-sided tech_score_snapshots and not a 750KB /technicals/all pull.
   const { data: allTechnicalsData, isLoading: technicalsLoading } = useQuery({
-    queryKey: queryKeys.technicalsAll,
+    queryKey: queryKeys.technicalsAllSlim,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all");
-      if (!res.ok) throw new Error("technicals/all fetch failed");
+      const res = await fetch("/api/technicals/all?slim=1");
+      if (!res.ok) throw new Error("technicals/all slim fetch failed");
       return res.json();
     },
     staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: techRankingsData, isLoading: techRankingsLoading } = useQuery({
+    queryKey: queryKeys.technicalsRankings(isCallMode ? "call" : "put"),
+    queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
+      const side = isCallMode ? "call" : "put";
+      const res = await fetch(`/api/technicals/rankings?side=${side}`);
+      if (!res.ok) throw new Error("technicals/rankings fetch failed");
+      return res.json();
+    },
+    staleTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -207,7 +222,7 @@ export function OptionsScannerContent({
 
   const displayTickers = activeTickers;
   const isLoaded = universe === "overall"
-    ? (!optionRankingsLoading && (optionRankings != null || (!technicalsLoading && !!allTechnicalsData)))
+    ? (!optionRankingsLoading && (optionRankings != null || (!technicalsLoading && !!allTechnicalsData && !techRankingsLoading)))
     : watchlistLoaded;
 
   // ── Options chains ─────────────────────────────────────────────────────────
@@ -326,9 +341,9 @@ export function OptionsScannerContent({
 
   // ── Fundamental rankings — for Option Scorer stock quality component ──────────
   const { data: fundRankingsData } = useQuery({
-    queryKey: queryKeys.fundamentalsRankings,
+    queryKey: [...queryKeys.fundamentalsRankings, "slim"],
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
-      const res = await fetch("/api/fundamentals/rankings");
+      const res = await fetch("/api/fundamentals/rankings?slim=1");
       if (!res.ok) throw new Error("fundamentals/rankings failed");
       return res.json();
     },
@@ -336,16 +351,17 @@ export function OptionsScannerContent({
     staleTime: 10 * 60_000,
   });
 
-  // V2: self-relative scores over all 31 watchlist rows — invariant to display filter.
-  // Side-aware: call mode scores overbought/exhaustion/extension (sell calls into
-  // strength) instead of the put-side oversold/reversal components.
+  // Side-aware V2 totals from API (put vs call). Full TechnicalScore shape is not
+  // needed on the board — only totalScore for stock/option blend.
   const rankings = useMemo(() => {
-    if (!allTechnicalsData?.length) return new Map<string, TechnicalScore>();
+    if (!techRankingsData?.length) return new Map<string, TechnicalScore>();
     return new Map(
-      computeTechnicalRankingsV2(allTechnicalsData, {}, weights.technical, isCallMode ? "call" : "put")
-        .map(s => [s.ticker, s]),
+      techRankingsData.map((s) => [
+        s.ticker,
+        { ticker: s.ticker, totalScore: s.totalScore } as TechnicalScore,
+      ]),
     );
-  }, [allTechnicalsData, weights.technical, isCallMode]);
+  }, [techRankingsData]);
 
   // Tech row map (full fields for Option Scorer — includes swingLow, pivotS1, atr14, etc.)
   const techRowMap = useMemo(
@@ -421,7 +437,8 @@ export function OptionsScannerContent({
       if (snap) {
         scoreMap.set(ticker, snap.optionScore);
         if (snap.weeklyIncomePct != null) incomeMap.set(ticker, snap.weeklyIncomePct);
-        const otm = (snap.otmPct ?? 0) / 100;
+        // Snapshot otmPct is a fraction (0.08 = 8%), same as live pickBestStrike — not "percent points".
+        const otm = snap.otmPct ?? 0;
         const iv = snap.strikeIv ?? 0;
         const dte = snap.dte ?? 0;
         if (otm > 0 && iv > 0 && dte > 0) {
@@ -512,7 +529,7 @@ export function OptionsScannerContent({
     const snapBuffer = (t: string) => {
       const snap = rankingByTicker.get(t);
       if (!snap) return null;
-      const otm = (snap.otmPct ?? 0) / 100;
+      const otm = snap.otmPct ?? 0; // fraction, not percent points
       const iv = snap.strikeIv ?? 0;
       const dte = snap.dte ?? 0;
       if (!(otm > 0 && iv > 0 && dte > 0)) return null;
@@ -627,6 +644,21 @@ export function OptionsScannerContent({
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+
+  // Continuous heat scales for Opt/Stock/IV/Inc/Buf across the visible board.
+  const columnHeat = useMemo(() => {
+    const ivOf = (t: string) => {
+      const iv = scorecardMap.get(t)?.ivCurrent;
+      return iv != null && iv > 0 ? (iv <= 1.5 ? Math.round(iv * 100) : Math.round(iv)) : null;
+    };
+    return {
+      opt: colRange(visibleTickers.map((t) => bestOptionScoreMap.get(t) ?? null)),
+      stock: colRange(visibleTickers.map((t) => stockScoreMap.get(t) ?? null)),
+      iv: colRange(visibleTickers.map(ivOf)),
+      inc: colRange(visibleTickers.map((t) => bestIncomeMap.get(t) ?? null)),
+      buf: colRange(visibleTickers.map((t) => bufferMap.get(t) ?? null)),
+    };
+  }, [visibleTickers, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   /** Priority single-ticker chain fetch (expand / admin refresh). */
@@ -846,20 +878,23 @@ export function OptionsScannerContent({
             </div>
 
             <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black/40">
-            {/* Column headers — widths match ScannerRow */}
-            <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] font-semibold tracking-wide uppercase text-[#d4af37] min-w-[560px]" style={{ borderLeft: "3px solid transparent" }}>
-              <div className="w-5 shrink-0 text-center">#</div>
-              <div className="w-[92px] shrink-0">Ticker</div>
-              <div className="w-[58px] shrink-0" title="Live equity quote (Schwab→Yahoo cache); % under price = vs nightly options snapshot">Price</div>
-              <div className="w-[36px] shrink-0">Sig</div>
-              <div className="w-[44px] shrink-0" title="Graded sell-put/sell-call win-loss (Sharpe / StkΔ in row tooltip)">Rec</div>
-              <div className="w-[34px] shrink-0" title="Hover a row's RSI value for full reasoning">RSI</div>
-              <SortableHeader label="Opt" sortKey="optionScore" active={sort === "optionScore"} width="w-[48px]" onClick={setSort} />
-              <SortableHeader label="Stock" sortKey="score" active={sort === "score"} width="w-[48px]" onClick={setSort} />
-              <SortableHeader label="IV" sortKey="iv" active={sort === "iv"} width="w-[34px]" onClick={setSort} />
-              <SortableHeader label="Inc" sortKey="income" active={sort === "income"} width="w-[48px]" onClick={setSort} />
-              <SortableHeader label="Buf" sortKey="buffer" active={sort === "buffer"} width="w-[40px]" onClick={setSort} />
-              <div className="flex-1 min-w-0" />
+            {/* Column headers — track matches ScannerRow; only #/Ticker/Price stay bold */}
+            <div
+              className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] tracking-wide uppercase text-[#d4af37]")}
+              style={{ borderLeft: "3px solid transparent" }}
+            >
+              <div className="text-center font-semibold">#</div>
+              <div className="font-semibold">Ticker</div>
+              <div className="font-semibold" title="Live equity quote (Schwab→Yahoo cache); % under price = vs nightly options snapshot">Price</div>
+              <div className="font-normal text-amber-200/55">Sig</div>
+              <div className="font-normal text-amber-200/55" title="Graded sell-put/sell-call win-loss (Sharpe / StkΔ in row tooltip)">Rec</div>
+              <div className="font-normal text-amber-200/55" title="Hover a row's RSI value for full reasoning">RSI</div>
+              <SortableHeader label="Opt" sortKey="optionScore" active={sort === "optionScore"} onClick={setSort} />
+              <SortableHeader label="Stock" sortKey="score" active={sort === "score"} onClick={setSort} />
+              <SortableHeader label="IV" sortKey="iv" active={sort === "iv"} onClick={setSort} />
+              <SortableHeader label="Inc" sortKey="income" active={sort === "income"} onClick={setSort} />
+              <SortableHeader label="Buf" sortKey="buffer" active={sort === "buffer"} onClick={setSort} />
+              <div aria-hidden className="w-full" />
             </div>
             {visibleTickers.map((ticker, i) => (
               <ScannerRow
@@ -896,6 +931,7 @@ export function OptionsScannerContent({
                 modelAvoid={modelAvoidSet.has(ticker.toUpperCase())}
                 livePrice={livePrices?.[ticker]?.price ?? null}
                 snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
+                heat={columnHeat}
               />
             ))}
             </div>

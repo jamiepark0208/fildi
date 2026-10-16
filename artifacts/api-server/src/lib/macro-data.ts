@@ -198,6 +198,9 @@ export {
   loadChartsCache,
   saveChartsCache,
   isChartsCacheStale,
+  loadSectorRotationCache,
+  saveSectorRotationCache,
+  isSectorRotationCacheStale,
 } from "./macro/macro-cache.js";
 
 // ── Market quote helpers ──────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 /**
- * Settings › Agents (Claude + Cursor styling, user 2026-10-15). Real records only: hook events (Claude Code + Cursor →
+ * Top-nav AI › Agents desk (Claude + Cursor styling, user 2026-10-15). Real records only: hook events (Claude Code + Cursor →
  * ~/.fildi/agent-events.jsonl), commits (git), hand-offs + Muse ideas (ASKS rows), Claude tokens (session logs).
  * Team / Ideas = zoomable maps (scroll = zoom, drag = pan, click = details): 3D orbs for agents, 3D cubes for ideas.
  * Beams and spinning rings only for actions in the last 2 min. Tables use the shared Rankings grid look.
@@ -18,7 +18,7 @@ type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; 
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
 type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; git?: string[]; gitMsg?: string };
-type Jobs = { running: { name: string; mins: number }[]; ran: { name: string; at: string; ok: boolean }[];
+type Jobs = { running: { name: string; mins: number }[]; ran: { name: string; at: string; ok: boolean }[]; recentRun?: boolean;
   sources: { source: string; calls: number; at: string }[]; activeSources: string[]; links: { api: boolean; db: boolean } };
 type Status = {
   working: boolean; waiting?: boolean; looping?: boolean; errors1h?: number; doing?: string | null; workingMin?: number; waitingMin?: number;
@@ -37,7 +37,15 @@ type Sub = { id: string; agent: string; session: string | null; type: string | n
 const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
 type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
-type Idea = { id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string };
+type Idea = {
+  id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
+  touchedAt?: string | null; touchedBy?: Id | null; inProgress?: boolean; hot?: boolean;
+};
+const IDEA_WAVE_ACK_KEY = "fildi_ideas_wave_ack";
+/** Hot-wave glow (status just changed this batch). Distinct from phase colours. */
+const HOT_GLOW = "#ff4d8d";
+const PROG_GLOW = "#5eead4";
+const WHO_LETTER: Record<Id, string> = { jamie: "Y", muse: "M", claude: "Cl", cursor: "Cu" };
 type Data = {
   needsUnread?: Record<string, number>;
   jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
@@ -233,11 +241,33 @@ function drawRepo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   ctx.fillStyle = spec; ctx.fillRect(x - w + 1, y - h + d + 1, w * 2 - 2, h * 0.7);
 }
 
-function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: { selected?: boolean; dim?: boolean }) {
+function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: {
+  selected?: boolean; dim?: boolean; hot?: boolean; progress?: boolean; now?: number; by?: Id | null;
+}) {
   // isometric cube: top rhombus (lit) + left/right faces (shaded), light from top-left like the orbs
   const T = [[x, y - s * 0.6], [x + s, y - s * 0.1], [x, y + s * 0.4], [x - s, y - s * 0.1]];
   const L = [[x - s, y - s * 0.1], [x, y + s * 0.4], [x, y + s * 1.3], [x - s, y + s * 0.8]];
   const R = [[x + s, y - s * 0.1], [x, y + s * 0.4], [x, y + s * 1.3], [x + s, y + s * 0.8]];
+  const accent = o.progress ? PROG_GLOW : o.hot ? HOT_GLOW : null;
+  const pulse = accent && o.now != null ? 0.55 + 0.45 * Math.sin(o.now / 280) : 1;
+  if (accent) {
+    const ring = ctx.createRadialGradient(x, y + s * 0.2, s * 0.2, x, y + s * 0.2, s * (3.4 + pulse));
+    ring.addColorStop(0, accent + "cc");
+    ring.addColorStop(0.45, accent + "66");
+    ring.addColorStop(1, "transparent");
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(x, y + s * 0.2, s * (3.4 + pulse), 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2.2 * pulse;
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 14 * pulse;
+    ctx.beginPath();
+    ctx.arc(x, y + s * 0.15, s * 1.85, 0, 7);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
   const glow = ctx.createRadialGradient(x, y + s * 0.3, s * 0.3, x, y + s * 0.3, s * 2.2);
   glow.addColorStop(0, c + (o.dim ? "22" : "66")); glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y + s * 0.3, s * 2.2, 0, 7); ctx.fill();
@@ -250,8 +280,20 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   face(T, g);
   face(L, c + (o.dim ? "44" : "88"));
   face(R, c + (o.dim ? "22" : "55"));
-  ctx.strokeStyle = o.selected ? "#ffffff" : c; ctx.lineWidth = o.selected ? 1.6 : 0.8;
+  ctx.strokeStyle = o.selected ? "#ffffff" : accent ?? c; ctx.lineWidth = o.selected ? 1.6 : accent ? 1.3 : 0.8;
   for (const pts of [T, L, R]) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.stroke(); }
+  if (o.by && META[o.by]) {
+    const bx = x - s * 0.95, by = y - s * 0.7;
+    ctx.fillStyle = META[o.by].color;
+    ctx.shadowColor = META[o.by].color;
+    ctx.shadowBlur = accent ? 10 * pulse : 4;
+    ctx.beginPath(); ctx.arc(bx, by, 7, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#000";
+    ctx.font = "700 8px ui-sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(WHO_LETTER[o.by], bx, by + 2.5);
+  }
 }
 
 /** Zoom/pan canvas. draw() works in world coords (0,0 = centre); hit() maps a world point to an item id. */
@@ -626,9 +668,11 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
     if (id === "jobs") {
       const jb = d.jobs;
-      const now = (d.procs ?? []).filter((p) => p.owner === "jobs").map((p) => nice(p.name));
-      const calls = (jb?.sources ?? []).reduce((s, x) => s + x.calls, 0);
-      return <Lines color={JOBS} a="Scheduled jobs" b={now.length ? `running: ${now.join(", ")}` : jb?.ran.length ? `last ran ${ago(jb.ran[0].at)} ago` : "idle"} c={calls ? `${calls} API calls today` : undefined} />;
+      const now = (jb?.running ?? []).map((r) => r.name);
+      const last = jb?.ran?.[0];
+      return <Lines color={JOBS} a="Scheduled jobs"
+        b={now.length ? `running: ${now.join(", ")}` : last ? `last finished ${ago(last.at)} ago (${last.name})` : "idle"}
+        c={jb?.links.api || jb?.links.db ? "beams = this job → APIs / DB (not two jobs)" : undefined} />;
     }
     if (id === "n:github") {
       const n = (d.gitHour ?? []).length;
@@ -801,17 +845,39 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const [showParked, setShowParked] = useState(false);
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  // Declutter: by default only open stages + done rows filed ≤ 7 days ago (no done-date in ASKS; filing date is the proxy).
+  const wave = useMemo(
+    () => ideas.reduce<string | null>((b, i) => (i.touchedAt && (!b || i.touchedAt > b) ? i.touchedAt : b), null),
+    [ideas],
+  );
+  const [waveAck, setWaveAck] = useState<string | null>(() => {
+    try { return localStorage.getItem(IDEA_WAVE_ACK_KEY); } catch { return null; }
+  });
+  const waveActive = !!wave && wave !== waveAck;
+  const isHot = (i: Idea) => !!i.hot && waveActive;
+  const isProg = (i: Idea) => !!i.inProgress;
+  // Open stages + done ≤ 7d + this-wave / in-progress (today's completions stay visible).
   const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
-  const shown = ideas.filter((i) => showParked || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date))));
+  const shown = ideas.filter((i) =>
+    showParked
+    || isHot(i)
+    || isProg(i)
+    || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? ""))),
+  );
   const cols = PHASES.filter((p) => shown.some((i) => i.phase === p) || ["needs you", "filed", "reviewed", "building"].includes(p));
   const visible = shown.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
+  const hotCount = shown.filter(isHot).length;
+  const progCount = shown.filter(isProg).length;
   const dismiss = async (id: string) => {
     setBusy(true);
     try {
       const r = await fetch(`/api/agents/ideas/${encodeURIComponent(id)}/dismiss`, { method: "POST", credentials: "include" });
       if (r.ok) { setSel(null); await qc.invalidateQueries({ queryKey: ["agents-overview"] }); }
     } finally { setBusy(false); }
+  };
+  const clearWave = () => {
+    if (!wave) return;
+    try { localStorage.setItem(IDEA_WAVE_ACK_KEY, wave); } catch { /* private mode */ }
+    setWaveAck(wave);
   };
   const active = ideas.find((i) => i.id === sel) ?? null;
   const COLW = 130, S = 13, ROWH = 46, PER = 3; // cubes per row inside a phase column
@@ -824,8 +890,8 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
       });
     });
     return out;
-  }, [shown.map((i) => i.id).join(), cols.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const draw = (ctx: CanvasRenderingContext2D, _now: number, v: View) => {
+  }, [shown.map((i) => `${i.id}:${i.phase}:${i.hot}:${i.inProgress}`).join(), cols.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
       const n = shown.filter((i) => i.phase === ph).length;
@@ -835,7 +901,14 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
       ctx.beginPath(); ctx.moveTo(x0 + ci * COLW + COLW / 2, -165); ctx.lineTo(x0 + ci * COLW + COLW / 2, 400); ctx.stroke();
     });
     for (const { idea, x, y } of layout) {
-      drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", { selected: sel === idea.id, dim: idea.phase === "parked" });
+      drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", {
+        selected: sel === idea.id,
+        dim: idea.phase === "parked" && !isHot(idea) && !isProg(idea),
+        hot: isHot(idea) && !isProg(idea),
+        progress: isProg(idea),
+        now,
+        by: idea.touchedBy ?? null,
+      });
       const n = unread[idea.id] ?? 0;
       if (n > 0) { // agent replied since Jamie's last comment
         const bx = x + S * 0.95, by = y - S * 0.75;
@@ -848,11 +921,18 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const tip = (id: string) => {
     const i = ideas.find((x) => x.id === id);
     if (!i) return null;
+    const who = i.touchedBy ? META[i.touchedBy]?.label : null;
     return (
       <>
         <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
           <span style={{ color: PHASE_COLOR[i.phase] }}>{i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
         <div className="mt-0.5">{i.title}</div>
+        {(isHot(i) || isProg(i) || who) && (
+          <div className="mt-1 text-[11px]" style={{ color: isProg(i) ? PROG_GLOW : isHot(i) ? HOT_GLOW : "#a1a1aa" }}>
+            {isProg(i) ? "In progress" : isHot(i) ? "Changed this wave" : null}
+            {who ? `${isProg(i) || isHot(i) ? " · " : ""}${who}${i.touchedAt ? ` · ${i.touchedAt.slice(5)}` : ""}` : ""}
+          </div>
+        )}
         <div className="mt-1 text-[11px] text-white/50">{unread[i.id] ? `${unread[i.id]} new repl${unread[i.id] > 1 ? "ies" : "y"} · ` : ""}click for details</div>
       </>
     );
@@ -860,22 +940,45 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const hit = (x: number, y: number) => layout.find((p) => Math.abs(p.x - x) < S + 2 && y > p.y - S && y < p.y + S * 1.4)?.idea.id ?? null;
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-[12px] text-white">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Muse ideas by stage · {visible.length} shown</span>
-        <InfoTip>Each cube = one Muse → Cursor row in research/common/ASKS.md, grouped by where it is: needs you → filed → reviewed (Claude)
-          → building (Cursor) → done. Zoom in for IDs and titles; click a cube for the full context.</InfoTip>
+        <InfoTip>Pink glow = this wave of status changes (newest touch day on the board). Teal pulse = in progress.
+          Badge Cu/Cl/M/Y = who last touched. A newer wave replaces the glow; or use Clear highlights.
+          Stages: needs you → filed (waiting on Claude plan) → reviewed (= planned: Claude approved; Cursor has not built it yet) → building → done.</InfoTip>
+        {(hotCount > 0 || progCount > 0) && (
+          <span className="inline-flex items-center gap-2 text-[11px] text-white/80">
+            {hotCount > 0 && <span style={{ color: HOT_GLOW }}>● {hotCount} this wave{wave ? ` · ${wave.slice(5)}` : ""}</span>}
+            {progCount > 0 && <span style={{ color: PROG_GLOW }}>● {progCount} in progress</span>}
+          </span>
+        )}
+        {waveActive && hotCount > 0 && (
+          <button type="button" onClick={clearWave}
+            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#ff4d8d]/50 hover:text-[#ff4d8d]">
+            Clear highlights
+          </button>
+        )}
         <button type="button" onClick={() => setShowParked((v) => !v)} className="ml-auto text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#d4af37]/50">
           {showParked ? "Hide done / parked" : "Show done / parked"}
         </button>
       </div>
       <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} />
       {active && (
-        <div className="rounded-lg border px-3 py-2.5 space-y-1.5" style={{ borderColor: (PHASE_COLOR[active.phase] ?? "#e879f9") + "66", background: (PHASE_COLOR[active.phase] ?? "#e879f9") + "0d" }}>
+        <div className="rounded-lg border px-3 py-2.5 space-y-1.5" style={{
+          borderColor: (isProg(active) ? PROG_GLOW : isHot(active) ? HOT_GLOW : PHASE_COLOR[active.phase] ?? "#e879f9") + "88",
+          background: (PHASE_COLOR[active.phase] ?? "#e879f9") + "0d",
+        }}>
           <div className="flex flex-wrap items-baseline gap-2 text-[12px]">
             <span className="font-semibold text-white">{active.id}</span>
             <span style={{ color: PHASE_COLOR[active.phase] }}>{active.phase}</span>
+            {isProg(active) && <span style={{ color: PROG_GLOW }}>in progress</span>}
+            {isHot(active) && !isProg(active) && <span style={{ color: HOT_GLOW }}>this wave</span>}
             <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · Muse → Cursor${active.quant ? " · quant" : ""}`}</span>
           </div>
+          {active.touchedBy && (
+            <p className="text-[12px]" style={{ color: META[active.touchedBy].color }}>
+              Last touch: {META[active.touchedBy].label}{active.touchedAt ? ` · ${active.touchedAt}` : ""}
+            </p>
+          )}
           <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
           <RichText text={active.blurb || "No Context section in the ask file yet."} />
           <div className="flex items-center gap-2">

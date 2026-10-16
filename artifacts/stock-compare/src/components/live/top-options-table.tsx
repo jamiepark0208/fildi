@@ -74,7 +74,7 @@ export function TopOptionsTable({
                   <td className={cn(TD, "font-semibold text-white")}>
                     {r.ticker}
                     <TickerRecordBadge record={tickerRecords?.[r.ticker]?.[side]} livePrice={r.spot} side={side} />
-                    <RecConflictChip conflicts={conflictsByTicker?.get(r.ticker.toUpperCase()) ?? []} />
+                    <RecConflictChip compact conflicts={conflictsByTicker?.get(r.ticker.toUpperCase()) ?? []} />
                   </td>
                   <td className={cn(TD, "text-right text-white/90")}>{r.spot.toFixed(r.spot < 10 ? 2 : 1)}</td>
                   <td className={cn(TD, "text-right text-amber-400")}>{r.strike.toFixed(r.strike < 10 ? 2 : 1)}</td>

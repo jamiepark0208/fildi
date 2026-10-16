@@ -17,6 +17,14 @@ const ACTION_NORMALIZED: Record<string, string> = {
   reit: "reiterate",
 };
 
+/** Yahoo PT fields: 0 / missing → null (priorPriceTarget=0 means initiation, not $0). */
+function yahooPriceTarget(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
 /** Yahoo upgradeDowngradeHistory → flat events (last 365d). UI groups by firm + expand for history. */
 export function parseAnalystHistory(rawHistory: unknown[]): CatalystAnalystAction[] {
   const cutoff = Date.now() - CUTOFF_DAYS * 24 * 60 * 60 * 1000;
@@ -33,6 +41,7 @@ export function parseAnalystHistory(rawHistory: unknown[]): CatalystAnalystActio
       fromGrade: item.fromGrade ?? "",
       action: item.action ?? "maintain",
       date: yahooEpochToDateStr(item.epochGradeDate),
+      priceTarget: yahooPriceTarget(item.currentPriceTarget),
     }));
 }
 
@@ -80,6 +89,14 @@ export async function writeAnalystEvents(ticker: string, rawHistory: unknown[]):
       if (!eventDate) continue;
       const firm = (item.firm ?? "Unknown") as string;
       const rawAction = item.action ?? "main";
+      const priceTarget = yahooPriceTarget(item.currentPriceTarget);
+      const priorPriceTarget = yahooPriceTarget(item.priorPriceTarget);
+      const priceTargetAction =
+        typeof item.priceTargetAction === "string" && item.priceTargetAction.trim()
+          ? item.priceTargetAction.trim()
+          : null;
+      const priceTargetStr = priceTarget != null ? String(priceTarget) : null;
+      const priorPriceTargetStr = priorPriceTarget != null ? String(priorPriceTarget) : null;
 
       await tx.insert(yahooAnalystActions)
         .values({
@@ -106,10 +123,21 @@ export async function writeAnalystEvents(ticker: string, rawHistory: unknown[]):
           fromGrade,
           toGrade,
           eventDate,
+          priceTarget: priceTargetStr,
+          priorPriceTarget: priorPriceTargetStr,
+          priceTargetAction,
         })
         .onConflictDoUpdate({
           target: [analystEvents.ticker, analystEvents.firm, analystEvents.eventDate, analystEvents.source],
-          set: { fromGrade, toGrade, action: ACTION_NORMALIZED[rawAction] ?? rawAction, fetchedAt: sql`now()` },
+          set: {
+            fromGrade,
+            toGrade,
+            action: ACTION_NORMALIZED[rawAction] ?? rawAction,
+            priceTarget: priceTargetStr,
+            priorPriceTarget: priorPriceTargetStr,
+            priceTargetAction,
+            fetchedAt: sql`now()`,
+          },
         });
     }
   }).catch(err => {
@@ -127,6 +155,7 @@ export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystA
       fromGrade: analystEvents.fromGrade,
       action: analystEvents.action,
       eventDate: analystEvents.eventDate,
+      priceTarget: analystEvents.priceTarget,
     })
     .from(analystEvents)
     .where(sql`${analystEvents.ticker} = ${ticker.toUpperCase()} AND ${analystEvents.source} = 'yahoo'`)
@@ -139,6 +168,7 @@ export async function readAnalystEventsFromDb(ticker: string): Promise<CatalystA
     fromGrade: r.fromGrade ?? "",
     action: r.action,
     date: r.eventDate,
+    priceTarget: r.priceTarget != null ? parseFloat(r.priceTarget as unknown as string) : null,
   }));
 }
 

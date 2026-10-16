@@ -2,7 +2,7 @@ import { useState, useMemo, lazy, Suspense } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +11,7 @@ import {
   positionLabel, isOptionsPosition, isShortPosition,
   premiumReceived, daysToExpiry, cashCollateral,
 } from "@/hooks/use-portfolio";
-import { formatCurrency, formatMdYy } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { dbToEntries } from "@/lib/portfolio-db-entries";
 import {
   Plus, Trash2, TrendingUp, AlertTriangle,
@@ -25,6 +25,7 @@ import { PmBookCard } from "@/components/portfolio/pm-book-card";
 import { PutOdds } from "@/components/portfolio/put-odds";
 import { LazyMount } from "@/components/lazy-mount";
 import { useAuth } from "@/context/AuthContext";
+import { useSessionState } from "@/hooks/use-session-state";
 
 const StreetRadar = lazy(() =>
   import("@/components/street-radar").then((m) => ({ default: m.StreetRadar })),
@@ -697,6 +698,8 @@ export default function Portfolio() {
   const [showAddPosition,  setShowAddPosition]  = useState(false);
   const [presetPortfolio,  setPresetPortfolio]  = useState<string | undefined>(undefined);
   const [editingEntry,     setEditingEntry]      = useState<PortfolioEntry | null>(null);
+  /** Bottom research strip: Street Radar vs put-book stress (was a confusing top banner). */
+  const [researchTab, setResearchTab] = useSessionState<"radar" | "book">("fildi_portfolio_research_tab", "radar");
 
   // Robinhood snapshot (shared query key with RobinhoodPortfolio — no extra request).
   // Admin-only data source — disabled for regular users, who use manualEntries instead.
@@ -764,48 +767,6 @@ export default function Portfolio() {
     return g;
   }, [entries]);
 
-  // Aggregate stats
-  const agg = useMemo(() => {
-    let totalCollateral = 0, totalPremium = 0, totalStockValue = 0, openOptions = 0, premiumThisWeek = 0;
-    entries.forEach(e => {
-      if (e.positionType === "short_put") {
-        totalCollateral += cashCollateral(e); totalPremium += premiumReceived(e); openOptions++;
-        if ((daysToExpiry(e.expiry) ?? 99) <= 7) premiumThisWeek += premiumReceived(e);
-      } else if (e.positionType === "short_call") {
-        totalPremium += premiumReceived(e); openOptions++;
-        if ((daysToExpiry(e.expiry) ?? 99) <= 7) premiumThisWeek += premiumReceived(e);
-      } else if (e.positionType === "stock") {
-        totalStockValue += (priceMap[e.ticker] ?? e.avgPrice) * e.qty;
-      } else { openOptions++; }
-    });
-    return { totalCollateral, totalPremium, totalStockValue, openOptions, premiumThisWeek,
-      totalValue: totalCollateral + totalPremium + totalStockValue };
-  }, [entries, priceMap]);
-
-  // Portfolio-level day-over-day change — derived from live quotes on stock holdings
-  // (options/collateral have no live day-change feed, so this approximates using equity only).
-  const dodChange = useMemo(() => {
-    let dollarChange = 0, marketValue = 0;
-    entries.forEach(e => {
-      if (e.positionType !== "stock") return;
-      const px = priceMap[e.ticker] ?? e.avgPrice;
-      const chg = stockDataMap[e.ticker]?.dayChange ?? 0;
-      dollarChange += chg * e.qty;
-      marketValue += px * e.qty;
-    });
-    if (marketValue === 0) return null;
-    return { dollarChange, pct: (dollarChange / (marketValue - dollarChange)) * 100 };
-  }, [entries, priceMap, stockDataMap]);
-
-  // Top movers by |day change %| — concise ticker + DoD change chips
-  const topMovers = useMemo(() => {
-    return uniqueTickers
-      .map(t => ({ ticker: t, pct: stockDataMap[t]?.dayChangePercent != null ? stockDataMap[t].dayChangePercent! * 100 : null }))
-      .filter((m): m is { ticker: string; pct: number } => m.pct !== null)
-      .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
-  }, [uniqueTickers, stockDataMap]);
-
-
   const openAddPosition = (pName?: string) => {
     setPresetPortfolio(pName);
     setShowAddPosition(true);
@@ -860,8 +821,7 @@ export default function Portfolio() {
             <>
               {isAdmin ? (
                 <>
-                  <div className="space-y-3"><PmBookCard /><PutOdds /></div>
-                  {/* Portfolio Analysis first — Street Radar is heavy; lazy-mount below */}
+                  {/* Positions / P&amp;L first — research tools (radar + book risk) sit in tabs below */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis
                       entries={entries}
@@ -876,24 +836,62 @@ export default function Portfolio() {
                       onUploadSuccess={() => refetchRh()}
                     />
                   )}
-                  <LazyMount
-                    minHeight={160}
-                    fallback={
-                      <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-white">
-                        Street Radar · scroll to load
+                  {/* Same gold segmented tabs + card chrome as Holdings detail above */}
+                  <Card className="overflow-hidden min-w-0 bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
+                    <CardHeader className="px-4 pt-4 pb-0">
+                      <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
+                        {(
+                          [
+                            ["radar", "Street Radar"],
+                            ["book", "Book risk"],
+                          ] as const
+                        ).map(([k, label]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => setResearchTab(k)}
+                            className={cn(
+                              "px-2.5 py-1 transition-colors whitespace-nowrap",
+                              researchTab === k
+                                ? "bg-[#d4af37] text-black"
+                                : "bg-zinc-950 text-white/80 hover:text-[#d4af37]",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
                       </div>
-                    }
-                  >
-                    <Suspense
-                      fallback={
-                        <div className="rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-4 text-[10px] text-white">
-                          Loading Street Radar…
-                        </div>
-                      }
-                    >
-                      <StreetRadar />
-                    </Suspense>
-                  </LazyMount>
+                      <p className="text-[10px] text-white/70 normal-case pt-1 leading-snug">
+                        {researchTab === "radar"
+                          ? "CSP ideas + held risk flags (LSEG · IV)"
+                          : "Short-put stress · what-if closes are calculator only"}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 pt-2">
+                      {researchTab === "radar" ? (
+                        <LazyMount
+                          minHeight={160}
+                          fallback={
+                            <div className="rounded-md border border-[#d4af37]/15 bg-zinc-950/80 px-3 py-4 text-[10px] text-white">
+                              Street Radar · scroll to load
+                            </div>
+                          }
+                        >
+                          <Suspense
+                            fallback={
+                              <div className="rounded-md border border-[#d4af37]/15 bg-zinc-950/80 px-3 py-4 text-[10px] text-white">
+                                Loading Street Radar…
+                              </div>
+                            }
+                          >
+                            <StreetRadar embedded />
+                          </Suspense>
+                        </LazyMount>
+                      ) : (
+                        <div className="space-y-3"><PmBookCard embedded /><PutOdds /></div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </>
               ) : (
                 // Regular-user manual entry view — server-backed via use-portfolio.ts (bug/14).
@@ -925,48 +923,6 @@ export default function Portfolio() {
                   )}
                 </div>
               )}
-
-              {/* Compact footer strip — same density as Street Radar */}
-              {rhData?.snapshot && (() => { const snapshot = rhData.snapshot!; return (
-                <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-1.5">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Value</span>
-                      <span className="font-bold font-mono tabular-nums text-white">
-                        {snapshot.totalValue ? formatCurrency(parseFloat(snapshot.totalValue)) : '—'}
-                      </span>
-                      {dodChange && (
-                        <span className={cn('font-mono font-bold', dodChange.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
-                          ({dodChange.pct >= 0 ? '+' : ''}{dodChange.pct.toFixed(2)}%)
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Collateral</span>
-                      <span className="font-bold font-mono tabular-nums text-yellow-400">{formatCurrency(agg.totalCollateral)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Premium / wk</span>
-                      <span className="font-bold font-mono tabular-nums text-green-400">{formatCurrency(agg.premiumThisWeek)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase shrink-0">Movers</span>
-                      {topMovers.length === 0 && <span className="font-mono text-white/50">—</span>}
-                      {topMovers.map(m => (
-                        <span key={m.ticker} className={cn('font-bold font-mono tabular-nums', m.pct >= 0 ? 'text-green-400' : 'text-red-400')}>
-                          {m.ticker} {m.pct >= 0 ? '+' : ''}{m.pct.toFixed(1)}%
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1.5 ml-auto">
-                      <span className="text-[9px] text-[#d4af37] font-bold tracking-wide uppercase">Last imported</span>
-                      <span className="font-mono tabular-nums text-white" title={snapshot.importedAt}>
-                        {formatMdYy(snapshot.importedAt)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ); })()}
             </>
           )}
         </div>

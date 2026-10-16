@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   useSearchStocks,
   getSearchStocksQueryKey,
-  StockMetrics
 } from "@workspace/api-client-react";
 import { StockBreakdown } from "@/components/stock-breakdown";
 import { ModelListPanel, WATCHLIST_ROW_MINE, modelThesisSelectionKey } from "@/components/model-list-panel";
@@ -20,6 +19,24 @@ import { cn } from "@/lib/utils";
 // ── Tab button ────────────────────────────────────────────────────────────────
 
 // ── Watchlist list view ────────────────────────────────────────────────────────
+
+/** Price/chg row fields from /live/prices (percent points → StockMetrics-style decimals). */
+type ListQuote = {
+  currentPrice?: number;
+  dayChange?: number;
+  dayChangePercent?: number;
+};
+
+function listQuoteFromLive(
+  live: { price: number | null; changePercent: number | null } | undefined,
+): ListQuote | undefined {
+  if (!live || live.price == null) return undefined;
+  const pctPts = live.changePercent; // e.g. -6.83 = -6.83%
+  const dayChangePercent = pctPts != null ? pctPts / 100 : undefined;
+  const dayChange =
+    pctPts != null ? live.price * (pctPts / 100) / (1 + pctPts / 100) : undefined;
+  return { currentPrice: live.price, dayChange, dayChangePercent };
+}
 
 type SortField = "symbol" | "last" | "chg" | "chgPct";
 type SortDir = "asc" | "desc";
@@ -160,26 +177,53 @@ function WatchlistView() {
     [entries],
   );
 
-  const { data: quotesData } = useQuery({
-    queryKey: ["stocks-quotes", tickerKey],
-    queryFn: async (): Promise<Record<string, StockMetrics | { error: string }>> => {
-      const res = await fetch(`/api/stocks/quotes?tickers=${encodeURIComponent(tickerKey)}`);
-      if (!res.ok) throw new Error("quotes fetch failed");
+  // Golden-source batch (Schwab→Yahoo, 60s TTL) — same path as Options/Live.
+  // Avoid /stocks/quotes here: that fans out full Yahoo quoteSummary × concurrency 6
+  // (~10–20s for a 50-name list) for fields My List never shows.
+  const { data: livePrices } = useQuery({
+    queryKey: ["live-prices", tickerKey],
+    queryFn: async (): Promise<Record<string, { price: number | null; changePercent: number | null }>> => {
+      const res = await fetch(`/api/live/prices?tickers=${encodeURIComponent(tickerKey)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("live/prices failed");
+      const body = await res.json() as { prices: Record<string, { price: number | null; changePercent: number | null }> };
+      return body.prices ?? {};
+    },
+    enabled: tickerKey.length > 0,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  // DB-only name/sector/industry for breakdown tag popups (no Yahoo).
+  const { data: watchlistMeta } = useQuery({
+    queryKey: ["watchlist-meta", tickerKey],
+    queryFn: async (): Promise<Record<string, { companyName?: string | null; sector?: string | null; industry?: string | null }>> => {
+      const res = await fetch("/api/watchlist/meta", { credentials: "include" });
+      if (!res.ok) throw new Error("watchlist meta failed");
       return res.json();
     },
     enabled: tickerKey.length > 0,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
 
   // Build quote map for sort access before sorting
   const quoteMap = useMemo(() => {
-    const m: Record<string, StockMetrics | undefined> = {};
+    const m: Record<string, ListQuote | undefined> = {};
     filteredEntries.forEach((e) => {
-      const q = quotesData?.[e.ticker];
-      m[e.ticker] = q && !("error" in q) ? q : undefined;
+      m[e.ticker] = listQuoteFromLive(livePrices?.[e.ticker]);
     });
     return m;
-  }, [filteredEntries, quotesData]);
+  }, [filteredEntries, livePrices]);
+
+  const watchlistTagMetrics = useMemo(() => {
+    const m: Record<string, { companyName?: string | null; exchange?: string | null; sector?: string | null; industry?: string | null; stockType?: string | null } | undefined> = {};
+    for (const e of entries) {
+      const meta = watchlistMeta?.[e.ticker];
+      if (meta) m[e.ticker] = meta;
+    }
+    return m;
+  }, [entries, watchlistMeta]);
 
   const visibleEntries = useMemo(() => {
     const sorted = [...filteredEntries].sort((a, b) => {
@@ -204,24 +248,20 @@ function WatchlistView() {
     return sorted;
   }, [filteredEntries, quoteMap, sortField, sortDir]);
 
-  const watchlistTagMetrics = useMemo(() => {
-    const m: Record<string, { companyName?: string | null; exchange?: string | null; sector?: string | null; industry?: string | null; stockType?: string | null } | undefined> = {};
-    for (const e of entries) {
-      const q = quotesData?.[e.ticker];
-      if (q && !("error" in q)) {
-        m[e.ticker] = { companyName: q.companyName, exchange: q.exchange, sector: q.sector, industry: q.industry, stockType: q.stockType };
-      }
-    }
-    return m;
-  }, [entries, quotesData]);
-
   const usedColors = useMemo(() => {
     const colors = new Set<string>();
     entries.forEach(e => { if (e.colorTag) colors.add(e.colorTag); });
     return Array.from(colors);
   }, [entries]);
 
-  if (!isLoaded) return null;
+  if (!isLoaded) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-zinc-950 text-zinc-500 text-sm gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading watchlist…
+      </div>
+    );
+  }
 
   return (
     <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 overflow-hidden">

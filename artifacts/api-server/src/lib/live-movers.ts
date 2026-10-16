@@ -1,7 +1,7 @@
 import { yahooFinance } from "./yahoo-client.js";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
-import { getLivePrices, type LivePrice } from "./live-quote.js";
+import { livePriceCache } from "./live-quote.js";
 
 
 export interface ScreenerMover {
@@ -27,6 +27,9 @@ export const globalMoversCache = new TTLCache<GlobalMovers>(90 * 1000, "live-mov
 
 type ScrId = "day_gainers" | "day_losers" | "most_actives";
 
+/** Heatmap only needs ~12 tiles; Yahoo validation noise grows with count. */
+const SCREENER_COUNT = 15;
+
 async function fetchScreenerList(scrIds: ScrId): Promise<ScreenerMover[]> {
   try {
     // Failures throw out of getOrCompute and are not cached; the catch below returns [].
@@ -41,7 +44,7 @@ async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
   let res: any;
   try {
     res = await (yahooFinance as any).screener(
-      { scrIds, count: 25 },
+      { scrIds, count: SCREENER_COUNT },
       { validateResult: false },
     );
   } catch (err: any) {
@@ -61,13 +64,12 @@ async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
   return movers;
 }
 
-// Overlays the golden-source live price (same cache Breakdown/Live-quote read) onto the
-// screener's own price, so a ticker shown here always matches the price shown elsewhere.
-// changePercent is left as the screener reported it — only price is guaranteed-consistent.
-function applyLivePrices(movers: ScreenerMover[], live: Map<string, LivePrice>): ScreenerMover[] {
+// Overlay only *already-cached* golden-source prices — never await a 75-ticker
+// Schwab/Yahoo batch on the Live mount path (that was ~1.5–2s cold).
+function applyCachedLivePrices(movers: ScreenerMover[]): ScreenerMover[] {
   if (movers.length === 0) return movers;
   return movers.map(m => {
-    const price = live.get(m.ticker.toUpperCase())?.price;
+    const price = livePriceCache.get(m.ticker.toUpperCase())?.price;
     return price != null ? { ...m, price } : m;
   });
 }
@@ -78,12 +80,10 @@ async function fetchGlobalMoversUncached(): Promise<GlobalMovers> {
     fetchScreenerList("day_losers"),
     fetchScreenerList("most_actives"),
   ]);
-  const union = [...new Set([...gainers, ...losers, ...mostActive].map(m => m.ticker))];
-  const live = union.length > 0 ? await getLivePrices(union) : new Map<string, LivePrice>();
   return {
-    gainers: applyLivePrices(gainers, live),
-    losers: applyLivePrices(losers, live),
-    mostActive: applyLivePrices(mostActive, live),
+    gainers: applyCachedLivePrices(gainers),
+    losers: applyCachedLivePrices(losers),
+    mostActive: applyCachedLivePrices(mostActive),
   };
 }
 

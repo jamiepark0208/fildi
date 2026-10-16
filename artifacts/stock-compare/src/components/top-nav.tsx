@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  BarChart2, Bookmark, BriefcaseBusiness, Trophy, Globe, User, Settings as SettingsIcon,
-  Activity, ShieldCheck,
+  Bookmark, BriefcaseBusiness, Trophy, User, Settings as SettingsIcon,
+  Activity, ShieldCheck, Bot,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -29,12 +29,12 @@ const LEFT_NAV_ITEMS: NavItem[] = [
   // checking enh/8's status first.
   { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, color: "#34d399", adminOnly: true }, // emerald
   { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy,            color: "#fbbf24" }, // gold
-  { id: "macro",     href: "/macro",      label: "Macro",      icon: Globe,             color: "#a78bfa" }, // violet
-  { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose
+  { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose — Macro is a Live sub-tab
   { id: "track-record", href: "/track-record", label: "Track Record", icon: ShieldCheck, color: "#38bdf8" }, // sky
 ];
 
 const RIGHT_NAV_ITEMS: NavItem[] = [
+  { id: "ai",        href: "/agents",     label: "AI",         icon: Bot,           color: "#c084fc", adminOnly: true }, // violet robot
   { id: "profile",   href: "/profile/me", label: "Profile",    icon: User,          color: "#f472b6" }, // pink
   { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon,  color: "#2dd4bf" }, // teal
 ];
@@ -128,6 +128,7 @@ export function TopNav() {
     href === "/" ? location === "/" || location === "" : location.startsWith(href);
 
   const visibleLeftItems = LEFT_NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  const visibleRightItems = RIGHT_NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <header className="fixed inset-x-0 top-0 h-14 bg-gradient-to-b from-[#232427] to-[#0a0a0b] border-b border-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset] flex items-center px-4 gap-1 z-50">
@@ -152,7 +153,7 @@ export function TopNav() {
       </div>
 
       <nav className="flex items-center gap-1">
-        {RIGHT_NAV_ITEMS.map(item => (
+        {visibleRightItems.map(item => (
           <NavLink key={item.id} item={item} active={isActive(item.href)} />
         ))}
       </nav>

@@ -164,7 +164,7 @@ export function HotlistTable({
                     livePrice={e.price}
                     side={optSide}
                   />
-                  <RecConflictChip conflicts={conflictsByTicker?.get(e.ticker.toUpperCase()) ?? []} />
+                  <RecConflictChip compact conflicts={conflictsByTicker?.get(e.ticker.toUpperCase()) ?? []} />
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-white">{e.price.toFixed(2)}</td>
                 <td className={cn("px-3 py-1.5 text-right font-mono", rsiExtreme ? "text-green-400 font-semibold" : "text-white")}>

@@ -93,7 +93,7 @@ function posKey(p: PmPosition): string {
   return `${p.account}|${p.ticker}|${p.strike}|${p.expiry}`;
 }
 
-export function PmBookCard({ className }: { className?: string }) {
+export function PmBookCard({ className, embedded = false }: { className?: string; embedded?: boolean }) {
   const { data, isError } = useQuery<{ book: PmBook | null }>({
     queryKey: ["pm-book"],
     queryFn: async () => {
@@ -126,15 +126,27 @@ export function PmBookCard({ className }: { className?: string }) {
 
   if (isError) {
     return (
-      <div className={cn("rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-2 text-[11px] text-amber-200/50", className)}>
-        PM book unavailable
+      <div className={cn(
+        "space-y-0.5",
+        !embedded && "rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-2",
+        className,
+      )}>
+        {!embedded && <div className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Book risk</div>}
+        <p className="text-[11px] text-amber-200/50">Unavailable — check pm_alerts / API.</p>
       </div>
     );
   }
   if (!book) {
     return (
-      <div className={cn("rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-2 text-[11px] text-amber-200/45", className)}>
-        PM book not run yet
+      <div className={cn(
+        "space-y-0.5",
+        !embedded && "rounded-md border border-[#d4af37]/20 bg-zinc-950 px-3 py-2",
+        className,
+      )}>
+        {!embedded && <div className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Book risk</div>}
+        <p className="text-[11px] text-amber-200/45">
+          Not run yet — short-put stress (assignment + crash week) appears after the PM book job runs.
+        </p>
       </div>
     );
   }
@@ -144,41 +156,58 @@ export function PmBookCard({ className }: { className?: string }) {
   const accounts = Object.values(book.accounts);
 
   return (
-    <div className={cn("rounded-md border border-[#d4af37]/25 bg-zinc-950 overflow-hidden", className)}>
-      <div className="px-2.5 py-1.5 space-y-1.5">
-        {accounts.map((a) => {
-          const drop = a.crash_drop_pct;
-          const warn = book.rules.crash_warn;
-          const budget = book.rules.crash_budget;
-          const barPct = Math.min(100, (drop / Math.max(budget * 1.4, 0.01)) * 100);
-          return (
-            <div key={a.account} className="min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className={cn("shrink-0 rounded border px-1 text-[9px] font-semibold uppercase", STATUS_CHIP[a.status] ?? STATUS_CHIP.amber)}>
-                  {a.account}
-                </span>
-                <span className="truncate text-[11px] text-amber-100/85">{reasonLine(a, book.rules)}</span>
-              </div>
-              <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-amber-200/55">
-                <span>cash {money(a.cash)}</span>
-                <span>·</span>
-                <span>assign {money(a.assign_if_itm_now)}</span>
-                <span>·</span>
-                <span className="flex-1 min-w-0 flex items-center gap-1.5">
-                  <span className="shrink-0">crash −{pct(drop)}</span>
-                  <span className="relative h-1 flex-1 max-w-[7rem] rounded-full bg-zinc-800 overflow-hidden">
-                    <span
-                      className={cn("absolute inset-y-0 left-0 rounded-full", drop >= budget ? "bg-red-500" : drop >= warn ? "bg-amber-400" : "bg-emerald-500")}
-                      style={{ width: `${barPct}%` }}
-                    />
-                    <span className="absolute inset-y-0 w-px bg-amber-200/40" style={{ left: `${(warn / (budget * 1.4)) * 100}%` }} />
-                    <span className="absolute inset-y-0 w-px bg-red-400/50" style={{ left: `${(budget / (budget * 1.4)) * 100}%` }} />
+    <div className={cn(
+      "overflow-hidden",
+      !embedded && "rounded-md border border-[#d4af37]/25 bg-zinc-950",
+      className,
+    )}>
+      {!embedded && (
+        <div className="px-2.5 pt-2 pb-1.5 border-b border-[#d4af37]/15 space-y-0.5">
+          <div className="text-[10px] font-bold tracking-wide uppercase text-[#d4af37]">Book risk</div>
+          <p className="text-[10px] text-amber-100/70 leading-snug">
+            Read-only stress dashboard for short puts (not a close blotter). Top = per-account traffic lights.
+            Expiry desk = what-if checkboxes only — nothing is sent to the broker.
+          </p>
+        </div>
+      )}
+      <div className={cn("space-y-1.5", !embedded && "px-2.5 py-1.5")}>
+        {/* IRA + FILDI side-by-side — fill the row instead of stacking */}
+        <div className={cn(
+          "gap-x-4 gap-y-2",
+          accounts.length >= 2 ? "grid grid-cols-2" : "grid grid-cols-1",
+        )}>
+          {accounts.map((a) => {
+            const drop = a.crash_drop_pct;
+            const warn = book.rules.crash_warn;
+            const budget = book.rules.crash_budget;
+            const barPct = Math.min(100, (drop / Math.max(budget * 1.4, 0.01)) * 100);
+            return (
+              <div key={a.account} className="min-w-0 rounded border border-[#d4af37]/10 bg-black/20 px-2 py-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={cn("shrink-0 rounded border px-1 text-[9px] font-semibold uppercase", STATUS_CHIP[a.status] ?? STATUS_CHIP.amber)}>
+                    {a.account}
                   </span>
-                </span>
+                  <span className="truncate text-[11px] text-amber-100/85">{reasonLine(a, book.rules)}</span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] tabular-nums text-amber-200/55">
+                  <span>cash {money(a.cash)}</span>
+                  <span>assign {money(a.assign_if_itm_now)}</span>
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <span className="shrink-0">crash −{pct(drop)}</span>
+                    <span className="relative h-1.5 w-14 shrink-0 rounded-full bg-zinc-800 overflow-hidden">
+                      <span
+                        className={cn("absolute inset-y-0 left-0 rounded-full", drop >= budget ? "bg-red-500" : drop >= warn ? "bg-amber-400" : "bg-emerald-500")}
+                        style={{ width: `${barPct}%` }}
+                      />
+                      <span className="absolute inset-y-0 w-px bg-amber-200/40" style={{ left: `${(warn / (budget * 1.4)) * 100}%` }} />
+                      <span className="absolute inset-y-0 w-px bg-red-400/50" style={{ left: `${(budget / (budget * 1.4)) * 100}%` }} />
+                    </span>
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         <div className={cn("text-[9px] tabular-nums", stale ? "text-red-400" : "text-amber-200/35")}>
           priced {shortWhen(pricedAt)}{stale ? " · stale" : ""}
         </div>
@@ -191,7 +220,7 @@ export function PmBookCard({ className }: { className?: string }) {
           onClick={() => setDeskOpen(!open)}
           className="w-full px-2.5 py-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#d4af37]/80 hover:bg-white/5"
         >
-          <span>Expiry desk{nearExpiryItm ? " · ITM ≤2d" : ""}</span>
+          <span>What-if closes{nearExpiryItm ? " · ITM ≤2d" : ""}</span>
           <span className="text-amber-200/40">{open ? "▾" : "▸"}</span>
         </button>
         {open && (
@@ -220,8 +249,9 @@ function ExpiryDesk({
 
   return (
     <div className="px-2 pb-2 space-y-2">
-      <p className="text-[9px] text-amber-200/40 px-0.5">
-        P(OTM) = market odds from the option&apos;s own IV, not a forecast
+      <p className="text-[9px] text-amber-200/45 px-0.5 leading-snug">
+        Checkboxes are a calculator only — they do not close trades. Tick names you might buy back;
+        the line below updates cash/margin headroom. P(OTM) = market odds from the option&apos;s IV, not a forecast.
       </p>
       {[...byAcct.entries()].map(([acct, rows]) => {
         const a = book.accounts[acct];
@@ -241,7 +271,16 @@ function ExpiryDesk({
         }
         return (
           <div key={acct} className="min-w-0">
-            <div className="text-[10px] font-semibold text-amber-100/80 mb-0.5">{acct}</div>
+            <div className="mb-0.5 flex items-baseline justify-between gap-2 min-w-0">
+              <span className="text-[10px] font-semibold text-amber-100/80 shrink-0">{acct}</span>
+              <span className="text-[10px] tabular-nums text-amber-100/75 truncate text-right">
+                {afterLabel}{" "}
+                <span className={cn("font-semibold", afterVal < 0 ? "text-red-300" : "text-emerald-300")}>
+                  {money(afterVal, true)}
+                </span>
+                <span className="text-amber-200/40 ml-1.5">close {money(closeChecked)}</span>
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[10px] min-w-[320px]">
                 <thead>
@@ -266,7 +305,7 @@ function ExpiryDesk({
                             type="checkbox"
                             checked={on}
                             onChange={() => onToggle(k)}
-                            title="Close this one (what-if)"
+                            title="What-if: pretend this put is closed (does not trade)"
                             className="accent-[#d4af37]"
                           />
                         </td>
@@ -285,10 +324,6 @@ function ExpiryDesk({
                   })}
                 </tbody>
               </table>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-2 text-[10px] tabular-nums text-amber-100/75">
-              <span>{afterLabel} <span className={cn("font-semibold", afterVal < 0 ? "text-red-300" : "text-emerald-300")}>{money(afterVal, true)}</span></span>
-              <span className="text-amber-200/40">close cost {money(closeChecked)}</span>
             </div>
           </div>
         );
