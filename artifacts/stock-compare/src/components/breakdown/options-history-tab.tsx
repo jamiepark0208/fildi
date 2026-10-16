@@ -76,7 +76,7 @@ function EarningsMoves({ moves }: { moves: Move[] }) {
         sub={m == null ? "no reports yet" : <>priced move · bigger than priced {beat}/{moves.length}</>}
         info={<>Priced-in move = at-the-money straddle (put + call, first weekly expiry after the report) at the close before ÷ stock price.
           Actual = first close after the report vs last close before. Below 1× = options overpriced the move (sellers won).
-          Per-name conclusions wait for study S018 (needs ≥ 4 reports and a persistence test).</>}
+          Across 363 reports options overpriced the move (actual 0.65× priced), but a name's past ratio doesn't predict its next one (S018), so treat this as history, not a forecast.</>}
       />
       {moves.length > 0 && (
         <ResponsiveContainer width="100%" height={110}>
