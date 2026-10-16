@@ -876,8 +876,8 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
             <span style={{ color: PHASE_COLOR[active.phase] }}>{active.phase}</span>
             <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · Muse → Cursor${active.quant ? " · quant" : ""}`}</span>
           </div>
-          <p className="text-[14px] text-white font-medium leading-snug">{active.title}</p>
-          <p className="text-[13px] text-white leading-relaxed whitespace-pre-line">{active.blurb || "No Context section in the ask file yet."}</p>
+          <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
+          <RichText text={active.blurb || "No Context section in the ask file yet."} />
           <div className="flex items-center gap-2">
             <p className="text-[11px] text-white/80">Status: {active.status}</p>
             {/^A\d+$/.test(active.id) && active.phase !== "needs you" && (
@@ -897,11 +897,52 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
 type Comment = { id: number; item: string; author: string; body: string; created_at: string };
 const AUTHOR_COLOR: Record<string, string> = { claude: META.claude.color, cursor: META.cursor.color, muse: META.muse.color };
 
-/** Jamie ↔ agents thread on a NEEDS YOU item. No AI cost: Claude reads Jamie's comments only via its prompt hook (needs-inbox.mjs). */
+function CopyBtn({ text }: { text: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button type="button" onClick={() => { void navigator.clipboard?.writeText(text).then(() => { setOk(true); setTimeout(() => setOk(false), 1200); }); }}
+      className="shrink-0 rounded border border-white/15 px-1.5 text-[10px] text-white/70 hover:border-[#d4af37]/60 hover:text-white">{ok ? "copied" : "copy"}</button>
+  );
+}
+
+/** Plain text with line breaks + lists kept, `inline code` and ```blocks``` in monospace with a copy button. 14px white, 1.5 lines. */
+function RichText({ text }: { text: string }) {
+  const parts = text.split(/```(?:[a-z]*\n)?([\s\S]*?)```/g);
+  return (
+    <div className="space-y-2 text-[14px] leading-[1.5] text-white">
+      {parts.map((part, i) => i % 2 === 1 ? (
+        <div key={i} className="flex items-start gap-2 rounded-md bg-black/60 border border-white/10 px-2.5 py-1.5">
+          <pre className="flex-1 overflow-x-auto font-mono text-[12.5px] text-cyan-100 whitespace-pre-wrap">{part.trim()}</pre>
+          <CopyBtn text={part.trim()} />
+        </div>
+      ) : part.trim() ? (
+        <div key={i} className="space-y-1">
+          {part.replace(/^\n+|\n+$/g, "").split("\n").map((line, k) => {
+            const list = /^\s*(\d+[.)]|[-•*])\s+/.test(line);
+            return (
+              <p key={k} className={cn("whitespace-pre-wrap", list && "pl-1", !line.trim() && "h-1")}>
+                {line.split(/`([^`]+)`/g).map((seg, m) => m % 2 === 1 ? (
+                  <span key={m} className="inline-flex items-center gap-1 align-baseline">
+                    <code className="rounded bg-black/60 border border-white/10 px-1.5 py-px font-mono text-[12.5px] text-cyan-100">{seg}</code>
+                    <CopyBtn text={seg} />
+                  </span>
+                ) : <span key={m}>{seg}</span>)}
+              </p>
+            );
+          })}
+        </div>
+      ) : null)}
+    </div>
+  );
+}
+
+/** Jamie ↔ agents thread on a NEEDS YOU item. No AI cost: Claude reads Jamie's comments only via its prompt hook (needs-inbox.mjs).
+ *  Polls every 10 s only while this thread is open and the browser tab is visible (a local DB read, no tokens). */
 function NeedsThread({ item }: { item: string }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
   const { data } = useQuery({
     queryKey: ["needs-comments", item],
     queryFn: async (): Promise<Comment[]> => {
@@ -910,8 +951,10 @@ function NeedsThread({ item }: { item: string }) {
       return (await r.json()).comments;
     },
     // App default is staleTime 5 min + no focus refetch → a reply posted while the tab was in the background never showed.
-    staleTime: 0, refetchInterval: 10_000, refetchIntervalInBackground: true, refetchOnWindowFocus: true,
+    staleTime: 0, refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true,
   });
+  const n = data?.length ?? 0;
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [n]);
   const send = async () => {
     const body = text.trim();
     if (!body) return;
@@ -928,32 +971,32 @@ function NeedsThread({ item }: { item: string }) {
   };
   const when = (t: string) => new Date(t).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
-    <div className={cn(GRID_WRAP, "p-2.5 space-y-2")}>
+    <div className={cn(GRID_WRAP, "p-3 space-y-3")}>
       <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">Thread</div>
-      <div className="max-h-[260px] overflow-y-auto space-y-1.5">
-        {(data ?? []).length === 0 && <p className="text-[12px] text-white/60">No replies yet. Claude sees your message the next time you talk to it.</p>}
-        {(data ?? []).map((c) => c.author === "jamie" ? (
-          <div key={c.id} className="flex justify-end">
-            <div className="max-w-[80%] rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 px-2.5 py-1.5">
-              <div className="text-[13px] text-white whitespace-pre-wrap">{c.body}</div>
-              <div className="text-[10px] text-[#d4af37]/80 text-right mt-0.5">You · {when(c.created_at)}</div>
+      <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
+        {n === 0 && <p className="text-[13px] text-white/70">No replies yet. Claude sees your message the next time you talk to it.</p>}
+        {(data ?? []).map((c) => {
+          const me = c.author === "jamie";
+          const col = me ? "#d4af37" : AUTHOR_COLOR[c.author] ?? "#a1a1aa";
+          return (
+            <div key={c.id} className={cn("flex flex-col", me ? "items-end" : "items-start")}>
+              <div className="mb-0.5 px-1 text-[11px]" style={{ color: col + "cc" }}>
+                {me ? "You" : c.author[0].toUpperCase() + c.author.slice(1)} · <span className="text-white/45">{when(c.created_at)}</span>
+              </div>
+              <div className="max-w-[80%] rounded-xl border px-3.5 py-2.5" style={{ borderColor: col + (me ? "80" : "66"), background: me ? "#16130a" : "rgba(255,255,255,0.035)" }}>
+                <RichText text={c.body} />
+              </div>
             </div>
-          </div>
-        ) : (
-          <div key={c.id} className="flex justify-start">
-            <div className="max-w-[80%] rounded-lg border bg-white/[0.04] px-2.5 py-1.5" style={{ borderColor: (AUTHOR_COLOR[c.author] ?? "#a1a1aa") + "55" }}>
-              <div className="text-[13px] text-white whitespace-pre-wrap">{c.body}</div>
-              <div className="text-[10px] mt-0.5" style={{ color: AUTHOR_COLOR[c.author] ?? "#a1a1aa" }}>{c.author[0].toUpperCase() + c.author.slice(1)} · {when(c.created_at)}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
+        <div ref={endRef} />
       </div>
       <div className="flex items-end gap-2">
-        <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={2} placeholder="Reply…"
+        <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={3} placeholder="Reply… (⌘↵ to send)"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
-          className="flex-1 resize-y rounded-md border border-white/15 bg-black/60 px-2 py-1.5 text-[13px] text-white placeholder:text-white/40 focus:outline-none focus:border-[#d4af37]/60" />
+          className="flex-1 resize-y rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-[14px] leading-[1.5] text-white placeholder:text-white/40 focus:outline-none focus:border-[#d4af37]/60" />
         <button type="button" disabled={sending || !text.trim()} onClick={() => void send()}
-          className="rounded-md bg-[#d4af37] px-3 py-1.5 text-[12px] font-semibold text-black disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
+          className="rounded-lg bg-[#d4af37] px-4 py-2 text-[13px] font-semibold text-black hover:bg-[#e6c14b] disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
       </div>
     </div>
   );
