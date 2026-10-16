@@ -6,6 +6,7 @@
 - One home per piece of logic
 - Every commit carries an `Agent:` trailer
 - Any question for Jamie also goes in .agents/needs-jamie.md (NEEDS YOU cube) until answered
+- Reply to NEEDS YOU comments with needs-reply.mjs; when an item is resolved, delete it from .agents/needs-jamie.md
 - Free / local tools first; state cost before anything heavy
 - AI never trades: analysis only, Jamie decides
 - Alerts only inside Fildi: no push, email, downloads

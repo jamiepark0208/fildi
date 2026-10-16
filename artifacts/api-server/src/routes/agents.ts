@@ -273,6 +273,55 @@ router.post("/agents/ideas/:id/dismiss", requireAdmin, async (req, res) => {
   return res.json({ ok: true, id });
 });
 
+/**
+ * NEEDS YOU threads (user 2026-10-15): Jamie ↔ agents comments on J#/A# items. Token-cheap: no AI polling — Claude sees unread
+ * Jamie comments only when its own UserPromptSubmit/SessionStart hook injects them (.agents/hooks/needs-inbox.mjs); agents
+ * reply with .agents/hooks/needs-reply.mjs. Table created on first use.
+ */
+let commentsDdl = false;
+async function ensureComments() {
+  if (commentsDdl) return;
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.needs_comments (id serial PRIMARY KEY, item text NOT NULL,
+    author text NOT NULL CHECK (author IN ('jamie','claude','cursor','muse')), body text NOT NULL CHECK (length(body) <= 2000),
+    created_at timestamptz NOT NULL DEFAULT now(), read_by_claude boolean NOT NULL DEFAULT false)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_needs_comments_item ON watchlist_sync.needs_comments (item, created_at)`);
+  commentsDdl = true;
+}
+const ITEM = /^(J|A)\d+$/;
+type CRow = { id: number; item: string; author: string; body: string; created_at: string };
+const crows = <T,>(r: unknown): T[] => (Array.isArray(r) ? r : (r as { rows?: T[] }).rows ?? []) as T[];
+
+/** Per item: agent replies newer than Jamie's latest comment (badge on the cube). */
+async function needsUnread(): Promise<Record<string, number>> {
+  try {
+    await ensureComments();
+    const r = crows<{ item: string; n: number }>(await db.execute(sql`
+      SELECT c.item, count(*)::int AS n FROM watchlist_sync.needs_comments c
+      WHERE c.author <> 'jamie' AND c.created_at > COALESCE((SELECT max(j.created_at) FROM watchlist_sync.needs_comments j
+        WHERE j.item = c.item AND j.author = 'jamie'), 'epoch') GROUP BY c.item`));
+    return Object.fromEntries(r.map((x) => [x.item, x.n]));
+  } catch { return {}; }
+}
+
+router.get("/agents/needs/:item/comments", requireAdmin, async (req, res) => {
+  const item = String(req.params.item ?? "");
+  if (!ITEM.test(item)) return res.status(400).json({ error: "bad item" });
+  await ensureComments();
+  const comments = crows<CRow>(await db.execute(sql`SELECT id, item, author, body, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
+    FROM watchlist_sync.needs_comments WHERE item = ${item} ORDER BY created_at, id LIMIT 200`));
+  return res.json({ item, comments });
+});
+
+router.post("/agents/needs/:item/comments", requireAdmin, async (req, res) => {
+  const item = String(req.params.item ?? "");
+  const body = String((req.body as { body?: unknown })?.body ?? "").trim();
+  if (!ITEM.test(item)) return res.status(400).json({ error: "bad item" });
+  if (!body || body.length > 2000) return res.status(400).json({ error: "body must be 1–2000 chars" });
+  await ensureComments();
+  await db.execute(sql`INSERT INTO watchlist_sync.needs_comments (item, author, body) VALUES (${item}, 'jamie', ${body})`);
+  return res.json({ ok: true });
+});
+
 /** Claude plan limits: ~/.claude/statusline.sh saves Claude Code's statusline `rate_limits` (5-hour / 7-day used %, reset time). */
 function claudeLimits(): { at: string; fiveHour: { pct: number | null; resetsAt: string | null }; sevenDay: { pct: number | null; resetsAt: string | null } } | null {
   try {
@@ -470,6 +519,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     status: { claude: status("claude"), cursor: status("cursor") },
     activity1h, kinds: KINDS,
     limits: { claude: claudeLimits() },
+    needsUnread: await needsUnread(),
     muse: { running: await museRunning() },
     ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits

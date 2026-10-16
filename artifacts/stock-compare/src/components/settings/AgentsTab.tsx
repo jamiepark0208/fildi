@@ -39,6 +39,7 @@ type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
 type Idea = { id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string };
 type Data = {
+  needsUnread?: Record<string, number>;
   agents: Agent[]; events: Ev[]; live: Live[]; ideas?: Idea[];
   status: Record<"claude" | "cursor", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
@@ -755,7 +756,7 @@ function TeamPanel({ d }: { d: Data }) {
 }
 
 // ── Ideas ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-function IdeasPanel({ ideas }: { ideas: Idea[] }) {
+function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<string, number> }) {
   const [sel, setSel] = useState<string | null>(null);
   const [showParked, setShowParked] = useState(false);
   const qc = useQueryClient();
@@ -795,6 +796,13 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
     });
     for (const { idea, x, y } of layout) {
       drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", { selected: sel === idea.id, dim: idea.phase === "parked" });
+      const n = unread[idea.id] ?? 0;
+      if (n > 0) { // agent replied since Jamie's last comment
+        const bx = x + S * 0.95, by = y - S * 0.75;
+        ctx.fillStyle = "#d4af37"; ctx.shadowColor = "#d4af37"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(bx, by, 6.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = "#000"; ctx.font = "700 9px ui-sans-serif"; ctx.textAlign = "center"; ctx.fillText(n > 9 ? "9+" : String(n), bx, by + 3);
+      }
     }
   };
   const tip = (id: string) => {
@@ -805,7 +813,7 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
         <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
           <span style={{ color: PHASE_COLOR[i.phase] }}>{i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
         <div className="mt-0.5">{i.title}</div>
-        <div className="mt-1 text-[11px] text-white/50">click for details</div>
+        <div className="mt-1 text-[11px] text-white/50">{unread[i.id] ? `${unread[i.id]} new repl${unread[i.id] > 1 ? "ies" : "y"} · ` : ""}click for details</div>
       </>
     );
   };
@@ -832,15 +840,80 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
           <p className="text-[13px] text-white leading-relaxed whitespace-pre-line">{active.blurb || "No Context section in the ask file yet."}</p>
           <div className="flex items-center gap-2">
             <p className="text-[11px] text-white/80">Status: {active.status}</p>
-            {/^A\d+$/.test(active.id) && (
+            {/^A\d+$/.test(active.id) && active.phase !== "needs you" && (
               <button type="button" disabled={busy} onClick={() => dismiss(active.id)}
                 className="ml-auto rounded-md border border-white/20 px-2.5 py-1 text-[11px] text-white hover:border-red-300/60 hover:text-red-200 disabled:opacity-50">
                 {busy ? "Dismissing…" : "Dismiss"}
               </button>
             )}
           </div>
+          {active.phase === "needs you" && <NeedsThread item={active.id} />}
         </div>
       )}
+    </div>
+  );
+}
+
+type Comment = { id: number; item: string; author: string; body: string; created_at: string };
+const AUTHOR_COLOR: Record<string, string> = { claude: META.claude.color, cursor: META.cursor.color, muse: META.muse.color };
+
+/** Jamie ↔ agents thread on a NEEDS YOU item. No AI cost: Claude reads Jamie's comments only via its prompt hook (needs-inbox.mjs). */
+function NeedsThread({ item }: { item: string }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["needs-comments", item],
+    queryFn: async (): Promise<Comment[]> => {
+      const r = await fetch(`/api/agents/needs/${encodeURIComponent(item)}/comments`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return (await r.json()).comments;
+    },
+    refetchInterval: 30_000,
+  });
+  const send = async () => {
+    const body = text.trim();
+    if (!body) return;
+    setSending(true);
+    try {
+      const r = await fetch(`/api/agents/needs/${encodeURIComponent(item)}/comments`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }),
+      });
+      if (r.ok) {
+        setText("");
+        await Promise.all([qc.invalidateQueries({ queryKey: ["needs-comments", item] }), qc.invalidateQueries({ queryKey: ["agents-overview"] })]);
+      }
+    } finally { setSending(false); }
+  };
+  const when = (t: string) => new Date(t).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return (
+    <div className={cn(GRID_WRAP, "p-2.5 space-y-2")}>
+      <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">Thread</div>
+      <div className="max-h-[260px] overflow-y-auto space-y-1.5">
+        {(data ?? []).length === 0 && <p className="text-[12px] text-white/60">No replies yet. Claude sees your message the next time you talk to it.</p>}
+        {(data ?? []).map((c) => c.author === "jamie" ? (
+          <div key={c.id} className="flex justify-end">
+            <div className="max-w-[80%] rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 px-2.5 py-1.5">
+              <div className="text-[13px] text-white whitespace-pre-wrap">{c.body}</div>
+              <div className="text-[10px] text-[#d4af37]/80 text-right mt-0.5">You · {when(c.created_at)}</div>
+            </div>
+          </div>
+        ) : (
+          <div key={c.id} className="flex justify-start">
+            <div className="max-w-[80%] rounded-lg border bg-white/[0.04] px-2.5 py-1.5" style={{ borderColor: (AUTHOR_COLOR[c.author] ?? "#a1a1aa") + "55" }}>
+              <div className="text-[13px] text-white whitespace-pre-wrap">{c.body}</div>
+              <div className="text-[10px] mt-0.5" style={{ color: AUTHOR_COLOR[c.author] ?? "#a1a1aa" }}>{c.author[0].toUpperCase() + c.author.slice(1)} · {when(c.created_at)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-end gap-2">
+        <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={2} placeholder="Reply…"
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
+          className="flex-1 resize-y rounded-md border border-white/15 bg-black/60 px-2 py-1.5 text-[13px] text-white placeholder:text-white/40 focus:outline-none focus:border-[#d4af37]/60" />
+        <button type="button" disabled={sending || !text.trim()} onClick={() => void send()}
+          className="rounded-md bg-[#d4af37] px-3 py-1.5 text-[12px] font-semibold text-black disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
+      </div>
     </div>
   );
 }
@@ -972,7 +1045,7 @@ export function AgentsTab() {
         </div>
       </div>
       {tab === "Stage" && <TeamPanel d={data} />}
-      {tab === "Ideas" && <IdeasPanel ideas={ideas} />}
+      {tab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
       {tab === "Usage" && <Usage d={data} />}
       {tab === "Rules" && <Rules d={data} />}
       {tab === "Skills" && <Skills d={data} />}
