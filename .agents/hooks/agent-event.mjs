@@ -33,6 +33,9 @@ try {
     : tool === "Bash" && /\bcurl\b|https?:\/\/|wget|fetch\(|polygon|schwab|yahoo|lseg|finnhub|alphavantage/i.test(full) ? "api"
     : tool === "Bash" && /^\s*(cat|head|tail|grep|rg|ls|sed -n|find|wc)\b/.test(full) ? "reading"
     : "other";
+  // Git ops in a Bash command (Stage › Code Repo / GitHub links): commit · push · pull/fetch, in order; commit subject if inline
+  const git = tool === "Bash" && event !== "fail" ? [...full.matchAll(/\bgit\s+(?:-C\s+\S+\s+)?(commit|push|pull|fetch)\b/g)].map((m) => (m[1] === "fetch" ? "pull" : m[1])) : [];
+  const gitMsg = git.includes("commit") ? (full.match(/-m\s+["']([^"'\n]{1,200})/)?.[1] ?? "").slice(0, 60) || undefined : undefined;
   // Prompt / notification text = "what it's doing" / "why it's waiting" (local file only; first 80 chars).
   if (event === "prompt" && p.prompt) detail = String(p.prompt);
   if (event === "waiting" && p.message) detail = String(p.message);
@@ -51,6 +54,7 @@ try {
     session: p.session_id ?? p.conversation_id ?? undefined,
     // background agents (Claude Code subagents/forks): their own tool events carry agent_id/agent_type
     sub: p.agent_id ?? undefined, subType: p.agent_type || undefined, sig,
+    git: git.length ? [...new Set(git)] : undefined, gitMsg,
     detail: detail ? String(detail).replace(/\s+/g, " ").slice(0, 100) : undefined,
     transcript: event === "stop" || event === "session-start" ? p.transcript_path : undefined,
   };

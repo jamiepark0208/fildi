@@ -34,8 +34,8 @@ type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "as
 const NAMES: Record<string, AgentId> = { muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie" };
 const who = (s: string): AgentId | null => NAMES[s.trim().toLowerCase()] ?? null;
 
-async function commits(): Promise<Ev[]> {
-  const { stdout } = await run("git", ["log", "--since=7 days ago", "--format=%H%x1f%aI%x1f%ae%x1f%s%x1f%(trailers:key=Agent,valueonly)%x1f%(trailers:key=Co-Authored-By,valueonly)%x1e"],
+async function commits(since = "7 days ago"): Promise<Ev[]> {
+  const { stdout } = await run("git", ["log", `--since=${since}`, "--format=%H%x1f%aI%x1f%ae%x1f%s%x1f%(trailers:key=Agent,valueonly)%x1f%(trailers:key=Co-Authored-By,valueonly)%x1e"],
     { cwd: ROOT, maxBuffer: 8 << 20 });
   return stdout.split("\x1e").map((r) => r.trim()).filter(Boolean).map((r) => {
     const [sha, t, email, subject, agentTrailer, coauthor] = r.split("\x1f");
@@ -174,7 +174,8 @@ function subagents(live: LiveEv[], nowMs: number) {
  *  as waiting until the next prompt/action (capped at 60 min). */
 function timeSplit(mine: LiveEv[], nowMs: number) {
   const today = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-  const evs = mine.filter((e) => new Date(e.t).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) === today);
+  // main-session events only: background agents' actions don't end a "waiting for you" stretch
+  const evs = mine.filter((e) => !e.sub && new Date(e.t).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) === today);
   let working = 0, waiting = 0;
   for (let i = 0; i < evs.length; i++) {
     const a = Date.parse(evs[i].t), b = i + 1 < evs.length ? Date.parse(evs[i + 1].t) : nowMs, gap = (b - a) / 6e4;
@@ -297,6 +298,50 @@ async function museRunning(): Promise<boolean> {
   return running;
 }
 
+/** Fildi's own scheduled jobs (not agents), read-only and cheap: one ps call, one small api_usage query, the
+ *  /tmp/fildi-logs/*-last.json run stamps. Active = process running now, or an API source / run stamp updated < 2 min ago. */
+const JOB_PROCS: [RegExp, string][] = [
+  [/analysis\/option_history\.py/, "option history"], [/pm_alerts\.py/, "pm alerts"], [/transcripts\.py/, "transcripts"],
+  [/maintain\.mjs/, "maintain"], [/daily\.py/, "model list daily"], [/intraday\.py/, "model list intraday"],
+  [/nightly-enrichment/, "nightly enrichment"], [/merge-trusted/, "merge trusted"], [/scoreboard\.py/, "scoreboard"],
+];
+async function jobs(nowMs: number) {
+  const running: { name: string; mins: number }[] = [];
+  try {
+    const { stdout } = await run("ps", ["-axo", "etime=,command="], { maxBuffer: 4 << 20 });
+    for (const line of stdout.split("\n")) {
+      const hit = JOB_PROCS.find(([re]) => re.test(line));
+      if (!hit || /grep|ps -axo/.test(line)) continue;
+      const et = line.trim().split(/\s+/)[0]; // [[dd-]hh:]mm:ss
+      const parts = et.split(/[-:]/).map(Number), mins = parts.length >= 3 ? parts[parts.length - 3] * 60 + parts[parts.length - 2] + (parts.length === 4 ? parts[0] * 1440 : 0) : parts[0];
+      if (!running.some((r) => r.name === hit[1])) running.push({ name: hit[1], mins });
+    }
+  } catch { /* ps unavailable → none */ }
+  const ran: { name: string; at: string; ok: boolean }[] = [];
+  try {
+    for (const f of readdirSync("/tmp/fildi-logs").filter((x) => x.endsWith("-last.json"))) {
+      try {
+        const j = JSON.parse(readFileSync(join("/tmp/fildi-logs", f), "utf8"));
+        const at = j.ts ?? j.finishedAt ?? j.at;
+        if (at && nowMs - Date.parse(at) < 36e5) ran.push({ name: f.replace(/-last\.json$/, "").replace(/-/g, " "), at, ok: j.ok !== false });
+      } catch { /* partial file */ }
+    }
+  } catch { /* no log dir */ }
+  let sources: { source: string; calls: number; at: string }[] = [];
+  try {
+    const r = (await db.execute(sql`SELECT source, calls_made::int AS calls,
+      to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS at FROM api_usage
+      WHERE date >= current_date - 1 AND updated_at > now() - interval '1 hour' ORDER BY updated_at DESC`)) as unknown as typeof sources | { rows?: typeof sources };
+    sources = Array.isArray(r) ? r : r.rows ?? [];
+  } catch { sources = []; }
+  const activeSources = sources.filter((s) => nowMs - Date.parse(s.at) < 2 * 60_000).map((s) => s.source);
+  const recentRun = ran.some((r) => nowMs - Date.parse(r.at) < 2 * 60_000);
+  return {
+    running, ran, sources, activeSources,
+    links: { api: activeSources.length > 0, db: running.length > 0 || recentRun },
+  };
+}
+
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const gone = await dismissed();
   const live = liveEvents();
@@ -306,8 +351,12 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     const mine = live.filter((e) => e.agent === agent);
     const last = mine[mine.length - 1];
     const recent = mine.filter((e) => nowMs - Date.parse(e.t) < 10 * 60_000 && !(e.session && ended.has(e.session)));
-    const waiting = !!last && last.event === "waiting";
-    const working = !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && !["stop", "waiting", "session-end"].includes(last.event);
+    // Waiting is per main session: background agents (events with sub = agent_id) share the session id but must not clear it;
+    // only the user's next prompt or a main-session event does. Any open session still waiting (≤ 60 min) → agent waiting.
+    const lastMain = new Map<string, LiveEv>();
+    for (const e of mine) if (!e.sub && e.session && !ended.has(e.session)) lastMain.set(e.session, e);
+    const waiting = [...lastMain.values()].some((e) => e.event === "waiting" && nowMs - Date.parse(e.t) < 60 * 60_000);
+    const working = !waiting && !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && !["stop", "waiting", "session-end"].includes(last.event);
     const lastKind = [...mine].reverse().find((e) => e.kind)?.kind ?? null;
     const errors1h = mine.filter((e) => e.event === "fail" && nowMs - Date.parse(e.t) < 36e5).length;
     // loop: same tool + same full input ≥ 5× within 10 min (signature hashed by the hook)
@@ -335,6 +384,9 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     activity1h, kinds: KINDS,
     limits: { claude: claudeLimits() },
     muse: { running: await museRunning() },
+    jobs: await jobs(nowMs),
+    // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits
+    gitHour: (await commits("1 hour ago").catch((): Ev[] => [])).map((c) => ({ t: c.t, agent: c.from, text: c.text.slice(0, 70) })),
   };
   if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);

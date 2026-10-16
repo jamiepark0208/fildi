@@ -17,7 +17,9 @@ type Id = "muse" | "claude" | "cursor" | "jamie";
 type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number };
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
-type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string };
+type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; git?: string[]; gitMsg?: string };
+type Jobs = { running: { name: string; mins: number }[]; ran: { name: string; at: string; ok: boolean }[];
+  sources: { source: string; calls: number; at: string }[]; activeSources: string[]; links: { api: boolean; db: boolean } };
 type Status = {
   working: boolean; waiting?: boolean; looping?: boolean; errors1h?: number; doing?: string | null; workingMin?: number; waitingMin?: number;
   lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number;
@@ -35,7 +37,7 @@ type Data = {
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
   limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
-  subagents?: Sub[];
+  subagents?: Sub[]; jobs?: Jobs; gitHour?: { t: string; agent: string; text: string }[];
 };
 /** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
 const KIND: Record<string, { label: string; color: string; node?: string }> = {
@@ -46,12 +48,14 @@ const KIND: Record<string, { label: string; color: string; node?: string }> = {
   reading: { label: "reading code", color: "#ffffff", node: "repo" },
   other: { label: "other", color: "#a1a1aa" },
 };
-const NODES: Record<string, { label: string; ang: number; kinds: string[] }> = {
-  web: { label: "Web", ang: -112, kinds: ["web"] },
-  repo: { label: "Code Repo", ang: -52, kinds: ["code", "reading"] },
-  api: { label: "APIs", ang: 32, kinds: ["api"] },
-  db: { label: "Database", ang: 148, kinds: ["database"] },
+const NODES: Record<string, { label: string; row: number; kinds: string[] }> = { // left-side stack, top → bottom
+  repo: { label: "Code Repo", row: 0, kinds: ["code", "reading"] },
+  github: { label: "GitHub", row: 1, kinds: [] },
+  db: { label: "Database", row: 2, kinds: ["database"] },
+  api: { label: "APIs", row: 3, kinds: ["api"] },
+  web: { label: "Web", row: 4, kinds: ["web"] },
 };
+const GITHUB = "#a5b4fc", JOBS = "#f59e0b";
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
 
@@ -163,6 +167,21 @@ function drawBox(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
 }
 
 /** 3D folder with a </> mark (Code Repo node): back tab + glossy front panel, lit from top-left. */
+/** GitHub node: glossy 3D octagon (same lighting as the orbs) with a small branch mark. */
+function drawOctagon(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
+  const glow = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 2);
+  glow.addColorStop(0, c + "55"); glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, r * 2, 0, 7); ctx.fill();
+  const pts = Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + (i * Math.PI) / 4; return [x + Math.cos(a) * r, y + Math.sin(a) * r]; });
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.05, x, y, r * 1.1);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.15, c); g.addColorStop(0.6, c + "aa"); g.addColorStop(1, "#06080c");
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath();
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.4; // branch mark, top of the shape
+  const bx = x + r * 0.42, by = y - r * 0.55;
+  ctx.beginPath(); ctx.moveTo(bx - 4, by + 7); ctx.lineTo(bx - 4, by - 3); ctx.moveTo(bx - 4, by + 2); ctx.quadraticCurveTo(bx + 3, by + 2, bx + 3, by - 3); ctx.stroke();
+}
+
 function drawRepo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
   const w = r * 1.05, h = r * 0.8, d = r * 0.22;
   nodeGlow(ctx, x, y, r * 1.1, c);
@@ -199,8 +218,15 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 }
 
 /** Zoom/pan canvas. draw() works in world coords (0,0 = centre); hit() maps a world point to an item id. */
-function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip }: {
-  height: number; grid?: boolean; tip?: (id: string) => React.ReactNode;
+type Box = { x0: number; x1: number; y0: number; y1: number };
+/** View that shows the whole box at the canvas size (never zooms in past 1.1×). */
+const fitView = (b: Box, w: number, h: number): View => {
+  const z = Math.min(1.1, w / (b.x1 - b.x0), h / (b.y1 - b.y0));
+  return { z, x: -((b.x0 + b.x1) / 2) * z, y: -((b.y0 + b.y1) / 2) * z };
+};
+
+function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
+  height: number; grid?: boolean; tip?: (id: string) => React.ReactNode; fit?: Box;
   draw: (ctx: CanvasRenderingContext2D, now: number, v: View, w: number, h: number) => void;
   hit: (x: number, y: number, w: number, h: number) => string | null; onPick: (id: string | null) => void;
 }) {
@@ -209,6 +235,9 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip }: {
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const drawRef = useRef(draw);
   drawRef.current = draw;
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  const fitted = useRef(false);
   const gridRef = useRef(grid);
   gridRef.current = grid;
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -220,6 +249,7 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip }: {
     const loop = (now: number) => {
       const w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
       if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      if (fitRef.current && !fitted.current && w > 0) { view.current = fitView(fitRef.current, w, h); fitted.current = true; }
       const v = view.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const bg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
@@ -275,7 +305,7 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip }: {
           <button key={l} type="button" onClick={() => { const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * k)); }}
             className="w-7 h-7 rounded-md bg-black/70 border border-white/15 text-white text-sm hover:border-cyan-300/50">{l}</button>
         ))}
-        <button type="button" onClick={() => { view.current = { z: 1, x: 0, y: 0 }; }}
+        <button type="button" onClick={() => { const cv = ref.current; view.current = fit && cv ? fitView(fit, cv.clientWidth, cv.clientHeight) : { z: 1, x: 0, y: 0 }; }}
           className="px-2 h-7 rounded-md bg-black/70 border border-white/15 text-white/80 text-[11px] hover:border-cyan-300/50">reset</button>
       </div>
     </div>
@@ -295,10 +325,13 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
   const subPos = useRef<{ key: string; x: number; y: number; k: Sub }[]>([]);
   const links = useRef(new Map<string, { node: string; c: string; src: string; on: boolean; off: number }>()); // live agent→node links
+  const gitSeen = useRef(new Map<string, { t0: number; ops: string[]; src: string }>()); // git ops → Code Repo / GitHub links
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const R = 150, R2 = 285;
-  const pos = (id: Id) => { if (id === "jamie") return { x: 0, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: Math.cos(a) * R, y: Math.sin(a) * R }; };
-  const npos = (n: string) => { const a = (NODES[n].ang * Math.PI) / 180; return { x: Math.cos(a) * R2, y: Math.sin(a) * R2 }; };
+  // compact layout (~20 % smaller): resource stack at x = NX on the left, agents on a ring around You to its right
+  const R = 118, CX = 70, NX = -230, NGAP = 66, NR = 22;
+  const JP = { x: -125, y: 75 }; // Fildi's own scheduled jobs, just right of the resource stack
+  const pos = (id: Id) => { if (id === "jamie") return { x: CX, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: CX + Math.cos(a) * R, y: Math.sin(a) * R }; };
+  const npos = (n: string) => ({ x: NX, y: (NODES[n].row - 1.5) * NGAP });
   const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
     for (const e of d.live) {
       const k = `${e.t}|${e.agent}|${e.event}|${e.tool}|${e.detail}`;
@@ -313,24 +346,33 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
     beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-40);
     for (const id of ["muse", "claude", "cursor"] as Id[]) {
-      const p = pos(id);
+      const p = pos(id), j = pos("jamie");
       ctx.strokeStyle = META[id].color + "30"; ctx.lineWidth = 1.2 / v.z;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(j.x, j.y); ctx.lineTo(p.x, p.y); ctx.stroke();
     }
     for (const n of Object.keys(NODES)) { // resource nodes: Database · Web · APIs · Repo
-      const p = npos(n), c0 = KIND[NODES[n].kinds[0]].color, c = c0 === "#ffffff" ? "#cbd5e1" : c0;
-      const NR = 28; // ~1.6× the old 17–18 so labels read at zoom 1
+      const p = npos(n), c0 = n === "github" ? GITHUB : KIND[NODES[n].kinds[0]].color, c = c0 === "#ffffff" ? "#cbd5e1" : c0;
       if (n === "db") drawCylinder(ctx, p.x, p.y, NR, c); // shapes: Database = cylinder, APIs = box, Code Repo = folder, Web = orb
       else if (n === "api") drawBox(ctx, p.x, p.y, NR, c);
       else if (n === "repo") drawRepo(ctx, p.x, p.y, NR, c);
+      else if (n === "github") drawOctagon(ctx, p.x, p.y, NR, c);
       else drawOrb(ctx, p.x, p.y, NR, c, { now, reduce });
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.95)"; ctx.shadowBlur = 5; ctx.fillStyle = "#ffffff";
       const words = n === "repo" ? ["</>", "Code Repo"] : [NODES[n].label];
-      let fs = 13; ctx.font = `700 ${fs}px ui-sans-serif`;
-      while (fs > 11 && Math.max(...words.map((t) => ctx.measureText(t).width)) > NR * 1.8) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
+      let fs = 12; ctx.font = `700 ${fs}px ui-sans-serif`;
+      while (fs > 11 && Math.max(...words.map((t) => ctx.measureText(t).width)) > NR * 2.1) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
       const cy = n === "api" ? p.y + NR * 0.25 : n === "db" ? p.y + NR * 0.12 : n === "repo" ? p.y + NR * 0.2 : p.y;
       words.forEach((t, i) => ctx.fillText(t, p.x, cy + (i - (words.length - 1) / 2) * (fs + 2)));
       ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+    }
+    // Waiting for you: one slow signal agent → You every ~3 s until you reply
+    if (!reduce) for (const id of ["claude", "cursor"] as const) {
+      if (!d.status[id]?.waiting) continue;
+      const k = (now % 3000) / 2000;
+      if (k > 1) continue;
+      const a = pos(id), j = pos("jamie");
+      ctx.fillStyle = WAIT; ctx.shadowColor = WAIT; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(a.x + (j.x - a.x) * k, a.y + (j.y - a.y) * k, 3.2, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
     }
     for (const b of beams.current) {
       const k = Math.min(1, (now - b.t0) / 850);
@@ -369,11 +411,57 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.strokeStyle = l.c + alpha; ctx.lineWidth = 1.6 / v.z; ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
       if (!reduce) for (let i = 0; i < 3; i++) { // signal pulses
-        const k = ((now / 900 + i / 3) % 1);
+        const k = ((now / 4200 + i / 3) % 1);
         ctx.globalAlpha = fade; ctx.fillStyle = l.c; ctx.shadowColor = l.c; ctx.shadowBlur = 12;
         ctx.beginPath(); ctx.arc(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k, 2.8, 0, 7); ctx.fill();
         ctx.shadowBlur = 0; ctx.globalAlpha = 1;
       }
+    }
+    const pulseLink = (a: { x: number; y: number }, b: { x: number; y: number }, c: string, alpha = 1) => {
+      ctx.strokeStyle = c + Math.round(alpha * 160).toString(16).padStart(2, "0"); ctx.lineWidth = 1.6 / v.z;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      if (!reduce) for (let i = 0; i < 3; i++) {
+        const k = (now / 4200 + i / 3) % 1;
+        ctx.globalAlpha = alpha; ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, 2.8, 0, 7); ctx.fill();
+        ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
+    };
+    // Fildi's scheduled jobs: Jobs → APIs while a vendor source is being called, Jobs → Database while a job runs
+    const jb = d.jobs, jobsActive = !!jb && (jb.running.length > 0 || jb.links.api || jb.links.db);
+    if (jb?.links.api) pulseLink(JP, npos("api"), JOBS);
+    if (jb?.links.db) pulseLink(JP, npos("db"), JOBS);
+    drawOrb(ctx, JP.x, JP.y, 17, JOBS, { working: jobsActive, now, reduce });
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
+    ctx.fillStyle = "#ffffff"; ctx.font = "700 11px ui-sans-serif"; ctx.fillText("Jobs", JP.x, JP.y);
+    ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+    // Git: commit → Code Repo pulse · push → agent → Code Repo → GitHub · pull → GitHub → Code Repo (each ~10 s from first sight);
+    // Muse commits from the cloud (last 2 min) → GitHub → Code Repo
+    const nowMs2 = Date.now();
+    for (const e of d.live) {
+      if (!e.git?.length || nowMs2 - Date.parse(e.t) > 90_000) continue;
+      const key = `${e.t}|${e.session}|${e.sub ?? ""}`;
+      if (!gitSeen.current.has(key)) gitSeen.current.set(key, { t0: now, ops: e.git, src: e.sub ? `b:${e.sub}` : e.agent });
+    }
+    for (const c of d.gitHour ?? []) {
+      if (c.agent !== "muse" || nowMs2 - Date.parse(c.t) > 2 * 60_000) continue;
+      const key = `muse|${c.t}`;
+      if (!gitSeen.current.has(key)) gitSeen.current.set(key, { t0: now, ops: ["pull"], src: "muse" });
+    }
+    const repoP = npos("repo"), ghP = npos("github");
+    for (const [key, g] of gitSeen.current) {
+      const age = now - g.t0;
+      if (age > 10_000) { if (age > 120_000) gitSeen.current.delete(key); continue; }
+      const alpha = age > 9_000 ? Math.max(0, 1 - (age - 9_000) / 1000) : 1;
+      const from = g.src.startsWith("b:") ? subPos.current.find((b) => b.key === g.src) : g.src in META ? pos(g.src as Id) : null;
+      const col = g.src in META ? META[g.src as Id].color : "#38e1ff";
+      if (g.ops.includes("commit")) {
+        const q = (age % 1200) / 1200;
+        ctx.strokeStyle = KIND.code.color + Math.round((1 - q) * alpha * 200).toString(16).padStart(2, "0"); ctx.lineWidth = 2 / v.z;
+        ctx.beginPath(); ctx.arc(repoP.x, repoP.y, NR + 4 + q * 16, 0, 7); ctx.stroke();
+      }
+      if (g.ops.includes("push")) { if (from) pulseLink(from, repoP, col, alpha); pulseLink(repoP, ghP, GITHUB, alpha); }
+      if (g.ops.includes("pull")) pulseLink(ghP, repoP, GITHUB, alpha);
     }
     sessPos.current = [];
     subPos.current = [];
@@ -383,8 +471,8 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       if (!(agent in META)) continue;
       const c = pos(agent as Id), col = META[agent as Id].color;
       list.forEach((s, i) => {
-        const a = (i / list.length) * Math.PI * 2 + (reduce ? 0 : now / 9000);
-        const sx = c.x + Math.cos(a) * 62, sy = c.y + Math.sin(a) * 62;
+        const a = (i / list.length) * Math.PI * 2 - Math.PI / 2; // fixed, evenly spaced (no orbit)
+        const sx = c.x + Math.cos(a) * 46, sy = c.y + Math.sin(a) * 46;
         const live = Date.now() - Date.parse(s.last.t) < LIVE_MS;
         ctx.strokeStyle = col + "50"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(sx, sy); ctx.stroke();
         drawOrb(ctx, sx, sy, live ? 6 : 4.5, col, { working: false, now, reduce });
@@ -392,7 +480,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         // background agents launched from this session: small "running" orbs hanging off it
         const kids = (d.subagents ?? []).filter((k) => k.running && k.session && k.session === s.last.session);
         kids.forEach((k, j) => {
-          const ang = a + (j - (kids.length - 1) / 2) * 0.55, kx = sx + Math.cos(ang) * 26, ky = sy + Math.sin(ang) * 26;
+          const ang = a + (j - (kids.length - 1) / 2) * 0.6, kx = sx + Math.cos(ang) * 22, ky = sy + Math.sin(ang) * 22;
           ctx.strokeStyle = col + "70"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(kx, ky); ctx.stroke();
           drawOrb(ctx, kx, ky, 4, col, { working: true, now, reduce });
           subPos.current.push({ key: `b:${k.id}`, x: kx, y: ky, k });
@@ -401,7 +489,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
     for (const id of Object.keys(META) as Id[]) {
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
-      const r = id === "jamie" ? 30 : 25;
+      const r = id === "jamie" ? 25 : 21;
       const museOff = id === "muse" && d.muse && !d.muse.running;
       drawOrb(ctx, p.x, p.y, r, museOff ? "#71717a" : META[id].color, {
         working: !!st?.working, selected: sel === id, now, reduce,
@@ -418,13 +506,41 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
   };
   const hit = (x: number, y: number) => {
-    for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
-    for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 34) return `n:${n}`; }
+    for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 28) return id; }
+    for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 28) return `n:${n}`; }
+    if (Math.hypot(JP.x - x, JP.y - y) < 22) return "jobs";
     for (const bp of subPos.current) if (Math.hypot(bp.x - x, bp.y - y) < 8) return bp.key;
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     return null;
   };
   const tip = (id: string) => {
+    if (id === "jobs") {
+      const jb = d.jobs;
+      if (!jb) return <div>Jobs · no data</div>;
+      return (
+        <>
+          <div className="font-semibold" style={{ color: JOBS }}>Fildi jobs <span className="font-normal text-white/60">· last hour</span></div>
+          {jb.running.length > 0 && <div>Running: {jb.running.map((r) => `${r.name} (${r.mins}m)`).join(", ")}</div>}
+          {jb.ran.length > 0 && <div className="text-white/80">Ran: {jb.ran.map((r) => `${r.name} ${r.ok ? "" : "✗ "}${ago(r.at)}`).join(" · ")}</div>}
+          {jb.sources.length > 0 && <div className="text-white/80">Calls today: {jb.sources.map((s) => `${s.source} ${s.calls} (${ago(s.at)})`).join(" · ")}</div>}
+          {jb.activeSources.length > 0 && <div style={{ color: JOBS }}>Calling now: {jb.activeSources.join(", ")}</div>}
+          {!jb.running.length && !jb.ran.length && !jb.sources.length && <div className="text-white/60">Nothing in the last hour</div>}
+        </>
+      );
+    }
+    if (id === "n:github") {
+      const pushes = [
+        ...d.live.filter((e) => e.git?.includes("push") && Date.now() - Date.parse(e.t) < 36e5).map((e) => ({ t: e.t, agent: e.agent, text: e.gitMsg ?? "push" })),
+        ...(d.gitHour ?? []).filter((c) => c.agent === "muse"),
+      ].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 6);
+      return (
+        <>
+          <div className="font-semibold" style={{ color: GITHUB }}>GitHub <span className="font-normal text-white/60">· pushes, last hour</span></div>
+          {pushes.length ? pushes.map((p, i) => <div key={i} className="truncate"><span style={{ color: META[p.agent as Id]?.color }}>{META[p.agent as Id]?.label ?? p.agent}</span> · {p.text} · {ago(p.t)}</div>)
+            : <div className="text-white/60">No pushes</div>}
+        </>
+      );
+    }
     if (id.startsWith("n:")) {
       const n = NODES[id.slice(2)];
       const rows = n.kinds.flatMap((k) => Object.entries(d.activity1h?.[k] ?? {}).map(([agent, c]) => ({ k, agent, c })));
@@ -440,13 +556,31 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       const bp = subPos.current.find((x) => x.key === id);
       if (!bp) return null;
       const mins = Math.max(1, Math.round((Date.now() - Date.parse(bp.k.startedAt)) / 6e4));
-      return <div><span style={{ color: META[bp.k.agent as Id]?.color }}>background agent</span> · {bp.k.task} · running {mins}m · {bp.k.actions} actions</div>;
+      const last = [...d.live].reverse().find((e) => e.sub === bp.k.id);
+      return (
+        <>
+          <div className="font-semibold"><span style={{ color: META[bp.k.agent as Id]?.color }}>Background</span> · {bp.k.task.slice(0, 60)}</div>
+          <div className="text-white/80">{last ? `${KIND[last.kind ?? "other"]?.label ?? "other"} · ${humanAction(last)} · ${ago(last.t)}` : "starting"}</div>
+          <div className="text-white/60">running {mins}m · {bp.k.actions} actions</div>
+        </>
+      );
     }
     if (id.startsWith("s:")) {
       const sp = sessPos.current.find((x) => x.key === id);
       if (!sp) return null;
-      const m = META[sp.s.agent as Id];
-      return <div><span style={{ color: m?.color }}>{m?.label ?? sp.s.agent} session</span> · {humanAction(sp.s.last)} · {ago(sp.s.last.t)}</div>;
+      const m = META[sp.s.agent as Id], sid = sp.s.last.session;
+      const evs = d.live.filter((e) => e.session === sid && !e.sub);
+      const prompt = [...evs].reverse().find((e) => e.event === "prompt" && e.detail);
+      const first = evs[0], acts = evs.filter((e) => e.event === "tool" || e.event === "edit").length;
+      const mins = first ? Math.max(1, Math.round((Date.now() - Date.parse(first.t)) / 6e4)) : 0;
+      const lk = sp.s.last.kind ? KIND[sp.s.last.kind]?.label : undefined;
+      return (
+        <>
+          <div className="font-semibold"><span style={{ color: m?.color }}>{m?.label ?? sp.s.agent}</span> · {prompt?.detail ? prompt.detail.slice(0, 60) : "session"}</div>
+          <div className="text-white/80">{lk ? `${lk} · ` : ""}{humanAction(sp.s.last)} · {ago(sp.s.last.t)}</div>
+          <div className="text-white/60">running {mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`} · {acts} actions</div>
+        </>
+      );
     }
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
@@ -467,7 +601,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   };
   return (
     <div className="space-y-1">
-      <ZoomCanvas height={380} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:") || id.startsWith("b:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
+      <ZoomCanvas height={380} grid={false} fit={{ x0: NX - NR - 30, x1: CX + R + 21 + 70, y0: -2 * NGAP - NR - 22, y1: 2 * NGAP + NR + 22 }} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:") || id.startsWith("b:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
         {(["web", "database", "api", "code", "reading"] as const).map((k) => (
           <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: KIND[k].color }} />{KIND[k].label}</span>
