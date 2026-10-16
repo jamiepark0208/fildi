@@ -41,6 +41,9 @@ Practical rules:
 9. **Reply style = caveman, all agents** (user 2026-10-06, 10-15, 10-16). Answer first line. Terse fragments, drop filler/connectives.
    Keep facts, numbers, caveats, failures. ≤ ~15 bullets, no essays, no tables unless comparing ≥ 3 options. No code in chat.
    Applies to chat, ASKS replies, briefs. Plain words: name a row by what it does, not just its ID.
+10. **Web research = `scripts/fetch-page.sh <url> [--deep N] [--save]`** (Crawl4AI, local, $0; A123). Full clean text incl. JS pages;
+   built-in web fetch tools summarize/cap pages → use them only for quick lookups. `--save` (→ `research/sources/`) only when a study/ASKS row cites it.
+   Muse (cloud VM) uses its own fetch but may ask a Mac agent to fetch + save a page.
 
 ## Review loop (user decision 2026-10-11)
 Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
