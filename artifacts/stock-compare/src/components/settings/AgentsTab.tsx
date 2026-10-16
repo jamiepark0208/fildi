@@ -98,6 +98,33 @@ function InfoTip({ children }: { children: React.ReactNode }) {
 }
 
 /** Hook payload → short plain English (hide raw shell). (Cursor) */
+/** Stable display names (user 10-15): per agent, the oldest live main session = "Claude"; every other session and background
+ * agent = "Claude2", "Claude3"… in start order over the 24 h event window. Keys: `s:<sessionId>` / `b:<subagentId>`. */
+function agentNames(d: Data): (key: string, agent?: string) => string {
+  const out = new Map<string, string>();
+  const ended = new Set(d.endedSessions ?? []);
+  for (const agent of ["claude", "cursor"]) {
+    const first = new Map<string, number>(), last = new Map<string, number>();
+    for (const e of d.live) {
+      if (e.agent !== agent || !e.session || e.sub) continue;
+      const t = Date.parse(e.t);
+      if (!first.has(e.session) || t < first.get(e.session)!) first.set(e.session, t);
+      if (!last.has(e.session) || t > last.get(e.session)!) last.set(e.session, t);
+    }
+    const items: { key: string; t: number }[] = [...first].map(([sid, t]) => ({ key: `s:${sid}`, t }));
+    for (const k of d.subagents ?? []) if (k.agent === agent) items.push({ key: `b:${k.id}`, t: Date.parse(k.startedAt) });
+    const live = [...first.keys()].filter((sid) => !ended.has(sid) && Date.now() - (last.get(sid) ?? 0) < 10 * 60_000);
+    const main = (live.length ? live : [...first.keys()]).sort((a, b) => first.get(a)! - first.get(b)!)[0];
+    const label = META[agent as Id].label;
+    let n = 1;
+    if (main) out.set(`s:${main}`, label);
+    for (const it of items.sort((a, b) => a.t - b.t)) if (!out.has(it.key)) out.set(it.key, `${label}${++n}`);
+  }
+  return (key, agent) => out.get(key) ?? (agent ? META[agent as Id]?.label ?? agent : key);
+}
+/** Name for one hook event: its background agent, else its session. */
+const evName = (nm: ReturnType<typeof agentNames>, e: Live) => (e.sub ? nm(`b:${e.sub}`, e.agent) : e.session ? nm(`s:${e.session}`, e.agent) : META[e.agent as Id]?.label ?? e.agent);
+
 function humanAction(e: Live): string {
   const tool = (e.tool ?? e.event ?? "action").replace(/^(PreToolUse|PostToolUse|Tool)/i, "").trim() || "action";
   const d = (e.detail ?? "").trim();
@@ -329,6 +356,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     for (const e of d.live) if (e.session && !ended.has(e.session) && Date.now() - Date.parse(e.t) < 10 * 60_000) by.set(e.session, { agent: e.agent, last: e });
     return [...by.values()].filter((s) => s.last.event !== "session-end");
   }, [d.live, d.endedSessions]);
+  const nm = useMemo(() => agentNames(d), [d]);
   const seen = useRef(new Set<string>());
   const beams = useRef<{ from: { x: number; y: number }; to: { x: number; y: number }; c: string; t0: number }[]>([]);
   const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
@@ -351,7 +379,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     let start = last ? Date.parse(last.t) : Date.now();
     for (let i = evs.length - 2; i >= 0; i--) { const t = Date.parse(evs[i].t); if (start - t > LIVE_MS) break; start = t; }
     const proc = (d.procs ?? []).find((p) => p.owner === agent && (node === "db" ? p.links.db : node === "api" ? p.links.api : false));
-    const who = sub ? `Background · ${(d.subagents ?? []).find((k) => k.id === sub)?.task.slice(0, 40) ?? ""}` : META[src as Id]?.label ?? src;
+    const who = sub ? nm(`b:${sub}`, agent) : nm(`s:${d.live.filter((e) => e.agent === src && !e.sub && e.session).at(-1)?.session ?? ""}`, src);
     return { title: `${who} → ${NODES[node]?.label ?? node}`, what: proc ? nice(proc.name) : last ? humanAction(last) : "working",
       startedAt: proc?.startedAt ?? new Date(start).toISOString(), etaS: proc?.etaS ?? null, etaMethod: proc?.etaMethod ?? "unknown" };
   };
@@ -492,7 +520,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         ctx.strokeStyle = KIND.code.color + Math.round((1 - q) * alpha * 200).toString(16).padStart(2, "0"); ctx.lineWidth = 2 / v.z;
         ctx.beginPath(); ctx.arc(repoP.x, repoP.y, NR + 4 + q * 16, 0, 7); ctx.stroke();
       }
-      const who = g.src.startsWith("b:") ? "Background agent" : META[g.src as Id]?.label ?? g.src;
+      const who = g.src.startsWith("b:") ? nm(g.src) : META[g.src as Id]?.label ?? g.src;
       if (g.ops.includes("push")) { if (from) pulseLink(from, repoP, col, alpha, { title: `${who} → Code Repo`, what: "git push", etaMethod: "unknown", etaS: null });
         pulseLink(repoP, ghP, GITHUB, alpha, { title: "Code Repo → GitHub", what: `push by ${who}`, etaS: Math.max(0, Math.round((10_000 - age) / 1000)), etaMethod: "link shown ~10 s" }); }
       if (g.ops.includes("pull")) pulseLink(ghP, repoP, GITHUB, alpha, { title: "GitHub → Code Repo", what: g.src === "muse" ? "Muse commit from the cloud" : `pull by ${who}`, etaS: Math.max(0, Math.round((10_000 - age) / 1000)), etaMethod: "link shown ~10 s" });
@@ -608,14 +636,15 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     if (id.startsWith("b:")) {
       const k = subPos.current.find((x) => x.key === id)?.k;
       if (!k) return null;
-      return <Lines a={k.task.slice(0, 48)} b={`background · ${dur((Date.now() - Date.parse(k.startedAt)) / 1000)} in`} c={`${k.actions} actions`} />;
+      return <Lines color={META[k.agent as Id]?.color} a={`${nm(id, k.agent)} · ${k.task.slice(0, 40)}`} b={`${dur((Date.now() - Date.parse(k.startedAt)) / 1000)} in`} c={`${k.actions} actions`} />;
     }
     if (id.startsWith("s:")) {
       const sp = sessPos.current.find((x) => x.key === id);
       if (!sp) return null;
       const sid = sp.s.last.session, evs = d.live.filter((e) => e.session === sid && !e.sub);
       const prompt = [...evs].reverse().find((e) => e.event === "prompt" && e.detail);
-      return <Lines a={prompt?.detail ? prompt.detail.slice(0, 48) : `${META[sp.s.agent as Id]?.label ?? sp.s.agent} session`} b={`${humanAction(sp.s.last)} · ${ago(sp.s.last.t)} ago`} />;
+      const who = nm(`s:${sid}`, sp.s.agent);
+      return <Lines color={META[sp.s.agent as Id]?.color} a={prompt?.detail ? `${who} · ${prompt.detail.slice(0, 40)}` : who} b={`${humanAction(sp.s.last)} · ${ago(sp.s.last.t)} ago`} />;
     }
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
@@ -663,6 +692,7 @@ function Available({ id, d }: { id: Id; d: Data }) {
 /** Step timeline: an agent's last 30 actions in order, activity colour, time, plain-English action, gap since the previous step. */
 function Timeline({ d, agent }: { d: Data; agent: Id }) {
   const steps = d.live.filter((e) => e.agent === agent && !["session-start", "session-end"].includes(e.event)).slice(-30);
+  const nm = useMemo(() => agentNames(d), [d]);
   const hms = (t: string) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
   const gap = (ms: number) => (ms < 6e4 ? `+${Math.round(ms / 1000)}s` : `+${Math.round(ms / 6e4)}m`);
   return (
@@ -672,13 +702,13 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
         <div className={cn(GRID_WRAP, "max-h-[320px] overflow-y-auto")}>
           <table className="w-full border-collapse"><tbody>{steps.map((e, i) => {
             const c = e.event === "waiting" ? WAIT : e.event === "fail" ? "#f87171" : e.event === "prompt" ? META.jamie.color : KIND[e.kind ?? "other"]?.color ?? "#a1a1aa";
-            const what = e.event === "prompt" ? `you: ${e.detail ?? ""}` : e.event === "stop" ? "replied to you" : e.event === "waiting" ? `waiting: ${e.detail ?? "needs you"}` : e.event === "sub-start" ? "started a background agent" : e.event === "sub-stop" ? "background agent finished" : humanAction(e);
+            const what = e.event === "prompt" ? `you: ${e.detail ?? ""}` : e.event === "stop" ? "replied to you" : e.event === "waiting" ? `waiting: ${e.detail ?? "needs you"}` : e.event === "sub-start" ? `started ${e.sub ? nm(`b:${e.sub}`, e.agent) : "a helper"}` : e.event === "sub-stop" ? `${e.sub ? nm(`b:${e.sub}`, e.agent) : "helper"} finished` : humanAction(e);
             return (
               <tr key={`${e.t}-${i}`} className={gridRow(i)}>
                 <td className={cn(GRID_TD, "w-6")}><span className="inline-block w-2 h-2 rounded-full" style={{ background: c }} /></td>
                 <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap w-24")}>{hms(e.t)}</td>
                 <td className={cn(GRID_TD, "text-white/45 whitespace-nowrap w-14 text-right")}>{i ? gap(Date.parse(e.t) - Date.parse(steps[i - 1].t)) : ""}</td>
-                <td className={cn(GRID_TD, "text-white/90 truncate max-w-0 w-full")} title={what}>{e.sub ? <span className="text-white/45">bg · </span> : null}{what}</td>
+                <td className={cn(GRID_TD, "text-white/90 truncate max-w-0 w-full")} title={what}><span className="text-white/45">{evName(nm, e)} · </span>{what}</td>
               </tr>
             );
           })}</tbody></table>
@@ -691,8 +721,9 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
 function TeamPanel({ d }: { d: Data }) {
   const [focus, setFocus] = useState<Id | "all">("all");
   const rows = useMemo(() => {
-    const live = d.live.map((e) => ({ t: e.t, agent: e.agent, what: humanAction(e) }));
-    const ev = d.events.map((e) => ({ t: e.t, agent: e.from, what: e.kind === "ask" ? `→ ${META[e.to as Id]?.label ?? e.to}: ${e.text}` : `commit · ${e.text}` }));
+    const nm = agentNames(d);
+    const live = d.live.map((e) => ({ t: e.t, agent: e.agent, name: evName(nm, e), what: humanAction(e) }));
+    const ev = d.events.map((e) => ({ t: e.t, agent: e.from, name: META[e.from as Id]?.label ?? e.from, what: e.kind === "ask" ? `→ ${META[e.to as Id]?.label ?? e.to}: ${e.text}` : `commit · ${e.text}` }));
     return [...live, ...ev].filter((r) => focus === "all" || r.agent === focus).sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
   }, [d, focus]);
   return (
@@ -745,7 +776,7 @@ function TeamPanel({ d }: { d: Data }) {
           ) : rows.map((r, i) => (
             <tr key={`${r.t}-${i}`} className={gridRow(i)}>
               <td className={cn(GRID_TD, "text-white/55")}>{ago(r.t)}</td>
-              <td className={cn(GRID_TD, "font-medium")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{META[r.agent as Id]?.label ?? r.agent}</td>
+              <td className={cn(GRID_TD, "font-medium")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{r.name}</td>
               <td className={cn(GRID_TD, "text-white/85 truncate max-w-0 w-full")} title={r.what}>{r.what}</td>
             </tr>
           ))}</tbody>
