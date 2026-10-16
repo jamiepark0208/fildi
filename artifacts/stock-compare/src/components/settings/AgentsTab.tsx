@@ -24,6 +24,14 @@ type Status = {
   working: boolean; waiting?: boolean; looping?: boolean; errors1h?: number; doing?: string | null; workingMin?: number; waitingMin?: number;
   lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number;
 };
+type Proc = { pid: number; name: string; script: string; owner: "claude" | "cursor" | "jobs"; secs: number; startedAt: string;
+  links: { db: boolean; api: boolean }; sources: string[]; progress: { n: number; N: number } | null; etaS: number | null; etaMethod: string };
+type Seg = { a: { x: number; y: number }; b: { x: number; y: number }; title: string; what: string; startedAt?: string; etaS?: number | null; etaMethod?: string; c: string };
+const dur = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m` : s >= 60 ? `${Math.round(s / 60)}m` : `${Math.max(1, Math.round(s))}s`);
+/** Script name → plain words for tooltips. */
+const NICE: Record<string, string> = { s021_pricing: "S021 price check", option_history: "Option history load", option_derive: "Option history tables",
+  pm_alerts: "Portfolio alerts", transcripts: "Call transcripts", scoreboard: "Scoreboard", daily: "Model List build", intraday: "Model List re-check", maintain: "Daily maintenance" };
+const nice = (n: string) => NICE[n] ?? (/^s0\d\d/.test(n) ? `${n.slice(0, 4).toUpperCase()} study` : n.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase()));
 type Sub = { id: string; agent: string; session: string | null; type: string | null; task: string; startedAt: string; lastAt: string; actions: number; running: boolean };
 /** Agent needs a look: waiting on you (yellow), or looping / failing (red). */
 const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
@@ -37,7 +45,7 @@ type Data = {
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
   limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
-  subagents?: Sub[]; jobs?: Jobs; gitHour?: { t: string; agent: string; text: string }[];
+  subagents?: Sub[]; jobs?: Jobs; procs?: Proc[]; gitHour?: { t: string; agent: string; text: string }[];
 };
 /** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
 const KIND: Record<string, { label: string; color: string; node?: string }> = {
@@ -228,7 +236,7 @@ const fitView = (b: Box, w: number, h: number): View => {
 function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
   height: number; grid?: boolean; tip?: (id: string) => React.ReactNode; fit?: Box;
   draw: (ctx: CanvasRenderingContext2D, now: number, v: View, w: number, h: number) => void;
-  hit: (x: number, y: number, w: number, h: number) => string | null; onPick: (id: string | null) => void;
+  hit: (x: number, y: number, w: number, h: number, z: number) => string | null; onPick: (id: string | null) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const view = useRef<View>({ z: 1, x: 0, y: 0 });
@@ -273,7 +281,7 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
   }, []);
   const world = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect(), v = view.current;
-    return { x: (e.clientX - r.left - r.width / 2 - v.x) / v.z, y: (e.clientY - r.top - r.height / 2 - v.y) / v.z, w: r.width, h: r.height };
+    return { x: (e.clientX - r.left - r.width / 2 - v.x) / v.z, y: (e.clientY - r.top - r.height / 2 - v.y) / v.z, w: r.width, h: r.height, z: v.z };
   };
   return (
     <div className="relative">
@@ -283,7 +291,7 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
           const d = drag.current;
           if (!d) {
             if (!tip) return;
-            const p = world(e), id = hit(p.x, p.y, p.w, p.h), r = e.currentTarget.getBoundingClientRect();
+            const p = world(e), id = hit(p.x, p.y, p.w, p.h, p.z), r = e.currentTarget.getBoundingClientRect();
             setHover(id ? { id, x: e.clientX - r.left, y: e.clientY - r.top } : null);
             return;
           }
@@ -292,7 +300,7 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
           if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 2) d.moved = true;
           d.x = e.clientX; d.y = e.clientY;
         }}
-        onMouseUp={(e) => { const d = drag.current; drag.current = null; if (d && !d.moved) { const p = world(e); onPick(hit(p.x, p.y, p.w, p.h)); } }}
+        onMouseUp={(e) => { const d = drag.current; drag.current = null; if (d && !d.moved) { const p = world(e); onPick(hit(p.x, p.y, p.w, p.h, p.z)); } }}
         onMouseLeave={() => { drag.current = null; setHover(null); }} />
       {hover && tip && (
         <div className="pointer-events-none absolute z-10 max-w-[300px] rounded-lg border border-[#d4af37]/40 bg-zinc-950/95 px-3 py-2 text-[12px] leading-snug text-white shadow-xl shadow-black/60"
@@ -326,13 +334,28 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   const subPos = useRef<{ key: string; x: number; y: number; k: Sub }[]>([]);
   const links = useRef(new Map<string, { node: string; c: string; src: string; on: boolean; off: number }>()); // live agent→node links
   const gitSeen = useRef(new Map<string, { t0: number; ops: string[]; src: string }>()); // git ops → Code Repo / GitHub links
+  const segs = useRef<Seg[]>([]); // every link drawn this frame → hover tooltip (what's running, elapsed, time left)
+  const procPos = useRef<{ key: string; x: number; y: number; p: Proc }[]>([]);
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // compact layout (~20 % smaller): resource stack at x = NX on the left, agents on a ring around You to its right
   const R = 118, CX = 70, NX = -230, NGAP = 66, NR = 22;
   const JP = { x: -125, y: 75 }; // Fildi's own scheduled jobs, just right of the resource stack
   const pos = (id: Id) => { if (id === "jamie") return { x: CX, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: CX + Math.cos(a) * R, y: Math.sin(a) * R }; };
   const npos = (n: string) => ({ x: NX, y: (NODES[n].row - 1.5) * NGAP });
+  /** Hover info for an agent → node link: who, latest action, start of this streak, and a script's ETA if one is running for it. */
+  const agentSeg = (src: string, node: string): Omit<Seg, "a" | "b" | "c"> => {
+    const sub = src.startsWith("b:") ? src.slice(2) : null, agent = sub ? (d.subagents ?? []).find((k) => k.id === sub)?.agent ?? "claude" : src;
+    const evs = d.live.filter((e) => (sub ? e.sub === sub : e.agent === src && !e.sub) && e.kind && KIND[e.kind]?.node === node);
+    const last = evs[evs.length - 1];
+    let start = last ? Date.parse(last.t) : Date.now();
+    for (let i = evs.length - 2; i >= 0; i--) { const t = Date.parse(evs[i].t); if (start - t > LIVE_MS) break; start = t; }
+    const proc = (d.procs ?? []).find((p) => p.owner === agent && (node === "db" ? p.links.db : node === "api" ? p.links.api : false));
+    const who = sub ? `Background · ${(d.subagents ?? []).find((k) => k.id === sub)?.task.slice(0, 40) ?? ""}` : META[src as Id]?.label ?? src;
+    return { title: `${who} → ${NODES[node]?.label ?? node}`, what: proc ? nice(proc.name) : last ? humanAction(last) : "working",
+      startedAt: proc?.startedAt ?? new Date(start).toISOString(), etaS: proc?.etaS ?? null, etaMethod: proc?.etaMethod ?? "unknown" };
+  };
   const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
+    segs.current = [];
     for (const e of d.live) {
       const k = `${e.t}|${e.agent}|${e.event}|${e.tool}|${e.detail}`;
       if (seen.current.has(k)) continue;
@@ -408,6 +431,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       const from = l.src.startsWith("b:") ? subPos.current.find((b) => b.key === l.src) : l.src in META ? pos(l.src as Id) : null;
       if (!from) continue;
       const to = npos(l.node), alpha = Math.round(fade * 160).toString(16).padStart(2, "0");
+      if (l.on) segs.current.push({ a: from, b: to, c: l.c, ...agentSeg(l.src, l.node) });
       ctx.strokeStyle = l.c + alpha; ctx.lineWidth = 1.6 / v.z; ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
       if (!reduce) for (let i = 0; i < 3; i++) { // signal pulses
@@ -417,7 +441,8 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         ctx.shadowBlur = 0; ctx.globalAlpha = 1;
       }
     }
-    const pulseLink = (a: { x: number; y: number }, b: { x: number; y: number }, c: string, alpha = 1) => {
+    const pulseLink = (a: { x: number; y: number }, b: { x: number; y: number }, c: string, alpha = 1, info?: Omit<Seg, "a" | "b" | "c">) => {
+      if (info) segs.current.push({ a, b, c, ...info });
       ctx.strokeStyle = c + Math.round(alpha * 160).toString(16).padStart(2, "0"); ctx.lineWidth = 1.6 / v.z;
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       if (!reduce) for (let i = 0; i < 3; i++) {
@@ -429,8 +454,14 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     };
     // Fildi's scheduled jobs: Jobs → APIs while a vendor source is being called, Jobs → Database while a job runs
     const jb = d.jobs, jobsActive = !!jb && (jb.running.length > 0 || jb.links.api || jb.links.db);
-    if (jb?.links.api) pulseLink(JP, npos("api"), JOBS);
-    if (jb?.links.db) pulseLink(JP, npos("db"), JOBS);
+    const jobProcs = (d.procs ?? []).filter((p) => p.owner === "jobs");
+    const jobInfo = (to: string) => {
+      const p = jobProcs.find((x) => (to === "api" ? x.links.api : x.links.db));
+      return p ? { title: `Jobs → ${to === "api" ? "APIs" : "Database"}`, what: nice(p.name), startedAt: p.startedAt, etaS: p.etaS, etaMethod: p.etaMethod }
+        : { title: `Jobs → ${to === "api" ? "APIs" : "Database"}`, what: to === "api" ? `calling ${jb?.activeSources.join(", ") || "vendor APIs"}` : (jb?.running.map((r) => r.name).join(", ") || "job wrote its run file"), etaMethod: "unknown", etaS: null };
+    };
+    if (jb?.links.api) pulseLink(JP, npos("api"), JOBS, 1, jobInfo("api"));
+    if (jb?.links.db) pulseLink(JP, npos("db"), JOBS, 1, jobInfo("db"));
     drawOrb(ctx, JP.x, JP.y, 17, JOBS, { working: jobsActive, now, reduce });
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
     ctx.fillStyle = "#ffffff"; ctx.font = "700 11px ui-sans-serif"; ctx.fillText("Jobs", JP.x, JP.y);
@@ -460,8 +491,10 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         ctx.strokeStyle = KIND.code.color + Math.round((1 - q) * alpha * 200).toString(16).padStart(2, "0"); ctx.lineWidth = 2 / v.z;
         ctx.beginPath(); ctx.arc(repoP.x, repoP.y, NR + 4 + q * 16, 0, 7); ctx.stroke();
       }
-      if (g.ops.includes("push")) { if (from) pulseLink(from, repoP, col, alpha); pulseLink(repoP, ghP, GITHUB, alpha); }
-      if (g.ops.includes("pull")) pulseLink(ghP, repoP, GITHUB, alpha);
+      const who = g.src.startsWith("b:") ? "Background agent" : META[g.src as Id]?.label ?? g.src;
+      if (g.ops.includes("push")) { if (from) pulseLink(from, repoP, col, alpha, { title: `${who} → Code Repo`, what: "git push", etaMethod: "unknown", etaS: null });
+        pulseLink(repoP, ghP, GITHUB, alpha, { title: "Code Repo → GitHub", what: `push by ${who}`, etaS: Math.max(0, Math.round((10_000 - age) / 1000)), etaMethod: "link shown ~10 s" }); }
+      if (g.ops.includes("pull")) pulseLink(ghP, repoP, GITHUB, alpha, { title: "GitHub → Code Repo", what: g.src === "muse" ? "Muse commit from the cloud" : `pull by ${who}`, etaS: Math.max(0, Math.round((10_000 - age) / 1000)), etaMethod: "link shown ~10 s" });
     }
     sessPos.current = [];
     subPos.current = [];
@@ -487,6 +520,23 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         });
       });
     }
+    // Long-running scripts (between hook events): a "running" mini-orb under whoever launched it, linked to Database / APIs
+    procPos.current = [];
+    const byOwner = new Map<string, Proc[]>();
+    for (const p of d.procs ?? []) byOwner.set(p.owner, [...(byOwner.get(p.owner) ?? []), p]);
+    for (const [ow, list] of byOwner) {
+      const c = ow === "jobs" ? JP : pos(ow as Id), col = ow === "jobs" ? JOBS : META[ow as Id].color;
+      list.forEach((p, i) => {
+        const ang = Math.PI / 2 + (i - (list.length - 1) / 2) * 0.55, rr = ow === "jobs" ? 32 : 40;
+        const x = c.x + Math.cos(ang) * rr, y = c.y + Math.sin(ang) * rr;
+        ctx.strokeStyle = col + "70"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(x, y); ctx.stroke();
+        const info = { what: nice(p.name), startedAt: p.startedAt, etaS: p.etaS, etaMethod: p.etaMethod };
+        if (p.links.db) pulseLink({ x, y }, npos("db"), col, 0.9, { title: "→ Database", ...info });
+        if (p.links.api) pulseLink({ x, y }, npos("api"), col, 0.9, { title: `→ APIs${p.sources.length ? ` (${p.sources.join(", ")})` : ""}`, ...info });
+        drawOrb(ctx, x, y, 5, col, { working: true, now, reduce });
+        procPos.current.push({ key: `p:${p.pid}`, x, y, p });
+      });
+    }
     for (const id of Object.keys(META) as Id[]) {
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
       const r = id === "jamie" ? 25 : 21;
@@ -505,99 +555,74 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     }
   };
-  const hit = (x: number, y: number) => {
+  const hit = (x: number, y: number, _w: number, _h: number, z: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 28) return id; }
     for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 28) return `n:${n}`; }
     if (Math.hypot(JP.x - x, JP.y - y) < 22) return "jobs";
     for (const bp of subPos.current) if (Math.hypot(bp.x - x, bp.y - y) < 8) return bp.key;
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
-    return null;
+    for (const pp of procPos.current) if (Math.hypot(pp.x - x, pp.y - y) < 9) return pp.key;
+    let best = -1, bd = 6 / z; // links: within ~6 screen px of the segment
+    segs.current.forEach((g, i) => {
+      const dx = g.b.x - g.a.x, dy = g.b.y - g.a.y, L = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - g.a.x) * dx + (y - g.a.y) * dy) / L));
+      const dd = Math.hypot(g.a.x + t * dx - x, g.a.y + t * dy - y);
+      if (dd < bd) { bd = dd; best = i; }
+    });
+    return best >= 0 ? `l:${best}` : null;
   };
+  // Tooltips: 2–3 very short lines — what · time · (optional) one count. "~" = estimate, "?" = unknown.
+  const left = (s: number | null | undefined) => (s != null ? `~${dur(s)} left` : "? left");
+  const Lines = ({ a, b, c, color }: { a: React.ReactNode; b?: React.ReactNode; c?: React.ReactNode; color?: string }) => (
+    <><div className="font-semibold" style={color ? { color } : undefined}>{a}</div>{b && <div className="text-white/85">{b}</div>}{c && <div className="text-white/60">{c}</div>}</>
+  );
   const tip = (id: string) => {
+    if (id.startsWith("l:")) {
+      const g = segs.current[+id.slice(2)];
+      if (!g) return null;
+      const el = g.startedAt ? (Date.now() - Date.parse(g.startedAt)) / 1000 : null;
+      return <Lines color={g.c} a={g.what} b={`${el != null ? `${dur(el)} in · ` : ""}${left(g.etaS)}`} c={g.title} />;
+    }
+    if (id.startsWith("p:")) {
+      const p = procPos.current.find((x) => x.key === id)?.p;
+      if (!p) return null;
+      return <Lines a={nice(p.name)} b={`${dur(p.secs)} in · ${left(p.etaS)}`} c={p.owner === "jobs" ? "scheduled job" : `started by ${META[p.owner as Id]?.label}`} />;
+    }
     if (id === "jobs") {
       const jb = d.jobs;
-      if (!jb) return <div>Jobs · no data</div>;
-      return (
-        <>
-          <div className="font-semibold" style={{ color: JOBS }}>Fildi jobs <span className="font-normal text-white/60">· last hour</span></div>
-          {jb.running.length > 0 && <div>Running: {jb.running.map((r) => `${r.name} (${r.mins}m)`).join(", ")}</div>}
-          {jb.ran.length > 0 && <div className="text-white/80">Ran: {jb.ran.map((r) => `${r.name} ${r.ok ? "" : "✗ "}${ago(r.at)}`).join(" · ")}</div>}
-          {jb.sources.length > 0 && <div className="text-white/80">Calls today: {jb.sources.map((s) => `${s.source} ${s.calls} (${ago(s.at)})`).join(" · ")}</div>}
-          {jb.activeSources.length > 0 && <div style={{ color: JOBS }}>Calling now: {jb.activeSources.join(", ")}</div>}
-          {!jb.running.length && !jb.ran.length && !jb.sources.length && <div className="text-white/60">Nothing in the last hour</div>}
-        </>
-      );
+      const now = (d.procs ?? []).filter((p) => p.owner === "jobs").map((p) => nice(p.name));
+      const calls = (jb?.sources ?? []).reduce((s, x) => s + x.calls, 0);
+      return <Lines color={JOBS} a="Scheduled jobs" b={now.length ? `running: ${now.join(", ")}` : jb?.ran.length ? `last ran ${ago(jb.ran[0].at)} ago` : "idle"} c={calls ? `${calls} API calls today` : undefined} />;
     }
     if (id === "n:github") {
-      const pushes = [
-        ...d.live.filter((e) => e.git?.includes("push") && Date.now() - Date.parse(e.t) < 36e5).map((e) => ({ t: e.t, agent: e.agent, text: e.gitMsg ?? "push" })),
-        ...(d.gitHour ?? []).filter((c) => c.agent === "muse"),
-      ].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 6);
-      return (
-        <>
-          <div className="font-semibold" style={{ color: GITHUB }}>GitHub <span className="font-normal text-white/60">· pushes, last hour</span></div>
-          {pushes.length ? pushes.map((p, i) => <div key={i} className="truncate"><span style={{ color: META[p.agent as Id]?.color }}>{META[p.agent as Id]?.label ?? p.agent}</span> · {p.text} · {ago(p.t)}</div>)
-            : <div className="text-white/60">No pushes</div>}
-        </>
-      );
+      const n = (d.gitHour ?? []).length;
+      return <Lines color={GITHUB} a="GitHub" b={n ? `${n} commit${n > 1 ? "s" : ""} in the last hour` : "quiet"} />;
     }
     if (id.startsWith("n:")) {
       const n = NODES[id.slice(2)];
-      const rows = n.kinds.flatMap((k) => Object.entries(d.activity1h?.[k] ?? {}).map(([agent, c]) => ({ k, agent, c })));
-      return (
-        <>
-          <div className="font-semibold">{n.label} <span className="font-normal text-white/60">· last hour</span></div>
-          {rows.length ? rows.map((r) => <div key={r.k + r.agent}><span style={{ color: META[r.agent as Id]?.color }}>{META[r.agent as Id]?.label ?? r.agent}</span> · {r.c} {KIND[r.k].label}</div>)
-            : <div className="text-white/60">No activity</div>}
-        </>
-      );
+      const tot = n.kinds.reduce((s, k) => s + Object.values(d.activity1h?.[k] ?? {}).reduce((a, b) => a + b, 0), 0);
+      const busy = n.kinds.flatMap((k) => Object.keys(d.activity1h?.[k] ?? {})).map((a) => META[a as Id]?.label ?? a);
+      return <Lines a={n.label} b={tot ? `${tot} actions in the last hour` : "quiet"} c={busy.length ? [...new Set(busy)].join(", ") : undefined} />;
     }
     if (id.startsWith("b:")) {
-      const bp = subPos.current.find((x) => x.key === id);
-      if (!bp) return null;
-      const mins = Math.max(1, Math.round((Date.now() - Date.parse(bp.k.startedAt)) / 6e4));
-      const last = [...d.live].reverse().find((e) => e.sub === bp.k.id);
-      return (
-        <>
-          <div className="font-semibold"><span style={{ color: META[bp.k.agent as Id]?.color }}>Background</span> · {bp.k.task.slice(0, 60)}</div>
-          <div className="text-white/80">{last ? `${KIND[last.kind ?? "other"]?.label ?? "other"} · ${humanAction(last)} · ${ago(last.t)}` : "starting"}</div>
-          <div className="text-white/60">running {mins}m · {bp.k.actions} actions</div>
-        </>
-      );
+      const k = subPos.current.find((x) => x.key === id)?.k;
+      if (!k) return null;
+      return <Lines a={k.task.slice(0, 48)} b={`background · ${dur((Date.now() - Date.parse(k.startedAt)) / 1000)} in`} c={`${k.actions} actions`} />;
     }
     if (id.startsWith("s:")) {
       const sp = sessPos.current.find((x) => x.key === id);
       if (!sp) return null;
-      const m = META[sp.s.agent as Id], sid = sp.s.last.session;
-      const evs = d.live.filter((e) => e.session === sid && !e.sub);
+      const sid = sp.s.last.session, evs = d.live.filter((e) => e.session === sid && !e.sub);
       const prompt = [...evs].reverse().find((e) => e.event === "prompt" && e.detail);
-      const first = evs[0], acts = evs.filter((e) => e.event === "tool" || e.event === "edit").length;
-      const mins = first ? Math.max(1, Math.round((Date.now() - Date.parse(first.t)) / 6e4)) : 0;
-      const lk = sp.s.last.kind ? KIND[sp.s.last.kind]?.label : undefined;
-      return (
-        <>
-          <div className="font-semibold"><span style={{ color: m?.color }}>{m?.label ?? sp.s.agent}</span> · {prompt?.detail ? prompt.detail.slice(0, 60) : "session"}</div>
-          <div className="text-white/80">{lk ? `${lk} · ` : ""}{humanAction(sp.s.last)} · {ago(sp.s.last.t)}</div>
-          <div className="text-white/60">running {mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`} · {acts} actions</div>
-        </>
-      );
+      return <Lines a={prompt?.detail ? prompt.detail.slice(0, 48) : `${META[sp.s.agent as Id]?.label ?? sp.s.agent} session`} b={`${humanAction(sp.s.last)} · ${ago(sp.s.last.t)} ago`} />;
     }
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
-    const n = sessions.filter((s) => s.agent === id).length;
-    return (
-      <>
-        <div className="font-semibold" style={{ color: m.color }}>{m.label} <span className="font-normal text-white/60">· {m.role}</span></div>
-        {id === "jamie" ? <div>Approves scores, trades, unattended agents</div> : <>
-          <div>{st ? (st.waiting ? "● Waiting for you" : st.looping ? "● Looping? same action ≥5× in 10 min" : st.working ? `● Working · ${KIND[st.lastKind ?? "other"]?.label ?? ""}` : `Idle · last action ${ago(st.lastEvent?.t)}`)
-            : id === "muse" ? `${d.muse?.running ? "App open" : "App closed"} · last commit ${ago(a?.lastActive)}` : `Last commit ${ago(a?.lastActive)}`}</div>
-          {st?.doing && <div className="text-white/80">Doing: {st.doing}</div>}
-          {st && (st.errors1h ?? 0) > 0 && <div className="text-red-300">{st.errors1h} failed actions in the last hour</div>}
-          {st && <div className="text-white/70">Today: {st.workingMin ?? 0} min working · {st.waitingMin ?? 0} min waiting for you</div>}
-          <div className="text-white/70">{a?.commits24h ?? 0} commits 24h · queue {a?.queue ?? 0}{n ? ` · ${n} session${n > 1 ? "s" : ""}` : ""}</div>
-        </>}
-      </>
-    );
+    if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
+    const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
+      : id === "muse" ? (d.muse?.running ? "app open" : "app closed") : `last commit ${ago(a?.lastActive)}`;
+    return <Lines color={m.color} a={st?.doing ? `${m.label} · ${st.doing.slice(0, 40)}` : m.label} b={state}
+      c={st && (st.errors1h ?? 0) > 0 ? `${st.errors1h} errors this hour` : `${a?.commits24h ?? 0} commits today`} />;
   };
   return (
     <div className="space-y-1">

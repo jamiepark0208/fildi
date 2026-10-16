@@ -10,12 +10,13 @@
  *   - windows: Claude output tokens per 5-hour window (plan limits reset per 5 h; the plan's cap isn't exposed → compare to own peak).
  *   - rules: .agents/rules.md (curated one-liners) · skills: .claude/skills/*.md + loads in the last 7 d.
  *   - ideas: Muse → Cursor ASKS rows (lifecycle phase + Context blurb) for Settings › Agents › Ideas cubes.
- * Commits/tokens cached 10 min; live events read fresh. Reads only, never writes.
+ *   - procs: long-running scripts (one ps + lsof stdout tail for n/N progress → ETA; else median of past runs in ~/.fildi/proc-durations.json).
+ * Commits/tokens cached 10 min; live events read fresh. Writes only ~/.fildi/proc-durations.json.
  */
 import { Router } from "express";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createReadStream, readFileSync, readdirSync, statSync } from "node:fs";
+import { closeSync, createReadStream, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
 import { resolve, dirname, join } from "node:path";
@@ -305,18 +306,104 @@ const JOB_PROCS: [RegExp, string][] = [
   [/maintain\.mjs/, "maintain"], [/daily\.py/, "model list daily"], [/intraday\.py/, "model list intraday"],
   [/nightly-enrichment/, "nightly enrichment"], [/merge-trusted/, "merge trusted"], [/scoreboard\.py/, "scoreboard"],
 ];
-async function jobs(nowMs: number) {
-  const running: { name: string; mins: number }[] = [];
+type Proc = { pid: number; ppid: number; secs: number; cmd: string };
+/** One `ps` per refresh, shared by jobs() and runningProcs(). etime = [[dd-]hh:]mm:ss → seconds. */
+async function psAll(): Promise<Proc[]> {
   try {
-    const { stdout } = await run("ps", ["-axo", "etime=,command="], { maxBuffer: 4 << 20 });
-    for (const line of stdout.split("\n")) {
-      const hit = JOB_PROCS.find(([re]) => re.test(line));
-      if (!hit || /grep|ps -axo/.test(line)) continue;
-      const et = line.trim().split(/\s+/)[0]; // [[dd-]hh:]mm:ss
-      const parts = et.split(/[-:]/).map(Number), mins = parts.length >= 3 ? parts[parts.length - 3] * 60 + parts[parts.length - 2] + (parts.length === 4 ? parts[0] * 1440 : 0) : parts[0];
-      if (!running.some((r) => r.name === hit[1])) running.push({ name: hit[1], mins });
+    const { stdout } = await run("ps", ["-axo", "pid=,ppid=,etime=,command="], { maxBuffer: 8 << 20 });
+    return stdout.split("\n").flatMap((line) => {
+      const m = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/);
+      if (!m) return [];
+      const p = m[3].split(/[-:]/).map(Number);
+      const secs = m[3].includes("-") ? p[0] * 86400 + p[1] * 3600 + p[2] * 60 + p[3]
+        : p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + (p[1] ?? 0);
+      return [{ pid: +m[1], ppid: +m[2], secs, cmd: m[4] }];
+    });
+  } catch { return []; }
+}
+
+/** Long-running scripts started by agents (Claude's Bash shells source ~/.claude/shell-snapshots; Cursor's live under Cursor.app)
+ *  or by launchd (scheduled jobs). Visible between hook events, which only fire when a command starts/ends. */
+const SCRIPT_RE = /(analysis\/[\w-]+\.py|[\w-]+\.py|scripts\/[\w./-]+\.(?:mjs|ts)|maintain\.mjs|nightly-enrichment|merge-trusted)/;
+const SKIP_RE = /agent-event\.mjs|codegraph|--watch|api-server\/src\/index|\btsc\b|vitest|statusline|mcp|pip |site-packages|ps -axo/;
+const scriptInfo = new Map<string, { db: boolean; sources: string[] }>();
+function readScript(token: string) {
+  if (scriptInfo.has(token)) return scriptInfo.get(token)!;
+  let txt = "";
+  for (const base of [ROOT, resolve(ROOT, "scripts/watchlist_sync"), resolve(ROOT, "artifacts/api-server"), ""]) {
+    try { txt = readFileSync(base ? resolve(base, token) : token, "utf8"); break; } catch { /* try next */ }
+  }
+  const sources = ["polygon", "schwab", "finnhub", "alphavantage", "anthropic", "lseg", "fmp", "yahoo"].filter((s) =>
+    new RegExp(s === "alphavantage" ? "alphavantage|alpha_vantage" : s, "i").test(txt));
+  const v = { db: /connect\(|psycopg|DATABASE_URL|@workspace\/db|db\.execute/.test(txt), sources };
+  scriptInfo.set(token, v);
+  return v;
+}
+const DUR_FILE = join(homedir(), ".fildi/proc-durations.json");
+const seenProcs = new Map<number, { name: string; secs: number }>();
+function durations(): Record<string, number[]> { try { return JSON.parse(readFileSync(DUR_FILE, "utf8")); } catch { return {}; } }
+/** Progress "n/N" from the process's stdout log (lsof → file path → last 8 KB). */
+async function progressOf(pid: number): Promise<{ n: number; N: number; file: string } | null> {
+  try {
+    const { stdout } = await run("lsof", ["-p", String(pid), "-a", "-d", "1", "-Fn"], { timeout: 2000 });
+    const file = stdout.split("\n").find((l) => l.startsWith("n/") && !l.startsWith("n/dev/"))?.slice(1);
+    if (!file) return null;
+    const size = statSync(file).size;
+    const fd = openSync(file, "r"), len = Math.min(size, 8192), buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len); closeSync(fd);
+    const lines = buf.toString("utf8").split("\n").filter((l) => l.trim()).reverse();
+    for (const l of lines.slice(0, 40)) {
+      const all = [...l.matchAll(/(?<![\d/-])(\d+)\s*\/\s*(\d+)(?![\d/-])/g)].map((m) => ({ n: +m[1], N: +m[2] })).filter((x) => x.N >= 2 && x.n <= x.N);
+      if (all.length) return { ...all[all.length - 1], file };
     }
-  } catch { /* ps unavailable → none */ }
+    return null;
+  } catch { return null; }
+}
+async function runningProcs(ps: Proc[], nowMs: number) {
+  const byPid = new Map(ps.map((p) => [p.pid, p]));
+  const owner = (p: Proc, name: string): "claude" | "cursor" | "jobs" => {
+    for (let q = byPid.get(p.ppid), i = 0; q && i < 12; q = byPid.get(q.ppid), i++) {
+      if (q.cmd.includes(".claude/shell-snapshots")) return "claude";
+      if (/Cursor(\.app| Helper)/.test(q.cmd)) return "cursor";
+    }
+    if (JOB_PROCS.some(([re]) => re.test(p.cmd))) return "jobs";
+    return /analysis\//.test(name) ? "claude" : "jobs"; // nohup'd agent scripts re-parent to launchd
+  };
+  const out = [];
+  const live = new Set<number>();
+  for (const p of ps) {
+    if (!/(python|node|tsx)/.test(p.cmd) || SKIP_RE.test(p.cmd) || p.secs < 20) continue;
+    const m = p.cmd.match(SCRIPT_RE);
+    if (!m) continue;
+    const token = m[1], name = token.split("/").pop()!.replace(/\.(py|mjs|ts)$/, "");
+    live.add(p.pid);
+    seenProcs.set(p.pid, { name, secs: p.secs });
+    const info = readScript(token);
+    const prog = await progressOf(p.pid);
+    const hist = (durations()[name] ?? []).slice().sort((a, b) => a - b);
+    let etaS: number | null = null, etaMethod: "from progress" | "typical run" | "unknown" = "unknown";
+    if (prog && prog.n > 0) { etaS = Math.round((p.secs * (prog.N - prog.n)) / prog.n); etaMethod = "from progress"; }
+    else if (hist.length) { etaS = Math.max(0, hist[Math.floor(hist.length / 2)] - p.secs); etaMethod = "typical run"; }
+    out.push({ pid: p.pid, name, script: token, owner: owner(p, token), secs: p.secs, startedAt: new Date(nowMs - p.secs * 1000).toISOString(),
+      links: { db: info.db, api: info.sources.length > 0 }, sources: info.sources, progress: prog ? { n: prog.n, N: prog.N } : null, etaS, etaMethod });
+  }
+  // finished since last scan → remember its duration (median of the last 10 runs = "typical run")
+  const done = [...seenProcs.entries()].filter(([pid]) => !live.has(pid));
+  if (done.length) {
+    const d = durations();
+    for (const [pid, v] of done) { (d[v.name] ??= []).push(v.secs); d[v.name] = d[v.name].slice(-10); seenProcs.delete(pid); }
+    try { mkdirSync(join(homedir(), ".fildi"), { recursive: true }); writeFileSync(DUR_FILE, JSON.stringify(d)); } catch { /* best effort */ }
+  }
+  return out;
+}
+
+async function jobs(nowMs: number, ps: Proc[]) {
+  const running: { name: string; mins: number }[] = [];
+  for (const p of ps) {
+    const hit = JOB_PROCS.find(([re]) => re.test(p.cmd));
+    if (!hit || /grep|ps -axo/.test(p.cmd)) continue;
+    if (!running.some((r) => r.name === hit[1])) running.push({ name: hit[1], mins: Math.floor(p.secs / 60) });
+  }
   const ran: { name: string; at: string; ok: boolean }[] = [];
   try {
     for (const f of readdirSync("/tmp/fildi-logs").filter((x) => x.endsWith("-last.json"))) {
@@ -384,7 +471,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     activity1h, kinds: KINDS,
     limits: { claude: claudeLimits() },
     muse: { running: await museRunning() },
-    jobs: await jobs(nowMs),
+    ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits
     gitHour: (await commits("1 hour ago").catch((): Ev[] => [])).map((c) => ({ t: c.t, agent: c.from, text: c.text.slice(0, 70) })),
   };
