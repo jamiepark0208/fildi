@@ -95,6 +95,7 @@ const RBH_EXPORT_PROMPT_LAST = join(homedir(), "rbh_scripts/logs/export_prompt_l
 /** PM jobs (Claude, PM role): each writes {ts, ok, detail} after a run. */
 const PM_ALERTS_LAST = "/tmp/fildi-logs/pm-alerts-last.json";
 const TRANSCRIPTS_LAST = "/tmp/fildi-logs/transcripts-last.json";
+const OPENJEV_LAST = "/tmp/fildi-logs/openjev-last.json";
 const PM_PY = join(ROOT, "scripts/watchlist_sync/.venv/bin/python");
 function readLast(path: string): { ts: string; ok: boolean; detail: string } | null {
   try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; }
@@ -1475,6 +1476,33 @@ function buildTasks(
         verifyChecks: [vcheck(ld === "loaded", "LaunchAgent loaded", "scripts/install-transcripts-launchd.sh")],
       }, pt);
     })(),
+    (() => {
+      const last = readLast(OPENJEV_LAST);
+      const ld = launchdState("com.fildi.openjev");
+      return withToday({
+        id: "openjev",
+        name: "OpenJev Forecasts (local)",
+        summary: "Local 26B model answers the forecast-ledger questions (A129)",
+        purpose: "Freezes each day's stock states + questions at 5:30 AM, then answers them with the local OpenJev model when RAM allows (load → answer → unload). Graded vs market odds in the forecast ledger.",
+        schedule: "Freeze 5:30 AM PT · answer 5:30–9:00 AM or 9:00–11:30 PM PT",
+        frequencyRank: 21,
+        frequency: "daily",
+        lastRun: last?.ts ?? null,
+        running: false,
+        runner: "launchd",
+        status: pmJobStatus(last, 30, "com.fildi.openjev"),
+        canRun: true,
+        canToggle: true,
+        enabled: ld === "loaded",
+        detail: last?.detail ?? null,
+        outcome: last?.detail ?? null,
+        logFiles: [OPENJEV_LAST, "/tmp/fildi-logs/openjev.err", "/tmp/fildi-logs/openjev-server.log"],
+        dueToday: true,
+        dueTimeLabel: "5:30 AM PT",
+        dueMinutesPt: 5 * 60 + 30,
+        verifyChecks: [vcheck(ld === "loaded", "LaunchAgent loaded", "scripts/install-openjev-launchd.sh")],
+      }, pt);
+    })(),
     withToday({
       id: "enrichment-api",
       name: "In-process Enrichment",
@@ -1751,6 +1779,14 @@ router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => 
       res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached" });
       return;
     }
+    if (id === "openjev") {
+      // Run now = freeze today's inputs (idempotent) + answer under the RAM guard (never forces past it).
+      const child = spawn("/usr/bin/caffeinate", ["-s", PM_PY, join(ROOT, "scripts/watchlist_sync/openjev_local.py"),
+        "--freeze", "--answer"], { cwd: join(ROOT, "scripts/watchlist_sync"), detached: true, stdio: "ignore", env: process.env });
+      child.unref();
+      res.json({ ok: true, id, started: true, pid: child.pid, mode: "detached" });
+      return;
+    }
     if (id === "pm-alerts" || id === "transcripts") {
       const script = join(ROOT, "scripts/watchlist_sync", id === "pm-alerts" ? "pm_alerts.py" : "transcripts.py");
       const child = spawn(PM_PY, id === "pm-alerts" ? [script, "--now"] : [script], {
@@ -1847,6 +1883,7 @@ router.post("/admin/scheduled-tasks/:id/enable", requireAdmin, (req, res) => {
       : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
       : id === "pm-alerts" ? "com.fildi.pm-alerts"
       : id === "transcripts" ? "com.fildi.transcripts"
+      : id === "openjev" ? "com.fildi.openjev"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });
@@ -1882,6 +1919,7 @@ router.post("/admin/scheduled-tasks/:id/disable", requireAdmin, (req, res) => {
       : id === "rbh-export" ? "com.fildi.rbh-export-prompt"
       : id === "pm-alerts" ? "com.fildi.pm-alerts"
       : id === "transcripts" ? "com.fildi.transcripts"
+      : id === "openjev" ? "com.fildi.openjev"
         : null;
   if (!label) {
     res.status(400).json({ error: "only LaunchAgent tasks can be toggled" });

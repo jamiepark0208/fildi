@@ -78,6 +78,7 @@ export const EXPECTED_LAUNCH_AGENTS = [
   "com.fildi.pm-alerts",
   "com.fildi.transcripts",
   "com.fildi.option-history",
+  "com.fildi.openjev",
 ] as const;
 
 /** Static catalog — keep in sync with buildTasks ids (catalog rows only). */
@@ -195,6 +196,13 @@ const INVENTORY_SPEC: Record<
     writes: ["watchlist_sync.pm_alerts", "watchlist_sync.pm_book_latest", "watchlist_sync.forecast_ledger"],
     mutex: "none (read-only Schwab quotes; self-throttles: 15 min market hours, 2 h otherwise)",
     cadence: "every 15 min (wakes) · runs 15 min 6:30–1:15 PT, 2 h otherwise",
+    primary: true,
+  },
+  openjev: {
+    owner: "launchd · com.fildi.openjev → openjev_local.py --tick (local 26B OpenJev, A129)",
+    writes: ["watchlist_sync.openjev_batches", "watchlist_sync.forecast_ledger", "watchlist_sync.openjev_runs"],
+    mutex: "RAM guard (free ≥ measured peak + 8 GB, on AC); one server at a time on 127.0.0.1:8080",
+    cadence: "tick every 15 min · freeze 5:30 AM PT · answer 5:30–9:00 / 9:00–11:30 PM PT windows",
     primary: true,
   },
   transcripts: {
@@ -364,6 +372,8 @@ export function detectOpsAlerts(opts: {
             ? ["pm-alerts"]
             : label.includes("transcripts")
               ? ["transcripts"]
+            : label.includes("openjev")
+              ? ["openjev"]
             : label.includes("option-history")
               ? ["option-history"]
           : label.includes("rbh-daily")
@@ -380,6 +390,8 @@ export function detectOpsAlerts(opts: {
                 ? "scripts/install-pm-alerts-launchd.sh"
                 : label === "com.fildi.transcripts"
                   ? "scripts/install-transcripts-launchd.sh"
+                : label === "com.fildi.openjev"
+                  ? "scripts/install-openjev-launchd.sh"
                 : label === "com.fildi.option-history"
                   ? "scripts/install-option-history-launchd.sh"
               : "Reinstall from ~/rbh_scripts / install scripts",

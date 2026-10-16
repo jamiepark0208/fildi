@@ -67,6 +67,10 @@ Thumbs.db
 *.dump
 *.xlsx
 
+# OpenJev local (A129): source clone + venv (weights live in ~/.cache/huggingface)
+research/openjev/src/
+research/openjev/.venv/
+
 # Generated at runtime (regenerated when missing; resource audit 10-16)
 artifacts/api-server/cot-cache.json
 artifacts/api-server/macro-charts.json

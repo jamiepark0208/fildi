@@ -22,8 +22,11 @@ Why: open Fildi from your phone anywhere, private (only your devices), free. Wor
 1. Install Tailscale on the Mac (tailscale.com/download) and on your phone (App Store), sign in with the same account on both.
 2. Reply "done" here. Claude makes Fildi reachable on your private Tailscale address and sends you the link.
 
-## J8 Codiv API key for A129 OpenJev test
-Why: lets the OpenJev forecasting test run on the free hosted tier (no load on your Mac).
-1. Sign up at codiv.ai (free, no card).
-2. Add CODIV_API_KEY=… to .env.local.
-3. Reply "done" here.
+## J8 Codiv API key — kept as backup, not needed
+Done (you added it 10-16). OpenJev now runs locally on your Mac (no data leaves), so the key is only a fallback. Nothing to do.
+
+## J9 Optional: let the Mac wake itself for the 5:30 AM OpenJev run
+Why: the local forecast run happens 5:30–9:00 AM when RAM is free. If the Mac is asleep it runs at next wake (or the 9–11:30 PM window), so this is optional.
+1. In Terminal: `sudo pmset repeat wakeorpoweron MTWRFSU 05:25:00` (wakes only; runs only when on the charger).
+2. Undo anytime: `sudo pmset repeat cancel`.
+3. Reply "done" or "skip".

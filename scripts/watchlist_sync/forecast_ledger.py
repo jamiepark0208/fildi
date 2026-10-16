@@ -178,7 +178,20 @@ def resolve(conn, now: dt.datetime | None = None) -> int:
     done = 0
     open_q = conn.execute("""SELECT DISTINCT question_id, qtype, subject, resolves_on, meta FROM watchlist_sync.forecast_ledger
                              WHERE outcome IS NULL AND resolves_on < %s""", (today,)).fetchall()
+    seen: set[str] = set()
     for qid, qtype, t, d, meta in open_q:
+        if qid in seen or qtype.startswith("advisory"):
+            continue
+        seen.add(qid)
+        if qtype in EXTRA_RESOLVERS:   # A129 v5 OpenJev question types
+            r = EXTRA_RESOLVERS[qtype](conn, t, d, meta)
+            if r is None:
+                continue
+            y, info = r
+            conn.execute("""UPDATE watchlist_sync.forecast_ledger SET outcome = %s, resolved_at = now(), meta = meta || %s
+                            WHERE question_id = %s AND outcome IS NULL""", (y, json.dumps(info), qid))
+            done += 1
+            continue
         c = _close_on_or_before(conn, t, d)
         if not c:
             continue
@@ -197,6 +210,99 @@ def resolve(conn, now: dt.datetime | None = None) -> int:
         done += 1
     conn.commit()
     return done
+
+
+# ---------- A129 v5 resolvers (OpenJev question types; pure rules tested in tests/test_openjev_local.py) ----------
+def _window(conn, t: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, float, float]]:
+    """(date, close, low) for start < date ≤ end, LSEG first."""
+    for table in ("lseg_research.daily_history", "prices_historical"):
+        rows = conn.execute(f"""SELECT date, close::float, COALESCE(low, close)::float FROM {table}
+                                WHERE ticker = %s AND date > %s AND date <= %s AND close > 0 ORDER BY date""",
+                            (t, start, end)).fetchall()
+        if rows:
+            return rows
+    return []
+
+
+def _has_bar(conn, t: str, d: dt.date) -> bool:
+    c = _close_on_or_before(conn, t, d)
+    return bool(c)
+
+
+def touched(lows: list[float], strike: float) -> bool:
+    return any(x <= strike for x in lows)
+
+
+def dropped(closes_: list[float], threshold: float) -> bool:
+    return any(x <= threshold for x in closes_)
+
+
+def moved_toward(fv: float, pt0: float, pt1: float) -> bool:
+    return abs(fv - pt1) < abs(fv - pt0)
+
+
+def _r_touch(conn, t, d, m):
+    if not _has_bar(conn, t, d):
+        return None
+    w = _window(conn, t, dt.date.fromisoformat(m["from"]), d)
+    return (touched([x[2] for x in w], float(m["strike"])), {"min_low": min(x[2] for x in w)}) if w else None
+
+
+def _r_direction(conn, t, d, m):
+    c = _close_on_or_before(conn, t, d)
+    return (c[0] > float(m["spot"]), {"close": c[0], "close_date": str(c[2])}) if c else None
+
+
+def _r_drop(conn, t, d, m):
+    if not _has_bar(conn, t, d):
+        return None
+    w = _window(conn, t, dt.date.fromisoformat(m["from"]), d)
+    return (dropped([x[1] for x in w], float(m["threshold"])), {"min_close": min(x[1] for x in w)}) if w else None
+
+
+def _r_disagree(conn, t, d, m):
+    c = _close_on_or_before(conn, t, d)
+    if not c:
+        return None
+    up = c[0] > float(m["spot"])
+    return (up == bool(m["fund_up"]), {"close": c[0], "ret": round(c[0] / float(m["spot"]) - 1, 4)})
+
+
+def _r_earnings(conn, t, d, m):
+    rd = dt.date.fromisoformat(m["report_date"])
+    r = conn.execute("""SELECT move_pct::float FROM lseg_research.earnings_moves WHERE ticker = %s
+                        AND report_date BETWEEN %s AND %s ORDER BY report_date LIMIT 1""",
+                     (t, rd - dt.timedelta(days=1), rd + dt.timedelta(days=1))).fetchone()
+    if not r:
+        return None
+    mv = abs(r[0]) / 100   # move_pct is in percent
+    return (mv > float(m["implied"]), {"realized": round(mv, 4)})
+
+
+def _r_fvpt(conn, t, d, m):
+    r = conn.execute("""SELECT value, obs_date FROM lseg_research.starmine_history WHERE ticker = %s AND metric = 'pt_mean'
+                        AND obs_date <= %s ORDER BY obs_date DESC LIMIT 1""", (t, d)).fetchone()
+    if not r or r[1] < d - dt.timedelta(days=10):
+        return None
+    return (moved_toward(float(m["fv"]), float(m["pt0"]), float(r[0])), {"pt1": r[0], "pt1_date": str(r[1])})
+
+
+def _r_recmed(conn, t, d, m):
+    rets = {}
+    for p in m.get("picks", []):
+        c = _close_on_or_before(conn, p["ticker"], d)
+        if not c or p.get("premium") is None:
+            return None
+        rets[p["ticker"]] = (float(p["premium"]) - max(0.0, float(p["strike"]) - c[0])) / float(p["strike"])
+    if t not in rets or len(rets) < 3:
+        return None
+    med = sorted(rets.values())[len(rets) // 2]
+    return (rets[t] > med, {"ret": round(rets[t], 4), "median": round(med, 4)})
+
+
+EXTRA_RESOLVERS = {"strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
+                   "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings,
+                   "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed}
 
 
 def _close_on_or_before_any(conn, t: str, d: dt.date) -> tuple[float, str] | None:
@@ -221,6 +327,33 @@ def report(conn) -> list[dict]:
         out.append({"qtype": qt, "forecaster": f, "n": len(pairs), "brier": brier(pairs),
                     "pred": sum(p for p, _ in pairs) / len(pairs), "real": sum(y for _, y in pairs) / len(pairs),
                     "bins": reliability(pairs)})
+    return out
+
+
+def paired_vs_baseline(conn, forecaster: str = "openjev:local-26b", n_boot: int = 2000, seed: int = 7) -> list[dict]:
+    """Per qtype: Brier(forecaster) − Brier(baseline) on the same resolved questions, bootstrap 90 % CI.
+    Negative = forecaster better. Baseline = the non-openjev forecaster logged for the same question_id."""
+    import random
+    rows = conn.execute("""SELECT DISTINCT ON (question_id, forecaster) question_id, qtype, forecaster, prob, outcome
+                           FROM watchlist_sync.forecast_ledger WHERE outcome IS NOT NULL
+                           ORDER BY question_id, forecaster, made_at DESC""").fetchall()
+    by: dict[str, dict] = {}
+    for qid, qt, f, p, y in rows:
+        by.setdefault(qid, {"qtype": qt, "f": {}})["f"][f] = (float(p), bool(y))
+    groups: dict[tuple[str, str], list[float]] = {}
+    for q in by.values():
+        if forecaster not in q["f"]:
+            continue
+        p, y = q["f"][forecaster]
+        for b, (bp, _) in q["f"].items():
+            if b == forecaster or b.startswith("openjev:"):
+                continue
+            groups.setdefault((q["qtype"], b), []).append((p - y) ** 2 - (bp - y) ** 2)
+    rnd, out = random.Random(seed), []
+    for (qt, b), d in sorted(groups.items()):
+        means = sorted(sum(rnd.choice(d) for _ in d) / len(d) for _ in range(n_boot))
+        out.append({"qtype": qt, "baseline": b, "n": len(d), "brier_diff": sum(d) / len(d),
+                    "ci90": (means[int(0.05 * n_boot)], means[int(0.95 * n_boot)])})
     return out
 
 
@@ -252,6 +385,10 @@ def main() -> None:
         print(f"questions {n_all} · resolved {n_res}")
         for r in report(conn):
             print(f"{r['qtype']:15} {r['forecaster']:14} n={r['n']:4} brier={r['brier']:.3f} pred {r['pred']:.0%} real {r['real']:.0%}")
+        for r in paired_vs_baseline(conn):
+            lo, hi = r["ci90"]
+            print(f"openjev vs {r['baseline']:15} {r['qtype']:20} n={r['n']:4} Δbrier={r['brier_diff']:+.3f} "
+                  f"90% CI [{lo:+.3f}, {hi:+.3f}]")
 
 
 if __name__ == "__main__":
