@@ -5,7 +5,7 @@
  *     GitHub noreply author → muse (it commits from the cloud); other local commits → cursor. Method shown in the UI tooltip.
  *   - hand-offs: research/common/ASKS.md index rows (from → to, status) — each row is one message between agents.
  *   - tokens: Claude Code session logs (~/.claude/projects/<repo>/*.jsonl, usage per API request, deduped by requestId).
- *     Cursor/Muse token use isn't recorded locally → "not tracked".
+ *     Cursor token use isn't recorded locally → "not tracked"; Muse reports weekly % via its heartbeat events.
  *   - live: hook events (.agents/hooks/agent-event.mjs → ~/.fildi/agent-events.jsonl): working now = event < 2 min, not stopped.
  *   - windows: Claude output tokens per 5-hour window (plan limits reset per 5 h; the plan's cap isn't exposed → compare to own peak).
  *   - rules: .agents/rules.md (curated one-liners) · skills: .claude/skills/*.md + loads in the last 7 d.
@@ -409,6 +409,21 @@ function claudeLimits(): { at: string; fiveHour: { pct: number | null; resetsAt:
   } catch { return null; }
 }
 
+/** Muse weekly usage: Muse's heartbeat events carry usage_pct + usage_resets (from subscription-status). */
+function museUsage(): { at: string; pct: number | null; resetsAt: string | null } | null {
+  try {
+    const lines = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8").trim().split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const e = JSON.parse(lines[i]) as { agent?: string; t?: string; usage_pct?: number; usage_resets?: string };
+        if (e.agent === "muse" && typeof e.usage_pct === "number")
+          return { at: e.t ?? new Date().toISOString(), pct: e.usage_pct, resetsAt: e.usage_resets ?? null };
+      } catch { /* skip malformed line */ }
+    }
+    return null;
+  } catch { return null; }
+}
+
 let museCache: { at: number; running: boolean } | null = null;
 /** Muse is a desktop app (process "Muse"); it keeps no local session/token logs, so only "app open" is knowable here. */
 async function museRunning(): Promise<boolean> {
@@ -626,7 +641,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     subagents: subagents(live, nowMs),
     status: { claude: status("claude"), cursor: status("cursor") },
     activity1h, kinds: KINDS,
-    limits: { claude: claudeLimits() },
+    limits: { claude: claudeLimits(), muse: museUsage() },
     needsUnread: await needsUnread(),
     jamieUnread: await jamieUnread(),
     muse: { running: await museRunning() },
