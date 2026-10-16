@@ -17,6 +17,7 @@ type Run = {
   bullets: Bullet[];
   cleared: string[];
   accounts: Record<string, { status: "red" | "amber" | "green"; risk?: number; expiry?: string }>;
+  credit?: { on: boolean; spread: number; p80: number; as_of: string } | null; // S028 context, display only
 };
 
 const DOT: Record<Bullet["level"], string> = { red: "bg-red-500", amber: "bg-amber-400", green: "bg-emerald-500" };
@@ -187,6 +188,11 @@ export function PortfolioAlertsPanel() {
             {data.prices} · {ago(data.priced_at)}
           </span>
         </div>
+        {data.credit?.on && (
+          <p className="text-[12px] leading-snug text-amber-200/90" title={`Baa−10y ${data.credit.spread.toFixed(2)}% vs 1-y 80th pct ${data.credit.p80.toFixed(2)}% (${data.credit.as_of})`}>
+            Credit spreads wide: S&amp;P fell ≥5% within a month 25% of the time in past cases (vs 13%) — your puts weren't hurt more (S028)
+          </p>
+        )}
         {data.bullets.length === 0 ? (
           <p className="text-[12px] text-emerald-300/80">All clear — no account crosses a risk line.</p>
         ) : (

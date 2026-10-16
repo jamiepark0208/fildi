@@ -59,6 +59,40 @@ def write_last(ok: bool, detail: str, now: datetime) -> None:
         pass
 
 
+CREDIT_CSV = HERE / "out" / "opt" / "s028_inputs" / "BAA10Y.csv"  # same FRED series + cache S028 used
+
+
+def credit_wide() -> dict | None:
+    """S028 display signal: Baa−10y spread above its trailing 252-observation 80th percentile. FRED CSV refreshed at most
+    once a day (1 small download); on any failure the last cached file is used, else None (no line shown)."""
+    import time
+    import urllib.request
+    try:
+        if not CREDIT_CSV.exists() or time.time() - CREDIT_CSV.stat().st_mtime > 20 * 3600:
+            CREDIT_CSV.parent.mkdir(parents=True, exist_ok=True)
+            data = urllib.request.urlopen("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y", timeout=20).read()
+            if b"BAA10Y" in data[:200]:
+                CREDIT_CSV.write_bytes(data)
+    except Exception:
+        pass
+    try:
+        vals = []
+        for line in CREDIT_CSV.read_text().splitlines()[1:]:
+            d, _, v = line.partition(",")
+            try:
+                vals.append((d, float(v)))
+            except ValueError:
+                continue
+        if len(vals) < 253:
+            return None
+        last_d, last = vals[-1]
+        window = sorted(v for _, v in vals[-253:-1])
+        p80 = window[int(0.8 * (len(window) - 1))]
+        return {"on": last > p80, "spread": last, "p80": p80, "as_of": last_d}
+    except Exception:
+        return None
+
+
 def market_hours(now: datetime) -> bool:
     return now.weekday() < 5 and (6, 30) <= (now.hour, now.minute) <= (13, 15)
 
@@ -224,6 +258,7 @@ def main() -> None:
                "model": {"rho": RHO, "paths": PATHS, "thresholds": THRESH, "rules": book["rules"]},
                "accounts": {a: {"status": b["status"], **({"risk": sims[a]["risk"], "expiry": sims[a]["expiry"]} if sims.get(a) else {})}
                             for a, b in book["accounts"].items()},
+               "credit": credit_wide(),  # S028 market context (display only)
                # per-put odds, kept so analysis/scoreboard.py can grade them at expiry (live calibration of S016)
                "predictions": [{"account": a, "ticker": p["ticker"], "strike": p["strike"], "expiry": str(s["expiry"]),
                                 "p_assign": round(p["p_assign"], 4)} for a, s in sims.items() if s for p in s["puts"]]}
