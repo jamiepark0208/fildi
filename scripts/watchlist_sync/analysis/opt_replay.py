@@ -231,5 +231,143 @@ def s017() -> None:
     print("\n→", verdict, "·", head)
 
 
+
+
+# ── S020: structures on the same entries (hold to expiry) ────────────────────────────────────────────────────────────
+STRUCTS = ("csp", "spread1", "spread2", "strangle", "straddle")
+
+
+def s020() -> None:
+    """Same entries as S017. Extra legs enter at the entry-day Polygon close ± half spread (sell − / buy +); all legs settle at
+    intrinsic from the stock's expiry close. Capital: CSP = strike collateral; spread = width − credit; strangle = CSP collateral
+    (the call side needs margin — not allowed in a cash-secured Robinhood account); straddle = ATM strike collateral."""
+    conn = connect()
+    hs = half_spreads(conn)
+    spread = lambda px: hs[min(bisect_right(SPREAD_EDGES, px), len(hs) - 1)]  # noqa: E731
+    ents, bars, und = load(conn)
+    legs = defaultdict(dict)
+    for key, role, o, k, typ in conn.execute("""SELECT l.key, l.role, l.occ, c.strike, c.type FROM optlab.legs l JOIN optlab.contracts c USING (occ)
+                                                WHERE l.study = 'trades'""").fetchall():
+        legs[key][role] = (o, float(k), typ)
+    need = {o for d in legs.values() for o, _, _ in d.values()}
+    for o, d, h, c in conn.execute("SELECT occ, date, h, c FROM optlab.bars WHERE occ = ANY(%s)", (list(need),)).fetchall():
+        bars[o][d] = (h, c)
+    cls = {}
+    for t, mode in conn.execute("""SELECT DISTINCT ON (ticker) ticker, mode FROM fair_value_snapshots ORDER BY ticker, as_of DESC""").fetchall():
+        cls[t] = "speculative" if mode == "speculative_ok" else "pre-revenue" if mode == "pre_revenue_ok" else "profitable"
+
+    def settle(e: Entry) -> float | None:
+        ds = [d for d in und.get(e.ticker, {}) if d <= e.exp]
+        return und[e.ticker][max(ds)] if ds and (e.exp - max(ds)).days <= 3 else None
+
+    def px(o: str, d) -> float | None:
+        b = bars.get(o, {}).get(d)
+        return b[1] if b and b[1] and b[1] > 0 else None
+
+    rows = []  # (entry, {struct: (pnl $, credit $, capital $)})
+    for e in ents:
+        L, S = legs.get(e.key, {}), settle(e)
+        if S is None:
+            continue
+        m, out = 100 * e.qty, {}
+        out["csp"] = ((e.prem - max(e.k - S, 0)) * m, e.prem * m, e.k * m)
+        for name, role in (("spread1", "long_put_1"), ("spread2", "long_put_2")):
+            if role in L and (p := px(L[role][0], e.d0)):
+                kl = L[role][1]
+                cost = p + spread(p)
+                credit = e.prem - cost
+                out[name] = ((credit - max(e.k - S, 0) + max(kl - S, 0)) * m, credit * m, max((e.k - kl) - credit, 0.01) * m)
+        if "mirror_call" in L and (p := px(L["mirror_call"][0], e.d0)):
+            kc, got = L["mirror_call"][1], p - spread(p)
+            out["strangle"] = ((e.prem + got - max(e.k - S, 0) - max(S - kc, 0)) * m, (e.prem + got) * m, e.k * m)
+        if "atm_put" in L and "atm_call" in L and (pp := px(L["atm_put"][0], e.d0)) and (pc := px(L["atm_call"][0], e.d0)):
+            kp, kc = L["atm_put"][1], L["atm_call"][1]
+            got = pp - spread(pp) + pc - spread(pc)
+            out["straddle"] = ((got - max(kp - S, 0) - max(S - kc, 0)) * m, got * m, kp * m)
+        rows.append((e, out))
+    common = [(e, o) for e, o in rows if all(s in o for s in STRUCTS)]
+
+    def cweeks(e, cap):
+        return cap / 1e4 * max(e.dte, 1) / 7
+
+    def summary(sample, s):
+        by_wk = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0, 0.0])  # pnl, cw, credit, csp pnl, csp cw
+        for e, o in sample:
+            p, cr, cap = o[s]
+            w = by_wk[e.exp]; w[0] += p; w[1] += cweeks(e, cap); w[2] += cr / 1e4 / max(e.dte / 7, 1 / 7)
+            w[3] += o["csp"][0]; w[4] += cweeks(e, o["csp"][2])
+        weeks = sorted(by_wk)
+        diff = lambda ws: (sum(by_wk[w][0] for w in ws) / max(sum(by_wk[w][1] for w in ws), 1e-9)  # noqa: E731
+                           - sum(by_wk[w][3] for w in ws) / max(sum(by_wk[w][4] for w in ws), 1e-9))
+        rng = random.Random(31)
+        bs = sorted(diff([rng.choice(weeks) for _ in weeks]) for _ in range(B))
+        half = len(weeks) // 2
+        return {"ret": sum(v[0] for v in by_wk.values()) / max(sum(v[1] for v in by_wk.values()), 1e-9),
+                "prem": sum(o[s][1] for _, o in sample) / max(sum(cweeks(e, o[s][2]) for e, o in sample), 1e-9) / 1e4 * 1e4,
+                "diff": diff(weeks), "ci": (bs[int(.05 * B)], bs[int(.95 * B)]), "halves": (diff(weeks[:half]), diff(weeks[half:])),
+                "worst": min(v[0] for v in by_wk.values()), "total": sum(v[0] for v in by_wk.values()), "weeks": len(weeks), "n": len(sample)}
+
+    out = [f"# S020 — structures on your entries ({date.today()})\n",
+           f"Entries with all five structures priced: {len(common)} of {len(ents)} (36-week window; hold to expiry). Units: $ per $10k "
+           "of capital per week. Premium $/10k/wk uses each structure's own capital (a spread ties up only width − credit, so this "
+           "column looks large for spreads even when the dollar premium shrinks). Extra legs at the entry-day close ± half spread; S019 found Polygon closes ~3 % above mid, which flatters "
+           "sold legs slightly and penalises bought wings slightly.\n",
+           "| Structure | Return $/10k/wk | vs CSP (90 % CI) | halves | premium $/10k/wk | worst week $ | total $ | verdict |", "|---|---|---|---|---|---|---|---|"]
+    base = summary(common, "csp")
+    verdicts = {}
+    for s in STRUCTS:
+        r = summary(common, s)
+        if s == "csp":
+            v = "baseline"
+        elif s.startswith("spread"):
+            keep = r["prem"] / base["prem"] if base["prem"] else 0
+            rule = r["worst"] > base["worst"] and keep >= 0.70
+            # added after the run (stricter only, disclosed): the pre-registered rule ignored return; a spread whose return per capital
+            # is significantly worse than the CSP in both halves fails even if the rule passes
+            worse = r["ci"][1] < 0 and r["halves"][0] < 0 and r["halves"][1] < 0
+            v = "PASS" if rule and not worse else ("FAIL (rule passes but loses money per capital)" if rule else
+                f"FAIL (worst week {'lower' if r['worst'] > base['worst'] else 'higher'}{'' if keep >= .7 else ', premium kept < 70 %'})")
+        else:
+            better = r["ci"][0] > 0 and r["halves"][0] > 0 and r["halves"][1] > 0
+            v = "PASS" if better and r["worst"] >= base["worst"] else ("FAIL (worst week higher)" if better else "FAIL (not better per capital)")
+        verdicts[s] = (v, r)
+        out.append(f"| {s} | {r['ret']:+.1f} | {'' if s == 'csp' else f'{r[chr(100)+chr(105)+chr(102)+chr(102)]:+.1f} ({r[chr(99)+chr(105)][0]:+.1f} … {r[chr(99)+chr(105)][1]:+.1f})'} | "
+                   f"{'' if s == 'csp' else f'{r[chr(104)+chr(97)+chr(108)+chr(118)+chr(101)+chr(115)][0]:+.1f} / {r[chr(104)+chr(97)+chr(108)+chr(118)+chr(101)+chr(115)][1]:+.1f}'} | "
+                   f"{r['prem']:.1f} | {r['worst']:,.0f} | {r['total']:+,.0f} | {v} |")
+    out.append("\nBy name class (spread pass rule applies per class: worst week lower AND ≥ 70 % of premium per capital):")
+    for c in ("speculative", "pre-revenue", "profitable"):
+        sub = [(e, o) for e, o in common if cls.get(e.ticker, "profitable") == c]
+        if len({e.exp for e, _ in sub}) < 8 or len(sub) < 30:
+            out.append(f"- {c}: NOT ENOUGH ({len(sub)} entries)")
+            continue
+        b = summary(sub, "csp")
+        parts = []
+        for s in ("spread1", "spread2"):
+            r = summary(sub, s)
+            keep = r["prem"] / b["prem"] if b["prem"] else 0
+            ok = r['worst'] > b['worst'] and keep >= .7 and not (r['ci'][1] < 0 and r['halves'][0] < 0 and r['halves'][1] < 0)
+            parts.append(f"{s} {'PASS' if ok else 'FAIL'} (worst week {b['worst']:,.0f} → {r['worst']:,.0f}, total {b['total']:+,.0f} → {r['total']:+,.0f})")
+        out.append(f"- {c} ({len(sub)} entries): " + "; ".join(parts))
+    out.append("\nWhy spreads lose here: on your typical $0.12 weekly put, the put one strike lower costs ~$0.07 + spread (median 55 % of "
+               "the premium); 31 % of 1-strike spreads collect nothing. Rule note: the pre-registered spread rule (worst week lower + ≥ 70 % "
+               "premium per capital) ignored return; added after the run, stricter only: a spread significantly worse per capital in both "
+               "halves fails.")
+    out.append("\nStrangles/straddles need margin for the short call — not possible in the cash-secured Robinhood accounts; shown for completeness.")
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "S020.md").write_text("\n".join(out) + "\n")
+    print("\n".join(out))
+    passed = [s for s, (v, _) in verdicts.items() if v == "PASS"]
+    d = {s: verdicts[s][1]["total"] - base["total"] for s in STRUCTS[1:]}
+    head = (("Keep plain cash-secured puts. " if not passed else f"Passed: {', '.join(passed)}. ")
+            + f"On your {len(common)} entries: put spreads {d['spread1']:+,.0f} / {d['spread2']:+,.0f} $ (the protective put costs ~55 % of a "
+            f"weekly premium), strangles {d['strangle']:+,.0f} $ with worst week {base['worst']:,.0f} → {verdicts['strangle'][1]['worst']:,.0f}, "
+            f"straddles {d['straddle']:+,.0f} $.")
+    conn.execute("""INSERT INTO optlab.findings (study,title,verdict,headline,card,updated_at) VALUES ('S020','Spreads / strangles / straddles',%s,%s,%s,now())
+                    ON CONFLICT (study) DO UPDATE SET verdict=excluded.verdict, headline=excluded.headline, card=excluded.card, updated_at=now()""",
+                 ("pass" if passed else "fail", head, json.dumps({s: {"verdict": v, **{k: r[k] for k in ("ret", "prem", "diff", "worst", "total", "n")}} for s, (v, r) in verdicts.items()}, default=str)))
+    conn.commit()
+    print("→", head)
+
+
 if __name__ == "__main__":
-    {"s017": s017}[sys.argv[1] if len(sys.argv) > 1 else "s017"]()
+    {"s017": s017, "s020": s020}[sys.argv[1] if len(sys.argv) > 1 else "s017"]()

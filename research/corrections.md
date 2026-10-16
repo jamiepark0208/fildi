@@ -15,3 +15,5 @@ Rows: `| date | agent | claim | correction | caught by |` — caught by = user /
 | 10-15 | Claude | SkillOpt trade picking: 2,500 LLM decisions/round, $5–20 | Numeric decisions need no LLM; free local rule tests instead | user |
 | 10-15 | Claude | Loader would be restarted by Claude as needed | Should never need babysitting → nightly LaunchAgent + lock | user |
 | 10-15 | Claude | (scoreboard) assignment odds "calibrated" | Only in backtest; per-put odds were never stored, so no live check existed. Now stored | self (scoreboard) |
+| 10-15 | Claude | S020 pre-registered spread rule (worst week lower + ≥ 70 % premium per capital) | Rule ignored return: a 1-strike spread 'passed' while losing $17.5k; stricter return check added after the run, disclosed | self (sanity check) |
+| 10-15 | Claude | S019 earlier claim: '343 names have 15–50 DTE Schwab puts' | Only 39 names on a single day (10-08); the rest were calls or < 15 DTE | self (re-query) |
