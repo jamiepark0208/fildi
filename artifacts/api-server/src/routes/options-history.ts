@@ -5,6 +5,7 @@
  * GET /api/pm/trades/:ticker   (admin)   → the trader's short puts on this name + each sold contract's daily closes
  * GET /api/pm/playbook         (admin)   → study verdicts (optlab.findings) → Live › Portfolio Alerts › Playbook
  * GET /api/research/studies    (admin)   → research/studies/INDEX.md catalog rows → Settings › Research
+ * GET /api/research/scoreboard (admin)   → promised vs live per adopted score (watchlist_sync.scoreboard) + research/corrections.md
  */
 import { Router } from "express";
 import { sql } from "drizzle-orm";
@@ -20,6 +21,7 @@ const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? [])
 const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const STUDIES = resolve(ROOT, "research/studies/INDEX.md");
+const CORRECTIONS = resolve(ROOT, "research/corrections.md");
 
 /** optlab exists only once the loader has run; a missing table means "no data yet", not an error. */
 async function safe<T>(q: ReturnType<typeof sql>): Promise<T[]> {
@@ -80,6 +82,19 @@ router.get("/research/studies", requireAdmin, (_req, res) => {
   } catch {
     return res.json({ studies: [] });
   }
+});
+
+router.get("/research/scoreboard", requireAdmin, async (_req, res) => {
+  const scoreboard = await safe(sql`SELECT item, source, promised, live, n, verdict, checked_at::text AS "checkedAt"
+    FROM watchlist_sync.scoreboard ORDER BY item`);
+  let corrections: Record<string, string>[] = [];
+  try {
+    corrections = readFileSync(CORRECTIONS, "utf8").split("\n").filter((l) => /^\| \d{2}-\d{2} \|/.test(l)).map((l) => {
+      const c = l.split("|").slice(1, -1).map((x) => x.trim());
+      return { date: c[0], agent: c[1], claim: c[2], correction: c[3], caughtBy: c[4] ?? "" };
+    });
+  } catch { /* file missing → empty */ }
+  return res.json({ scoreboard, corrections });
 });
 
 export default router;

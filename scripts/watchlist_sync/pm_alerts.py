@@ -223,7 +223,10 @@ def main() -> None:
                "bullets": bl, "cleared": [k for k in prev if k not in {x["key"] for x in bl}],
                "model": {"rho": RHO, "paths": PATHS, "thresholds": THRESH, "rules": book["rules"]},
                "accounts": {a: {"status": b["status"], **({"risk": sims[a]["risk"], "expiry": sims[a]["expiry"]} if sims.get(a) else {})}
-                            for a, b in book["accounts"].items()}}
+                            for a, b in book["accounts"].items()},
+               # per-put odds, kept so analysis/scoreboard.py can grade them at expiry (live calibration of S016)
+               "predictions": [{"account": a, "ticker": p["ticker"], "strike": p["strike"], "expiry": str(s["expiry"]),
+                                "p_assign": round(p["p_assign"], 4)} for a, s in sims.items() if s for p in s["puts"]]}
     conn.execute("INSERT INTO watchlist_sync.pm_alerts (payload) VALUES (%s)", (json.dumps(payload, default=str),))
     conn.execute("""INSERT INTO watchlist_sync.pm_book_latest (id, generated_at, book) VALUES (1, now(), %s)
                     ON CONFLICT (id) DO UPDATE SET generated_at = now(), book = excluded.book""", (json.dumps(book, default=str),))

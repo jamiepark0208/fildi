@@ -335,6 +335,8 @@ def main() -> None:
     run_ivrank(conn, book_names())  # user 10-14: book only, 1 strike/month (~2 h, not ~20 h)
     import option_derive  # UI tables (Breakdown › Options history, Playbook)
     option_derive.main()
+    import scoreboard  # promised vs live for adopted scores (Settings › Research)
+    scoreboard.main()
     progress(conn, "all done")
 
 
