@@ -105,3 +105,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A117](asks/A117.md) | 2026-10-15 | Muse → Cursor | Backend quant-algorithm inventory: map the classics to fildi gaps | open |
 | [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | open |
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | open |
+| [A120](asks/A120.md) | 2026-10-15 | Muse → Claude | Pattern-discovery research program: regimes, reversals, calendar, lead-lag, automated X/Y engine | open |
