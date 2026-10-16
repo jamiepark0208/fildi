@@ -190,8 +190,8 @@ const INVENTORY_SPEC: Record<
     primary: true,
   },
   "pm-alerts": {
-    owner: "launchd · com.fildi.pm-alerts → pm_alerts.py (+ pm_book --live)",
-    writes: ["watchlist_sync.pm_alerts", "watchlist_sync.pm_book_latest"],
+    owner: "launchd · com.fildi.pm-alerts → pm_alerts.py (+ pm_book --live, + forecast_ledger log/resolve A129)",
+    writes: ["watchlist_sync.pm_alerts", "watchlist_sync.pm_book_latest", "watchlist_sync.forecast_ledger"],
     mutex: "none (read-only Schwab quotes; self-throttles: 15 min market hours, 2 h otherwise)",
     cadence: "every 15 min (wakes) · runs 15 min 6:30–1:15 PT, 2 h otherwise",
     primary: true,

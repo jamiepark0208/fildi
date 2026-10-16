@@ -326,6 +326,11 @@ def main() -> None:
     conn.execute("""INSERT INTO watchlist_sync.pm_book_latest (id, generated_at, book) VALUES (1, now(), %s)
                     ON CONFLICT (id) DO UPDATE SET generated_at = now(), book = excluded.book""", (json.dumps(book, default=str),))
     conn.commit()
+    try:  # A129 forecast ledger: log today's questions + resolve past ones (never breaks this run)
+        from forecast_ledger import run_after_pm_alerts
+        run_after_pm_alerts(conn)
+    except Exception as e:
+        print(f"forecast_ledger hook skipped ({e})", file=sys.stderr)
     write_last(True, f"{len(bl)} bullet(s) · {payload['prices']}", now)
     if "--now" in sys.argv:
         for x in bl:
