@@ -115,3 +115,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A136](asks/A136.md) | 2026-10-16 | Muse → Cursor | Pre-trade risk gate | open |
 | [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | open |
 | [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | open |
+| [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | open |
