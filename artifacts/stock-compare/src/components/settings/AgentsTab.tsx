@@ -17,8 +17,14 @@ type Id = "muse" | "claude" | "cursor" | "jamie";
 type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number };
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
-type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string };
-type Status = { working: boolean; waiting?: boolean; lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number };
+type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string };
+type Status = {
+  working: boolean; waiting?: boolean; looping?: boolean; errors1h?: number; doing?: string | null; workingMin?: number; waitingMin?: number;
+  lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number;
+};
+type Sub = { id: string; agent: string; session: string | null; type: string | null; task: string; startedAt: string; lastAt: string; actions: number; running: boolean };
+/** Agent needs a look: waiting on you (yellow), or looping / failing (red). */
+const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
 type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
 type Idea = { id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string };
@@ -29,6 +35,7 @@ type Data = {
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
   limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
+  subagents?: Sub[];
 };
 /** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
 const KIND: Record<string, { label: string; color: string; node?: string }> = {
@@ -112,6 +119,47 @@ function drawOrb(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
     ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.shadowColor = rc; ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(x, y, r + 7, a, a + 1.7); ctx.stroke(); ctx.shadowBlur = 0;
   }
+}
+
+/** Soft glow behind a node, same as the orbs'. */
+function nodeGlow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
+  const g = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 2.2);
+  g.addColorStop(0, c + "66"); g.addColorStop(1, "transparent");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fill();
+}
+
+/** 3D cylinder (Database node): lit top ellipse + body shaded left→right, light from top-left like the orbs. */
+function drawCylinder(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
+  const w = r, h = r * 1.5, ry = r * 0.36, top = y - h / 2, bot = y + h / 2;
+  nodeGlow(ctx, x, y, r * 1.1, c);
+  const body = ctx.createLinearGradient(x - w, 0, x + w, 0);
+  body.addColorStop(0, "#ffffff"); body.addColorStop(0.18, c); body.addColorStop(0.7, c + "aa"); body.addColorStop(1, "#06080c");
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.moveTo(x - w, top); ctx.lineTo(x - w, bot); ctx.ellipse(x, bot, w, ry, 0, Math.PI, 0, true); ctx.lineTo(x + w, top);
+  ctx.ellipse(x, top, w, ry, 0, 0, Math.PI, false); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.stroke();
+  const lid = ctx.createRadialGradient(x - w * 0.4, top - ry * 0.4, 0, x, top, w);
+  lid.addColorStop(0, "#ffffff"); lid.addColorStop(0.3, c); lid.addColorStop(1, c + "99");
+  ctx.fillStyle = lid; ctx.beginPath(); ctx.ellipse(x, top, w, ry, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = c + "77"; ctx.beginPath(); ctx.ellipse(x, y, w, ry, 0, 0, Math.PI); ctx.stroke(); // band
+}
+
+/** 3D box (APIs node): isometric lit top + two shaded faces, glossy edge highlight. */
+function drawBox(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
+  const s = r * 0.95, d = s * 0.5;
+  nodeGlow(ctx, x, y, r * 1.1, c);
+  const T = [[x - s, y - s + d * 0.2], [x, y - s - d * 0.6], [x + s, y - s + d * 0.2], [x, y - s + d]];
+  const L = [[x - s, y - s + d * 0.2], [x, y - s + d], [x, y + s], [x - s, y + s - d * 0.8]];
+  const R = [[x + s, y - s + d * 0.2], [x, y - s + d], [x, y + s], [x + s, y + s - d * 0.8]];
+  const face = (pts: number[][], fill: string | CanvasGradient) => {
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.stroke();
+  };
+  const g = ctx.createLinearGradient(x - s, y - s, x + s, y - s + d);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.3, c); g.addColorStop(1, c + "aa");
+  const l = ctx.createLinearGradient(x - s, y, x, y);
+  l.addColorStop(0, c); l.addColorStop(1, c + "88");
+  face(T, g); face(L, l); face(R, c + "44");
 }
 
 function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: { selected?: boolean; dim?: boolean }) {
@@ -230,6 +278,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   const seen = useRef(new Set<string>());
   const beams = useRef<{ from: { x: number; y: number }; to: { x: number; y: number }; c: string; t0: number }[]>([]);
   const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
+  const subPos = useRef<{ key: string; x: number; y: number; k: Sub }[]>([]);
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const R = 150, R2 = 285;
   const pos = (id: Id) => { if (id === "jamie") return { x: 0, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: Math.cos(a) * R, y: Math.sin(a) * R }; };
@@ -253,12 +302,14 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(p.x, p.y); ctx.stroke();
     }
     for (const n of Object.keys(NODES)) { // resource nodes: Database · Web · APIs · Repo
-      const p = npos(n), c = KIND[NODES[n].kinds[0]].color;
-      drawOrb(ctx, p.x, p.y, 17, c === "#ffffff" ? "#cbd5e1" : c, { now, reduce });
+      const p = npos(n), c0 = KIND[NODES[n].kinds[0]].color, c = c0 === "#ffffff" ? "#cbd5e1" : c0;
+      if (n === "db") drawCylinder(ctx, p.x, p.y, 18, c); // shapes: Database = cylinder, APIs = box, Web/Repo = orbs
+      else if (n === "api") drawBox(ctx, p.x, p.y, 17, c);
+      else drawOrb(ctx, p.x, p.y, 17, c, { now, reduce });
       let fs = 10; ctx.font = `700 ${fs}px ui-sans-serif`;
       while (fs > 6 && ctx.measureText(NODES[n].label).width > 17 * 1.75) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
-      ctx.fillStyle = "#ffffff"; ctx.fillText(NODES[n].label, p.x, p.y); ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = "#ffffff"; ctx.fillText(NODES[n].label, p.x, n === "api" ? p.y + 4 : p.y + (n === "db" ? 3 : 0)); ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     }
     for (const b of beams.current) {
       const k = Math.min(1, (now - b.t0) / 850);
@@ -266,6 +317,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.beginPath(); ctx.arc(b.from.x + (b.to.x - b.from.x) * k, b.from.y + (b.to.y - b.from.y) * k, 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
     }
     sessPos.current = [];
+    subPos.current = [];
     const byAgent = new Map<string, typeof sessions>();
     for (const s of sessions) byAgent.set(s.agent, [...(byAgent.get(s.agent) ?? []), s]);
     for (const [agent, list] of byAgent) {
@@ -278,6 +330,14 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         ctx.strokeStyle = col + "50"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(sx, sy); ctx.stroke();
         drawOrb(ctx, sx, sy, live ? 6 : 4.5, col, { working: false, now, reduce });
         sessPos.current.push({ key: `s:${agent}:${i}`, x: sx, y: sy, s });
+        // background agents launched from this session: small "running" orbs hanging off it
+        const kids = (d.subagents ?? []).filter((k) => k.running && k.session && k.session === s.last.session);
+        kids.forEach((k, j) => {
+          const ang = a + (j - (kids.length - 1) / 2) * 0.55, kx = sx + Math.cos(ang) * 26, ky = sy + Math.sin(ang) * 26;
+          ctx.strokeStyle = col + "70"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(kx, ky); ctx.stroke();
+          drawOrb(ctx, kx, ky, 4, col, { working: true, now, reduce });
+          subPos.current.push({ key: `b:${k.id}`, x: kx, y: ky, k });
+        });
       });
     }
     for (const id of Object.keys(META) as Id[]) {
@@ -286,7 +346,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       const museOff = id === "muse" && d.muse && !d.muse.running;
       drawOrb(ctx, p.x, p.y, r, museOff ? "#71717a" : META[id].color, {
         working: !!st?.working, selected: sel === id, now, reduce,
-        ring: st?.lastKind ? KIND[st.lastKind]?.color : undefined, pulse: st?.waiting ? WAIT : undefined,
+        ring: st?.lastKind ? KIND[st.lastKind]?.color : undefined, pulse: attention(st ?? undefined),
       });
       const label = META[id].label; // name inside the orb, sized to fit
       let fs = 14;
@@ -301,6 +361,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   const hit = (x: number, y: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
     for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 22) return `n:${n}`; }
+    for (const bp of subPos.current) if (Math.hypot(bp.x - x, bp.y - y) < 8) return bp.key;
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     return null;
   };
@@ -316,6 +377,12 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         </>
       );
     }
+    if (id.startsWith("b:")) {
+      const bp = subPos.current.find((x) => x.key === id);
+      if (!bp) return null;
+      const mins = Math.max(1, Math.round((Date.now() - Date.parse(bp.k.startedAt)) / 6e4));
+      return <div><span style={{ color: META[bp.k.agent as Id]?.color }}>background agent</span> · {bp.k.task} · running {mins}m · {bp.k.actions} actions</div>;
+    }
     if (id.startsWith("s:")) {
       const sp = sessPos.current.find((x) => x.key === id);
       if (!sp) return null;
@@ -329,9 +396,11 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       <>
         <div className="font-semibold" style={{ color: m.color }}>{m.label} <span className="font-normal text-white/60">· {m.role}</span></div>
         {id === "jamie" ? <div>Approves scores, trades, unattended agents</div> : <>
-          <div>{st ? (st.waiting ? "● Waiting for you" : st.working ? `● Working · ${KIND[st.lastKind ?? "other"]?.label ?? ""}` : `Idle · last action ${ago(st.lastEvent?.t)}`)
+          <div>{st ? (st.waiting ? "● Waiting for you" : st.looping ? "● Looping? same action ≥5× in 10 min" : st.working ? `● Working · ${KIND[st.lastKind ?? "other"]?.label ?? ""}` : `Idle · last action ${ago(st.lastEvent?.t)}`)
             : id === "muse" ? `${d.muse?.running ? "App open" : "App closed"} · last commit ${ago(a?.lastActive)}` : `Last commit ${ago(a?.lastActive)}`}</div>
-          {st?.lastEvent && <div className="text-white/70">{humanAction(st.lastEvent)}</div>}
+          {st?.doing && <div className="text-white/80">Doing: {st.doing}</div>}
+          {st && (st.errors1h ?? 0) > 0 && <div className="text-red-300">{st.errors1h} failed actions in the last hour</div>}
+          {st && <div className="text-white/70">Today: {st.workingMin ?? 0} min working · {st.waitingMin ?? 0} min waiting for you</div>}
           <div className="text-white/70">{a?.commits24h ?? 0} commits 24h · queue {a?.queue ?? 0}{n ? ` · ${n} session${n > 1 ? "s" : ""}` : ""}</div>
         </>}
       </>
@@ -339,12 +408,13 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   };
   return (
     <div className="space-y-1">
-      <ZoomCanvas height={380} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
+      <ZoomCanvas height={380} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:") || id.startsWith("b:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
         {(["web", "database", "api", "code", "reading"] as const).map((k) => (
           <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: KIND[k].color }} />{KIND[k].label}</span>
         ))}
         <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: WAIT }} />waiting for you</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "#f87171" }} />looping / errors</span>
       </div>
     </div>
   );
@@ -371,6 +441,34 @@ function Available({ id, d }: { id: Id; d: Data }) {
   return cell("n/a", "Muse is a desktop app that keeps no usage logs on this Mac; only whether the app is open is visible.");
 }
 
+/** Step timeline: an agent's last 30 actions in order, activity colour, time, plain-English action, gap since the previous step. */
+function Timeline({ d, agent }: { d: Data; agent: Id }) {
+  const steps = d.live.filter((e) => e.agent === agent && !["session-start", "session-end"].includes(e.event)).slice(-30);
+  const hms = (t: string) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+  const gap = (ms: number) => (ms < 6e4 ? `+${Math.round(ms / 1000)}s` : `+${Math.round(ms / 6e4)}m`);
+  return (
+    <div className="space-y-1">
+      <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">{META[agent].label} · last {steps.length} steps</div>
+      {steps.length === 0 ? <p className="text-[12px] text-white/50">No logged steps in the last 24 h.</p> : (
+        <div className={cn(GRID_WRAP, "max-h-[320px] overflow-y-auto")}>
+          <table className="w-full border-collapse"><tbody>{steps.map((e, i) => {
+            const c = e.event === "waiting" ? WAIT : e.event === "fail" ? "#f87171" : e.event === "prompt" ? META.jamie.color : KIND[e.kind ?? "other"]?.color ?? "#a1a1aa";
+            const what = e.event === "prompt" ? `you: ${e.detail ?? ""}` : e.event === "stop" ? "replied to you" : e.event === "waiting" ? `waiting: ${e.detail ?? "needs you"}` : e.event === "sub-start" ? "started a background agent" : e.event === "sub-stop" ? "background agent finished" : humanAction(e);
+            return (
+              <tr key={`${e.t}-${i}`} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "w-6")}><span className="inline-block w-2 h-2 rounded-full" style={{ background: c }} /></td>
+                <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap w-24")}>{hms(e.t)}</td>
+                <td className={cn(GRID_TD, "text-white/45 whitespace-nowrap w-14 text-right")}>{i ? gap(Date.parse(e.t) - Date.parse(steps[i - 1].t)) : ""}</td>
+                <td className={cn(GRID_TD, "text-white/90 truncate max-w-0 w-full")} title={what}>{e.sub ? <span className="text-white/45">bg · </span> : null}{what}</td>
+              </tr>
+            );
+          })}</tbody></table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamPanel({ d }: { d: Data }) {
   const [focus, setFocus] = useState<Id | "all">("all");
   const rows = useMemo(() => {
@@ -385,6 +483,7 @@ function TeamPanel({ d }: { d: Data }) {
         <table className="w-full border-collapse">
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
+            <th className={cn(GRID_TH, "text-left")}>Doing</th><th className={cn(GRID_TH, "text-right")}>Errors 1h</th>
             <th className={cn(GRID_TH, "text-right")}>Tokens used</th><th className={cn(GRID_TH, "text-right")}>Available</th>
             <th className={cn(GRID_TH, "text-right")}>Commits 24h / 7d</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
             <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
@@ -394,10 +493,12 @@ function TeamPanel({ d }: { d: Data }) {
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
-                <td className={cn(GRID_TD, st?.waiting ? "text-yellow-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
-                  {st ? (st.waiting ? "● waiting for you" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
+                <td className={cn(GRID_TD, "whitespace-nowrap", st?.waiting ? "text-yellow-300" : st?.looping ? "text-red-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
+                  {st ? (st.waiting ? "● waiting for you" : st.looping ? "● looping?" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
                     : a.id === "muse" ? `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}` : `last commit ${ago(a.lastActive)}`}
                 </td>
+                <td className={cn(GRID_TD, "text-white/85 truncate max-w-[220px]")} title={st?.doing ?? ""}>{st?.doing ?? "—"}</td>
+                <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : "—"}
                 </td>
@@ -411,6 +512,7 @@ function TeamPanel({ d }: { d: Data }) {
           })}</tbody>
         </table>
       </div>
+      {focus !== "all" && <Timeline d={d} agent={focus} />}
       <div className="flex items-center gap-2 text-[12px] text-white/60">
         Activity {focus === "all" ? "· all agents" : `· ${META[focus].label}`}
         {focus !== "all" && <button type="button" onClick={() => setFocus("all")} className="text-[#d4af37] hover:underline">show all</button>}
@@ -632,6 +734,9 @@ export function AgentsTab() {
   });
   const [tab, setTab] = useState<(typeof SUB_TABS)[number]>("Stage");
   if (isLoading || !data) return <p className="text-xs text-white/50">Loading…</p>;
+  const looks = (["claude", "cursor"] as const).map((x) => attention(data.status[x])).filter(Boolean);
+  const needLook = looks.length;
+  const stageNeedsRed = looks.includes("#f87171");
   const ideas = data.ideas ?? [];
   return (
     <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-3">
@@ -639,7 +744,13 @@ export function AgentsTab() {
         <div className="ml-auto inline-flex rounded-md border border-[#d4af37]/30 overflow-hidden text-[12px] font-semibold">
           {SUB_TABS.map((t) => (
             <button key={t} type="button" onClick={() => setTab(t)}
-              className={cn("px-3 py-1.5 transition-colors", tab === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]")}>{t}</button>
+              className={cn("relative px-3 py-1.5 transition-colors", tab === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]")}>
+              {t}
+              {t === "Stage" && needLook > 0 && ( // agents waiting on you / looping / erroring → check Stage
+                <span className={cn("ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black animate-pulse motion-reduce:animate-none",
+                  stageNeedsRed ? "bg-red-400" : "bg-yellow-300")}>{needLook}</span>
+              )}
+            </button>
           ))}
         </div>
       </div>

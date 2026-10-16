@@ -24,7 +24,7 @@ try {
   // Activity kind (classified here, where the full command is visible): web · database · api · code · reading · other
   const tool = String(p.tool_name ?? "");
   const full = String(cmd ?? "");
-  const kind = event !== "tool" && event !== "edit" ? undefined
+  const kind = event !== "tool" && event !== "edit" && event !== "fail" ? undefined
     : /^(WebSearch|WebFetch)$/.test(tool) ? "web"
     : event === "edit" || /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(tool) ? "code"
     : /^(Read|Grep|Glob|LS)$/.test(tool) || /codegraph/i.test(tool) ? "reading"
@@ -33,10 +33,24 @@ try {
     : tool === "Bash" && /\bcurl\b|https?:\/\/|wget|fetch\(|polygon|schwab|yahoo|lseg|finnhub|alphavantage/i.test(full) ? "api"
     : tool === "Bash" && /^\s*(cat|head|tail|grep|rg|ls|sed -n|find|wc)\b/.test(full) ? "reading"
     : "other";
+  // Prompt / notification text = "what it's doing" / "why it's waiting" (local file only; first 80 chars).
+  if (event === "prompt" && p.prompt) detail = String(p.prompt);
+  if (event === "waiting" && p.message) detail = String(p.message);
+  if (event === "fail") detail = `${detail || tool || "action"} failed${p.error ? `: ${String(p.error).split("\n")[0]}` : ""}`;
+  // Loop signature: tool + full input, hashed (labels like "ran a command" collapse distinct commands).
+  let sig;
+  if (event === "tool" || event === "fail") {
+    const s = `${tool}|${JSON.stringify(p.tool_input ?? {})}`;
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    sig = (h >>> 0).toString(36);
+  }
   const row = {
-    t: new Date().toISOString(), agent, event, kind,
+    t: new Date().toISOString(), agent, event, kind: event === "fail" ? kind ?? "other" : kind,
     tool: p.tool_name ?? p.hook_event_name ?? undefined,
     session: p.session_id ?? p.conversation_id ?? undefined,
+    // background agents (Claude Code subagents/forks): their own tool events carry agent_id/agent_type
+    sub: p.agent_id ?? undefined, subType: p.agent_type || undefined, sig,
     detail: detail ? String(detail).replace(/\s+/g, " ").slice(0, 100) : undefined,
     transcript: event === "stop" || event === "session-start" ? p.transcript_path : undefined,
   };

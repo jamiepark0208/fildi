@@ -149,7 +149,40 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
   return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d }));
 }
 
-type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string };
+type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; subType?: string; sig?: string };
+
+/** Background agents (Claude Code subagents/forks): events carry `sub` (agent_id). Description = the parent session's latest
+ *  Agent-tool call before the subagent's first event. Running until SubagentStop, or idle > 10 min without one. */
+function subagents(live: LiveEv[], nowMs: number) {
+  const by = new Map<string, LiveEv[]>();
+  for (const e of live) if (e.sub) by.set(e.sub, [...(by.get(e.sub) ?? []), e]);
+  return [...by.entries()].map(([id, evs]) => {
+    const first = evs[0], last = evs[evs.length - 1];
+    const launch = [...live].reverse().find((e) => e.session === first.session && !e.sub && e.tool === "Agent" && e.t <= first.t
+      && Date.parse(first.t) - Date.parse(e.t) < 5 * 60_000);
+    const stopped = evs.some((e) => e.event === "sub-stop");
+    const running = !stopped && nowMs - Date.parse(last.t) < 10 * 60_000;
+    return { id, agent: first.agent, session: first.session ?? null, type: first.subType ?? null, task: launch?.detail ?? "background task",
+      startedAt: first.t, lastAt: last.t, actions: evs.filter((e) => e.event === "tool" || e.event === "fail").length, running };
+  })
+    // Claude Code also runs short internal helpers (no type, no tool calls, stop-only) — not user-visible background agents
+    .filter((s) => s.actions > 0 || s.type)
+    .filter((s) => s.running || nowMs - Date.parse(s.lastAt) < 30 * 60_000);
+}
+
+/** Working vs waiting-for-you minutes today (Pacific): gaps ≤ 5 min between actions count as working; a "waiting" event counts
+ *  as waiting until the next prompt/action (capped at 60 min). */
+function timeSplit(mine: LiveEv[], nowMs: number) {
+  const today = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const evs = mine.filter((e) => new Date(e.t).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) === today);
+  let working = 0, waiting = 0;
+  for (let i = 0; i < evs.length; i++) {
+    const a = Date.parse(evs[i].t), b = i + 1 < evs.length ? Date.parse(evs[i + 1].t) : nowMs, gap = (b - a) / 6e4;
+    if (evs[i].event === "waiting") waiting += Math.min(gap, 60);
+    else if (!["stop", "session-end"].includes(evs[i].event) && gap <= 5) working += gap;
+  }
+  return { workingMin: Math.round(working), waitingMin: Math.round(waiting) };
+}
 const KINDS = ["web", "database", "api", "code", "reading", "other"] as const;
 /** Fallback for events logged before the hook classified them (hook has the full command; this only sees the label). */
 function kindOf(e: LiveEv): string | undefined {
@@ -276,7 +309,16 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     const waiting = !!last && last.event === "waiting";
     const working = !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && !["stop", "waiting", "session-end"].includes(last.event);
     const lastKind = [...mine].reverse().find((e) => e.kind)?.kind ?? null;
-    return { working, waiting, lastKind, lastEvent: last ?? null, sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
+    const errors1h = mine.filter((e) => e.event === "fail" && nowMs - Date.parse(e.t) < 36e5).length;
+    // loop: same tool + same full input ≥ 5× within 10 min (signature hashed by the hook)
+    const sigs = new Map<string, number>();
+    for (const e of mine) if (e.sig && nowMs - Date.parse(e.t) < 10 * 60_000) sigs.set(e.sig, (sigs.get(e.sig) ?? 0) + 1);
+    const looping = [...sigs.values()].some((n) => n >= 5);
+    const subs = subagents(mine, nowMs).filter((s) => s.running);
+    const prompt = [...mine].reverse().find((e) => e.event === "prompt" && !e.sub && nowMs - Date.parse(e.t) < 12 * 36e5);
+    const doing = subs[0]?.task ? `background: ${subs[0].task}` : prompt?.detail ? prompt.detail.slice(0, 60) : last?.detail ?? null;
+    return { working, waiting, looping, errors1h, doing, lastKind, lastEvent: last ?? null, ...timeSplit(mine, nowMs),
+      sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
       tools24h: mine.filter((e) => e.event === "tool" || e.event === "edit").length };
   };
   const hourAgo = nowMs - 36e5;
@@ -288,6 +330,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const fresh = {
     live: live.filter((e) => !(e.session && ended.has(e.session)) || e.event !== "tool").slice(-300),
     endedSessions: [...ended],
+    subagents: subagents(live, nowMs),
     status: { claude: status("claude"), cursor: status("cursor") },
     activity1h, kinds: KINDS,
     limits: { claude: claudeLimits() },
