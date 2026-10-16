@@ -65,6 +65,17 @@ async function afterDrop(ticker: string, drop5: number) {
   histCache.set(key, { at: Date.now(), v });
   return v;
 }
+/** S025 (out/opt/S025.md): with SPY below its 200-day, ≥2σ 5-day drops got back to the pre-drop price within 20 d 27 % vs 17 % base. */
+const S025 = { recovered: 0.27, base: 0.17 };
+let spyCache: { at: number; v: { spyBelow200: boolean; recovered: number; base: number } | null } | null = null;
+async function spyRegime() {
+  if (spyCache && Date.now() - spyCache.at < 36e5) return spyCache.v;
+  const px = rowsOf<{ c: number }>((await db.execute(sql`SELECT close::float8 AS c FROM prices_historical
+    WHERE ticker = 'SPY' AND close > 0 ORDER BY date DESC LIMIT 200`)) as SqlRows<never>).map((r) => r.c);
+  const v = px.length === 200 ? { spyBelow200: px[0] < px.reduce((s, x) => s + x, 0) / 200, ...S025 } : null;
+  spyCache = { at: Date.now(), v };
+  return v;
+}
 router.get("/pm/odds", requireAdmin, async (_req, res, next) => {
   try {
     type Pos = { ticker: string; account: string; strike: number; expiry: string; qty: number; spot: number | null; iv: number | null; p_otm: number | null; days_left: number };
@@ -82,7 +93,7 @@ router.get("/pm/odds", requireAdmin, async (_req, res, next) => {
       out.push({ ...p, pAssign: p.p_otm == null ? null : 1 - p.p_otm, backToStrike20d: Math.min(1, p.spot >= p.strike ? 1 : 2 * at),
         atStrike20d: at, drop5, hist: await afterDrop(p.ticker, drop5) });
     }
-    res.json({ pricedAt: row?.book?.live_priced_at ?? row?.book?.snapshot_at ?? null, positions: out });
+    res.json({ pricedAt: row?.book?.live_priced_at ?? row?.book?.snapshot_at ?? null, positions: out, regime: await spyRegime() });
   } catch (e) { next(e); }
 });
 

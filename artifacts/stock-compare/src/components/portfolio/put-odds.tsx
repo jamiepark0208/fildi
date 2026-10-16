@@ -19,7 +19,7 @@ const tone = (x: number | null, hi: boolean) => (x == null ? "text-white/40" : (
 export function PutOdds() {
   const { data } = useQuery({
     queryKey: ["pm-odds"],
-    queryFn: async (): Promise<{ pricedAt: string | null; positions: Row[] }> => {
+    queryFn: async (): Promise<{ pricedAt: string | null; positions: Row[]; regime?: { spyBelow200: boolean; recovered: number; base: number } | null }> => {
       const r = await fetch("/api/pm/odds", { credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
@@ -44,6 +44,11 @@ export function PutOdds() {
           </TooltipContent>
         </Tooltip>
       </div>
+      {data?.regime?.spyBelow200 && (
+        <div className="text-[12px] text-amber-200">
+          Market in a downtrend: drops like these got back to the pre-drop price {Math.round(data.regime.recovered * 100)}% of the time within 20 days (vs {Math.round(data.regime.base * 100)}% normally) — S025
+        </div>
+      )}
       <div className={GRID_WRAP}>
         <table className="w-full border-collapse">
           <thead><tr className={GRID_HEADER}>
