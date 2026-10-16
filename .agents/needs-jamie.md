@@ -15,3 +15,8 @@ Why: today Claude only sees your comments the next time you message it.
 Option: a tiny local auto-responder. When you post, it runs a cheap model (Haiku, read-only, no edits) with only that item's text + thread and replies within ~1 min.
 Cost ≈ 2–5k tokens per comment, nothing when idle.
 Reply yes/no in this thread.
+
+## J6 Cloud agents without a server: pick an option
+Why: lets Claude routines (cloud) review scores/data with your Mac closed. Recommended: (A) nightly the Mac exports a small read-only snapshot of PUBLIC data only (scores, fair value, Model List, 1 y prices, study outputs) as compressed files to a private GitHub repo; cloud agents read it, file findings back via git. $0, no server, no secrets in the cloud, data ≤1 day old.
+Other: (B) same snapshot into a free hosted Postgres (Neon, 0.5 GB) — SQL access but a password in the cloud; (C) keep agents on the Mac (works only while it is on).
+Reply A, B or C.
