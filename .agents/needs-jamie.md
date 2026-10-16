@@ -21,3 +21,9 @@ Reply A, B or C.
 Why: open Fildi from your phone anywhere, private (only your devices), free. Works while the Mac is on and awake.
 1. Install Tailscale on the Mac (tailscale.com/download) and on your phone (App Store), sign in with the same account on both.
 2. Reply "done" here. Claude makes Fildi reachable on your private Tailscale address and sends you the link.
+
+## J8 Codiv API key for A129 OpenJev test
+Why: lets the OpenJev forecasting test run on the free hosted tier (no load on your Mac).
+1. Sign up at codiv.ai (free, no card).
+2. Add CODIV_API_KEY=… to .env.local.
+3. Reply "done" here.
