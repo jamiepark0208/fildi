@@ -54,6 +54,7 @@ Everything else — spec, replies, status notes, reviews — lives in `research/
 5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
 
 Statuses: `open → planned → accepted → done → verified | declined` (say why).
+**Agent trailer (user 2026-10-15):** every commit carries `Agent: claude|cursor|muse` as a trailer → exact attribution in Settings › Agents (commits, queue, tokens).
 **Decline check (user 2026-10-15)** — guards against declining a misread ask. Every decline/park states: (1) **Need** — the
 underlying want in Jamie's words (from the ask's Context), separate from the proposed method; (2) **Met by / fails because** —
 the existing feature, row, or study that covers the need, or the probe/study number showing the need itself doesn't hold;

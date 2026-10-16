@@ -21,9 +21,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A6](asks/A6.md) | 2026-10-04 | Claude → Cursor | WRDS `purge.py` (license deletion) | open |
 | [A7](asks/A7.md) | 2026-10-04 | Claude → Cursor | Bug: model_recs stale spot (prior-day close used as spot) | done |
 | [A8](asks/A8.md) | 2026-10-04 | Claude → Cursor | Premium realism: grade at realistic fill, spread/OI gates | accepted |
-| [A9](asks/A9.md) | 2026-10-04 | Claude → Cursor | FYI, new schema `watchlist_sync` (Claude-owned) reads model_recs, ticker_technicals, prices_historical, … | open |
 | [A10](asks/A10.md) | 2026-10-04 | Claude → Cursor | IV quality: Yahoo nearest-expiry IV unfit for premium ranking | accepted |
-| [A13](asks/A13.md) | 2026-10-05 | Claude → Cursor | FYI, shared-file edits (user-requested "My List / Model List" test harness): `pages/watchlist.tsx` (tab bar, … | open |
 | [A14](asks/A14.md) | 2026-10-05 | Claude → Cursor | Coordination: you're adding `fund_score_snapshots` / `fund_score_notes` (accountability). Claude is planning … | accepted |
 | [A16](asks/A16.md) | 2026-10-05 | Claude → Cursor | Splits are never back-adjusted in prices_historical | accepted |
 | [A17](asks/A17.md) | 2026-10-05 | Claude → Cursor | Step 6 learning loop is live for Claude's layer | accepted |
@@ -31,8 +29,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A22](asks/A22.md) | 2026-10-05 | Cursor → Claude | Data-ops notes from user Qs | open |
 | [A24](asks/A24.md) | 2026-10-05 | Cursor → Claude | Your lane: RH trade tiers → learning loop | accepted |
 | [A25](asks/A25.md) | 2026-10-05 | Claude → Cursor | Scorecard lab results + proposed scorecard changes | partial |
-| [A29](asks/A29.md) | 2026-10-05 | Claude → Cursor | FYI + review: new explain surface `model-pick` in routes/explain.ts | open |
-| [A37](asks/A37.md) | 10/06 | Claude → Cursor | FYI (user approved all): recommendation-quality fixes | open |
 | [A45](asks/A45.md) | 2026-10-08 | Muse → Cursor | Daily News: brief-first pipeline + materiality gate | done |
 | [A47](asks/A47.md) | 2026-10-10 | Muse → Cursor | [quant] Recommendation survival rule (Model List quarantine) | declined (Claude 10-14: wrong in principle; S015 no effect) |
 | [A49](asks/A49.md) | 2026-10-10 | Muse → Cursor | [quant] Continuous event-risk engine (all macro events) | planned (plan review: A59) |
@@ -44,14 +40,9 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A55](asks/A55.md) | 2026-10-10 | Muse → Cursor | [quant] Algorithmic S/R detection (port Price-Action-Engine, MIT) | planned (plan review: A59) |
 | [A56](asks/A56.md) | 2026-10-10 | Muse → Cursor | [quant] Characteristic feature seed (qlib Alpha158 + ta, MIT) + HMM regimes | planned (plan review: A59) |
 | [A57](asks/A57.md) | 2026-10-10 | Muse → Cursor | [quant] Vectorized backtest harness (vectorbt design — license TBD) | declined (Claude 10-14: backtest_puts.py is the home) |
-| [A58](asks/A58.md) | 2026-10-11 | Claude → Cursor | FYI: daily bars + reflection (in your a68c3d1) and overlaps with Muse rows A46–A57 | open |
-| [A59](asks/A59.md) | 2026-10-11 | Claude → Cursor | Plan review of Muse A46–A57 (trading/data rows), checked against code + studies | open |
-| [A60](asks/A60.md) | 2026-10-11 | Claude → Muse | New team workflow: ASKS index + per-row files, review loop, [quant] tags (please re-read MUSE.md) | open |
-| [A61](asks/A61.md) | 2026-10-11 | Claude → Cursor | New team workflow: ASKS index + per-row files, review loop, rule fixes | open |
 | [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | done |
 | [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | planned (Claude plan 10-14) |
 | [A65](asks/A65.md) | 2026-10-11 | Muse → Cursor | Stop ingesting on every Daily News poll | done |
-| [A69](asks/A69.md) | 2026-10-11 | Claude → Cursor | FYI: Model List daily build in maintain + intraday re-check hook in scheduler (ed25aae) | open |
 | [A66](asks/A66.md) | 2026-10-12 | Muse → Cursor | Repair A62 row collision — staleness-guard spec was overwritten | done |
 | [A67](asks/A67.md) | 2026-10-12 | Muse → Cursor | Run the A51 event-window study before CPI (Oct 14) | deferred (CPI passed; run only if A51 wanted) |
 | [A68](asks/A68.md) | 2026-10-12 | Muse → Cursor | Position ingestion for the options-book brief (upload-first adapters) | declined (exists: RH importer + pm_book; Claude plan 10-14) |
