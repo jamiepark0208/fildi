@@ -18,6 +18,7 @@ type Run = {
   cleared: string[];
   accounts: Record<string, { status: "red" | "amber" | "green"; risk?: number; expiry?: string }>;
   credit?: { on: boolean; spread: number; p80: number; as_of: string } | null; // S028 context, display only
+  gamma?: { negative: boolean; gex_bn: number; pct_1y: number; since: string; as_of: string; stale: boolean } | null; // A134, display only
 };
 
 const DOT: Record<Bullet["level"], string> = { red: "bg-red-500", amber: "bg-amber-400", green: "bg-emerald-500" };
@@ -188,6 +189,24 @@ export function PortfolioAlertsPanel() {
             {data.prices} · {ago(data.priced_at)}
           </span>
         </div>
+        {data.gamma && (
+          <div className={cn("flex items-center gap-1.5 text-[12px] leading-snug", data.gamma.negative && !data.gamma.stale ? "text-amber-200/90" : "text-white/45")}>
+            <span>
+              Dealer gamma: {data.gamma.negative ? "negative" : "positive"} since {data.gamma.since.slice(5)} ({data.gamma.gex_bn < 0 ? "−" : ""}${Math.abs(data.gamma.gex_bn).toFixed(1)}bn, {data.gamma.pct_1y}th pct 1y)
+              {data.gamma.stale && <> · stale, as of {data.gamma.as_of.slice(5)}</>}
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-amber-200/40 hover:text-amber-200/80"><Info className="w-3 h-3" /></button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-[320px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
+                <div>SqueezeMetrics SPX gamma exposure (GEX), as of {data.gamma.as_of}. Assumes dealers are long calls, short puts.</div>
+                <div className="mt-1">Negative = dealer hedging amplifies moves. Probe 10-16 (2011–26): weeks after negative GEX had SPX 5-day drops &gt;3% 12.7% of the time vs 5.8%, partly because implied vol is already high then.</div>
+                <div className="mt-1 text-amber-200/60">Display only — study S034 pending; not in any score.</div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
         {data.credit?.on && (
           <p className="text-[12px] leading-snug text-amber-200/90" title={`Baa−10y ${data.credit.spread.toFixed(2)}% vs 1-y 80th pct ${data.credit.p80.toFixed(2)}% (${data.credit.as_of})`}>
             Credit spreads wide: S&amp;P fell ≥5% within a month 25% of the time in past cases (vs 13%) — your puts weren't hurt more (S028)

@@ -93,6 +93,65 @@ def credit_wide() -> dict | None:
         return None
 
 
+GEX_CSV = HERE / "out" / "opt" / "s034_inputs" / "DIX.csv"  # SqueezeMetrics SPX GEX/DIX (free, daily, 2011→)
+GEX_URL = "https://squeezemetrics.com/monitor/static/DIX.csv"
+
+
+def parse_gex_csv(text: str, keep: int = 260) -> list[tuple[str, float]]:
+    """Pure: DIX.csv text (date,price,dix,gex) → last `keep` (date, gex $) rows, bad lines skipped."""
+    lines = text.splitlines()
+    if not lines or "gex" not in lines[0].lower():
+        return []
+    cols = [c.strip().lower() for c in lines[0].split(",")]
+    di, gi = cols.index("date"), cols.index("gex")
+    out = []
+    for line in lines[1:]:
+        f = line.split(",")
+        try:
+            out.append((f[di].strip(), float(f[gi])))
+        except (ValueError, IndexError):
+            continue
+    return out[-keep:]
+
+
+def gex_context(rows: list[tuple[str, float]], today: str) -> dict | None:
+    """Pure: A134 display signal — latest SPX dealer gamma, sign, 1-y percentile, flip date, staleness (> 4 calendar days)."""
+    if len(rows) < 20:
+        return None
+    as_of, last = rows[-1]
+    neg = last < 0
+    since = as_of
+    for d, g in reversed(rows):
+        if (g < 0) != neg:
+            break
+        since = d
+    vals = [g for _, g in rows]
+    pct = round(100 * sum(v <= last for v in vals) / len(vals))
+    stale = (datetime.fromisoformat(today) - datetime.fromisoformat(as_of)).days > 4
+    return {"negative": neg, "gex_bn": round(last / 1e9, 2), "pct_1y": pct, "since": since, "as_of": as_of, "stale": stale}
+
+
+def dealer_gamma(now: datetime) -> dict | None:
+    """A134 phase 1 (display only; S034 pending). CSV refreshed at most every 6 h (1 download); on failure the cached
+    file is used, else None (no line shown)."""
+    import time
+    import urllib.request
+    try:
+        if not GEX_CSV.exists() or time.time() - GEX_CSV.stat().st_mtime > 6 * 3600:
+            GEX_CSV.parent.mkdir(parents=True, exist_ok=True)
+            req = urllib.request.Request(GEX_URL, headers={"User-Agent": "Mozilla/5.0 (Macintosh) fildi-pm-alerts"})
+            data = urllib.request.urlopen(req, timeout=20).read()
+            if b"gex" in data[:100]:
+                GEX_CSV.write_bytes(data)
+    except Exception as e:
+        print(f"dealer_gamma: fetch failed ({e}); using cache", file=sys.stderr)
+    try:
+        return gex_context(parse_gex_csv(GEX_CSV.read_text()), now.date().isoformat())
+    except Exception as e:
+        print(f"dealer_gamma: unavailable ({e})", file=sys.stderr)
+        return None
+
+
 def market_hours(now: datetime) -> bool:
     return now.weekday() < 5 and (6, 30) <= (now.hour, now.minute) <= (13, 15)
 
@@ -259,6 +318,7 @@ def main() -> None:
                "accounts": {a: {"status": b["status"], **({"risk": sims[a]["risk"], "expiry": sims[a]["expiry"]} if sims.get(a) else {})}
                             for a, b in book["accounts"].items()},
                "credit": credit_wide(),  # S028 market context (display only)
+               "gamma": dealer_gamma(now),  # A134 SPX dealer gamma (display only; S034 pending)
                # per-put odds, kept so analysis/scoreboard.py can grade them at expiry (live calibration of S016)
                "predictions": [{"account": a, "ticker": p["ticker"], "strike": p["strike"], "expiry": str(s["expiry"]),
                                 "p_assign": round(p["p_assign"], 4)} for a, s in sims.items() if s for p in s["puts"]]}
