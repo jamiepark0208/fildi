@@ -45,6 +45,47 @@ router.get("/pm/book", requireAdmin, async (_req, res) => {
   return res.json({ book: readPmBook() });
 });
 
+/**
+ * GET /api/pm/odds — per open short put: P(assign) + "if assigned" odds (user 2026-10-15). Zero new fetches: spot/IV come from the
+ * book pm_alerts refreshes every 15 min (live Schwab); odds are closed-form (driftless lognormal, 20 trading days, today's IV);
+ * history = this name's 20-day forward return after a 5-day drop at least as deep as now (prices_historical), cached 24 h.
+ */
+const N = (x: number) => 0.5 * (1 + Math.tanh(0.7978845608 * (x + 0.044715 * x ** 3)));
+const histCache = new Map<string, { at: number; v: { n: number; med: number; up: number } | null }>();
+async function afterDrop(ticker: string, drop5: number) {
+  const key = `${ticker}|${Math.round(drop5 * 100)}`;
+  const hit = histCache.get(key);
+  if (hit && Date.now() - hit.at < 864e5) return hit.v;
+  const px = rowsOf<{ c: number }>((await db.execute(sql`SELECT close::float8 AS c FROM prices_historical
+    WHERE ticker = ${ticker} AND close > 0 ORDER BY date`)) as SqlRows<never>).map((r) => r.c);
+  const f: number[] = [];
+  for (let i = 5; i < px.length - 20; i++) if (px[i] / px[i - 5] - 1 <= Math.min(drop5, -0.05)) f.push(px[i + 20] / px[i] - 1);
+  f.sort((a, b) => a - b);
+  const v = f.length >= 10 ? { n: f.length, med: f[Math.floor(f.length / 2)], up: f.filter((x) => x > 0).length / f.length } : null;
+  histCache.set(key, { at: Date.now(), v });
+  return v;
+}
+router.get("/pm/odds", requireAdmin, async (_req, res, next) => {
+  try {
+    type Pos = { ticker: string; account: string; strike: number; expiry: string; qty: number; spot: number | null; iv: number | null; p_otm: number | null; days_left: number };
+    const row = rowsOf<{ book: { positions?: Pos[]; live_priced_at?: string; snapshot_at?: string } }>(
+      (await db.execute(sql`SELECT book FROM watchlist_sync.pm_book_latest WHERE id = 1`)) as SqlRows<never>)[0];
+    const pos = row?.book?.positions ?? [];
+    const out = [];
+    for (const p of pos) {
+      if (!p.spot || !p.iv) { out.push({ ...p, pAssign: p.p_otm == null ? null : 1 - p.p_otm, backToStrike20d: null, atStrike20d: null, hist: null }); continue; }
+      const d = Math.log(p.strike / p.spot) / (p.iv * Math.sqrt(20 / 252));
+      const at = d <= 0 ? 1 - N(d) : N(-d);
+      const pxs = rowsOf<{ c: number }>((await db.execute(sql`SELECT close::float8 AS c FROM prices_historical
+        WHERE ticker = ${p.ticker} AND close > 0 ORDER BY date DESC LIMIT 6`)) as SqlRows<never>).map((r) => r.c);
+      const drop5 = pxs.length === 6 ? p.spot / pxs[5] - 1 : 0;
+      out.push({ ...p, pAssign: p.p_otm == null ? null : 1 - p.p_otm, backToStrike20d: Math.min(1, p.spot >= p.strike ? 1 : 2 * at),
+        atStrike20d: at, drop5, hist: await afterDrop(p.ticker, drop5) });
+    }
+    res.json({ pricedAt: row?.book?.live_priced_at ?? row?.book?.snapshot_at ?? null, positions: out });
+  } catch (e) { next(e); }
+});
+
 router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
   try {
     const ok = rowsOf<{ ok: boolean }>(await db.execute(sql`

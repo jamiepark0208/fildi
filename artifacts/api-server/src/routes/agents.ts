@@ -98,6 +98,15 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   const rank: Record<string, number> = {
     "needs you": 0, filed: 1, reviewed: 2, building: 3, done: 4, verified: 5, parked: 6,
   };
+  // Jamie's to-dos (.agents/needs-jamie.md: "## J# title" + steps) → NEEDS YOU cubes
+  try {
+    const txt = readFileSync(resolve(ROOT, ".agents/needs-jamie.md"), "utf8");
+    for (const block of txt.split(/\n(?=## )/).filter((b) => b.startsWith("## "))) {
+      const [head, ...body] = block.split("\n");
+      const m = head.match(/^## (J\d+) (.+)$/);
+      if (m) ideas.push({ id: m[1], date: "", from: "claude", to: "jamie", title: m[2].trim(), status: "needs you", phase: "needs you", quant: false, blurb: body.join("\n").trim() });
+    }
+  } catch { /* none */ }
   ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || b.date.localeCompare(a.date));
   return { ev, queue, ideas };
 }

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { PmBookCard } from "@/components/portfolio/pm-book-card";
+import { PutOdds } from "@/components/portfolio/put-odds";
 import { LazyMount } from "@/components/lazy-mount";
 import { useAuth } from "@/context/AuthContext";
 
@@ -859,7 +860,7 @@ export default function Portfolio() {
             <>
               {isAdmin ? (
                 <>
-                  <PmBookCard />
+                  <div className="space-y-3"><PmBookCard /><PutOdds /></div>
                   {/* Portfolio Analysis first — Street Radar is heavy; lazy-mount below */}
                   {entries.length > 0 && (
                     <PortfolioAnalysis

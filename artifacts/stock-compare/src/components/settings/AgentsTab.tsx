@@ -111,8 +111,8 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 }
 
 /** Zoom/pan canvas. draw() works in world coords (0,0 = centre); hit() maps a world point to an item id. */
-function ZoomCanvas({ height, draw, hit, onPick, hint }: {
-  height: number; hint: string;
+function ZoomCanvas({ height, draw, hit, onPick, hint, grid = true, tip }: {
+  height: number; hint: string; grid?: boolean; tip?: (id: string) => React.ReactNode;
   draw: (ctx: CanvasRenderingContext2D, now: number, v: View, w: number, h: number) => void;
   hit: (x: number, y: number, w: number, h: number) => string | null; onPick: (id: string | null) => void;
 }) {
@@ -121,6 +121,9 @@ function ZoomCanvas({ height, draw, hit, onPick, hint }: {
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const drawRef = useRef(draw);
   drawRef.current = draw;
+  const gridRef = useRef(grid);
+  gridRef.current = grid;
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
@@ -135,15 +138,18 @@ function ZoomCanvas({ height, draw, hit, onPick, hint }: {
       bg.addColorStop(0, "#0b1220"); bg.addColorStop(1, "#03050a");
       ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
       ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * (w / 2 + v.x), dpr * (h / 2 + v.y));
-      ctx.strokeStyle = "rgba(56,225,255,0.07)"; ctx.lineWidth = 1 / v.z; // map grid
-      const step = 40, ext = 2000;
-      for (let gx = -ext; gx <= ext; gx += step) { ctx.beginPath(); ctx.moveTo(gx, -ext); ctx.lineTo(gx, ext); ctx.stroke(); }
-      for (let gy = -ext; gy <= ext; gy += step) { ctx.beginPath(); ctx.moveTo(-ext, gy); ctx.lineTo(ext, gy); ctx.stroke(); }
+      if (gridRef.current) {
+        ctx.strokeStyle = "rgba(56,225,255,0.07)"; ctx.lineWidth = 1 / v.z; // map grid
+        const step = 40, ext = 2000;
+        for (let gx = -ext; gx <= ext; gx += step) { ctx.beginPath(); ctx.moveTo(gx, -ext); ctx.lineTo(gx, ext); ctx.stroke(); }
+        for (let gy = -ext; gy <= ext; gy += step) { ctx.beginPath(); ctx.moveTo(-ext, gy); ctx.lineTo(ext, gy); ctx.stroke(); }
+      }
       drawRef.current(ctx, now, v, w, h);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    const onWheel = (e: WheelEvent) => { e.preventDefault(); const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * (e.deltaY < 0 ? 1.12 : 0.89))); };
+    // gentle zoom: ~5 % per mouse-wheel notch, proportional for trackpads (user: 12 %/notch was too fast)
+    const onWheel = (e: WheelEvent) => { e.preventDefault(); const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.0009))); };
     cv.addEventListener("wheel", onWheel, { passive: false });
     return () => { cancelAnimationFrame(raf); cv.removeEventListener("wheel", onWheel); };
   }, []);
@@ -156,13 +162,26 @@ function ZoomCanvas({ height, draw, hit, onPick, hint }: {
       <canvas ref={ref} style={{ height }} className="w-full rounded-lg border border-cyan-300/15 cursor-grab active:cursor-grabbing"
         onMouseDown={(e) => { drag.current = { x: e.clientX, y: e.clientY, moved: false }; }}
         onMouseMove={(e) => {
-          const d = drag.current; if (!d) return;
+          const d = drag.current;
+          if (!d) {
+            if (!tip) return;
+            const p = world(e), id = hit(p.x, p.y, p.w, p.h), r = e.currentTarget.getBoundingClientRect();
+            setHover(id ? { id, x: e.clientX - r.left, y: e.clientY - r.top } : null);
+            return;
+          }
+          setHover(null);
           const v = view.current; v.x += e.clientX - d.x; v.y += e.clientY - d.y;
           if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 2) d.moved = true;
           d.x = e.clientX; d.y = e.clientY;
         }}
         onMouseUp={(e) => { const d = drag.current; drag.current = null; if (d && !d.moved) { const p = world(e); onPick(hit(p.x, p.y, p.w, p.h)); } }}
-        onMouseLeave={() => { drag.current = null; }} />
+        onMouseLeave={() => { drag.current = null; setHover(null); }} />
+      {hover && tip && (
+        <div className="pointer-events-none absolute z-10 max-w-[300px] rounded-lg border border-[#d4af37]/40 bg-zinc-950/95 px-3 py-2 text-[12px] leading-snug text-white shadow-xl shadow-black/60"
+          style={{ left: Math.min(hover.x + 14, 9999), top: hover.y + 14 }}>
+          {tip(hover.id)}
+        </div>
+      )}
       <div className="absolute top-2 right-2 flex gap-1">
         {([["+", 1.25], ["−", 0.8]] as const).map(([l, k]) => (
           <button key={l} type="button" onClick={() => { const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * k)); }}
@@ -218,29 +237,34 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         const live = Date.now() - Date.parse(s.last.t) < LIVE_MS;
         ctx.strokeStyle = col + "50"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(sx, sy); ctx.stroke();
         drawOrb(ctx, sx, sy, live ? 6 : 4.5, col, { working: false, now, reduce });
-        if (v.z > 1.4) {
-          ctx.fillStyle = "#e2e8f0"; ctx.font = `${11 / v.z * 1.3}px ui-sans-serif`; ctx.textAlign = "left";
-          ctx.fillText(`${humanAction(s.last)} · ${ago(s.last.t)}`, sx + 10, sy + 4);
-        }
       });
     }
     for (const id of Object.keys(META) as Id[]) {
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
       drawOrb(ctx, p.x, p.y, id === "jamie" ? 30 : 25, META[id].color, { working: !!st?.working, selected: sel === id, now, reduce });
-      ctx.fillStyle = "#ffffff"; ctx.font = "600 13px ui-sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(META[id].label, p.x, p.y + (id === "jamie" ? 48 : 43));
-      ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = "11px ui-sans-serif";
-      const a = d.agents.find((x) => x.id === id);
-      const sub = id === "jamie" ? "decides" : st?.working ? "working" : st ? `idle ${ago(st.lastEvent?.t)}` : `${a?.commits24h ?? 0} commits 24h`;
-      ctx.fillText(sub, p.x, p.y + (id === "jamie" ? 62 : 57));
     }
   };
   const hit = (x: number, y: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
     return null;
   };
-  return <ZoomCanvas height={360} draw={draw} hit={hit} onPick={(id) => onSel((id as Id) ?? "all")}
-    hint="scroll = zoom · drag = pan · click an orb · zoom in to see live sessions" />;
+  const tip = (id: string) => {
+    const m = META[id as Id], a = d.agents.find((x) => x.id === id);
+    const st = id === "claude" || id === "cursor" ? d.status[id] : null;
+    const n = sessions.filter((s) => s.agent === id).length;
+    return (
+      <>
+        <div className="font-semibold" style={{ color: m.color }}>{m.label} <span className="font-normal text-white/60">· {m.role}</span></div>
+        {id === "jamie" ? <div>Approves scores, trades, unattended agents</div> : <>
+          <div>{st ? (st.working ? "● Working now" : `Idle · last action ${ago(st.lastEvent?.t)}`) : `Last commit ${ago(a?.lastActive)}`}</div>
+          {st?.lastEvent && <div className="text-white/70">{humanAction(st.lastEvent)}</div>}
+          <div className="text-white/70">{a?.commits24h ?? 0} commits 24h · queue {a?.queue ?? 0}{n ? ` · ${n} session${n > 1 ? "s" : ""}` : ""}</div>
+        </>}
+      </>
+    );
+  };
+  return <ZoomCanvas height={360} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => onSel((id as Id) ?? "all")}
+    hint="scroll = zoom · drag = pan · hover or click an orb" />;
 }
 
 function TeamPanel({ d }: { d: Data }) {
@@ -328,17 +352,24 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
     });
     for (const { idea, x, y } of layout) {
       drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", { selected: sel === idea.id, dim: idea.phase === "parked" });
-      if (v.z > 1.5) {
-        ctx.fillStyle = "#ffffff"; ctx.font = `${10 / v.z * 1.4}px ui-sans-serif`; ctx.textAlign = "center";
-        ctx.fillText(idea.id, x, y + S * 1.3 + 12 / v.z * 1.4);
-        if (v.z > 2.4) { ctx.fillStyle = "rgba(255,255,255,0.65)"; ctx.fillText(idea.title.slice(0, 26), x, y + S * 1.3 + 24 / v.z * 1.4); }
-      }
     }
+  };
+  const tip = (id: string) => {
+    const i = ideas.find((x) => x.id === id);
+    if (!i) return null;
+    return (
+      <>
+        <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
+          <span style={{ color: PHASE_COLOR[i.phase] }}>{i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
+        <div className="mt-0.5">{i.title}</div>
+        <div className="mt-1 text-[11px] text-white/50">click for details</div>
+      </>
+    );
   };
   const hit = (x: number, y: number) => layout.find((p) => Math.abs(p.x - x) < S + 2 && y > p.y - S && y < p.y + S * 1.4)?.idea.id ?? null;
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-[12px] text-white/70">
+      <div className="flex items-center gap-2 text-[12px] text-white">
         <span>Muse ideas by stage · {visible.length} shown</span>
         <InfoTip>Each cube = one Muse → Cursor row in research/common/ASKS.md, grouped by where it is: needs you → filed → reviewed (Claude)
           → building (Cursor) → done. Zoom in for IDs and titles; click a cube for the full context.</InfoTip>
@@ -346,35 +377,19 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
           {showParked ? "Hide done / parked" : "Show done / parked"}
         </button>
       </div>
-      <ZoomCanvas height={360} draw={draw} hit={hit} onPick={setSel} hint="scroll = zoom · drag = pan · click a cube · zoom in for titles" />
+      <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} hint="scroll = zoom · drag = pan · hover or click a cube" />
       {active && (
         <div className="rounded-lg border px-3 py-2.5 space-y-1.5" style={{ borderColor: (PHASE_COLOR[active.phase] ?? "#e879f9") + "66", background: (PHASE_COLOR[active.phase] ?? "#e879f9") + "0d" }}>
           <div className="flex flex-wrap items-baseline gap-2 text-[12px]">
             <span className="font-semibold text-white">{active.id}</span>
             <span style={{ color: PHASE_COLOR[active.phase] }}>{active.phase}</span>
-            <span className="text-white/50">{active.date} · Muse → Cursor{active.quant ? " · quant" : ""}</span>
+            <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · Muse → Cursor${active.quant ? " · quant" : ""}`}</span>
           </div>
           <p className="text-[14px] text-white font-medium leading-snug">{active.title}</p>
-          <p className="text-[13px] text-white/75 leading-relaxed">{active.blurb || "No Context section in the ask file yet."}</p>
-          <p className="text-[11px] text-white/45">Status: {active.status}</p>
+          <p className="text-[13px] text-white leading-relaxed whitespace-pre-line">{active.blurb || "No Context section in the ask file yet."}</p>
+          <p className="text-[11px] text-white/80">Status: {active.status}</p>
         </div>
       )}
-      <div className={cn(GRID_WRAP, "max-h-[360px] overflow-y-auto")}>
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0"><tr className={GRID_HEADER}>
-            <th className={cn(GRID_TH, "text-left w-16")}>ID</th><th className={cn(GRID_TH, "text-left")}>Idea</th>
-            <th className={cn(GRID_TH, "text-left w-24")}>Stage</th><th className={cn(GRID_TH, "text-right w-24")}>Filed</th>
-          </tr></thead>
-          <tbody>{visible.map((i, k) => (
-            <tr key={i.id} className={cn(gridRow(k), "cursor-pointer", sel === i.id && "bg-white/[0.06]")} onClick={() => setSel(sel === i.id ? null : i.id)}>
-              <td className={cn(GRID_TD, "text-white/60 font-mono")}>{i.id}</td>
-              <td className={cn(GRID_TD, "text-white/90")}>{i.title}</td>
-              <td className={GRID_TD} style={{ color: PHASE_COLOR[i.phase] }}>{i.phase}</td>
-              <td className={cn(GRID_TD, "text-right text-white/55")}>{i.date.slice(5)}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </div>
     </div>
   );
 }
