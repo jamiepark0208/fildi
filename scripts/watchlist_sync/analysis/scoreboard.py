@@ -80,19 +80,30 @@ CHECKS = [model_list, fair_value, assign_odds]
 
 def main() -> None:
     conn = connect()
+    # DDL + each check get their own commit. A failed check used to rollback the
+    # whole transaction (undoing CREATE TABLE + earlier rows), then INSERT anyway
+    # → first-run undefined_table crash / later runs silently stale (A121).
     conn.execute(DDL)
+    conn.commit()
     for f in CHECKS:
         try:
             item, src, promised, live, n, verdict, detail = f(conn)
+            conn.execute("""INSERT INTO watchlist_sync.scoreboard (item, source, promised, live, n, verdict, detail, checked_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s, now()) ON CONFLICT (item) DO UPDATE SET source = excluded.source,
+                            promised = excluded.promised, live = excluded.live, n = excluded.n, verdict = excluded.verdict,
+                            detail = excluded.detail, checked_at = now()""",
+                         (item, src, promised, live, n, verdict, json.dumps(detail)))
+            conn.commit()
         except Exception as e:  # one broken check must not hide the others
             conn.rollback()
             item, src, promised, live, n, verdict, detail = (f.__name__, "", "", f"check failed: {e}"[:200], "", "no live check", {})
-        conn.execute("""INSERT INTO watchlist_sync.scoreboard (item, source, promised, live, n, verdict, detail, checked_at)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s, now()) ON CONFLICT (item) DO UPDATE SET source = excluded.source,
-                        promised = excluded.promised, live = excluded.live, n = excluded.n, verdict = excluded.verdict,
-                        detail = excluded.detail, checked_at = now()""", (item, src, promised, live, n, verdict, json.dumps(detail)))
+            conn.execute("""INSERT INTO watchlist_sync.scoreboard (item, source, promised, live, n, verdict, detail, checked_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s, now()) ON CONFLICT (item) DO UPDATE SET source = excluded.source,
+                            promised = excluded.promised, live = excluded.live, n = excluded.n, verdict = excluded.verdict,
+                            detail = excluded.detail, checked_at = now()""",
+                         (item, src, promised, live, n, verdict, json.dumps(detail)))
+            conn.commit()
         print(f"{verdict:14} {item}: {live}")
-    conn.commit()
 
 
 if __name__ == "__main__":

@@ -25,13 +25,19 @@ Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval ru
 
 Practical rules:
 1. **Never make the user relay messages.** ASKS is the log; it never blocks finishing work.
-2. **Pull before you assume HEAD is fresh** — `git pull --ff-only origin cursor/mac-dev`.
+2. **Sync with `scripts/agent-git-sync.sh`, never by hand** (user 2026-10-16: merge conflicts never go to Jamie).
+   The Mac tree is shared and always dirty: **never** `git stash`, `rebase` (esp. `--autostash`), `pull`, `checkout`/`reset`/`restore`
+   of others' files. Commit only your own paths, then run the script: it fetches, replays your commits in a temp worktree
+   (mergiraf for code, union for logs, rerere), pushes, and updates only the changed paths here. Exit 2 = real code conflict →
+   fix it yourself in the temp worktree way, never hand it to Jamie. New clone: `scripts/agent-git-setup.sh` once.
 3. **Muse → Cursor** = Cursor’s queue. **Claude → Claude / Cursor → Claude** = Claude’s (unchanged).
 4. **Check before editing:** `git status` / `git diff`; build on others’ work, don’t overwrite.
 5. **One home per piece of logic** (`scripts/watchlist_sync/FACTOR_MAP.md`).
 6. **Session-state files stay per tool:** Claude → `.agents/context/state.md`, Cursor →
    `.cursor/context/cursor-state.md`. Muse uses ASKS only.
 7. Scoring/selection changes need user approval + before/after; bug fixes and display changes don’t.
+8. **Before coding** (A135, Karpathy guidelines): state your assumptions; write the success check first, then loop until it passes.
+   Every changed line traces to the request — no drive-by refactors, no speculative options; match the surrounding style.
 
 ## Review loop (user decision 2026-10-11)
 Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.

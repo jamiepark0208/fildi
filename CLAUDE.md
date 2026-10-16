@@ -9,7 +9,7 @@ Be concise. Never echo back code just written or commands just run — the user 
 ## STARTUP (every session)
 No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
 Run once per session: `node .claude/scripts/validate-workflow.js`
-Then sync: `git fetch origin` → `git pull --ff-only` if behind (never over uncommitted work: check `git status` first) →
+Then sync: `scripts/agent-git-sync.sh` (safe pull/push; never stash/rebase/pull by hand — AGENTS.md rule 2) →
 sync Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark those ASKS rows `declined (Jamie dismissed <date>)` and commit →
 triage `research/inbox.md` (user's raw thoughts → numbered items, dedupe vs ASKS/INDEX, priority P1–P3, file rows, clear the inbox; user 2026-10-15) →
 read open `research/common/ASKS.md` rows addressed **to Claude** →

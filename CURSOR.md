@@ -5,7 +5,7 @@
 ## STARTUP (every new chat)
 1. Context is auto-injected by `.cursor/hooks/session-start.js` (phase, tasks, git, codegraph)
 2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js`
-3. **Pull team bus:** `git fetch origin && git pull --ff-only origin cursor/mac-dev` (Muse may have pushed while Mac was closed)
+3. **Pull team bus:** `scripts/agent-git-sync.sh` (Muse may have pushed while Mac was closed; never stash/rebase/pull by hand — AGENTS.md rule 2)
 4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##`; fix Muse/Claude review findings → `done`. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
 6. Task code context: **codegraph** MCP
