@@ -5,6 +5,7 @@
 - Before editing a file, check Settings › Agents (or ~/.fildi/agent-events.jsonl) for another agent's edits to it in the last hour
 - One home per piece of logic
 - Every commit carries an `Agent:` trailer
+- Any question for Jamie also goes in .agents/needs-jamie.md (NEEDS YOU cube) until answered
 - Free / local tools first; state cost before anything heavy
 - AI never trades: analysis only, Jamie decides
 - Alerts only inside Fildi: no push, email, downloads

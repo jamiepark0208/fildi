@@ -10,3 +10,8 @@ Why: lets cloud agents read Fildi's public market data with your Mac closed. Pri
 
 ## J3 Later: go on the unattended data-team agent (report-only week 1)
 Why: nightly checks for bad data (wrong sources, missing values, stale jobs). Waits until the current study queue is done. Say "go" when ready.
+
+## J4 Approve Stage drill-down build order
+Why: click an icon to dig in, badges only when something is off.
+Proposed order: 1) APIs + Jobs split per vendor/job, 2) Database split (market data / fundamentals & scores / your book / research lab / ops) with freshness badges, 3) Code Repo + GitHub, 4) Web.
+Reply "approve" or change the order.
