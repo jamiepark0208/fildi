@@ -202,6 +202,21 @@ export function ApiMonitorTab() {
     refetchInterval: 5 * 60_000,
   });
 
+  // A130: month-to-date metered LLM calls (every Haiku call, user or system job) → est $.
+  const { data: aiSpend } = useQuery<{
+    since: string; calls: number; inputTokens: number; outputTokens: number; estUsd: number;
+    bySurface: { surfaceType: string; calls: number; estUsd: number }[];
+  }>({
+    queryKey: ["ai-spend"],
+    queryFn: async () => {
+      const res = await fetch("/api/api-usage/ai-spend", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load AI spend");
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
   const { data: localStack } = useQuery<LocalStackResponse>({
     queryKey: ["local-stack"],
     queryFn: async () => {
@@ -471,6 +486,23 @@ export function ApiMonitorTab() {
           <p className="text-[10px] text-amber-200/40 mt-0.5">
             PT day counts · api_usage
           </p>
+          {aiSpend && (
+            <Tooltip delayDuration={150}>
+              <TooltipTrigger asChild>
+                <p className="text-[10px] text-white/80 mt-0.5 tabular-nums cursor-help">
+                  AI spend this month: ~${aiSpend.estUsd.toFixed(2)} · {aiSpend.calls} calls ·{" "}
+                  {Math.round((aiSpend.inputTokens + aiSpend.outputTokens) / 1000)}k tokens ⓘ
+                </p>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-[11px] space-y-1">
+                <p>Every metered Anthropic call since {aiSpend.since} (ai_usage_log; cache hits excluded). Est = tokens × list price per model (lib/ai-pricing.ts); the Anthropic console bill is exact.</p>
+                {aiSpend.bySurface.slice(0, 6).map(r => (
+                  <p key={r.surfaceType} className="tabular-nums">{r.surfaceType}: {r.calls} · ${r.estUsd.toFixed(3)}</p>
+                ))}
+                <p className="text-white/60">Claude Code / Cursor / Muse are flat subscriptions — not counted.</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {lastUpdated && <span className="text-[10px] text-amber-200/40">as of {lastUpdated}</span>}

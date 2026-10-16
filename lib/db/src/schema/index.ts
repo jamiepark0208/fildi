@@ -1648,14 +1648,17 @@ export type ExplainCacheRow = typeof explainCache.$inferSelect
 // without storing prompt/explanation text here — metadata only.
 export const aiUsageLog = pgTable('ai_usage_log', {
   id:          serial('id').primaryKey(),
-  userId:      integer('user_id').notNull().references(() => users.id),
+  /** null = system job (daily brief, desk news, macro, transcripts) — A130 logs every metered call */
+  userId:      integer('user_id').references(() => users.id),
   ticker:      text('ticker').notNull(),
-  surfaceType: text('surface_type').notNull(),   // "fundamental" | "technical" | "options" | ...
+  surfaceType: text('surface_type').notNull(),   // "fundamental" | "technical" | "options" | ... | "transcripts"
   cached:      boolean('cached').notNull(),
   /** Anthropic usage.input_tokens — null on cache hits / legacy rows */
   inputTokens: integer('input_tokens'),
   /** Anthropic usage.output_tokens — null on cache hits / legacy rows */
   outputTokens: integer('output_tokens'),
+  /** Model id (cost estimate, lib/ai-pricing.ts); null on legacy rows = Haiku 4.5 */
+  model:       text('model'),
   createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userIdx: index('ai_usage_log_user_idx').on(t.userId, t.createdAt),

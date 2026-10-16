@@ -7,6 +7,7 @@ import { logApiCall } from "./api-logger.js";
 import { recordAiUsage } from "./ai-usage.js";
 
 const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
+export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 export interface HaikuCallOpts {
   prompt: string;
@@ -29,7 +30,7 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
   let msg: Anthropic.Message;
   try {
     msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU_MODEL,
       max_tokens: opts.maxTokens,
       messages: [{ role: "user", content: opts.prompt }],
     });
@@ -59,16 +60,16 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
     outputTokens,
   });
 
-  if (opts.userId != null) {
-    recordAiUsage({
-      userId: opts.userId,
-      ticker: opts.ticker ?? "_",
-      surfaceType: opts.surfaceType,
-      cached: false,
-      inputTokens,
-      outputTokens,
-    });
-  }
+  // Every metered call lands in ai_usage_log (A130), user or system job — Settings › API Monitor › AI spend.
+  recordAiUsage({
+    userId: opts.userId ?? null,
+    ticker: opts.ticker ?? "_",
+    surfaceType: opts.surfaceType,
+    cached: false,
+    inputTokens,
+    outputTokens,
+    model: HAIKU_MODEL,
+  });
 
   return { text, inputTokens, outputTokens };
 }

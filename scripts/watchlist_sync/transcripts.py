@@ -108,6 +108,7 @@ def queue(conn) -> list[tuple[int, str]]:
 
 
 _CALLS: dict[str, int] = {}  # anthropic / finnhub calls this run → api_usage at the end
+_AI_USAGE: list[tuple[str, int, int]] = []  # (ticker, in, out) per Haiku call → ai_usage_log at the end (A130)
 
 
 def latest_quarter(ticker: str) -> str | None:
@@ -154,6 +155,8 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
     _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
     r = get_json("https://api.anthropic.com/v1/messages", 120, body,
                  {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
+    u = r.get("usage") or {}
+    _AI_USAGE.append((ticker, int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)))
     out = "".join(c.get("text", "") for c in r.get("content", []))
     try:
         return json.loads(out[out.index("{"): out.rindex("}") + 1])
@@ -247,6 +250,9 @@ def main() -> None:
     for src, n in _CALLS.items():
         conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES (%s, (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
                         ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made, updated_at = now()""", (src, n))
+    for t, i, o in _AI_USAGE:  # same table as the API server's callHaiku (Settings › API Monitor › AI spend)
+        conn.execute("""INSERT INTO ai_usage_log (user_id, ticker, surface_type, cached, input_tokens, output_tokens, model)
+                        VALUES (NULL, %s, 'transcripts', false, %s, %s, %s)""", (t, i, o, MODEL))
     conn.commit()
     msg = f"fetched {fetched}, AV budget left {budget}"
     try:
