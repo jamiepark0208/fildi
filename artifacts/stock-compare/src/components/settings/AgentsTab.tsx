@@ -48,9 +48,9 @@ const KIND: Record<string, { label: string; color: string; node?: string }> = {
 };
 const NODES: Record<string, { label: string; ang: number; kinds: string[] }> = {
   web: { label: "Web", ang: -112, kinds: ["web"] },
-  repo: { label: "Repo", ang: -68, kinds: ["code", "reading"] },
-  api: { label: "APIs", ang: 30, kinds: ["api"] },
-  db: { label: "Database", ang: 150, kinds: ["database"] },
+  repo: { label: "Code Repo", ang: -52, kinds: ["code", "reading"] },
+  api: { label: "APIs", ang: 32, kinds: ["api"] },
+  db: { label: "Database", ang: 148, kinds: ["database"] },
 };
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
@@ -160,6 +160,21 @@ function drawBox(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
   const l = ctx.createLinearGradient(x - s, y, x, y);
   l.addColorStop(0, c); l.addColorStop(1, c + "88");
   face(T, g); face(L, l); face(R, c + "44");
+}
+
+/** 3D folder with a </> mark (Code Repo node): back tab + glossy front panel, lit from top-left. */
+function drawRepo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
+  const w = r * 1.05, h = r * 0.8, d = r * 0.22;
+  nodeGlow(ctx, x, y, r * 1.1, c);
+  ctx.fillStyle = c + "88"; ctx.strokeStyle = c; ctx.lineWidth = 1; // back panel + tab
+  ctx.beginPath(); ctx.moveTo(x - w + d, y - h - d); ctx.lineTo(x - w * 0.25 + d, y - h - d); ctx.lineTo(x - w * 0.1 + d, y - h + d * 0.2);
+  ctx.lineTo(x + w + d, y - h + d * 0.2); ctx.lineTo(x + w + d, y + h - d); ctx.lineTo(x - w + d, y + h - d); ctx.closePath(); ctx.fill(); ctx.stroke();
+  const g = ctx.createLinearGradient(x - w, y - h, x + w, y + h); // front panel
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.22, c); g.addColorStop(0.75, c + "aa"); g.addColorStop(1, "#06080c");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - w, y - h + d); ctx.lineTo(x + w, y - h + d); ctx.lineTo(x + w, y + h); ctx.lineTo(x - w, y + h); ctx.closePath(); ctx.fill(); ctx.stroke();
+  const spec = ctx.createLinearGradient(x, y - h + d, x, y - h * 0.2); // glossy top edge
+  spec.addColorStop(0, "rgba(255,255,255,0.45)"); spec.addColorStop(1, "transparent");
+  ctx.fillStyle = spec; ctx.fillRect(x - w + 1, y - h + d + 1, w * 2 - 2, h * 0.7);
 }
 
 function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: { selected?: boolean; dim?: boolean }) {
@@ -279,6 +294,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   const beams = useRef<{ from: { x: number; y: number }; to: { x: number; y: number }; c: string; t0: number }[]>([]);
   const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
   const subPos = useRef<{ key: string; x: number; y: number; k: Sub }[]>([]);
+  const links = useRef(new Map<string, { node: string; c: string; src: string; on: boolean; off: number }>()); // live agent→node links
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const R = 150, R2 = 285;
   const pos = (id: Id) => { if (id === "jamie") return { x: 0, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: Math.cos(a) * R, y: Math.sin(a) * R }; };
@@ -293,7 +309,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       const a = pos(e.agent as Id), col = META[e.agent as Id].color, t0 = now - Math.min(age, 800);
       if (e.event === "prompt") beams.current.push({ from: pos("jamie"), to: a, c: META.jamie.color, t0 }); // you → agent
       else if (e.event === "stop" || e.event === "waiting") beams.current.push({ from: a, to: pos("jamie"), c: col, t0 }); // reply to you
-      else if (e.kind && KIND[e.kind]?.node) beams.current.push({ from: a, to: npos(KIND[e.kind].node!), c: KIND[e.kind].color, t0 });
+      // database / API / web / code work is drawn as persistent live links below, not one-shot beams
     }
     beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-40);
     for (const id of ["muse", "claude", "cursor"] as Id[]) {
@@ -303,18 +319,61 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
     for (const n of Object.keys(NODES)) { // resource nodes: Database · Web · APIs · Repo
       const p = npos(n), c0 = KIND[NODES[n].kinds[0]].color, c = c0 === "#ffffff" ? "#cbd5e1" : c0;
-      if (n === "db") drawCylinder(ctx, p.x, p.y, 18, c); // shapes: Database = cylinder, APIs = box, Web/Repo = orbs
-      else if (n === "api") drawBox(ctx, p.x, p.y, 17, c);
-      else drawOrb(ctx, p.x, p.y, 17, c, { now, reduce });
-      let fs = 10; ctx.font = `700 ${fs}px ui-sans-serif`;
-      while (fs > 6 && ctx.measureText(NODES[n].label).width > 17 * 1.75) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
-      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
-      ctx.fillStyle = "#ffffff"; ctx.fillText(NODES[n].label, p.x, n === "api" ? p.y + 4 : p.y + (n === "db" ? 3 : 0)); ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+      const NR = 28; // ~1.6× the old 17–18 so labels read at zoom 1
+      if (n === "db") drawCylinder(ctx, p.x, p.y, NR, c); // shapes: Database = cylinder, APIs = box, Code Repo = folder, Web = orb
+      else if (n === "api") drawBox(ctx, p.x, p.y, NR, c);
+      else if (n === "repo") drawRepo(ctx, p.x, p.y, NR, c);
+      else drawOrb(ctx, p.x, p.y, NR, c, { now, reduce });
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.95)"; ctx.shadowBlur = 5; ctx.fillStyle = "#ffffff";
+      const words = n === "repo" ? ["</>", "Code Repo"] : [NODES[n].label];
+      let fs = 13; ctx.font = `700 ${fs}px ui-sans-serif`;
+      while (fs > 11 && Math.max(...words.map((t) => ctx.measureText(t).width)) > NR * 1.8) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
+      const cy = n === "api" ? p.y + NR * 0.25 : n === "db" ? p.y + NR * 0.12 : n === "repo" ? p.y + NR * 0.2 : p.y;
+      words.forEach((t, i) => ctx.fillText(t, p.x, cy + (i - (words.length - 1) / 2) * (fs + 2)));
+      ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     }
     for (const b of beams.current) {
       const k = Math.min(1, (now - b.t0) / 850);
       ctx.fillStyle = b.c; ctx.shadowColor = b.c; ctx.shadowBlur = 16;
       ctx.beginPath(); ctx.arc(b.from.x + (b.to.x - b.from.x) * k, b.from.y + (b.to.y - b.from.y) * k, 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    }
+    // Live links: an agent (or background agent) whose latest event of a kind is < 2 min old and not followed by a stop keeps a
+    // line to that node with pulses travelling along it; when the activity ends the link fades out over ~1 s.
+    const lastKind = new Map<string, { t: number; node: string; c: string; src: string }>();
+    const stopAt = new Map<string, number>();
+    const running = new Set((d.subagents ?? []).filter((k) => k.running).map((k) => k.id));
+    for (const e of d.live) {
+      const t = Date.parse(e.t), src = e.sub ? `b:${e.sub}` : e.agent;
+      if (e.event === "stop" || e.event === "session-end" || e.event === "waiting") { stopAt.set(e.agent, t); continue; }
+      const node = e.kind ? KIND[e.kind]?.node : undefined;
+      if (!node || !(e.agent in META)) continue;
+      const key = `${src}|${node}`, prev = lastKind.get(key);
+      if (!prev || t > prev.t) lastKind.set(key, { t, node, c: KIND[e.kind!].color, src });
+    }
+    const nowMs = Date.now();
+    for (const l of links.current.values()) l.on = false;
+    for (const [key, v] of lastKind) {
+      const agent = v.src.startsWith("b:") ? null : v.src;
+      const active = nowMs - v.t < LIVE_MS && (agent ? (stopAt.get(agent) ?? 0) < v.t : running.has(v.src.slice(2)));
+      if (!active) continue;
+      const l = links.current.get(key) ?? { node: v.node, c: v.c, src: v.src, on: true, off: 0 };
+      l.on = true; l.c = v.c; l.off = 0; links.current.set(key, l);
+    }
+    for (const [key, l] of links.current) {
+      if (!l.on && !l.off) l.off = now;
+      const fade = l.on ? 1 : Math.max(0, 1 - (now - l.off) / 1000);
+      if (fade <= 0) { links.current.delete(key); continue; }
+      const from = l.src.startsWith("b:") ? subPos.current.find((b) => b.key === l.src) : l.src in META ? pos(l.src as Id) : null;
+      if (!from) continue;
+      const to = npos(l.node), alpha = Math.round(fade * 160).toString(16).padStart(2, "0");
+      ctx.strokeStyle = l.c + alpha; ctx.lineWidth = 1.6 / v.z; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+      if (!reduce) for (let i = 0; i < 3; i++) { // signal pulses
+        const k = ((now / 900 + i / 3) % 1);
+        ctx.globalAlpha = fade; ctx.fillStyle = l.c; ctx.shadowColor = l.c; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k, 2.8, 0, 7); ctx.fill();
+        ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
     }
     sessPos.current = [];
     subPos.current = [];
@@ -360,7 +419,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   };
   const hit = (x: number, y: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
-    for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 22) return `n:${n}`; }
+    for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 34) return `n:${n}`; }
     for (const bp of subPos.current) if (Math.hypot(bp.x - x, bp.y - y) < 8) return bp.key;
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     return null;
@@ -483,7 +542,7 @@ function TeamPanel({ d }: { d: Data }) {
         <table className="w-full border-collapse">
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
-            <th className={cn(GRID_TH, "text-left")}>Doing</th><th className={cn(GRID_TH, "text-right")}>Errors 1h</th>
+            <th className={cn(GRID_TH, "text-right")}>Errors 1h</th>
             <th className={cn(GRID_TH, "text-right")}>Tokens used</th><th className={cn(GRID_TH, "text-right")}>Available</th>
             <th className={cn(GRID_TH, "text-right")}>Commits 24h / 7d</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
             <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
@@ -497,7 +556,6 @@ function TeamPanel({ d }: { d: Data }) {
                   {st ? (st.waiting ? "● waiting for you" : st.looping ? "● looping?" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
                     : a.id === "muse" ? `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}` : `last commit ${ago(a.lastActive)}`}
                 </td>
-                <td className={cn(GRID_TD, "text-white/85 truncate max-w-[220px]")} title={st?.doing ?? ""}>{st?.doing ?? "—"}</td>
                 <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : "—"}
