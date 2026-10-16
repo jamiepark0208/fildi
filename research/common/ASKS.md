@@ -91,28 +91,28 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A110](asks/A110.md) | 2026-10-15 | Muse → Cursor | option_history.py re-run hazards: optlab.bars schema has no migration; chain cache not keyed on ref | done (Claude fixed 10-15) |
 | [A111](asks/A111.md) | 2026-10-15 | Muse → Cursor | iv_rank min-history 120→60d changed silently in 9bee2472 — document or revert | done (Claude fixed 10-15) |
 | [A112](asks/A112.md) | 2026-10-15 | Muse → Cursor | pm_alerts.py DDL.split(';') runs a trailing empty statement (startup crash risk) | done (Claude fixed 10-15) |
-| [A115](asks/A115.md) | 2026-10-15 | Muse → Cursor | Trend-efficiency regime filter for premium selling | open |
-| [A116](asks/A116.md) | 2026-10-15 | Muse → Cursor | Agent-tooling roundup: adopt the good skills, vet the rest | open |
-| [A117](asks/A117.md) | 2026-10-15 | Muse → Cursor | Backend quant-algorithm inventory: map the classics to fildi gaps | open |
-| [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | open |
-| [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | open |
+| [A115](asks/A115.md) | 2026-10-15 | Muse → Cursor | Trend-efficiency regime filter for premium selling | planned, narrowed (Claude 10-16: one regime bake-off study with A117 Kalman + A56 HMM) |
+| [A116](asks/A116.md) | 2026-10-15 | Muse → Cursor | Agent-tooling roundup: adopt the good skills, vet the rest | narrowed, merged with A118/A119 (Claude 10-16: adopt Trail of Bits audit; rest recorded) |
+| [A117](asks/A117.md) | 2026-10-15 | Muse → Cursor | Backend quant-algorithm inventory: map the classics to fildi gaps | planned, narrowed (Claude 10-16: 3 builds; most of the canon already exists) |
+| [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | merged into A116 (Claude 10-16) |
+| [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | parked (Claude 10-16: Hermes vs SkillOpt waits on A103's trigger) |
 | [A120](asks/A120.md) | 2026-10-15 | Muse → Claude | Pattern-discovery research program: regimes, reversals, calendar, lead-lag, automated X/Y engine | open |
-| [A121](asks/A121.md) | 2026-10-15 | Muse → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | open |
-| [A122](asks/A122.md) | 2026-10-15 | Muse → Cursor | Muse live status on the Stage orb grid (git heartbeat) | open |
-| [A123](asks/A123.md) | 2026-10-15 | Muse → Cursor | Crawl4AI + Browser Use pilot (tested before filing) | open |
-| [A124](asks/A124.md) | 2026-10-16 | Muse → Cursor | Pythia forecasting-oracle pilot (tested before filing) | open |
-| [A125](asks/A125.md) | 2026-10-16 | Muse → Cursor | Video Lab tab: upload test shorts + co-generate ideas | open |
-| [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | open |
-| [A127](asks/A127.md) | 2026-10-16 | Muse → Cursor | UI motion polish (Lenis + react-bits) | open |
-| [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | open |
-| [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | open |
-| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | open |
-| [A131](asks/A131.md) | 2026-10-16 | Muse → Cursor | Backtest timestamp-leakage audit | open |
-| [A132](asks/A132.md) | 2026-10-16 | Muse → Cursor | Competitive teardown: FinceptTerminal vs fildi | open |
-| [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | open |
-| [A134](asks/A134.md) | 2026-10-16 | Muse → Cursor | Gamma exposure (GEX) regime indicator | open |
-| [A135](asks/A135.md) | 2026-10-16 | Muse → Cursor | Merge Karpathy behavioral guidelines | open |
-| [A136](asks/A136.md) | 2026-10-16 | Muse → Cursor | Pre-trade risk gate | open |
-| [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | open |
-| [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | open |
-| [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | open |
+| [A121](asks/A121.md) | 2026-10-15 | Muse → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | done, uncommitted (Claude 10-16: fix already in working tree — Cursor commit + run the failing-check test) |
+| [A122](asks/A122.md) | 2026-10-15 | Muse → Cursor | Muse live status on the Stage orb grid (git heartbeat) | planned (Claude 10-16: device write OK if Jamie enables file access; git-fetch fallback) |
+| [A123](asks/A123.md) | 2026-10-15 | Muse → Cursor | Crawl4AI + Browser Use pilot (tested before filing) | parked (Claude 10-16: A97's need met by email parser; revisit when a source has no API) |
+| [A124](asks/A124.md) | 2026-10-16 | Muse → Cursor | Pythia forecasting-oracle pilot (tested before filing) | planned, merged (Claude 10-16: one forecast ledger with A129/A82/A85/A74; Pythia = first LLM forecaster) |
+| [A125](asks/A125.md) | 2026-10-16 | Muse → Cursor | Video Lab tab: upload test shorts + co-generate ideas | planned, P3 (Claude 10-16: + 'Reel inbox' so Jamie's forwarded videos feed ASKS) |
+| [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | planned, P2 (Claude 10-16: dependency fixed — Polygon free 1-min bars back 2 years) |
+| [A127](asks/A127.md) | 2026-10-16 | Muse → Cursor | UI motion polish (Lenis + react-bits) | planned, P3 (Claude 10-16: exclude charts/tables from Lenis) |
+| [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | parked (Claude 10-16: need met by codegraph, already wired for Claude + Cursor) |
+| [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | parked, folded into A124 ledger (Claude 10-16: needs ≥ 20 resolved questions per type first) |
+| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | parked (Claude 10-16: API spend is ~$0; revisit if monthly API bill > $20) |
+| [A131](asks/A131.md) | 2026-10-16 | Muse → Cursor | Backtest timestamp-leakage audit | planned, P1 (Claude 10-16: concrete risk list added; Claude signs off) |
+| [A132](asks/A132.md) | 2026-10-16 | Muse → Cursor | Competitive teardown: FinceptTerminal vs fildi | planned, P3 (Claude 10-16: Muse does it; steal-list scored for a put seller) |
+| [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | planned, narrowed (Claude 10-16: free-tier test aimed at S019's IV gap + OI history) |
+| [A134](asks/A134.md) | 2026-10-16 | Muse → Cursor | Gamma exposure (GEX) regime indicator | planned, P1 (Claude 10-16: dependency fixed — free SPX GEX history 2011→today; study S034) |
+| [A135](asks/A135.md) | 2026-10-16 | Muse → Cursor | Merge Karpathy behavioral guidelines | planned, narrowed (Claude 10-16: ≤ 10 lines in AGENTS.md only) |
+| [A136](asks/A136.md) | 2026-10-16 | Muse → Cursor | Pre-trade risk gate | planned, rewritten (Claude 10-16: 'what-if add this put' on pm_alerts, not a new gate) |
+| [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | planned, P1 (Claude 10-16: upgrade the existing IV/RV factor; study S033 first) |
+| [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | planned, merged into S033 (Claude 10-16: TimesFM = second arm of the A137 study) |
+| [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | planned, narrowed (Claude 10-16: detectors as overlays; no composite until intraday test S036) |
