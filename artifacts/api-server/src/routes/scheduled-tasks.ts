@@ -297,6 +297,31 @@ function readJsonFile(path: string): Record<string, unknown> | null {
   }
 }
 
+/** Mac resource line (Jamie 10-16) — written weekly by scripts/resource-audit.py (Maintain, Sunday). */
+function readMacResources() {
+  const snap = readJsonFile(join(homedir(), ".fildi", "resource-latest.json"));
+  if (!snap) return null;
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  const disk = (snap.disk ?? {}) as Record<string, unknown>;
+  const fildi = (snap.fildi ?? {}) as Record<string, unknown>;
+  const ram = (snap.ram ?? {}) as Record<string, unknown>;
+  const growth = Array.isArray(snap.growth) ? (snap.growth as { item?: string; mb_per_day?: number }[]) : [];
+  const repoMb = num(fildi.repo);
+  const dbMb = num(((snap.db ?? {}) as Record<string, unknown>).total_mb);
+  const fildiGrowthPerDay = growth
+    .filter((g) => typeof g.item === "string" && (g.item === "fildi:repo" || g.item === "db:total"))
+    .reduce((a, g) => a + (g.mb_per_day ?? 0), 0);
+  return {
+    ts: typeof snap.ts === "string" ? snap.ts : null,
+    diskFreeGb: num(disk.free_gb),
+    fildiGb: repoMb != null ? Math.round(((repoMb + (dbMb ?? 0)) / 1024) * 10) / 10 : null,
+    growthMbPerWeek: growth.length ? Math.round(fildiGrowthPerDay * 7) : null,
+    ramFreePct: num(ram.free_pct),
+    swapGb: num(ram.swap_gb),
+    findings: Array.isArray(snap.findings) ? (snap.findings as string[]).slice(0, 8) : [],
+  };
+}
+
 function readTail(path: string, maxBytes = 24_000): { path: string; exists: boolean; mtime: string | null; text: string } {
   if (!existsSync(path)) return { path, exists: false, mtime: null, text: "" };
   try {
@@ -1582,6 +1607,7 @@ router.get("/admin/scheduled-tasks", requireAdmin, async (_req, res) => {
     enrichmentDisabled,
     remediateLast: remediateLast ?? readRemediateReport(),
     optionsChainSource: chainSrc,
+    macResources: readMacResources(),
   });
 });
 

@@ -708,6 +708,14 @@ async function main() {
       if (dig.status !== 0) {
         console.warn("[maintain] ops digest warn:", (dig.stderr || dig.stdout || "").slice(-400));
       }
+      // Mac resource audit (Jamie 10-16): disk/RAM/iCloud/growth snapshot + trim fildi logs (30 d / 50 MB).
+      const ra = spawnSync("python3", [join(ROOT, "scripts/resource-audit.py"), "--prune"], {
+        encoding: "utf8",
+        cwd: ROOT,
+        timeout: 10 * 60 * 1000,
+        env: process.env,
+      });
+      actions.push(`resource_audit_exit_${ra.status ?? 1}`);
       // Optimization measurement (deterministic) — report then prove; never auto-refactor.
       const reviewScript = join(ROOT, ".cursor/scripts/ai-workflow-review.mjs");
       if (existsSync(reviewScript)) {

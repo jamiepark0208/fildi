@@ -115,6 +115,16 @@ interface ScheduledTasksStatus {
     total: number;
     schwabSharePct: number | null;
   };
+  /** Weekly Mac resource snapshot (scripts/resource-audit.py, Jamie 10-16). */
+  macResources?: {
+    ts: string | null;
+    diskFreeGb: number | null;
+    fildiGb: number | null;
+    growthMbPerWeek: number | null;
+    ramFreePct: number | null;
+    swapGb: number | null;
+    findings: string[];
+  } | null;
 }
 
 interface LogsResponse {
@@ -374,6 +384,33 @@ export function ScheduledTasksTab() {
               }}
               busyId={busyId}
             />
+          )}
+
+          {data?.macResources && (
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-200">
+              <span>
+                Mac: disk {data.macResources.diskFreeGb != null ? `${Math.round(data.macResources.diskFreeGb)} GB free` : "—"}
+                {" · "}fildi {data.macResources.fildiGb ?? "—"} GB
+                {data.macResources.growthMbPerWeek != null ? ` (+${data.macResources.growthMbPerWeek} MB/wk)` : ""}
+                {" · "}RAM free {data.macResources.ramFreePct ?? "—"}%
+              </span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" aria-label="Mac resource findings" className="text-zinc-400 hover:text-zinc-100">
+                    <HelpCircle className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-96 p-2 text-xs bg-zinc-900 border-zinc-600 text-zinc-100 space-y-1" align="start">
+                  <p className="text-zinc-300">
+                    Weekly audit (Maintain, Sunday; scripts/resource-audit.py) · fildi = repo + DB · swap {data.macResources.swapGb ?? "—"} GB
+                    {data.macResources.ts ? ` · as of ${data.macResources.ts.slice(0, 10)}` : ""}
+                  </p>
+                  {data.macResources.findings.map((f, i) => (
+                    <p key={i}>• {f}</p>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </div>
           )}
 
           {data?.remediateLast && (

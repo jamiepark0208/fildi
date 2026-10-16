@@ -100,6 +100,7 @@ const INVENTORY_SPEC: Record<
       "retention prune",
       "morning precompute",
       "Sunday ops digest (value-log)",
+      "Sunday Mac resource audit (watchlist_sync.resource_snapshots, ~/.fildi/resource-latest.json; trims fildi logs)",
     ],
     mutex: "enrichmentRunning / maintain lock",
     cadence: "7:00 AM full · 12:00/2:45 heal · Sun digest",

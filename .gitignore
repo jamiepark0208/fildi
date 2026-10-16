@@ -66,3 +66,9 @@ Thumbs.db
 .replit.local-admin-credentials
 *.dump
 *.xlsx
+
+# Generated at runtime (regenerated when missing; resource audit 10-16)
+artifacts/api-server/cot-cache.json
+artifacts/api-server/macro-charts.json
+artifacts/api-server/macro-data.json
+.codegraph/daemon.pid
