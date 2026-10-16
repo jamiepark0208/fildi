@@ -46,7 +46,7 @@ Everything else — spec, replies, status notes, reviews — lives in `research/
 2. **Claude plan review** (every Muse row, before build; user 2026-10-14): checks overlap with existing code + `research/studies/INDEX.md`,
    adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
    `**Claude plan <date>:** …` to the file's `## Reviews` and sets the index status to `planned`. Claude never implements Muse rows.
-   Cursor builds from `planned`; if Claude hasn't reviewed in 48 h, Cursor may build and Claude reviews the commit.
+   Cursor builds **only** `planned` rows (Claude-reviewed), **one at a time**: the next row starts only after the previous commit's Claude review passes (user 2026-10-15; replaces the 48 h fallback). Order = ASKS priority (P1 data correctness first).
 3. **Cursor builds**, commit message carries `Refs: A##` (one trailer per row).
 4. **Commit review, independent + parallel:** Muse = bugs/ops/UX; Claude = quant diffs only (look-ahead,
    units, eval run vs the plan's acceptance check). Claude writes its review **before reading Muse's verdict** on that SHA.

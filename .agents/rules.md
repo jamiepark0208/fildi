@@ -1,0 +1,25 @@
+# Agent rules — one line each (shown in Settings › Agents › Rules). Source of truth stays AGENTS.md / CLAUDE.md; update both.
+## All agents
+- Never make Jamie relay messages: ASKS is the log
+- Pull before filing or editing; never overwrite another agent's uncommitted work
+- One home per piece of logic
+- Every commit carries an `Agent:` trailer
+- Free / local tools first; state cost before anything heavy
+- AI never trades: analysis only, Jamie decides
+- Alerts only inside Fildi: no push, email, downloads
+## Muse (ideas)
+- Files ideas as ASKS rows to Cursor; never builds
+## Claude (PM · reviewer · research)
+- Plan-review every Muse row before it's built
+- Decline check: need · met by · revisit trigger
+- Review quant commits before reading Muse's verdict
+- Never implements Muse rows
+- Pre-register every study; record it in research/studies/INDEX.md
+- Triage research/inbox.md at session start
+## Cursor (builder)
+- Builds only Claude-reviewed (planned) rows
+- One row at a time: next starts after the last commit's review passes
+- Fixes review findings before new work
+## Approvals (Jamie)
+- Score, weight, threshold or Model List changes need before/after + Jamie's yes
+- Unattended agents need Jamie's go

@@ -6,7 +6,10 @@
  *   - hand-offs: research/common/ASKS.md index rows (from → to, status) — each row is one message between agents.
  *   - tokens: Claude Code session logs (~/.claude/projects/<repo>/*.jsonl, usage per API request, deduped by requestId).
  *     Cursor/Muse token use isn't recorded locally → "not tracked".
- * Cached 10 min; reads only, never writes.
+ *   - live: hook events (.agents/hooks/agent-event.mjs → ~/.fildi/agent-events.jsonl): working now = event < 2 min, not stopped.
+ *   - windows: Claude output tokens per 5-hour window (plan limits reset per 5 h; the plan's cap isn't exposed → compare to own peak).
+ *   - rules: .agents/rules.md (curated one-liners) · skills: .claude/skills/*.md + loads in the last 7 d.
+ * Commits/tokens cached 10 min; live events read fresh. Reads only, never writes.
  */
 import { Router } from "express";
 import { execFile } from "node:child_process";
@@ -57,7 +60,10 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number> } {
 }
 
 /** Claude token use per day from session logs (dedupe streamed blocks by requestId). */
+const hourly = new Map<number, { out: number; inp: number; req: number }>(); // epoch hour → Claude tokens (5-hour windows)
+const skillUse = new Map<string, number>(); // skill file name → times loaded in the last 7 d
 async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number }[]> {
+  hourly.clear(); skillUse.clear();
   const days = new Map<string, { input: number; cacheRead: number; cacheWrite: number; output: number; requests: number }>();
   const seen = new Set<string>();
   const since = Date.now() - 7 * 864e5;
@@ -66,6 +72,8 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
   for (const f of files) {
     const rl = createInterface({ input: createReadStream(f), crlfDelay: Infinity });
     for await (const line of rl) {
+      const sk = line.match(/\.claude\/skills\/([\w-]+)\.md/);
+      if (sk && line.includes('"tool_use"')) skillUse.set(sk[1], (skillUse.get(sk[1]) ?? 0) + 1);
       if (!line.includes('"usage"')) continue;
       try {
         const o = JSON.parse(line);
@@ -77,15 +85,77 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
         d.input += u.input_tokens ?? 0; d.cacheRead += u.cache_read_input_tokens ?? 0; d.cacheWrite += u.cache_creation_input_tokens ?? 0;
         d.output += u.output_tokens ?? 0; d.requests += 1;
         days.set(day, d);
+        const hr = Math.floor(Date.parse(o.timestamp) / 36e5);
+        const hb = hourly.get(hr) ?? { out: 0, inp: 0, req: 0 };
+        hb.out += u.output_tokens ?? 0; hb.inp += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0); hb.req += 1;
+        hourly.set(hr, hb);
       } catch { /* partial line */ }
     }
   }
   return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d }));
 }
 
+type LiveEv = { t: string; agent: string; event: string; tool?: string; session?: string; detail?: string };
+/** Hook events (Claude Code + Cursor hooks → ~/.fildi/agent-events.jsonl), last 24 h. Read fresh each call (small). */
+function liveEvents(): LiveEv[] {
+  try {
+    const txt = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8");
+    const since = new Date(Date.now() - 864e5).toISOString();
+    return txt.slice(-4_000_000).split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as LiveEv]; } catch { return []; } })
+      .filter((e) => e.t >= since);
+  } catch { return []; }
+}
+
+/** 5-hour windows (Claude plan limits reset on 5 h windows): current window vs the busiest window in 7 d. */
+function windows() {
+  const now = Math.floor(Date.now() / 36e5);
+  const sum = (end: number) => { let out = 0, inp = 0, req = 0; for (let h = end - 4; h <= end; h++) { const b = hourly.get(h); if (b) { out += b.out; inp += b.inp; req += b.req; } } return { out, inp, req }; };
+  const cur = sum(now);
+  let peak = { out: 0, inp: 0, req: 0 };
+  for (let h = now - 7 * 24; h <= now; h++) { const w = sum(h); if (w.out > peak.out) peak = w; }
+  const hours = Array.from({ length: 48 }, (_, i) => { const h = now - 47 + i; const b = hourly.get(h); return { t: new Date(h * 36e5).toISOString(), out: b?.out ?? 0, req: b?.req ?? 0 }; });
+  return { current: cur, peak, hours };
+}
+
+/** Curated one-line rules (.agents/rules.md): "## Group" headings + "- rule" lines. */
+function rules(): { group: string; title: string }[] {
+  const out: { group: string; title: string }[] = [];
+  let group = "";
+  try {
+    for (const line of readFileSync(resolve(ROOT, ".agents/rules.md"), "utf8").split("\n")) {
+      if (line.startsWith("## ")) group = line.slice(3).trim();
+      else if (line.startsWith("- ") && group) out.push({ group, title: line.slice(2).trim() });
+    }
+  } catch { /* missing → empty */ }
+  return out;
+}
+
+function skills(): { name: string; about: string; uses7d: number }[] {
+  const dir = resolve(ROOT, ".claude/skills");
+  try {
+    return readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => {
+      const txt = readFileSync(join(dir, f), "utf8");
+      const about = (txt.match(/^description:\s*(.+)$/m)?.[1] ?? txt.split("\n").find((l) => l.trim() && !l.startsWith("---") && !l.startsWith("#")) ?? "").replace(/^["'>\s]+|["']$/g, "").slice(0, 140);
+      const name = f.replace(/\.md$/, "");
+      return { name, about, uses7d: skillUse.get(name) ?? 0 };
+    }).sort((a, b) => b.uses7d - a.uses7d || a.name.localeCompare(b.name));
+  } catch { return []; }
+}
+
 let cache: { at: number; body: unknown } | null = null;
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
-  if (cache && Date.now() - cache.at < 10 * 60_000) return res.json(cache.body);
+  const live = liveEvents();
+  const nowMs = Date.now();
+  const status = (agent: string) => {
+    const mine = live.filter((e) => e.agent === agent);
+    const last = mine[mine.length - 1];
+    const recent = mine.filter((e) => nowMs - Date.parse(e.t) < 10 * 60_000);
+    const working = !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && last.event !== "stop";
+    return { working, lastEvent: last ?? null, sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
+      tools24h: mine.filter((e) => e.event === "tool" || e.event === "edit").length };
+  };
+  const fresh = { live: live.slice(-300), status: { claude: status("claude"), cursor: status("cursor") } };
+  if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
   const { ev, queue } = asks();
   const day = Date.now() - 864e5;
@@ -103,8 +173,8 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     };
   });
   const events = [...cm, ...ev].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
-  cache = { at: Date.now(), body: { agents, events, asOf: new Date().toISOString() } };
-  return res.json(cache.body);
+  cache = { at: Date.now(), body: { agents, events, asOf: new Date().toISOString(), rules: rules(), skills: skills() } };
+  return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
 });
 
 export default router;

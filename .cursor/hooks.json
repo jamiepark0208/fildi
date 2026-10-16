@@ -4,6 +4,19 @@
     "sessionStart": [
       {
         "command": ".cursor/scripts/session-start.js"
+      },
+      {
+        "command": "node .agents/hooks/agent-event.mjs cursor session-start"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .agents/hooks/agent-event.mjs cursor edit"
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .agents/hooks/agent-event.mjs cursor stop"
       }
     ]
   }
