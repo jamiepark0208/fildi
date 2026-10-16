@@ -21,8 +21,20 @@ try {
     const c = String(cmd).replace(/\s+/g, " ").trim();
     detail = c.length > 60 || /\n|&&|\|/.test(c) ? "ran a command" : c;
   }
+  // Activity kind (classified here, where the full command is visible): web · database · api · code · reading · other
+  const tool = String(p.tool_name ?? "");
+  const full = String(cmd ?? "");
+  const kind = event !== "tool" && event !== "edit" ? undefined
+    : /^(WebSearch|WebFetch)$/.test(tool) ? "web"
+    : event === "edit" || /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(tool) ? "code"
+    : /^(Read|Grep|Glob|LS)$/.test(tool) || /codegraph/i.test(tool) ? "reading"
+    : /^mcp__/.test(tool) ? "api"
+    : tool === "Bash" && /\bpsql\b|build_plan|connect\(|\.venv\/bin\/python|analysis\/|SELECT |INSERT |UPDATE |prices_historical|optlab|watchlist_sync\./i.test(full) ? "database"
+    : tool === "Bash" && /\bcurl\b|https?:\/\/|wget|fetch\(|polygon|schwab|yahoo|lseg|finnhub|alphavantage/i.test(full) ? "api"
+    : tool === "Bash" && /^\s*(cat|head|tail|grep|rg|ls|sed -n|find|wc)\b/.test(full) ? "reading"
+    : "other";
   const row = {
-    t: new Date().toISOString(), agent, event,
+    t: new Date().toISOString(), agent, event, kind,
     tool: p.tool_name ?? p.hook_event_name ?? undefined,
     session: p.session_id ?? p.conversation_id ?? undefined,
     detail: detail ? String(detail).replace(/\s+/g, " ").slice(0, 100) : undefined,

@@ -149,7 +149,19 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
   return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d }));
 }
 
-type LiveEv = { t: string; agent: string; event: string; tool?: string; session?: string; detail?: string };
+type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string };
+const KINDS = ["web", "database", "api", "code", "reading", "other"] as const;
+/** Fallback for events logged before the hook classified them (hook has the full command; this only sees the label). */
+function kindOf(e: LiveEv): string | undefined {
+  if (e.kind) return e.kind;
+  if (e.event !== "tool" && e.event !== "edit") return undefined;
+  const t = e.tool ?? "";
+  if (/^(WebSearch|WebFetch)$/.test(t)) return "web";
+  if (e.event === "edit" || /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(t)) return "code";
+  if (/^(Read|Grep|Glob|LS)$/.test(t) || /codegraph/i.test(t)) return "reading";
+  if (/^mcp__/.test(t)) return "api";
+  return "other";
+}
 /** Hook events (Claude Code + Cursor hooks → ~/.fildi/agent-events.jsonl), last 24 h. Read fresh each call (small). */
 function liveEvents(): LiveEv[] {
   try {
@@ -160,7 +172,7 @@ function liveEvents(): LiveEv[] {
       .filter((e) => e.t >= since);
     // Cursor also fires .claude hooks (logged as "claude"); any session that ever logs as cursor is Cursor's.
     const cursorSessions = new Set(evs.filter((e) => e.agent === "cursor" && e.session).map((e) => e.session));
-    return evs.map((e) => (e.session && cursorSessions.has(e.session) ? { ...e, agent: "cursor" } : e));
+    return evs.map((e) => ({ ...(e.session && cursorSessions.has(e.session) ? { ...e, agent: "cursor" } : e), kind: kindOf(e) }));
   } catch { return []; }
 }
 
@@ -226,19 +238,61 @@ router.post("/agents/ideas/:id/dismiss", requireAdmin, async (req, res) => {
   return res.json({ ok: true, id });
 });
 
+/** Claude plan limits: ~/.claude/statusline.sh saves Claude Code's statusline `rate_limits` (5-hour / 7-day used %, reset time). */
+function claudeLimits(): { at: string; fiveHour: { pct: number | null; resetsAt: string | null }; sevenDay: { pct: number | null; resetsAt: string | null } } | null {
+  try {
+    const j = JSON.parse(readFileSync(join(homedir(), ".fildi/claude-limits.json"), "utf8")) as { at: string; rate_limits?: Record<string, { used_percentage?: number; resets_at?: string | number }> | null };
+    const rl = j.rate_limits;
+    if (!rl) return null;
+    const one = (k: string) => {
+      const r = rl[k];
+      const ra = r?.resets_at;
+      const iso = ra == null ? null : typeof ra === "number" ? new Date(ra < 1e12 ? ra * 1000 : ra).toISOString() : String(ra);
+      return { pct: r?.used_percentage ?? null, resetsAt: iso };
+    };
+    return { at: j.at, fiveHour: one("five_hour"), sevenDay: one("seven_day") };
+  } catch { return null; }
+}
+
+let museCache: { at: number; running: boolean } | null = null;
+/** Muse is a desktop app (process "Muse"); it keeps no local session/token logs, so only "app open" is knowable here. */
+async function museRunning(): Promise<boolean> {
+  if (museCache && Date.now() - museCache.at < 30_000) return museCache.running;
+  let running = false;
+  try { await run("pgrep", ["-x", "Muse"]); running = true; } catch { running = false; }
+  museCache = { at: Date.now(), running };
+  return running;
+}
+
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const gone = await dismissed();
   const live = liveEvents();
   const nowMs = Date.now();
+  const ended = new Set(live.filter((e) => e.event === "session-end" && e.session).map((e) => e.session));
   const status = (agent: string) => {
     const mine = live.filter((e) => e.agent === agent);
     const last = mine[mine.length - 1];
-    const recent = mine.filter((e) => nowMs - Date.parse(e.t) < 10 * 60_000);
-    const working = !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && last.event !== "stop";
-    return { working, lastEvent: last ?? null, sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
+    const recent = mine.filter((e) => nowMs - Date.parse(e.t) < 10 * 60_000 && !(e.session && ended.has(e.session)));
+    const waiting = !!last && last.event === "waiting";
+    const working = !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && !["stop", "waiting", "session-end"].includes(last.event);
+    const lastKind = [...mine].reverse().find((e) => e.kind)?.kind ?? null;
+    return { working, waiting, lastKind, lastEvent: last ?? null, sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
       tools24h: mine.filter((e) => e.event === "tool" || e.event === "edit").length };
   };
-  const fresh = { live: live.slice(-300), status: { claude: status("claude"), cursor: status("cursor") } };
+  const hourAgo = nowMs - 36e5;
+  const activity1h: Record<string, Record<string, number>> = {};
+  for (const e of live) {
+    if (!e.kind || Date.parse(e.t) < hourAgo) continue;
+    (activity1h[e.kind] ??= {})[e.agent] = ((activity1h[e.kind] ??= {})[e.agent] ?? 0) + 1;
+  }
+  const fresh = {
+    live: live.filter((e) => !(e.session && ended.has(e.session)) || e.event !== "tool").slice(-300),
+    endedSessions: [...ended],
+    status: { claude: status("claude"), cursor: status("cursor") },
+    activity1h, kinds: KINDS,
+    limits: { claude: claudeLimits() },
+    muse: { running: await museRunning() },
+  };
   if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
   const { ev, queue, ideas } = asks();

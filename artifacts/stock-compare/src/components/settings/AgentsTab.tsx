@@ -17,8 +17,9 @@ type Id = "muse" | "claude" | "cursor" | "jamie";
 type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number };
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
-type Live = { t: string; agent: string; event: string; tool?: string; session?: string; detail?: string };
-type Status = { working: boolean; lastEvent: Live | null; sessions10m: number; tools24h: number };
+type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string };
+type Status = { working: boolean; waiting?: boolean; lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number };
+type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
 type Idea = { id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string };
 type Data = {
@@ -26,7 +27,25 @@ type Data = {
   status: Record<"claude" | "cursor", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
+  activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
+  limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
 };
+/** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
+const KIND: Record<string, { label: string; color: string; node?: string }> = {
+  web: { label: "web research", color: "#fb923c", node: "web" },
+  database: { label: "database", color: "#60a5fa", node: "db" },
+  api: { label: "external APIs", color: "#a78bfa", node: "api" },
+  code: { label: "writing code", color: "#4ade80", node: "repo" },
+  reading: { label: "reading code", color: "#ffffff", node: "repo" },
+  other: { label: "other", color: "#a1a1aa" },
+};
+const NODES: Record<string, { label: string; ang: number; kinds: string[] }> = {
+  web: { label: "Web", ang: -112, kinds: ["web"] },
+  repo: { label: "Repo", ang: -68, kinds: ["code", "reading"] },
+  api: { label: "APIs", ang: 30, kinds: ["api"] },
+  db: { label: "Database", ang: 150, kinds: ["database"] },
+};
+const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
 
 const META: Record<Id, { label: string; role: string; color: string; ang: number }> = {
@@ -47,7 +66,7 @@ const ago = (t: string | null | undefined) => {
   return m < 1 ? "now" : m < 60 ? `${Math.round(m)}m` : m < 2880 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
 };
 const TIP = "max-w-[340px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug";
-const SUB_TABS = ["Team", "Ideas", "Usage", "Rules", "Skills"] as const;
+const SUB_TABS = ["Stage", "Ideas", "Usage", "Rules", "Skills"] as const;
 
 function InfoTip({ children }: { children: React.ReactNode }) {
   return (
@@ -71,7 +90,12 @@ function humanAction(e: Live): string {
 }
 
 // ── canvas primitives ────────────────────────────────────────────────────────────────────────────────────────────────
-function drawOrb(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string, o: { working?: boolean; selected?: boolean; now: number; reduce: boolean }) {
+function drawOrb(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string, o: { working?: boolean; selected?: boolean; now: number; reduce: boolean; ring?: string; pulse?: string }) {
+  if (o.pulse) { // waiting for you: soft yellow pulse
+    const k = o.reduce ? 0.6 : 0.5 + 0.5 * Math.sin(o.now / 300);
+    ctx.strokeStyle = o.pulse; ctx.globalAlpha = 0.35 + 0.5 * k; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, r + 6 + 4 * k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  }
   const glow = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * (o.working ? 2.8 : 2));
   glow.addColorStop(0, c + (o.working ? "bb" : "66")); glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, r * 2.8, 0, 7); ctx.fill();
@@ -84,7 +108,8 @@ function drawOrb(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
   ctx.fillStyle = spec; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   if (o.working && !o.reduce) {
     const a = o.now / 380;
-    ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.shadowColor = c; ctx.shadowBlur = 10;
+    const rc = o.ring ?? c;
+    ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.shadowColor = rc; ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(x, y, r + 7, a, a + 1.7); ctx.stroke(); ctx.shadowBlur = 0;
   }
 }
@@ -111,8 +136,8 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 }
 
 /** Zoom/pan canvas. draw() works in world coords (0,0 = centre); hit() maps a world point to an item id. */
-function ZoomCanvas({ height, draw, hit, onPick, hint, grid = true, tip }: {
-  height: number; hint: string; grid?: boolean; tip?: (id: string) => React.ReactNode;
+function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip }: {
+  height: number; grid?: boolean; tip?: (id: string) => React.ReactNode;
   draw: (ctx: CanvasRenderingContext2D, now: number, v: View, w: number, h: number) => void;
   hit: (x: number, y: number, w: number, h: number) => string | null; onPick: (id: string | null) => void;
 }) {
@@ -190,7 +215,6 @@ function ZoomCanvas({ height, draw, hit, onPick, hint, grid = true, tip }: {
         <button type="button" onClick={() => { view.current = { z: 1, x: 0, y: 0 }; }}
           className="px-2 h-7 rounded-md bg-black/70 border border-white/15 text-white/80 text-[11px] hover:border-cyan-300/50">reset</button>
       </div>
-      <div className="absolute bottom-2 left-2.5 text-[11px] text-white/45">{hint}</div>
     </div>
   );
 }
@@ -198,34 +222,48 @@ function ZoomCanvas({ height, draw, hit, onPick, hint, grid = true, tip }: {
 // ── Team ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id | "all") => void }) {
   const sessions = useMemo(() => {
+    const ended = new Set(d.endedSessions ?? []);
     const by = new Map<string, { agent: string; last: Live }>();
-    for (const e of d.live) if (e.session && Date.now() - Date.parse(e.t) < 10 * 60_000) by.set(e.session, { agent: e.agent, last: e });
-    return [...by.values()];
-  }, [d.live]);
+    for (const e of d.live) if (e.session && !ended.has(e.session) && Date.now() - Date.parse(e.t) < 10 * 60_000) by.set(e.session, { agent: e.agent, last: e });
+    return [...by.values()].filter((s) => s.last.event !== "session-end");
+  }, [d.live, d.endedSessions]);
   const seen = useRef(new Set<string>());
-  const beams = useRef<{ from: Id; t0: number }[]>([]);
+  const beams = useRef<{ from: { x: number; y: number }; to: { x: number; y: number }; c: string; t0: number }[]>([]);
   const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const R = 150;
+  const R = 150, R2 = 285;
   const pos = (id: Id) => { if (id === "jamie") return { x: 0, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: Math.cos(a) * R, y: Math.sin(a) * R }; };
+  const npos = (n: string) => { const a = (NODES[n].ang * Math.PI) / 180; return { x: Math.cos(a) * R2, y: Math.sin(a) * R2 }; };
   const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
     for (const e of d.live) {
-      const k = `${e.t}|${e.agent}|${e.tool}|${e.detail}`;
+      const k = `${e.t}|${e.agent}|${e.event}|${e.tool}|${e.detail}`;
       if (seen.current.has(k)) continue;
       seen.current.add(k);
       const age = Date.now() - Date.parse(e.t);
-      if (!reduce && age < LIVE_MS && (e.agent === "claude" || e.agent === "cursor")) beams.current.push({ from: e.agent as Id, t0: now - Math.min(age, 800) });
+      if (reduce || age >= LIVE_MS || !(e.agent in META)) continue;
+      const a = pos(e.agent as Id), col = META[e.agent as Id].color, t0 = now - Math.min(age, 800);
+      if (e.event === "prompt") beams.current.push({ from: pos("jamie"), to: a, c: META.jamie.color, t0 }); // you → agent
+      else if (e.event === "stop" || e.event === "waiting") beams.current.push({ from: a, to: pos("jamie"), c: col, t0 }); // reply to you
+      else if (e.kind && KIND[e.kind]?.node) beams.current.push({ from: a, to: npos(KIND[e.kind].node!), c: KIND[e.kind].color, t0 });
     }
-    beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-30);
+    beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-40);
     for (const id of ["muse", "claude", "cursor"] as Id[]) {
       const p = pos(id);
       ctx.strokeStyle = META[id].color + "30"; ctx.lineWidth = 1.2 / v.z;
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(p.x, p.y); ctx.stroke();
     }
+    for (const n of Object.keys(NODES)) { // resource nodes: Database · Web · APIs · Repo
+      const p = npos(n), c = KIND[NODES[n].kinds[0]].color;
+      drawOrb(ctx, p.x, p.y, 17, c === "#ffffff" ? "#cbd5e1" : c, { now, reduce });
+      let fs = 10; ctx.font = `700 ${fs}px ui-sans-serif`;
+      while (fs > 6 && ctx.measureText(NODES[n].label).width > 17 * 1.75) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 4;
+      ctx.fillStyle = "#ffffff"; ctx.fillText(NODES[n].label, p.x, p.y); ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+    }
     for (const b of beams.current) {
-      const p = pos(b.from), k = Math.min(1, (now - b.t0) / 850), c = META[b.from].color;
-      ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 16;
-      ctx.beginPath(); ctx.arc(p.x * (1 - k), p.y * (1 - k), 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      const k = Math.min(1, (now - b.t0) / 850);
+      ctx.fillStyle = b.c; ctx.shadowColor = b.c; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(b.from.x + (b.to.x - b.from.x) * k, b.from.y + (b.to.y - b.from.y) * k, 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
     }
     sessPos.current = [];
     const byAgent = new Map<string, typeof sessions>();
@@ -245,9 +283,12 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     for (const id of Object.keys(META) as Id[]) {
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
       const r = id === "jamie" ? 30 : 25;
-      drawOrb(ctx, p.x, p.y, r, META[id].color, { working: !!st?.working, selected: sel === id, now, reduce });
-      // name inside the orb, sized to fit its diameter
-      const label = META[id].label;
+      const museOff = id === "muse" && d.muse && !d.muse.running;
+      drawOrb(ctx, p.x, p.y, r, museOff ? "#71717a" : META[id].color, {
+        working: !!st?.working, selected: sel === id, now, reduce,
+        ring: st?.lastKind ? KIND[st.lastKind]?.color : undefined, pulse: st?.waiting ? WAIT : undefined,
+      });
+      const label = META[id].label; // name inside the orb, sized to fit
       let fs = 14;
       ctx.font = `700 ${fs}px ui-sans-serif`;
       while (fs > 7 && ctx.measureText(label).width > r * 1.7) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
@@ -259,10 +300,22 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   };
   const hit = (x: number, y: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
+    for (const n of Object.keys(NODES)) { const p = npos(n); if (Math.hypot(p.x - x, p.y - y) < 22) return `n:${n}`; }
     for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     return null;
   };
   const tip = (id: string) => {
+    if (id.startsWith("n:")) {
+      const n = NODES[id.slice(2)];
+      const rows = n.kinds.flatMap((k) => Object.entries(d.activity1h?.[k] ?? {}).map(([agent, c]) => ({ k, agent, c })));
+      return (
+        <>
+          <div className="font-semibold">{n.label} <span className="font-normal text-white/60">· last hour</span></div>
+          {rows.length ? rows.map((r) => <div key={r.k + r.agent}><span style={{ color: META[r.agent as Id]?.color }}>{META[r.agent as Id]?.label ?? r.agent}</span> · {r.c} {KIND[r.k].label}</div>)
+            : <div className="text-white/60">No activity</div>}
+        </>
+      );
+    }
     if (id.startsWith("s:")) {
       const sp = sessPos.current.find((x) => x.key === id);
       if (!sp) return null;
@@ -276,15 +329,46 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       <>
         <div className="font-semibold" style={{ color: m.color }}>{m.label} <span className="font-normal text-white/60">· {m.role}</span></div>
         {id === "jamie" ? <div>Approves scores, trades, unattended agents</div> : <>
-          <div>{st ? (st.working ? "● Working now" : `Idle · last action ${ago(st.lastEvent?.t)}`) : `Last commit ${ago(a?.lastActive)}`}</div>
+          <div>{st ? (st.waiting ? "● Waiting for you" : st.working ? `● Working · ${KIND[st.lastKind ?? "other"]?.label ?? ""}` : `Idle · last action ${ago(st.lastEvent?.t)}`)
+            : id === "muse" ? `${d.muse?.running ? "App open" : "App closed"} · last commit ${ago(a?.lastActive)}` : `Last commit ${ago(a?.lastActive)}`}</div>
           {st?.lastEvent && <div className="text-white/70">{humanAction(st.lastEvent)}</div>}
           <div className="text-white/70">{a?.commits24h ?? 0} commits 24h · queue {a?.queue ?? 0}{n ? ` · ${n} session${n > 1 ? "s" : ""}` : ""}</div>
         </>}
       </>
     );
   };
-  return <ZoomCanvas height={360} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id?.startsWith("s:")) onSel((id as Id) ?? "all"); }}
-    hint="scroll = zoom · drag = pan · hover or click an orb · small orbs = live sessions" />;
+  return (
+    <div className="space-y-1">
+      <ZoomCanvas height={380} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
+        {(["web", "database", "api", "code", "reading"] as const).map((k) => (
+          <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: KIND[k].color }} />{KIND[k].label}</span>
+        ))}
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: WAIT }} />waiting for you</span>
+      </div>
+    </div>
+  );
+}
+
+/** Plan headroom. Claude: statusline rate_limits (5-hour / 7-day used %) saved by ~/.claude/statusline.sh. */
+function Available({ id, d }: { id: Id; d: Data }) {
+  const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—");
+  const cell = (text: React.ReactNode, tip: React.ReactNode, cls = "text-white/60") => (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
+      <TooltipContent side="bottom" className={TIP}>{tip}</TooltipContent>
+    </Tooltip>
+  );
+  if (id === "claude") {
+    const l = d.limits?.claude;
+    if (!l || l.fiveHour.pct == null) return cell("see /usage", "Claude Code shares plan limits with its status line; the number appears here after the next status-line refresh in a Claude session. Until then type /usage in Claude.");
+    const left = Math.max(0, 100 - l.fiveHour.pct);
+    return cell(<>{Math.round(left)}% left · resets {hm(l.fiveHour.resetsAt)}</>,
+      <>5-hour window: {Math.round(l.fiveHour.pct)}% used, resets {hm(l.fiveHour.resetsAt)}.{l.sevenDay.pct != null && <> Weekly: {Math.round(l.sevenDay.pct)}% used{l.sevenDay.resetsAt ? `, resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}.</>} As of {hm(l.at)}.</>,
+      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
+  }
+  if (id === "cursor") return cell("n/a", "Cursor dashboard only (cursor.com/dashboard): Cursor doesn't record usage on this Mac.");
+  return cell("n/a", "Muse is a desktop app that keeps no usage logs on this Mac; only whether the app is open is visible.");
 }
 
 function TeamPanel({ d }: { d: Data }) {
@@ -301,6 +385,7 @@ function TeamPanel({ d }: { d: Data }) {
         <table className="w-full border-collapse">
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
+            <th className={cn(GRID_TH, "text-right")}>Tokens used</th><th className={cn(GRID_TH, "text-right")}>Available</th>
             <th className={cn(GRID_TH, "text-right")}>Commits 24h / 7d</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
             <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
           </tr></thead>
@@ -309,7 +394,14 @@ function TeamPanel({ d }: { d: Data }) {
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
-                <td className={cn(GRID_TD, st?.working ? "text-emerald-300" : "text-white/70")}>{st ? (st.working ? "● working" : `idle ${ago(st.lastEvent?.t)}`) : `last commit ${ago(a.lastActive)}`}</td>
+                <td className={cn(GRID_TD, st?.waiting ? "text-yellow-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
+                  {st ? (st.waiting ? "● waiting for you" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
+                    : a.id === "muse" ? `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}` : `last commit ${ago(a.lastActive)}`}
+                </td>
+                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
+                  {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : "—"}
+                </td>
+                <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
                 <td className={cn(GRID_TD, "text-right", a.queue > 20 ? "text-red-300" : "text-white")}>{a.queue}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{st ? st.tools24h : "—"}</td>
@@ -409,7 +501,7 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
           {showParked ? "Hide done / parked" : "Show done / parked"}
         </button>
       </div>
-      <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} hint="scroll = zoom · drag = pan · hover or click a cube" />
+      <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} />
       {active && (
         <div className="rounded-lg border px-3 py-2.5 space-y-1.5" style={{ borderColor: (PHASE_COLOR[active.phase] ?? "#e879f9") + "66", background: (PHASE_COLOR[active.phase] ?? "#e879f9") + "0d" }}>
           <div className="flex flex-wrap items-baseline gap-2 text-[12px]">
@@ -538,18 +630,12 @@ export function AgentsTab() {
     },
     refetchInterval: 15_000, // live events are a cheap file tail; commits/tokens are cached server-side
   });
-  const [tab, setTab] = useState<(typeof SUB_TABS)[number]>("Team");
+  const [tab, setTab] = useState<(typeof SUB_TABS)[number]>("Stage");
   if (isLoading || !data) return <p className="text-xs text-white/50">Loading…</p>;
-  const working = (["claude", "cursor"] as const).filter((a) => data.status[a].working);
   const ideas = data.ideas ?? [];
-  const activeIdeas = ideas.filter((i) => !["parked", "done", "verified"].includes(i.phase)).length;
   return (
     <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <span className="text-white">
-          {working.length ? <>Working: {working.map((a) => <span key={a} className="font-semibold" style={{ color: META[a].color }}> {META[a].label}</span>)}</> : "No agent working right now"}
-        </span>
-        <span className="text-white/55">· Claude {fmt(data.windows.current.out)} tokens this 5h · {activeIdeas} ideas active</span>
         <div className="ml-auto inline-flex rounded-md border border-[#d4af37]/30 overflow-hidden text-[12px] font-semibold">
           {SUB_TABS.map((t) => (
             <button key={t} type="button" onClick={() => setTab(t)}
@@ -557,7 +643,7 @@ export function AgentsTab() {
           ))}
         </div>
       </div>
-      {tab === "Team" && <TeamPanel d={data} />}
+      {tab === "Stage" && <TeamPanel d={data} />}
       {tab === "Ideas" && <IdeasPanel ideas={ideas} />}
       {tab === "Usage" && <Usage d={data} />}
       {tab === "Rules" && <Rules d={data} />}
