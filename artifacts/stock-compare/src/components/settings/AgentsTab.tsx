@@ -6,7 +6,7 @@
  * Data: GET /api/agents/overview.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -199,11 +199,12 @@ function ZoomCanvas({ height, draw, hit, onPick, hint, grid = true, tip }: {
 function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id | "all") => void }) {
   const sessions = useMemo(() => {
     const by = new Map<string, { agent: string; last: Live }>();
-    for (const e of d.live) if (e.session && Date.now() - Date.parse(e.t) < 30 * 60_000) by.set(e.session, { agent: e.agent, last: e });
+    for (const e of d.live) if (e.session && Date.now() - Date.parse(e.t) < 10 * 60_000) by.set(e.session, { agent: e.agent, last: e });
     return [...by.values()];
   }, [d.live]);
   const seen = useRef(new Set<string>());
   const beams = useRef<{ from: Id; t0: number }[]>([]);
+  const sessPos = useRef<{ key: string; x: number; y: number; s: { agent: string; last: Live } }[]>([]);
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const R = 150;
   const pos = (id: Id) => { if (id === "jamie") return { x: 0, y: 0 }; const a = (META[id].ang * Math.PI) / 180; return { x: Math.cos(a) * R, y: Math.sin(a) * R }; };
@@ -226,6 +227,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 16;
       ctx.beginPath(); ctx.arc(p.x * (1 - k), p.y * (1 - k), 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
     }
+    sessPos.current = [];
     const byAgent = new Map<string, typeof sessions>();
     for (const s of sessions) byAgent.set(s.agent, [...(byAgent.get(s.agent) ?? []), s]);
     for (const [agent, list] of byAgent) {
@@ -237,18 +239,36 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         const live = Date.now() - Date.parse(s.last.t) < LIVE_MS;
         ctx.strokeStyle = col + "50"; ctx.lineWidth = 1 / v.z; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(sx, sy); ctx.stroke();
         drawOrb(ctx, sx, sy, live ? 6 : 4.5, col, { working: false, now, reduce });
+        sessPos.current.push({ key: `s:${agent}:${i}`, x: sx, y: sy, s });
       });
     }
     for (const id of Object.keys(META) as Id[]) {
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
-      drawOrb(ctx, p.x, p.y, id === "jamie" ? 30 : 25, META[id].color, { working: !!st?.working, selected: sel === id, now, reduce });
+      const r = id === "jamie" ? 30 : 25;
+      drawOrb(ctx, p.x, p.y, r, META[id].color, { working: !!st?.working, selected: sel === id, now, reduce });
+      // name inside the orb, sized to fit its diameter
+      const label = META[id].label;
+      let fs = 14;
+      ctx.font = `700 ${fs}px ui-sans-serif`;
+      while (fs > 7 && ctx.measureText(label).width > r * 1.7) { fs -= 0.5; ctx.font = `700 ${fs}px ui-sans-serif`; }
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 4;
+      ctx.fillStyle = "#ffffff"; ctx.fillText(label, p.x, p.y);
+      ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     }
   };
   const hit = (x: number, y: number) => {
     for (const id of Object.keys(META) as Id[]) { const p = pos(id); if (Math.hypot(p.x - x, p.y - y) < 34) return id; }
+    for (const sp of sessPos.current) if (Math.hypot(sp.x - x, sp.y - y) < 10) return sp.key;
     return null;
   };
   const tip = (id: string) => {
+    if (id.startsWith("s:")) {
+      const sp = sessPos.current.find((x) => x.key === id);
+      if (!sp) return null;
+      const m = META[sp.s.agent as Id];
+      return <div><span style={{ color: m?.color }}>{m?.label ?? sp.s.agent} session</span> · {humanAction(sp.s.last)} · {ago(sp.s.last.t)}</div>;
+    }
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
     const n = sessions.filter((s) => s.agent === id).length;
@@ -263,8 +283,8 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       </>
     );
   };
-  return <ZoomCanvas height={360} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => onSel((id as Id) ?? "all")}
-    hint="scroll = zoom · drag = pan · hover or click an orb" />;
+  return <ZoomCanvas height={360} grid={false} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id?.startsWith("s:")) onSel((id as Id) ?? "all"); }}
+    hint="scroll = zoom · drag = pan · hover or click an orb · small orbs = live sessions" />;
 }
 
 function TeamPanel({ d }: { d: Data }) {
@@ -327,24 +347,36 @@ function TeamPanel({ d }: { d: Data }) {
 function IdeasPanel({ ideas }: { ideas: Idea[] }) {
   const [sel, setSel] = useState<string | null>(null);
   const [showParked, setShowParked] = useState(false);
-  const cols = PHASES.filter((p) => showParked || (p !== "parked" && p !== "done"));
-  const visible = ideas.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  // Declutter: by default only open stages + done rows filed ≤ 7 days ago (no done-date in ASKS; filing date is the proxy).
+  const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
+  const shown = ideas.filter((i) => showParked || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date))));
+  const cols = PHASES.filter((p) => shown.some((i) => i.phase === p) || ["needs you", "filed", "reviewed", "building"].includes(p));
+  const visible = shown.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
+  const dismiss = async (id: string) => {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/agents/ideas/${encodeURIComponent(id)}/dismiss`, { method: "POST", credentials: "include" });
+      if (r.ok) { setSel(null); await qc.invalidateQueries({ queryKey: ["agents-overview"] }); }
+    } finally { setBusy(false); }
+  };
   const active = ideas.find((i) => i.id === sel) ?? null;
   const COLW = 130, S = 13, ROWH = 46, PER = 3; // cubes per row inside a phase column
   const layout = useMemo(() => {
     const out: { idea: Idea; x: number; y: number }[] = [];
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
-      ideas.filter((i) => i.phase === ph).forEach((idea, k) => {
+      shown.filter((i) => i.phase === ph).forEach((idea, k) => {
         out.push({ idea, x: x0 + ci * COLW + ((k % PER) - (PER - 1) / 2) * 36, y: -110 + Math.floor(k / PER) * ROWH });
       });
     });
     return out;
-  }, [ideas, cols.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown.map((i) => i.id).join(), cols.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const draw = (ctx: CanvasRenderingContext2D, _now: number, v: View) => {
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
-      const n = ideas.filter((i) => i.phase === ph).length;
+      const n = shown.filter((i) => i.phase === ph).length;
       ctx.fillStyle = PHASE_COLOR[ph]; ctx.font = "600 12px ui-sans-serif"; ctx.textAlign = "center";
       ctx.fillText(`${ph.toUpperCase()} · ${n}`, x0 + ci * COLW, -150);
       ctx.strokeStyle = PHASE_COLOR[ph] + "25"; ctx.lineWidth = 1 / v.z;
@@ -387,7 +419,15 @@ function IdeasPanel({ ideas }: { ideas: Idea[] }) {
           </div>
           <p className="text-[14px] text-white font-medium leading-snug">{active.title}</p>
           <p className="text-[13px] text-white leading-relaxed whitespace-pre-line">{active.blurb || "No Context section in the ask file yet."}</p>
-          <p className="text-[11px] text-white/80">Status: {active.status}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] text-white/80">Status: {active.status}</p>
+            {/^A\d+$/.test(active.id) && (
+              <button type="button" disabled={busy} onClick={() => dismiss(active.id)}
+                className="ml-auto rounded-md border border-white/20 px-2.5 py-1 text-[11px] text-white hover:border-red-300/60 hover:text-red-200 disabled:opacity-50">
+                {busy ? "Dismissing…" : "Dismiss"}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

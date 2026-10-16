@@ -20,6 +20,8 @@ import { createInterface } from "node:readline";
 import { homedir } from "node:os";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 
 const router = Router();
@@ -199,7 +201,33 @@ function skills(): { name: string; about: string; uses7d: number }[] {
 }
 
 let cache: { at: number; body: unknown } | null = null;
+/** Jamie's dismissed ideas (Settings › Agents › Ideas → Dismiss). Claude marks those ASKS rows declined at session start. */
+let dismissDdl = false;
+async function dismissed(): Promise<Set<string>> {
+  try {
+    if (!dismissDdl) {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.agent_idea_dismissals (id text PRIMARY KEY, dismissed_at timestamptz DEFAULT now())`);
+      dismissDdl = true;
+    }
+    const r = (await db.execute(sql`SELECT id FROM watchlist_sync.agent_idea_dismissals`)) as unknown as { id: string }[] | { rows?: { id: string }[] };
+    return new Set((Array.isArray(r) ? r : r.rows ?? []).map((x) => x.id));
+  } catch { return new Set(); }
+}
+const withoutDismissed = (body: object, gone: Set<string>) => {
+  const b = body as { ideas?: { id: string }[] };
+  return gone.size && b.ideas ? { ...b, ideas: b.ideas.filter((i) => !gone.has(i.id)) } : body;
+};
+
+router.post("/agents/ideas/:id/dismiss", requireAdmin, async (req, res) => {
+  const id = String(req.params.id ?? "");
+  if (!/^A\d+$/.test(id)) return res.status(400).json({ error: "bad id" });
+  await dismissed(); // ensures the table exists
+  await db.execute(sql`INSERT INTO watchlist_sync.agent_idea_dismissals (id) VALUES (${id}) ON CONFLICT (id) DO NOTHING`);
+  return res.json({ ok: true, id });
+});
+
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
+  const gone = await dismissed();
   const live = liveEvents();
   const nowMs = Date.now();
   const status = (agent: string) => {
@@ -211,7 +239,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
       tools24h: mine.filter((e) => e.event === "tool" || e.event === "edit").length };
   };
   const fresh = { live: live.slice(-300), status: { claude: status("claude"), cursor: status("cursor") } };
-  if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
+  if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
   const { ev, queue, ideas } = asks();
   const day = Date.now() - 864e5;
@@ -230,7 +258,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   });
   const events = [...cm, ...ev].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
   cache = { at: Date.now(), body: { agents, events, ideas, asOf: new Date().toISOString(), rules: rules(), skills: skills() } };
-  return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
+  return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
 });
 
 export default router;

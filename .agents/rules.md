@@ -2,6 +2,7 @@
 ## All agents
 - Never make Jamie relay messages: ASKS is the log
 - Pull before filing or editing; never overwrite another agent's uncommitted work
+- Before editing a file, check Settings › Agents (or ~/.fildi/agent-events.jsonl) for another agent's edits to it in the last hour
 - One home per piece of logic
 - Every commit carries an `Agent:` trailer
 - Free / local tools first; state cost before anything heavy

@@ -8,9 +8,5 @@ Why: lets cloud agents read Fildi's public market data with your Mac closed. Pri
 3. tailscale.com → sign up → install the Mac app → Settings › Keys → Generate auth key.
 4. Paste the IP + auth key in research/inbox.md. Claude sets it up and closes all public ports.
 
-## J2 Decide: warn Cursor when Claude is editing the same files?
-Why: Cursor restyled the Agents tab while Claude was building it. A Cursor session-start hook can list files another agent touched in the last hour.
-Answer yes/no in research/inbox.md.
-
 ## J3 Later: go on the unattended data-team agent (report-only week 1)
 Why: nightly checks for bad data (wrong sources, missing values, stale jobs). Waits until the current study queue is done. Say "go" when ready.
