@@ -39,6 +39,7 @@ Branch of record: **`cursor/mac-dev`**. Do not require the user to relay message
 | Muse | ASKS rows (+ commit messages). Optional: brief note under `research/common/` only if ASKS is too coarse |
 
 ## Output contract
+Caveman style, always (AGENTS.md rule 9): terse, answer first, numbers kept, plain words.
 For each suspected bug or monitor alert:
 1. **Claim** — one sentence
 2. **Evidence** — file + symbol / log / endpoint + why it’s harmful *today*

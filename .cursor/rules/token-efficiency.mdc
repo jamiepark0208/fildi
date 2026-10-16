@@ -23,6 +23,8 @@ Do not spawn subagents just to summarize the prompt.
 
 ## Response style (safe compression)
 
+Caveman style, always (AGENTS.md rule 9): terse fragments, answer first, facts + numbers kept.
+
 Use this structure when reporting back:
 
 ```

@@ -4,7 +4,7 @@
 > Claude Code only. Shared product/ops SoT: `.agents/context/INDEX.md` (also root `AGENTS.md`). Session state lives in `.agents/context/state.md` — read it when resuming work.
 
 ## RESPONSE STYLE
-Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
+Caveman style (AGENTS.md rule 9). Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
 
 ## STARTUP (every session)
 No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
