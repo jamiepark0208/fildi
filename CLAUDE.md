@@ -52,6 +52,7 @@ Full catalog: .agents/AGENTS.md
 Use before touching any source file (call it yourself — no hook runs codegraph automatically; the Read-guard hook only warns on untargeted reads).
 - codegraph context "<task>" — symbols + callers before any edit; use `maxNodes:10` to limit output
 - codegraph impact <symbol> — what breaks before changing a function
+- Route map (UI ↔ api route): `node scripts/route-map.mjs` → `.agents/context/route-map.md`; commit impact: `scripts/commit-impact.sh <sha>` (A128 — scripts, not a 2nd MCP)
 - For a specific symbol body: `codegraph_node` with `includeCode:true`; for broad mapping: `includeCode:false`
 
 **Fallback chain (in order — do NOT skip steps):**

@@ -104,7 +104,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A125](asks/A125.md) | 2026-10-16 | Muse → Cursor | Video Lab tab: upload test shorts + co-generate ideas | planned, P3 (Claude 10-16: + 'Reel inbox' so Jamie's forwarded videos feed ASKS) |
 | [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | planned, P2 (Claude 10-16: dependency fixed — Polygon free 1-min bars back 2 years) |
 | [A127](asks/A127.md) | 2026-10-16 | Muse → Cursor | UI motion polish (Lenis + react-bits) | planned, P3 (Claude 10-16: exclude charts/tables from Lenis) |
-| [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | in progress (Claude 10-16 v3: build the 2 missing features as scripts; no new MCP) |
+| [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | done (Claude 10-16: route-map + commit-impact scripts, no MCP) |
 | [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | planned, P2 (Claude 10-16 v3: Jamie wants it; build the forecast ledger first) |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | in progress (Claude 10-16 v3: manual workaround — log every metered call first) |
 | [A131](asks/A131.md) | 2026-10-16 | Muse → Cursor | Backtest timestamp-leakage audit | planned, P1 (Claude 10-16: concrete risk list added; Claude signs off) |
