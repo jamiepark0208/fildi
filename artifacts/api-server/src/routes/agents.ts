@@ -9,6 +9,7 @@
  *   - live: hook events (.agents/hooks/agent-event.mjs → ~/.fildi/agent-events.jsonl): working now = event < 2 min, not stopped.
  *   - windows: Claude output tokens per 5-hour window (plan limits reset per 5 h; the plan's cap isn't exposed → compare to own peak).
  *   - rules: .agents/rules.md (curated one-liners) · skills: .claude/skills/*.md + loads in the last 7 d.
+ *   - ideas: Muse → Cursor ASKS rows (lifecycle phase + Context blurb) for Settings › Agents › Ideas cubes.
  * Commits/tokens cached 10 min; live events read fresh. Reads only, never writes.
  */
 import { Router } from "express";
@@ -41,10 +42,37 @@ async function commits(): Promise<Ev[]> {
   });
 }
 
-/** ASKS index rows → hand-off events; date comes from the row (day precision), time from the commit that added it if known. */
-function asks(): { ev: Ev[]; queue: Record<AgentId, number> } {
+type Idea = {
+  id: string; date: string; from: AgentId; to: AgentId; title: string; status: string;
+  phase: string; quant: boolean; blurb: string;
+};
+
+function ideaBlurb(id: string): string {
+  try {
+    const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
+    const m = txt.match(/## Context\s*\n([\s\S]*?)(?=\n## |\n*$)/);
+    return (m?.[1] ?? "").replace(/\s+/g, " ").trim().slice(0, 480);
+  } catch {
+    return "";
+  }
+}
+
+function ideaPhase(status: string): string {
+  const s = status.trim().toLowerCase();
+  if (s.startsWith("verified")) return "verified";
+  if (s.startsWith("done")) return "done";
+  if (s.startsWith("declined") || s.startsWith("deferred")) return "parked";
+  if (s.startsWith("accepted") || s.startsWith("partial")) return "building";
+  if (s.startsWith("planned")) return "reviewed";
+  if (/needs jamie|user call/.test(s)) return "needs you";
+  return "filed";
+}
+
+/** ASKS index → hand-offs (7d) + Muse idea board (all open/active rows). */
+function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0 };
   const ev: Ev[] = [];
+  const ideas: Idea[] = [];
   const since = Date.now() - 7 * 864e5;
   for (const line of readFileSync(resolve(ROOT, "research/common/ASKS.md"), "utf8").split("\n")) {
     const m = line.match(/^\| \[(A\d+)\][^|]*\| (\d{4}-\d{2}-\d{2}) \| (\w+) → (\w+) \| (.*) \| ([^|]*) \|$/);
@@ -55,8 +83,23 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number> } {
     if (/^(open|planned|accepted|partial)/i.test(status.trim())) queue[dest] += 1;
     if (/needs jamie|user call/i.test(status)) queue.jamie += 1;
     if (Date.parse(d) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
+    // Muse idea cubes: Muse → Cursor rows still on the board (not archived)
+    if (from === "muse" && dest === "cursor") {
+      ideas.push({
+        id, date: d, from, to: dest,
+        title: title.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
+        status: status.trim(),
+        phase: ideaPhase(status),
+        quant: /\[quant\]/i.test(title),
+        blurb: ideaBlurb(id),
+      });
+    }
   }
-  return { ev, queue };
+  const rank: Record<string, number> = {
+    "needs you": 0, filed: 1, reviewed: 2, building: 3, done: 4, verified: 5, parked: 6,
+  };
+  ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || b.date.localeCompare(a.date));
+  return { ev, queue, ideas };
 }
 
 /** Claude token use per day from session logs (dedupe streamed blocks by requestId). */
@@ -101,8 +144,12 @@ function liveEvents(): LiveEv[] {
   try {
     const txt = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8");
     const since = new Date(Date.now() - 864e5).toISOString();
-    return txt.slice(-4_000_000).split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as LiveEv]; } catch { return []; } })
+    const evs = txt.slice(-4_000_000).split("\n").filter(Boolean)
+      .flatMap((l) => { try { return [JSON.parse(l) as LiveEv]; } catch { return []; } })
       .filter((e) => e.t >= since);
+    // Cursor also fires .claude hooks (logged as "claude"); any session that ever logs as cursor is Cursor's.
+    const cursorSessions = new Set(evs.filter((e) => e.agent === "cursor" && e.session).map((e) => e.session));
+    return evs.map((e) => (e.session && cursorSessions.has(e.session) ? { ...e, agent: "cursor" } : e));
   } catch { return []; }
 }
 
@@ -157,7 +204,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const fresh = { live: live.slice(-300), status: { claude: status("claude"), cursor: status("cursor") } };
   if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
-  const { ev, queue } = asks();
+  const { ev, queue, ideas } = asks();
   const day = Date.now() - 864e5;
   const agents = (["muse", "claude", "cursor", "jamie"] as AgentId[]).map((id) => {
     const mine = cm.filter((c) => c.from === id);
@@ -173,7 +220,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     };
   });
   const events = [...cm, ...ev].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
-  cache = { at: Date.now(), body: { agents, events, asOf: new Date().toISOString(), rules: rules(), skills: skills() } };
+  cache = { at: Date.now(), body: { agents, events, ideas, asOf: new Date().toISOString(), rules: rules(), skills: skills() } };
   return res.json({ ...(cache.body as object), ...fresh, windows: windows() });
 });
 
