@@ -15,3 +15,9 @@ Why: nightly checks for bad data (wrong sources, missing values, stale jobs). Wa
 Why: click an icon to dig in, badges only when something is off.
 Proposed order: 1) APIs + Jobs split per vendor/job, 2) Database split (market data / fundamentals & scores / your book / research lab / ops) with freshness badges, 3) Code Repo + GitHub, 4) Web.
 Reply "approve" or change the order.
+
+## J5 Auto-reply to your comments? (opt-in)
+Why: today Claude only sees your comments the next time you message it.
+Option: a tiny local auto-responder. When you post, it runs a cheap model (Haiku, read-only, no edits) with only that item's text + thread and replies within ~1 min.
+Cost ≈ 2–5k tokens per comment, nothing when idle.
+Reply yes/no in this thread.

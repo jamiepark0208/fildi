@@ -16,7 +16,7 @@
 import { Router } from "express";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { closeSync, createReadStream, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, createReadStream, appendFileSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
 import { resolve, dirname, join } from "node:path";
@@ -291,6 +291,16 @@ const ITEM = /^(J|A)\d+$/;
 type CRow = { id: number; item: string; author: string; body: string; created_at: string };
 const crows = <T,>(r: unknown): T[] => (Array.isArray(r) ? r : (r as { rows?: T[] }).rows ?? []) as T[];
 
+/** Per item: Jamie's comments Claude hasn't read yet (gold "message waiting" dot on the Claude orb). */
+async function jamieUnread(): Promise<Record<string, number>> {
+  try {
+    await ensureComments();
+    const r = crows<{ item: string; n: number }>(await db.execute(sql`SELECT item, count(*)::int AS n FROM watchlist_sync.needs_comments
+      WHERE author = 'jamie' AND NOT read_by_claude GROUP BY item`));
+    return Object.fromEntries(r.map((x) => [x.item, x.n]));
+  } catch { return {}; }
+}
+
 /** Per item: agent replies newer than Jamie's latest comment (badge on the cube). */
 async function needsUnread(): Promise<Record<string, number>> {
   try {
@@ -319,6 +329,10 @@ router.post("/agents/needs/:item/comments", requireAdmin, async (req, res) => {
   if (!body || body.length > 2000) return res.status(400).json({ error: "body must be 1–2000 chars" });
   await ensureComments();
   await db.execute(sql`INSERT INTO watchlist_sync.needs_comments (item, author, body) VALUES (${item}, 'jamie', ${body})`);
+  try { // Stage map: You → Claude beam (Jamie is the sender here)
+    mkdirSync(join(homedir(), ".fildi"), { recursive: true });
+    appendFileSync(join(homedir(), ".fildi/agent-events.jsonl"), JSON.stringify({ t: new Date().toISOString(), agent: "jamie", event: "comment", detail: item }) + "\n");
+  } catch { /* logging never blocks the post */ }
   return res.json({ ok: true });
 });
 
@@ -520,6 +534,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     activity1h, kinds: KINDS,
     limits: { claude: claudeLimits() },
     needsUnread: await needsUnread(),
+    jamieUnread: await jamieUnread(),
     muse: { running: await museRunning() },
     ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits

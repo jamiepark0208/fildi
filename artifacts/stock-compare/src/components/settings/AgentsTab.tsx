@@ -40,6 +40,7 @@ type Win = { out: number; inp: number; req: number };
 type Idea = { id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string };
 type Data = {
   needsUnread?: Record<string, number>;
+  jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
   agents: Agent[]; events: Ev[]; live: Live[]; ideas?: Idea[];
   status: Record<"claude" | "cursor", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
@@ -393,6 +394,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       if (reduce || age >= LIVE_MS || !(e.agent in META)) continue;
       const a = pos(e.agent as Id), col = META[e.agent as Id].color, t0 = now - Math.min(age, 800);
       if (e.event === "prompt") beams.current.push({ from: pos("jamie"), to: a, c: META.jamie.color, t0 }); // you → agent
+      else if (e.event === "comment") beams.current.push({ from: pos("jamie"), to: pos("claude"), c: META.jamie.color, t0 }); // your NEEDS YOU comment → Claude
       else if (e.event === "stop" || e.event === "waiting") beams.current.push({ from: a, to: pos("jamie"), c: col, t0 }); // reply to you
       // database / API / web / code work is drawn as persistent live links below, not one-shot beams
     }
@@ -582,6 +584,11 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 4;
       ctx.fillStyle = "#ffffff"; ctx.fillText(label, p.x, p.y);
       ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+      if (id === "claude" && Object.keys(d.jamieUnread ?? {}).length) { // gold "message waiting" dot: your comment not read yet
+        const bx = p.x + r * 0.72, by = p.y - r * 0.72;
+        ctx.fillStyle = META.jamie.color; ctx.shadowColor = META.jamie.color; ctx.shadowBlur = reduce ? 0 : 6 + 4 * Math.sin(now / 500);
+        ctx.beginPath(); ctx.arc(bx, by, 4.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      }
     }
   };
   const hit = (x: number, y: number, _w: number, _h: number, z: number) => {
@@ -651,8 +658,10 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
     const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
       : id === "muse" ? (d.muse?.running ? "app open" : "app closed") : `last commit ${ago(a?.lastActive)}`;
+    const unread = id === "claude" ? Object.entries(d.jamieUnread ?? {}) : [];
     return <Lines color={m.color} a={st?.doing ? `${m.label} · ${st.doing.slice(0, 40)}` : m.label} b={state}
-      c={st && (st.errors1h ?? 0) > 0 ? `${st.errors1h} errors this hour` : `${a?.commits24h ?? 0} commits today`} />;
+      c={unread.length ? unread.map(([k, n]) => `${k} · ${n} unread from you`).join(" · ")
+        : st && (st.errors1h ?? 0) > 0 ? `${st.errors1h} errors this hour` : `${a?.commits24h ?? 0} commits today`} />;
   };
   return (
     <div className="space-y-1">
@@ -900,7 +909,8 @@ function NeedsThread({ item }: { item: string }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return (await r.json()).comments;
     },
-    refetchInterval: 30_000,
+    // App default is staleTime 5 min + no focus refetch → a reply posted while the tab was in the background never showed.
+    staleTime: 0, refetchInterval: 10_000, refetchIntervalInBackground: true, refetchOnWindowFocus: true,
   });
   const send = async () => {
     const body = text.trim();
