@@ -6,6 +6,7 @@
 |---|---|---|
 | codegraph | `npm install -g @colbymchenry/codegraph` | Persistent code dependency graph — read index once per session instead of re-reading source files |
 | route-map / commit-impact | in repo (`scripts/`) | `node scripts/route-map.mjs` → `.agents/context/route-map.md` (UI call ↔ api route); `scripts/commit-impact.sh <sha|a..b>` → changed symbols + callers (A128, no extra MCP) |
+| fetch-page (Crawl4AI) | `research/crawl/.venv` (~0.9 GB incl. headless Chromium) | `scripts/fetch-page.sh <url> [--deep N] [--save]` → clean markdown (JS pages OK); tmp cache by default, `--save` → `research/sources/` only if worth keeping (A123) |
 | markitdown-js | `npm install -g markitdown-js` | Converts PDFs, HTML, CSV, DOCX, text files to markdown. **Not useful for image OCR** (tesseract not installed) |
 | madge | `npm install -g madge` | Circular dependency checker |
 
