@@ -73,6 +73,10 @@ Use before touching any source file (call it yourself — no hook runs codegraph
 - research/common/ASKS.md is a one-line index: read it, open `asks/A##.md` only for rows you act on; never paste details into the index; move closed index lines to ASKS-archive.md
 - Facts that must survive compaction go in files, not chat: decisions/next steps → state.md, durable lessons → memory. Write them when they happen, not at the end
 - Prefer a deliberate `/compact <what to keep>` or /clear at a task boundary over letting auto-compact fire mid-task
+- **Subagent budget (user 2026-10-16: 7 forks burned the plan in one afternoon, ~200–350k tokens each):** a `fork` copies this whole conversation → never use it for builds.
+  Default = do it inline. Big build → ONE fresh agent at a time (`general-purpose` or `data-agent`/`ui-agent`, `model: sonnet` for mechanical work),
+  short self-contained prompt (spec file path + acceptance), never parallel. Small edits = inline Edit, no agent. Probes = one capped command.
+  State per build: is it worth an agent (> ~30 min inline)? If not, inline.
 
 ## COMPACT INSTRUCTIONS
 When summarizing this conversation, keep verbatim: every user message, the user's decisions and approvals (and what they did NOT approve), exact file paths, symbol names, param versions (e.g. fund-1.1.1), error messages still unresolved, test baselines, and uncommitted files and who owns them. Drop: tool output already acted on, file contents (re-read on demand), superseded plans.
