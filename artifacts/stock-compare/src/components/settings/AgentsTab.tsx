@@ -54,7 +54,7 @@ type Data = {
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
-  limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null; muse?: { at: string; pct: number | null; resetsAt: string | null } | null }; muse?: { running: boolean };
+  limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
   openjev?: OpenJev;
   subagents?: Sub[]; jobs?: Jobs; procs?: Proc[]; gitHour?: { t: string; agent: string; text: string }[];
 };
@@ -766,12 +766,7 @@ function Available({ id, d }: { id: Id; d: Data }) {
       left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
   }
   if (id === "cursor") return cell("n/a", "Cursor dashboard only (cursor.com/dashboard): Cursor doesn't record usage on this Mac.");
-  const m = d.limits?.muse;
-  if (!m || m.pct == null) return cell("n/a", "Muse reports its weekly usage via heartbeat events; the number appears here after its next status update.");
-  const mLeft = Math.max(0, 100 - m.pct);
-  return cell(<>{Math.round(mLeft)}% left · resets {hm(m.resetsAt)}</>,
-    <>Weekly free limit: {Math.round(m.pct)}% used{m.resetsAt ? `, resets ${new Date(m.resetsAt).toLocaleDateString()}` : ""}. As of {hm(m.at)}. Reported by Muse's heartbeat events.</>,
-    mLeft < 20 ? "text-red-300 font-semibold" : mLeft < 50 ? "text-amber-200" : "text-emerald-300");
+  return cell("n/a", "Muse is a desktop app that keeps no usage logs on this Mac; only whether the app is open is visible.");
 }
 
 /** Step timeline: an agent's last 30 actions in order, activity colour, time, plain-English action, gap since the previous step. */
@@ -825,7 +820,6 @@ function TeamPanel({ d }: { d: Data }) {
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
             const st = a.id === "claude" || a.id === "cursor" ? d.status[a.id] : undefined;
-            const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
@@ -835,7 +829,7 @@ function TeamPanel({ d }: { d: Data }) {
                 </td>
                 <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
-                  {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : mu?.pct != null ? <>{Math.round(mu.pct)}% <span className="text-white/50">weekly</span></> : "—"}
+                  {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : "—"}
                 </td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
@@ -1157,7 +1151,7 @@ function Usage({ d }: { d: Data }) {
           <div className="text-[12px] text-white/60 mt-1">{pct}% of your busiest 5-hour window this week ({fmt(peak.out)})</div>
         </div>
         <InfoTip>Claude plans cap usage per 5-hour window, but the cap isn't exposed to apps, so this compares to your own busiest window in
-          7 days. Output tokens shown; input is mostly cached. Source: Claude Code session logs. Cursor doesn't log tokens locally; Muse reports its weekly usage via heartbeat events.</InfoTip>
+          7 days. Output tokens shown; input is mostly cached. Source: Claude Code session logs. Cursor and Muse don't log tokens locally.</InfoTip>
       </div>
       <div className={cn(GRID_WRAP, "p-2")}>
         <div className="text-[11px] uppercase tracking-widest text-[#d4af37] mb-1 px-1">Claude tokens out per hour · 48 h</div>
@@ -1186,7 +1180,7 @@ function Usage({ d }: { d: Data }) {
           ))}</tbody>
         </table>
       </div>
-      <p className="text-[12px] text-white/60">Cursor: {d.status.cursor.tools24h} actions in 24 h (hooks) · Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits in 24 h · Cursor tokens not tracked</p>
+      <p className="text-[12px] text-white/60">Cursor: {d.status.cursor.tools24h} actions in 24 h (hooks) · Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits in 24 h · tokens not tracked for either</p>
     </div>
   );
 }
