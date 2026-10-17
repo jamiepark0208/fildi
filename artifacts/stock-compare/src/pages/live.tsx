@@ -481,9 +481,9 @@ export default function Live() {
                     {moversFetching && movers && (
                       <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
                     )}
-                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} />
-                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} />
-                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume />
+                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} facts={movers?.facts} />
+                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} facts={movers?.facts} />
+                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={movers?.facts} />
                   </div>
                 )}
               </section>

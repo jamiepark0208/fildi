@@ -35,6 +35,7 @@ import {
 } from "@/components/options-scanner/options-scanner-types";
 import { minutesAgo } from "@/components/options-scanner/options-scanner-helpers";
 import { ScannerRow } from "@/components/options-scanner/options-scanner-row";
+import { useMoverFacts } from "@/hooks/use-mover-facts";
 
 // Scoped per user so multiple accounts on the same browser don't inherit each
 // other's hidden scanner tickers (mirrors colorKey in use-watchlist.ts)
@@ -630,6 +631,7 @@ export function OptionsScannerContent({
   // Golden-source live equity prices (Schwab→Yahoo, 60s server TTL). Overlay only —
   // sort/option scores stay on nightly snapshots so the board does not reshuffle.
   const visibleTickersKey = visibleTickers.join(",");
+  const { data: moverFacts } = useMoverFacts(visibleTickers, 5);
   const { data: livePrices } = useQuery({
     queryKey: ["live-prices", visibleTickersKey],
     queryFn: async (): Promise<Record<string, { price: number | null; changePercent: number | null }>> => {
@@ -929,6 +931,7 @@ export function OptionsScannerContent({
                 isOversold={oversoldSet.has(ticker)}
                 isOverbought={overboughtSet.has(ticker)}
                 modelAvoid={modelAvoidSet.has(ticker.toUpperCase())}
+                moverFactLine={moverFacts?.[ticker.toUpperCase()]?.line ?? null}
                 livePrice={livePrices?.[ticker]?.price ?? null}
                 snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
                 heat={columnHeat}

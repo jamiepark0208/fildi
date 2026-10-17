@@ -34,7 +34,7 @@ router.post("/research/score-outliers/disposition", requireAdmin, async (req, re
     if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return res.status(400).json({ error: "bad ticker" });
     if (!KINDS.has(kind)) return res.status(400).json({ error: "bad kind" });
     if (!DISPS.has(disposition)) return res.status(400).json({ error: "bad disposition" });
-    const setBy = (req as { user?: { email?: string } }).user?.email ?? "admin";
+    const setBy = String(req.session?.["userId"] ?? "admin");
     await setOutlierDisposition(ticker, kind, disposition, note, setBy);
     return res.json({ ok: true });
   } catch (err) {

@@ -75,6 +75,8 @@ interface ScannerRowProps {
   isOverbought?: boolean;
   /** Latest Model List verdict is red (Avoid). This scanner's ranking is unvalidated, so the Model List wins. */
   modelAvoid?: boolean;
+  /** A81 facts line (|day move|≥5%) — no advice takes. */
+  moverFactLine?: string | null;
   /** Per-column min/max across the visible board — continuous heat (not 3-bin GY/R). */
   heat?: {
     opt?: ColRange | null;
@@ -116,6 +118,7 @@ export function ScannerRow({
   isOversold = false,
   isOverbought = false,
   modelAvoid = false,
+  moverFactLine = null,
   livePrice = null,
   snapSpot = null,
   heat,
@@ -456,6 +459,16 @@ export function ScannerRow({
           </button>
         </div>
       </div>
+
+      {moverFactLine && (
+        <div
+          className="px-2 py-0.5 text-[10px] text-amber-100/65 font-mono border-t border-zinc-800/80"
+          style={{ borderLeft: `3px solid ${borderColor}` }}
+          title="A81 mover facts — no sell/wait take"
+        >
+          {moverFactLine}
+        </div>
+      )}
 
       {/* Expanded panel */}
       {expanded && (
