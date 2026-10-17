@@ -1,4 +1,5 @@
 # Needs Jamie — things only you can do. Agents add items here (## J# title, then the steps); delete the item when done.
+# Only items that need Jamie to act or decide. Info-only notes go in state/ASKS, never here. Jamie's Dismiss → the idea's ASKS row becomes `declined (Jamie dismissed <date>)` → shows under Parked.
 # Shown in Settings › Agents › Ideas as NEEDS YOU cubes (click for steps).
 
 
@@ -22,8 +23,6 @@ Why: open Fildi from your phone anywhere, private (only your devices), free. Wor
 1. Install Tailscale on the Mac (tailscale.com/download) and on your phone (App Store), sign in with the same account on both.
 2. Reply "done" here. Claude makes Fildi reachable on your private Tailscale address and sends you the link.
 
-## J8 Codiv API key — kept as backup, not needed
-Done (you added it 10-16). OpenJev now runs locally on your Mac (no data leaves), so the key is only a fallback. Nothing to do.
 
 ## J9 Optional: let the Mac wake itself for the 5:30 AM OpenJev run
 Why: the local forecast run happens 5:30–9:00 AM when RAM is free. If the Mac is asleep it runs at next wake (or the 9–11:30 PM window), so this is optional.

@@ -94,6 +94,80 @@ def peers(conn, limit: int | None) -> None:
             w.flush()
 
 
+# Claude's review of v1's confident disagreements (S038) + human fixes = hard-case truth set for prompt variants
+HARD_TRUTH = {**{t: "consumer_staples.packaged_goods_beverages" for t in "CPB CAG GIS HRL HSY KHC MDLZ SJM COTY".split()},
+              "GE": "industrials.aerospace_defense", "TFC": "financials.regional_banks", "PNC": "financials.regional_banks",
+              "GFS": "technology.semiconductor_foundry_specialty", "ATO": "utilities.water_gas_multi_utilities",
+              "CABA": "healthcare.speculative_biotech", "SG": "consumer_discretionary.restaurants_food_service",
+              "REBN": "consumer_discretionary.restaurants_food_service", "BB": "technology.enterprise_software_cloud",
+              "SOUN": "technology.enterprise_software_cloud", "BULL": "fintech.digital_finance_payments",
+              "KGC": "materials.precious_metals_mining", "SVM": "materials.precious_metals_mining", "MSFT": "technology.big_tech_platforms",
+              "VNET": "technology.chinese_tech", "BNGO": "healthcare.speculative_biotech", "DDD": "speculative_thematic.speculative_small_cap",
+              "MSCI": "industrials.professional_services", "MCO": "industrials.professional_services", "SPGI": "industrials.professional_services"}
+
+
+def peers_v2(conn, think: int = 0) -> None:
+    """Variant: + financial facts (revenue, margins, profit) + 3 example members per group in each option."""
+    import openjev_local as oj
+    groups, member, fixes = load_peers(conn)
+    truth = {**HARD_TRUTH, **{t: g for t, (g, _) in fixes.items()}}
+    prof = json.loads((DATA / "profiles.json").read_text())
+    with conn.cursor() as c:
+        c.execute("select ticker, fmp_total_revenue, fmp_gross_margin, fmp_operating_margin, fmp_net_margin, fmp_revenue_growth_yoy from fmp_fundamentals")
+        fin = {r[0]: r[1:] for r in c.fetchall()}
+        c.execute("select group_id, ticker from peer_group_members where removed_at is null and source <> 'override'")
+        mem = collections.defaultdict(list)
+        for g, t in c.fetchall():
+            mem[g].append(t)
+    rnd = random.Random(17)
+    pool = sorted(t for t in member if (prof.get(t) or {}).get("description") and t not in truth)
+    evalset = sorted(t for t in truth if (prof.get(t) or {}).get("description")) + rnd.sample(pool, 150)
+    tag = f"v2{'_think' if think else ''}"
+    out_f = DATA / f"peers_{tag}.jsonl"
+    with oj.Server(), out_f.open("w") as w:
+        for t in evalset:
+            p = prof[t]
+            rev, gm, om, nm, gr = fin.get(t, (None,) * 5)
+            fmt = lambda x, pct=True: "n/a" if x is None else (f"{float(x) * (100 if pct and abs(float(x)) < 5 else 1):.0f}%" if pct else f"${float(x) / 1e9:,.2f}B")
+            st = (f"Company: {p.get('companyName') or t} ({t}), country {p.get('country')}, vendor sector/industry: {p.get('sector')} / {p.get('industry')}.\n"
+                  f"Financials: revenue {fmt(rev, False)}, revenue growth {fmt(gr)}, gross margin {fmt(gm)}, operating margin {fmt(om)}, net margin {fmt(nm)}.\n"
+                  f"Business: {p['description'][:900]}")
+            probs = collections.Counter()
+            for _ in range(2):
+                order = list(groups)
+                rnd.shuffle(order)
+                crit = {}
+                for g in order:
+                    ex = [x for x in mem[g] if x != t][:3]
+                    crit[g] = criteria(groups, [g])[g] + (f" — e.g. {', '.join((prof.get(x) or {}).get('companyName') or x for x in ex)}" if ex else "")
+                q = {"g": {"type": "choice", "instructions": "Which peer group should this company's fundamentals be compared with? "
+                           "Pick the group whose companies have the most similar business model and financial profile.", "criteria": crit}}
+                body = {"model": oj.MODEL, "state": st, "questions": q}
+                if think:
+                    body["think"] = think
+                a = oj._post("/v1/systemone", body)["answers"]["g"]
+                for g, v in (a.get("probabilities") or {}).items():
+                    probs[g] += v / 2
+            w.write(json.dumps({"t": t, "cur": member[t], "top": probs.most_common(3)}) + "\n")
+            w.flush()
+    compare_peers(conn, tag)
+
+
+def compare_peers(conn, tag: str) -> None:
+    groups, member, fixes = load_peers(conn)
+    truth = {**HARD_TRUTH, **{t: g for t, (g, _) in fixes.items()}}
+    v1 = {r["t"]: r for r in map(json.loads, (DATA / "peers.jsonl").open())}
+    v2 = {r["t"]: r for r in map(json.loads, (DATA / f"peers_{tag}.jsonl").open())}
+    hard = [t for t in v2 if t in truth]
+    easy = [t for t in v2 if t not in truth]
+    for lab, d in (("v1 (description only)", v1), (f"{tag} (+ financials + example members)", v2)):
+        h = sum(d[t]["top"][0][0] == truth[t] for t in hard if t in d)
+        e = sum(d[t]["top"][0][0] == member[t] for t in easy if t in d)
+        s = sum(d[t]["top"][0][0].split(".")[0] == member[t].split(".")[0] for t in easy if t in d)
+        print(f"  {lab:42s} hard cases right {h}/{len(hard)}   random names = current group {e}/{len(easy)} (sector level {s}/{len(easy)})")
+    print("  hard-case misses:", ", ".join(f"{t}→{v2[t]['top'][0][0].split('.')[-1]}" for t in hard if v2[t]["top"][0][0] != truth[t]))
+
+
 def peers_report(conn) -> None:
     groups, member, fixes = load_peers(conn)
     rs = [json.loads(x) for x in (DATA / "peers.jsonl").open()]
@@ -302,8 +376,114 @@ def fv_placebo(conn) -> None:
     print(f"  shift ours − fake (names where our FV > price, so fake < price): mean {statistics.fmean(up):+.2f} buckets (0 = ignores the number)")
 
 
+# ---------- C5: scenario exposure — "who gets hurt / helped if X happens?" graded by realized factor betas ---------
+
+SCENARIOS = {  # id: (question wording, factor series, sign: +1 = 'helped' should mean positive beta to the factor)
+    "oil": ("oil prices jump sharply", "USO", 1),
+    "rates": ("US interest rates and bond yields rise sharply", "TLT", -1),
+    "dollar": ("the US dollar strengthens sharply", "UUP", 1),
+    "china": ("China's economy and stock market boom", "FXI", 1),
+    "gold": ("gold prices jump sharply", "GLD", 1),
+    "ai": ("spending on AI chips and data centers accelerates", "SMH", 1),
+    "crypto": ("bitcoin and crypto prices jump sharply", "IBIT", 1),
+    "consumer": ("US consumers spend much more on non-essentials", "XLY-XLP", 1),
+    "housing": ("US housing and home building boom", "XHB", 1),
+    "credit": ("credit markets freeze and junk-bond spreads blow out", "HYG", -1),
+}
+
+
+def realized_betas(conn, tickers: list[str]) -> dict:
+    """Two-factor OLS per stock on daily returns: r = a + b_mkt·SPY + b_f·f (f first residualized on SPY). Returns {t: {scenario: b_f}}."""
+    etf = json.loads((DATA / "etfs.json").read_text())
+    days = sorted(set.intersection(*(set(v) for v in etf.values())))
+    ser = {k: [etf[k][d] for d in days] for k in etf}
+    ser["XLY-XLP"] = [a / b for a, b in zip(ser["XLY"], ser["XLP"])]
+    ret = lambda xs: [b / a - 1 for a, b in zip(xs, xs[1:])]
+    R = {k: ret(v) for k, v in ser.items()}
+    spy = R["SPY"]
+
+    def resid(y, x):
+        mx, my = statistics.fmean(x), statistics.fmean(y)
+        b = sum((a - mx) * (c - my) for a, c in zip(x, y)) / sum((a - mx) ** 2 for a in x)
+        return [c - my - b * (a - mx) for a, c in zip(x, y)]
+    F = {s: resid(R[f], spy) for s, (_, f, _) in SCENARIOS.items()}
+    with conn.cursor() as c:
+        c.execute("select ticker, date::text, close from prices_historical where ticker = any(%s) and date >= %s", (tickers, days[0]))
+        px: dict = {}
+        for t, d, cl in c.fetchall():
+            px.setdefault(t, {})[d] = float(cl)
+    out = {}
+    for t in tickers:
+        p = px.get(t, {})
+        idx = [i for i in range(1, len(days)) if days[i] in p and days[i - 1] in p]
+        if len(idx) < 150:
+            continue
+        r = [p[days[i]] / p[days[i - 1]] - 1 for i in idx]
+        rr = resid(r, [spy[i - 1] for i in idx])
+        out[t] = {}
+        for s, f in F.items():
+            x = [f[i - 1] for i in idx]
+            mx = statistics.fmean(x)
+            out[t][s] = sum((a - mx) * b for a, b in zip(x, rr)) / sum((a - mx) ** 2 for a in x)
+    return out
+
+
+def scenarios(conn) -> None:
+    import openjev_local as oj
+    from openjev_news import spearman
+    _, member, _ = load_peers(conn)
+    prof = json.loads((DATA / "profiles.json").read_text())
+    tickers = sorted(t for t in member if (prof.get(t) or {}).get("description"))
+    betas = realized_betas(conn, tickers)
+    out_f = DATA / "scenarios.jsonl"
+    done = {json.loads(x)["t"] for x in out_f.open()} if out_f.exists() else set()
+    with oj.Server(), out_f.open("a") as w:
+        for t in tickers:
+            if t in done or t not in betas:
+                continue
+            p = prof[t]
+            st = f"Company: {p.get('companyName') or t} ({t}), {p.get('sector')} / {p.get('industry')}.\nBusiness: {p['description'][:900]}"
+            qs = {s: {"type": "score", "instructions": f"If {txt}, how would this company's stock most likely do versus the overall market?",
+                      "criteria": ["hurt", "little effect", "helped"]} for s, (txt, _, _) in SCENARIOS.items()}
+            a = oj._post("/v1/systemone", {"model": oj.MODEL, "state": st, "questions": qs})["answers"]
+            sc = {}
+            for s in SCENARIOS:
+                pr = list((a[s].get("probabilities") or {}).values())
+                sc[s] = pr[2] - pr[0] if len(pr) == 3 else None
+            w.write(json.dumps({"t": t, "g": member[t], "score": sc}) + "\n")
+            w.flush()
+    rs = [json.loads(x) for x in out_f.open()]
+    print(f"C5: {len(rs)} companies × {len(SCENARIOS)} scenarios. Rank corr of OpenJev exposure (helped − hurt) with realized factor beta"
+          " (beyond the market), all names / within peer group; baseline = peer-group average beta (leave-one-out)")
+    for s, (txt, f, sign) in SCENARIOS.items():
+        xs = [(r["score"][s], sign * betas[r["t"]][s], r["g"]) for r in rs if r["score"].get(s) is not None]
+        allc = spearman([x for x, _, _ in xs], [y for _, y, _ in xs])
+        by = collections.defaultdict(list)
+        for x, y, g in xs:
+            by[g].append((x, y))
+        wx, wy, gb = [], [], []
+        for x, y, g in xs:
+            grp = by[g]
+            if len(grp) >= 4:
+                mxg = statistics.fmean(a for a, _ in grp)
+                myg = statistics.fmean(b for _, b in grp)
+                wx.append(x - mxg)
+                wy.append(y - myg)
+            loo = [b for a, b in grp]
+            gb.append((sum(loo) - y) / (len(loo) - 1) if len(loo) > 1 else 0.0)
+        base = spearman(gb, [y for _, y, _ in xs])
+        top = sorted(xs, key=lambda z: -z[0])
+        k = max(len(xs) // 10, 5)
+        hi, lo = statistics.fmean(y for _, y, _ in top[:k]), statistics.fmean(y for _, y, _ in top[-k:])
+        print(f"  {s:9s} ({f:7s}) all {allc:+.2f}  within-group {spearman(wx, wy):+.2f}  peer-group baseline {base:+.2f}  "
+              f"top-10% vs bottom-10% beta {hi:+.2f} vs {lo:+.2f}  | spread of answers: {sum(abs(x) > .5 for x, _, _ in xs)}/{len(xs)} non-neutral")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--scenarios", action="store_true")
+    ap.add_argument("--peers-v2", action="store_true")
+    ap.add_argument("--think", type=int, default=0)
     ap.add_argument("--fv-placebo", action="store_true")
     ap.add_argument("--entities", action="store_true")
     ap.add_argument("--divergence", action="store_true")
@@ -319,5 +499,9 @@ if __name__ == "__main__":
         entities(connect())
     if a.fv_placebo:
         fv_placebo(connect())
+    if a.scenarios:
+        scenarios(connect())
+    if a.peers_v2:
+        peers_v2(connect(), a.think)
     if a.peers_report:
         peers_report(connect())

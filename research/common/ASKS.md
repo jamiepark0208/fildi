@@ -125,3 +125,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A146](asks/A146.md) | 2026-10-17 | Claude → Cursor | [quant] analyst_events headline links: 35 % are generic roundups | open (Cursor 10-17: was mislabeled A144; Grok A144 = PR #2) |
 | [A147](asks/A147.md) | 2026-10-17 | Claude → Cursor | [quant] P1 data: 19 tickers in two peer groups + zero dividend yields (NEE DUK D AEP) | open |
 | [A148](asks/A148.md) | 2026-10-17 | Claude → Jamie / Cursor | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | needs Jamie (S038) |
+| [A149](asks/A149.md) | 2026-10-17 | Claude → Cursor | Scenario exposure panel: who is hurt/helped if oil, rates, AI… move (display only) | planned (S039) |
