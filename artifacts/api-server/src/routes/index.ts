@@ -44,6 +44,7 @@ import trackRecordRouter from "./track-record";
 import researchWrdsRouter from "./research-wrds";
 import researchLsegRouter from "./research-lseg";
 import researchOpsRouter from "./research-ops";
+import scoreOutliersRouter from "./score-outliers";
 import fundScoreNotesRouter from "./fund-score-notes";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { explainLimiter } from "../middleware/rateLimiter.js";
@@ -108,6 +109,7 @@ router.use(trackRecordRouter);
 router.use(researchWrdsRouter);
 router.use(researchLsegRouter);
 router.use(researchOpsRouter);
+router.use(scoreOutliersRouter);
 
 // watchlist.ts, feed.ts, and positions.ts each have their own internal
 // blanket `router.use(requireAuth)` (all-user-specific routes, intentional),

@@ -1,9 +1,9 @@
 /**
- * Settings › Research — every study run on Fildi data (research/studies/INDEX.md) with its one-line answer and status, so a
- * question already answered isn't asked again. Full answer + report path in the hover tooltip. Data: GET /api/research/studies.
+ * Settings › Research — studies INDEX + A102 weekly score-outlier review.
+ * Data: GET /api/research/studies, GET /api/research/score-outliers.
  */
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SUI } from "@/components/settings/settings-ui";
@@ -98,6 +98,119 @@ function tone(status: string): string {
   return "border-amber-400/40 text-amber-200";
 }
 
+type Outlier = {
+  kind: string;
+  ticker: string;
+  score: number | null;
+  detail: string;
+  dominantInput: string | null;
+  why: string;
+  thinData: boolean;
+  disposition: "bug" | "explained" | "false_positive" | null;
+  dispositionNote: string | null;
+};
+
+function ScoreOutliersPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["score-outliers"],
+    queryFn: async (): Promise<{ asOf: string; rows: Outlier[]; counts: Record<string, number> }> => {
+      const r = await fetch("/api/research/score-outliers", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 5 * 60_000,
+  });
+  const mut = useMutation({
+    mutationFn: async (body: { ticker: string; kind: string; disposition: string }) => {
+      const r = await fetch("/api/research/score-outliers/disposition", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["score-outliers"] }),
+  });
+  const [filter, setFilter] = useState<string>("all");
+  const rows = useMemo(() => {
+    const all = data?.rows ?? [];
+    return filter === "all" ? all : all.filter((r) => r.kind === filter);
+  }, [data, filter]);
+  const kinds = Object.keys(data?.counts ?? {}).sort();
+  return (
+    <div className="space-y-2">
+      <div className={SUI.headRow}>
+        <div>
+          <h2 className={SUI.title}>Score outliers</h2>
+          <p className={SUI.sub}>A102 weekly QA — extremes + FV ratio + PT &gt;300% · disposition = bug / explained / false+</p>
+        </div>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className={cn(SUI.input, "w-40")}
+        >
+          <option value="all">all ({data?.rows.length ?? 0})</option>
+          {kinds.map((k) => (
+            <option key={k} value={k}>{k} ({data?.counts[k]})</option>
+          ))}
+        </select>
+      </div>
+      {isLoading && <p className="text-xs text-white/60">Loading outliers…</p>}
+      {error && <p className="text-xs text-red-300">{(error as Error).message}</p>}
+      {data && (
+        <div className={SUI.tableWrap}>
+          <table className={SUI.table}>
+            <thead className={SUI.thead}>
+              <tr className="border-b border-[#d4af37]/25">
+                <th className={cn(SUI.th, "w-14")}>Ticker</th>
+                <th className={cn(SUI.th, "w-24")}>Kind</th>
+                <th className={SUI.th}>Detail</th>
+                <th className={SUI.th}>Dominant</th>
+                <th className={cn(SUI.th, "w-36")}>Disposition</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800">
+              {rows.map((r) => (
+                <tr key={`${r.kind}:${r.ticker}`} className={cn(SUI.tr, "align-top")}>
+                  <td className={cn(SUI.td, "font-mono font-semibold")}>
+                    {r.ticker}
+                    {r.thinData && (
+                      <span className="ml-1 text-[9px] text-orange-300" title="coverage &lt; 0.6">thin</span>
+                    )}
+                  </td>
+                  <td className={cn(SUI.td, "text-[10px] text-amber-100/70")}>{r.kind}</td>
+                  <td className={SUI.td} title={r.why}>{r.detail}</td>
+                  <td className={cn(SUI.td, "text-[10px] text-white/50")}>{r.dominantInput ?? "—"}</td>
+                  <td className={SUI.td}>
+                    <select
+                      className={cn(SUI.input, "w-full text-[10px]")}
+                      value={r.disposition ?? ""}
+                      disabled={mut.isPending}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        mut.mutate({ ticker: r.ticker, kind: r.kind, disposition: v });
+                      }}
+                    >
+                      <option value="">—</option>
+                      <option value="bug">bug → ASKS</option>
+                      <option value="explained">explained</option>
+                      <option value="false_positive">false positive</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ResearchTab() {
   const [q, setQ] = useState("");
   const { data, isLoading } = useQuery({
@@ -118,6 +231,7 @@ export function ResearchTab() {
   return (
     <div className={SUI.panel}>
       <Scoreboard />
+      <ScoreOutliersPanel />
       <div className={SUI.headRow}>
         <div>
           <h2 className={SUI.title}>Studies</h2>
