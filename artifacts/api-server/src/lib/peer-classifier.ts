@@ -1,4 +1,4 @@
-import { eq, inArray, count, desc, isNull, and, isNotNull } from "drizzle-orm";
+import { eq, inArray, count, desc, isNull, and, isNotNull, ne, sql } from "drizzle-orm";
 import { db, tickerRegistry, peerGroupMembers, peerGroups, unmappedTickers, peerGroupOverrides } from "@workspace/db";
 import { resolvePeers } from "./peer-resolver.js";
 import { logger } from "./logger.js";
@@ -118,6 +118,59 @@ async function ensureGroupMembership(
       target: [peerGroupMembers.groupId, peerGroupMembers.ticker],
       set: { removedAt: null, source },
     });
+}
+
+/**
+ * A147: a ticker may only be active in one peer group (peer medians otherwise double-count).
+ * Soft-remove every other active membership for this ticker.
+ */
+export async function soleActiveMembership(
+  ticker: string,
+  groupId: string,
+  source: "taxonomy" | "manual" | "auto",
+): Promise<number> {
+  const key = ticker.toUpperCase();
+  if (!groupId || groupId === "__global__") return 0;
+  await ensureGroupMembership(key, groupId, source);
+  const removed = await db.update(peerGroupMembers)
+    .set({ removedAt: new Date() })
+    .where(and(
+      eq(peerGroupMembers.ticker, key),
+      isNull(peerGroupMembers.removedAt),
+      ne(peerGroupMembers.groupId, groupId),
+    ))
+    .returning({ groupId: peerGroupMembers.groupId });
+  return removed.length;
+}
+
+/**
+ * A147 one-shot: override tickers must not keep a stale auto membership in the old group.
+ * Seed duals (NVDA in big-tech + semis, etc.) are left alone — confirm with Jamie if those should sole too.
+ */
+export async function cleanupOverrideDualMemberships(): Promise<{
+  fixed: number;
+  overrideTickers: string[];
+  dualsLeft: number;
+}> {
+  const overrides = await db.select({
+    ticker: peerGroupOverrides.ticker,
+    groupId: peerGroupOverrides.groupId,
+  }).from(peerGroupOverrides);
+  let fixed = 0;
+  const overrideTickers: string[] = [];
+  for (const o of overrides) {
+    const n = await soleActiveMembership(o.ticker, o.groupId, "manual");
+    if (n > 0) overrideTickers.push(o.ticker);
+    fixed += n;
+  }
+  const left = await db.execute<{ n: string }>(sql`
+    SELECT COUNT(*)::text AS n FROM (
+      SELECT ticker FROM peer_group_members WHERE removed_at IS NULL
+      GROUP BY ticker HAVING COUNT(*) > 1
+    ) d`);
+  const row = Array.isArray(left) ? left[0] : (left as { rows?: { n: string }[] }).rows?.[0];
+  const dualsLeft = Number(row?.n ?? 0);
+  return { fixed, overrideTickers, dualsLeft };
 }
 
 async function recordUnmapped(ticker: string): Promise<void> {
@@ -360,6 +413,8 @@ export async function setPeerGroupOverride(ticker: string, groupId: string, note
     .values({ ticker: key, groupId, previousGroupId, note: note ?? null })
     .onConflictDoUpdate({ target: peerGroupOverrides.ticker, set: { groupId, note: note ?? null, createdAt: new Date() } });
   await upsertPrimaryGroup(key, groupId);
+  // Override path: membership source = manual (upsertPrimaryGroup used "auto" above — fix stamp).
+  await soleActiveMembership(key, groupId, "manual");
   classifyCache.delete(key);
 }
 

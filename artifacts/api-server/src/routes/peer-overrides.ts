@@ -4,6 +4,7 @@ import { db, peerGroups, peerGroupMembers, peerGroupOverrides, tickerRegistry } 
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
   classifyTicker, classifyTickerDefault, setPeerGroupOverride, clearPeerGroupOverride,
+  cleanupOverrideDualMemberships,
 } from "../lib/peer-classifier.js";
 import { computeAndPersistFundamentalScores } from "../lib/fundamentals-db.js";
 import { getLatestRegime } from "./regime.js";
@@ -190,6 +191,18 @@ router.delete("/peers/group/:groupId/member/:ticker", requireAdmin, async (req, 
     return res.json({ ok: true, members });
   } catch (err: any) {
     logger.error({ groupId, memberTicker, err }, "DELETE /peers/group/:groupId/member/:ticker failed");
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// ── POST /peers/cleanup-override-duals — A147 one-shot (idempotent) ───────────
+router.post("/peers/cleanup-override-duals", requireAdmin, async (_req, res) => {
+  try {
+    const result = await cleanupOverrideDualMemberships();
+    if (result.fixed > 0) recomputeScoresAsync("A147 override dual cleanup");
+    return res.json({ ok: true, ...result });
+  } catch (err: any) {
+    logger.error({ err }, "POST /peers/cleanup-override-duals failed");
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
 });

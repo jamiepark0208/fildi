@@ -36,6 +36,7 @@ import {
   computeReturnOnEquity,
   resolvePegGrowth,
 } from "../lib/derived-metrics.js";
+import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 
 export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "../lib/derived-metrics.js";
 
@@ -130,6 +131,7 @@ export const FIELD_DEFS: FieldDef[] = [
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
+  // A147: Yahoo 0 yield is often "unknown" for payers — skip when another free source > 0.5%.
   { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["finnhub","dividendYield"], ["fmp","dividendYield"], ["alpha_vantage","dividendYield"]] },
   { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"],                      ["alpha_vantage","analystTargetPrice"]] },
   { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"], ["factset","earningsPerShare"]] },
@@ -240,7 +242,10 @@ function resolveFromIndex(
   for (const [src, sfField] of priority) {
     if (seenSrc.has(src)) continue;
     const val = byField.get(sfField)?.get(src);
-    if (val !== undefined && isFinite(val)) { ordered.push({ src, val }); seenSrc.add(src); }
+    if (val === undefined || !isFinite(val)) continue;
+    if (skipYahooZeroDividend(tf, src, val, byField, priority)) continue;
+    ordered.push({ src, val });
+    seenSrc.add(src);
   }
   const orderedBySrc = new Map(ordered.map(o => [o.src, o.val]));
 

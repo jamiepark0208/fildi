@@ -4,12 +4,12 @@
 **Last updated:** 2026-10-17
 
 ## Phase
-**idle** — A63 + A136 Cursor slices shipped. Queue empty for Cursor builds.
+**build** — A147 next (P1 data: dual peer groups + zero div yields). Then A146 / A114.
 
 ## Active
-- Done today: A102, A81, A136 what-if+badges/override, A63 ranked upsert, Stage Grok, A144 PR#2, A74 cal chip, Ideas UX.
-- Grok PR #3 merged. Waiting Jamie: A99/A84/A88. A146 open. A136 backtest → Claude.
-- Leave alone: OpenJev, Claude cache-overview / ttl-cache / cache-registry (uncommitted local).
+- Ideas board: Reviewed≈planned backlog (~26 Muse); Building≈accepted/partial (many stale Claude rows A2–A25 + A84/A131). Not “in flight.”
+- Done today: A63, A136 badges, A74, Ideas UX, Grok PRs. Waiting Jamie: A99/A84/A88.
+- Leave alone: OpenJev, Claude cache-overview / ttl-cache / cache-registry.
 
 ## Do not
 - Merge-trusted until A84 before/after posted
