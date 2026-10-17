@@ -39,6 +39,8 @@ import { ShortInterestPanel } from "./breakdown/short-interest-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
 import { AssumptionsTab } from "./breakdown/assumptions-tab";
+import { useFundamentalsProvenance } from "@/hooks/use-fundamentals-provenance";
+import { provFieldForScoreKey } from "@/lib/provenance-display";
 
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -91,6 +93,7 @@ export function StockBreakdown({
     dropdownOpen && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
   const { data, isLoading, error } = useBreakdown(activeTicker);
+  const { byField: provByField } = useFundamentalsProvenance(activeTicker);
 
   const tagMatchesFor = useCallback((type: ClassificationTagType, value: string) => {
     if (!watchlistMetrics) return undefined;
@@ -355,24 +358,27 @@ export function StockBreakdown({
 
             {/* ── Score evidence (model families) ── */}
             <BreakdownMetricsTable
+              byField={provByField}
               groups={[
                 {
                   title: "Value",
                   sectionId: "bd-family-value",
                   score: data.scoreEvidence?.value ?? null,
                   rows: [
-                    { label: "P/E Ratio", value: formatNumber(m.peRatio) },
-                    { label: "PEG Ratio", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined },
-                    { label: "Price / Book", value: formatNumber(m.priceToBook) },
-                    { label: "Price / Sales", value: formatNumber(m.priceToSales) },
+                    { label: "P/E Ratio", value: formatNumber(m.peRatio), fieldKey: "peRatio" },
+                    { label: "PEG Ratio", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined, fieldKey: "pegRatio" },
+                    { label: "Price / Book", value: formatNumber(m.priceToBook), fieldKey: "priceToBook" },
+                    { label: "Price / Sales", value: formatNumber(m.priceToSales), fieldKey: "priceToSales" },
                     ...(m.analystTargetPrice != null
-                      ? [{ label: "Analyst Target", value: formatCurrency(m.analystTargetPrice) }]
+                      ? [{ label: "Analyst Target", value: formatCurrency(m.analystTargetPrice), fieldKey: "analystTargetPrice", isEstimate: true }]
                       : []),
                     ...(m.analystTargetPrice != null && m.currentPrice != null
                       ? [{
                           label: "Upside to Target",
                           value: `${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%`,
                           good: m.analystTargetPrice > m.currentPrice,
+                          fieldKey: "analystTargetPrice",
+                          isEstimate: true,
                         }]
                       : []),
                     ...((data.scoreEvidence?.topMetrics ?? [])
@@ -381,6 +387,7 @@ export function StockBreakdown({
                       .map((t) => ({
                         label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
                         value: t.raw != null ? formatNumber(t.raw) : "—",
+                        fieldKey: provFieldForScoreKey(t.key),
                       }))),
                   ],
                 },
@@ -389,8 +396,8 @@ export function StockBreakdown({
                   sectionId: "bd-family-growth",
                   score: data.scoreEvidence?.growth ?? null,
                   rows: [
-                    { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined },
-                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined },
+                    { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined, fieldKey: "revenueGrowthYoY" },
+                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined, fieldKey: "epsGrowth" },
                     {
                       label: "PEG growth (peer z)",
                       value: m.pegGrowth != null
@@ -409,14 +416,16 @@ export function StockBreakdown({
                         : m.pegGrowth != null
                           ? m.pegGrowth > 0
                           : undefined,
+                      fieldKey: "pegRatio",
                     },
-                    { label: "Forward P/E", value: formatNumber(m.forwardPe) },
+                    { label: "Forward P/E", value: formatNumber(m.forwardPe), fieldKey: "forwardPe", isEstimate: true },
                     ...((data.scoreEvidence?.topMetrics ?? [])
                       .filter((t) => t.family === "growth")
                       .slice(0, 2)
                       .map((t) => ({
                         label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
                         value: t.raw != null ? formatNumber(t.raw) : "—",
+                        fieldKey: provFieldForScoreKey(t.key),
                       }))),
                   ],
                 },
@@ -425,17 +434,18 @@ export function StockBreakdown({
                   sectionId: "bd-family-quality",
                   score: data.scoreEvidence?.quality ?? null,
                   rows: [
-                    { label: "Return on Equity", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined },
-                    { label: "Gross Margin", value: formatPercent(m.grossMargin) },
-                    { label: "Operating Margin", value: formatPercent(m.operatingMargin) },
-                    { label: "Net Margin", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined },
-                    { label: "Free Cash Flow", value: formatLargeNumber(m.freeCashFlow) },
+                    { label: "Return on Equity", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined, fieldKey: "returnOnEquity" },
+                    { label: "Gross Margin", value: formatPercent(m.grossMargin), fieldKey: "grossMargin" },
+                    { label: "Operating Margin", value: formatPercent(m.operatingMargin), fieldKey: "operatingMargin" },
+                    { label: "Net Margin", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined, fieldKey: "netMargin" },
+                    { label: "Free Cash Flow", value: formatLargeNumber(m.freeCashFlow), fieldKey: "freeCashFlow" },
                     ...((data.scoreEvidence?.topMetrics ?? [])
                       .filter((t) => t.family === "quality")
                       .slice(0, 2)
                       .map((t) => ({
                         label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
                         value: t.raw != null ? formatNumber(t.raw) : "—",
+                        fieldKey: provFieldForScoreKey(t.key),
                       }))),
                   ],
                 },
@@ -444,16 +454,17 @@ export function StockBreakdown({
                   sectionId: "bd-family-safety",
                   score: data.scoreEvidence?.safety ?? null,
                   rows: [
-                    { label: "Current Ratio", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined },
-                    { label: "Debt / Equity", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined },
-                    { label: "Beta", value: formatNumber(m.beta) },
-                    { label: "Dividend Yield", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined },
+                    { label: "Current Ratio", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined, fieldKey: "currentRatio" },
+                    { label: "Debt / Equity", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined, fieldKey: "debtToEquity" },
+                    { label: "Beta", value: formatNumber(m.beta), fieldKey: "beta" },
+                    { label: "Dividend Yield", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined, fieldKey: "dividendYield" },
                     ...((data.scoreEvidence?.topMetrics ?? [])
                       .filter((t) => t.family === "safety")
                       .slice(0, 2)
                       .map((t) => ({
                         label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
                         value: t.raw != null ? formatNumber(t.raw) : "—",
+                        fieldKey: provFieldForScoreKey(t.key),
                       }))),
                   ],
                 },

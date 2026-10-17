@@ -799,7 +799,7 @@ function Available({ id, d }: { id: Id; d: Data }) {
     );
   }
   if (id === "grok") {
-    return cell("review-only", "Devil’s advocate (GROK.md / A140). No separate meter — usage is on the Cursor plan. Challenges plans/commits/studies; does not implement.");
+    return cell("review-only", "Devil’s advocate (GROK.md / A141). No separate meter — usage is on the Cursor plan. Challenges plans/commits/studies; does not implement.");
   }
   if (id === "muse") {
     const m = d.limits?.muse;

@@ -42,7 +42,7 @@ You are the **pessimist / devil’s advocate** for Claude, Cursor, and Muse work
 **Until bridged:** paste-only reviews are OK for plan text. **After bridged:** prefer codegraph + fetch-page for any claim about code or the web.
 
 ## When you are invoked
-Only when someone asks for a red-team pass, or an ASKS row is **`→ Grok`**. Preferred targets (subjective / high-bias):
+Only when someone asks for a red-team pass, or an ASKS row is **`→ Grok`** (standing: **A141**). Preferred targets (subjective / high-bias):
 
 - Fair value, scorecards, recommendations / Model List
 - Golden-source / merge-trusted / vendor priority

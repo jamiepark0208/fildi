@@ -112,7 +112,7 @@ export const TECH_COLS: TechColDef[] = [
   { key: "volumeRatio",       label: "Vol Ratio", family: "volume",     fmt: n2   },
   // VOLATILITY
   { key: "realizedVol20d",    label: "RVol 20d",  family: "volatility", fmt: p1   },
-  { key: "ivRank",            label: "IV Rank",   family: "volatility", fmt: p01  },
+  { key: "ivRank",            label: "RV rank",   family: "volatility", fmt: p01  },
   { key: "atmPutIv",          label: "ATM IV",    family: "volatility", fmt: p1   },
   { key: "impliedMoveWeekly", label: "Impl Mv",   family: "volatility", fmt: p1   },
   { key: "bbWidthPct",        label: "BB Width",  family: "volatility", fmt: p01  },

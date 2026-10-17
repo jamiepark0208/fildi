@@ -103,7 +103,7 @@ export const TECHNICAL_GUIDE_ROWS: GuideMetricRow[] = TECHNICAL_SCORECARD_METRIC
   refresh: "Daily" as const,
   coverageDomain: "technicals" as const,
   notes: m.key === "volatilityState"
-    ? "IV rank/percentile use realized-vol proxy until IV history builds"
+    ? "Labeled realized-vol rank in UI; true IV rank pending S019"
     : m.key === "optionsFlow"
       ? "Put/call percentile needs ~60d history"
       : m.description,
@@ -131,7 +131,7 @@ export const OPTIONS_STOCK_ROWS: GuideMetricRow[] = [
 export const OPTIONS_STRIKE_ROWS: GuideMetricRow[] = [
   opt("wIncome", "Income", W_INCOME, "band", "Yahoo", "On scan", "Regime-adjusted weekly yield target (~0.5–1%/wk); soft peak at target", "strike", "optionStrike", "income"),
   opt("wBuffer", "Buffer", W_BUFFER, "band", "Yahoo", "On scan", "Delta + SD vs expected move; soft haircut when earnings ≤7d", "strike", "optionStrike", "buffer"),
-  opt("wIvRel", "IV relative", W_IV_RELATIVE, true, "DB+Yahoo", "Mixed", "IV rank from DB; IV>RV / skew nudges", "strike", "optionStrike", "ivRelative"),
+  opt("wIvRel", "IV relative", W_IV_RELATIVE, true, "DB+Yahoo", "Mixed", "DB field is realized-vol rank (proxy); IV>RV / skew nudges", "strike", "optionStrike", "ivRelative"),
   opt("wIvAbs", "IV absolute", W_IV_ABSOLUTE, true, "Yahoo", "On scan", "Capped — avoids junk-high IV", "strike", "optionStrike", "ivAbsolute"),
   opt("wQuality", "Stock quality", W_STOCK_QUALITY, true, "DB", "Mixed", "Tech + fund combined", "strike", "optionStrike", "stockQuality"),
   opt("wSupport", "Support", W_SUPPORT, true, "DB", "Daily", "Distance to swing/pivot support", "strike", "optionStrike", "support"),

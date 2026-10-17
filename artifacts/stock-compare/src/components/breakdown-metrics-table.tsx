@@ -1,4 +1,11 @@
 import { cn } from "@/lib/utils";
+import {
+  ESTIMATE_FIELDS,
+  freshnessBand,
+  freshnessDotClass,
+  formatProvenanceTip,
+  type ProvTipField,
+} from "@/lib/provenance-display";
 
 /** Fund family scores are 0–100. Pass max={5} only for legacy displays. */
 export function ScoreBadge({ score, max = 100 }: { score: number | null | undefined; max?: number }) {
@@ -19,6 +26,10 @@ export interface MetricRowData {
   label: string;
   value: string;
   good?: boolean;
+  /** Provenance tfCol (e.g. peRatio) — when set, tip + freshness come from byField. */
+  fieldKey?: string;
+  /** Force estimate badge; else inferred from ESTIMATE_FIELDS. */
+  isEstimate?: boolean;
 }
 
 export interface MetricGroup {
@@ -29,7 +40,52 @@ export interface MetricGroup {
   sectionId?: string;
 }
 
-export function BreakdownMetricsTable({ groups }: { groups: MetricGroup[] }) {
+function MetricValue({
+  row,
+  prov,
+}: {
+  row: MetricRowData;
+  prov: ProvTipField | undefined;
+}) {
+  const tip = formatProvenanceTip(prov);
+  const estimate = row.isEstimate ?? (row.fieldKey != null && ESTIMATE_FIELDS.has(row.fieldKey));
+  const band = freshnessBand(prov?.fetchedAt);
+  const showDot = row.fieldKey != null;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-mono font-semibold shrink-0",
+        row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
+      )}
+      title={tip}
+    >
+      {showDot && (
+        <span
+          className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", freshnessDotClass(band))}
+          aria-hidden
+        />
+      )}
+      {estimate && (
+        <span
+          className="text-[9px] font-bold text-sky-400/90 border border-sky-400/40 rounded px-0.5 leading-none"
+          title="Estimate / forward figure"
+        >
+          E
+        </span>
+      )}
+      {row.value}
+    </span>
+  );
+}
+
+export function BreakdownMetricsTable({
+  groups,
+  byField,
+}: {
+  groups: MetricGroup[];
+  byField?: Map<string, ProvTipField>;
+}) {
   return (
     <div className="grid grid-cols-4 gap-2" id="bd-score-evidence">
       {groups.map(group => (
@@ -47,15 +103,10 @@ export function BreakdownMetricsTable({ groups }: { groups: MetricGroup[] }) {
           <div className="space-y-1">
             {group.rows.map((row, i) => (
               <div key={i} className="flex justify-between items-center gap-1.5">
-                <span className="text-[10px] text-amber-100/70 truncate">{row.label}</span>
-                <span
-                  className={cn(
-                    "text-[10px] font-mono font-semibold shrink-0",
-                    row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
-                  )}
-                >
-                  {row.value}
+                <span className="text-[10px] text-amber-100/70 truncate" title={row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined}>
+                  {row.label}
                 </span>
+                <MetricValue row={row} prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined} />
               </div>
             ))}
           </div>

@@ -172,7 +172,10 @@ export function HotlistTable({
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-amber-400">
                   {e.ivCurrent.toFixed(0)}%
-                  <span className={cn("ml-1", ivRank != null && ivRank >= 0.7 ? "text-amber-300 font-semibold" : "text-sky-300/50")}>
+                  <span
+                    className={cn("ml-1", ivRank != null && ivRank >= 0.7 ? "text-amber-300 font-semibold" : "text-sky-300/50")}
+                    title={ivRank != null ? "realized-vol rank (proxy; not true IV rank)" : undefined}
+                  >
                     {ivRank != null ? `R${Math.round(ivRank * 100)}` : ""}
                   </span>
                 </td>

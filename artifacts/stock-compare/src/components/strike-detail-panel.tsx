@@ -78,7 +78,7 @@ function bsGreeksAndPrice(S: number, K: number, T: number, r: number, sigma: num
 const COMPONENT_LABEL: Record<string, string> = {
   income: "income",
   buffer: "delta/buffer safety",
-  ivRelative: "IV rank",
+  ivRelative: "realized-vol rank",
   ivAbsolute: "IV vs watchlist",
   stockQuality: "stock quality",
   support: "support proximity",
@@ -151,7 +151,7 @@ function scoreBullets(
   const ivRel = cs.ivRelative?.score;
   if (ivRel != null) {
     const s = ivRel >= 0.7 ? "good" : ivRel >= 0.4 ? "neutral" : "warn";
-    const lbl = ivRel >= 0.7 ? "elevated IV rank — sell premium" : ivRel >= 0.4 ? "neutral IV environment" : "low IV rank — premium thin";
+    const lbl = ivRel >= 0.7 ? "elevated realized-vol rank — sell premium" : ivRel >= 0.4 ? "neutral IV environment" : "low realized-vol rank — premium thin";
     out.push({ text: `(ticker-level) IV environment: ${lbl}`, sentiment: s });
   }
 
