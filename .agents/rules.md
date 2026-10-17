@@ -13,23 +13,20 @@
 ## Muse (ideas)
 - Files ideas as ASKS rows to Cursor; never builds
 ## Claude (PM · reviewer · research)
-- Plan-review quant rows (final). Non-quant plan review is Grok Bot's (2026-10-17)
+- Plan-review every Muse row before it's built
 - Decline check: need · met by · revisit trigger
 - Review quant commits before reading Muse's verdict
 - Never implements Muse rows
 - Pre-register every study; record it in research/studies/INDEX.md
 - Triage research/inbox.md at session start
 ## Cursor (builder)
-- Builds planned rows: Grok Bot's verdict on non-quant, Claude's on quant
+- Builds only Claude-reviewed (planned) rows
 - One row at a time: next starts after the last commit's review passes
 - Fixes review findings before new work
 ## Grok Bot (plan review, Jamie 2026-10-17)
-- Joined 2026-10-17 as plan reviewer and skeptic, at Jamie's direction
-- Writes `**Grok Bot plan <date>:**` reviews
-- Non-quant (UI, ops, infra, agent tooling, bugs, docs): Grok Bot's review is final; status moves to planned or declined
-- Quant (scores, weights, thresholds, trades shown, option pricing, backtests, market data): pre-review only; status stays; Claude's verdict is final and can override
-- Commits carry `Agent: grokbot`
-- Pending proposals (claims with expiry, credit tags) are ASKS rows, not rule edits
+- Joining as plan reviewer and skeptic at Jamie's direction; reviews are advisory until A142 is approved
+- Claude stays final on all rows for now
+- No rule change until Claude plan-reviews A142, Muse comments, and Jamie says yes
 ## Approvals (Jamie)
 - Score, weight, threshold or Model List changes need before/after + Jamie's yes
 - Unattended agents need Jamie's go
