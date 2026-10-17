@@ -16,6 +16,7 @@
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
+| Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only; no Mac stack; ASKS `→ Grok` / `Grok → …` |
 
 ## One team (user decision 2026-10-05; Muse via git 2026-10-07)
 Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval rules).

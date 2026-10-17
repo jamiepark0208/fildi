@@ -4,13 +4,12 @@
 **Last updated:** 2026-10-16
 
 ## Phase
-**build** — Live movers speed + Options board heat; Muse queue next.
+**build** — Agents token UX + A122 Muse live + A131 conventions; skip Claude OpenJev/cache.
 
 ## Active
-- Live movers: skip cold live-price fan-out; screener count 15; keepPreviousData.
-- Live/hotlist Model chip → compact “M”; Options price+chg inline; Opt/Stock/IV/Inc/Buf column heat.
-- Watchlist My List + Ideas glow + A121 still uncommitted.
-- A97 Yahoo PT → Tgt: Claude says restored — verify + commit.
+- Cursor tokens on AI tab: wired — `scripts/cursor-usage-snap.mjs` → `~/.fildi/cursor-limits.json`.
+- GROK.md + A140: devil’s-advocate Bot (review-only; no Mac stack install). Promo ends 2026-12-11.
+- Leave alone: OpenJev, cache-overview / ttl-cache rebuild.
 - Do not step into A88 without asking Jamie.
 
 ## Do not

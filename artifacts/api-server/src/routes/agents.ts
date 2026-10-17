@@ -5,7 +5,7 @@
  *     GitHub noreply author → muse (it commits from the cloud); other local commits → cursor. Method shown in the UI tooltip.
  *   - hand-offs: research/common/ASKS.md index rows (from → to, status) — each row is one message between agents.
  *   - tokens: Claude Code session logs (~/.claude/projects/<repo>/*.jsonl, usage per API request, deduped by requestId).
- *     Cursor/Muse token use isn't recorded locally → "not tracked".
+ *     Cursor plan pool: scripts/cursor-usage-snap.mjs → ~/.fildi/cursor-limits.json (DashboardService). Muse: no meter.
  *   - live: hook events (.agents/hooks/agent-event.mjs → ~/.fildi/agent-events.jsonl): working now = event < 2 min, not stopped.
  *   - windows: Claude output tokens per 5-hour window (plan limits reset per 5 h; the plan's cap isn't exposed → compare to own peak).
  *   - rules: .agents/rules.md (curated one-liners) · skills: .claude/skills/*.md + loads in the last 7 d.
@@ -29,10 +29,10 @@ const router = Router();
 const run = promisify(execFile);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const LOGS = join(homedir(), ".claude/projects", ROOT.replace(/[/.]/g, "-"));
-type AgentId = "muse" | "claude" | "cursor" | "jamie";
+type AgentId = "muse" | "claude" | "cursor" | "jamie" | "grok";
 type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
 
-const NAMES: Record<string, AgentId> = { muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie" };
+const NAMES: Record<string, AgentId> = { muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie", grok: "grok" };
 const who = (s: string): AgentId | null => NAMES[s.trim().toLowerCase()] ?? null;
 
 async function commits(since = "7 days ago"): Promise<Ev[]> {
@@ -114,7 +114,7 @@ function ideaTouch(id: string, status: string, filed: string): { at: string | nu
 
 /** ASKS index → hand-offs (7d) + Muse idea board (all open/active rows). */
 function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
-  const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0 };
+  const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0, grok: 0 };
   const ev: Ev[] = [];
   const ideas: Idea[] = [];
   const since = Date.now() - 7 * 864e5;
@@ -409,6 +409,60 @@ function claudeLimits(): { at: string; fiveHour: { pct: number | null; resetsAt:
   } catch { return null; }
 }
 
+/** Muse weekly usage: Muse's heartbeat events carry usage_pct + usage_resets (from subscription-status). */
+function museUsage(): { at: string; pct: number | null; resetsAt: string | null } | null {
+  try {
+    const lines = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8").trim().split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const e = JSON.parse(lines[i]) as { agent?: string; t?: string; usage_pct?: number; usage_resets?: string };
+        if (e.agent === "muse" && typeof e.usage_pct === "number")
+          return { at: e.t ?? new Date().toISOString(), pct: e.usage_pct, resetsAt: e.usage_resets ?? null };
+      } catch { /* skip malformed line */ }
+    }
+    return null;
+  } catch { return null; }
+}
+
+type CursorLimits = {
+  at: string; plan: string | null;
+  totalPct: number | null; autoPct: number | null; apiPct: number | null;
+  resetsAt: string | null; spendUsd: number | null; limitUsd: number | null; error: string | null;
+};
+/** Cursor plan limits: `scripts/cursor-usage-snap.mjs` → ~/.fildi/cursor-limits.json (DashboardService GetCurrentPeriodUsage). */
+function cursorLimits(): CursorLimits | null {
+  try {
+    const j = JSON.parse(readFileSync(join(homedir(), ".fildi/cursor-limits.json"), "utf8")) as {
+      at: string; plan?: string; totalPercentUsed?: number | null; autoPercentUsed?: number | null; apiPercentUsed?: number | null;
+      billingCycleEnd?: string | number | null; totalSpendCents?: number | null; limitCents?: number | null; error?: string | null;
+    };
+    const end = j.billingCycleEnd;
+    let resetsAt: string | null = null;
+    if (end != null && end !== "") {
+      const n = typeof end === "number" ? end : Number(end);
+      resetsAt = Number.isFinite(n) ? new Date(n < 1e12 ? n * 1000 : n).toISOString() : String(end);
+    }
+    return {
+      at: j.at, plan: j.plan ?? null,
+      totalPct: j.totalPercentUsed ?? null, autoPct: j.autoPercentUsed ?? null, apiPct: j.apiPercentUsed ?? null,
+      resetsAt, spendUsd: j.totalSpendCents != null ? j.totalSpendCents / 100 : null,
+      limitUsd: j.limitCents != null ? j.limitCents / 100 : null, error: j.error ?? null,
+    };
+  } catch { return null; }
+}
+
+/** Refresh Cursor usage snap when file missing or older than 5 min (fire-and-forget; never blocks overview). */
+function maybeRefreshCursorLimits(): void {
+  try {
+    const p = join(homedir(), ".fildi/cursor-limits.json");
+    let stale = true;
+    try { stale = Date.now() - statSync(p).mtimeMs > 5 * 60_000; } catch { stale = true; }
+    if (!stale) return;
+    const script = join(ROOT, "scripts/cursor-usage-snap.mjs");
+    void run("node", [script], { timeout: 20_000 }).catch(() => { /* next poll retries */ });
+  } catch { /* ignore */ }
+}
+
 let museCache: { at: number; running: boolean } | null = null;
 /** Muse is a desktop app (process "Muse"); it keeps no local session/token logs, so only "app open" is knowable here. */
 async function museRunning(): Promise<boolean> {
@@ -417,6 +471,31 @@ async function museRunning(): Promise<boolean> {
   try { await run("pgrep", ["-x", "Muse"]); running = true; } catch { running = false; }
   museCache = { at: Date.now(), running };
   return running;
+}
+
+type MuseLive = { working: boolean; detail: string | null; t: string | null; source: "hooks" | "file" | null; ageMin: number | null };
+/** A122: Muse "working" from hook events (device write) or `.agents/live/muse.json` fallback. 10-min window. */
+function museLiveStatus(live: LiveEv[], nowMs: number): MuseLive {
+  const WIN = 10 * 60_000;
+  const fromHook = [...live].reverse().find((e) => e.agent === "muse");
+  let best: MuseLive = { working: false, detail: null, t: null, source: null, ageMin: null };
+  if (fromHook) {
+    const age = nowMs - Date.parse(fromHook.t);
+    const working = fromHook.event === "working" && age < WIN && !["stop", "session-end"].includes(fromHook.event);
+    best = { working, detail: fromHook.detail ?? null, t: fromHook.t, source: "hooks", ageMin: Math.max(0, Math.round(age / 60_000)) };
+  }
+  try {
+    const j = JSON.parse(readFileSync(join(ROOT, ".agents/live/muse.json"), "utf8")) as { event?: string; detail?: string; t?: string };
+    if (j.t) {
+      const age = nowMs - Date.parse(j.t);
+      const working = j.event === "working" && age < WIN;
+      // Prefer fresher of hooks vs file
+      if (!best.t || Date.parse(j.t) > Date.parse(best.t)) {
+        best = { working, detail: j.detail ?? null, t: j.t, source: "file", ageMin: Math.max(0, Math.round(age / 60_000)) };
+      }
+    }
+  } catch { /* no heartbeat file yet */ }
+  return best;
 }
 
 /** OpenJev (local calibrated-probability model, A129): running = its server process is up (batch runs load → answer → unload)
@@ -626,10 +705,10 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     subagents: subagents(live, nowMs),
     status: { claude: status("claude"), cursor: status("cursor") },
     activity1h, kinds: KINDS,
-    limits: { claude: claudeLimits() },
+    limits: (() => { maybeRefreshCursorLimits(); return { claude: claudeLimits(), cursor: cursorLimits(), muse: museUsage() }; })(),
     needsUnread: await needsUnread(),
     jamieUnread: await jamieUnread(),
-    muse: { running: await museRunning() },
+    muse: { running: await museRunning(), live: museLiveStatus(live, nowMs) },
     openjev: await openjevStatus(live, nowMs),
     ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits
@@ -639,7 +718,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
   const { ev, queue, ideas } = asks();
   const day = Date.now() - 864e5;
-  const agents = (["muse", "claude", "cursor", "jamie"] as AgentId[]).map((id) => {
+  const agents = (["muse", "claude", "cursor", "grok", "jamie"] as AgentId[]).map((id) => {
     const mine = cm.filter((c) => c.from === id);
     return {
       id,

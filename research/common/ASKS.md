@@ -98,7 +98,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | parked (Claude 10-16: Hermes vs SkillOpt waits on A103's trigger) |
 | [A120](asks/A120.md) | 2026-10-15 | Muse → Claude | Pattern-discovery research program: regimes, reversals, calendar, lead-lag, automated X/Y engine | open |
 | [A121](asks/A121.md) | 2026-10-15 | Muse → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | done (Cursor fix; Claude ran the failing-check test 10-16: pass) |
-| [A122](asks/A122.md) | 2026-10-15 | Muse → Cursor | Muse live status on the Stage orb grid (git heartbeat) | planned (Claude 10-16: device write OK if Jamie enables file access; git-fetch fallback) |
+| [A122](asks/A122.md) | 2026-10-15 | Muse → Cursor | Muse live status on the Stage orb grid (git heartbeat) | accepted (Cursor 10-16: hooks + muse.json live on overview/orb; device write still best) |
 | [A123](asks/A123.md) | 2026-10-15 | Muse → Cursor | Crawl4AI + Browser Use pilot (tested before filing) | done (Claude 10-16 v4: on-demand fetcher; Jamie approved) |
 | [A124](asks/A124.md) | 2026-10-16 | Muse → Cursor | Pythia forecasting-oracle pilot (tested before filing) | planned, merged (Claude 10-16: one forecast ledger with A129/A82/A85/A74; Pythia = first LLM forecaster) |
 | [A125](asks/A125.md) | 2026-10-16 | Muse → Cursor | Video Lab tab: upload test shorts + co-generate ideas | planned, P3 (Claude 10-16: + 'Reel inbox' so Jamie's forwarded videos feed ASKS) |
@@ -107,7 +107,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | done (Claude 10-16: route-map + commit-impact scripts, no MCP) |
 | [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | local 26B live (Claude 10-16); first resolutions 10-17; pass test ≥ 50 resolved puts |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | step 1 done (Claude 10-16: all Haiku calls logged + AI spend line) |
-| [A131](asks/A131.md) | 2026-10-16 | Muse → Cursor | Backtest timestamp-leakage audit | planned, P1 (Claude 10-16: concrete risk list added; Claude signs off) |
+| [A131](asks/A131.md) | 2026-10-16 | Muse → Cursor | Backtest timestamp-leakage audit | accepted (Cursor 10-16: CONVENTIONS.md inventory; S025 same-close flagged; Claude re-runs next) |
 | [A132](asks/A132.md) | 2026-10-16 | Muse → Cursor | Competitive teardown: FinceptTerminal vs fildi | planned, P3 (Claude 10-16: Muse does it; steal-list scored for a put seller) |
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | planned, narrowed (Claude 10-16: free-tier test aimed at S019's IV gap + OI history) |
 | [A134](asks/A134.md) | 2026-10-16 | Muse → Cursor | Gamma exposure (GEX) regime indicator | planned — phase 1 done (badge); S034 pending |
@@ -116,3 +116,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | planned, P1 (Claude 10-16: upgrade the existing IV/RV factor; study S033 first) |
 | [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | planned, merged into S033 (Claude 10-16: TimesFM = second arm of the A137 study) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | planned, narrowed (Claude 10-16: detectors as overlays; no composite until intraday test S036) |
+| [A140](asks/A140.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | open (Cursor 10-16: adapter filed; Jamie pastes Bot memory next) |

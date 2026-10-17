@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 
-type Id = "muse" | "claude" | "cursor" | "jamie";
+type Id = "muse" | "claude" | "cursor" | "jamie" | "grok";
 type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number };
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
@@ -45,7 +45,7 @@ const IDEA_WAVE_ACK_KEY = "fildi_ideas_wave_ack";
 /** Hot-wave glow (status just changed this batch). Distinct from phase colours. */
 const HOT_GLOW = "#ff4d8d";
 const PROG_GLOW = "#5eead4";
-const WHO_LETTER: Record<Id, string> = { jamie: "Y", muse: "M", claude: "Cl", cursor: "Cu" };
+const WHO_LETTER: Record<Id, string> = { jamie: "Y", muse: "M", claude: "Cl", cursor: "Cu", grok: "G" };
 type Data = {
   needsUnread?: Record<string, number>;
   jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
@@ -54,7 +54,16 @@ type Data = {
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
-  limits?: { claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null }; muse?: { running: boolean };
+  limits?: {
+    claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null;
+    cursor?: {
+      at: string; plan: string | null;
+      totalPct: number | null; autoPct: number | null; apiPct: number | null;
+      resetsAt: string | null; spendUsd: number | null; limitUsd: number | null; error: string | null;
+    } | null;
+    muse?: { at: string; pct: number | null; resetsAt: string | null } | null;
+  };
+  muse?: { running: boolean; live?: { working: boolean; detail: string | null; t: string | null; source: "hooks" | "file" | null; ageMin: number | null } };
   openjev?: OpenJev;
   subagents?: Sub[]; jobs?: Jobs; procs?: Proc[]; gitHour?: { t: string; agent: string; text: string }[];
 };
@@ -83,9 +92,10 @@ type View = { z: number; x: number; y: number };
 
 const META: Record<Id, { label: string; role: string; color: string; ang: number }> = {
   jamie: { label: "You", role: "decide", color: "#fde047", ang: 0 },
-  muse: { label: "Muse", role: "ideas", color: "#e879f9", ang: -150 },
-  claude: { label: "Claude", role: "review · research", color: "#38e1ff", ang: -30 },
-  cursor: { label: "Cursor", role: "build", color: "#4ade80", ang: 90 },
+  muse: { label: "Muse", role: "ideas", color: "#e879f9", ang: -140 },
+  claude: { label: "Claude", role: "review · research", color: "#38e1ff", ang: -40 },
+  cursor: { label: "Cursor", role: "build", color: "#4ade80", ang: 50 },
+  grok: { label: "Grok", role: "red team", color: "#fb923c", ang: 140 },
 };
 const PHASES = ["needs you", "filed", "reviewed", "building", "done", "parked"] as const;
 const PHASE_COLOR: Record<string, string> = {
@@ -447,7 +457,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       // database / API / web / code work is drawn as persistent live links below, not one-shot beams
     }
     beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-40);
-    for (const id of ["muse", "claude", "cursor"] as Id[]) {
+    for (const id of ["muse", "claude", "cursor", "grok"] as Id[]) {
       const p = pos(id), j = pos("jamie");
       ctx.strokeStyle = META[id].color + "30"; ctx.lineWidth = 1.2 / v.z;
       ctx.beginPath(); ctx.moveTo(j.x, j.y); ctx.lineTo(p.x, p.y); ctx.stroke();
@@ -633,9 +643,11 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
       const r = id === "jamie" ? 25 : 21;
       const museOff = id === "muse" && d.muse && !d.muse.running;
+      const museWorking = id === "muse" && !!d.muse?.live?.working;
       drawOrb(ctx, p.x, p.y, r, museOff ? "#71717a" : META[id].color, {
-        working: !!st?.working, selected: sel === id, now, reduce,
-        ring: st?.lastKind ? KIND[st.lastKind]?.color : undefined, pulse: attention(st ?? undefined),
+        working: !!st?.working || museWorking, selected: sel === id, now, reduce,
+        ring: st?.lastKind ? KIND[st.lastKind]?.color : museWorking ? KIND.code.color : undefined,
+        pulse: attention(st ?? undefined),
       });
       const label = META[id].label; // name inside the orb, sized to fit
       let fs = 14;
@@ -727,11 +739,19 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
     if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
+    if (id === "grok") {
+      return <Lines color={m.color} a="Grok · red team" b={a?.queue ? `${a.queue} in queue` : "devil’s advocate"} c="GROK.md · review-only · Cursor meter" />;
+    }
+    const ml = id === "muse" ? d.muse?.live : undefined;
     const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
-      : id === "muse" ? (d.muse?.running ? "app open" : "app closed") : `last commit ${ago(a?.lastActive)}`;
+      : id === "muse"
+        ? (ml?.working ? `working${ml.detail ? ` · ${ml.detail.slice(0, 36)}` : ""}` : d.muse?.running ? "app open" : "app closed")
+        : `last commit ${ago(a?.lastActive)}`;
     const unread = id === "claude" ? Object.entries(d.jamieUnread ?? {}) : [];
-    return <Lines color={m.color} a={st?.doing ? `${m.label} · ${st.doing.slice(0, 40)}` : m.label} b={state}
+    const museAge = ml?.t && !ml.working && ml.ageMin != null ? `heartbeat as of ${ml.ageMin}m ago` : null;
+    return <Lines color={m.color} a={st?.doing ? `${m.label} · ${st.doing.slice(0, 40)}` : (ml?.working && ml.detail ? `${m.label} · ${ml.detail.slice(0, 40)}` : m.label)} b={state}
       c={unread.length ? unread.map(([k, n]) => `${k} · ${n} unread from you`).join(" · ")
+        : museAge ? museAge
         : st && (st.errors1h ?? 0) > 0 ? `${st.errors1h} errors this hour` : `${a?.commits24h ?? 0} commits today`} />;
   };
   return (
@@ -765,8 +785,31 @@ function Available({ id, d }: { id: Id; d: Data }) {
       <>5-hour window: {Math.round(l.fiveHour.pct)}% used, resets {hm(l.fiveHour.resetsAt)}.{l.sevenDay.pct != null && <> Weekly: {Math.round(l.sevenDay.pct)}% used{l.sevenDay.resetsAt ? `, resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}.</>} As of {hm(l.at)}.</>,
       left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
   }
-  if (id === "cursor") return cell("n/a", "Cursor dashboard only (cursor.com/dashboard): Cursor doesn't record usage on this Mac.");
-  return cell("n/a", "Muse is a desktop app that keeps no usage logs on this Mac; only whether the app is open is visible.");
+  if (id === "cursor") {
+    const l = d.limits?.cursor;
+    if (!l || l.totalPct == null) {
+      return cell(l?.error ? "auth?" : "…", "Refreshing from Cursor’s billing API (scripts/cursor-usage-snap.mjs → ~/.fildi/cursor-limits.json). Same source as cursor.com/dashboard. Needs you signed into Cursor on this Mac.");
+    }
+    const left = Math.max(0, 100 - l.totalPct);
+    const spend = l.spendUsd != null && l.limitUsd != null ? ` · $${l.spendUsd.toFixed(0)}/$${l.limitUsd.toFixed(0)}` : "";
+    return cell(
+      <>{Math.round(left)}% left · resets {hm(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</>,
+      <>Plan pool this cycle: {Math.round(l.totalPct)}% used{spend}. Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API models {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"}. As of {hm(l.at)}. High-effort / third-party models burn the API pool faster — not unlimited. Grok Bot also draws from this Cursor meter.</>,
+      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300",
+    );
+  }
+  if (id === "grok") {
+    return cell("review-only", "Devil’s advocate (GROK.md / A140). No separate meter — usage is on the Cursor plan. Challenges plans/commits/studies; does not implement.");
+  }
+  if (id === "muse") {
+    const m = d.limits?.muse;
+    if (!m || m.pct == null) return cell("—", "Muse reports its weekly usage via heartbeat events; the number appears here after its next status update.");
+    const mLeft = Math.max(0, 100 - m.pct);
+    return cell(<>{Math.round(mLeft)}% left · resets {hm(m.resetsAt)}</>,
+      <>Weekly free limit: {Math.round(m.pct)}% used{m.resetsAt ? `, resets ${new Date(m.resetsAt).toLocaleDateString()}` : ""}. As of {hm(m.at)}. Reported by Muse's heartbeat events.</>,
+      mLeft < 20 ? "text-red-300 font-semibold" : mLeft < 50 ? "text-amber-200" : "text-emerald-300");
+  }
+  return cell("—", "No local usage meter for this agent.");
 }
 
 /** Step timeline: an agent's last 30 actions in order, activity colour, time, plain-English action, gap since the previous step. */
@@ -820,16 +863,42 @@ function TeamPanel({ d }: { d: Data }) {
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
             const st = a.id === "claude" || a.id === "cursor" ? d.status[a.id] : undefined;
+            const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
                 <td className={cn(GRID_TD, "whitespace-nowrap", st?.waiting ? "text-yellow-300" : st?.looping ? "text-red-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
                   {st ? (st.waiting ? "● waiting for you" : st.looping ? "● looping?" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
-                    : a.id === "muse" ? `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}` : `last commit ${ago(a.lastActive)}`}
+                    : a.id === "muse"
+                      ? (d.muse?.live?.working
+                        ? `● working${d.muse.live.detail ? ` · ${d.muse.live.detail.slice(0, 28)}` : ""}`
+                        : `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}`)
+                      : a.id === "grok"
+                        ? (a.queue > 0 ? `● ${a.queue} to review` : "red team · idle")
+                        : `last commit ${ago(a.lastActive)}`}
                 </td>
                 <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
-                  {a.id === "claude" ? <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></> : "—"}
+                  {a.id === "claude" ? (
+                    <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
+                  ) : a.id === "cursor" ? (
+                    (() => {
+                      const l = d.limits?.cursor;
+                      if (l?.spendUsd != null) {
+                        return (
+                          <Tooltip delayDuration={150}>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-default">${l.spendUsd.toFixed(0)} <span className="text-white/50">cycle</span></span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className={TIP}>
+                              Included spend this billing cycle (Cursor Dashboard API). {l.totalPct != null ? `${Math.round(l.totalPct)}% of plan pool.` : ""} {st ? `${st.tools24h} hook actions / 24h.` : ""}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+                      return st ? <>{st.tools24h} <span className="text-white/50">actions</span></> : "—";
+                    })()
+                  ) : mu?.pct != null ? <>{Math.round(mu.pct)}% <span className="text-white/50">weekly</span></> : "—"}
                 </td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
@@ -1180,7 +1249,11 @@ function Usage({ d }: { d: Data }) {
           ))}</tbody>
         </table>
       </div>
-      <p className="text-[12px] text-white/60">Cursor: {d.status.cursor.tools24h} actions in 24 h (hooks) · Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits in 24 h · tokens not tracked for either</p>
+      <p className="text-[12px] text-white/60">
+        Cursor: {d.limits?.cursor?.totalPct != null ? `${Math.round(100 - d.limits.cursor.totalPct)}% plan left` : "usage snap pending"}
+        {" · "}{d.status.cursor.tools24h} actions / 24h
+        {" · "}Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits · heartbeat {d.muse?.live?.working ? "working" : "idle"}
+      </p>
     </div>
   );
 }

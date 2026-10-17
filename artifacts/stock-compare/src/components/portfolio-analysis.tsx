@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatCurrency, formatCompactCurrency, formatCompactCurrencyInt, formatMdYy, formatMYy } from "@/lib/format";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { GRID_WRAP, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { cn } from "@/lib/utils";
 import {
   formatStrike, PALETTE, SECTOR_OVERRIDES, BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS,
@@ -849,14 +849,6 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               return (
                 <div className={cn(GRID_WRAP, "flex-1 min-h-0 overflow-auto")}>
                   <table className="w-full border-collapse table-fixed">
-                    <thead className={GRID_HEADER}>
-                      <tr>
-                        <th className={cn(GRID_TH, "text-left w-[22%] py-0.5 px-1.5 text-[9px]")}>Metric</th>
-                        <th className={cn(GRID_TH, "text-right w-[28%] py-0.5 px-1.5 text-[9px]")}>Value</th>
-                        <th className={cn(GRID_TH, "text-left w-[22%] py-0.5 px-1.5 text-[9px]")}>Metric</th>
-                        <th className={cn(GRID_TH, "text-right w-[28%] py-0.5 px-1.5 text-[9px]")}>Value</th>
-                      </tr>
-                    </thead>
                     <tbody>
                       {rows.map((pair, ri) => (
                         <tr key={ri} className={gridRow(ri)}>

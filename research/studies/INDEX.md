@@ -1,6 +1,6 @@
 # Research studies — catalog
 > **Check here before starting any analysis, backtest or "is X an edge?" question.** One row per study; the link is the full report.
-> How to add one: `README.md`. Method rules every study must follow: `METHODS.md`. Factor homes: `scripts/watchlist_sync/FACTOR_MAP.md`.
+> How to add one: `README.md`. Method rules every study must follow: `METHODS.md`. Timestamp/entry conventions: `CONVENTIONS.md` (A131). Factor homes: `scripts/watchlist_sync/FACTOR_MAP.md`.
 > Paths: `out/` = `scripts/watchlist_sync/out/` (markdown versioned, data local) · `analysis/` = `scripts/watchlist_sync/analysis/`.
 
 Status: **adopted** (changed the live model) · **display** (shown, not scored) · **rejected** · **open** (accruing data / awaiting decision) · **superseded**
