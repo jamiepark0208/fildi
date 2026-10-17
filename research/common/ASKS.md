@@ -41,7 +41,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A56](asks/A56.md) | 2026-10-10 | Muse → Cursor | [quant] Characteristic feature seed (qlib Alpha158 + ta, MIT) + HMM regimes | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
 | [A57](asks/A57.md) | 2026-10-10 | Muse → Cursor | [quant] Vectorized backtest harness (vectorbt design — license TBD) | declined (Claude 10-14: backtest_puts.py is the home) |
 | [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | done |
-| [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | planned (Claude plan 10-14) |
+| [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | done (Cursor 10-17; await Claude review) |
 | [A65](asks/A65.md) | 2026-10-11 | Muse → Cursor | Stop ingesting on every Daily News poll | done |
 | [A66](asks/A66.md) | 2026-10-12 | Muse → Cursor | Repair A62 row collision — staleness-guard spec was overwritten | done |
 | [A67](asks/A67.md) | 2026-10-12 | Muse → Cursor | Run the A51 event-window study before CPI (Oct 14) | deferred (CPI passed; run only if A51 wanted) |
@@ -112,7 +112,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | planned, narrowed (Claude 10-16: free-tier test aimed at S019's IV gap + OI history) |
 | [A134](asks/A134.md) | 2026-10-16 | Muse → Cursor | Gamma exposure (GEX) regime indicator | planned — phase 1 done (badge); S034 pending |
 | [A135](asks/A135.md) | 2026-10-16 | Muse → Cursor | Merge Karpathy behavioral guidelines | done (Claude 10-16: AGENTS.md rule 8) |
-| [A136](asks/A136.md) | 2026-10-16 | Muse → Cursor | Pre-trade risk gate | accepted (Cursor 10-17: what-if desk form; scanner badges + override log still open) |
+| [A136](asks/A136.md) | 2026-10-16 | Muse → Cursor | Pre-trade risk gate | done (Cursor 10-17: badges + override log; backtest still open → Claude) |
 | [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | planned, P1 (Claude 10-16: upgrade the existing IV/RV factor; study S033 first) |
 | [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | planned, merged into S033 (Claude 10-16: TimesFM = second arm of the A137 study) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | planned, narrowed (Claude 10-16: detectors as overlays; no composite until intraday test S036) |

@@ -7,6 +7,7 @@ import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
 import { getSchwabDailyBars } from "./schwab-client.js";
 import { lastCompletedSessionYmd } from "./market-hours.js";
+import { decidePriceReplace } from "./price-source-rank.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -494,19 +495,65 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
 
   if (sourced.length < 15) throw new Error(`Insufficient history for ${key}: ${sourced.length} rows`);
 
-  // Ranked fallback with provenance: insert new bars only (never overwrite existing rows).
-  await db.insert(pricesHistorical)
-    .values(sourced.map(r => ({
-      ticker: key,
-      date:   barYmd(r),
-      open:   String(r.open),
-      high:   String(r.high),
-      low:    String(r.low),
-      close:  String(r.close),
-      volume: r.volume,
-      source: r.source,
-    })))
-    .onConflictDoNothing();
+  // A63: upsert honoring source rank (Schwab > … > Yahoo). Jump ≥ 2% keeps old bar.
+  const dates = sourced.map((r) => barYmd(r));
+  const existing = dates.length
+    ? await db.select({
+      date: pricesHistorical.date,
+      close: pricesHistorical.close,
+      source: pricesHistorical.source,
+    }).from(pricesHistorical).where(and(
+      eq(pricesHistorical.ticker, key),
+      inArray(pricesHistorical.date, dates),
+    ))
+    : [];
+  const byDate = new Map(existing.map((r) => [String(r.date).slice(0, 10), r]));
+  const toInsert: typeof sourced = [];
+  const toReplace: typeof sourced = [];
+  let jumps = 0;
+  for (const r of sourced) {
+    const d = barYmd(r);
+    const ex = byDate.get(d);
+    const decision = decidePriceReplace({
+      existingClose: ex?.close != null ? Number(ex.close) : null,
+      existingSource: ex?.source,
+      incomingClose: r.close,
+      incomingSource: r.source,
+    });
+    if (decision.action === "insert") toInsert.push(r);
+    else if (decision.action === "replace") toReplace.push(r);
+    else if (decision.reason === "jump") jumps += 1;
+  }
+  if (toInsert.length) {
+    await db.insert(pricesHistorical)
+      .values(toInsert.map((r) => ({
+        ticker: key,
+        date: barYmd(r),
+        open: String(r.open),
+        high: String(r.high),
+        low: String(r.low),
+        close: String(r.close),
+        volume: r.volume,
+        source: r.source,
+      })))
+      .onConflictDoNothing();
+  }
+  for (const r of toReplace) {
+    await db.update(pricesHistorical)
+      .set({
+        open: String(r.open),
+        high: String(r.high),
+        low: String(r.low),
+        close: String(r.close),
+        volume: r.volume,
+        source: r.source,
+      })
+      .where(and(eq(pricesHistorical.ticker, key), eq(pricesHistorical.date, barYmd(r))));
+  }
+  if (jumps > 0 || toReplace.length > 0) {
+    logger.info({ ticker: key, inserted: toInsert.length, replaced: toReplace.length, jumps },
+      "fetchAndStoreOHLCV: A63 source-ranked upsert");
+  }
 
   return sourced.map(r => ({ close: r.close, high: r.high, low: r.low, volume: r.volume }));
 }
