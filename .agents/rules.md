@@ -8,6 +8,7 @@
 - Any question for Jamie also goes in .agents/needs-jamie.md (NEEDS YOU cube) until answered
 - Reply to NEEDS YOU comments with needs-reply.mjs; when an item is resolved, delete it from .agents/needs-jamie.md
 - Free / local tools first; state cost before anything heavy
+- OpenJev (scripts/oj.py) for typed triage questions: check .agents/openjev/REGISTRY.md tier first; only tier A may gate work
 - AI never trades: analysis only, Jamie decides
 - Alerts only inside Fildi: no push, email, downloads
 ## Muse (ideas)

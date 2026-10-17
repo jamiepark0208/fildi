@@ -73,6 +73,7 @@ research/openjev/.venv/
 research/openjev/news/
 research/openjev/controls/
 research/openjev/charts/
+research/openjev/evals/
 
 # Generated at runtime (regenerated when missing; resource audit 10-16)
 artifacts/api-server/cot-cache.json

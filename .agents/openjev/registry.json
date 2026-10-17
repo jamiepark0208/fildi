@@ -1,0 +1,556 @@
+{
+ "model": "openjev-latest (DiffusionGemma 26B-A4B, MLX 4-bit)",
+ "updated": "2026-10-17",
+ "patterns": [
+  {
+   "id": "P01",
+   "question": "Which of our peer groups fits this company? (description + financials + 3 example members per group; 2 shuffled reads)",
+   "type": "choice",
+   "use": "review queue for the peer audit — never auto-apply",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "agrees with reviewed truth (hard set + random names)",
+    "target": 0.8,
+    "baseline": "vendor-industry majority 68 %"
+   },
+   "label_source": "peer_group_overrides + Claude review (A148)",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.8466,
+    "lo": 0.799,
+    "hi": 0.885,
+    "n": 189,
+    "evidence": "S038/S039 peers v2",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "sector level 91 %"
+  },
+  {
+   "id": "P02",
+   "question": "From this analyst headline only, what did the firm do? (upgrade/downgrade/initiate/PT raise/PT cut/reiterate/other)",
+   "type": "choice",
+   "use": "label analyst events, QA links",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "matches the headline's action",
+    "target": 0.9,
+    "baseline": "regex"
+   },
+   "label_source": "regex-parsable headlines",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.956,
+    "lo": 0.906,
+    "hi": 0.98,
+    "n": 91,
+    "evidence": "S037 U2",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P03",
+   "question": "Is this headline one firm's call on this stock, or a roundup/other?",
+   "type": "choice",
+   "use": "drop roundup links (analyst_events, desk news)",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "roundup rows flagged",
+    "target": 0.9,
+    "baseline": "roundup regex"
+   },
+   "label_source": "roundup regex",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.9737,
+    "lo": 0.924,
+    "hi": 0.991,
+    "n": 76,
+    "evidence": "S037 U2",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P04",
+   "question": "Is this headline good / neutral / bad for <company>'s stock in the short term?",
+   "type": "score",
+   "use": "label + sort overnight news (display only)",
+   "rule": {
+    "kind": "ic",
+    "metric": "rank corr with same-day abnormal move (pre-open headlines)",
+    "target": 0.05,
+    "baseline": "keyword lexicon IC 0.080; OpenJev adds coverage where keywords are silent (IC +0.05…+0.09)"
+   },
+   "label_source": "prices_historical",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.103,
+    "lo": 0.068,
+    "hi": 0.14,
+    "n": 2359,
+    "evidence": "S037",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "never a trading signal (next-day IC ≈ 0, see R01)"
+  },
+  {
+   "id": "P05",
+   "question": "If <oil / AI-chip spending / housing / consumer spending> jumps, is this company hurt, little affected, or helped?",
+   "type": "score",
+   "use": "scenario exposure panel (A149), with realized betas",
+   "rule": {
+    "kind": "ic",
+    "metric": "rank corr with realized factor beta beyond SPY (worst of the 4)",
+    "target": 0.2,
+    "baseline": "peer-group avg beta +0.53…+0.78 (stronger)"
+   },
+   "label_source": "12-month ETF betas",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.2,
+    "lo": null,
+    "hi": null,
+    "n": 553,
+    "evidence": "S039 C5",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "oil .35 housing .37 AI .29 consumer .20; within-group +0.10…+0.18"
+  },
+  {
+   "id": "P06",
+   "question": "Calibrated head on OpenJev headline answers → P(big move today) for a ticker-day",
+   "type": "model",
+   "use": "flag big-move days",
+   "rule": {
+    "kind": "auc",
+    "metric": "test AUC (time split)",
+    "target": 0.65,
+    "baseline": "news count + size + keywords AUC 0.63"
+   },
+   "label_source": "prices_historical",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.66,
+    "lo": null,
+    "hi": null,
+    "n": 873,
+    "evidence": "S039 L1",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "only ~35 positives in test; needs more labels"
+  },
+  {
+   "id": "P07",
+   "question": "Does this headline report <entity>'s own view on markets/economy?",
+   "type": "noul",
+   "use": "gate: drop headlines that are NOT the entity's view (pre-filter)",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "precision of the drop (true 'not a view')",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "Claude hand labels",
+   "created_by": "claude",
+   "measured": {
+    "value": 1.0,
+    "lo": 0.847,
+    "hi": 1.0,
+    "n": 15,
+    "evidence": "S038 C3 hand check",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "yes-side only ~60 % precise → never use alone"
+  },
+  {
+   "id": "R05",
+   "question": "Is this news big enough to move the stock unusually today? (alone)",
+   "type": "noul",
+   "use": "materiality flag",
+   "rule": {
+    "kind": "auc_gain",
+    "metric": "AUC gain over news count",
+    "target": 0.0,
+    "baseline": "news count AUC 0.61"
+   },
+   "label_source": "prices_historical",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.035,
+    "lo": -0.028,
+    "hi": 0.092,
+    "n": 1006,
+    "evidence": "S037",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "not proven better than counting headlines"
+  },
+  {
+   "id": "R01",
+   "question": "Will this stock beat the market tomorrow / next week? (from news, state, or scores)",
+   "type": "noul",
+   "use": "price forecast",
+   "rule": {
+    "kind": "ic",
+    "metric": "rank corr with NEXT-session move",
+    "target": 0.05,
+    "baseline": ""
+   },
+   "label_source": "prices_historical",
+   "created_by": "claude",
+   "measured": {
+    "value": -0.006,
+    "lo": -0.046,
+    "hi": 0.041,
+    "n": 1554,
+    "evidence": "S037",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "also failed on the A129 forecast lab"
+  },
+  {
+   "id": "R02",
+   "question": "Is this fair value / target / weight about right? (any question that SHOWS it a number to judge)",
+   "type": "score",
+   "use": "audit FV, PT, weights",
+   "rule": {
+    "kind": "placebo",
+    "metric": "share of the answer NOT moved by a fake number",
+    "target": 0.8,
+    "baseline": ""
+   },
+   "label_source": "placebo",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.28,
+    "lo": null,
+    "hi": 0.35,
+    "n": 80,
+    "evidence": "S038 C4 placebo",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "copies whatever number it is shown (shift 2.9 of 4 buckets)"
+  },
+  {
+   "id": "R03",
+   "question": "Which vendor's value is right / why do sources disagree?",
+   "type": "choice",
+   "use": "golden-source pick",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "agrees with simple rules where they fire",
+    "target": 0.8,
+    "baseline": "rules + FactSet referee"
+   },
+   "label_source": "rules",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.5,
+    "lo": 0.31,
+    "hi": 0.69,
+    "n": 16,
+    "evidence": "S038 C2",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "176/357 'unclear'"
+  },
+  {
+   "id": "R04",
+   "question": "From this chart, is today near a short-term low/high? Will it be higher in 2 weeks?",
+   "type": "noul",
+   "use": "timing entries",
+   "rule": {
+    "kind": "auc",
+    "metric": "test AUC on anonymous charts",
+    "target": 0.55,
+    "baseline": "price-rule model also fails (AUC 0.47–0.52)"
+   },
+   "label_source": "prices_historical",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.47,
+    "lo": null,
+    "hi": 0.52,
+    "n": 300,
+    "evidence": "S039 L4",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "signal absent in price shape (S004), not an OpenJev limit"
+  },
+  {
+   "id": "R06",
+   "question": "Will this put expire OTM? (vs market-implied odds)",
+   "type": "noul",
+   "use": "put probability",
+   "rule": {
+    "kind": "brier_gain",
+    "metric": "Brier improvement over market odds",
+    "target": 0.0,
+    "baseline": "market IV odds"
+   },
+   "label_source": "forecast_ledger",
+   "created_by": "claude",
+   "measured": {
+    "value": -0.036,
+    "lo": null,
+    "hi": -0.01,
+    "n": 54,
+    "evidence": "A129 lab 10-16",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "ledger keeps grading forward (A129)"
+  },
+  {
+   "id": "R07",
+   "question": "If gold / bitcoin jumps, is this company hurt or helped?",
+   "type": "score",
+   "use": "scenario exposure",
+   "rule": {
+    "kind": "ic",
+    "metric": "rank corr with realized beta",
+    "target": 0.2,
+    "baseline": ""
+   },
+   "label_source": "ETF betas",
+   "created_by": "claude",
+   "measured": {
+    "value": -0.05,
+    "lo": null,
+    "hi": 0.05,
+    "n": 553,
+    "evidence": "S039 C5",
+    "by": "claude",
+    "at": "2026-10-17"
+   },
+   "verified_by": null,
+   "notes": "answers 'little effect' for ~97 % of names"
+  },
+  {
+   "id": "P10",
+   "question": "Would a developer need to read or edit this file to do <task>? (path + first 80 lines)",
+   "type": "noul",
+   "use": "gate: skip reading files with P < 0.1",
+   "rule": {
+    "kind": "gate_keep",
+    "metric": "share of truly needed files KEPT",
+    "target": 0.95,
+    "baseline": "path keyword overlap",
+    "threshold": 0.1
+   },
+   "label_source": "git history: files a commit changed vs untouched files in the same folder",
+   "created_by": "claude",
+   "measured": {
+    "value": 0.956,
+    "lo": 0.906,
+    "hi": 0.98,
+    "n": 351,
+    "secondary": "skips 85/260 irrelevant (33%) at P<0.1",
+    "by": "claude",
+    "at": "2026-10-17",
+    "model": "openjev-latest",
+    "items_sha": "5b0ea68a4c181045",
+    "answers_sha": "edf51cd40a5f332a",
+    "evidence": "oj eval P10"
+   },
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P11",
+   "question": "Does this command/test/log output contain a failure that needs action?",
+   "type": "noul",
+   "use": "gate: read only flagged chunks of long output",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "exit codes + past CI/test logs",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P12",
+   "question": "Does this diff affect scores, Model List picks, option pricing, backtests or market-data pipelines?",
+   "type": "noul",
+   "use": "review-loop gate: quant review or not",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "commits with Refs to [quant] rows + path rules (needs ≥ 50/class)",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P13",
+   "question": "Is new idea X the same need as existing ASKS row A##? (top-5 by keyword first)",
+   "type": "noul",
+   "use": "dedupe ASKS / inbox before filing",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "declined 'dup of' rows + Claude-labelled pairs",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P14",
+   "question": "Does study S0xx already answer question Q? (over research/studies/INDEX.md rows)",
+   "type": "noul",
+   "use": "skip re-running analyses",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "Claude-labelled Q→S pairs (label provenance flagged)",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P15",
+   "question": "Which skill / context file does this task need? (choice over the SKILLS table)",
+   "type": "choice",
+   "use": "load one skill, not several",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "past sessions' skill loads",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P16",
+   "question": "Does this item need Jamie to act or decide (not just info)?",
+   "type": "noul",
+   "use": "gate for needs-jamie.md (J8 mistake 10-17)",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "past needs-jamie items + outcomes",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P17",
+   "question": "Does this commit message match the staged diff?",
+   "type": "noul",
+   "use": "pre-commit check",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "history + shuffled negatives",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P18",
+   "question": "Does this diff make section S of doc D out of date?",
+   "type": "noul",
+   "use": "doc-drift check after edits",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "commits editing code + doc together",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P19",
+   "question": "Which data source/tool answers this Explain AI question? (choice)",
+   "type": "choice",
+   "use": "route Explain AI before calling Haiku",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "logged questions + chosen tool",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  },
+  {
+   "id": "P20",
+   "question": "Did management raise, keep or cut guidance on this call? (choice)",
+   "type": "choice",
+   "use": "earnings-call tags",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "next-quarter consensus revisions",
+   "created_by": "claude",
+   "measured": null,
+   "verified_by": null,
+   "notes": ""
+  }
+ ]
+}

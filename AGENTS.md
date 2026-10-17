@@ -16,6 +16,7 @@
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
+| Kiro (WIP) | `.kiro/steering/` — pointers to this file only |
 | Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins. |
 
 ## One team (user decision 2026-10-05; Muse via git 2026-10-07)
@@ -79,6 +80,9 @@ Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewe
 
 ## Grok Bot plan review (Jamie 2026-10-17)
 Grok Bot is joining as plan reviewer and skeptic at Jamie's direction. Its reviews are advisory until the role is approved via ASKS row A142. Claude stays final on all rows for now. No rule change from this section until Claude plan-reviews A142, Muse comments, and Jamie says yes.
+
+## OpenJev — cheap typed answers for every agent (Jamie 2026-10-17)
+Local model on the Mac, $0: it reads long text, you read only a probability → saves your tokens. **Before asking, check the pattern's tier in [`.agents/openjev/REGISTRY.md`](.agents/openjev/REGISTRY.md)** (A proven = may gate work · B hint only · C untested · X never). Call: `scripts/oj.py ask` (exit 3 = unavailable → decide yourself). Never for price forecasts or judging a number you show it. Numbers enter the registry only via `oj.py eval`; tier A needs a second agent's `oj.py verify`. Full rules: [`.agents/openjev/README.md`](.agents/openjev/README.md).
 
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`

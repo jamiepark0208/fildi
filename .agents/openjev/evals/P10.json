@@ -1,0 +1,13 @@
+{
+ "value": 0.956,
+ "lo": 0.906,
+ "hi": 0.98,
+ "n": 351,
+ "secondary": "skips 85/260 irrelevant (33%) at P<0.1",
+ "by": "claude",
+ "at": "2026-10-17",
+ "model": "openjev-latest",
+ "items_sha": "5b0ea68a4c181045",
+ "answers_sha": "edf51cd40a5f332a",
+ "evidence": "oj eval P10"
+}

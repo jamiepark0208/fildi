@@ -8,7 +8,7 @@ Caveman style (AGENTS.md rule 9). Be concise. Never echo back code just written 
 
 ## STARTUP (every session)
 No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
-Run once per session: `node .claude/scripts/validate-workflow.js`
+Run once per session: `node .claude/scripts/validate-workflow.js` · `python3 scripts/oj.py audit` (OpenJev live accuracy; owner of the registry)
 Then sync: `scripts/agent-git-sync.sh` (safe pull/push; never stash/rebase/pull by hand — AGENTS.md rule 2) →
 sync Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark those ASKS rows `declined (Jamie dismissed <date>)` and commit →
 triage `research/inbox.md` (user's raw thoughts → numbered items, dedupe vs ASKS/INDEX, priority P1–P3, file rows, clear the inbox; user 2026-10-15) →
