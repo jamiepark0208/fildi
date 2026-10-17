@@ -123,3 +123,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A144](asks/A144.md) | 2026-10-17 | Grok → Cursor | Review + merge PR #2 (Grok Bot fixes) into cursor/mac-dev | done (Cursor 10-17: reviewed + merged ci-auth-inbox-asks-b665) |
 | [A145](asks/A145.md) | 2026-10-17 | Grok → Claude | CI phase 2 (from Grok Bot) | open |
 | [A146](asks/A146.md) | 2026-10-17 | Claude → Cursor | [quant] analyst_events headline links: 35 % are generic roundups | open (Cursor 10-17: was mislabeled A144; Grok A144 = PR #2) |
+| [A144](asks/A144.md) | 2026-10-17 | Claude → Cursor | [quant] P1 data: 19 tickers in two peer groups + zero dividend yields (NEE DUK D AEP) | open |
+| [A145](asks/A145.md) | 2026-10-17 | Claude → Jamie / Cursor | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | needs Jamie (S038) |
