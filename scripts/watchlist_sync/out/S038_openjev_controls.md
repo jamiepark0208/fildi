@@ -16,11 +16,11 @@ Local openjev-latest (26B, MLX), $0. Re-run: `openjev_controls.py --peers / --pe
 - Without any target shown, its FV view runs opposite to ours (corr −0.49 with our FV/price): not graded (contamination; 60-day resolution).
 - **Bugs found while building the tests (rules, not OpenJev):** 19 tickers are active in two peer groups — all 10 `peer_group_overrides`
   kept their old wrong membership (TER still in Enterprise Software, BP in Midstream…); Yahoo `dividendYield = 0` wins for dividend
-  payers (NEE, DUK, D, AEP) → fund scores of utilities. Filed A144.
+  payers (NEE, DUK, D, AEP) → fund scores of utilities. Filed A147.
 - Peer queue highlights (OpenJev ≥ 0.8, Claude agrees): CPB CAG GIS HRL HSY KHC MDLZ SJM → Packaged Goods; GE → Aerospace & Defense;
   TFC PNC → Regional Banks; GFS → Foundry; ATO → Gas utilities; CABA → Speculative Biotech; SG REBN → Restaurants; BB SOUN → Software;
   BULL → Digital Finance. Claude rejects: KGC SVM (gold/silver are precious metals), MSFT, SNDK (human fix), VNET (not a REIT),
-  BNGO DDD (speculative on purpose). Filed A145 (peer moves change fund scores → Jamie OK + before/after).
+  BNGO DDD (speculative on purpose). Filed A148 (peer moves change fund scores → Jamie OK + before/after).
 
 ## Raw output
 ```
