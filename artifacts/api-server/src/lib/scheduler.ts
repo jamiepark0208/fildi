@@ -34,7 +34,18 @@ import {
   researchOpsRunning,
   lastResearchOpsRun as researchOpsModuleRun,
 } from "./research-ops.js";
-import { shouldRunRegimeCheckpointsAt } from "./scheduler-catchup.js";
+import {
+  shouldRunRegimeCheckpointsAt,
+  shouldRunEnrichmentAt,
+  shouldRunRetentionAt,
+  shouldRunDailyPrecomputeAt,
+  shouldRunOptionScoreAt,
+  pickFresherStamp,
+  parseAttemptCount,
+  nextAttemptCount,
+  type RunAttempt,
+  NO_ATTEMPT,
+} from "./scheduler-catchup.js";
 
 export { shouldRunRegimeCheckpointsAt } from "./scheduler-catchup.js";
 
@@ -86,20 +97,75 @@ export let schwabHealthRunning = false;
 export { researchOpsRunning };
 export let lastResearchOpsRun: Date | null = null;
 
-async function getConfigDate(key: string): Promise<Date | null> {
+async function getConfigString(key: string): Promise<string | null> {
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
-  const iso = rows[0]?.value as string | undefined;
-  return iso ? new Date(iso) : null;
+  const value = rows[0]?.value;
+  return typeof value === "string" ? value : null;
 }
 
-async function setConfigDate(key: string, date: Date): Promise<void> {
-  const value = date.toISOString();
+async function getConfigDate(key: string): Promise<Date | null> {
+  const iso = await getConfigString(key);
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+async function setConfigValue(key: string, value: string): Promise<void> {
   const existing = await db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1);
   if (existing.length === 0) {
     await db.insert(appConfig).values({ key, value });
   } else {
     await db.update(appConfig).set({ value, updatedAt: new Date() }).where(eq(appConfig.key, key));
   }
+}
+
+async function setConfigDate(key: string, date: Date): Promise<void> {
+  await setConfigValue(key, date.toISOString());
+}
+
+type AttemptSlot = "enrichment" | "optionScore" | "eventBullets" | "earnings" | "fmp" | "retention";
+
+const ATTEMPT_AT: Record<AttemptSlot, string> = {
+  enrichment: "last_enrichment_attempt",
+  optionScore: "last_option_score_attempt",
+  eventBullets: "last_event_bullets_attempt",
+  earnings: "last_earnings_backfill_attempt",
+  fmp: "last_fmp_analyst_feed_attempt",
+  retention: "last_retention_prune_attempt",
+};
+
+const ATTEMPT_COUNT: Record<AttemptSlot, string> = {
+  enrichment: "enrichment_attempt_count",
+  optionScore: "option_score_attempt_count",
+  eventBullets: "event_bullets_attempt_count",
+  earnings: "earnings_backfill_attempt_count",
+  fmp: "fmp_analyst_feed_attempt_count",
+  retention: "retention_prune_attempt_count",
+};
+
+const attempts: Record<AttemptSlot, RunAttempt> = {
+  enrichment: { ...NO_ATTEMPT },
+  optionScore: { ...NO_ATTEMPT },
+  eventBullets: { ...NO_ATTEMPT },
+  earnings: { ...NO_ATTEMPT },
+  fmp: { ...NO_ATTEMPT },
+  retention: { ...NO_ATTEMPT },
+};
+
+async function noteFailedAttempt(slot: AttemptSlot): Promise<void> {
+  const now = new Date();
+  let prev: string | null = null;
+  try {
+    prev = await getConfigString(ATTEMPT_COUNT[slot]);
+  } catch { /* count starts at 1 */ }
+  const next = nextAttemptCount(prev, now);
+  attempts[slot] = { lastAttempt: now, attemptsOnDay: parseAttemptCount(next, now) };
+  await setConfigValue(ATTEMPT_AT[slot], now.toISOString()).catch((err) =>
+    logger.error({ err, slot }, "scheduler: failed to persist attempt time"),
+  );
+  await setConfigValue(ATTEMPT_COUNT[slot], next).catch((err) =>
+    logger.error({ err, slot }, "scheduler: failed to persist attempt count"),
+  );
 }
 
 function isSameUtcDay(a: Date, b: Date): boolean {
@@ -117,57 +183,32 @@ function daysSince(d: Date | null): number {
 
 export let lastRetentionPrune: Date | null = null;
 
-const SCHEDULE_DAYS = new Set([0, 4]); // 0=Sunday, 4=Thursday (UTC)
 const SCHEDULE_HOUR = 2;
 const TRADE_EXPIRY_DAY = 6; // Saturday (UTC) — the day after Friday's typical option expiry
 const TRADE_EXPIRY_HOUR = 2;
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
-// Windows are Sun/Thu, so a healthy run is never more than ~4 days old. If the process
-// wasn't alive during the exact scheduled hour (deploy restart, autoscale cold start),
-// the day/hour match is missed entirely with no other trigger — catch up once the gap
-// exceeds a full cycle instead of silently skipping until the next window.
-const ENRICHMENT_CATCHUP_DAYS = 4;
-
+// Sun/Thu 02:00 UTC and the 4-day catch-up live in shouldRunEnrichmentAt.
 function shouldRunEnrichmentNow(): boolean {
-  const now = new Date();
-  const onSchedule = SCHEDULE_DAYS.has(now.getUTCDay()) && now.getUTCHours() === SCHEDULE_HOUR;
-  const missedWindow = daysSince(lastEnrichmentRun) > ENRICHMENT_CATCHUP_DAYS;
-  return (onSchedule || missedWindow) && !(lastEnrichmentRun && isSameUtcDay(lastEnrichmentRun, now));
+  return shouldRunEnrichmentAt(lastEnrichmentRun, new Date(), attempts.enrichment);
 }
 
 function shouldRunRetentionNow(): boolean {
-  const now = new Date();
-  return !(lastRetentionPrune && isSameUtcDay(lastRetentionPrune, now));
+  return shouldRunRetentionAt(lastRetentionPrune, new Date(), attempts.retention);
 }
 
-// Daily precompute (event bullets / earnings / FMP): ~7:00 AM PT so the app is
-// ready when you open the Mac (~8 AM). 14:00 UTC ≈ 7:00 AM PDT.
-// Catch-up: first heartbeat in 14–16 UTC (7–9 AM PT) if still not run today —
-// covers lid-closed at 7:00 then wake at 8.
-const DAILY_PRECOMPUTE_HOUR_UTC = 14;
-const DAILY_PRECOMPUTE_CATCHUP_END_UTC = 16;
-
-function shouldRunDailyPrecompute(lastRun: Date | null): boolean {
-  const now = new Date();
-  if (lastRun && isSameUtcDay(lastRun, now)) return false;
-  const hour = now.getUTCHours();
-  const onSchedule = hour === DAILY_PRECOMPUTE_HOUR_UTC;
-  const morningCatchup = hour > DAILY_PRECOMPUTE_HOUR_UTC && hour <= DAILY_PRECOMPUTE_CATCHUP_END_UTC;
-  const missedWindow = daysSince(lastRun) > 1.5;
-  return onSchedule || morningCatchup || missedWindow;
-}
-
+// Daily precompute: 14:00 UTC, catch-up through 16:00, or last success older than 1.5 days.
+// Hours live in shouldRunDailyPrecomputeAt.
 function shouldRunEventBulletsNow(): boolean {
-  return shouldRunDailyPrecompute(lastEventBulletsRun);
+  return shouldRunDailyPrecomputeAt(lastEventBulletsRun, new Date(), attempts.eventBullets);
 }
 
 function shouldRunEarningsBackfillNow(): boolean {
-  return shouldRunDailyPrecompute(lastEarningsBackfillRun);
+  return shouldRunDailyPrecomputeAt(lastEarningsBackfillRun, new Date(), attempts.earnings);
 }
 
 function shouldRunFmpAnalystFeedNow(): boolean {
-  return shouldRunDailyPrecompute(lastFmpAnalystFeedRun);
+  return shouldRunDailyPrecomputeAt(lastFmpAnalystFeedRun, new Date(), attempts.fmp);
 }
 
   /** Drive → DB catch-up. Cheap; only files newer than last run. No missed-poll replay. */
@@ -233,12 +274,17 @@ async function runEnrichment() {
   enrichmentRunning = true;
   logger.info("scheduler: starting nightly enrichment");
   try {
-    await runNightlyEnrichment("scheduled");
+    const outcome = await runNightlyEnrichment("scheduled");
+    if (outcome === "busy") {
+      logger.info("scheduler: enrichment skipped — another process holds the advisory lock");
+      return;
+    }
     lastEnrichmentRun = new Date();
     await setConfigDate(LAST_ENRICHMENT_RUN_KEY, lastEnrichmentRun);
     logger.info("scheduler: enrichment complete");
   } catch (err) {
     logger.error({ err }, "scheduler: enrichment failed");
+    await noteFailedAttempt("enrichment");
   } finally {
     enrichmentRunning = false;
   }
@@ -304,20 +350,9 @@ export async function runModelSnapshotJob() {
   }
 }
 
-// Overall options rankings: Mon–Fri 19:00 UTC (market open Mon–Thu ET / Fri open) —
-// Yahoo bids live. Catch-up once/day if missed. Uses premium-IV candidate filter (~100).
-const OPTION_SCORE_HOUR = 19;
-const OPTION_SCORE_CATCHUP_DAYS = 2;
-
+// Option scores: Mon–Thu 19:00 UTC. Friday stays with the model snapshot. Catch-up after 2 days.
 function shouldRunOptionScoreNow(): boolean {
-  const now = new Date();
-  const dow = now.getUTCDay(); // 0=Sun … 5=Fri
-  // Friday: model snapshot dual-writes option_score_snapshots — skip standalone job.
-  if (dow === MODEL_SNAPSHOT_DAY) return false;
-  const weekday = dow >= 1 && dow <= 5;
-  const onSchedule = weekday && now.getUTCHours() === OPTION_SCORE_HOUR;
-  const missedWindow = daysSince(lastOptionScoreRun) > OPTION_SCORE_CATCHUP_DAYS;
-  return (onSchedule || missedWindow) && !(lastOptionScoreRun && isSameUtcDay(lastOptionScoreRun, now));
+  return shouldRunOptionScoreAt(lastOptionScoreRun, new Date(), attempts.optionScore);
 }
 
 /** Manual / admin trigger — Overall option score persistence. */
@@ -332,6 +367,7 @@ export async function runOptionScoreJob() {
     logger.info("scheduler: option score snapshots complete");
   } catch (err) {
     logger.error({ err }, "scheduler: option score snapshots failed");
+    await noteFailedAttempt("optionScore");
   } finally {
     optionScoreRunning = false;
   }
@@ -349,6 +385,7 @@ export async function runEventBulletsJob() {
     logger.info("scheduler: event-bullets trigger check complete");
   } catch (err) {
     logger.error({ err }, "scheduler: event-bullets trigger check failed");
+    await noteFailedAttempt("eventBullets");
   } finally {
     eventBulletsRunning = false;
   }
@@ -366,6 +403,7 @@ export async function runEarningsBackfillJob() {
     logger.info("scheduler: earnings history backfill complete");
   } catch (err) {
     logger.error({ err }, "scheduler: earnings history backfill failed");
+    await noteFailedAttempt("earnings");
   } finally {
     earningsBackfillRunning = false;
   }
@@ -383,6 +421,7 @@ export async function runFmpAnalystFeedJob() {
     logger.info(result, "scheduler: fmp analyst feed poll complete");
   } catch (err) {
     logger.error({ err }, "scheduler: fmp analyst feed poll failed");
+    await noteFailedAttempt("fmp");
   } finally {
     fmpAnalystFeedRunning = false;
   }
@@ -481,6 +520,7 @@ export async function runRetentionPrune() {
     );
   } catch (err) {
     logger.error({ err }, "scheduler: retention prune failed — lastRun not advanced");
+    await noteFailedAttempt("retention");
   }
 }
 
@@ -544,56 +584,56 @@ export async function runRegimeCheckpoints() {
   }
 }
 
-export async function startScheduler(): Promise<void> {
-  [lastEnrichmentRun, lastRetentionPrune, lastTradeExpiryRun, lastModelSnapshotRun, lastOptionScoreRun, lastEventBulletsRun, lastEarningsBackfillRun, lastFmpAnalystFeedRun, lastDeskIngestRun, lastSchwabHealthRun, lastResearchOpsRun] = await Promise.all([
-    getConfigDate(LAST_ENRICHMENT_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_RETENTION_PRUNE_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted retention-prune, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_TRADE_EXPIRY_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted trade-expiry last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_MODEL_SNAPSHOT_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted model-snapshot last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_OPTION_SCORE_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted option-score last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_EVENT_BULLETS_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted event-bullets last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_EARNINGS_BACKFILL_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted earnings-backfill last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_FMP_ANALYST_FEED_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted fmp-analyst-feed last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_DESK_INGEST_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted desk-ingest last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_SCHWAB_HEALTH_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted schwab-health last-run, dedupe guard starts cold");
-      return null;
-    }),
-    getConfigDate(LAST_RESEARCH_OPS_RUN_KEY).catch(err => {
-      logger.error({ err }, "scheduler: failed to load persisted research-ops last-run, dedupe guard starts cold");
-      return null;
-    }),
-  ]);
+async function loadDate(key: string): Promise<Date | null> {
+  try {
+    return await getConfigDate(key);
+  } catch (err) {
+    logger.error({ err, key }, "scheduler: failed to load persisted last-run");
+    return null;
+  }
+}
 
-  // Prefer enrichment_runs (Maintain daily) over app_config — Maintain used to
-  // write only enrichment_runs, leaving Data Health stuck on an old scheduler stamp.
+async function loadAttempt(slot: AttemptSlot): Promise<void> {
+  const now = new Date();
+  let at: Date | null = null;
+  let raw: string | null = null;
+  try { at = await getConfigDate(ATTEMPT_AT[slot]); } catch { at = null; }
+  try { raw = await getConfigString(ATTEMPT_COUNT[slot]); } catch { raw = null; }
+  const fromDb: RunAttempt = { lastAttempt: at, attemptsOnDay: parseAttemptCount(raw, now) };
+  const mem = attempts[slot];
+  const fresher = pickFresherStamp(mem.lastAttempt, fromDb.lastAttempt);
+  const dbWins = !mem.lastAttempt || (fresher != null && fromDb.lastAttempt != null && fresher.getTime() === fromDb.lastAttempt.getTime());
+  attempts[slot] = dbWins ? fromDb : mem;
+}
+
+/** Re-read app_config (and enrichment_runs) so a Maintain write after startup is visible. */
+async function refreshPersistedLastRuns(): Promise<void> {
+  const [enrichment, retention, trade, model, option, bullets, earnings, fmp, desk, schwab, research] = await Promise.all([
+    loadDate(LAST_ENRICHMENT_RUN_KEY),
+    loadDate(LAST_RETENTION_PRUNE_KEY),
+    loadDate(LAST_TRADE_EXPIRY_RUN_KEY),
+    loadDate(LAST_MODEL_SNAPSHOT_RUN_KEY),
+    loadDate(LAST_OPTION_SCORE_RUN_KEY),
+    loadDate(LAST_EVENT_BULLETS_RUN_KEY),
+    loadDate(LAST_EARNINGS_BACKFILL_RUN_KEY),
+    loadDate(LAST_FMP_ANALYST_FEED_RUN_KEY),
+    loadDate(LAST_DESK_INGEST_RUN_KEY),
+    loadDate(LAST_SCHWAB_HEALTH_RUN_KEY),
+    loadDate(LAST_RESEARCH_OPS_RUN_KEY),
+  ]);
+  lastEnrichmentRun = pickFresherStamp(lastEnrichmentRun, enrichment);
+  lastRetentionPrune = pickFresherStamp(lastRetentionPrune, retention);
+  lastTradeExpiryRun = pickFresherStamp(lastTradeExpiryRun, trade);
+  lastModelSnapshotRun = pickFresherStamp(lastModelSnapshotRun, model);
+  lastOptionScoreRun = pickFresherStamp(lastOptionScoreRun, option);
+  lastEventBulletsRun = pickFresherStamp(lastEventBulletsRun, bullets);
+  lastEarningsBackfillRun = pickFresherStamp(lastEarningsBackfillRun, earnings);
+  lastFmpAnalystFeedRun = pickFresherStamp(lastFmpAnalystFeedRun, fmp);
+  lastDeskIngestRun = pickFresherStamp(lastDeskIngestRun, desk);
+  lastSchwabHealthRun = pickFresherStamp(lastSchwabHealthRun, schwab);
+  lastResearchOpsRun = pickFresherStamp(lastResearchOpsRun, research);
+
+  // Prefer enrichment_runs (Maintain daily) over a stale app_config stamp.
   try {
     const rows = await db
       .select({ finishedAt: enrichmentRuns.finishedAt })
@@ -602,25 +642,37 @@ export async function startScheduler(): Promise<void> {
       .orderBy(desc(enrichmentRuns.finishedAt))
       .limit(1);
     const at = rows[0]?.finishedAt ? new Date(rows[0].finishedAt as unknown as string) : null;
-    if (at) noteEnrichmentRunFromDb(at);
+    if (at && !Number.isNaN(at.getTime())) lastEnrichmentRun = pickFresherStamp(lastEnrichmentRun, at);
   } catch (err) {
     logger.warn({ err }, "scheduler: enrichment_runs hydrate skipped");
   }
 
+  await Promise.all((Object.keys(ATTEMPT_AT) as AttemptSlot[]).map((slot) => loadAttempt(slot)));
+}
+
+function runDueJobs(): void {
+  if (shouldRunEnrichmentNow()) runEnrichment();
+  if (shouldRunRetentionNow()) runRetentionPrune();
+  if (shouldRunTradeExpiryNow()) runTradeExpiry();
+  if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
+  if (shouldRunOptionScoreNow()) runOptionScoreJob();
+  if (shouldRunEventBulletsNow()) runEventBulletsJob();
+  if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
+  if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
+  if (shouldRunDeskIngestNow()) runDeskIngestJob();
+  if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
+  if (shouldRunResearchOpsNow()) runResearchOpsJob();
+  // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
+  rotateApiServerLogIfNeeded();
+}
+
+export async function startScheduler(): Promise<void> {
+  await refreshPersistedLastRuns();
+
   setInterval(() => {
-    if (shouldRunEnrichmentNow()) runEnrichment();
-    if (shouldRunRetentionNow()) runRetentionPrune();
-    if (shouldRunTradeExpiryNow()) runTradeExpiry();
-    if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
-    if (shouldRunOptionScoreNow()) runOptionScoreJob();
-    if (shouldRunEventBulletsNow()) runEventBulletsJob();
-    if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
-    if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
-    if (shouldRunDeskIngestNow()) runDeskIngestJob();
-    if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
-    if (shouldRunResearchOpsNow()) runResearchOpsJob();
-    // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
-    rotateApiServerLogIfNeeded();
+    void refreshPersistedLastRuns()
+      .then(() => runDueJobs())
+      .catch((err) => logger.error({ err }, "scheduler: tick failed"));
   }, CHECK_INTERVAL_MS);
 
   setInterval(() => {

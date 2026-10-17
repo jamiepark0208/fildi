@@ -163,7 +163,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   const { data: allTechnicalsData } = useQuery({
     queryKey: queryKeys.technicalsAllSlim,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all?slim=1");
+      const res = await fetch("/api/technicals/all?slim=1", { credentials: "include" });
       if (!res.ok) throw new Error("technicals/all slim fetch failed");
       return res.json();
     },
@@ -175,7 +175,7 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   const { data: techRankingsData } = useQuery({
     queryKey: queryKeys.technicalsRankings(side),
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
-      const res = await fetch(`/api/technicals/rankings?side=${side}`);
+      const res = await fetch(`/api/technicals/rankings?side=${side}`, { credentials: "include" });
       if (!res.ok) throw new Error("technicals/rankings fetch failed");
       return res.json();
     },

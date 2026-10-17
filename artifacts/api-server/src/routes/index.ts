@@ -71,7 +71,6 @@ router.use(fundamentalsRouter);
 router.use(fundamentalsProvenanceRouter);
 router.use(peerOverridesRouter);
 router.use(fundamentalsRefetchQueueRouter);
-router.use(technicalsRouter);
 router.use(macroRegimeRouter);
 router.use(adminCacheRouter);
 router.use(portfolioIngestRouter);
@@ -92,7 +91,7 @@ router.use(scheduledTasksRouter);
 // A no-path `.use(requireAuth)` in that position becomes a global gate for
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
-router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sdm", "/live", "/track-record", "/schwab", "/research"], requireAuth);
+router.use(["/stocks", "/indicators", "/options", "/technical", "/technicals", "/explain", "/sdm", "/live", "/track-record", "/schwab", "/research"], requireAuth);
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);
@@ -107,6 +106,10 @@ router.use(fundScoreNotesRouter);
 router.use(indicatorsRouter);
 router.use(optionsRouter);
 router.use(moverFactsRouter);
+// /technicals is not covered by the /technical prefix. No Python job calls these
+// routes (loopback callers use /schwab/option-quotes and /schwab/equity-prices).
+// Frontend fetches send the session cookie.
+router.use(technicalsRouter);
 router.use(technicalRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
