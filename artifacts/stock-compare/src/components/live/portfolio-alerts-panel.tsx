@@ -4,7 +4,7 @@
  * Display only: no trading actions.
  */
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -239,8 +239,90 @@ export function PortfolioAlertsPanel() {
           You decide; closing is shown only as what it would change.
         </p>
       </div>
+      <WhatIfPut />
       <YourNames />
       <Playbook />
+    </div>
+  );
+}
+
+/** A136 — what-if add this put (same MC engine as alerts). Advisory badge only. */
+function WhatIfPut() {
+  const [account, setAccount] = useState("FILDI");
+  const [ticker, setTicker] = useState("");
+  const [strike, setStrike] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [qty, setQty] = useState("1");
+  const [iv, setIv] = useState("");
+  const [spot, setSpot] = useState("");
+  const [premium, setPremium] = useState("");
+  const mut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/pm/what-if", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account, ticker, strike: Number(strike), expiry, qty: Number(qty),
+          iv: Number(iv) > 1 ? Number(iv) / 100 : Number(iv),
+          spot: Number(spot),
+          premium: premium ? Number(premium) : null,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      return r.json() as Promise<{
+        badge: string; reasons: string[]; risk_base: number | null; risk_with: number | null;
+        crash_base: number | null; crash_with: number | null; note?: string; error?: string;
+      }>;
+    },
+  });
+  const badgeCls =
+    mut.data?.badge === "red" ? "border-red-400/50 text-red-200 bg-red-500/15" :
+    mut.data?.badge === "amber" ? "border-amber-400/50 text-amber-200 bg-amber-500/15" :
+    "border-emerald-400/50 text-emerald-200 bg-emerald-500/15";
+  return (
+    <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#d4af37]">What-if add put</h3>
+        <span className="text-[10px] text-amber-200/40">A136 · same engine as alerts · you decide</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 items-end">
+        <select value={account} onChange={(e) => setAccount(e.target.value)} className="bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px]">
+          <option value="FILDI">FILDI</option>
+          <option value="IRA">IRA</option>
+        </select>
+        <input placeholder="Ticker" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())}
+          className="w-16 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="Strike" value={strike} onChange={(e) => setStrike(e.target.value)}
+          className="w-16 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="YYYY-MM-DD" value={expiry} onChange={(e) => setExpiry(e.target.value)}
+          className="w-28 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="Qty" value={qty} onChange={(e) => setQty(e.target.value)}
+          className="w-12 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="IV (0.35 or 35)" value={iv} onChange={(e) => setIv(e.target.value)}
+          className="w-24 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="Spot" value={spot} onChange={(e) => setSpot(e.target.value)}
+          className="w-16 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <input placeholder="Prem $" value={premium} onChange={(e) => setPremium(e.target.value)}
+          className="w-16 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
+        <button
+          type="button"
+          disabled={mut.isPending || !ticker || !strike || !expiry || !iv || !spot}
+          onClick={() => mut.mutate()}
+          className="text-[11px] px-2 py-1 rounded bg-[#d4af37]/20 text-[#d4af37] hover:bg-[#d4af37]/30 disabled:opacity-40"
+        >
+          {mut.isPending ? "Running…" : "Run"}
+        </button>
+      </div>
+      {mut.error && <p className="text-[11px] text-red-300">{(mut.error as Error).message}</p>}
+      {mut.data && !mut.data.error && (
+        <div className={cn("rounded border px-2 py-1.5 text-[11px] space-y-0.5", badgeCls)}>
+          <div className="font-bold uppercase tracking-wide">{mut.data.badge}</div>
+          {(mut.data.reasons ?? []).map((r, i) => <div key={i}>{r}</div>)}
+          <div className="text-[10px] opacity-70">{mut.data.note}</div>
+        </div>
+      )}
+      {mut.data?.error && <p className="text-[11px] text-red-300">{mut.data.error}</p>}
     </div>
   );
 }

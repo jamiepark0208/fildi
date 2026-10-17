@@ -18,15 +18,18 @@ most every 2 h otherwise. Output: table watchlist_sync.pm_alerts (one row per ru
 
     .venv/bin/python pm_alerts.py           # scheduled run (skips when not due)
     .venv/bin/python pm_alerts.py --now     # run now and print the bullets
+    .venv/bin/python pm_alerts.py --what-if ACCOUNT TICKER STRIKE EXPIRY QTY IV SPOT [PREMIUM]
+         # A136 candidate mode: Δ P(margin/cash) + Δ crash budget if this put is added (JSON on stdout)
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 import random
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -242,6 +245,129 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
                     "risk_after": cur[key]} if closed else None}
 
 
+def _crash_drop(book: dict, acct: str) -> float | None:
+    """Same 30% crash-week scenario as pm_book (fraction of equity lost)."""
+    b = book["accounts"].get(acct) or {}
+    eq = b.get("equity") or 0
+    if not eq:
+        return None
+    crash = -0.30
+    ps = [p for p in book.get("positions") or [] if p.get("account") == acct and p.get("spot") and p.get("strike")]
+    put_loss = sum(
+        max(p["strike"] - p["spot"] * (1 + crash), 0) * 100 * p["qty"] - (p.get("close_cost") or 0)
+        for p in ps
+    )
+    # longs haircut ~30% of MV already baked into pm_book crash_equity; approximate via equity − put_loss
+    crash_eq = max(eq - put_loss - 0.30 * sum(
+        (x.get("mv") or 0) for x in []  # longs handled in book["accounts"][acct]["crash_drop_pct"] when present
+    ), 0)
+    # Prefer book-computed crash when no candidate; with candidate recompute from puts only + scale
+    base_drop = b.get("crash_drop_pct")
+    if base_drop is None:
+        return 1 - crash_eq / eq if eq else None
+    # Scale: add incremental put loss vs equity
+    # When positions include a candidate, put_loss grows → bump drop
+    base_ps = [p for p in book.get("positions") or [] if p.get("account") == acct and not p.get("_candidate")]
+    base_loss = sum(
+        max(p["strike"] - p["spot"] * (1 + crash), 0) * 100 * p["qty"] - (p.get("close_cost") or 0)
+        for p in base_ps if p.get("spot") and p.get("strike")
+    )
+    new_loss = sum(
+        max(p["strike"] - p["spot"] * (1 + crash), 0) * 100 * p["qty"] - (p.get("close_cost") or 0)
+        for p in ps if p.get("spot") and p.get("strike")
+    )
+    return min(1.0, (base_drop or 0) + max(0.0, (new_loss - base_loss) / eq))
+
+
+def what_if_add_put(
+    book: dict,
+    acct: str,
+    ticker: str,
+    strike: float,
+    expiry: str,
+    qty: int,
+    iv: float,
+    spot: float,
+    premium: float | None = None,
+    earnings_days_out: int | None = None,
+) -> dict:
+    """A136 — candidate mode. Returns base vs with-candidate risk + badge (green/amber/red)."""
+    acct_ids = {"IRA": "772445425", "FILDI": "5QU47796"}
+    if acct not in book.get("accounts", {}):
+        return {"error": f"unknown account {acct}"}
+    days = max((date.fromisoformat(expiry) - date.today()).days, 0)
+    prem = premium if premium is not None else 0.0
+    cand = {
+        "account": acct, "ticker": ticker.upper(), "strike": float(strike), "expiry": expiry,
+        "qty": int(qty), "iv": float(iv), "spot": float(spot),
+        "close_cost": float(prem) * 100 * int(qty),
+        "assign_cash": float(strike) * 100 * int(qty),
+        "days_left": days, "status": "ok", "itm": float(spot) < float(strike),
+        "_candidate": True,
+    }
+    snap = book["snapshot_id"]
+    with connect() as conn:
+        allongs = rows(conn, """SELECT account, UPPER(symbol) AS t, SUM(market_value)::float8 AS mv FROM portfolio_positions
+                                WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
+        longs = [x for x in allongs if x["account"] == acct_ids.get(acct)]
+        vols = realized_vol(conn, sorted({x["t"] for x in longs} | {cand["ticker"]}))
+    rng = random.Random(int(snap) if snap else 0)
+
+    base_sim = simulate(book, acct, longs, vols, rng)
+    book2 = copy.deepcopy(book)
+    book2["positions"] = list(book2.get("positions") or []) + [cand]
+    with_sim = simulate(book2, acct, longs, vols, rng)
+
+    rules = book.get("rules") or {"crash_budget": 0.25, "crash_warn": 0.20}
+    crash_base = book["accounts"][acct].get("crash_drop_pct")
+    crash_with = _crash_drop(book2, acct)
+
+    def band(risk: float | None, margin: bool) -> str:
+        if risk is None:
+            return "green"
+        lo = THRESH["margin_amber"] if margin else THRESH["cash_amber"]
+        hi = THRESH["margin_red"] if margin else THRESH["cash_red"]
+        if risk >= hi:
+            return "red"
+        if risk >= lo:
+            return "amber"
+        return "green"
+
+    margin = bool((with_sim or base_sim or {}).get("margin")) if (with_sim or base_sim) else True
+    risk_base = base_sim["risk"] if base_sim else None
+    risk_with = with_sim["risk"] if with_sim else None
+    badge = band(risk_with, margin)
+    if crash_with is not None and crash_with > rules.get("crash_budget", 0.25):
+        badge = "red"
+    elif crash_with is not None and crash_with > rules.get("crash_warn", 0.20) and badge == "green":
+        badge = "amber"
+
+    er_flag = earnings_days_out is not None and 0 <= earnings_days_out <= days
+    reasons = []
+    if risk_base is not None and risk_with is not None:
+        reasons.append(f"P(risk) {risk_base:.0%} → {risk_with:.0%} (Δ {(risk_with - risk_base):+.0%})")
+    if crash_base is not None and crash_with is not None:
+        reasons.append(f"crash-week drop {crash_base:.0%} → {crash_with:.0%}")
+    if er_flag:
+        reasons.append(f"earnings in {earnings_days_out}d inside DTE ({days}d)")
+        if badge == "green":
+            badge = "amber"
+
+    return {
+        "account": acct,
+        "candidate": {k: cand[k] for k in ("ticker", "strike", "expiry", "qty", "iv", "spot")},
+        "badge": badge,
+        "risk_base": risk_base,
+        "risk_with": risk_with,
+        "risk_delta": (risk_with - risk_base) if risk_base is not None and risk_with is not None else None,
+        "crash_base": crash_base,
+        "crash_with": crash_with,
+        "earnings_in_dte": er_flag,
+        "reasons": reasons,
+        "note": "Advisory only — Jamie overrides freely (A136).",
+    }
+
+
 def bullets(book: dict, sims: dict) -> list[dict]:
     out = []
     for acct, b in book["accounts"].items():
@@ -337,9 +463,46 @@ def main() -> None:
             print(f"[{x['level']}{' · ' + x['change'] if x['change'] else ''}] {x['text']}")
 
 
+def _cmd_what_if(argv: list[str]) -> None:
+    # --what-if ACCOUNT TICKER STRIKE EXPIRY QTY IV SPOT [PREMIUM]
+    if len(argv) < 8:
+        print(json.dumps({"error": "usage: --what-if ACCOUNT TICKER STRIKE EXPIRY QTY IV SPOT [PREMIUM]"}))
+        sys.exit(2)
+    _, acct, ticker, strike, expiry, qty, iv, spot, *rest = argv
+    premium = float(rest[0]) if rest else None
+    book_path = OUT / "book-latest.json"
+    if not book_path.exists():
+        print(json.dumps({"error": "no book-latest.json — run pm_alerts --now first"}))
+        sys.exit(1)
+    book = json.loads(book_path.read_text())
+    # earnings days from technicals if present
+    er = None
+    try:
+        with connect() as conn:
+            r = conn.execute(
+                "SELECT earnings_days_out FROM ticker_technicals WHERE UPPER(ticker) = %s",
+                (ticker.upper(),),
+            ).fetchone()
+            er = int(r[0]) if r and r[0] is not None else None
+    except Exception:
+        er = None
+    out = what_if_add_put(
+        book, acct, ticker, float(strike), expiry, int(qty), float(iv), float(spot),
+        premium=premium, earnings_days_out=er,
+    )
+    print(json.dumps(out, default=str))
+
+
 if __name__ == "__main__":
     try:
-        main()
+        if "--what-if" in sys.argv:
+            i = sys.argv.index("--what-if")
+            _cmd_what_if(sys.argv[i:])
+        else:
+            main()
     except Exception as e:  # startup/DB failure → Settings › Scheduled Tasks shows "failed", not a stale "ok" (A112)
+        if "--what-if" in sys.argv:
+            print(json.dumps({"error": f"{type(e).__name__}: {str(e)[:200]}"}))
+            sys.exit(1)
         write_last(False, f"crashed: {type(e).__name__}: {str(e)[:120]}", datetime.now(PT))
         raise

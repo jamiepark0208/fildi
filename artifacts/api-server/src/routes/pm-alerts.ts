@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 
@@ -107,6 +108,51 @@ router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
     return res.json({ run: row ? { generatedAt: row.generated_at, ...(row.payload as object) } : null });
   } catch (err) {
     return next(err);
+  }
+});
+
+/**
+ * POST /api/pm/what-if — A136 candidate mode (Claude plan 10-16).
+ * Body: { account, ticker, strike, expiry, qty, iv, spot, premium? }
+ * Spawns pm_alerts.py --what-if (same MC engine as Portfolio Alerts). Advisory only.
+ */
+router.post("/pm/what-if", requireAdmin, async (req, res) => {
+  try {
+    const account = String(req.body?.account ?? "").toUpperCase();
+    const ticker = String(req.body?.ticker ?? "").toUpperCase();
+    const strike = Number(req.body?.strike);
+    const expiry = String(req.body?.expiry ?? "");
+    const qty = Math.max(1, Math.min(50, parseInt(String(req.body?.qty ?? "1"), 10) || 1));
+    const iv = Number(req.body?.iv);
+    const spot = Number(req.body?.spot);
+    const premium = req.body?.premium != null ? Number(req.body.premium) : null;
+    if (!["IRA", "FILDI"].includes(account)) return res.status(400).json({ error: "account must be IRA or FILDI" });
+    if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return res.status(400).json({ error: "bad ticker" });
+    if (!(strike > 0) || !(iv > 0) || !(spot > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      return res.status(400).json({ error: "need strike, iv, spot, expiry YYYY-MM-DD" });
+    }
+    const py = resolve(ROOT, ".venv/bin/python");
+    const script = resolve(ROOT, "scripts/watchlist_sync/pm_alerts.py");
+    const args = [
+      script, "--what-if", account, ticker, String(strike), expiry, String(qty), String(iv), String(spot),
+      ...(premium != null && Number.isFinite(premium) ? [String(premium)] : []),
+    ];
+    const body = await new Promise<string>((resolveP, reject) => {
+      const child = spawn(py, args, { cwd: resolve(ROOT, "scripts/watchlist_sync"), timeout: 120_000 });
+      let out = "";
+      let err = "";
+      child.stdout.on("data", (d) => { out += d; });
+      child.stderr.on("data", (d) => { err += d; });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) resolveP(out);
+        else reject(new Error(err.trim() || out.trim() || `exit ${code}`));
+      });
+    });
+    const json = JSON.parse(body.trim().split("\n").filter(Boolean).pop() || "{}");
+    return res.json(json);
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
