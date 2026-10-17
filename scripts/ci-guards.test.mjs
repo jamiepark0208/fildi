@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { execFileSync } from "node:child_process";
 import {
   guardRange,
   hasAgentTrailer,
@@ -8,8 +7,6 @@ import {
   protectedHits,
   schemaWithoutMigration,
 } from "./ci-guards.mjs";
-
-const OURS = execFileSync("git", ["log", "-1", "--format=%B", "HEAD"], { encoding: "utf8" });
 
 test("protected paths", () => {
   assert.deepEqual(protectedHits(["artifacts/macro-data.json", "README.md"]), ["artifacts/macro-data.json"]);
@@ -20,7 +17,7 @@ test("protected paths", () => {
 });
 
 test("Agent trailer survives a blank line before Co-authored-by", () => {
-  assert.equal(hasAgentTrailer(OURS), true);
+  // Fixture only. pull_request checkout HEAD is GitHub's synthetic merge and has no Agent line.
   assert.equal(hasAgentTrailer("subject\n\nbody\n\nAgent: grokbot\n\nCo-authored-by: dev <dev@example.com>\n"), true);
   assert.equal(hasAgentTrailer("We set Agent: grokbot in the docs.\n\nCo-authored-by: dev <dev@example.com>\n"), false);
   assert.equal(hasAgentTrailer("fix\n\nAgent:\n"), false);
