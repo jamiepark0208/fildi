@@ -148,10 +148,33 @@ router.get("/watchlist/model", async (req, res) => {
         (SELECT COUNT(*) FROM watchlist_sync.price_repairs)::int AS split_repairs`) as SqlRows<Record<string, unknown>>);
     const health = healthRows[0] ?? {};
 
+    // A74: Model List P(OTM) calibration from forecast_ledger (model_winrate on model_pick_otm).
+    // Same grain as forecast_ledger.py --report. Missing table → skip (publisher may not have run).
+    let calibration: { n: number; pred: number; real: number } | null = null;
+    try {
+      const calRows = rowsOf(await db.execute(sql`
+        SELECT COUNT(*)::int AS n,
+               AVG(prob)::float8 AS pred,
+               AVG(CASE WHEN outcome THEN 1.0 ELSE 0.0 END)::float8 AS real
+        FROM (
+          SELECT DISTINCT ON (question_id, forecaster) prob, outcome
+          FROM watchlist_sync.forecast_ledger
+          WHERE outcome IS NOT NULL
+            AND qtype = 'model_pick_otm'
+            AND forecaster = 'model_winrate'
+            AND made_on < resolves_on
+          ORDER BY question_id, forecaster, made_at DESC
+        ) x`) as SqlRows<{ n: number; pred: number | null; real: number | null }>);
+      const c = calRows[0];
+      if (c && Number(c.n) > 0 && c.pred != null && c.real != null) {
+        calibration = { n: Number(c.n), pred: Number(c.pred), real: Number(c.real) };
+      }
+    } catch { /* forecast_ledger not created yet */ }
+
     const run = runs[0]!;
     return res.json({
       run: { id: runId, createdAt: run["created_at"], modelVersion: run["model_version"], planId: run["plan_id"], fitRunAt: run["fit_run_at"], prevRunId: prevId },
-      health,
+      health: { ...health, calibration },
       folders: [...folders.values()],
     });
   } catch (err) {

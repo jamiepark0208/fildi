@@ -83,6 +83,8 @@ export type ModelListHealth = {
   prices_universe_date?: string | null;
   grades?: number;
   last_graded_at?: string | null; split_repairs?: number;
+  /** A74: resolved Model List pick P(OTM) vs actual (forecast_ledger model_winrate). */
+  calibration?: { n: number; pred: number; real: number } | null;
 };
 
 export type ModelList = {

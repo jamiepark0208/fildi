@@ -350,6 +350,17 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
           : "grades = your scored Model List picks (win/loss). 0 so far — grey means none yet, not a failure. Grade a pick from the list to start the learning loop.",
     },
   ];
+  const cal = h.calibration;
+  if (cal && cal.n > 0) {
+    const gap = Math.abs(cal.pred - cal.real);
+    const calTone: Tone = cal.n < 20 ? "idle" : gap <= 0.05 ? "ok" : gap <= 0.12 ? "warn" : "bad";
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
+    parts.push({
+      label: `cal ${pct(cal.pred)}→${pct(cal.real)}`,
+      tone: calTone,
+      title: `Model List P(OTM) calibration (A74): predicted ${pct(cal.pred)} → happened ${pct(cal.real)} on ${cal.n} resolved pick${cal.n === 1 ? "" : "s"} (forecast_ledger · model_winrate). Grey = under 20 samples; green = within 5 pts.`,
+    });
+  }
   const champTip = `Champion model ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`;
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
