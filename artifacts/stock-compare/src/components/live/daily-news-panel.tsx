@@ -533,7 +533,7 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
   const yahooTape: TapeRow[] = useMemo(() => {
     const by = new Map((tape?.marketContext ?? []).map((c) => [c.ticker, c]));
-    return YAHOO_TAPE_ORDER.flatMap((t) => {
+    return YAHOO_TAPE_ORDER.flatMap((t): TapeRow[] => {
       const c = by.get(t);
       if (!c) return [];
       // TNX: show actual yield; others: whole-number 1d %.

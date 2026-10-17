@@ -47,7 +47,7 @@ export function useGuideStatus() {
   const results = useQueries({
     queries: [
       { queryKey: ["guide", "fundamentals-status"], queryFn: () => fetch("/api/fundamentals/status").then(r => r.json()) as Promise<FundStatus>, staleTime: 60_000 },
-      { queryKey: ["guide", "technicals-status"], queryFn: () => fetch("/api/technicals/status").then(r => r.json()) as Promise<TechStatus>, staleTime: 60_000 },
+      { queryKey: ["guide", "technicals-status"], queryFn: () => fetch("/api/technicals/status", { credentials: "include" }).then(r => r.json()) as Promise<TechStatus>, staleTime: 60_000 },
       { queryKey: ["guide", "sdm-status"], queryFn: () => fetch("/api/sdm/status").then(r => r.json()) as Promise<SdmStatus>, staleTime: 60_000 },
     ],
   });

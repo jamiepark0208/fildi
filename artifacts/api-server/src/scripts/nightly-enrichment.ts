@@ -21,6 +21,7 @@ import { sleep } from "../lib/http-client.js";
 import { sql, eq, inArray } from "drizzle-orm";
 import {
   db,
+  pool,
   tickerRegistry,
   tickerFundamentals,
   yahooFundamentals,
@@ -32,6 +33,7 @@ import {
   peerGroupMembers,
 } from "@workspace/db";
 import { FIELD_DEFS, runMergeTrusted } from "./merge-trusted.js";
+import { tryWithEnrichmentLock } from "../lib/enrichment-lock.js";
 import { runPopulateSourceFundamentals } from "./populate-source-fundamentals.js";
 import { fetchYahooFundamentals }   from "../lib/yahoo-client.js";
 import { fetchEdgarFundamentals, bootstrapCikCache } from "../lib/edgar-client.js";
@@ -1001,7 +1003,17 @@ async function main(trigger: "scheduled" | "manual" | "maintain_full" = "manual"
   log("\nnightly-enrichment complete.");
 }
 
-export { main as runNightlyEnrichment };
+export async function runNightlyEnrichment(
+  trigger: "scheduled" | "manual" | "maintain_full" = "manual",
+): Promise<"ran" | "busy"> {
+  return tryWithEnrichmentLock(
+    () => pool.connect().then((client) => ({
+      query: (sqlText, params) => client.query(sqlText, params),
+      release: () => client.release(),
+    })),
+    () => main(trigger),
+  );
+}
 
 // Run directly when invoked as a script — process.exit here is fine, this branch
 // only executes for a short-lived `npx tsx nightly-enrichment.ts` CLI invocation.
@@ -1015,8 +1027,11 @@ if (isMain) {
     triggerRaw === "scheduled" || triggerRaw === "maintain_full" || triggerRaw === "manual"
       ? triggerRaw
       : "manual";
-  main(trigger)
-    .then(() => process.exit(0))
+  runNightlyEnrichment(trigger)
+    .then((outcome) => {
+      if (outcome === "busy") log("nightly-enrichment skipped — advisory lock held by another process");
+      process.exit(0);
+    })
     .catch(err => {
       log(`FATAL — ${err.message}`);
       process.exit(1);

@@ -1,0 +1,15 @@
+title = "fildi"
+# Default rules. Allowlist is verified false positives only (column keys and one field-map name).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified false positives (2026-10-17 tree scan). Source identifiers, not credentials. Lines: populate-source-fundamentals.ts:112, lseg-street-panel.tsx:397, stock-db-columns.ts:120, stock-db-columns.ts:121."
+regexTarget = "line"
+regexes = [
+  '''epsDrift30dPct''',
+  '''priceVsMa20Atr''',
+  '''priceVsMa50Atr''',
+  '''finnhubLongTermDebtToEquity''',
+]

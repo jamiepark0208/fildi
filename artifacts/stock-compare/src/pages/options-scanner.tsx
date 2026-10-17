@@ -134,7 +134,7 @@ export function OptionsScannerContent({
   const { data: allTechnicalsData, isLoading: technicalsLoading } = useQuery({
     queryKey: queryKeys.technicalsAllSlim,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all?slim=1");
+      const res = await fetch("/api/technicals/all?slim=1", { credentials: "include" });
       if (!res.ok) throw new Error("technicals/all slim fetch failed");
       return res.json();
     },
@@ -146,7 +146,7 @@ export function OptionsScannerContent({
     queryKey: queryKeys.technicalsRankings(isCallMode ? "call" : "put"),
     queryFn: async (): Promise<Array<{ ticker: string; totalScore: number }>> => {
       const side = isCallMode ? "call" : "put";
-      const res = await fetch(`/api/technicals/rankings?side=${side}`);
+      const res = await fetch(`/api/technicals/rankings?side=${side}`, { credentials: "include" });
       if (!res.ok) throw new Error("technicals/rankings fetch failed");
       return res.json();
     },

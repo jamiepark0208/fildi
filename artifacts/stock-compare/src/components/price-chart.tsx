@@ -73,7 +73,7 @@ function computeEMA(values: number[], period: number): (number | null)[] {
 }
 
 async function fetchTechnicals(ticker: string): Promise<DbTechnicalLevels | null> {
-  const res = await fetch(`/api/technicals/${encodeURIComponent(ticker)}`);
+  const res = await fetch(`/api/technicals/${encodeURIComponent(ticker)}`, { credentials: "include" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Failed to load technical levels");
   return res.json();
@@ -445,7 +445,7 @@ export function PriceChart({
     if (!techTicker) return;
     setRefreshing(true);
     try {
-      const res = await fetch(`/api/technicals/refresh/${encodeURIComponent(techTicker)}`, { method: "POST" });
+      const res = await fetch(`/api/technicals/refresh/${encodeURIComponent(techTicker)}`, { method: "POST", credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? "Refresh failed");

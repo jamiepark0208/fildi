@@ -526,7 +526,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
   const { data: allTechnicalsData } = useQuery({
     queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
-      const res = await fetch("/api/technicals/all");
+      const res = await fetch("/api/technicals/all", { credentials: "include" });
       if (!res.ok) throw new Error("technicals/all fetch failed");
       return res.json();
     },

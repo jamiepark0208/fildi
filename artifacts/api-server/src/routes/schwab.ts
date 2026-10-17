@@ -20,6 +20,9 @@ const LOCAL = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
 
 const router = Router();
 
+/** Local Python jobs (verify_plan, intraday, daily_reflection) call these with no session cookie. */
+export const schwabMachineRouter = Router();
+
 function requireSession(req: { session?: { userId?: unknown } }, res: { status: (n: number) => { json: (b: unknown) => unknown } }, next: () => void) {
   if (!req.session?.userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -107,7 +110,7 @@ router.post("/schwab/oauth/complete", requireSession, async (req, res) => {
  * POST /api/schwab/option-quotes {contracts: [{ticker, expiry, strike, type}]} → {quotes: {occ: quote}, symbols: {key: occ}}
  * Localhost only (called by scripts/watchlist_sync/verify_plan.py to re-price plan contracts at verify time).
  */
-router.post("/schwab/option-quotes", async (req, res) => {
+schwabMachineRouter.post("/schwab/option-quotes", async (req, res) => {
   if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
   const list = (req.body?.contracts ?? []) as OptionContractRef[];
   const contracts = list
@@ -126,7 +129,7 @@ router.post("/schwab/option-quotes", async (req, res) => {
  * Localhost only (scripts/watchlist_sync/analysis/daily_reflection.py prices today before the nightly bar sync lands).
  * Reads through the shared 60s livePriceCache (Schwab → Yahoo).
  */
-router.post("/schwab/equity-prices", async (req, res) => {
+schwabMachineRouter.post("/schwab/equity-prices", async (req, res) => {
   if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
   const tickers = [...new Set(((req.body?.tickers ?? []) as unknown[]).filter((t): t is string => typeof t === "string")
     .map((t) => t.trim().toUpperCase()).filter(Boolean))].slice(0, 1000);
