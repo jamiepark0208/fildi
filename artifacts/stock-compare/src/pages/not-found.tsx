@@ -9,15 +9,18 @@ import { AlertCircle } from "lucide-react";
  */
 export default function NotFound() {
   useEffect(() => {
+    let timer: number | undefined;
     try {
       if (sessionStorage.getItem("fildi_notfound_reload") === "1") {
         sessionStorage.removeItem("fildi_notfound_reload");
-        return;
+      } else {
+        sessionStorage.setItem("fildi_notfound_reload", "1");
+        timer = window.setTimeout(() => window.location.reload(), 150);
       }
-      sessionStorage.setItem("fildi_notfound_reload", "1");
-      const t = window.setTimeout(() => window.location.reload(), 150);
-      return () => window.clearTimeout(t);
-    } catch { /* */ }
+    } catch { /* storage blocked */ }
+    return () => {
+      if (timer != null) window.clearTimeout(timer);
+    };
   }, []);
 
   return (

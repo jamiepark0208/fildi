@@ -2,13 +2,20 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - cursor/mac-dev
+      - "agent/**"
   pull_request:
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Several unit tests import @workspace/db, which throws if this is unset.
+      # The suite does not connect. Not a real database.
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
     steps:
       - uses: actions/checkout@v4
 
@@ -23,14 +30,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Typecheck api-server
-        run: pnpm --filter @workspace/api-server typecheck
-
-      - name: Typecheck stock-compare
-        run: pnpm --filter @workspace/stock-compare typecheck
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Test api-server (unit)
         run: pnpm --filter @workspace/api-server test
 
       - name: Test stock-compare (unit)
         run: pnpm --filter @workspace/stock-compare test
+
+      - name: NEEDS YOU inbox delivery
+        run: node --test .agents/hooks/needs-inbox.test.mjs
+
+      - name: ASKS index
+        run: node --test scripts/check-asks-index.test.mjs && node scripts/check-asks-index.mjs

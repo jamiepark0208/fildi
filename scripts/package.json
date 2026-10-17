@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "yahoo-finance2": "^3.14.1"
   },
   "devDependencies": {
     "@types/node": "catalog:",

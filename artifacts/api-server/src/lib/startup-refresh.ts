@@ -3,6 +3,7 @@ import { db, tickerRegistry } from "@workspace/db";
 import { logger } from "./logger";
 import { WATCHLIST } from "./constants";
 import { getStaleTickers } from "./fundamentals-db";
+import { FREE_ENRICH_SOURCES } from "./data-ops-config";
 import { enrichAndMergeTickers } from "./enrich-and-merge";
 import { computeAndPersistFundamentalScores } from "./fundamentals-db";
 import { getLatestRegime } from "../routes/regime";
@@ -15,8 +16,9 @@ import { withRetry } from "./retry";
 // registry — the scheduler (lib/scheduler.ts) still handles full coverage.
 const DEFAULT_CAP = 25;
 
-/** Cheap free sources only at boot — scarce FMP/AV left to nightly cohort. */
-const STARTUP_SOURCES = ["yahoo", "edgar", "finnhub", "polygon"] as const;
+/** Cheap free sources only at boot — scarce FMP/AV left to nightly cohort.
+ *  Polygon financials left SOURCE_ORDER (A84: endpoint gone); same set as FREE_ENRICH_SOURCES. */
+const STARTUP_SOURCES = FREE_ENRICH_SOURCES;
 
 function getStartupCap(): number {
   const raw = process.env["STARTUP_REFRESH_CAP"];
@@ -57,7 +59,7 @@ export async function runStartupStaleRefresh(): Promise<void> {
         "startup: enrich+merge stale fundamentals (cheap sources)",
       );
       const result = await enrichAndMergeTickers([...capped], {
-        sources: [...STARTUP_SOURCES],
+        sources: STARTUP_SOURCES,
       });
       if (!result.ok) {
         logger.warn({ reason: result.reason }, "startup: enrich+merge incomplete");

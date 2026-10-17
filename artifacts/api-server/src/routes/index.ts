@@ -36,7 +36,7 @@ import fairValueAssumptionsRouter from "./fair-value-assumptions";
 import optionsHistoryRouter from "./options-history";
 import agentsRouter from "./agents";
 import agentsDrillRouter from "./agents-drill";
-import schwabRouter from "./schwab";
+import schwabRouter, { schwabMachineRouter } from "./schwab";
 import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
 import liveRouter from "./live";
@@ -61,12 +61,11 @@ router.use(dailyBriefRouter);
 router.use(deskCommentariesRouter);
 router.use(deskDailyNewsRouter);
 router.use(pmAlertsRouter);
-router.use(stockContextRouter);
 router.use(fairValueAssumptionsRouter);
-router.use(optionsHistoryRouter);
 router.use(agentsRouter);
 router.use(agentsDrillRouter);
-router.use(schwabRouter);
+// Loopback quote helpers for local scripts. No session cookie. Each handler 403s non-loopback.
+router.use(schwabMachineRouter);
 router.use("/macro", macroRouter);
 router.use(fundamentalsRouter);
 router.use(fundamentalsProvenanceRouter);
@@ -97,6 +96,12 @@ router.use(["/stocks", "/indicators", "/options", "/technical", "/explain", "/sd
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);
+// These routers own /stocks, /schwab, and /research paths. Mounted before the
+// gate they answered without a session (the gate never saw the request).
+// /pm/* on options-history stays on requireAdmin. Frontend fetches send the session cookie.
+router.use(stockContextRouter);
+router.use(optionsHistoryRouter);
+router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);
 router.use(indicatorsRouter);
