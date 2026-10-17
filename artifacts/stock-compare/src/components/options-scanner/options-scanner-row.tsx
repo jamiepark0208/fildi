@@ -9,6 +9,7 @@ import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
 import { RecConflictChip } from "@/components/live/rec-conflict-chip";
+import { RiskWhatIfBadge } from "@/components/live/risk-what-if-badge";
 import {
   pfNum, OPTIONS_BOARD_COLS, columnHeatStyle, type ColRange, type OptionRow, type OptionsChainResult,
   type ScorecardRow, type IvTermPoint,
@@ -542,6 +543,29 @@ export function ScannerRow({
           {subTab === "strikes" && reasoningError && (
             <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
           )}
+
+          {/* A136 — on-demand book risk for best put (same MC as Portfolio Alerts) */}
+          {subTab === "strikes" && !isCall && bestStrike && price != null && price > 0 && (() => {
+            const put = "put" in bestStrike ? bestStrike.put : null;
+            const chain = "chain" in bestStrike ? bestStrike.chain : null;
+            if (!put || !chain || !(put.iv > 0)) return null;
+            return (
+              <RiskWhatIfBadge
+                compact
+                input={{
+                  account: "FILDI",
+                  ticker,
+                  strike: put.strike,
+                  expiry: chain.expiry,
+                  qty: 1,
+                  iv: put.iv,
+                  spot: price,
+                  premium: put.bid > 0 ? put.bid : null,
+                  surface: "scanner",
+                }}
+              />
+            );
+          })()}
 
           {/* IV term structure tab */}
           {subTab === "term" && (

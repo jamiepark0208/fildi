@@ -156,6 +156,80 @@ router.post("/pm/what-if", requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/pm/risk-override — A136: Jamie overrode a red/amber book-risk badge (feeds A80 later).
+ * GET  /api/pm/risk-override — recent overrides (newest first, cap 50).
+ */
+async function ensureRiskOverrideTable() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS watchlist_sync.pm_risk_overrides (
+      id serial PRIMARY KEY,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      account text NOT NULL,
+      ticker text NOT NULL,
+      strike numeric NOT NULL,
+      expiry date NOT NULL,
+      qty int NOT NULL DEFAULT 1,
+      badge text NOT NULL,
+      reasons jsonb NOT NULL DEFAULT '[]'::jsonb,
+      note text,
+      surface text,
+      risk_base float8,
+      risk_with float8,
+      crash_base float8,
+      crash_with float8
+    )`);
+}
+
+router.post("/pm/risk-override", requireAdmin, async (req, res) => {
+  try {
+    await ensureRiskOverrideTable();
+    const account = String(req.body?.account ?? "").toUpperCase();
+    const ticker = String(req.body?.ticker ?? "").toUpperCase();
+    const strike = Number(req.body?.strike);
+    const expiry = String(req.body?.expiry ?? "");
+    const qty = Math.max(1, Math.min(50, parseInt(String(req.body?.qty ?? "1"), 10) || 1));
+    const badge = String(req.body?.badge ?? "");
+    const reasons = Array.isArray(req.body?.reasons) ? req.body.reasons.map(String) : [];
+    const note = req.body?.note != null ? String(req.body.note).slice(0, 500) : null;
+    const surface = req.body?.surface != null ? String(req.body.surface).slice(0, 40) : null;
+    const num = (x: unknown) => (x == null || x === "" ? null : Number(x));
+    if (!["IRA", "FILDI"].includes(account)) return res.status(400).json({ error: "account must be IRA or FILDI" });
+    if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return res.status(400).json({ error: "bad ticker" });
+    if (!(strike > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      return res.status(400).json({ error: "need strike + expiry YYYY-MM-DD" });
+    }
+    if (!["red", "amber", "green"].includes(badge)) return res.status(400).json({ error: "bad badge" });
+    await db.execute(sql`
+      INSERT INTO watchlist_sync.pm_risk_overrides
+        (account, ticker, strike, expiry, qty, badge, reasons, note, surface,
+         risk_base, risk_with, crash_base, crash_with)
+      VALUES (
+        ${account}, ${ticker}, ${strike}, ${expiry}::date, ${qty}, ${badge},
+        ${JSON.stringify(reasons)}::jsonb, ${note}, ${surface},
+        ${num(req.body?.risk_base)}, ${num(req.body?.risk_with)},
+        ${num(req.body?.crash_base)}, ${num(req.body?.crash_with)}
+      )`);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get("/pm/risk-override", requireAdmin, async (_req, res) => {
+  try {
+    await ensureRiskOverrideTable();
+    const rows = rowsOf<Record<string, unknown>>(await db.execute(sql`
+      SELECT id, created_at, account, ticker, strike, expiry::text AS expiry, qty, badge,
+             reasons, note, surface, risk_base, risk_with, crash_base, crash_with
+      FROM watchlist_sync.pm_risk_overrides
+      ORDER BY id DESC LIMIT 50`) as SqlRows<Record<string, unknown>>);
+    return res.json({ overrides: rows });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 type NameRow = {
   ticker: string; short_pct: number | null; free_float: number | null; next_earnings: string | null;
   quarter: string | null; summary: unknown; av_sentiment: number | null; held_shares: boolean; short_options: number;

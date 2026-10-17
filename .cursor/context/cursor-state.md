@@ -4,12 +4,11 @@
 **Last updated:** 2026-10-17
 
 ## Phase
-**build** — Merged Grok PR #2 (A144). Next: A74 calibration log or Jamie-gated rows.
+**idle** — A63 + A136 Cursor slices shipped. Queue empty for Cursor builds.
 
 ## Active
-- Done today: A102, A81, A136 what-if, Stage Grok attribution, **A144 merge PR #2**.
-- A145 = CI phase 2 (Claude plan-review). A146 = analyst headline links (open).
-- Waiting Jamie: A99 exclude, A84 merge, A88, study-gated pile.
+- Done today: A102, A81, A136 what-if+badges/override, A63 ranked upsert, Stage Grok, A144 PR#2, A74 cal chip, Ideas UX.
+- Grok PR #3 merged. Waiting Jamie: A99/A84/A88. A146 open. A136 backtest → Claude.
 - Leave alone: OpenJev, Claude cache-overview / ttl-cache / cache-registry (uncommitted local).
 
 ## Do not

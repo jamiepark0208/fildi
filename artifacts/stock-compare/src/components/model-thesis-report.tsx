@@ -3,6 +3,7 @@
  */
 import { useState } from "react";
 import { WhyCallout, WhyMetric } from "@/components/research-why";
+import { RiskWhatIfBadge, modelAccountToPm } from "@/components/live/risk-what-if-badge";
 import { VERDICT_COLORS, VERDICT_LABELS, type ModelListItem } from "@/hooks/use-model-list";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +147,23 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
           </div>
         )}
       </div>
+
+      {c?.type === "put" && c.strike > 0 && c.expiry && item.close != null && item.close > 0 && (c.vol?.contract_iv ?? 0) > 0 && (
+        <RiskWhatIfBadge
+          compact
+          input={{
+            account: modelAccountToPm(c.account),
+            ticker: item.ticker,
+            strike: c.strike,
+            expiry: c.expiry,
+            qty: c.contracts ?? 1,
+            iv: c.vol!.contract_iv,
+            spot: item.close,
+            premium: c.premium,
+            surface: "model_list",
+          }}
+        />
+      )}
 
       <WhyCallout
         tone={tone}
