@@ -49,17 +49,19 @@ Practical rules:
 ## Review loop (user decision 2026-10-11)
 Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
 
+**Plan-review split (Jamie 2026-10-17):** Grok Bot writes the plan review. Non-quant verdicts are final. Quant stays a pre-review until Claude's verdict. Detail: § Grok Bot plan review.
+
 **Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines.
-Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impact, simpler/cheaper path); commit review stays quant-only.
+Non-quant rows still get a plan review (overlap, PM impact, simpler/cheaper path). As of 2026-10-17 that review is Grok Bot's (§ Grok Bot plan review). Commit review stays quant-only.
 
 **ASKS format (2026-10-11):** `research/common/ASKS.md` is a one-line index (id link · date · from → to · title · status).
 Everything else — spec, replies, status notes, reviews — lives in `research/common/asks/A##.md` (template `asks/_TEMPLATE.md`). Read the index; open a file only to act on it.
 
 1. **Muse files** `Muse → Cursor` (unchanged): new `asks/A##.md` + one index line. Quant rows: title starts with `[quant]`.
-2. **Claude plan review** (every Muse row, before build; user 2026-10-14): checks overlap with existing code + `research/studies/INDEX.md`,
-   adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
-   `**Claude plan <date>:** …` to the file's `## Reviews` and sets the index status to `planned`. Claude never implements Muse rows.
-   Cursor builds **only** `planned` rows (Claude-reviewed), **one at a time**: the next row starts only after the previous commit's Claude review passes (user 2026-10-15; replaces the 48 h fallback). Order = ASKS priority (P1 data correctness first).
+2. **Plan review** (every Muse row, before build; user 2026-10-14, split 2026-10-17): Grok Bot is final on non-quant and writes `**Grok Bot plan <date>:**`. Claude is final on quant (pre-review from Grok Bot optional; Claude may skim it and can override). Either check overlaps existing code + `research/studies/INDEX.md`,
+   adds the eval on quant rows (test cases / pre-registered study row with stop rule / before-after), appends
+   the plan line to the file's `## Reviews`, and sets the index status to `planned` only on a final verdict. Claude never implements Muse rows.
+   Cursor builds **only** `planned` rows (Grok Bot if non-quant, Claude if quant), **one at a time**: the next row starts only after the previous commit's review passes (user 2026-10-15; replaces the 48 h fallback). Order = ASKS priority (P1 data correctness first).
 3. **Cursor builds**, commit message carries `Refs: A##` (one trailer per row).
 4. **Commit review, independent + parallel:** Muse = bugs/ops/UX; Claude = quant diffs only (look-ahead,
    units, eval run vs the plan's acceptance check). Claude writes its review **before reading Muse's verdict** on that SHA.
@@ -67,13 +69,22 @@ Everything else — spec, replies, status notes, reviews — lives in `research/
 5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
 
 Statuses: `open → planned → accepted → done → verified | declined` (say why).
-**Agent trailer (user 2026-10-15):** every commit carries `Agent: claude|cursor|muse` as a trailer → exact attribution in Settings › Agents (commits, queue, tokens).
+**Agent trailer (user 2026-10-15):** every commit carries `Agent: claude|cursor|muse|grokbot` as a trailer → exact attribution in Settings › Agents (commits, queue, tokens).
 **Decline check (user 2026-10-15)** — guards against declining a misread ask. Every decline/park states: (1) **Need** — the
 underlying want in Jamie's words (from the ask's Context), separate from the proposed method; (2) **Met by / fails because** —
 the existing feature, row, or study that covers the need, or the probe/study number showing the need itself doesn't hold;
 (3) **Revisit trigger** — the concrete event that reopens it. Decline the method, rarely the need. Muse (or Cursor) may rebut
 once with a need Claude missed → Claude re-reviews. When a study a decline cites changes, Claude re-audits that decline.
 Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewed SHA:`) and reviews `git log <sha>..HEAD` at session start.
+
+## Grok Bot plan review (Jamie 2026-10-17)
+Grok Bot has joined as plan reviewer and skeptic, at Jamie's direction (2026-10-17). This section is the notice. It does not replace the build loop above.
+
+- Grok Bot writes `**Grok Bot plan <date>:**` in the row file's `## Reviews`.
+- **Non-quant** (UI, ops, infra, agent tooling, bugs, docs): Grok Bot's review is final. Status moves to `planned` or `declined` the same way a Claude plan review would. Decline check still applies (need · met by · revisit trigger). `needs-jamie` stays unbuilt and carries a `**Needs Jamie:**` line.
+- **Quant** (scores, weights, thresholds, trades shown, option pricing, backtests, market data): Grok Bot writes a pre-review only. Status stays as-is. Claude gives the final verdict, may skim Grok Bot's notes to save tokens, and can override any Grok Bot verdict.
+- Grok Bot commits carry `Agent: grokbot`.
+- Pending proposals (claims with expiry, credit tags) come as ASKS rows for review, not as rule edits.
 
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`
