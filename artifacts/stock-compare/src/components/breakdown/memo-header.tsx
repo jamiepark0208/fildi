@@ -2,6 +2,17 @@
 import { BullBearCases } from "../market-sentiment-section";
 import { ScoreBadge } from "../breakdown-metrics-table";
 import { PillarChip, type BreakdownData } from "./stock-breakdown-parts";
+import { freshnessBand } from "@/lib/provenance-display";
+
+function shortAge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (!Number.isFinite(days) || days < 0) return null;
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
 export function MemoHeader({ data }: { data: BreakdownData }) {
   const se = data.scoreEvidence;
@@ -12,6 +23,9 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
     catalysts.some((l) => !/^(Earnings|Next earnings)/i.test(l)) ||
     (data.bullBullets?.length ?? 0) > 0 ||
     (data.bearBullets?.length ?? 0) > 0;
+  const scoredLabel = shortAge(se?.scoredAt);
+  const inputsLabel = shortAge(se?.inputsAsOf);
+  const inputsStale = freshnessBand(se?.inputsAsOf) === "stale";
   return (
     <div id="bd-memo-header" className="mt-0.5 space-y-1.5">
       {/* Our peer-relative fund model — not the Street (WRDS/LSEG) panel below */}
@@ -46,7 +60,28 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
               {se.confidence} conf
             </span>
           )}
+          {inputsStale && (
+            <span
+              className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/60 text-orange-200 bg-orange-500/20"
+              title="Fundamentals inputs older than 30d — score may lag; not excluded from rankings yet (needs Jamie)"
+            >
+              STALE inputs
+            </span>
+          )}
         </div>
+        {(scoredLabel || inputsLabel) && (
+          <p
+            className="text-[9px] text-amber-100/50 font-mono"
+            title={[
+              se?.scoredAt ? `fund_score_computed_at ${se.scoredAt}` : null,
+              se?.inputsAsOf ? `fundamentals_last_fetched ${se.inputsAsOf}` : null,
+            ].filter(Boolean).join(" · ")}
+          >
+            {scoredLabel ? <>computed {scoredLabel}</> : null}
+            {scoredLabel && inputsLabel ? " · " : null}
+            {inputsLabel ? <>inputs as of {inputsLabel}</> : null}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-[#d4af37]/15 pt-1.5">
           <span className="text-[9px] font-bold uppercase tracking-wider text-sky-300">Trade</span>
           {tr?.techScore != null && (

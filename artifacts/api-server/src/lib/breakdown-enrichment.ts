@@ -42,6 +42,8 @@ export type ScoreEvidence = {
   coverage: number | null;
   rank: number | null;
   scoredAt: string | null;
+  /** When fundamentals inputs were last merged (A99 Phase 2). */
+  inputsAsOf: string | null;
   peerGroupId: string | null;
   topMetrics: TopMetric[];
   modelScore: number | null;
@@ -90,6 +92,7 @@ export async function buildScoreEvidence(
     coverage: snapMeta.coverage,
     rank: row?.fundRank ?? null,
     scoredAt: row?.fundScoreComputedAt?.toISOString() ?? null,
+    inputsAsOf: row?.fundamentalsLastFetched?.toISOString() ?? null,
     peerGroupId: snapMeta.peerGroupId,
     topMetrics: snapMeta.topMetrics,
     modelScore: total,

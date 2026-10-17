@@ -44,6 +44,8 @@ export interface ScoreEvidence {
   confidence: string | null;
   coverage: number | null;
   scoredAt: string | null;
+  /** Fundamentals merge vintage — inputs the score was built from (A99 Phase 2). */
+  inputsAsOf?: string | null;
   topMetrics: Array<{ key: string; family: string; raw: number | null; peerPct: number | null; contrib: number }>;
   modelScore: number | null;
   deskScore: number | null;
