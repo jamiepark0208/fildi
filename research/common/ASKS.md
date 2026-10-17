@@ -119,3 +119,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A140](asks/A140.md) | 2026-10-17 | Muse → Cursor | Post-down-day setup flag for scanner + options-book brief | open (Cursor 10-17: split from Grok collision → Grok is A141) |
 | [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | open (Cursor 10-17: renumbered from A140 after Muse collision) |
 | [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | open |
+| [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | open (Cursor 10-17: renumbered from A140 after Muse collision) |
+| [A142](asks/A142.md) | 2026-10-17 | Claude → Cursor | [quant] analyst_events headline links: 35 % are generic roundups | open |
+| [A143](asks/A143.md) | 2026-10-17 | Claude → Cursor | OpenJev overnight headline labels in Desk daily news (display only) | planned (S037) |
