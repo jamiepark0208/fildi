@@ -15,6 +15,8 @@ Variants (same frozen state, same event; only the question form / read options c
   v1s v1 + samples=8 (averaged noise draws)
   v1t v1 + think=128 (short thought before the read)
   v1k v1 + steps=4 (more denoise passes)
+  v4  deviation framing: 'is the TRUE probability HIGHER than the reference X%?' (noul;
+      prob = P(higher), scored on direction-vs-baseline, not absolute level)
 """
 from __future__ import annotations
 
@@ -36,7 +38,7 @@ from build_plan import connect  # noqa: E402
 BUCKETS = ["0-10%", "10-30%", "30-50%", "50-70%", "70-90%", "90-100%"]
 MIDS = [0.05, 0.20, 0.40, 0.60, 0.80, 0.95]
 EDGES = [0.0, 0.10, 0.30, 0.50, 0.70, 0.90, 1.0]
-VARIANTS = ("v0", "v1", "v1i", "v2", "v3", "v1s", "v1t", "v1k")
+VARIANTS = ("v0", "v1", "v1i", "v2", "v3", "v4", "v1s", "v1t", "v1k")
 OPTS = {"v1s": {"samples": 8}, "v1t": {"think": 128}, "v1k": {"steps": 4}}
 LAB_DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.openjev_lab (
   id bigserial PRIMARY KEY, run_at timestamptz NOT NULL DEFAULT now(), mode text NOT NULL, variant text NOT NULL,
@@ -77,6 +79,22 @@ def form(q: dict, variant: str) -> tuple[dict, str]:
     ev = event_text(q)
     if variant == "v3":
         return {"type": "score", "instructions": f"How likely is this? {ev}", "criteria": BUCKETS}, "range"
+    if variant == "v4":
+        # Deviation framing (Muse 10-17): don't ask for the absolute probability — ask whether the
+        # TRUE probability is HIGHER than the reference. prob = P(higher). Scored on direction.
+        b = q.get("baseline")
+        if not b or b[1] is None:
+            return {"type": "noul", "instructions": ev, "criteria": NEUTRAL_CRIT}, "noul"
+        name, bp = b
+        label = {"market_iv": "options-market implied", "market_delta": "options-market implied (delta)",
+                 "base_rate": "historical base rate for this stock", "model_winrate": "fildi model win rate",
+                 "path_reflection": "options-implied (reflection rule)", "S018_base": "historical base rate",
+                 "model_rank": "fildi model rank", "coin": "no-information prior"}.get(name, name)
+        txt = (f"{ev} The {label} probability is {bp * 100:.0f}%. Given all the data above, "
+               f"is the TRUE probability of this event HIGHER than {bp * 100:.0f}%?")
+        return {"type": "noul", "instructions": txt,
+                "criteria": {"true": "Yes: the true probability is higher than the reference.",
+                             "false": "No: the true probability is at or below the reference."}}, "noul"
     txt = ev + (ref_text(q) if variant == "v2" else "")
     return {"type": "noul", "instructions": txt, "criteria": NEUTRAL_CRIT}, "noul"
 
@@ -286,7 +304,7 @@ def bt_tickers(conn) -> list[str]:
     return ts
 
 
-def run_backtest(conn, variants=("v0", "v1", "v3", "v1s")) -> int:
+def run_backtest(conn, variants=("v0", "v1", "v3", "v4", "v1s")) -> int:
     conn.execute(LAB_DDL)
     conn.execute("DELETE FROM watchlist_sync.openjev_lab WHERE mode = 'backtest'")
     items = []
@@ -375,9 +393,28 @@ def summarize(conn) -> dict:
                 r["mean_range_width"] = round(statistics.mean([x[3] - x[2] for x in xs if x[2] is not None]), 3)
             if mode == "backtest":
                 ys = [bool(x[5]) for x in xs]
+                bs = [x[4] for x in xs]
                 r["brier"] = round(brier(ps, ys), 4)
-                r["brier_baseline"] = round(brier([x[4] for x in xs], ys), 4)
+                r["brier_baseline"] = round(brier(bs, ys), 4) if all(b is not None for b in bs) else None
                 r["base_rate_realized"] = round(sum(ys) / len(ys), 3)
+                if all(b is not None for b in bs):
+                    # Ensemble (Muse 10-17): logit-average OpenJev with the baseline. A weak
+                    # forecaster with uncorrelated errors still helps in a blend — this is the
+                    # "adds information on top of the market" test.
+                    blend = [1 / (1 + math.exp(-(logit(p) + logit(b)) / 2)) for p, b in zip(ps, bs)]
+                    r["brier_ensemble"] = round(brier(blend, ys), 4)
+                    # Deviation direction (Muse 10-17): when the model says higher/lower than the
+                    # baseline, is it right? v4 asks this directly (prob = P(true p > baseline));
+                    # other variants imply it via prob - baseline. excess = realized rate in the
+                    # bucket minus that bucket's mean baseline. Discriminating model => hi > 0, lo < 0.
+                    dev = [p - 0.5 if v == "v4" else p - b for p, b in zip(ps, bs)]
+                    for tag, sel in (("hi", [d > 0.1 for d in dev]), ("lo", [d < -0.1 for d in dev])):
+                        s_ys = [y for y, s in zip(ys, sel) if s]
+                        s_bs = [b for b, s in zip(bs, sel) if s]
+                        if s_ys:
+                            r[f"dev_{tag}_n"] = len(s_ys)
+                            r[f"dev_{tag}_excess"] = round(
+                                sum(s_ys) / len(s_ys) - sum(s_bs) / len(s_bs), 3)
                 # leave-one-date-out Platt calibration → honest calibrated Brier
                 dates = sorted({x[0] for x in xs})
                 cal = []
