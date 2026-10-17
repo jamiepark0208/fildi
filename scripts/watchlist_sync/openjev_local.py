@@ -45,7 +45,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 PT = ZoneInfo("America/Los_Angeles")
 FORECASTER = "openjev:local-26b"
 MODEL = "openjev-latest"
-HOST, PORT = "127.0.0.1", 8080
+HOST, PORT = "127.0.0.1", 8091  # 8080 = fildi API server (clash 10-16)
 BASE = f"http://{HOST}:{PORT}"
 OJ_PY = ROOT / "research/openjev/.venv/bin/python"
 LAST_FILE = Path("/tmp/fildi-logs/openjev-last.json")
@@ -574,6 +574,7 @@ class Server:
                 _post("/v1/systemone", {"model": MODEL, "state": "warmup",
                                         "questions": {"w": {"type": "noul", "instructions": "Is this a test?"}}}, 600)
                 self.load_s = round(time.time() - t0, 1)
+                stage_event("start", f"model loaded in {self.load_s:g} s")
                 return self
             except (urllib.error.URLError, ConnectionError, OSError, json.JSONDecodeError):
                 time.sleep(2)
@@ -588,7 +589,22 @@ class Server:
                 os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
         if self.sampler:
             self.sampler.stop_ev.set()
+        if self.proc:
+            stage_event("stop", "model unloaded")
         return False
+
+
+EVENTS = Path.home() / ".fildi/agent-events.jsonl"
+
+
+def stage_event(event: str, detail: str) -> None:
+    """Hook-format line for the Stage OpenJev orb (agents.ts openjevStatus). Never raises."""
+    try:
+        t = dt.datetime.now(dt.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        with open(EVENTS, "a") as f:
+            f.write(json.dumps({"t": t, "agent": "openjev", "event": event, "detail": detail}) + "\n")
+    except OSError:
+        pass
 
 
 def ask(state_text: str, qs: list[dict]) -> tuple[dict, float, int]:
@@ -598,6 +614,7 @@ def ask(state_text: str, qs: list[dict]) -> tuple[dict, float, int]:
         if q.get("cause"):
             questions[f"c{i}"] = q["cause"]
     t0 = time.time()
+    stage_event("batch", f"{len(questions)} questions")
     r = _post("/v1/systemone", {"model": MODEL, "state": state_text, "questions": questions})
     return r.get("answers", {}), time.time() - t0, int((r.get("usage") or {}).get("input_tokens") or 0)
 
