@@ -257,6 +257,8 @@ function drawRepo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 
 function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: {
   selected?: boolean; dim?: boolean; hot?: boolean; progress?: boolean; now?: number; by?: Id | null;
+  /** Always-visible ask id under the cube (e.g. A148) — not hover-only. */
+  label?: string; match?: boolean;
 }) {
   // isometric cube: top rhombus (lit) + left/right faces (shaded), light from top-left like the orbs
   const T = [[x, y - s * 0.6], [x + s, y - s * 0.1], [x, y + s * 0.4], [x - s, y - s * 0.1]];
@@ -294,7 +296,8 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   face(T, g);
   face(L, c + (o.dim ? "44" : "88"));
   face(R, c + (o.dim ? "22" : "55"));
-  ctx.strokeStyle = o.selected ? "#ffffff" : accent ?? c; ctx.lineWidth = o.selected ? 1.6 : accent ? 1.3 : 0.8;
+  ctx.strokeStyle = o.selected || o.match ? "#ffffff" : accent ?? c;
+  ctx.lineWidth = o.selected || o.match ? 1.8 : accent ? 1.3 : 0.8;
   for (const pts of [T, L, R]) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.stroke(); }
   if (o.by && META[o.by]) {
     const bx = x - s * 0.95, by = y - s * 0.7;
@@ -307,6 +310,15 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
     ctx.font = "700 8px ui-sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(WHO_LETTER[o.by], bx, by + 2.5);
+  }
+  if (o.label) {
+    ctx.font = "700 9px ui-sans-serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(0,0,0,0.75)";
+    ctx.strokeText(o.label, x, y + s * 1.55);
+    ctx.fillStyle = o.dim && !o.match ? "rgba(255,255,255,0.35)" : o.match || o.selected ? "#ffffff" : "rgba(255,255,255,0.9)";
+    ctx.fillText(o.label, x, y + s * 1.55);
   }
 }
 
@@ -940,9 +952,15 @@ function TeamPanel({ d }: { d: Data }) {
 }
 
 // ── Ideas ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+function askSortKey(id: string): number {
+  const m = id.match(/^[AJ](\d+)$/i);
+  return m ? Number(m[1]) : 1e9;
+}
+
 function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<string, number> }) {
   const [sel, setSel] = useState<string | null>(null);
   const [showParked, setShowParked] = useState(false);
+  const [query, setQuery] = useState("");
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const wave = useMemo(
@@ -955,18 +973,34 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const waveActive = !!wave && wave !== waveAck;
   const isHot = (i: Idea) => !!i.hot && waveActive;
   const isProg = (i: Idea) => !!i.inProgress;
-  // Open stages + done ≤ 7d + this-wave / in-progress (today's completions stay visible).
+  const qn = query.trim().toLowerCase();
+  const matches = (i: Idea) => {
+    if (!qn) return true;
+    return i.id.toLowerCase().includes(qn)
+      || i.title.toLowerCase().includes(qn)
+      || i.status.toLowerCase().includes(qn)
+      || `${i.from}→${i.to}`.includes(qn);
+  };
+  // Open stages + done ≤ 7d + this-wave / in-progress. Search also surfaces parked/done hits.
   const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
-  const shown = ideas.filter((i) =>
-    showParked
-    || isHot(i)
-    || isProg(i)
-    || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? ""))),
-  );
+  const shown = ideas.filter((i) => {
+    const hit = matches(i);
+    if (qn) return hit; // search = filter the board to matches (incl. parked)
+    return showParked
+      || isHot(i)
+      || isProg(i)
+      || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? "")));
+  }).sort((a, b) => askSortKey(a.id) - askSortKey(b.id) || a.id.localeCompare(b.id));
   const cols = PHASES.filter((p) => shown.some((i) => i.phase === p) || ["needs you", "filed", "reviewed", "building"].includes(p));
   const visible = shown.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
   const hotCount = shown.filter(isHot).length;
   const progCount = shown.filter(isProg).length;
+  // Exact id like A148 → select it
+  useEffect(() => {
+    if (!qn) return;
+    const exact = ideas.find((i) => i.id.toLowerCase() === qn || i.id.toLowerCase() === `a${qn}`);
+    if (exact) setSel(exact.id);
+  }, [qn, ideas]);
   const dismiss = async (id: string) => {
     setBusy(true);
     try {
@@ -980,7 +1014,7 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
     setWaveAck(wave);
   };
   const active = ideas.find((i) => i.id === sel) ?? null;
-  const COLW = 130, S = 13, ROWH = 46, PER = 3; // cubes per row inside a phase column
+  const COLW = 130, S = 13, ROWH = 54, PER = 3; // cubes per row; taller for id label under cube
   const layout = useMemo(() => {
     const out: { idea: Idea; x: number; y: number }[] = [];
     const x0 = -((cols.length - 1) * COLW) / 2;
@@ -990,7 +1024,7 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
       });
     });
     return out;
-  }, [shown.map((i) => `${i.id}:${i.phase}:${i.hot}:${i.inProgress}`).join(), cols.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown.map((i) => `${i.id}:${i.phase}:${i.hot}:${i.inProgress}`).join(), cols.join(), qn]); // eslint-disable-line react-hooks/exhaustive-deps
   const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
@@ -1001,13 +1035,16 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
       ctx.beginPath(); ctx.moveTo(x0 + ci * COLW + COLW / 2, -165); ctx.lineTo(x0 + ci * COLW + COLW / 2, 400); ctx.stroke();
     });
     for (const { idea, x, y } of layout) {
+      const hit = !!qn && matches(idea);
       drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", {
         selected: sel === idea.id,
-        dim: idea.phase === "parked" && !isHot(idea) && !isProg(idea),
+        dim: (idea.phase === "parked" && !isHot(idea) && !isProg(idea)) || (!!qn && !hit),
         hot: isHot(idea) && !isProg(idea),
         progress: isProg(idea),
         now,
         by: idea.touchedBy ?? null,
+        label: idea.id,
+        match: hit,
       });
       const n = unread[idea.id] ?? 0;
       if (n > 0) { // agent replied since Jamie's last comment
@@ -1041,10 +1078,25 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
-        <span>Muse ideas by stage · {visible.length} shown</span>
-        <InfoTip>Pink glow = this wave of status changes (newest touch day on the board). Teal pulse = in progress.
-          Badge Cu/Cl/M/Y = who last touched. A newer wave replaces the glow; or use Clear highlights.
-          Stages: needs you → filed (waiting on Claude plan) → reviewed (= planned: Claude approved; Cursor has not built it yet) → building → done.</InfoTip>
+        <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
+        <InfoTip>Each cube shows its ask id (A148). Sorted by number inside a stage. Search filters id/title/status.
+          Pink glow = this wave. Teal = in progress. Badge Cu/Cl/M/Y = last touch.
+          Stages: needs you → filed → reviewed (= planned) → building → done.</InfoTip>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); }}
+          placeholder="Find A148…"
+          className="w-[9.5rem] rounded-md border border-white/15 bg-black/40 px-2 py-1 text-[12px] text-white placeholder:text-white/40 focus:border-[#d4af37]/60 focus:outline-none"
+          aria-label="Search ideas by id or title"
+        />
+        {qn && (
+          <button type="button" onClick={() => setQuery("")}
+            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#d4af37]/50">
+            Clear search
+          </button>
+        )}
         {(hotCount > 0 || progCount > 0) && (
           <span className="inline-flex items-center gap-2 text-[11px] text-white/80">
             {hotCount > 0 && <span style={{ color: HOT_GLOW }}>● {hotCount} this wave{wave ? ` · ${wave.slice(5)}` : ""}</span>}
@@ -1072,7 +1124,7 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
             <span style={{ color: PHASE_COLOR[active.phase] }}>{active.phase}</span>
             {isProg(active) && <span style={{ color: PROG_GLOW }}>in progress</span>}
             {isHot(active) && !isProg(active) && <span style={{ color: HOT_GLOW }}>this wave</span>}
-            <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · Muse → Cursor${active.quant ? " · quant" : ""}`}</span>
+            <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · ${META[active.from]?.label ?? active.from} → ${META[active.to]?.label ?? active.to}${active.quant ? " · quant" : ""}`}</span>
           </div>
           {active.touchedBy && (
             <p className="text-[12px]" style={{ color: META[active.touchedBy].color }}>

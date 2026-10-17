@@ -125,19 +125,26 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   const ideas: Idea[] = [];
   const since = Date.now() - 7 * 864e5;
   for (const line of readFileSync(resolve(ROOT, "research/common/ASKS.md"), "utf8").split("\n")) {
-    const m = line.match(/^\| \[(A\d+)\][^|]*\| (\d{4}-\d{2}-\d{2}) \| (\w+) → (\w+) \| (.*) \| ([^|]*) \|$/);
+    // Dest may be "Jamie / Cursor" (A148) — take first token for routing, still board the row.
+    const m = line.match(/^\| \[(A\d+)\][^|]*\| (\d{4}-\d{2}-\d{2}) \| ([^|]+?) → ([^|]+?) \| (.*) \| ([^|]*) \|$/);
     if (!m) continue;
     const [, id, d, f, to, title, status] = m;
-    const from = who(f), dest = who(to);
+    const from = who(f!);
+    const destTok = to!.split("/")[0]!.trim();
+    let dest = who(destTok) ?? who(to!);
     if (!from || !dest) continue;
-    if (/^(open|planned|accepted|partial)/i.test(status.trim())) queue[dest] += 1;
-    if (/needs jamie|user call/i.test(status)) queue.jamie += 1;
-    if (Date.parse(d) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
-    // Idea cubes: Muse → Cursor (build board) + any row involving Grok (so Bot work is visible).
-    // Was Muse→Cursor only — Grok→Claude / Cursor→Grok never appeared (Jamie 10-17).
-    const onBoard = (from === "muse" && dest === "cursor") || from === "grok" || dest === "grok";
+    const st = status!.trim();
+    if (/needs jamie|user call/i.test(st)) dest = "jamie";
+    if (/^(open|planned|accepted|partial)/i.test(st)) queue[dest] += 1;
+    if (/needs jamie|user call/i.test(st)) queue.jamie += 1;
+    if (Date.parse(d!) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title!.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
+    // Idea cubes: Muse→Cursor, Claude→Cursor, Grok either side, or anything Needs Jamie (Jamie 10-17).
+    const onBoard = (from === "muse" && dest === "cursor")
+      || (from === "claude" && dest === "cursor")
+      || from === "grok" || dest === "grok"
+      || dest === "jamie"
+      || /needs jamie|user call/i.test(st);
     if (onBoard) {
-      const st = status.trim();
       const phase = ideaPhase(st);
       const touch = ideaTouch(id!, st, d!);
       const inProgress = phase === "building" || /\bin progress\b/i.test(st);
@@ -175,7 +182,12 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       });
     }
   } catch { /* none */ }
-  ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || b.date.localeCompare(a.date));
+  const askNum = (id: string) => {
+    const m = id.match(/^[AJ](\d+)$/i);
+    return m ? Number(m[1]) : 1e9;
+  };
+  // Phase columns first, then ascending ask id (A3 before A148) — Jamie 10-17.
+  ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || askNum(a.id) - askNum(b.id) || a.id.localeCompare(b.id));
   return { ev, queue, ideas };
 }
 
