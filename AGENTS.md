@@ -16,7 +16,7 @@
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
-| Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only; no Mac stack; ASKS `→ Grok` / `Grok → …` |
+| Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins. |
 
 ## One team (user decision 2026-10-05; Muse via git 2026-10-07)
 Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval rules).
@@ -46,8 +46,10 @@ Practical rules:
    built-in web fetch tools summarize/cap pages → use them only for quick lookups. `--save` (→ `research/sources/`) only when a study/ASKS row cites it.
    Muse has Mac file-system access (Jamie 10-16) → runs it itself, same rules.
 
-## Review loop (user decision 2026-10-11)
-Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
+## Review loop (user decision 2026-10-11; Grok on plans 2026-10-17)
+Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → **Grok may red-team the plan** (subjective / high-bias rows; standing **A141**) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
+
+**Grok is on the team (Jamie 2026-10-17):** review-only skeptic — helps Claude stress-test plans; may change multi-agent workflow docs (`GROK.md`, ASKS routing, adapter notes). **Not an implementer.** Cursor/Claude treat Grok findings as hypotheses: cite evidence, accept or rebut — **skeptic ≠ correct.** Do not block a build on vibes alone; do not ignore a finding that cites path/study/SHA.
 
 **Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines.
 Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impact, simpler/cheaper path); commit review stays quant-only.

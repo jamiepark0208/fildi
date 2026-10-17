@@ -50,7 +50,7 @@ type Data = {
   needsUnread?: Record<string, number>;
   jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
   agents: Agent[]; events: Ev[]; live: Live[]; ideas?: Idea[];
-  status: Record<"claude" | "cursor", Status>;
+  status: Record<"claude" | "cursor" | "grok", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
@@ -740,7 +740,9 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
     if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
     if (id === "grok") {
-      return <Lines color={m.color} a="Grok · red team" b={a?.queue ? `${a.queue} in queue` : "devil’s advocate"} c="GROK.md · review-only · Cursor meter" />;
+      const q = a?.queue ? `${a.queue} in queue` : "devil’s advocate";
+      const last = a?.lastActive ? `last commit ${ago(a.lastActive)}` : "no commits attributed yet";
+      return <Lines color={m.color} a="Grok · red team" b={`${q} · ${last}`} c={`${a?.commits24h ?? 0} commits today · GROK.md · Cursor meter`} />;
     }
     const ml = id === "muse" ? d.muse?.live : undefined;
     const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
@@ -862,7 +864,7 @@ function TeamPanel({ d }: { d: Data }) {
             <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
-            const st = a.id === "claude" || a.id === "cursor" ? d.status[a.id] : undefined;
+            const st = a.id === "claude" || a.id === "cursor" || a.id === "grok" ? d.status[a.id] : undefined;
             const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
@@ -874,7 +876,9 @@ function TeamPanel({ d }: { d: Data }) {
                         ? `● working${d.muse.live.detail ? ` · ${d.muse.live.detail.slice(0, 28)}` : ""}`
                         : `${d.muse?.running ? "app open" : "app closed"} · ${ago(a.lastActive)}`)
                       : a.id === "grok"
-                        ? (a.queue > 0 ? `● ${a.queue} to review` : "red team · idle")
+                        ? (a.lastActive
+                          ? `last commit ${ago(a.lastActive)}${a.queue > 0 ? ` · ${a.queue} in queue` : ""}`
+                          : (a.queue > 0 ? `● ${a.queue} to review` : "red team · idle"))
                         : `last commit ${ago(a.lastActive)}`}
                 </td>
                 <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>

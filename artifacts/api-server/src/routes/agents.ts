@@ -32,15 +32,21 @@ const LOGS = join(homedir(), ".claude/projects", ROOT.replace(/[/.]/g, "-"));
 type AgentId = "muse" | "claude" | "cursor" | "jamie" | "grok";
 type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
 
-const NAMES: Record<string, AgentId> = { muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie", grok: "grok" };
+const NAMES: Record<string, AgentId> = {
+  muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie",
+  grok: "grok", grokbot: "grok", // cloud Bot trailers use Agent: grokbot (Jamie 10-17)
+};
 const who = (s: string): AgentId | null => NAMES[s.trim().toLowerCase()] ?? null;
 
 async function commits(since = "7 days ago"): Promise<Ev[]> {
-  const { stdout } = await run("git", ["log", `--since=${since}`, "--format=%H%x1f%aI%x1f%ae%x1f%s%x1f%(trailers:key=Agent,valueonly)%x1f%(trailers:key=Co-Authored-By,valueonly)%x1e"],
+  // %B body included: Cursor Cloud / Grok often put a blank line before Co-authored-by, which
+  // drops `Agent: grokbot` from git's trailer block — scrape body as fallback (Jamie 10-17).
+  const { stdout } = await run("git", ["log", `--since=${since}`, "--format=%H%x1f%aI%x1f%ae%x1f%s%x1f%(trailers:key=Agent,valueonly)%x1f%(trailers:key=Co-Authored-By,valueonly)%x1f%B%x1e"],
     { cwd: ROOT, maxBuffer: 8 << 20 });
   return stdout.split("\x1e").map((r) => r.trim()).filter(Boolean).map((r) => {
-    const [sha, t, email, subject, agentTrailer, coauthor] = r.split("\x1f");
-    const from = who(agentTrailer ?? "") ?? (/claude/i.test(coauthor ?? "") ? "claude" : /users\.noreply\.github\.com$/.test(email) ? "muse" : "cursor");
+    const [sha, t, email, subject, agentTrailer, coauthor, body] = r.split("\x1f");
+    const fromBody = (body ?? "").match(/^\s*Agent:\s*(\S+)\s*$/im)?.[1] ?? "";
+    const from = who(agentTrailer ?? "") ?? who(fromBody) ?? (/claude/i.test(coauthor ?? "") ? "claude" : /users\.noreply\.github\.com$/.test(email) ? "muse" : "cursor");
     return { t, from, to: "repo" as const, kind: "commit" as const, text: subject, ref: sha.slice(0, 7) };
   });
 }
@@ -99,14 +105,14 @@ function ideaTouch(id: string, status: string, filed: string): { at: string | nu
     if (!at || !by) return;
     if (!bestAt || at > bestAt) { bestAt = at; bestBy = by; }
   };
-  for (const m of status.matchAll(/\b(Cursor|Claude|Muse|Jamie)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b/gi)) {
-    consider(m[2]!, m[1]!);
+  for (const m of status.matchAll(/\b(Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b/gi)) {
+    consider(m[2]!, m[1]!.replace(/\s*Bot$/i, ""));
   }
   try {
     const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
-    // **Cursor 2026-10-16:** / **Claude plan 2026-10-15:** / **Muse review abc:**
-    for (const m of txt.matchAll(/\*\*(Cursor|Claude|Muse|Jamie)\b[^*]{0,40}?\b(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b[^*]*\*\*/gi)) {
-      consider(m[2]!, m[1]!);
+    // **Cursor 2026-10-16:** / **Claude plan …** / **Grok Bot plan …** / **Muse review abc:**
+    for (const m of txt.matchAll(/\*\*(Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\b[^*]{0,40}?\b(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b[^*]*\*\*/gi)) {
+      consider(m[2]!, m[1]!.replace(/\s*Bot$/i, ""));
     }
   } catch { /* missing file */ }
   return { at: bestAt, by: bestBy };
@@ -127,8 +133,10 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (/^(open|planned|accepted|partial)/i.test(status.trim())) queue[dest] += 1;
     if (/needs jamie|user call/i.test(status)) queue.jamie += 1;
     if (Date.parse(d) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
-    // Muse idea cubes: Muse → Cursor rows still on the board (not archived)
-    if (from === "muse" && dest === "cursor") {
+    // Idea cubes: Muse → Cursor (build board) + any row involving Grok (so Bot work is visible).
+    // Was Muse→Cursor only — Grok→Claude / Cursor→Grok never appeared (Jamie 10-17).
+    const onBoard = (from === "muse" && dest === "cursor") || from === "grok" || dest === "grok";
+    if (onBoard) {
       const st = status.trim();
       const phase = ideaPhase(st);
       const touch = ideaTouch(id!, st, d!);
@@ -703,7 +711,8 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     live: live.filter((e) => !(e.session && ended.has(e.session)) || e.event !== "tool").slice(-300),
     endedSessions: [...ended],
     subagents: subagents(live, nowMs),
-    status: { claude: status("claude"), cursor: status("cursor") },
+    // Grok has no local hooks → status.working stays false; commit attribution (Agent: grokbot) drives lastActive.
+    status: { claude: status("claude"), cursor: status("cursor"), grok: status("grok") },
     activity1h, kinds: KINDS,
     limits: (() => { maybeRefreshCursorLimits(); return { claude: claudeLimits(), cursor: cursorLimits(), muse: museUsage() }; })(),
     needsUnread: await needsUnread(),
