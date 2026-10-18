@@ -823,21 +823,32 @@ function Available({ id, d }: { id: Id; d: Data }) {
   if (id === "claude") {
     const l = d.limits?.claude;
     if (!l || l.fiveHour.pct == null) return cell("see /usage", "Claude Code shares plan limits with its status line; the number appears here after the next status-line refresh in a Claude session. Until then type /usage in Claude.");
-    const left = Math.max(0, 100 - l.fiveHour.pct);
-    return cell(<>{Math.round(left)}% left · resets {hm(l.fiveHour.resetsAt)}</>,
-      <>5-hour window: {Math.round(l.fiveHour.pct)}% used, resets {hm(l.fiveHour.resetsAt)}.{l.sevenDay.pct != null && <> Weekly: {Math.round(l.sevenDay.pct)}% used{l.sevenDay.resetsAt ? `, resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}.</>} As of {hm(l.at)}.</>,
-      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
+    // Cell = 5-hour headroom. Tip also shows weekly — label both so 77% left ≠ weekly 78% used.
+    const used5 = Math.round(l.fiveHour.pct);
+    const left5 = Math.max(0, 100 - used5);
+    const used7 = l.sevenDay.pct != null ? Math.round(l.sevenDay.pct) : null;
+    const left7 = used7 != null ? Math.max(0, 100 - used7) : null;
+    return cell(<>{left5}% left (5h) · resets {hm(l.fiveHour.resetsAt)}</>,
+      <>
+        <div>5-hour: {used5}% used · {left5}% left · resets {hm(l.fiveHour.resetsAt)}</div>
+        {used7 != null && (
+          <div>Weekly: {used7}% used · {left7}% left{l.sevenDay.resetsAt ? ` · resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}</div>
+        )}
+        <div className="text-white/50">As of {hm(l.at)}. Cell shows 5-hour only.</div>
+      </>,
+      left5 < 20 ? "text-red-300 font-semibold" : left5 < 50 ? "text-amber-200" : "text-emerald-300");
   }
   if (id === "cursor") {
     const l = d.limits?.cursor;
     if (!l || l.totalPct == null) {
       return cell(l?.error ? "auth?" : "…", "Refreshing from Cursor’s billing API (scripts/cursor-usage-snap.mjs → ~/.fildi/cursor-limits.json). Same source as cursor.com/dashboard. Needs you signed into Cursor on this Mac.");
     }
-    const left = Math.max(0, 100 - l.totalPct);
+    const used = Math.round(l.totalPct);
+    const left = Math.max(0, 100 - used);
     const spend = l.spendUsd != null && l.limitUsd != null ? ` · $${l.spendUsd.toFixed(0)}/$${l.limitUsd.toFixed(0)}` : "";
     return cell(
-      <>{Math.round(left)}% left · resets {hm(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</>,
-      <>Plan pool this cycle: {Math.round(l.totalPct)}% used{spend}. Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API models {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"}. As of {hm(l.at)}. High-effort / third-party models burn the API pool faster — not unlimited. Grok Bot also draws from this Cursor meter.</>,
+      <>{left}% left · resets {hm(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</>,
+      <>Plan pool this cycle: {used}% used{spend}. Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API models {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"}. As of {hm(l.at)}. High-effort / third-party models burn the API pool faster — not unlimited. Grok Bot also draws from this Cursor meter.</>,
       left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300",
     );
   }
