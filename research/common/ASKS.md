@@ -125,7 +125,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A148](asks/A148.md) | 2026-10-17 | Claude → Claude | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | done (25 moves applied 10-18; ZTO TCOM held for China flag; monthly control open) |
 | [A149](asks/A149.md) | 2026-10-17 | Claude → Cursor | Scenario exposure panel: who is hurt/helped if oil, rates, AI… move (display only) | done (Cursor 10-18: Live › Macro panel from scenarios.jsonl; betas next monthly bake) |
 | [A150](asks/A150.md) | 2026-10-17 | Claude → all agents | OpenJev token-saving framework: registry, eval/verify, live audit | done (v1; Cursor verified P11→A; P10/P17/P21 stay B) · session: `oj.py pending` |
-| [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | planned (narrowed, Grok 2026-10-18) |
+| [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | done (Cursor 10-18: floor-5 sample + null empty score; tests) |
 | [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | done (CI green 2026-10-18) |
 | [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | planned (Jamie go J5 10-18) |
 | [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | done (Claude shipped 10-18; tests 51/51) |

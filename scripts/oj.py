@@ -424,15 +424,26 @@ def verify(pid: str | None, live_frac: float = 0.2) -> int:
         ans = [json.loads(x) for x in (d / "answers.jsonl").open()]
         ok = sha(d / "items.jsonl") == m["items_sha"] and sha(d / "answers.jsonl") == m["answers_sha"]
         re_m = oj_evals.score(e["id"], items, ans, e)
-        ok &= abs(re_m["value"] - m["value"]) < 1e-9
+        # A151: null measured = no data (don't compare to a stored number)
+        if re_m.get("value") is None:
+            ok = False
+            print(f"{e['id']}: no measurable score (empty eval set)")
+        else:
+            ok &= abs(re_m["value"] - m["value"]) < 1e-9
         port = ensure_server() if live_frac else None
-        if port:
+        if port and re_m.get("value") is not None:
             rnd = random.Random()
-            sample = rnd.sample(list(zip(items, ans)), max(5, int(len(items) * live_frac)))
-            agree = sum(oj_evals.same(post(port, x["state"], {"q": x["question"]})["answers"]["q"], a["answer"]) for x, a in sample)
-            ok &= agree >= 0.9 * len(sample)
-            print(f"{e['id']}: live re-ask agreement {agree}/{len(sample)}")
-        print(f"{e['id']}: {'OK' if ok else 'MISMATCH'} (stored {m['value']:.4g}, recomputed {re_m['value']:.4g})")
+            # A151: floor of 5, but never sample more than population; k==0 → skip live re-ask
+            k = min(len(items), max(5, int(len(items) * live_frac)))
+            if k == 0:
+                print(f"{e['id']}: live re-ask skipped (empty set)")
+            else:
+                sample = rnd.sample(list(zip(items, ans)), k)
+                agree = sum(oj_evals.same(post(port, x["state"], {"q": x["question"]})["answers"]["q"], a["answer"]) for x, a in sample)
+                ok &= agree >= 0.9 * len(sample)
+                print(f"{e['id']}: live re-ask agreement {agree}/{len(sample)}")
+        rv = re_m.get("value")
+        print(f"{e['id']}: {'OK' if ok else 'MISMATCH'} (stored {m['value']:.4g}, recomputed {rv if rv is None else f'{rv:.4g}'})")
         if ok and who not in ("?", m.get("by")):
             e["verified_by"], e["verified_at"] = who, dt.date.today().isoformat()
         elif not ok:

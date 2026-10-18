@@ -286,6 +286,11 @@ def score(pid: str, items: list[dict], answers: list[dict], entry: dict) -> dict
         t = rule["threshold"]
         pos = [p_yes(a) for x, a in rows if x["label"]]
         neg = [p_yes(a) for x, a in rows if not x["label"]]
+        # A151: empty pos → null measured (not fake 0.0 / tier B)
+        if not pos:
+            lo, hi = wilson(0, 0)
+            return {"value": None, "lo": lo, "hi": hi, "n": len(rows),
+                    "secondary": f"no positive labels; skips {sum(p < t for p in neg)}/{len(neg)} irrelevant at P<{t}"}
         kept = sum(p >= t for p in pos)
         lo, hi = wilson(kept, len(pos))
         skipped = sum(p < t for p in neg)
@@ -297,11 +302,18 @@ def score(pid: str, items: list[dict], answers: list[dict], entry: dict) -> dict
         by_q: dict = {}
         for x, a in rows:
             by_q.setdefault(x["qid"], []).append((p_yes(a), x["label"]))
+        if not by_q:
+            lo, hi = wilson(0, 0)
+            return {"value": None, "lo": lo, "hi": hi, "n": 0, "secondary": "no queries"}
         hits = sum(any(l for _, l in sorted(v, key=lambda z: -z[0])[:k]) for v in by_q.values())
         lo, hi = wilson(hits, len(by_q))
+        max_cands = max(len(v) for v in by_q.values())
         return {"value": round(hits / len(by_q), 4), "lo": lo, "hi": hi, "n": len(by_q),
-                "secondary": f"{len(rows)} query×study pairs; random top-{k} would hit ~{k / max(len(v) for v in by_q.values()):.0%} per cited study"}
+                "secondary": f"{len(rows)} query×study pairs; random top-{k} would hit ~{k / max_cands:.0%} per cited study"}
     if rule["kind"] == "accuracy":
+        if not rows:
+            lo, hi = wilson(0, 0)
+            return {"value": None, "lo": lo, "hi": hi, "n": 0}
         k = sum((p_yes(a) >= .5) == x["label"] if "noul" in a else a.get("choice") == x["label"] for x, a in rows)
         lo, hi = wilson(k, len(rows))
         return {"value": round(k / len(rows), 4), "lo": lo, "hi": hi, "n": len(rows)}
