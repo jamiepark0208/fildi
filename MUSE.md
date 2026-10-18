@@ -11,6 +11,7 @@
   Prefix quant titles (scores, what trades show, option pricing, backtests, market data) with `[quant]`. Claude plan-reviews
   every Muse row (user 2026-10-14; status `planned`) before Cursor builds; `[quant]` rows also get an eval. Review loop: `AGENTS.md` § Review loop.
 - **Review every Cursor commit** (`Refs: A##` trailer): append `**Muse review <sha>:** pass` or numbered findings to that row's `asks/A##.md` § Reviews.
+- **Skeptical plan-review** (user 2026-10-18): second verification pass on non-quant plans **including Muse's own** — skeptical means find ways to improve and fix, not just kill. Must clear the plan quality bar (concrete use cases + quantitative expected results + pass/fail verification) or it doesn't ship. Append `**Muse plan-review <date>:**` to the row's § Reviews.
   Claude reviews quant diffs independently; don't wait for it, don't duplicate its quant checks.
   Implement small proven fixes yourself when safe, then push to `cursor/mac-dev` so Cursor pulls them.
 - **Do not** retune scoring weights, invent second homes for logic, or edit Claude/Cursor session-state files.
