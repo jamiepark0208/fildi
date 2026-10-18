@@ -366,22 +366,33 @@ export function interpretLseg(input: LsegInput): Interpretation {
       meaning: `Change in the ${s.fy1Period ?? "this-year"} EPS consensus (${s.epsMeanFy1?.toFixed(2) ?? "—"}) over the last 30 days.`,
     });
 
-  if (s.ptMean != null && s.ptUpsidePct != null)
-    rows.push({
-      key: "pt",
-      label: "Avg price target",
-      value: `$${s.ptMean.toFixed(s.ptMean < 10 ? 2 : 0)} (${pct(s.ptUpsidePct, 0)})`,
-      tone: s.ptUpsidePct > PT_AGGRESSIVE ? "warn" : s.ptUpsidePct >= 15 ? "good" : s.ptUpsidePct < 0 ? "bad" : "neutral",
-      gauge: null,
-      meaning:
-        s.ptUpsidePct > PT_IMPLAUSIBLE
-          ? "Implausibly far from price, likely stale."
-          : s.ptUpsidePct > PT_AGGRESSIVE
+  if (s.ptMean != null && s.ptUpsidePct != null) {
+    // A113: |upside| > 300% → hide as stale (GOSS-class reverse-split / abandoned coverage), not as upside.
+    if (Math.abs(s.ptUpsidePct) > PT_IMPLAUSIBLE) {
+      rows.push({
+        key: "pt",
+        label: "Avg price target",
+        value: "stale — hidden",
+        tone: "warn",
+        gauge: null,
+        meaning: `Target $${s.ptMean.toFixed(s.ptMean < 10 ? 2 : 0)} is ${pct(s.ptUpsidePct, 0)} vs spot — not shown as upside (likely unadjusted split or abandoned coverage).`,
+      });
+    } else {
+      rows.push({
+        key: "pt",
+        label: "Avg price target",
+        value: `$${s.ptMean.toFixed(s.ptMean < 10 ? 2 : 0)} (${pct(s.ptUpsidePct, 0)})`,
+        tone: s.ptUpsidePct > PT_AGGRESSIVE ? "warn" : s.ptUpsidePct >= 15 ? "good" : s.ptUpsidePct < 0 ? "bad" : "neutral",
+        gauge: null,
+        meaning:
+          s.ptUpsidePct > PT_AGGRESSIVE
             ? "Very aggressive; take with a grain of salt."
             : s.ptUpsidePct < 0
             ? "Trading above where analysts think it's worth."
             : "Where analysts think the stock goes in 12 months.",
-    });
+      });
+    }
+  }
 
   if (s.recMean != null)
     rows.push({

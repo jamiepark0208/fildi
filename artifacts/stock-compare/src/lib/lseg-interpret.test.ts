@@ -141,10 +141,13 @@ describe("ownership", () => {
 });
 
 describe("sanity flags", () => {
-  it("implausible price target (GOSS 7×) is flagged, not celebrated", () => {
-    const r = interpretLseg(input({ ptUpsidePct: 632.8 }));
+  it("implausible price target (GOSS 7×) is flagged and hidden as stale (A113)", () => {
+    const r = interpretLseg(input({ ptUpsidePct: 632.8, ptMean: 95.4 }));
     assert.ok(r.takeaways.some((t) => /unreliable/.test(t.title)));
-    assert.equal(r.rows.find((x) => x.key === "pt")?.tone, "warn");
+    const pt = r.rows.find((x) => x.key === "pt");
+    assert.equal(pt?.tone, "warn");
+    assert.match(pt?.value ?? "", /stale/);
+    assert.ok(!/\+\d+%/.test(pt?.value ?? ""), "must not show upside %");
   });
   it("aggressive (not stale) small-cap target at 2.7×", () => {
     const r = interpretLseg(input({ ptUpsidePct: 168 }));

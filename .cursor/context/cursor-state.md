@@ -4,19 +4,19 @@
 **Last updated:** 2026-10-18
 
 ## Next build
-A88
-A143
-A149
+1. A143 overnight headline labels (A146 done)
+2. A49 display-only event calendar
+3. A117 Cholesky remainder
 
 ## Phase
-**build** — Finish A88 (Reviews + Refs on Ideas). Then Ready: A143 / A149. A146 stays open until Claude plans.
+**ops** — Shipping Ready continuously. A96 + A113 done 10-18. Skip A148/A24 (Claude). ADBE peer (A113.3) needs Jamie.
 
 ## Active
-- A150 OpenJev framework (Claude): registry + oj.py — AI tab surfaces tiers; do not gate Needs You on P16 (still C).
-- A147 shipped. Waiting Jamie: A99/A84/A88; seed duals sole?
+- OpenJev: P14/P16 Cursor-verified; teach loop live; one shared 8091 instance
+- Await Claude quant reviews: A82 A93 A114 A146 A149 A96 A113
 
 ## Do not
-- Merge-trusted until A84 before/after posted
-- Treat Ideas “Ready to build” as “waiting on Claude” — it means planned/buildable
-- Touch A88 without asking Jamie
-- Gate agent work on OpenJev tier B/C (hint only); exit 3 = decide yourself
+- Ask Jamie whether to commit agent-bus / Ready digs — commit + sync
+- Hand `git pull` — only `scripts/agent-git-sync.sh`
+- Parallel `oj verify` (registry race) — one at a time
+- Auto-promote scorecard weights

@@ -83,7 +83,10 @@ function yahooBullishPct(y: StreetSynthesisInput["yahoo"]): number | null {
 
 function upside(target: number | null | undefined, price: number | null | undefined): number | null {
   if (target == null || price == null || price <= 0) return null;
-  return ((target / price) - 1) * 100;
+  const pct = ((target / price) - 1) * 100;
+  // A113: |upside| > 300% → treat as stale (don't surface as street upside).
+  if (Math.abs(pct) > 300) return null;
+  return pct;
 }
 
 function toneFromInputs(

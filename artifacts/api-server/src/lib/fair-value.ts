@@ -414,7 +414,9 @@ function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: Pe
     const v = methodValue(meth, t, m, p, peers);
     if (v != null && Number.isFinite(v) && v > 0) raw.push({ name: meth, value: v });
   }
-  if (p.externalVoters.analystTarget && pos(t.analystTarget)) {
+  // A113: skip analyst target as a voter when |upside| > 300% (stale / unadjusted split).
+  if (p.externalVoters.analystTarget && pos(t.analystTarget) && pos(t.price)
+      && Math.abs(t.analystTarget / t.price - 1) <= 3) {
     raw.push({ name: "analystTarget", value: t.analystTarget * Math.exp(-p.analystBias) });
   }
   if (p.externalVoters.starmine && pos(t.starminePriceToIntrinsic)) {
@@ -427,6 +429,17 @@ function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: Pe
 
   const logs = raw.map((v) => Math.log(v.value / t.price!));
   const { value, kept } = blendLogs(logs, p.blend);
+  // A113: cyclicals with < 3 surviving votes (after outlier drop) → no number. Two trough-EPS
+  // votes (e.g. MP grahamForward + peerEvEbitda) must not print a fake mid.
+  const keptCount = kept.filter(Boolean).length;
+  if (base.cyclical && keptCount < 3) {
+    return {
+      ...base,
+      votes: raw.map((v, i) => ({ name: v.name, value: round2(v.value), kept: kept[i]! })),
+      impliedGrowth: implied,
+      nullReason: "cyclical_trough",
+    };
+  }
   const fairValue = t.price * Math.exp(value);
   // Range: the votes left after trimming; below 4 votes nothing is trimmed, so span them all
   // (the median of 3 would otherwise collapse the range to a single point).

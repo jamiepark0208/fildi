@@ -493,9 +493,10 @@
     "answers_sha": "5c17c46fa165fde5",
     "evidence": "oj eval P14"
    },
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 → `oj.py studies` now uses keywords only (no model)",
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "P15",
@@ -542,9 +543,10 @@
     "evidence": "oj eval P16",
     "question_sha": "5291a8af8ab7"
    },
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "",
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "P17",

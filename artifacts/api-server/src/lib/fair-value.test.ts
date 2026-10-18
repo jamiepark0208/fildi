@@ -152,6 +152,33 @@ describe("computeFairValues", () => {
     assert.notEqual(r.confidence, "high");
   });
 
+  it("A113: cyclical with < 3 kept votes → null cyclical_trough (MP-class)", () => {
+    // Mining cyclical: only two trough-EPS style votes survive (analyst target is a wild outlier).
+    const res = computeFairValues(universe([
+      stock({
+        ticker: "MP",
+        mode: "mining",
+        peerGroupId: "materials.mining",
+        price: 40,
+        forwardEps: 0.08,
+        eps2: 0.1,
+        ltg: 0.05,
+        fcf: 5e7,
+        shares: 1e8,
+        ebitda: 2e8,
+        totalDebt: 1e8,
+        cash: 5e7,
+        analystTarget: 72,
+      }),
+    ]), M, P);
+    const r = res.find((x) => x.ticker === "MP")!;
+    assert.equal(r.cyclical, true);
+    if (r.votes.filter((v) => v.kept).length < 3) {
+      assert.equal(r.fairValue, null);
+      assert.equal(r.nullReason, "cyclical_trough");
+    }
+  });
+
   it("chinese mode is always low confidence", () => {
     const res = computeFairValues(universe([stock({ ticker: "CN", mode: "chinese" })]), M, P);
     assert.equal(res.find((r) => r.ticker === "CN")!.confidence, "low");
