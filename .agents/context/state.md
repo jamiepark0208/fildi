@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-14
+**build** — last updated 2026-10-18
 
 ## Active work
-- Working: api-llm-optimization-pass, blended-fair-value-fv-1.0.0, fund-1.1.0-ibesFwdGrowth, fair-value-maintain-health-checks, value-trap-flag, cyclical-confidence-cap, model-list-strike-vs-fair
-- In progress: fair-value-snapshot-history-accruing
+- Working: openjev-shared-instance, oj-token-savers, oj-registry-check, oj-pending-verify, ai-tab-caller-beams
+- In progress: openjev second-key verifies by cursor/muse (oj.py pending)
 - Blocked: none
 
 ## Next tasks (priority order)
