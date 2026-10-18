@@ -30,3 +30,8 @@ Why: a real bug quietly threw away whole score families (growth, value, safety) 
 Fix effect: 444 of 579 scores move, mean +0.2, max ±10. Fast growers rise because their growth score comes back (IONS 39→49, XPEV 46→56); BK 49→55 (real safety replaces the 38 default); MMC 48→43 (value score returns, low).
 Claude recommends ship (becomes fund-1.1.2). It can't be backtested (no point-in-time history), so old vs new get tracked forward for 63 days.
 Reply "ship" or "hold". Nothing changes until you say so.
+
+## J11 One technical score everywhere (A155) — OK?
+Why: two different technical scores run today (Breakdown uses one, Scanner/Model List use another), so the same stock can rank differently on different pages.
+Claude tested both over 6 years (S042): neither predicts returns or put outcomes; they're interchangeable. Proposal: keep one (the versioned champion), use it on every page. Scanner/Model List order will shuffle somewhat; no edge is lost.
+Reply "ok" or "hold".
