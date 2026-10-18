@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { jitter, sleep } from "./http-client";
 
 interface RetryOptions {
   maxAttempts?: number;
@@ -24,9 +25,9 @@ export async function withRetry<T>(
         } else {
           logger.warn({ err, attempt }, "withRetry: attempt failed, retrying");
         }
-        // ±50% jitter so concurrent callers that failed together don't retry in lockstep.
+        // Shared jitter/sleep with fetchJsonWithRetry (A83 Wave 1).
         const backoff = baseDelayMs * 2 ** (attempt - 1);
-        await new Promise(r => setTimeout(r, Math.round(backoff * (0.5 + Math.random()))));
+        await sleep(jitter(backoff));
       }
     }
   }

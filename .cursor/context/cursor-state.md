@@ -4,12 +4,12 @@
 **Last updated:** 2026-10-18
 
 ## Next build
-1. A143 overnight headline labels (A146 done)
-2. A49 display-only event calendar
-3. A117 Cholesky remainder
+1. A83 Wave 1 finish (date util / zod / yahoo logger) — then pick next planned Muse→Cursor
+2. A126 Phase 1 Schwab/Yahoo 1m VWAP+profile (P2)
+3. Skip: A163 (Jamie go), A143 (await 05:30), A83 scorer unify (Jamie)
 
 ## Phase
-**ops** — Shipping Ready continuously. A96 + A113 done 10-18. Skip A148/A24 (Claude). ADBE peer (A113.3) needs Jamie.
+**ops** — Sequential Ready loop (no “next”). A94 + A153 done 10-18. Skip A148/A24 (Claude).
 
 ## Active
 - OpenJev: P14/P16 Cursor-verified; teach loop live; one shared 8091 instance

@@ -6,7 +6,7 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /** ±50% jitter around a base delay so synchronized failures don't retry in lockstep (thundering herd on recovery). */
-function jitter(ms: number): number {
+export function jitter(ms: number): number {
   return Math.round(ms * (0.5 + Math.random()));
 }
 

@@ -80,14 +80,16 @@ function normPDF(x: number): number {
   return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
 }
 
-function normCDF(x: number): number {
+/** Standard normal CDF (Abramowitz–Stegun). Exported for Greeks unit + Python cross-tests (A83). */
+export function normCDF(x: number): number {
   const t   = 1 / (1 + 0.2316419 * Math.abs(x));
   const d   = 0.3989422820 * Math.exp(-x * x / 2);
   const p   = d * t * (0.3193815310 + t * (-0.3565638140 + t * (1.7814779370 + t * (-1.8212559780 + t * 1.3302744290))));
   return x > 0 ? 1 - p : p;
 }
 
-function bsGreeks(
+/** Black–Scholes delta/gamma/theta (theta per calendar day). Exported for unit tests (A83). */
+export function bsGreeks(
   S: number, K: number, T: number, r: number, sigma: number, isCall: boolean
 ): { delta: number; gamma: number; theta: number } {
   if (T <= 0 || sigma <= 0 || S <= 0) {
