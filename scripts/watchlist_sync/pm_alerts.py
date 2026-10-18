@@ -4,8 +4,8 @@ How it decides (probabilistic core, deterministic thresholds the user owns):
   1. Odds per short put = the market's own: each put's implied vol (Schwab quotes; RH snapshot only if Schwab is down) gives P(ITM at
      expiry). Checked on the trader's 926 puts (S015 trades, 2026-02→10): predicted 18% ITM vs 21% realized, ratio 1.14 with week-cluster
      90% CI 0.73–1.55 → no detectable bias, so no fudge factor.
-  2. Puts don't breach independently (S015 Q4: per-expiry ITM share SD 0.236 vs 0.098 if independent). A one-factor model with
-     correlation RHO = 0.6 reproduces that SD (simulated 0.231), so every path moves all names with one common shock + own noise.
+  2. Puts don't breach independently (S015 Q4: per-expiry ITM share SD 0.236 vs 0.098 if independent). Prefer empirical
+     Cholesky on 60d shrunk corr of underlyings (A117); fall back to one-factor RHO = 0.6 (S015-calibrated) if matrix thin.
   3. Monte Carlo (20k paths) to the nearest expiry per account: which puts assign, longs move too (60-day realized vol), then
      margin requirement (pm_book's estimated maintenance ratio) vs equity → P(margin call), P(assignment > cash), assignment cash p90.
   4. Bullets only when a threshold is crossed (THRESH; defaults, user-tunable). Each bullet keeps a stable key; "new" / "worse" /
@@ -175,19 +175,15 @@ def realized_vol(conn, tickers: list[str]) -> dict[str, float]:
     return out
 
 
-def effective_bets(conn, tickers: list[str]) -> dict | None:
-    """A117: PCA 'effective bets' — n puts ≈ k independent bets from 60d return corr.
-    effective_n = (Σ λ)² / Σ λ². Display only; ms cost noted in payload."""
-    import time
-    t0 = time.perf_counter()
-    names = sorted({t.upper() for t in tickers if t})
-    if len(names) < 2:
-        return None
+def shrunk_corr(conn, tickers: list[str]):
+    """A117: 60d log-return corr, shrunk 30% to I. Returns (names, C ndarray) or None."""
     try:
         import numpy as np
     except ImportError:
         return None
-    # Align on common dates: last 61 closes per name
+    names = sorted({t.upper() for t in tickers if t})
+    if len(names) < 2:
+        return None
     series = {}
     for t in names:
         px = rows(conn, "SELECT date::text AS d, close::float8 AS c FROM prices_historical WHERE ticker = %s ORDER BY date DESC LIMIT 61", (t,))
@@ -208,20 +204,84 @@ def effective_bets(conn, tickers: list[str]) -> dict | None:
             return None
         mat.append(rets)
     X = np.array(mat, dtype=float)  # n_names × T
-    # shrink toward identity (Ledoit-ish light): corr = 0.7 * sample + 0.3 * I
     C = np.corrcoef(X)
     if not np.isfinite(C).all():
         return None
     n = C.shape[0]
     C = 0.7 * C + 0.3 * np.eye(n)
+    return names, C
+
+
+def effective_bets(conn, tickers: list[str]) -> dict | None:
+    """A117: PCA 'effective bets' — n puts ≈ k independent bets from 60d return corr.
+    effective_n = (Σ λ)² / Σ λ². Display only; ms cost noted in payload."""
+    import time
+    t0 = time.perf_counter()
+    got = shrunk_corr(conn, tickers)
+    if not got:
+        return None
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    names, C = got
     ev = np.linalg.eigvalsh(C)
     ev = np.clip(ev, 1e-9, None)
     eff = float((ev.sum() ** 2) / (ev * ev).sum())
     ms = (time.perf_counter() - t0) * 1000
-    return {"n_puts": n, "effective": round(eff, 1), "ms": round(ms, 1)}
+    return {"n_puts": len(names), "effective": round(eff, 1), "ms": round(ms, 1)}
 
 
-def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random) -> dict | None:
+def _cholesky_L(conn, tickers: list[str]):
+    """Lower-triangular L for shrunk corr (C = L Lᵀ), or None. Cost is O(n³) once per account."""
+    got = shrunk_corr(conn, tickers)
+    if not got:
+        return None
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    names, C = got
+    # clip eigenvalues so Cholesky always succeeds after shrink
+    ev, V = np.linalg.eigh(C)
+    ev = np.clip(ev, 1e-6, None)
+    C = (V * ev) @ V.T
+    # symmetrize numerical noise
+    C = 0.5 * (C + C.T)
+    try:
+        L = np.linalg.cholesky(C)
+    except np.linalg.LinAlgError:
+        return None
+    return names, L.tolist()
+
+
+def _one_factor_draws(names: list[str], rng: random.Random) -> list[dict[str, float]]:
+    draws = []
+    for _ in range(PATHS):
+        m = rng.gauss(0, 1)
+        draws.append({n: math.sqrt(RHO) * m + math.sqrt(1 - RHO) * rng.gauss(0, 1) for n in names})
+    return draws
+
+
+def _cholesky_draws(names: list[str], L: list[list[float]], rng: random.Random) -> list[dict[str, float]]:
+    n = len(names)
+    draws = []
+    for _ in range(PATHS):
+        eps = [rng.gauss(0, 1) for _ in range(n)]
+        z = {}
+        for i, name in enumerate(names):
+            s = 0.0
+            row = L[i]
+            for j in range(i + 1):
+                s += row[j] * eps[j]
+            z[name] = s
+        draws.append(z)
+    return draws
+
+
+def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random,
+             conn=None) -> dict | None:
+    import time
     b = book["accounts"][acct]
     puts = [p for p in book["positions"]
             if p["account"] == acct and p.get("iv") and p.get("status") != "unknown" and p.get("spot")]
@@ -233,11 +293,17 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
     names = sorted({p["ticker"] for p in puts} | {x["t"] for x in longs})
     ratio, margin = b.get("maint_ratio_est"), "maint_ratio_est" in b
     expiring = [p for p in puts if p["expiry"] == near]
-    draws = []  # common random numbers: reuse the same paths when testing "what if I close X"
-    for _ in range(PATHS):
-        m = rng.gauss(0, 1)
-        z = {n: math.sqrt(RHO) * m + math.sqrt(1 - RHO) * rng.gauss(0, 1) for n in names}
-        draws.append(z)
+    # A117: empirical Cholesky when history is thick enough; else S015 one-factor
+    corr_mode = "one_factor"
+    t0 = time.perf_counter()
+    chol = _cholesky_L(conn, names) if conn is not None and len(names) >= 2 else None
+    if chol and set(chol[0]) >= set(names):
+        c_names, L = chol
+        draws = [{n: z[n] for n in names} for z in _cholesky_draws(c_names, L, rng)]
+        corr_mode = "cholesky"
+    else:
+        draws = _one_factor_draws(names, rng)
+    corr_ms = (time.perf_counter() - t0) * 1000
 
     def run(closed: frozenset[int]) -> dict:
         calls = short = 0
@@ -286,6 +352,7 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
                 best = (gain, i, r)
         closed.add(best[1]); cost += expiring[best[1]]["close_cost"]; cur = best[2]
     return {"expiry": near, "days_left": days, "margin": margin, "risk": base[key], "assign_p90": base["assign_p90"],
+            "corr": corr_mode, "corr_ms": round(corr_ms, 1),
             "puts": [{**p, "p_assign": pa} for p, pa in zip(expiring, base["p_assign"])],
             "fix": {"close": [f"{expiring[i]['ticker']} {expiring[i]['strike']:g}P" for i in sorted(closed)], "cost": cost,
                     "risk_after": cur[key]} if closed else None}
@@ -357,12 +424,11 @@ def what_if_add_put(
                                 WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
         longs = [x for x in allongs if x["account"] == acct_ids.get(acct)]
         vols = realized_vol(conn, sorted({x["t"] for x in longs} | {cand["ticker"]}))
-    rng = random.Random(int(snap) if snap else 0)
-
-    base_sim = simulate(book, acct, longs, vols, rng)
-    book2 = copy.deepcopy(book)
-    book2["positions"] = list(book2.get("positions") or []) + [cand]
-    with_sim = simulate(book2, acct, longs, vols, rng)
+        rng = random.Random(int(snap) if snap else 0)
+        base_sim = simulate(book, acct, longs, vols, rng, conn=conn)
+        book2 = copy.deepcopy(book)
+        book2["positions"] = list(book2.get("positions") or []) + [cand]
+        with_sim = simulate(book2, acct, longs, vols, rng, conn=conn)
 
     rules = book.get("rules") or {"crash_budget": 0.25, "crash_warn": 0.20}
     crash_base = book["accounts"][acct].get("crash_drop_pct")
@@ -475,7 +541,8 @@ def main() -> None:
                             WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
     vols = realized_vol(conn, sorted({x["t"] for x in allongs}))
     rng = random.Random(snap)
-    sims = {a: simulate(book, a, [x for x in allongs if x["account"] == acct_ids.get(a)], vols, rng) for a in book["accounts"]}
+    sims = {a: simulate(book, a, [x for x in allongs if x["account"] == acct_ids.get(a)], vols, rng, conn=conn)
+            for a in book["accounts"]}
     prev = conn.execute("SELECT payload FROM watchlist_sync.pm_alerts ORDER BY id DESC LIMIT 1").fetchone()
     prev = {x["key"]: x for x in (prev[0]["bullets"] if prev else [])}
     bl = bullets(book, sims)
@@ -483,10 +550,15 @@ def main() -> None:
         p = prev.get(x["key"])
         x["change"] = "new" if not p else "worse" if (LEVEL[x["level"]], x["value"]) > (LEVEL[p["level"]], p["value"] * 1.1) else \
                       "better" if (LEVEL[x["level"]], x["value"]) < (LEVEL[p["level"]], p["value"] * 0.9) else None
+    corr_modes = [s["corr"] for s in sims.values() if s and s.get("corr")]
+    corr_mode = "cholesky" if corr_modes and all(m == "cholesky" for m in corr_modes) else (
+        "mixed" if "cholesky" in corr_modes else "one_factor")
+    corr_ms = max((s.get("corr_ms") or 0) for s in sims.values() if s) if any(sims.values()) else 0
     payload = {"generated": now.isoformat(timespec="seconds"), "priced_at": book.get("live_priced_at") or book["snapshot_at"],
                "prices": "live Schwab" if book.get("live_priced_at") else "Robinhood snapshot", "snapshot_at": book["snapshot_at"],
                "bullets": bl, "cleared": [k for k in prev if k not in {x["key"] for x in bl}],
-               "model": {"rho": RHO, "paths": PATHS, "thresholds": THRESH, "rules": book["rules"]},
+               "model": {"rho": RHO, "corr": corr_mode, "corr_ms": round(corr_ms, 1),
+                         "paths": PATHS, "thresholds": THRESH, "rules": book["rules"]},
                "accounts": {a: {"status": b["status"], **({"risk": sims[a]["risk"], "expiry": sims[a]["expiry"]} if sims.get(a) else {})}
                             for a, b in book["accounts"].items()},
                "credit": credit_wide(),  # S028 market context (display only)
