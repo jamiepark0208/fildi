@@ -66,7 +66,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A89](asks/A89.md) | 2026-10-14 | Muse → Cursor | [quant] Offline evolutionary strategy lab (never live agents on PnL) | declined (Claude 10-14: sample too small; data-snooping) |
 | [A90](asks/A90.md) | 2026-10-14 | Muse → Cursor | Sector-specialist reader agents (parallel readers + committee) | declined (Claude 10-14: no decision needs it; parts → A95) |
 | [A91](asks/A91.md) | 2026-10-14 | Muse → Cursor | Global money-flow tracker (entities, orbs, Sankey) | declined (Jamie 10-15: not needed; ETF holdings change view A98 instead) |
-| [A92](asks/A92.md) | 2026-10-14 | Muse → Cursor | [quant] Assignment-aware track record (2-week exit rule + per-stock drill-down) | planned — day-10 settle+ASSIGNED (Cursor 10-18); UI toggle/drill-down open |
+| [A92](asks/A92.md) | 2026-10-14 | Muse → Cursor | [quant] Assignment-aware track record (2-week exit rule + per-stock drill-down) | planned — settle+All-in toggle (Cursor 10-18); regrade/drill-down open |
 | [A93](asks/A93.md) | 2026-10-14 | Muse → Cursor | TradingView-class chart (fix zoom, indicators, signals, IV band) | done (Cursor 10-18: zoom+IV band+candles+vol+1D VWAP+short strikes; progressive 1m history dropped per Claude) |
 | [A94](asks/A94.md) | 2026-10-14 | Muse → Cursor | Conviction ledger (structured theses, evidence, kill criteria) | done (thin slice; boot-fix+ship-check 10-18; nightly kill→Alerts open) |
 | [A95](asks/A95.md) | 2026-10-14 | Muse → Cursor | Analyst revision breadth: sector upgrade/downgrade timeline | planned (Claude 10-14: LSEG revision breadth, not just ratings) |
@@ -133,7 +133,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A156](asks/A156.md) | 2026-10-18 | Grok → Claude | Decision: redact tracked session-state identifiers (forward only) | planned (Claude 10-18) |
 | [A157](asks/A157.md) | 2026-10-18 | Grok → Claude | Grok Bot game plan: phases 0-5 for Claude, Muse, Cursor review | planned (Claude verified phases 10-18) |
 | [A158](asks/A158.md) | 2026-10-18 | Grok → Cursor | Sync Mac checkout so Ideas shows A154-A157 and their Context blurbs | done (Cursor 10-18: sync up to date; HEAD bab270f ≥ 08d2e56c; Context present) |
-| [A159](asks/A159.md) | 2026-10-18 | Claude → Cursor | [quant] Run study S041 — S/R v2 zones (handed off to save Claude tokens) | done (Cursor 10-18: S041 PASS AUC 0.671; needs Claude review) |
+| [A159](asks/A159.md) | 2026-10-18 | Claude → Cursor | [quant] Run study S041 — S/R v2 zones (handed off to save Claude tokens) | verified — reclassified FAIL (Claude 10-18: AUC is mechanical distance-to-floor; placebo levels 0.624) |
 | [A161](asks/A161.md) | 2026-10-18 | Muse → Cursor | Portfolio VaR for the put-selling book (A132 winner) | done provisional (Cursor 10-18: MC 95/99 + −10% on Book card; Kupiec → S043) |
 | [A162](asks/A162.md) | 2026-10-18 | Grok → Cursor | Read-only DB role + snapshot export for Grok audits (J6 option A first) | done stage 1 local (Cursor 10-18); remote + stage 2 need Jamie |
 | [A163](asks/A163.md) | 2026-10-18 | Grok → Cursor | Live-app click audit session (read-only, Mac) | planned (Muse review 2026-10-18: PASS) |

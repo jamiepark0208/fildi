@@ -538,10 +538,18 @@ export async function closesAfterExpiry(
 }
 
 export async function gradeModelRecs(): Promise<{ graded: number; noData: number; pending: number; assigned: number }> {
-  // PENDING = never settled; ASSIGNED = ITM, waiting for day-10 close (A92).
+  // PENDING = never settled; ASSIGNED = ITM waiting day-10; also regrade old ITM
+  // WIN/LOSS missing `_settlement.assignment` (A92 backfill).
   const due = await db.select().from(modelRecs)
     .where(and(
-      sql`${modelRecs.status} IN ('PENDING','ASSIGNED')`,
+      sql`(
+        ${modelRecs.status} IN ('PENDING','ASSIGNED')
+        OR (
+          ${modelRecs.status} IN ('WIN','LOSS')
+          AND COALESCE(${modelRecs.intrinsic}::float8, 0) > 0
+          AND (${modelRecs.componentScores}->'_settlement'->'assignment') IS NULL
+        )
+      )`,
       lt(modelRecs.expiry, todayStr()),
     ));
 
