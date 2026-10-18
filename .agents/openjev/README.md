@@ -19,7 +19,10 @@ echo "<text>" | scripts/oj.py ask --q "<question>" [--type noul|choice|score] [-
 ```
 - Prints JSON: `noul` = P(yes); `choice` + `probabilities` + `confidence`; `score` = expected level + `probabilities`; `usage_id`.
 - Exit 3 / `{"available": false}` = not enough free RAM (needs ~26 GB) or no Mac → **decide yourself; never block on OpenJev.**
-- Dev server starts on demand (~15 s), stops after 10 idle min (`oj.py stop` to free RAM now). Set `FILDI_AGENT=<you>`.
+- **One shared model for everyone** (`scripts/oj_server.py`): port 8091, a start lock so only the first caller loads it (~15 s)
+  while others wait, the server queues concurrent requests itself (busy → automatic retry), and one idle timer stops it 10 min
+  after anyone's last request. The 05:30 batch and studies join the same instance. Never start your own server. Caller is
+  auto-detected (or `FILDI_AGENT=<you>`); `oj.py stop` frees RAM now.
 - If you later checked the answer anyway: `scripts/oj.py outcome <usage_id> yes|no` (this is what keeps patterns honest).
 - Privacy: never send holdings, quantities, cost basis, account values, P&L, transactions, `.env`/keys.
 - Who can call: Claude, Cursor, Muse (Mac access), Kiro (on the Mac). Grok / cloud agents: no Mac → read the registry,
@@ -56,7 +59,10 @@ Confidence is never typed: it is the computed Wilson/CI bound on `n` labelled it
    **auto-demotes** a pattern whose live upper bound falls below target (≥ 20 outcomes).
 4. **Re-verify triggers:** model/weights change, 60 days since `verified_at`, a demotion, or a disputed entry.
 5. **Disputes:** any agent may run `verify` or `eval --build` at any time; mismatch = automatic loss of verification + ASKS row.
-6. **Adding a pattern:** anyone may add a **C** row (question, use, rule, label source, baseline) to `registry.json`, then
+6. **Lifecycle (`oj.py audit`, session start):** proposes questions agents asked ≥ 5× that no pattern covers (→ new C row);
+   flags C rows untested > 30 days and A/B rows unused > 60 days (→ measure or `"retired": {date, reason}` = tier R).
+   Editing a measured question or pass rule in place fails `oj.py check` (question fingerprint) → add a new version (`P10v2`).
+7. **Adding a pattern:** anyone may add a **C** row (question, use, rule, label source, baseline) to `registry.json`, then
    `oj.py render`. Label source must be real outcomes or history, or say "Claude-labelled" (weaker, flagged). Promotion
    only via eval + verify. Commit with `Refs: A150`.
 
@@ -70,5 +76,10 @@ Confidence is never typed: it is the computed Wilson/CI bound on `n` labelled it
 | `oj.py skill "<task>"` | guessing which skill file to load | P15 |
 | `oj.py analyze --spec …` | hand-combining many judgments | P21+ |
 Each prints the pattern's tier. Below A the output is a ranked shortlist you still check; at A it may gate (skip) work.
+
+## 7. Model choice (10-18)
+OpenJev's small built-in models were tested on the same graded sets: Laya (2 GB) AUC 0.93 on output triage but 0.40 on file
+relevance; Verdict (0.4 GB) 0.25 / 0.53. The 26B (20 GB) scores 0.98 / 0.84 → keep the 26B, share one instance.
+Fine-tuning a small model on our labels is the only path to an always-on light tier (≥ 1k labels per task first).
 
 Owner: Claude (PM) keeps the registry honest (session start: `oj.py audit`; re-verify on triggers). Jamie decides gates that change scores.

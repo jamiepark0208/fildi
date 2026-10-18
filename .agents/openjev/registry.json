@@ -25,7 +25,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "sector level 91 %"
+   "notes": "sector level 91 %",
+   "created": "2026-10-17"
   },
   {
    "id": "P02",
@@ -50,7 +51,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P03",
@@ -75,7 +77,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P04",
@@ -100,7 +103,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "never a trading signal (next-day IC ≈ 0, see R01)"
+   "notes": "never a trading signal (next-day IC ≈ 0, see R01)",
+   "created": "2026-10-17"
   },
   {
    "id": "P05",
@@ -125,7 +129,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "oil .35 housing .37 AI .29 consumer .20; within-group +0.10…+0.18"
+   "notes": "oil .35 housing .37 AI .29 consumer .20; within-group +0.10…+0.18",
+   "created": "2026-10-17"
   },
   {
    "id": "P06",
@@ -150,7 +155,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "only ~35 positives in test; needs more labels"
+   "notes": "only ~35 positives in test; needs more labels",
+   "created": "2026-10-17"
   },
   {
    "id": "P07",
@@ -175,7 +181,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "yes-side only ~60 % precise → never use alone"
+   "notes": "yes-side only ~60 % precise → never use alone",
+   "created": "2026-10-17"
   },
   {
    "id": "R05",
@@ -200,7 +207,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "not proven better than counting headlines"
+   "notes": "not proven better than counting headlines",
+   "created": "2026-10-17"
   },
   {
    "id": "R01",
@@ -225,7 +233,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "also failed on the A129 forecast lab"
+   "notes": "also failed on the A129 forecast lab",
+   "created": "2026-10-17"
   },
   {
    "id": "R02",
@@ -250,7 +259,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "copies whatever number it is shown (shift 2.9 of 4 buckets)"
+   "notes": "copies whatever number it is shown (shift 2.9 of 4 buckets)",
+   "created": "2026-10-17"
   },
   {
    "id": "R03",
@@ -275,7 +285,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "176/357 'unclear'"
+   "notes": "176/357 'unclear'",
+   "created": "2026-10-17"
   },
   {
    "id": "R04",
@@ -300,7 +311,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "signal absent in price shape (S004), not an OpenJev limit"
+   "notes": "signal absent in price shape (S004), not an OpenJev limit",
+   "created": "2026-10-17"
   },
   {
    "id": "R06",
@@ -325,7 +337,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "ledger keeps grading forward (A129)"
+   "notes": "ledger keeps grading forward (A129)",
+   "created": "2026-10-17"
   },
   {
    "id": "R07",
@@ -350,7 +363,8 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "answers 'little effect' for ~97 % of names"
+   "notes": "answers 'little effect' for ~97 % of names",
+   "created": "2026-10-17"
   },
   {
    "id": "P10",
@@ -380,7 +394,8 @@
     "evidence": "oj eval P10"
    },
    "verified_by": null,
-   "notes": ""
+   "notes": "small models can't replace the 26B here: AUC 26B 0.84 · Verdict 0.53 · Laya 0.40 (10-18)",
+   "created": "2026-10-17"
   },
   {
    "id": "P11",
@@ -410,7 +425,8 @@
     "evidence": "oj eval P11"
    },
    "verified_by": null,
-   "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) — OpenJev's extra value = semantic catches"
+   "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) — OpenJev's extra value = semantic catches | AUC 26B 0.98 · Laya 0.93 · Verdict 0.25 (10-18)",
+   "created": "2026-10-17"
   },
   {
    "id": "P12",
@@ -427,7 +443,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P13",
@@ -444,7 +461,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": "`oj.py dupes` ranks by keywords (P14 lesson); `--oj` adds OpenJev as 2nd opinion; unmeasured (only ~8 labelled dups)"
+   "notes": "`oj.py dupes` ranks by keywords (P14 lesson); `--oj` adds OpenJev as 2nd opinion; unmeasured (only ~8 labelled dups)",
+   "created": "2026-10-17"
   },
   {
    "id": "P14",
@@ -474,7 +492,8 @@
     "evidence": "oj eval P14"
    },
    "verified_by": null,
-   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 → `oj.py studies` now uses keywords only (no model)"
+   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 → `oj.py studies` now uses keywords only (no model)",
+   "created": "2026-10-17"
   },
   {
    "id": "P15",
@@ -491,7 +510,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": "command exists (oj.py dupes / skill); too few labels to measure yet → hint only"
+   "notes": "command exists (oj.py dupes / skill); too few labels to measure yet → hint only",
+   "created": "2026-10-17"
   },
   {
    "id": "P16",
@@ -508,7 +528,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P17",
@@ -517,15 +538,29 @@
    "use": "pre-commit check",
    "rule": {
     "kind": "accuracy",
-    "metric": "accuracy vs labels",
+    "metric": "accuracy on own vs another commit's message",
     "target": 0.9,
-    "baseline": ""
+    "baseline": "word overlap message↔paths"
    },
-   "label_source": "history + shuffled negatives",
+   "label_source": "git history: each diff with its own subject (match) and a random other subject (mismatch)",
    "created_by": "claude",
-   "measured": null,
+   "measured": {
+    "value": 0.8976,
+    "lo": 0.875,
+    "hi": 0.916,
+    "n": 586,
+    "s_per_item": 2.508,
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "fe33909d9d9b8c4f",
+    "answers_sha": "58c80ab6fdea9bad",
+    "evidence": "oj eval P17",
+    "question_sha": "3b12fc21c526"
+   },
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P18",
@@ -542,7 +577,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P19",
@@ -559,7 +595,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P20",
@@ -576,7 +613,8 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "",
+   "created": "2026-10-17"
   },
   {
    "id": "P21",
@@ -605,7 +643,34 @@
     "answers_sha": "b2393183a8f23168",
     "evidence": "oj analyze .agents/openjev/specs/P21_overnight_put_risk.json",
     "secondary": "best single bad_max 0.607; Brier 0.1014 vs base 0.1029"
-   }
+   },
+   "created": "2026-10-17"
+  },
+  {
+   "id": "R08",
+   "question": "Which of these lines on the chart is the strongest support (most likely to hold)?",
+   "type": "choice",
+   "use": "support/resistance picking",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "hold rate of the picked level when touched (beat the touch-count rule 0.64)",
+    "target": 0.64,
+    "baseline": "most-touched level 0.64; random line 0.60"
+   },
+   "label_source": "next-20-session touches, prices_historical",
+   "created_by": "claude",
+   "created": "2026-10-18",
+   "verified_by": null,
+   "measured": {
+    "value": 0.5556,
+    "lo": 0.476,
+    "hi": 0.632,
+    "n": 108,
+    "evidence": "S040",
+    "by": "claude",
+    "at": "2026-10-18"
+   },
+   "notes": "picked a random decoy line 45 % of the time (chance 33 %); swing-low levels themselves hold 62 % vs random lines 57 %"
   }
  ]
 }

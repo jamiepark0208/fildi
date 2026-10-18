@@ -81,7 +81,28 @@ def build_p11(seed: int = 17) -> list[dict]:
     return rnd.sample(pos, min(150, len(pos))) + rnd.sample(neg, min(150, len(neg)))
 
 
-BUILDERS = {"P10": build_p10, "P11": build_p11, "P14": build_p14}
+def build_p17(n_commits: int = 300, seed: int = 17) -> list[dict]:
+    """P17 commit message vs change: each commit's diff paired with its own subject (match) and with another commit's subject
+    (mismatch). State = message + changed files + first 60 changed lines. Labels = git history (strong)."""
+    rnd = random.Random(seed)
+    commits = []
+    for line in git("log", "--no-merges", f"-n{n_commits}", "--format=%H%x09%s").splitlines():
+        sha, subj = line.split("\t", 1)
+        files = git("show", "--name-only", "--format=", sha).split()
+        diff = [l for l in git("show", "--format=", "--unified=0", sha).splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---"))][:60]
+        if files and diff:
+            commits.append((sha, subj, files, "\n".join(diff)[:2500]))
+    items = []
+    for i, (sha, subj, files, diff) in enumerate(commits):
+        other = commits[(i + rnd.randrange(1, len(commits))) % len(commits)][1]
+        for msg, label in ((subj, True), (other, False)):
+            items.append({"id": f"{sha[:8]}:{label}", "label": label,
+                          "state": f"Commit message: {msg}\nFiles changed: {', '.join(files[:15])}\n---\n{diff}",
+                          "question": {"type": "noul", "instructions": "Does the commit message describe this change?"}})
+    return items
+
+
+BUILDERS = {"P10": build_p10, "P11": build_p11, "P14": build_p14, "P17": build_p17}
 
 
 def p_yes(a: dict) -> float:

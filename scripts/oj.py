@@ -20,8 +20,8 @@
     scripts/oj.py render                     # registry.json → REGISTRY.md (generated; never edit the .md by hand)
     scripts/oj.py stop                       # stop the dev server now (else it stops itself after 10 idle minutes)
 
-Server: dev server on 127.0.0.1:8092, started on demand (needs ≥ 26 GB free RAM; ~15 s load), idle shutdown 10 min.
-If the 05:30 batch server (8091) is up, asks go there instead. Unavailable → exit 3: decide yourself, never block on OpenJev.
+Server: ONE shared OpenJev on 127.0.0.1:8091 for every agent and the 05:30 batch (scripts/oj_server.py: start lock, server-side
+queue, idle stop 10 min after anyone's last request; needs ≥ 26 GB free RAM, ~15 s load). Unavailable → exit 3: decide yourself.
 """
 from __future__ import annotations
 
@@ -45,61 +45,13 @@ REG = FW / "registry.json"
 EVALS = FW / "evals"                       # manifests (committed): items hash, answers hash, metrics
 EVAL_DATA = ROOT / "research/openjev/evals"  # raw items + answers (gitignored, rebuildable with --build)
 USAGE = Path.home() / ".fildi/openjev-usage.jsonl"
-DEV_PORT, BATCH_PORT, IDLE_S, MIN_FREE_GB = 8092, 8091, 600, 26.0
-OJ_PY = ROOT / "research/openjev/.venv/bin/python"
-STAMP = Path("/tmp/fildi-logs/oj-dev-last-ask")
 MODEL = "openjev-latest"
-
-
-# ---------- server ---------------------------------------------------------------------------------------------
-
-def _up(port: int) -> bool:
-    try:
-        urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2)
-        return True
-    except Exception:
-        return False
-
-
-def free_ram_gb() -> float | None:
-    vm = subprocess.run(["memory_pressure", "-Q"], capture_output=True, text=True).stdout
-    total = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout.strip() or 0)
-    import re
-    m = re.search(r"free percentage:\s*(\d+)", vm)
-    return round(int(m.group(1)) / 100 * total / 2 ** 30, 1) if m and total else None
+import oj_server  # noqa: E402  — the single OpenJev instance (one port, start lock, shared queue, one idle stop)
 
 
 def ensure_server() -> int | None:
-    """Port of a running OpenJev server, starting the dev one if RAM allows. None = unavailable (caller decides itself)."""
-    if _up(BATCH_PORT):
-        return BATCH_PORT
-    if _up(DEV_PORT):
-        return DEV_PORT
-    free = free_ram_gb()
-    if free is not None and free < MIN_FREE_GB:
-        print(f"oj: only {free} GB free RAM (< {MIN_FREE_GB}); not starting OpenJev", file=sys.stderr)
-        return None
-    os.makedirs("/tmp/fildi-logs", exist_ok=True)
-    env = {**os.environ, "OPENJEV_BACKEND": "mlx", "OPENJEV_HOST": "127.0.0.1", "OPENJEV_PORT": str(DEV_PORT),
-           "OPENJEV_MLX_CACHE_LIMIT_GB": "2", "OPENJEV_MLX_PROMPT_CACHE": "2", "OPENJEV_MLX_MAX_PROMPT": "8192",
-           "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"}
-    p = subprocess.Popen([str(OJ_PY), "-m", "openjev"], cwd=str(ROOT / "research/openjev/src"), env=env,
-                         stdout=open("/tmp/fildi-logs/oj-dev-server.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
-    Path("/tmp/fildi-logs/oj-dev-server.pid").write_text(str(p.pid))
-    # idle watchdog: a detached shell loop that kills the dev server after IDLE_S without asks
-    STAMP.touch()
-    subprocess.Popen(["/bin/sh", "-c", f"while kill -0 {p.pid} 2>/dev/null; do sleep 30; "
-                      f"if [ $(( $(date +%s) - $(stat -f %m {STAMP}) )) -gt {IDLE_S} ]; then kill -TERM -{p.pid} 2>/dev/null; fi; done"],
-                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    ev("start", f"dev server loading for {me()}", me())
-    for _ in range(150):
-        if p.poll() is not None:
-            print("oj: server exited during load (see /tmp/fildi-logs/oj-dev-server.log)", file=sys.stderr)
-            return None
-        if _up(DEV_PORT):
-            return DEV_PORT
-        time.sleep(2)
-    return None
+    """Port of THE shared OpenJev server (starts it once for everyone; None = unavailable → decide yourself)."""
+    return oj_server.ensure(who=me())
 
 
 EVENTS = Path.home() / ".fildi/agent-events.jsonl"
@@ -138,14 +90,7 @@ def me() -> str:
 
 
 def stop() -> None:
-    ev("stop", "dev server stopped")
-    f = Path("/tmp/fildi-logs/oj-dev-server.pid")
-    if f.exists():
-        try:
-            os.killpg(int(f.read_text()), 15)
-        except (ProcessLookupError, ValueError, PermissionError):
-            pass
-        f.unlink()
+    oj_server.stop(me())
 
 
 _last_ev = [0.0]
@@ -153,14 +98,25 @@ WHAT = ["typed question"]   # set by each command: shown on the AI-tab beam
 
 
 def post(port: int, state: str, questions: dict, **extra) -> dict:
-    STAMP.touch()
+    """One typed request to the shared server; it queues concurrent callers itself. 529 (queue full) / restart → retry."""
+    oj_server.touch()
     if time.time() - _last_ev[0] > 3:   # throttle: one AI-tab ping per 3 s of asking
         _last_ev[0] = time.time()
         ev("batch", f"{me()}: {WHAT[0]}", me())
     body = json.dumps({"model": MODEL, "state": state, "questions": questions, **extra}).encode()
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/systemone", data=body, method="POST", headers={"content-type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
-        return json.loads(r.read())
+    for attempt in range(6):
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/systemone", data=body, method="POST", headers={"content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code != 529 or attempt == 5:
+                raise
+            time.sleep(1 + attempt)
+        except (urllib.error.URLError, ConnectionError):
+            if attempt == 5 or (port := ensure_server()) is None:   # server idled out / restarted → bring it back once
+                raise
+    raise RuntimeError("unreachable")
 
 
 # ---------- registry -------------------------------------------------------------------------------------------
@@ -185,6 +141,8 @@ def wilson(k: int, n: int, z: float = 1.645) -> tuple[float, float]:
 
 def tier(e: dict) -> str:
     """A proven (lower bound ≥ target, verified by a second agent) · B promising · C untested · X rejected (upper bound < target)."""
+    if e.get("retired"):
+        return "R"
     m = e.get("measured")
     if not m:
         return "C"
@@ -200,9 +158,9 @@ def render(quiet: bool = False) -> None:
     reg = load_reg()
     out = ["# OpenJev question registry (GENERATED by `scripts/oj.py render` from registry.json — do not edit by hand)", "",
            "Tier: **A** proven (lower bound ≥ target, re-checked by a 2nd agent) · **B** promising (not yet proven) · **C** untested idea · "
-           "**X** rejected (upper bound < target). Numbers come only from `oj.py eval` or a cited study; `oj.py verify` recomputes them.", "",
+           "**X** rejected (upper bound < target) · **R** retired. Numbers come only from `oj.py eval`/`analyze` or a cited study; `oj.py verify` recomputes them. Edits to a measured question = new version id (`P10v2`), old row gets `superseded_by`.", "",
            "| Tier | ID | Ask OpenJev… | Use | Pass rule | Measured (90 % CI) | n | Evidence | By / verified |", "|---|---|---|---|---|---|---|---|---|"]
-    order = {"A": 0, "B": 1, "C": 2, "X": 3}
+    order = {"A": 0, "B": 1, "C": 2, "X": 3, "R": 4}
     for e in sorted(reg["patterns"], key=lambda e: (order[tier(e)], e["id"])):
         m = e.get("measured") or {}
         g = lambda x: "?" if x is None else f"{x:.3g}"
@@ -252,7 +210,12 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
 
 
-def run_eval(pid: str, build: bool, limit: int | None) -> None:
+def qsha(e: dict) -> str:
+    """Fingerprint of what was measured (question + pass rule). Changing either after measuring = a new version, not an edit."""
+    return hashlib.sha256(json.dumps([e["question"], e["rule"]], sort_keys=True).encode()).hexdigest()[:12]
+
+
+def run_eval(pid: str, build: bool, limit: int | None, model: str | None = None, port: int | None = None, dry: bool = False) -> None:
     import oj_evals
     reg = load_reg()
     e = _find(reg, pid)
@@ -263,17 +226,26 @@ def run_eval(pid: str, build: bool, limit: int | None) -> None:
         items = oj_evals.BUILDERS[pid]()
         items_f.write_text("".join(json.dumps(x) + "\n" for x in items))
     items = [json.loads(x) for x in items_f.open()][:limit]
-    WHAT[0] = f"eval {pid} ({len(items)} items)"
-    port = ensure_server()
+    WHAT[0] = f"eval {pid} ({len(items)} items{', ' + model if model else ''})"
+    global MODEL
+    if model:
+        MODEL = model
+        ans_f = d / f"answers_{model}.jsonl"
+    port = port or ensure_server()
     if port is None:
         sys.exit("oj eval: OpenJev unavailable (RAM)")
+    t0 = time.time()
     with ans_f.open("w") as w:
         for x in items:
             r = post(port, x["state"], {"q": x["question"]})["answers"]["q"]
             w.write(json.dumps({"id": x["id"], "answer": r}) + "\n")
     m = oj_evals.score(pid, items, [json.loads(x) for x in ans_f.open()], e)
+    m["s_per_item"] = round((time.time() - t0) / max(1, len(items)), 3)
+    if dry:
+        print(json.dumps({"model": MODEL, **m}, indent=1))
+        return
     m.update({"by": os.environ.get("FILDI_AGENT", "?"), "at": dt.date.today().isoformat(), "model": MODEL,
-              "items_sha": sha(items_f), "answers_sha": sha(ans_f), "evidence": f"oj eval {pid}"})
+              "items_sha": sha(items_f), "answers_sha": sha(ans_f), "evidence": f"oj eval {pid}", "question_sha": qsha(e)})
     e["measured"], e["verified_by"] = m, None    # a new measurement always needs a fresh second-agent verify
     EVALS.mkdir(exist_ok=True)
     (EVALS / f"{pid}.json").write_text(json.dumps(m, indent=1) + "\n")
@@ -528,6 +500,32 @@ def audit() -> None:
             k, n = agg.get(pat[r["outcome_for"]], (0, 0))
             agg[pat[r["outcome_for"]]] = (k + r["right"], n + 1)
     reg = load_reg()
+    ids = {e["id"] for e in reg["patterns"]}
+    # lifecycle 1 — new: questions agents keep asking that the registry doesn't cover → propose as C rows
+    import re
+    norm = lambda q: re.sub(r"[^a-z ]", "", (q or "").lower())[:60]
+    asked: dict = {}
+    for r in rows:
+        if "id" in r and not (r.get("pattern") or "").split("-")[0] in ids:
+            asked[norm(r.get("q"))] = asked.get(norm(r.get("q")), 0) + 1
+    for q, n in sorted(asked.items(), key=lambda kv: -kv[1]):
+        if n >= 5:
+            print(f"NEW? asked {n}× unregistered: '{q}' → add a C row (question, use, rule, label source) or map it to a pattern")
+    # lifecycle 2 — retire: untested ideas > 30 days, patterns unused > 60 days
+    last_use: dict = {}
+    for r in rows:
+        if "id" in r and r.get("pattern"):
+            k = r["pattern"].split("-")[0]
+            last_use[k] = max(last_use.get(k, ""), r.get("at", ""))
+    today = dt.date.today()
+    for e in reg["patterns"]:
+        if e.get("retired"):
+            continue
+        age = (today - dt.date.fromisoformat(e.get("created", today.isoformat()))).days
+        if tier(e) == "C" and age > 30:
+            print(f"STALE? {e['id']} untested for {age} days → measure (oj.py eval) or retire (\"retired\": {{date, reason}})")
+        if tier(e) in ("A", "B") and age > 60 and last_use.get(e["id"], "") < (today - dt.timedelta(days=60)).isoformat():
+            print(f"UNUSED? {e['id']} no use in 60 days → retire or promote its command in AGENTS.md")
     for e in reg["patterns"]:
         if e["id"] in agg:
             k, n = agg[e["id"]]
@@ -561,7 +559,7 @@ def cmd_analyze(spec_path: str, record: bool) -> int:
             reg["patterns"].append(e)
         e["measured"] = {**{k: res[k] for k in ("value", "lo", "hi", "n")}, "by": me(), "at": dt.date.today().isoformat(),
                          "model": MODEL, "items_sha": sha(ROOT / spec["source"]["path"]), "answers_sha": sha(sp),
-                         "evidence": f"oj analyze {spec_path}", "secondary": f"best single {res['best_single']['name']} {res['best_single']['auc']}; Brier {res['brier']} vs base {res['brier_base']}"}
+                         "evidence": f"oj analyze {spec_path}", "question_sha": qsha(e), "secondary": f"best single {res['best_single']['name']} {res['best_single']['auc']}; Brier {res['brier']} vs base {res['brier_base']}"}
         e["verified_by"] = None
         EVALS.mkdir(exist_ok=True)
         (EVALS / f"{spec['id']}.json").write_text(json.dumps({**e["measured"], **res}, indent=1) + "\n")
@@ -592,6 +590,8 @@ def check() -> int:
                         errs.append(f"{e['id']}: registry {k} {m.get(k)} ≠ manifest {man.get(k)}")
         elif m and not m.get("evidence"):
             errs.append(f"{e['id']}: number without evidence")
+        if m and m.get("question_sha") and m["question_sha"] != qsha(e):
+            errs.append(f"{e['id']}: question/rule edited after it was measured → revert and add a new version (e.g. {e['id']}v2)")
         if e.get("verified_at") and (dt.date.today() - dt.date.fromisoformat(e["verified_at"])).days > 60:
             errs.append(f"{e['id']}: verification older than 60 days → re-verify")
     md = (FW / "REGISTRY.md").read_text()
@@ -638,6 +638,9 @@ def main() -> int:
     p.add_argument("pid")
     p.add_argument("--build", action="store_true")
     p.add_argument("--limit", type=int)
+    p.add_argument("--model")
+    p.add_argument("--port", type=int)
+    p.add_argument("--dry", action="store_true", help="print metrics, don't record (model comparisons)")
     p = sp.add_parser("verify")
     p.add_argument("pid", nargs="?")
     p.add_argument("--no-live", action="store_true")
@@ -670,7 +673,7 @@ def main() -> int:
     if a.cmd == "skill":
         return cmd_skill(a.text)
     if a.cmd == "eval":
-        run_eval(a.pid, a.build, a.limit)
+        run_eval(a.pid, a.build, a.limit, a.model, a.port, a.dry)
     if a.cmd == "verify":
         return verify(a.pid, 0 if a.no_live else 0.2)
     if a.cmd == "outcome":

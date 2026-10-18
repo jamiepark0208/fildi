@@ -497,10 +497,25 @@ def _get(path: str, timeout: float = 5.0):
 
 
 def _post(path: str, body: dict, timeout: float = 600.0):
-    req = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST",
-                                 headers={"content-type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+    """POST to the shared server; 529 (queue full) → back off; server gone (idle stop / restart) → ensure() it again."""
+    global BASE
+    import oj_server
+    for attempt in range(6):
+        oj_server.touch()   # keeps the shared server's idle clock fresh
+        req = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST",
+                                     headers={"content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code != 529 or attempt == 5:
+                raise
+            time.sleep(1 + attempt)
+        except (urllib.error.URLError, ConnectionError):
+            port = oj_server.ensure(min_free=0, who="openjev-batch") if attempt < 5 else None
+            if port is None:
+                raise
+            BASE = f"http://{HOST}:{port}"
 
 
 PEAK_CAP_GB = 24.0           # target peak footprint; watchdog kills the server above cap + 4 GB
@@ -510,7 +525,8 @@ CACHE_STEPS_GB = (4.0, 2.0, 1.0, 0.5)   # MLX buffer-pool cap; guard lowers it o
 
 class Sampler(threading.Thread):
     """Peak memory of the server process tree, sampled every second (RSS + macOS phys_footprint).
-    Watchdog: kills ONLY the OpenJev server's process group when the run passes HARD_STOP_S or PEAK_CAP_GB + 4."""
+    Watchdog: memory above PEAK_CAP_GB + 4 → kills the OpenJev server (runaway protects the Mac). Run longer than HARD_STOP_S →
+    only flags this run (`killed`); the server is SHARED with other agents (10-18), so a run's time cap never stops it."""
 
     def __init__(self, pid: int, t0: float):
         super().__init__(daemon=True)
@@ -531,8 +547,10 @@ class Sampler(threading.Thread):
             try:
                 gb = self.sample()
                 self.peak_gb = max(self.peak_gb, gb)
-                why = (f"run > {HARD_STOP_S // 60} min" if time.time() - self.t0 > HARD_STOP_S
-                       else f"memory {gb:.1f} GB > {PEAK_CAP_GB + 4:.0f} GB" if gb > PEAK_CAP_GB + 4 else None)
+                if time.time() - self.t0 > HARD_STOP_S and not self.killed:
+                    self.killed = f"run > {HARD_STOP_S // 60} min (server left running: shared)"
+                    print(f"openjev watchdog: {self.killed}", file=sys.stderr)
+                why = f"memory {gb:.1f} GB > {PEAK_CAP_GB + 4:.0f} GB" if gb > PEAK_CAP_GB + 4 else None
                 if why:
                     self.killed = why
                     os.killpg(os.getpgid(self.pid), signal.SIGKILL)
@@ -546,51 +564,38 @@ class Sampler(threading.Thread):
 
 
 class Server:
+    """Context for a batch/study run on THE shared OpenJev instance (scripts/oj_server.py, Jamie 10-18): reuses a running
+    server or starts it once under the start lock; never kills it on exit (agents may be mid-request) — the shared idle
+    watchdog stops it 10 min after the last request. Sampler still measures peak RAM and kills only on runaway memory/time."""
+
     def __init__(self, cache_gb: float = CACHE_STEPS_GB[0]):
         self.proc = None
         self.load_s = None
         self.sampler = None
         self.cache_gb = cache_gb
+        self.shared = False
 
     def __enter__(self):
-        try:
-            _get("/health", 2)
-            raise RuntimeError(f"something already listens on {BASE}; refusing to share it")
-        except (urllib.error.URLError, ConnectionError, OSError):
-            pass
-        env = {**os.environ, **SERVER_ENV, "OPENJEV_MLX_CACHE_LIMIT_GB": str(self.cache_gb)}
-        os.makedirs("/tmp/fildi-logs", exist_ok=True)
-        log = open("/tmp/fildi-logs/openjev-server.log", "w")
+        import oj_server
         t0 = time.time()
-        self.proc = subprocess.Popen([str(OJ_PY), "-m", "openjev"], cwd=str(ROOT / "research/openjev/src"), env=env,
-                                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        self.sampler = Sampler(self.proc.pid, t0)
-        self.sampler.start()
-        while time.time() - t0 < HARD_STOP_S:
-            if self.proc.poll() is not None:
-                raise RuntimeError(f"openjev server exited during load ({self.sampler.killed or 'see openjev-server.log'})")
-            try:
-                _get("/health", 2)
-                _post("/v1/systemone", {"model": MODEL, "state": "warmup",
-                                        "questions": {"w": {"type": "noul", "instructions": "Is this a test?"}}}, 600)
-                self.load_s = round(time.time() - t0, 1)
-                stage_event("start", f"model loaded in {self.load_s:g} s")
-                return self
-            except (urllib.error.URLError, ConnectionError, OSError, json.JSONDecodeError):
-                time.sleep(2)
-        raise RuntimeError("openjev server not ready within the 15-min hard stop")
+        global BASE
+        self.shared = oj_server.running_port() is not None
+        port = oj_server.ensure(cache_gb=self.cache_gb, min_free=0, who="openjev-batch", wait_s=HARD_STOP_S)
+        if port is None:
+            raise RuntimeError("openjev server failed to start (see /tmp/fildi-logs/openjev-server.log)")
+        BASE = f"http://{HOST}:{port}"   # the shared server's port (legacy 8092 until it idles out)
+        self.load_s = 0.0 if self.shared else round(time.time() - t0, 1)
+        p = oj_server.pid()
+        if p:
+            self.sampler = Sampler(p, t0)
+            self.sampler.start()
+        stage_event("start", "joined running model" if self.shared else f"model loaded in {self.load_s:g} s")
+        return self
 
     def __exit__(self, *exc):
-        if self.proc and self.proc.poll() is None:
-            os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
-            try:
-                self.proc.wait(30)
-            except subprocess.TimeoutExpired:
-                os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
         if self.sampler:
             self.sampler.stop_ev.set()
-        if self.proc:
-            stage_event("stop", "model unloaded")
+        stage_event("batch", "run finished (model stays up until 10 idle min)")
         return False
 
 
@@ -745,6 +750,9 @@ def measured_peak(conn) -> tuple[float, float | None]:
 def guard(conn) -> tuple[bool, str, float]:
     """free RAM ≥ measured peak + 8 GB headroom AND on AC. Short on headroom → lower the MLX cache cap one step and
     re-check. Returns (ok, why, cache_gb to run with). Never touches other apps."""
+    import oj_server
+    if oj_server.up():   # shared model already loaded (an agent is using it) → join it, no extra RAM needed
+        return True, "ok: joining the running shared OpenJev", CACHE_STEPS_GB[0]
     peak, ran_cache = measured_peak(conn)
     free, ac = free_ram_gb(), on_ac()
     if not ac:

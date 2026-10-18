@@ -1,0 +1,14 @@
+{
+ "value": 0.8976,
+ "lo": 0.875,
+ "hi": 0.916,
+ "n": 586,
+ "s_per_item": 2.508,
+ "by": "claude",
+ "at": "2026-10-18",
+ "model": "openjev-latest",
+ "items_sha": "fe33909d9d9b8c4f",
+ "answers_sha": "58c80ab6fdea9bad",
+ "evidence": "oj eval P17",
+ "question_sha": "3b12fc21c526"
+}
