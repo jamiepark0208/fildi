@@ -1256,7 +1256,10 @@ function IdeasPanel({
     });
     for (const { idea, x, y } of layout) {
       const hit = !!qn && matches(idea);
-      drawCube(ctx, x, y, S, PHASE_COLOR[idea.phase] ?? "#e879f9", {
+      const cubeColor = idea.phase === "filed"
+        ? (idea.quant ? "#fb923c" : "#e879f9")
+        : (PHASE_COLOR[idea.phase] ?? "#e879f9");
+      drawCube(ctx, x, y, S, cubeColor, {
         selected: sel === idea.id,
         dim: (idea.phase === "parked" && !isHot(idea) && !isProg(idea)) || (!!qn && !hit),
         hot: isHot(idea) && !isProg(idea),
@@ -1319,7 +1322,7 @@ function IdeasPanel({
         <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
           Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you/Claude — not every ASKS row (e.g. done/parked stay off).
           Ready / In progress Cu = Cursor queue (not auto-run). Status &quot;needs Claude&quot; / sign-off → Cl. Inbox Cl = awaits plan. Inbox G = Grok.
-          Pink = this wave. Teal = active claim. Stale accepted → Show debt.</InfoTip>
+          Pink = this wave. Teal = active claim. Stale accepted → Show debt. Inbox: <span style={{color:"#e879f9"}}>pink</span> = non-quant, <span style={{color:"#fb923c"}}>orange</span> = quant (Claude\u2019s lane).</InfoTip>
         <input
           type="search"
           value={query}
