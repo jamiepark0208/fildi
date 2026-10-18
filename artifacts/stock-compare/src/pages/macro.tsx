@@ -219,6 +219,14 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     enabled: needsPolicy,
   });
 
+  const { data: breadthHist } = useQuery<{ points: { date: string; pctAbove50: number | null; pctAbove200: number | null; advanceDecline: number | null }[]; note?: string }>({
+    queryKey: ["macro-breadth"],
+    queryFn: () => fetch("/api/macro/breadth").then((r) => r.json()),
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: needsRegimeExtras,
+  });
+
   const { data: cotSummaries } = useQuery<COTSummary[]>({
     queryKey: ["cot-summary"],
     queryFn: () => fetch("/api/cot/summary").then((r) => r.json()),
@@ -387,6 +395,21 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
                     tooltipFormatter={(v: number, name: string) => [`${v.toFixed(2)}%`, name]}
                     referenceLines={[{ y: 4, label: "HY Risk-On", color: "#22c55e" }, { y: 7, label: "HY Stress", color: "#ef4444" }]}
                   />
+                </ExpandableChartFrame>
+                <ExpandableChartFrame title="Market breadth (A/D) — not a signal">
+                  <DualLineHistoryChart
+                    title="Market breadth — advance/decline"
+                    data1={(breadthHist?.points ?? []).filter((p) => p.advanceDecline != null).map((p) => ({ date: p.date, value: p.advanceDecline! }))}
+                    data2={(breadthHist?.points ?? []).filter((p) => p.pctAbove50 != null).map((p) => ({ date: p.date, value: p.pctAbove50! * 100 }))}
+                    color1="#94a3b8"
+                    color2="#38e1ff"
+                    label1="A/D ratio"
+                    label2="% > 50d MA"
+                    loading={needsRegimeExtras && !breadthHist}
+                    yFormatter={(v: number) => v.toFixed(2)}
+                    tooltipFormatter={(v: number, name: string) => [v.toFixed(2), name]}
+                  />
+                  <p className="text-[9px] text-white/35 px-1 -mt-1">Display only (S027). Backfill fills history overnight.</p>
                 </ExpandableChartFrame>
                 <ExpandableChartFrame title="Copper / Gold Ratio">
                   <RateHistoryChart
