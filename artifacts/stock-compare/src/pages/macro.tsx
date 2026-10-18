@@ -26,7 +26,7 @@ import { RegimeAccuracyStrip } from "@/components/macro/regime-accuracy-strip";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
-import { SectorRotationBubbles, SectorHeatmapGrid } from "@/components/macro/macro-sector-rotation";
+import { SectorRotationBubbles, SectorHeatmapGrid, SectorFundFlowBars } from "@/components/macro/macro-sector-rotation";
 import { ExpandableChartFrame } from "@/components/macro/expandable-chart-frame";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
 import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
@@ -785,8 +785,11 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
                 <TradingViewHeatmap />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="1D / 1W / 1M price performance by sector ETF">
-                  Sector Money Flow
+                <SectorFundFlowBars enabled={activeTab === "heatmap"} />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="1D / 1W / 1M price performance by sector ETF — not fund creations">
+                  Sector Price Performance
                 </h3>
                 <SectorHeatmapGrid data={sectorRotation} loading={activeTab === "heatmap" && !sectorRotation} />
               </div>

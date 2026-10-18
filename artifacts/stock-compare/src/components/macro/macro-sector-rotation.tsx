@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer, ScatterChart, XAxis, YAxis, CartesianGrid, ZAxis,
   ReferenceLine, Tooltip, Scatter, LabelList, Cell,
@@ -6,6 +7,13 @@ import {
 import { Loader2, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SectorRotationPoint } from "./macro-page-types";
+
+/** Select Sector SPDRs — same set as GET /macro/etf-flows default (A98). */
+const SECTOR_FLOW_LABELS: Record<string, string> = {
+  XLB: "Materials", XLE: "Energy", XLF: "Financials", XLI: "Industrials",
+  XLK: "Tech", XLP: "Staples", XLU: "Utilities", XLV: "Health",
+  XLY: "Discretionary", XLRE: "Real Estate", XLC: "Comm",
+};
 
 // Discrete red→green intensity bands — same visual language as TradingView/Finviz
 // heatmaps (a handful of solid, saturated steps reads far better at a glance than
@@ -289,6 +297,153 @@ export function SectorRotationBubbles({
         </p>
       )}
       </div>
+    </div>
+  );
+}
+
+type FlowRow = { etf: string; date: string; flow_usd: number; aum: number };
+type FlowApi = {
+  series: Record<string, FlowRow[]>;
+  note?: string;
+};
+
+const FLOW_WINDOWS = [
+  { id: "1w" as const, label: "1W", days: 5 },
+  { id: "1m" as const, label: "1M", days: 21 },
+];
+
+function windowFlowPct(rows: FlowRow[], n: number): number | null {
+  if (!rows.length) return null;
+  const slice = rows.slice(-n);
+  const aum = Number(slice[slice.length - 1]?.aum);
+  if (!(aum > 0)) return null;
+  const flow = slice.reduce((s, r) => s + Number(r.flow_usd || 0), 0);
+  return (flow / aum) * 100;
+}
+
+/** Rolling n-day %AUM over history → z of the latest window vs that sample. */
+function windowZ(rows: FlowRow[], n: number): number | null {
+  if (rows.length < n + 20) return null;
+  const pcts: number[] = [];
+  for (let i = n; i <= rows.length; i++) {
+    const slice = rows.slice(i - n, i);
+    const aum = Number(slice[slice.length - 1]?.aum);
+    if (!(aum > 0)) continue;
+    const flow = slice.reduce((s, r) => s + Number(r.flow_usd || 0), 0);
+    pcts.push((flow / aum) * 100);
+  }
+  if (pcts.length < 20) return null;
+  const latest = pcts[pcts.length - 1]!;
+  const mean = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+  const var_ = pcts.reduce((a, b) => a + (b - mean) ** 2, 0) / pcts.length;
+  const sd = Math.sqrt(var_);
+  if (!(sd > 1e-9)) return null;
+  return (latest - mean) / sd;
+}
+
+/** A98 P2 — SSGA creation/redemption flows (% AUM), not price RS. */
+export function SectorFundFlowBars({ enabled }: { enabled: boolean }) {
+  const [win, setWin] = useState<(typeof FLOW_WINDOWS)[number]>(FLOW_WINDOWS[0]!);
+  const { data, isLoading, isError } = useQuery<FlowApi>({
+    queryKey: ["macro-etf-flows", 400],
+    queryFn: () => fetch("/api/macro/etf-flows?days=400").then((r) => {
+      if (!r.ok) throw new Error(`etf-flows ${r.status}`);
+      return r.json();
+    }),
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled,
+  });
+
+  const bars = useMemo(() => {
+    if (!data?.series) return [];
+    return Object.keys(SECTOR_FLOW_LABELS)
+      .map((etf) => {
+        const rows = data.series[etf] ?? [];
+        return {
+          etf,
+          label: SECTOR_FLOW_LABELS[etf]!,
+          pct: windowFlowPct(rows, win.days),
+          z: windowZ(rows, win.days),
+          lastDate: rows[rows.length - 1]?.date ?? null,
+        };
+      })
+      .sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity));
+  }, [data, win]);
+
+  const maxAbs = Math.max(0.5, ...bars.map((b) => Math.abs(b.pct ?? 0)));
+
+  if (isLoading || (!data && enabled)) {
+    return (
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 flex items-center justify-center h-[160px]">
+        <Loader2 className="h-5 w-5 animate-spin text-amber-200/40" />
+      </div>
+    );
+  }
+
+  if (isError || !bars.some((b) => b.pct != null)) {
+    return (
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-3 text-[11px] text-amber-200/50">
+        No SSGA fund-flow rows yet — run nightly SSGA ingest (A98 P1).
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
+        <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+          Sector Fund Flows
+        </h3>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-amber-200/40">% AUM · z vs 1y</span>
+          <div className="flex gap-1">
+            {FLOW_WINDOWS.map((w) => (
+              <button
+                key={w.id}
+                type="button"
+                onClick={() => setWin(w)}
+                className={cn(
+                  "px-2 py-1 transition-colors text-[11px] font-semibold rounded border border-[#d4af37]/20",
+                  win.id === w.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                )}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-1 p-2">
+        {bars.map((b) => {
+          const pct = b.pct ?? 0;
+          const w = `${Math.min(100, (Math.abs(pct) / maxAbs) * 100)}%`;
+          const pos = pct >= 0;
+          return (
+            <div key={b.etf} className="flex items-center gap-2 text-[11px] font-mono" title={`${b.etf} through ${b.lastDate ?? "—"}`}>
+              <span className="w-[88px] shrink-0 text-amber-200/70 truncate">{b.label}</span>
+              <span className="w-8 shrink-0 text-amber-200/40">{b.etf}</span>
+              <div className="relative flex-1 h-4 bg-zinc-900 rounded overflow-hidden">
+                <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-600 z-10" />
+                {pos ? (
+                  <div className="absolute top-0 left-1/2 h-full bg-emerald-600/80 rounded-r" style={{ width: w }} />
+                ) : (
+                  <div className="absolute top-0 right-1/2 h-full bg-rose-600/80 rounded-l" style={{ width: w }} />
+                )}
+              </div>
+              <span className={cn("w-14 text-right tabular-nums", pos ? "text-emerald-400" : "text-rose-400")}>
+                {b.pct != null ? `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : "—"}
+              </span>
+              <span className="w-10 text-right text-amber-200/40 tabular-nums">
+                {b.z != null ? `${b.z > 0 ? "+" : ""}${b.z.toFixed(1)}σ` : "—"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-amber-200/35 px-3 pb-2">
+        SSGA navhist creations/redemptions — not price momentum.
+      </p>
     </div>
   );
 }
