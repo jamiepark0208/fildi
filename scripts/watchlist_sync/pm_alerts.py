@@ -242,6 +242,10 @@ def _cholesky_L(conn, tickers: list[str]):
     except ImportError:
         return None
     names, C = got
+    # Claude review A117: 60d calm-period corr (~0.24 mean on a typical book) understates crash co-movement; S015's breach
+    # clustering needs ρ ≈ 0.6. Stress floor per pair: max(empirical, RHO) keeps real clusters above 0.6, none below.
+    C = np.maximum(C, RHO)
+    np.fill_diagonal(C, 1.0)
     # clip eigenvalues so Cholesky always succeeds after shrink
     ev, V = np.linalg.eigh(C)
     ev = np.clip(ev, 1e-6, None)
