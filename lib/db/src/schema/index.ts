@@ -1766,7 +1766,7 @@ export const modelRecs = pgTable('model_recs', {
   macroRegime:     text('macro_regime'),                // latest market_regime.regime at rec time
   tiltApplied:     jsonb('tilt_applied'),               // { factor, weights } actually used
   // Grading (filled by the Saturday resolver)
-  status:          text('status').notNull().default('PENDING'), // PENDING | WIN | LOSS | NO_DATA
+  status:          text('status').notNull().default('PENDING'), // PENDING | ASSIGNED | WIN | LOSS | NO_DATA
   settleClose:     numeric('settle_close'),             // close on/before expiry
   intrinsic:       numeric('intrinsic'),
   pnlPerShare:     numeric('pnl_per_share'),

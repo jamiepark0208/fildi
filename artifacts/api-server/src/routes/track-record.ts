@@ -45,6 +45,8 @@ interface SideSummary {
   capitalWeightedAvgPnlPct: number | null;
   maxDrawdownPct: number | null;
   pending: number;
+  /** A92 — ITM, stock leg open until day-10 close. */
+  assigned: number;
   noData: number;
   equityCurve: Array<{
     expiry: string; pnlPct: number; cumPnlPct: number; ticker: string;
@@ -110,6 +112,7 @@ async function buildSideSummary(side: "put" | "call"): Promise<SideSummary> {
     capitalWeightedAvgPnlPct,
     maxDrawdownPct: graded.length > 0 ? maxDd : null,
     pending: rows.filter(r => r.status === "PENDING").length,
+    assigned: rows.filter(r => r.status === "ASSIGNED").length,
     noData: rows.filter(r => r.status === "NO_DATA").length,
     equityCurve: equityCurve.map(({ expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker }) => ({
       expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker,
@@ -280,7 +283,7 @@ router.get("/track-record/by-ticker", async (_req, res) => {
 
 interface TickerSideAgg {
   n: number; wins: number; losses: number; winRate: number | null;
-  avgPnlPct: number | null; pending: number; noData: number;
+  avgPnlPct: number | null; pending: number; assigned: number; noData: number;
   avgIncomePct: number | null;
   avgAbsMovePct: number | null;
   /** Endpoint adverse (settle vs spot) — fallback when path MAE missing. */
@@ -370,6 +373,7 @@ function aggregateSide(rows: RecRow[], side: "put" | "call"): TickerSideAgg {
     winRate: graded.length > 0 ? wins / graded.length : null,
     avgPnlPct: avg(pnls),
     pending: rows.filter(r => r.status === "PENDING").length,
+    assigned: rows.filter(r => r.status === "ASSIGNED").length,
     noData: rows.filter(r => r.status === "NO_DATA").length,
     avgIncomePct,
     avgAbsMovePct,
@@ -476,7 +480,7 @@ router.get("/track-record/recs", async (req, res) => {
 
     const conditions = [];
     if (side) conditions.push(eq(modelRecs.side, side));
-    if (status && ["PENDING", "WIN", "LOSS", "NO_DATA"].includes(status)) conditions.push(eq(modelRecs.status, status));
+    if (status && ["PENDING", "ASSIGNED", "WIN", "LOSS", "NO_DATA"].includes(status)) conditions.push(eq(modelRecs.status, status));
 
     const rows = await db.select().from(modelRecs)
       .where(conditions.length > 0 ? and(...conditions) : undefined)

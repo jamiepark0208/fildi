@@ -42,8 +42,18 @@ import { closeOnOrBeforeExpiryChecked } from "./trade-post-expiry.js";
 import { fetchAndStoreOHLCV } from "./indicators.js";
 import { logger } from "./logger.js";
 import { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
+import {
+  assignmentStatus,
+  settleWithAssignment,
+  type AssignmentSide,
+} from "./assignment-settle.js";
 
 export { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
+export {
+  settleWithAssignment,
+  assignmentStatus,
+  type AssignmentSettle,
+} from "./assignment-settle.js";
 
 export const MODEL_TILT_KEY = "model_tilt";
 export const MODEL_CALIBRATION_KEY = "model_calibration";
@@ -510,11 +520,32 @@ export async function backfillPathRisk(limit = 80): Promise<{ updated: number; s
   return { updated, skipped };
 }
 
-export async function gradeModelRecs(): Promise<{ graded: number; noData: number; pending: number }> {
-  const due = await db.select().from(modelRecs)
-    .where(and(eq(modelRecs.status, "PENDING"), lt(modelRecs.expiry, todayStr())));
+/** Next N trading-day closes after expiry (for A92 day-10 assignment window). */
+export async function closesAfterExpiry(
+  ticker: string,
+  expiry: string,
+  n = 10,
+): Promise<number[]> {
+  const bars = await db.select({ close: pricesHistorical.close })
+    .from(pricesHistorical)
+    .where(and(eq(pricesHistorical.ticker, ticker), gt(pricesHistorical.date, expiry)))
+    .orderBy(asc(pricesHistorical.date))
+    .limit(n);
+  return bars.flatMap((b) => {
+    const c = b.close != null ? Number(b.close) : NaN;
+    return Number.isFinite(c) && c > 0 ? [c] : [];
+  });
+}
 
-  let graded = 0, noData = 0, pending = 0;
+export async function gradeModelRecs(): Promise<{ graded: number; noData: number; pending: number; assigned: number }> {
+  // PENDING = never settled; ASSIGNED = ITM, waiting for day-10 close (A92).
+  const due = await db.select().from(modelRecs)
+    .where(and(
+      sql`${modelRecs.status} IN ('PENDING','ASSIGNED')`,
+      lt(modelRecs.expiry, todayStr()),
+    ));
+
+  let graded = 0, noData = 0, pending = 0, assigned = 0;
   for (const rec of due) {
     try {
       let close = (await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry))?.close ?? null;
@@ -542,6 +573,24 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
       }
 
       const s = settleRec({ side: rec.side, strike: Number(rec.strike), spot, premium: Number(rec.premium), close });
+      const side = (rec.side === "call" ? "call" : "put") as AssignmentSide;
+      let postCloses = await closesAfterExpiry(rec.ticker, rec.expiry, 10);
+      if (postCloses.length < 10) {
+        await fetchAndStoreOHLCV(rec.ticker).catch(() => {});
+        postCloses = await closesAfterExpiry(rec.ticker, rec.expiry, 10);
+      }
+      const a = settleWithAssignment({
+        side,
+        strike: Number(rec.strike),
+        premium: Number(rec.premium),
+        window: { expiryClose: close, closes: postCloses },
+      });
+      const finalStatus = assignmentStatus(a);
+      const basis = side === "put" ? Number(rec.strike) : spot;
+      // Headline columns: all-in when window complete; premium while ASSIGNED/OTM.
+      const headlinePnl = a.allInPnlPerShare ?? a.premiumPnlPerShare;
+      const headlinePct = basis > 0 ? (headlinePnl / basis) * 100 : 0;
+
       const prevComponents = (rec.componentScores && typeof rec.componentScores === "object")
         ? rec.componentScores as Record<string, unknown>
         : {};
@@ -554,11 +603,11 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
         endDate: rec.expiry,
       });
       await db.update(modelRecs).set({
-        status: s.status,
+        status: finalStatus,
         settleClose: String(close),
         intrinsic: String(s.intrinsic),
-        pnlPerShare: String(s.pnlPerShare),
-        pnlPct: String(s.pnlPct),
+        pnlPerShare: String(headlinePnl),
+        pnlPct: String(headlinePct),
         componentScores: {
           ...prevComponents,
           _settlement: {
@@ -569,19 +618,33 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
               pnlPerShare: s.managedPnlPerShare,
               rule: "take_50pct_credit_or_stop_2x",
             },
+            assignment: {
+              assigned: a.assigned,
+              windowComplete: a.windowComplete,
+              windowDays: a.windowDays,
+              day10Close: a.day10Close,
+              stockPnlPerShare: a.stockPnlPerShare,
+              premiumPnlPerShare: a.premiumPnlPerShare,
+              allInPnlPerShare: a.allInPnlPerShare,
+              bestPnlPerShare: a.bestPnlPerShare,
+              worstPnlPerShare: a.worstPnlPerShare,
+              rule: "day10_close_after_expiry",
+              status: finalStatus,
+            },
           },
           ...(path ? { _pathRisk: path } : {}),
         },
         gradedAt: new Date(),
       }).where(eq(modelRecs.id, rec.id));
-      graded++;
+      if (finalStatus === "ASSIGNED") assigned++;
+      else graded++;
     } catch (err) {
       logger.error({ err, recId: rec.id, ticker: rec.ticker }, "model-track-record: rec grading failed");
       pending++;
     }
   }
-  if (due.length > 0) logger.info({ graded, noData, pending }, "model-track-record: rec grading complete");
-  return { graded, noData, pending };
+  if (due.length > 0) logger.info({ graded, noData, pending, assigned }, "model-track-record: rec grading complete");
+  return { graded, noData, pending, assigned };
 }
 
 // ── Grading: hotlist calls ────────────────────────────────────────────────────
