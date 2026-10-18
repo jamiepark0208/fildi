@@ -6,6 +6,7 @@ import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
 import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
 import { getSchwabDailyBars } from "./schwab-client.js";
+import { schwabSymbol, yahooSymbol } from "./vendor-ticker.js";
 import { lastCompletedSessionYmd } from "./market-hours.js";
 import { decidePriceReplace } from "./price-source-rank.js";
 
@@ -435,17 +436,20 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   ohlcvFetchAttemptAt.set(upper, Date.now());
   const period1 = cutoffStr();
   const period2 = yahooPeriod2Exclusive();
+  // A87: fetch under vendor symbol; upsert still uses registry ticker (`upper`).
+  const schwabSym = schwabSymbol(upper);
+  const yahooSym = yahooSymbol(upper);
 
   // Source rank: Schwab (broker, same feed as live quotes/chains) → Yahoo → LSEG soft fill.
   // Yahoo is only called when Schwab is down, unknown symbol, thin or stale.
   let schwab: YahooBar[] = [];
   try {
-    const bars = await getSchwabDailyBars(upper, period1);
+    const bars = await getSchwabDailyBars(schwabSym, period1);
     schwab = (bars ?? []).map((b) => ({
       date: new Date(`${b.date}T16:00:00.000Z`), open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
     }));
   } catch (err) {
-    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Schwab pricehistory failed");
+    logger.warn({ err, ticker: key, schwabSym }, "fetchAndStoreOHLCV: Schwab pricehistory failed");
   }
   const schwabOk = schwab.length >= 15 && !isOHLCVStale(barYmd(schwab[schwab.length - 1]!));
 
@@ -453,12 +457,12 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   if (!schwabOk) {
     try {
       yahoo = await yahooFinance.historical(
-        key,
+        yahooSym,
         { period1, period2, interval: "1d" },
         { validateResult: false },
       ) as YahooBar[];
     } catch (err) {
-      logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Yahoo historical failed");
+      logger.warn({ err, ticker: key, yahooSym }, "fetchAndStoreOHLCV: Yahoo historical failed");
     }
   }
 

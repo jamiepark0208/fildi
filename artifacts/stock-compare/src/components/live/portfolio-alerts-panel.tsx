@@ -19,6 +19,7 @@ type Run = {
   accounts: Record<string, { status: "red" | "amber" | "green"; risk?: number; expiry?: string }>;
   credit?: { on: boolean; spread: number; p80: number; as_of: string } | null; // S028 context, display only
   gamma?: { negative: boolean; gex_bn: number; pct_1y: number; since: string; as_of: string; stale: boolean } | null; // A134, display only
+  bets?: { n_puts: number; effective: number; ms: number } | null; // A117 PCA effective bets, display only
 };
 
 const DOT: Record<Bullet["level"], string> = { red: "bg-red-500", amber: "bg-amber-400", green: "bg-emerald-500" };
@@ -203,6 +204,22 @@ export function PortfolioAlertsPanel() {
                 <div>SqueezeMetrics SPX gamma exposure (GEX), as of {data.gamma.as_of}. Assumes dealers are long calls, short puts.</div>
                 <div className="mt-1">Negative = dealer hedging amplifies moves. Probe 10-16 (2011–26): weeks after negative GEX had SPX 5-day drops &gt;3% 12.7% of the time vs 5.8%, partly because implied vol is already high then.</div>
                 <div className="mt-1 text-amber-200/60">Display only — study S034 pending; not in any score.</div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+        {data.bets && data.bets.n_puts >= 2 && (
+          <div className="flex items-center gap-1.5 text-[12px] leading-snug text-white/45">
+            <span>
+              Effective bets: {data.bets.n_puts} short puts ≈ {data.bets.effective} independent
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-amber-200/40 hover:text-amber-200/80"><Info className="w-3 h-3" /></button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-[320px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
+                <div>PCA on 60-day daily returns of short-put underlyings (corr shrunk 30% to identity). (Σλ)²/Σλ² ≈ how many independent bets the book is.</div>
+                <div className="mt-1 text-amber-200/60">Display only (A117) · {data.bets.ms} ms · not in any score.</div>
               </TooltipContent>
             </Tooltip>
           </div>

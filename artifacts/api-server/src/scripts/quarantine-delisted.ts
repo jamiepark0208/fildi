@@ -23,6 +23,7 @@ const DELISTED = [
   "NOVA", // bankruptcy / delisted risk
   "IOND", // invalid / micro
   "SKHY", // insufficient history / invalid
+  "CHX", // ChampionX — acquired by SLB (A87)
 ] as const;
 
 const dry = process.argv.includes("--dry-run");

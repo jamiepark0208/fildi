@@ -175,6 +175,52 @@ def realized_vol(conn, tickers: list[str]) -> dict[str, float]:
     return out
 
 
+def effective_bets(conn, tickers: list[str]) -> dict | None:
+    """A117: PCA 'effective bets' — n puts ≈ k independent bets from 60d return corr.
+    effective_n = (Σ λ)² / Σ λ². Display only; ms cost noted in payload."""
+    import time
+    t0 = time.perf_counter()
+    names = sorted({t.upper() for t in tickers if t})
+    if len(names) < 2:
+        return None
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    # Align on common dates: last 61 closes per name
+    series = {}
+    for t in names:
+        px = rows(conn, "SELECT date::text AS d, close::float8 AS c FROM prices_historical WHERE ticker = %s ORDER BY date DESC LIMIT 61", (t,))
+        if len(px) < 40:
+            continue
+        series[t] = {r["d"]: r["c"] for r in px if r["c"]}
+    names = [t for t in names if t in series]
+    if len(names) < 2:
+        return None
+    dates = sorted(set.intersection(*(set(series[t]) for t in names)))[-60:]
+    if len(dates) < 30:
+        return None
+    mat = []
+    for t in names:
+        closes = [series[t][d] for d in dates]
+        rets = [math.log(closes[i] / closes[i - 1]) for i in range(1, len(closes)) if closes[i] and closes[i - 1]]
+        if len(rets) < 25:
+            return None
+        mat.append(rets)
+    X = np.array(mat, dtype=float)  # n_names × T
+    # shrink toward identity (Ledoit-ish light): corr = 0.7 * sample + 0.3 * I
+    C = np.corrcoef(X)
+    if not np.isfinite(C).all():
+        return None
+    n = C.shape[0]
+    C = 0.7 * C + 0.3 * np.eye(n)
+    ev = np.linalg.eigvalsh(C)
+    ev = np.clip(ev, 1e-9, None)
+    eff = float((ev.sum() ** 2) / (ev * ev).sum())
+    ms = (time.perf_counter() - t0) * 1000
+    return {"n_puts": n, "effective": round(eff, 1), "ms": round(ms, 1)}
+
+
 def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random) -> dict | None:
     b = book["accounts"][acct]
     puts = [p for p in book["positions"]
@@ -445,6 +491,8 @@ def main() -> None:
                             for a, b in book["accounts"].items()},
                "credit": credit_wide(),  # S028 market context (display only)
                "gamma": dealer_gamma(now),  # A134 SPX dealer gamma (display only; S034 pending)
+               # A117: PCA effective bets across short-put underlyings (display only)
+               "bets": effective_bets(conn, sorted({p["ticker"] for s in sims.values() if s for p in s["puts"]})),
                # per-put odds, kept so analysis/scoreboard.py can grade them at expiry (live calibration of S016)
                "predictions": [{"account": a, "ticker": p["ticker"], "strike": p["strike"], "expiry": str(s["expiry"]),
                                 "p_assign": round(p["p_assign"], 4)} for a, s in sims.items() if s for p in s["puts"]]}

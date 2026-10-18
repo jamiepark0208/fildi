@@ -1,7 +1,7 @@
 /**
- * Daily-bar coverage: share of active tickers (a bar in the last 30 days) whose latest prices_historical bar
- * is on/after the last completed session. Used by backfill-stale-prices (exit code) and the scheduled-tasks
- * "prices-coverage" alert, so a silent refresh gap can't recur (2026-10-06..09: ~265 of 569 names stale).
+ * Daily-bar coverage: share of *active registry* tickers whose latest prices_historical bar
+ * is on/after the last completed session. Zero-bar actives count as stale (A87).
+ * Used by backfill-stale-prices + scheduled-tasks "prices-coverage" alert.
  */
 import { pool } from "@workspace/db";
 import { lastCompletedSessionYmd } from "./market-hours.js";
@@ -13,18 +13,30 @@ export interface PriceCoverage {
   fresh: number;
   active: number;
   pct: number;
-  /** Up to 10 stale tickers, oldest bar first */
+  /** Up to 10 stale / never-barred tickers, oldest bar first (null last = never) */
   staleSample: string[];
 }
 
 export async function priceCoverage(expected: string = lastCompletedSessionYmd()): Promise<PriceCoverage> {
-  const { rows } = await pool.query<{ ticker: string; last: string }>(
-    `SELECT ticker, max(date)::text AS last FROM prices_historical
-     WHERE date >= $1::date - 30 GROUP BY 1`,
+  const { rows } = await pool.query<{ ticker: string; last: string | null }>(
+    `SELECT r.ticker, max(p.date)::text AS last
+     FROM ticker_registry r
+     LEFT JOIN prices_historical p
+       ON p.ticker = r.ticker AND p.date >= $1::date - 30
+     WHERE COALESCE(r.is_active, true)
+     GROUP BY r.ticker`,
     [expected],
   );
-  const stale = rows.filter((r) => r.last < expected).sort((a, b) => a.last.localeCompare(b.last));
+  const stale = rows
+    .filter((r) => r.last == null || r.last < expected)
+    .sort((a, b) => (a.last ?? "").localeCompare(b.last ?? ""));
   const active = rows.length;
   const fresh = active - stale.length;
-  return { expected, fresh, active, pct: active ? fresh / active : 0, staleSample: stale.slice(0, 10).map((r) => r.ticker) };
+  return {
+    expected,
+    fresh,
+    active,
+    pct: active ? fresh / active : 0,
+    staleSample: stale.slice(0, 10).map((r) => (r.last == null ? `${r.ticker}(none)` : r.ticker)),
+  };
 }
