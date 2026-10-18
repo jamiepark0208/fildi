@@ -9,6 +9,7 @@ halves (median event date), |effect| ≥ 1.5 pp excess or ≥ 5 pp recovery.
     .venv/bin/python analysis/s025_reversals.py     # → out/opt/S025.md (+ optlab.findings S025)
 """
 from __future__ import annotations
+import os
 
 import json
 import sys
@@ -48,6 +49,8 @@ def clean(x):
 
 
 def main():
+    # A131: S025_LAG=1 → enter at the next close (event close is not tradeable); skips the findings write.
+    L = int(os.environ.get("S025_LAG", "0"))
     conn = connect()
     px = series(conn)
     sec = {t: g.split(".")[0] for t, g in conn.execute(
@@ -73,13 +76,13 @@ def main():
         n = len(c)
         fwd = {h: np.full(n, np.nan) for h in (5, 10, 20)}
         for h in (5, 10, 20):
-            fwd[h][: n - h] = c[h:] / c[: n - h] - 1
+            fwd[h][: n - h - L] = c[h + L:] / c[L: n - h] - 1
         g = np.full(n, np.nan)  # max close over next 20 days ÷ close (for matched recovery base)
-        for i in range(n - 20):
-            g[i] = c[i + 1:i + 21].max() / c[i]
+        for i in range(n - 20 - L):
+            g[i] = c[i + 1 + L:i + 21 + L].max() / c[i]
         per_t[t] = (d, fwd, g)
         last = -99
-        for i in range(65, n - 20):
+        for i in range(65, n - 20 - L):
             if i - last < 10:
                 continue
             sd = lr[i - 65:i - 5].std(ddof=1)
@@ -96,7 +99,7 @@ def main():
             ref = c[i - 5]
             ev.append({
                 "t": t, "d": d[i], "z": z, "f5": fwd[5][i], "f10": fwd[10][i], "f20": fwd[20][i],
-                "rec": float(c[i + 1:i + 21].max() >= ref), "need": ref / c[i],
+                "rec": float(c[i + 1 + L:i + 21 + L].max() >= ref), "need": ref / c[i],
                 "deep": z <= -3, "gap": day.min() <= 0.7 * r5,
                 "volspike": (np.nanmean(v[i - 4:i + 1]) >= 2 * np.nanmean(v[i - 55:i - 5])) if vol_ok else None,
                 "below200": (c[i] < c[i - 199:i + 1].mean()) if i >= 199 else None,
@@ -192,6 +195,8 @@ def main():
     head = (f"After a ≥2σ 5-day drop, the next 20 days are {allx['est']*100:+.1f} pp vs the stock's normal and recovery to the pre-drop level "
             f"is {allr['est']*100:+.0f} pp vs base ({len(ev)} drops). "
             + (("Passing: " + "; ".join(f"{t_['name']} {t_['est']*100:+.1f} pp" for t_ in passed) + ".") if passed else "Nothing passes: no reliable bounce signal."))
+    if L:
+        print("\n".join(out)); print("→ (lag", L, ")", head); return
     conn.execute("""INSERT INTO optlab.findings (study, title, verdict, headline, card, updated_at) VALUES ('S025','Bounce after drops?',%s,%s,%s,now())
                     ON CONFLICT (study) DO UPDATE SET verdict=excluded.verdict, headline=excluded.headline, card=excluded.card, updated_at=now()""",
                  ("pass" if passed else "fail", head, json.dumps(clean(tests), default=str)))

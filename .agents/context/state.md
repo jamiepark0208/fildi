@@ -32,7 +32,7 @@
 5. Block audit grades (first 10/09) · re-run timing study after ≥ 100 new trades · exit-rule study once option_chain_history ≥ 3 months.
 
 ## Open facts worth keeping (details in state-archive.md)
-- RH accounts: IRA `772445425` = the strategy (judge the model here); FILDI `5QU47796` = mixed → rebalance recs.
+- RH accounts: IRA (acct # in ~/.fildi/private.md) = the strategy (judge the model here); FILDI (acct #) = mixed → rebalance recs.
 - Fildi premium = Schwab/Yahoo **bid**; RH realistic fill = bid + 10–36% of spread (median ~23%).
 - S014 so far: option_score adds ~0 over IV (IV-fixed IC ≈ 0); put raw IC negative (high score = high IV).
 - Daily bars: Schwab → Yahoo (thin/stale only) → LSEG soft; coverage alert < 95%. Option snapshots keep calendar asOf on purpose.
@@ -40,8 +40,8 @@
 - Fundamentals (07-23): residual ~1017 Needs Review = genuine vendor disagreement; backfill order: api_usage budget → fmp → polygon → av.
 
 ## FactSet Proxy — LIVE ✅
-- Oracle Cloud VM `146.235.223.94` (Always Free, IP reserved). SSH: `ssh -i ~/Desktop/ssh-key-2026-06-14.key ubuntu@146.235.223.94`; logs `pm2 logs factset-proxy --lines 30 --nostream`
-- Account `USCMARSHALL-2393811` (Overview Report Builder only): `GET /report/overview/v1/financial-highlights?id=TICKER-US`. FMP fills PE/PB/PS/ROIC/Beta/WACC/targets/debt/shares.
+- Oracle Cloud VM (IP in ~/.fildi/private.md) (Always Free, IP reserved). SSH: see ~/.fildi/private.md; logs `pm2 logs factset-proxy --lines 30 --nostream`
+- Account (id in ~/.fildi/private.md) (Overview Report Builder only): `GET /report/overview/v1/financial-highlights?id=TICKER-US`. FMP fills PE/PB/PS/ROIC/Beta/WACC/targets/debt/shares.
 - DB-first cache, 7-day freshness; only `POST /api/sdm/refresh/:ticker?admin=true` forces a live call.
 
 ## RSI / MFI thresholds
@@ -53,4 +53,4 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 ## Review loop + ASKS format (2026-10-11, user YES)
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
-Last reviewed SHA: 3fdcfb2 (10-16: only Cursor code commit since 4acebe5 = 58ec805 A93 chart zoom, display-only → no quant review; rest Claude/ASKS)
+Last reviewed SHA: c336242 (10-18: quant reviews A63 b7ff47b pass, A147 58f3ea2 pass, A74 9b6bfd6 pass+nit; rest docs/Claude)

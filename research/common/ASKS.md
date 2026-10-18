@@ -31,14 +31,14 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A25](asks/A25.md) | 2026-10-05 | Claude → Cursor | Scorecard lab results + proposed scorecard changes | done (Cursor 10-18: T1/O2partial/F1 shipped; T3/T4/O1/O2full/O3/F2 parked — revisit trigger in file) |
 | [A45](asks/A45.md) | 2026-10-08 | Muse → Cursor | Daily News: brief-first pipeline + materiality gate | done |
 | [A47](asks/A47.md) | 2026-10-10 | Muse → Cursor | [quant] Recommendation survival rule (Model List quarantine) | declined (Claude 10-14: wrong in principle; S015 no effect) |
-| [A49](asks/A49.md) | 2026-10-10 | Muse → Cursor | [quant] Continuous event-risk engine (all macro events) | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
+| [A49](asks/A49.md) | 2026-10-10 | Muse → Cursor | [quant] Continuous event-risk engine (all macro events) | planned — narrowed to display-only calendar (Claude 10-18) |
 | [A50](asks/A50.md) | 2026-10-10 | Muse → Cursor | Event-risk UI + alerting (materiality-gated) | done (Claude 10-14: Live › Portfolio Alerts) |
 | [A51](asks/A51.md) | 2026-10-10 | Muse → Cursor | [quant] Scorer event-risk gate spec (penalty/block) | declined gate; earnings need → A79 + S018 (Claude audit 10-15: old reason ignored S003) |
-| [A52](asks/A52.md) | 2026-10-10 | Muse → Cursor | [quant] Proprietary FCF model + per-stock characteristic learning | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
-| [A53](asks/A53.md) | 2026-10-10 | Muse → Cursor | [quant] IV surface pipeline (port volsurface + pysvi, MIT) | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
-| [A54](asks/A54.md) | 2026-10-10 | Muse → Cursor | [quant] Greeks/IV math library (port marketcalls/opengreeks, MIT) | open — STOP: no library port; Claude to narrow (Grok 2026-10-17) |
-| [A55](asks/A55.md) | 2026-10-10 | Muse → Cursor | [quant] Algorithmic S/R detection (port Price-Action-Engine, MIT) | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
-| [A56](asks/A56.md) | 2026-10-10 | Muse → Cursor | [quant] Characteristic feature seed (qlib Alpha158 + ta, MIT) + HMM regimes | open — STOP: no build; Claude to decline or narrow (Grok 2026-10-17) |
+| [A52](asks/A52.md) | 2026-10-10 | Muse → Cursor | [quant] Proprietary FCF model + per-stock characteristic learning | declined (Claude 10-18: S009 cheapness ≠ edge; revisit FV re-test Apr 2027) |
+| [A53](asks/A53.md) | 2026-10-10 | Muse → Cursor | [quant] IV surface pipeline (port volsurface + pysvi, MIT) | declined (Claude 10-18: S014/S019, no consumer) |
+| [A54](asks/A54.md) | 2026-10-10 | Muse → Cursor | [quant] Greeks/IV math library (port marketcalls/opengreeks, MIT) | declined (Claude 10-18: no 2nd-order consumer) |
+| [A55](asks/A55.md) | 2026-10-10 | Muse → Cursor | [quant] Algorithmic S/R detection (port Price-Action-Engine, MIT) | declined — merged into S041 (Claude 10-18) |
+| [A56](asks/A56.md) | 2026-10-10 | Muse → Cursor | [quant] Characteristic feature seed (qlib Alpha158 + ta, MIT) + HMM regimes | declined (Claude 10-18: S006/S027/S024; revisit ≥500 trades) |
 | [A57](asks/A57.md) | 2026-10-10 | Muse → Cursor | [quant] Vectorized backtest harness (vectorbt design — license TBD) | declined (Claude 10-14: backtest_puts.py is the home) |
 | [A62](asks/A62.md) | 2026-10-11 | Muse → Cursor | Brief staleness guard (A45 gap) | done |
 | [A63](asks/A63.md) | 2026-10-11 | Muse → Cursor | [quant] Source-ranked upsert for price bars | done (Cursor 10-17; await Claude review) |
@@ -107,7 +107,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | done (Claude 10-16: route-map + commit-impact scripts, no MCP) |
 | [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | local 26B live (Claude 10-16); first resolutions 10-17; pass test ≥ 50 resolved puts |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | step 1 done (Claude 10-16: all Haiku calls logged + AI spend line) |
-| [A131](asks/A131.md) | 2026-10-16 | Cursor → Claude | Backtest timestamp-leakage audit | accepted · needs Claude (Cursor inventory + Grok pass-with-nits; Claude [quant] sign-off still open) |
+| [A131](asks/A131.md) | 2026-10-16 | Cursor → Claude | Backtest timestamp-leakage audit | done (Claude signed 10-18: S025 holds at t+1; S028 NFCI unsigned; S003 classify open) |
 | [A132](asks/A132.md) | 2026-10-16 | Muse → Cursor | Competitive teardown: FinceptTerminal vs fildi | parked (Claude: Muse owns teardown — not Cursor build) |
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | planned, narrowed (Claude 10-16: free-tier test aimed at S019's IV gap + OI history) |
 | [A134](asks/A134.md) | 2026-10-16 | Muse → Cursor | Gamma exposure (GEX) regime indicator | done (phase 1; S034 + phase 2 parked) |
@@ -118,10 +118,10 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | planned, narrowed (Claude 10-16: detectors as overlays; no composite until intraday test S036) |
 | [A140](asks/A140.md) | 2026-10-17 | Muse → Cursor | Post-down-day setup flag for scanner + options-book brief | open (Cursor 10-17: split from Grok collision → Grok is A141) |
 | [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | open (Cursor 10-17: renumbered from A140 after Muse collision) |
-| [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | open |
+| [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | planned (Claude 10-18) |
 | [A143](asks/A143.md) | 2026-10-17 | Claude → Cursor | OpenJev overnight headline labels in Desk daily news (display only) | planned (S037) |
 | [A144](asks/A144.md) | 2026-10-17 | Grok → Cursor | Review + merge PR #2 (Grok Bot fixes) into cursor/mac-dev | done (Cursor 10-17: reviewed + merged ci-auth-inbox-asks-b665) |
-| [A145](asks/A145.md) | 2026-10-17 | Grok → Claude | CI phase 2 (from Grok Bot) | open |
+| [A145](asks/A145.md) | 2026-10-17 | Grok → Claude | CI phase 2 (from Grok Bot) | planned (Claude 10-18) |
 | [A146](asks/A146.md) | 2026-10-17 | Claude → Cursor | [quant] analyst_events headline links: 35 % are generic roundups | done (Cursor 10-18: ticker-gate + roundup scrub on FMP feed; prior from headline) |
 | [A147](asks/A147.md) | 2026-10-17 | Claude → Cursor | [quant] P1 data: 19 tickers in two peer groups + zero dividend yields (NEE DUK D AEP) | done (Cursor 10-17: override cleanup 10 duals; Yahoo0 yield skip — re-run merge-trusted) |
 | [A148](asks/A148.md) | 2026-10-17 | Claude → Claude | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | done (25 moves applied 10-18; ZTO TCOM held for China flag; monthly control open) |
@@ -134,8 +134,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | open |
 | [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | open |
 | [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | open (Jamie go, J5) |
-| [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | open |
-| [A155](asks/A155.md) | 2026-10-18 | Grok → Claude | [quant] One technical scorer — 6-comp champion vs 8-comp package | open |
-| [A156](asks/A156.md) | 2026-10-18 | Grok → Claude | Decision: redact tracked session-state identifiers (forward only) | open |
+| [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | planned — bug confirmed, before/after done; needs IC check + Jamie OK (Claude) |
+| [A155](asks/A155.md) | 2026-10-18 | Grok → Claude | [quant] One technical scorer — 6-comp champion vs 8-comp package | planned (Claude 10-18) |
+| [A156](asks/A156.md) | 2026-10-18 | Grok → Claude | Decision: redact tracked session-state identifiers (forward only) | planned (Claude 10-18) |
 | [A157](asks/A157.md) | 2026-10-18 | Grok → Claude | Grok Bot game plan: phases 0-5 for Claude, Muse, Cursor review | open |
 | [A158](asks/A158.md) | 2026-10-18 | Grok → Cursor | Sync Mac checkout so Ideas shows A154-A157 and their Context blurbs | done (Cursor 10-18: sync up to date; HEAD bab270f ≥ 08d2e56c; Context present) |
