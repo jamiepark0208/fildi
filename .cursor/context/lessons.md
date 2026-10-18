@@ -120,3 +120,10 @@ Add a lesson **only if all true:**
 - **Fix:** Dot+short label under; metrics in Radix Tooltip portal; flex-nowrap gap-x-1; see .cursor/rules/ui-density.mdc
 - **Verify:** Connections stays one row with Re-auth; hover chip shows tip bubble
 - **Status:** active
+
+### L-2026-10-18-01: Typecheck before push — bad import kills whole API
+- **Trigger:** Any commit under `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**`; urge to "just sync" after ASKS ship
+- **Mistake:** A94 used `middleware/auth.js` (does not exist; real file is `requireAdmin.js`). Skipped local `tsc`. Server crash-looped → Vite proxy ECONNREFUSED → app fully broken; every later push emailed CI failure
+- **Fix:** Run `scripts/agent-ship-check.sh` before commit; `agent-git-sync.sh` + pre-push enforce it. Copy import paths from a sibling route. No sleep-loops / subagent fan-out to ship Ready rows
+- **Verify:** `pnpm exec tsc -p artifacts/api-server/tsconfig.json --noEmit` green; `curl -sf :8080/api/healthz` when Mac stack should be live
+- **Status:** active
