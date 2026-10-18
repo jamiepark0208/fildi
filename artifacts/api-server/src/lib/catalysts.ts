@@ -1,3 +1,5 @@
+import { calendarDaysUntil } from "./date-util.js";
+
 export interface CatalystAnalystAction {
   firm: string;
   toGrade: string;
@@ -116,11 +118,6 @@ export function parseEarningsDate(summary: unknown, dbDate: string | null): stri
   return null;
 }
 
-function daysUntil(iso: string): number {
-  const d = new Date(iso.includes("T") ? iso : iso + "T12:00:00").getTime();
-  return Math.round((d - Date.now()) / 86400000);
-}
-
 function analystLine(a: CatalystAnalystAction): string | null {
   const act = normalizeAnalystAction(a.action ?? "");
   const firm = a.firm || "Analyst";
@@ -165,7 +162,7 @@ export function buildCatalystItems(input: {
   const cutoff90 = Date.now() - 90 * 86400000;
 
   if (input.earningsDate) {
-    const days = daysUntil(input.earningsDate);
+    const days = calendarDaysUntil(input.earningsDate);
     if (days >= 0 && days <= 30) {
       out.push({
         kind: "earnings",

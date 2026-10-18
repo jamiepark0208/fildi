@@ -241,11 +241,13 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
 // Run directly: node_modules/.bin/tsx artifacts/api-server/src/lib/yahoo-client.ts NVDA
 if (process.argv[1]?.endsWith("yahoo-client.ts") || process.argv[1]?.endsWith("yahoo-client.js")) {
   const ticker = process.argv[2] ?? "NVDA";
-  console.log(`\nFetching Yahoo fundamentals for: ${ticker}\n`);
+  logger.info({ ticker }, "yahoo-client CLI: fetching fundamentals");
   fetchYahooFundamentals(ticker).then(data => {
     const filled = Object.values(data).filter(v => v !== undefined).length;
     const total  = Object.keys(data).length;
-    console.log(`Fields populated: ${filled} / ${total}`);
-    console.log(JSON.stringify(data, null, 2));
-  }).catch(err => { console.error(err.message); process.exit(1); });
+    logger.info({ ticker, filled, total, data }, "yahoo-client CLI: done");
+  }).catch(err => {
+    logger.error({ err: String(err?.message ?? err) }, "yahoo-client CLI: failed");
+    process.exit(1);
+  });
 }

@@ -1,7 +1,17 @@
+import { z } from "zod";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
 import { fetchJsonWithRetry, sleep } from "./http-client.js";
 import { isFmpPremiumError, isFmpRestricted, markFmpRestricted } from "./fmp-restricted.js";
+
+/** Loose row shape from /stable/earnings — unknown keys ignored (A83 Wave 1). */
+const fmpEarningsRowSchema = z.object({
+  date: z.string().min(4),
+  epsEstimated: z.unknown().optional(),
+  epsActual: z.unknown().optional(),
+  revenueEstimated: z.unknown().optional(),
+  revenueActual: z.unknown().optional(),
+}).passthrough();
 
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 
@@ -273,13 +283,23 @@ export async function fetchFMPEarningsHistory(
   const url = `${FMP_BASE}/earnings?symbol=${t}&apikey=${apiKey}`;
   try {
     const raw = await fetchWithRetry(url);
-    const rows: FMPEarningsQuarter[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
-      reportDate: r.date,
-      epsEstimate: fmpN(r.epsEstimated) ?? null,
-      epsActual: fmpN(r.epsActual) ?? null,
-      revenueEstimate: fmpN(r.revenueEstimated) ?? null,
-      revenueActual: fmpN(r.revenueActual) ?? null,
-    })).filter(r => !!r.reportDate);
+    const list = Array.isArray(raw) ? raw : [];
+    const rows: FMPEarningsQuarter[] = [];
+    for (const item of list) {
+      const parsed = fmpEarningsRowSchema.safeParse(item);
+      if (!parsed.success) {
+        logger.warn({ ticker: t, issues: parsed.error.issues.slice(0, 2) }, "fmp: earnings row skipped (zod)");
+        continue;
+      }
+      const r = parsed.data;
+      rows.push({
+        reportDate: r.date,
+        epsEstimate: fmpN(r.epsEstimated) ?? null,
+        epsActual: fmpN(r.epsActual) ?? null,
+        revenueEstimate: fmpN(r.revenueEstimated) ?? null,
+        revenueActual: fmpN(r.revenueActual) ?? null,
+      });
+    }
     logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
     return rows;
   } catch (err: any) {

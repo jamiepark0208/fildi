@@ -5,6 +5,7 @@ import { isPlausibleOptionQuote } from "@workspace/option-scoring";
 import { getSchwabOptionChains } from "./schwab-client.js";
 import { logger } from "./logger.js";
 import { recordOptionsChainSource } from "./options-chain-source-stats.js";
+import { daysUntilCeil, exactDaysUntil, settlementOffsetDays } from "./date-util.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -192,30 +193,11 @@ function toDateStr(d: unknown): string {
   return "";
 }
 
-function daysUntil(d: unknown): number {
-  const ms = (d instanceof Date ? d.getTime() : 0) - Date.now();
-  return Math.ceil(ms / 86_400_000);
-}
-
-function exactDaysUntil(d: unknown): number {
-  const ms = (d instanceof Date ? d.getTime() : 0) - Date.now();
-  return ms / 86_400_000;
-}
+/** Alias — options path uses ceil (may be negative). */
+const daysUntil = daysUntilCeil;
 
 function isWeeklyExpiry(d: unknown): boolean {
   return d instanceof Date && d.getDay() === 5; // Friday
-}
-
-// Options settle T+1 business day after expiration — a put you sell against a Friday
-// expiry doesn't return your capital until Monday. weeklyIncome (return per week of
-// capital tied up) needs the settlement date, not the bare expiration date; option
-// pricing (Greeks, theta/buffer) must keep using the real expiration date instead.
-function settlementOffsetDays(expiryDate: Date): number {
-  const day = expiryDate.getDay(); // 0=Sun .. 6=Sat
-  if (day === 5) return 3; // Fri -> Mon
-  if (day === 6) return 2; // Sat (shouldn't occur) -> Mon
-  if (day === 0) return 1; // Sun (shouldn't occur) -> Mon
-  return 1; // Mon-Thu -> next day
 }
 
 // daysToExpiry/exactDte/settlementDte are pure clock math (expiry date vs. now) — they

@@ -17,6 +17,11 @@ import {
 } from "./schwab-auth.js";
 import { TTLCache } from "./ttl-cache.js";
 import { retryAfterMs } from "./http-client.js";
+import {
+  daysUntilCeilNonNeg,
+  exactDaysUntil,
+  settlementOffsetDays,
+} from "./date-util.js";
 import type { OptionRow, OptionsChainResult } from "./options.js";
 
 const BASE = "https://api.schwabapi.com/marketdata/v1";
@@ -286,21 +291,9 @@ function num(v: unknown): number | null {
   return null;
 }
 
-function exactDaysUntil(d: Date): number {
-  return (d.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
-}
-function daysUntil(d: Date): number {
-  return Math.max(0, Math.ceil(exactDaysUntil(d)));
-}
+const daysUntil = daysUntilCeilNonNeg;
 function isWeeklyExpiry(d: Date): boolean {
   return d.getDay() === 5;
-}
-function settlementOffsetDays(expiryDate: Date): number {
-  const day = expiryDate.getDay();
-  if (day === 5) return 3;
-  if (day === 6) return 2;
-  if (day === 0) return 1;
-  return 1;
 }
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);

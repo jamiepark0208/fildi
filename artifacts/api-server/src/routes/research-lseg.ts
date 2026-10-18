@@ -8,8 +8,10 @@ import { pool } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { lsegPeerRelative } from "../lib/research-peer-rel.js";
+import { calendarDaysUntilYmd } from "../lib/date-util.js";
 
 const router = Router();
+const daysUntil = calendarDaysUntilYmd;
 
 type SignalRow = {
   as_of: string;
@@ -60,11 +62,6 @@ function n(v: unknown): number | null {
   return Number.isFinite(x) ? x : null;
 }
 
-function daysUntil(isoDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((new Date(`${isoDate}T00:00:00`).getTime() - today.getTime()) / 86_400_000);
-}
 
 /**
  * LSEG audit of the gold layer (research/lseg/audit_gold.py → lseg_research.gold_audit).
