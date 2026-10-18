@@ -443,6 +443,8 @@ export function PriceChart({
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  /** A126 Phase 1a — Yahoo 5m session VWAP / volume profile levels. */
+  const [showSessionFlow, setShowSessionFlow] = useState(false);
   const techTicker = showTechnicalZones ? tickerForTechnicals?.toUpperCase() : undefined;
 
   const queries = useQueries({
@@ -462,6 +464,25 @@ export function PriceChart({
   });
 
   /** Open short puts for this ticker — strike lines next to IV band (A93). */
+  const sessionFlowQuery = useQuery({
+    queryKey: ["session-flow", techTicker],
+    queryFn: async () => {
+      const r = await fetch(`/api/stocks/${encodeURIComponent(techTicker!)}/session-flow`, { credentials: "include" });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error(`session-flow ${r.status}`);
+      return r.json() as Promise<{
+        sessionDate: string;
+        vwap: { time: number; value: number }[];
+        poc: number | null;
+        vah: number | null;
+        val: number | null;
+        note: string;
+      }>;
+    },
+    enabled: !!techTicker && showTechnicalZones && showSessionFlow && tickers.length === 1,
+    staleTime: 5 * 60_000,
+  });
+
   const shortPutsQuery = useQuery({
     queryKey: ["pm-odds"],
     queryFn: async (): Promise<{ positions: { ticker: string; strike: number; expiry: string; account: string }[] }> => {
@@ -604,10 +625,22 @@ export function PriceChart({
       }));
   }, [techTicker, shortPutsQuery.data]);
 
+  const sessionFlowLines = useMemo((): LWPriceLine[] => {
+    if (!showSessionFlow || !sessionFlowQuery.data) return [];
+    const d = sessionFlowQuery.data;
+    const lines: LWPriceLine[] = [];
+    const lastVwap = d.vwap.length ? d.vwap[d.vwap.length - 1]!.value : null;
+    if (lastVwap != null) lines.push({ price: lastVwap, color: "#f472b6", title: `VWAP ${d.sessionDate.slice(5)}`, dashed: false });
+    if (d.poc != null) lines.push({ price: d.poc, color: "#fbbf24", title: "POC", dashed: true });
+    if (d.vah != null) lines.push({ price: d.vah, color: "#a78bfa", title: "VAH", dashed: true });
+    if (d.val != null) lines.push({ price: d.val, color: "#a78bfa", title: "VAL", dashed: true });
+    return lines;
+  }, [showSessionFlow, sessionFlowQuery.data]);
+
   const allPriceLines = useMemo((): LWPriceLine[] => {
     if (!showTechnicalZones || tickers.length !== 1) return [];
-    return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines];
-  }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines]);
+    return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines, ...sessionFlowLines];
+  }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines, sessionFlowLines]);
 
   const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
   const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
@@ -723,6 +756,21 @@ export function PriceChart({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {showTechnicalZones && techTicker && tickers.length === 1 && (
+            <button
+              type="button"
+              onClick={() => setShowSessionFlow((v) => !v)}
+              className={cn(
+                "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
+                showSessionFlow
+                  ? "border-pink-400/50 bg-pink-400/15 text-pink-200"
+                  : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
+              )}
+              title="Yahoo 5m session VWAP + volume profile (POC/VAH/VAL). Estimated delta in API; Polygon 1m backfill still open (A126)."
+            >
+              Session flow{sessionFlowQuery.isFetching ? "…" : ""}
+            </button>
+          )}
           {isAdmin && showTechnicalZones && techTicker && (
             <button
               type="button"
@@ -859,6 +907,14 @@ export function PriceChart({
                 swatch={<span className="w-2.5 h-0.5 bg-pink-400" />}
                 label="Session VWAP"
                 explanation="Volume-weighted average price for the current 1D session (typical price × volume)."
+              />
+            )}
+            {showSessionFlow && sessionFlowLines.length > 0 && (
+              <LegendItem
+                swatch={<span className="w-2.5 h-0.5 bg-pink-400" />}
+                label="Session flow (5m)"
+                explanation={sessionFlowQuery.data?.note
+                  ?? "Yahoo 5m RTH: last VWAP + POC/VAH/VAL from volume profile. Not true order-flow footprint."}
               />
             )}
           </>

@@ -2,11 +2,13 @@
  * Breakdown context panels (Claude, PM role, user 2026-10-14):
  * GET /api/stocks/:ticker/short-interest → history (Polygon, FINRA twice-monthly) + current % float (LSEG)
  * GET /api/stocks/:ticker/earnings-call  → stored earnings-call summaries (scripts/watchlist_sync/transcripts.py) + Street consensus
+ * GET /api/stocks/:ticker/session-flow   → A126 Phase 1a Yahoo 5m VWAP + volume profile + estimated delta
  */
 import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { getShortInterest } from "../lib/short-interest.js";
+import { getSessionFlow } from "../lib/session-flow.js";
 
 const router = Router();
 type SqlRows<T> = T[] | { rows?: T[] };
@@ -15,17 +17,23 @@ const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
 
 router.get("/stocks/:ticker/short-interest", async (req, res, next) => {
   const t = String(req.params.ticker ?? "").toUpperCase();
-  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
   try {
-    return res.json(await getShortInterest(t));
+    res.json(await getShortInterest(t));
   } catch (err) {
-    return next(err);
+    next(err);
   }
 });
 
 router.get("/stocks/:ticker/earnings-call", async (req, res, next) => {
   const t = String(req.params.ticker ?? "").toUpperCase();
-  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
   try {
     const ok = rowsOf<{ ok: boolean }>(await db.execute(sql`
       SELECT to_regclass('watchlist_sync.earnings_transcripts') IS NOT NULL AS ok`) as SqlRows<{ ok: boolean }>)[0]?.ok;
@@ -37,9 +45,27 @@ router.get("/stocks/:ticker/earnings-call", async (req, res, next) => {
              eps_mean_fq1::float8 AS eps_mean_fq1, fq1_period_end::text, eps_drift_30d_pct::float8 AS eps_drift_30d_pct,
              pt_mean::float8 AS pt_mean, price_close::float8 AS price_close
       FROM lseg_research.signals_daily WHERE ticker = ${t} ORDER BY as_of DESC LIMIT 1`) as SqlRows<never>)[0] ?? null;
-    return res.json({ ticker: t, calls, street });
+    res.json({ ticker: t, calls, street });
   } catch (err) {
-    return next(err);
+    next(err);
+  }
+});
+
+router.get("/stocks/:ticker/session-flow", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
+  try {
+    const flow = await getSessionFlow(t);
+    if (!flow || flow.barCount === 0) {
+      res.status(404).json({ error: "no session bars", ticker: t });
+      return;
+    }
+    res.json(flow);
+  } catch (err) {
+    next(err);
   }
 });
 
