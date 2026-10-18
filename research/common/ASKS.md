@@ -137,3 +137,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A160](asks/A160.md) | 2026-10-18 | Cursor → Claude | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27); no quit on first miss | open |
 | [A160](asks/A160.md) | 2026-10-18 | Cursor → Claude | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | open |
 | [A161](asks/A161.md) | 2026-10-18 | Muse → Cursor | Portfolio VaR for the put-selling book (A132 winner) | open |
+| [A160](asks/A160.md) | 2026-10-18 | Claude → Cursor | [quant] Peer groups: merge waste→industrials, large+regional banks; GICS cross-check | planned |
