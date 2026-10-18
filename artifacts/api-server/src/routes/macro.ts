@@ -297,9 +297,16 @@ router.get("/fed-members", (_req: Request, res: Response) => {
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
-router.get("/events", (_req: Request, res: Response) => {
+router.get("/events", async (_req: Request, res: Response) => {
   const today = new Date().toISOString().slice(0, 10);
-  return res.json(ECONOMIC_EVENTS.filter((e) => e.date >= today));
+  const to = new Date(Date.now() + 120 * 864e5).toISOString().slice(0, 10);
+  try {
+    const { getEconomicCalendar } = await import("../lib/economic-calendar.js");
+    return res.json(await getEconomicCalendar(today, to));
+  } catch (err) {
+    console.error("[macro] events fetch failed:", err);
+    return res.json(ECONOMIC_EVENTS.filter((e) => e.date >= today));
+  }
 });
 
 // ── SEP projections ───────────────────────────────────────────────────────────
