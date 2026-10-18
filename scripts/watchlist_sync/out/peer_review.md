@@ -1,25 +1,7 @@
 # Peer review list (2026-10-18) — OpenJev disagrees ≥ 0.8 with the current group
 Never auto-applied. Claude reviews; real misfilings → peer_group_overrides with fund before/after (A148).
 
-- SHOP (Shopify Inc.): now Consumer Internet & Digital Media → suggest Enterprise Software & Cloud (1.00)
-- XPEV (XPeng Inc.): now Chinese Tech → suggest Autos & EVs (0.99)
-- PN (PN Smart Energy Limited): now Speculative Small Cap → suggest Clean Energy & Renewables (0.99)
-- RUM (RUM Group Inc.): now Speculative Small Cap → suggest Consumer Internet & Digital Media (0.98)
-- NIO (NIO Inc.): now Chinese Tech → suggest Autos & EVs (0.98)
-- TEM (Tempus AI, Inc.): now Speculative Small Cap → suggest Medical Devices & Equipment (0.98)
-- NU (Nu Holdings Ltd.): now Digital Finance & Payments → suggest Regional Banks (0.97)
-- LYFT (Lyft, Inc.): now Consumer Internet & Digital Media → suggest Travel, Leisure & Hospitality (0.96)
-- CEVA (CEVA, Inc.): now Semiconductor Foundry & Specialty → suggest Semiconductors — Design (0.95)
-- FDS (FactSet Research Systems Inc.): now Professional Services → suggest Enterprise Software & Cloud (0.94)
-- VRSK (Verisk Analytics, Inc.): now Professional Services → suggest Enterprise Software & Cloud (0.94)
-- ONDS (Ondas Inc.): now Speculative Small Cap → suggest Space & Aerospace Tech (0.93)
-- ALOY (REalloys Inc.): now Base Metals & Mining → suggest Precious Metals & Mining (0.92)
-- LI (Li Auto Inc.): now Chinese Tech → suggest Autos & EVs (0.92)
-- SUPX (SuperX AI Technology Limited): now Speculative Small Cap → suggest IT Hardware & Networking (0.90)
-- GPN (Global Payments Inc.): now Digital Finance & Payments → suggest Payment Networks & Credit (0.88)
-- AA (Alcoa Corporation): now Base Metals & Mining → suggest Steel & Industrial Metals (0.88)
-- LQDA (Liquidia Corporation): now Speculative Small Cap → suggest Speculative Biotech (0.86)
-- CME (CME Group Inc.): now Professional Services → suggest Payment Networks & Credit (0.85)
-- BILL (Bill.com Holdings, Inc.): now Digital Finance & Payments → suggest Enterprise Software & Cloud (0.84)
-- FIS (Fidelity National Information Services, Inc.): now Digital Finance & Payments → suggest Payment Networks & Credit (0.81)
-- TOST (Toast, Inc.): now Digital Finance & Payments → suggest Enterprise Software & Cloud (0.80)
+- none
+
+## GICS disagrees (most of this GICS sub-industry sits in another group)
+- none

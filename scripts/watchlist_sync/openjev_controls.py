@@ -97,7 +97,17 @@ def peers(conn, limit: int | None) -> None:
 
 # A148 control: monthly full re-run + every new auto-classified ticker → confident disagreements land in a review
 # list (out/peer_review.md), never applied. Claude-reviewed rejects (S038/A148) stay out of the list.
-PEER_REJECTED = set("KGC SVM MSFT SNDK VNET BNGO DDD MSCI MCO SPGI".split())
+PEER_REJECTED = set(("KGC SVM MSFT SNDK VNET BNGO DDD MSCI MCO SPGI "  # S038 rejects
+                     "RUM TEM SUPX LQDA FDS VRSK GPN CME BILL FIS TOST LYFT AA ALOY").split())  # 10-18 monthly review: kept
+# GICS (WRDS, research/wrds/sync_gics.py) flags Claude reviewed 10-18 and kept (GICS quirk or multiples fit current group)
+GICS_REVIEWED = set("SNPS CDNS BILL ABBV UPST SOFI ROK EMR ETN DD TSN DASH ENPH SEDG FSLR TSM UMC SITM VALE".split())
+GICS_SQL = """with x as (select r.ticker, r.primary_peer_group_id g, c.gics_sub_industry s from ticker_registry r
+  join research_common.security_class c using (ticker) where r.primary_peer_group_id !~ '(speculative|quantum|crypto|chinese_tech|big_tech)'),
+m as (select s, g, count(*) n, sum(count(*)) over (partition by s) tot, row_number() over (partition by s order by count(*) desc) rk
+  from x group by s, g)
+select x.ticker, x.g, x.s, mm.g, mm.n, mm.tot from x join m mm on mm.s = x.s and mm.rk = 1
+where x.g <> mm.g and mm.tot >= 3 and mm.n::float / mm.tot >= 0.6 and x.ticker not in (select ticker from peer_group_overrides)
+order by mm.s"""
 
 
 def peers_review_due(conn) -> bool:
@@ -113,8 +123,13 @@ def peers_review(conn, skip_run: bool = False) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     out_f, last = DATA / "peers.jsonl", DATA / "peers_review_last.txt"
     month = dt.date.today().isoformat()[:7]
-    if not skip_run and out_f.exists() and (not last.exists() or last.read_text().strip()[:7] != month):
-        out_f.rename(DATA / f"peers-{dt.date.today():%Y%m%d}.jsonl")  # monthly: re-ask everyone
+    if not skip_run and (not last.exists() or last.read_text().strip()[:7] != month):
+        if out_f.exists():
+            out_f.rename(DATA / f"peers-{dt.date.today():%Y%m%d}.jsonl")  # monthly: re-ask everyone
+        wpy = ROOT / "research/wrds/.venv/bin/python"  # monthly GICS refresh (A160); failure → keep last month's codes
+        if wpy.exists():
+            import subprocess
+            subprocess.run([str(wpy), "sync_gics.py"], cwd=str(ROOT / "research/wrds"), capture_output=True, timeout=600)
     if not skip_run:
         peers(conn, None)
     groups, _, fixes = load_peers(conn)
@@ -124,11 +139,22 @@ def peers_review(conn, skip_run: bool = False) -> int:
         member = dict(c.fetchall())
     rs = [json.loads(x) for x in out_f.open()] if out_f.exists() else []
     dis = sorted((r for r in rs if r["t"] in member and r["t"] not in fixes and r["t"] not in PEER_REJECTED
+                  and r["top"][0][0] in groups  # answers about retired groups (A160 merges) wait for the next re-ask
                   and r["top"][0][0] != member[r["t"]] and r["top"][0][1] >= 0.8), key=lambda r: -r["top"][0][1])
     lines = [f"# Peer review list ({dt.date.today()}) — OpenJev disagrees ≥ 0.8 with the current group",
              "Never auto-applied. Claude reviews; real misfilings → peer_group_overrides with fund before/after (A148).", ""]
     lines += [f"- {r['t']} ({r.get('name') or ''}): now {groups.get(member[r['t']], (member[r['t']],))[0]} → "
               f"suggest {groups.get(r['top'][0][0], (r['top'][0][0],))[0]} ({r['top'][0][1]:.2f})" for r in dis] or ["- none"]
+    try:  # vendor baseline: GICS sub-industry majority group (needs research_common.security_class)
+        with conn.cursor() as c:
+            c.execute(GICS_SQL)
+            gx = [r for r in c.fetchall() if r[0] not in GICS_REVIEWED and r[0] not in PEER_REJECTED]
+    except Exception:  # noqa: BLE001 — table missing → skip section
+        conn.rollback()
+        gx = []
+    lines += ["", "## GICS disagrees (most of this GICS sub-industry sits in another group)"]
+    lines += [f"- {t}: now {groups.get(g, (g,))[0]} · GICS {s} → mostly {groups.get(mg, (mg,))[0]} ({n}/{tot})"
+              for t, g, s, mg, n, tot in gx] or ["- none"]
     (HERE / "out" / "peer_review.md").write_text("\n".join(lines) + "\n")
     last.write_text(dt.date.today().isoformat())
     print(f"peer review: {len(dis)} confident disagreement(s) → out/peer_review.md")

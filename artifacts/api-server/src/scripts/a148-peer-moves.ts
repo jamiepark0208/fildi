@@ -14,8 +14,8 @@ import { eq } from "drizzle-orm";
 
 const MOVES: Record<string, string[]> = {
   "consumer_staples.packaged_goods_beverages": ["CPB", "CAG", "GIS", "HRL", "HSY", "KHC", "MDLZ", "SJM", "COTY"],
-  "industrials.aerospace_defense": ["GE"],
-  "financials.banks": ["TFC", "PNC"], // A160: was regional_banks
+  "industrials.aerospace_defense": ["GE", "ATI"],
+  "financials.banks": ["TFC", "PNC", "NU"], // A160: was regional_banks
   "technology.semiconductor_foundry_specialty": ["GFS"],
   "utilities.water_gas_multi_utilities": ["ATO"],
   "healthcare.speculative_biotech": ["CABA"],
@@ -28,9 +28,11 @@ const MOVES: Record<string, string[]> = {
   "consumer_discretionary.travel_leisure_hospitality": ["TCOM"],
   // monthly review 10-18: business match (OpenJev ≥ 0.8) AND multiples closer to the new group (fwd P/E, P/S, GM, growth)
   "energy.clean_energy_renewables": ["PN"],
-  "technology.semiconductors_design": ["CEVA"],
+  "technology.semiconductors_design": ["CEVA", "KOPN"],
   "speculative_thematic.space_aerospace_tech": ["ONDS"],
   "consumer_discretionary.autos_evs": ["XPEV", "NIO", "LI"],
+  // GICS (WRDS) + multiples both agree, 10-18
+  "energy.integrated_oil_gas": ["CLNE"],
 };
 const MODE_PINS: Record<string, string> = { ZTO: "chinese", TCOM: "chinese", XPEV: "chinese", NIO: "chinese", LI: "chinese" };
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",");
