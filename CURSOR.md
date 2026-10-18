@@ -65,6 +65,7 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | Yahoo/Redis scaffolding | `data-agent.md` |
 | Weekly data-ops audit | `data-ops-auditor.md` (+ `.cursor/skills/weekly-data-ops-check.md`) |
 | Dev tools (codegraph/madge) | `startup.md` |
+| OpenJev miss→teach→eval | `openjev-train.md` |
 | Replit-only setup | `replit-setup.md` (skip on Mac unless needed) |
 | Claude session wrap | `session-wrap.md` — Claude only |
 

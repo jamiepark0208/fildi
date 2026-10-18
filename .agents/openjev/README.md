@@ -82,4 +82,22 @@ OpenJev's small built-in models were tested on the same graded sets: Laya (2 GB)
 relevance; Verdict (0.4 GB) 0.25 / 0.53. The 26B (20 GB) scores 0.98 / 0.84 → keep the 26B, share one instance.
 Fine-tuning a small model on our labels is the only path to an always-on light tier (≥ 1k labels per task first).
 
+## 8. Miss → teach → rebuild (Jamie 10-18: do not quit)
+A miss is a **label**, not a kill. Agents are one-angle; OpenJev is a second angle — make it better with corrections.
+
+```
+oj.py outcome UID no
+oj.py teach P10 --usage UID --missed path/a.ts path/b.ts   # "you forgot these"
+oj.py eval P10 --build                                      # merges .agents/openjev/corrections/
+oj.py ready A96                                             # Ideas stage second opinion (P27)
+```
+
+Skill: `.claude/skills/openjev-train.md`. Demotion (audit) drops verification so you re-measure — it does **not** mean retire.
+Retire (tier X) only after teach + better state + rebuild still fail the rule. Keyword fallbacks are temporary shortlists
+while `*v2` trains (see P14 notes).
+
+Training levers (cheapest first): (1) hard examples via `teach`, (2) better input state, (3) `analyze` learned heads,
+(4) calibration, (5) fine-tune at ≥1k labels/task.
+
 Owner: Claude (PM) keeps the registry honest (session start: `oj.py audit`; re-verify on triggers). Jamie decides gates that change scores.
+Any agent may `teach`.

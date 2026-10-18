@@ -40,6 +40,7 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
 | Market-data fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
 | Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
+| OpenJev miss→teach→eval (don't quit on miss) | .claude/skills/openjev-train.md |
 
 
 ---

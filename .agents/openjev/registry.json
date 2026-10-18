@@ -494,7 +494,7 @@
     "evidence": "oj eval P14"
    },
    "verified_by": null,
-   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 \u2192 `oj.py studies` now uses keywords only (no model)",
+   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 \u2192 keyword shortlist for now. NOT retired: teach hard negatives + P14v2 (Jamie 10-18: miss = train, don't quit)",
    "created": "2026-10-17"
   },
   {
@@ -781,7 +781,25 @@
    "label_source": "git history: files a commit changed vs untouched files in the same folder (same builder as P10)",
    "created_by": "muse",
    "created": "2026-10-18",
-   "notes": "Few-shot from P10's 2026-10-18 legitimate misses. Candidate to supersede P10 pending oj.py eval P10v2."
+   "notes": "Few-shot from P10's 2026-10-18 legitimate misses. Candidate to supersede P10 pending oj.py eval P10v2. Also merges oj.py teach corrections (P10 + P10v2)."
+  },
+  {
+   "id": "P27",
+   "question": "Which Ideas stage is this ASKS row in? (needs you / filed / reviewed=Ready to build / building / done / parked / verified)",
+   "type": "choice",
+   "use": "second opinion when agents disagree on Ready vs Inbox vs parked; catches one-angle status misreads",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": "status-word prefix rules (ideaPhase)"
+   },
+   "label_source": "ASKS index status → ideaPhase() + agent teach corrections when UI/agent disagree",
+   "created_by": "cursor",
+   "measured": null,
+   "verified_by": null,
+   "notes": "cmd: oj.py ready A## · teach: oj.py teach P27 --ask A## --label reviewed · C until eval",
+   "created": "2026-10-18"
   }
  ]
 }

@@ -16,6 +16,13 @@ Tier: **A** proven (lower bound ≥ target, re-checked by a 2nd agent) · **B** 
 | B | P17 | Does this commit message match the staged diff? | pre-commit check | accuracy on own vs another commit's message ≥ 0.9 (word overlap message↔paths) | 0.898 [0.875, 0.916] | 586 | oj eval P17 | claude / cursor |
 | B | P21 | Overnight news → P(stock falls > 1σ vs SPY today) for put names (decomposed: bad_max, good_max, material_max, about_company_mean, earnings_event, legal_event, analyst_event, capital_event, roundup_share, headline_count) | Put seller's 6:30 am question, decomposed: is the news about the company, is it bad, is it material, what kind of event; weights learned from S037 outcomes. | test AUC (time split), learned weights ≥ 0.65 (best single question) | 0.601 [0.557, 0.65] | 873 | oj analyze .agents/openjev/specs/P21_overnight_put_risk.json | claude / cursor |
 | B | R05 | Is this news big enough to move the stock unusually today? (alone) | materiality flag | AUC gain over news count ≥ 0.0 (news count AUC 0.61) | 0.035 [-0.028, 0.092] | 1006 | S037 | claude / — |
+| C | P10v2 | Would a developer need to read or edit this file to do <task>? (path + first 80 lines)
+
+Think beyond filename matching. UI tasks touch shared components; API tasks touch routes and everything they import.
+Examples:
+- Task 'A136: on-demand book-risk badge on Model List + scanner' + file 'model-thesis-report.tsx' (renders Model List pick headers) → YES, needed.
+- Task 'A74: Model List P(OTM) calibration chip from forecast_ledger' + file 'watchlist.ts' (API route serving watchlist data) → YES, needed.
+- Task 'Fix typo in README' + file 'artifacts/api-server/src/lib/edgar-client.ts' (SEC filings client, unrelated) → NO, not needed. | candidate to supersede P10: gate that skips reading files with P < 0.1, if misses drop | share of truly needed files KEPT ≥ 0.95 (path keyword overlap) | — | — | — | muse / — |
 | C | P12 | Does this diff affect scores, Model List picks, option pricing, backtests or market-data pipelines? | review-loop gate: quant review or not | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P13 | Is new idea X the same need as existing ASKS row A##? (top-5 by keyword first) | dedupe ASKS / inbox before filing | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P15 | Which skill / context file does this task need? (choice over the SKILLS table) | load one skill, not several | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
@@ -28,6 +35,7 @@ Tier: **A** proven (lower bound ≥ target, re-checked by a 2nd agent) · **B** 
 | C | P24 | Which planned Muse→Cursor ASKS row is buildable next (no open study gate / no Jamie decision)? | Cursor queue: pick next Ready without reading every A## file | accuracy vs labels ≥ 0.85 () | — | — | — | cursor / — |
 | C | P25 | Does this commit need a Refs: A## trailer (and which id)? | Cursor: stop missing ASKS attribution on agent-bus commits | accuracy vs labels ≥ 0.9 () | — | — | — | cursor / — |
 | C | P26 | Is codegraph explore output enough to edit, or do I still need another symbol/file? | Cursor: stop over-reading after codegraph already answered | accuracy vs labels ≥ 0.85 () | — | — | — | cursor / — |
+| C | P27 | Which Ideas stage is this ASKS row in? (needs you / filed / reviewed=Ready to build / building / done / parked / verified) | second opinion when agents disagree on Ready vs Inbox vs parked; catches one-angle status misreads | accuracy vs labels ≥ 0.9 (status-word prefix rules (ideaPhase)) | — | — | — | cursor / — |
 | X | P14 | Does study S0xx already answer question Q? (over research/studies/INDEX.md rows) | skip re-running analyses | queries whose top-3 studies include a cited one ≥ 0.7 (random top-3 ≈ 8 %) | 0.259 [0.174, 0.367] | 54 | oj eval P14 | claude / — |
 | X | R01 | Will this stock beat the market tomorrow / next week? (from news, state, or scores) | price forecast | rank corr with NEXT-session move ≥ 0.05 () | -0.006 [-0.046, 0.041] | 1554 | S037 | claude / — |
 | X | R02 | Is this fair value / target / weight about right? (any question that SHOWS it a number to judge) | audit FV, PT, weights | share of the answer NOT moved by a fake number ≥ 0.8 () | 0.28 [?, 0.35] | 80 | S038 C4 placebo | claude / — |

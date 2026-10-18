@@ -15,8 +15,10 @@
     scripts/oj.py list                       # registry: which question patterns are proven / rejected (+ confidence)
     scripts/oj.py eval P10 [--build] [--limit N]   # run a pattern's labelled eval set → evidence + metrics (only way numbers enter)
     scripts/oj.py verify [P10]               # recompute every registry number from stored answers; re-ask a 20 % sample live
-    scripts/oj.py outcome <usage_id> yes|no  # after you checked anyway: was OpenJev right? (feeds live accuracy / demotion)
-    scripts/oj.py audit                      # live accuracy per pattern from outcomes; demotes drifting patterns
+    scripts/oj.py outcome <usage_id> yes|no  # after you checked: was OpenJev right? (live accuracy; miss → teach)
+    scripts/oj.py teach P10 --usage UID --missed a.ts b.ts   # "you forgot these" → next eval --build
+    scripts/oj.py ready A96                  # P27: Ideas stage second opinion (Ready / filed / …)
+    scripts/oj.py audit                      # live accuracy; demote only after teach+rebuild still fails target
     scripts/oj.py render                     # registry.json → REGISTRY.md (generated; never edit the .md by hand)
     scripts/oj.py stop                       # stop the dev server now (else it stops itself after 10 idle minutes)
 
@@ -199,9 +201,144 @@ def ask(a) -> int:
     return 0
 
 
+CORR = FW / "corrections"
+
+
 def outcome(uid: str, right: str) -> None:
     with USAGE.open("a") as f:
         f.write(json.dumps({"outcome_for": uid, "right": right == "yes", "at": dt.datetime.now().isoformat(timespec="seconds")}) + "\n")
+    if right == "no":
+        print(f"logged wrong · next: oj.py teach <pattern> … (don't quit — feed the miss into the next eval)")
+
+
+def _usage_row(uid: str) -> dict | None:
+    if not USAGE.exists():
+        return None
+    for line in USAGE.open():
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if r.get("id") == uid:
+            return r
+    return None
+
+
+def teach(pid: str, usage_id: str | None, missed: list[str], false_keeps: list[str],
+          task: str | None, ask_id: str | None, label: str | None, state: str | None, note: str) -> int:
+    """Record a correction so the next `oj.py eval <pid> --build` trains on the miss.
+
+    Examples:
+      oj.py teach P10 --usage UID --missed a.ts b.ts          # should have kept
+      oj.py teach P10 --usage UID --false path.ts             # should have skipped
+      oj.py teach P27 --ask A96 --label reviewed              # Ideas phase correction
+      echo STATE | oj.py teach P14 --label yes --note "…"
+    """
+    import oj_evals
+    CORR.mkdir(exist_ok=True)
+    path = CORR / f"{pid}.jsonl"
+    rows: list[dict] = []
+    u = _usage_row(usage_id) if usage_id else None
+    task = task or (u.get("q") if u else None) or ""
+    today = dt.date.today().isoformat()
+    who = me()
+
+    if pid == "P10" and (missed or false_keeps):
+        if not task:
+            print("teach P10: need --task or --usage with a logged task", file=sys.stderr)
+            return 1
+        for f, keep in [(p, True) for p in missed] + [(p, False) for p in false_keeps]:
+            try:
+                body = "\n".join((ROOT / f).read_text(errors="ignore").splitlines()[:80])[:3000]
+            except OSError:
+                print(f"skip missing {f}", file=sys.stderr)
+                continue
+            rows.append({
+                "id": f"teach:{today}:{f}",
+                "label": keep,
+                "state": f"Task: {task}\nFile: {f}\n---\n{body}",
+                "question": {"type": "noul", "instructions": "Would a developer need to read or edit this file to do the task?"},
+                "taught_by": who, "taught_at": today, "note": note, "usage_id": usage_id,
+            })
+    elif pid == "P27" and label and ask_id:
+        if label not in oj_evals.IDEA_PHASES:
+            print(f"teach P27: label must be one of {oj_evals.IDEA_PHASES}", file=sys.stderr)
+            return 1
+        opts = {p: p for p in oj_evals.IDEA_PHASES}
+        reviews = ""
+        ap = ROOT / f"research/common/asks/{ask_id}.md"
+        if ap.exists():
+            text = ap.read_text(errors="ignore")
+            reviews = text.split("## Reviews", 1)[1][:2000] if "## Reviews" in text else text[:2000]
+        rows.append({
+            "id": f"teach:{today}:{ask_id}",
+            "label": label,
+            "state": f"ASKS {ask_id}\n---\nReviews:\n{reviews}",
+            "question": {
+                "type": "choice",
+                "instructions": "Which Ideas stage is this row in right now?",
+                "options": opts,
+            },
+            "taught_by": who, "taught_at": today, "note": note,
+        })
+    else:
+        st = state if state is not None else (sys.stdin.read() if not sys.stdin.isatty() else "")
+        if not st or label is None:
+            print("teach: need labelled state (stdin/--state) + --label, or pattern-specific flags", file=sys.stderr)
+            return 1
+        lab: bool | str
+        if label in ("yes", "no", "true", "false"):
+            lab = label in ("yes", "true")
+            q = {"type": "noul", "instructions": (u or {}).get("q") or "Answer yes or no for this case."}
+        else:
+            lab = label
+            q = {"type": "choice", "instructions": (u or {}).get("q") or "Pick the correct option.", "options": {label: label}}
+        rows.append({
+            "id": f"teach:{today}:{hashlib.sha1(st.encode()).hexdigest()[:8]}",
+            "label": lab,
+            "state": st[:12000],
+            "question": q,
+            "taught_by": who, "taught_at": today, "note": note, "usage_id": usage_id,
+        })
+
+    if not rows:
+        print("teach: nothing written", file=sys.stderr)
+        return 1
+    with path.open("a") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    print(f"taught {len(rows)} item(s) → {path.relative_to(ROOT)} · next: oj.py eval {pid} --build")
+    if usage_id and u:
+        outcome(usage_id, "no")
+    return 0
+
+
+def cmd_ready(ask_id: str) -> int:
+    """P27: second opinion on Ideas stage for one ASKS row (hint until tier A)."""
+    import oj_evals
+    port = _need("P27")
+    if port is None:
+        return 3
+    items = [x for x in oj_evals.build_p27() if x["id"] == ask_id]
+    if not items:
+        print(f"no ASKS row {ask_id}", file=sys.stderr)
+        return 1
+    x = items[0]
+    a = post(port, x["state"][:30000], {"q": x["question"]})["answers"]["q"]
+    uid = _log_use("P27", ask_id, 1, len(x["state"]))
+    reg = load_reg()
+    t = _find(reg, "P27")
+    print(json.dumps({
+        "usage_id": uid,
+        "pattern_tier": tier(t),
+        "ask": ask_id,
+        "index_phase": x["label"],
+        "openjev_choice": a.get("choice"),
+        "probabilities": a.get("probabilities"),
+        "agree": a.get("choice") == x["label"],
+        "hint": "disagree → check status word vs Reviews; oj.py teach P27 --ask … --label …",
+    }))
+    return 0
 
 
 # ---------- eval + verify --------------------------------------------------------------------------------------
@@ -534,8 +671,10 @@ def audit() -> None:
             lo, hi = wilson(k, n)
             e["live"] = {"right": k, "n": n, "lo": lo, "hi": hi, "at": dt.date.today().isoformat()}
             if n >= 20 and hi < e["rule"]["target"] and e.get("verified_by"):
-                e["verified_by"], e["notes"] = None, (e.get("notes") or "") + f" | DEMOTED {dt.date.today()}: live {k}/{n}"
-            print(f"{e['id']}: live {k}/{n} right [{lo}, {hi}] → tier {tier(e)}")
+                e["verified_by"], e["notes"] = None, (e.get("notes") or "") + (
+                    f" | DEMOTED {dt.date.today()}: live {k}/{n} — teach misses then eval --build; do not retire")
+            print(f"{e['id']}: live {k}/{n} right [{lo}, {hi}] → tier {tier(e)}"
+                  + (" · TEACH then re-eval" if n >= 20 and hi < e["rule"]["target"] else ""))
     save_reg(reg)
     render()
 
@@ -665,6 +804,18 @@ def main() -> int:
     p = sp.add_parser("outcome")
     p.add_argument("uid")
     p.add_argument("right", choices=("yes", "no"))
+    p = sp.add_parser("teach", help="feed a miss into the next eval (train, don't quit)")
+    p.add_argument("pid")
+    p.add_argument("--usage", dest="usage_id")
+    p.add_argument("--missed", nargs="*", default=[], help="P10: files that should have been kept")
+    p.add_argument("--false", dest="false_keeps", nargs="*", default=[], help="P10: files that should have been skipped")
+    p.add_argument("--task", help="P10 task text if no --usage")
+    p.add_argument("--ask", dest="ask_id", help="P27 ASKS id")
+    p.add_argument("--label", help="yes/no or Ideas phase / choice")
+    p.add_argument("--state", help="labelled state text (else stdin)")
+    p.add_argument("--note", default="")
+    p = sp.add_parser("ready", help="P27 Ideas stage check for one ASKS row")
+    p.add_argument("ask_id")
     a = ap.parse_args()
     if a.cmd == "ask":
         return ask(a)
@@ -698,6 +849,10 @@ def main() -> int:
         return verify(a.pid, 0 if a.no_live else 0.2)
     if a.cmd == "outcome":
         outcome(a.uid, a.right)
+    if a.cmd == "teach":
+        return teach(a.pid, a.usage_id, a.missed, a.false_keeps, a.task, a.ask_id, a.label, a.state, a.note)
+    if a.cmd == "ready":
+        return cmd_ready(a.ask_id)
     return 0
 
 
