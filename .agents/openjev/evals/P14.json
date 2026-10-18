@@ -1,0 +1,13 @@
+{
+ "value": 0.2593,
+ "lo": 0.174,
+ "hi": 0.367,
+ "n": 54,
+ "secondary": "1890 query\u00d7study pairs; random top-3 would hit ~9% per cited study",
+ "by": "claude",
+ "at": "2026-10-18",
+ "model": "openjev-latest",
+ "items_sha": "f1b72a4a5eb4e764",
+ "answers_sha": "5c17c46fa165fde5",
+ "evidence": "oj eval P14"
+}

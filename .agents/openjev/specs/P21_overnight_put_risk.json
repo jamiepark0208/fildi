@@ -1,0 +1,22 @@
+{
+ "id": "P21",
+ "title": "Overnight news → P(stock falls > 1σ vs SPY today) for put names",
+ "why": "Put seller's 6:30 am question, decomposed: is the news about the company, is it bad, is it material, what kind of event; weights learned from S037 outcomes.",
+ "source": {"path": "research/openjev/news/answers_v0.jsonl", "filter": {"pre": true}, "group_by": ["t", "day"]},
+ "label_derive": {"z": "abn/sd"},
+ "label": {"field": "z", "op": "<", "value": -1},
+ "date_field": "day",
+ "split": "2026-09-01",
+ "features": [
+  {"name": "bad_max", "from": "a.bad.noul", "agg": "max"},
+  {"name": "good_max", "from": "a.good.noul", "agg": "max"},
+  {"name": "material_max", "from": "a.mat.noul", "agg": "max"},
+  {"name": "about_company_mean", "from": "a.rel.noul", "agg": "mean"},
+  {"name": "earnings_event", "from": "a.cat.choice=earnings", "agg": "max"},
+  {"name": "legal_event", "from": "a.cat.choice=legal", "agg": "max"},
+  {"name": "analyst_event", "from": "a.cat.choice=analyst", "agg": "max"},
+  {"name": "capital_event", "from": "a.cat.choice=capital", "agg": "max"},
+  {"name": "roundup_share", "from": "a.cat.choice=market", "agg": "mean"},
+  {"name": "headline_count", "from": "t", "agg": "count_log"}
+ ]
+}

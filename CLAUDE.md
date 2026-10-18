@@ -64,6 +64,10 @@ Use before touching any source file (call it yourself — no hook runs codegraph
    - `dist/**` (compiled output; tracked `*.mjs` files like `scripts/maintain.mjs` are source — read them normally)
    - `pnpm-lock.yaml`, `package-lock.json`, `generated/api.ts`
 
+## OPENJEV TOKEN SAVERS (A150 — use by default, `.agents/openjev/README.md`)
+- > 3 candidate files → `scripts/oj.py files --task "…"` first; read the kept ones. Long test/build/log output → `scripts/oj.py run -- <cmd>`.
+- Before analysis → `scripts/oj.py studies "<q>"`; before filing ASKS → `scripts/oj.py dupes "<idea>"`. Checked an answer anyway → `oj.py outcome <id> yes|no`.
+
 ## CONTEXT MANAGEMENT
 - Load a skill when the task matches a row in the SKILLS table (not by prompt length) — don't derive skill content from memory
 - Auto-compact fires at 50% (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings.local.json; was 25% until 2026-10-11: too many lossy compactions + re-reads) — do not fight it

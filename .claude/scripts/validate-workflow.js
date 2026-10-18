@@ -102,6 +102,14 @@ const claimsEditWriteHook = /auto-runs on Edit\/Write/i.test(claudeMd);
 check('No phantom hook claims', !claimsEditWriteHook,
   claimsEditWriteHook ? 'CLAUDE.md claims an Edit/Write codegraph hook that is not registered' : 'ok');
 
+// 6c2. OpenJev registry integrity (A150): numbers only from oj eval, no self-verification, md generated
+try {
+  const out = execSync(`python3 ${path.join(ROOT, 'scripts/oj.py')} check`, { stdio: 'pipe' }).toString().trim();
+  check('OpenJev registry consistent', true, out);
+} catch (e) {
+  check('OpenJev registry consistent', false, (e.stdout?.toString() ?? '').trim().split('\n').slice(0, 3).join(' · '));
+}
+
 // 6d. API endpoint catalog completeness (routes in code vs api-endpoints.md)
 try {
   execSync(`node ${path.join(__dirname, 'check-api-endpoints.js')}`, { stdio: 'pipe' });

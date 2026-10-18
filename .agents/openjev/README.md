@@ -28,8 +28,10 @@ echo "<text>" | scripts/oj.py ask --q "<question>" [--type noul|choice|score] [-
 ## 3. It is probabilistic, not just yes/no
 Every answer is a full distribution read from the model's own probabilities (no text, can't go off-schema):
 `noul` = P(yes) · `choice` = P over up to 255 options · `score` = P over ordered levels (2–10). Heavier analysis =
-**decompose**: many small typed questions, combine the probabilities in code (sum over scenario branches, Bayes, weighted
-scores). Rules: (1) raw probabilities are overconfident → **calibrate on our labels before showing a %** (S039: Brier
+**decompose** with `scripts/oj.py analyze --spec .agents/openjev/specs/<id>.json`: several typed questions per item →
+features → combination **learned from real outcomes** (fit on earlier dates, graded on later ones) → calibrated P + weights
+("why"). Never hand-set weights. First spec P21 (overnight news → P(put name falls > 1σ)): AUC 0.60, calibrated, but no
+better than its best single question — decomposition earns its place only when it beats that. Rules: (1) raw probabilities are overconfident → **calibrate on our labels before showing a %** (S039: Brier
 0.063 → 0.040); (2) it cannot output a number — give it bins/options; (3) shuffle option order and average 2 reads for
 choices (position bias, A129); (4) `think` (reasoning first) ≈ 25× slower — hard cases only; (5) a distribution is only
 as good as its graded track record → that is what the registry holds.
@@ -58,9 +60,15 @@ Confidence is never typed: it is the computed Wilson/CI bound on `n` labelled it
    `oj.py render`. Label source must be real outcomes or history, or say "Claude-labelled" (weaker, flagged). Promotion
    only via eval + verify. Commit with `Refs: A150`.
 
-## 6. Token-saving playbook (dev patterns; tiers live in REGISTRY.md)
-P10 file relevance before reading · P11 failures in long command/test/log output · P12 does a diff touch quant (review gate) ·
-P13 ASKS/inbox duplicate · P14 does a study already answer this · P15 which skill/context file · P16 does this need Jamie ·
-P17 commit message vs diff · P18 doc drift after an edit · P19 Explain AI routing. Use only at tier A as a gate; at B/C as a hint.
+## 6. Token-saving commands (OpenJev reads the text; you read only the result; usage logged)
+| Command | Replaces | Pattern |
+|---|---|---|
+| `oj.py files --task "…" [--grep re] [dirs]` | reading every candidate file | P10 |
+| `oj.py run -- <cmd>` | reading full test/build/log output (shows exit code, tail, flagged chunks) | P11 |
+| `oj.py studies "<question>"` | scanning research/studies/INDEX.md | P14 |
+| `oj.py dupes "<idea>"` | scanning ASKS + archive before filing | P13 |
+| `oj.py skill "<task>"` | guessing which skill file to load | P15 |
+| `oj.py analyze --spec …` | hand-combining many judgments | P21+ |
+Each prints the pattern's tier. Below A the output is a ranked shortlist you still check; at A it may gate (skip) work.
 
 Owner: Claude (PM) keeps the registry honest (session start: `oj.py audit`; re-verify on triggers). Jamie decides gates that change scores.

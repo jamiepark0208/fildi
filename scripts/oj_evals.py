@@ -41,7 +41,47 @@ def build_p10(n_commits: int = 400, seed: int = 17) -> list[dict]:
     return items
 
 
-BUILDERS = {"P10": build_p10}
+def build_p14() -> list[dict]:
+    """P14 'already studied?': query = an ASKS row title; positives = studies its file cites (S0xx); every study row is a candidate.
+    Label source = citations (weak: citing ≠ answering) — scored as top-3 hit rate per query."""
+    import re
+    import oj
+    studies = dict(oj.study_rows())
+    items = []
+    for f in sorted((ROOT / "research/common/asks").glob("A*.md")):
+        text = f.read_text(errors="ignore")
+        title = re.sub(r"^#\s*A\d+\s*[:—-]\s*", "", text.splitlines()[0]).strip() if text else ""
+        cited = sorted(set(re.findall(r"\bS0\d\d\b", text)) & set(studies))
+        if not title or not cited:
+            continue
+        for s, row in studies.items():
+            items.append({"id": f"{f.stem}|{s}", "qid": f.stem, "label": s in cited,
+                          "state": f"Question: {title}\n---\n{row[:2500]}",
+                          "question": {"type": "noul", "instructions": "Does this study answer, or largely answer, the question?"}})
+    return items
+
+
+def build_p11(seed: int = 17) -> list[dict]:
+    """P11 long-output triage: 40-line chunks of real local logs (/tmp/fildi-logs). Label = regex failure keywords (weak labels:
+    measures whether OpenJev keeps what regex would catch; semantic catches beyond regex are counted separately)."""
+    import re
+    from oj import FAIL_RX
+    rnd = random.Random(seed)
+    items = []
+    for f in sorted(Path("/tmp/fildi-logs").glob("*.log")):
+        lines = f.read_text(errors="ignore").splitlines()
+        for i in range(0, len(lines), 40):
+            txt = "\n".join(lines[i:i + 40])
+            if len(txt) > 200:
+                items.append({"id": f"{f.name}:{i}", "label": bool(re.search(FAIL_RX, txt)), "state": txt[:4000],
+                              "question": {"type": "noul", "instructions": "Does this part of a command's output show an error, failure, "
+                                           "data problem (0 rows, skipped, stale, missing) or warning that needs action?"}})
+    pos = [x for x in items if x["label"]]
+    neg = [x for x in items if not x["label"]]
+    return rnd.sample(pos, min(150, len(pos))) + rnd.sample(neg, min(150, len(neg)))
+
+
+BUILDERS = {"P10": build_p10, "P11": build_p11, "P14": build_p14}
 
 
 def p_yes(a: dict) -> float:
@@ -69,6 +109,16 @@ def score(pid: str, items: list[dict], answers: list[dict], entry: dict) -> dict
         skipped = sum(p < t for p in neg)
         return {"value": round(kept / len(pos), 4), "lo": lo, "hi": hi, "n": len(rows),
                 "secondary": f"skips {skipped}/{len(neg)} irrelevant ({skipped / max(len(neg), 1):.0%}) at P<{t}"}
+    if rule["kind"] == "topk":
+        # retrieval: share of queries whose top-k candidates contain at least one true answer
+        k = rule["k"]
+        by_q: dict = {}
+        for x, a in rows:
+            by_q.setdefault(x["qid"], []).append((p_yes(a), x["label"]))
+        hits = sum(any(l for _, l in sorted(v, key=lambda z: -z[0])[:k]) for v in by_q.values())
+        lo, hi = wilson(hits, len(by_q))
+        return {"value": round(hits / len(by_q), 4), "lo": lo, "hi": hi, "n": len(by_q),
+                "secondary": f"{len(rows)} query×study pairs; random top-{k} would hit ~{k / max(len(v) for v in by_q.values()):.0%} per cited study"}
     if rule["kind"] == "accuracy":
         k = sum((p_yes(a) >= .5) == x["label"] if "noul" in a else a.get("choice") == x["label"] for x, a in rows)
         lo, hi = wilson(k, len(rows))

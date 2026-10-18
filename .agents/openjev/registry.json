@@ -388,16 +388,29 @@
    "type": "noul",
    "use": "gate: read only flagged chunks of long output",
    "rule": {
-    "kind": "accuracy",
-    "metric": "accuracy vs labels",
-    "target": 0.9,
-    "baseline": ""
+    "kind": "gate_keep",
+    "metric": "share of failure chunks KEPT (regex-labelled)",
+    "target": 0.95,
+    "threshold": 0.5,
+    "baseline": "regex (oj run uses regex OR OpenJev)"
    },
-   "label_source": "exit codes + past CI/test logs",
+   "label_source": "40-line chunks of /tmp/fildi-logs/*.log; regex failure keywords (weak labels)",
    "created_by": "claude",
-   "measured": null,
+   "measured": {
+    "value": 0.9867,
+    "lo": 0.961,
+    "hi": 0.996,
+    "n": 300,
+    "secondary": "skips 125/150 irrelevant (83%) at P<0.5",
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "556dd34c51538de9",
+    "answers_sha": "6093df30d9b692d9",
+    "evidence": "oj eval P11"
+   },
    "verified_by": null,
-   "notes": ""
+   "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) — OpenJev's extra value = semantic catches"
   },
   {
    "id": "P12",
@@ -431,7 +444,7 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "`oj.py dupes` ranks by keywords (P14 lesson); `--oj` adds OpenJev as 2nd opinion; unmeasured (only ~8 labelled dups)"
   },
   {
    "id": "P14",
@@ -439,16 +452,29 @@
    "type": "noul",
    "use": "skip re-running analyses",
    "rule": {
-    "kind": "accuracy",
-    "metric": "accuracy vs labels",
-    "target": 0.9,
-    "baseline": ""
+    "kind": "topk",
+    "k": 3,
+    "metric": "queries whose top-3 studies include a cited one",
+    "target": 0.7,
+    "baseline": "random top-3 ≈ 8 %"
    },
-   "label_source": "Claude-labelled Q→S pairs (label provenance flagged)",
+   "label_source": "ASKS files that cite S0xx (citing ≠ answering → weak labels)",
    "created_by": "claude",
-   "measured": null,
+   "measured": {
+    "value": 0.2593,
+    "lo": 0.174,
+    "hi": 0.367,
+    "n": 54,
+    "secondary": "1890 query×study pairs; random top-3 would hit ~9% per cited study",
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "f1b72a4a5eb4e764",
+    "answers_sha": "5c17c46fa165fde5",
+    "evidence": "oj eval P14"
+   },
    "verified_by": null,
-   "notes": ""
+   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 → `oj.py studies` now uses keywords only (no model)"
   },
   {
    "id": "P15",
@@ -465,7 +491,7 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": ""
+   "notes": "command exists (oj.py dupes / skill); too few labels to measure yet → hint only"
   },
   {
    "id": "P16",
@@ -551,6 +577,35 @@
    "measured": null,
    "verified_by": null,
    "notes": ""
+  },
+  {
+   "id": "P21",
+   "question": "Overnight news → P(stock falls > 1σ vs SPY today) for put names (decomposed: bad_max, good_max, material_max, about_company_mean, earnings_event, legal_event, analyst_event, capital_event, roundup_share, headline_count)",
+   "type": "analyze",
+   "use": "Put seller's 6:30 am question, decomposed: is the news about the company, is it bad, is it material, what kind of event; weights learned from S037 outcomes.",
+   "created_by": "claude",
+   "verified_by": null,
+   "notes": "",
+   "rule": {
+    "kind": "analyze_auc",
+    "metric": "test AUC (time split), learned weights",
+    "target": 0.65,
+    "baseline": "best single question"
+   },
+   "label_source": "research/openjev/news/answers_v0.jsonl",
+   "measured": {
+    "value": 0.6013,
+    "lo": 0.557,
+    "hi": 0.65,
+    "n": 873,
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "e9aafa8aab9a6f84",
+    "answers_sha": "b2393183a8f23168",
+    "evidence": "oj analyze .agents/openjev/specs/P21_overnight_put_risk.json",
+    "secondary": "best single bad_max 0.607; Brier 0.1014 vs base 0.1029"
+   }
   }
  ]
 }

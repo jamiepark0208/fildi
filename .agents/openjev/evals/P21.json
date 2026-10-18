@@ -1,0 +1,51 @@
+{
+ "value": 0.6013,
+ "lo": 0.557,
+ "hi": 0.65,
+ "n": 873,
+ "by": "claude",
+ "at": "2026-10-18",
+ "model": "openjev-latest",
+ "items_sha": "e9aafa8aab9a6f84",
+ "answers_sha": "b2393183a8f23168",
+ "evidence": "oj analyze .agents/openjev/specs/P21_overnight_put_risk.json",
+ "secondary": "best single bad_max 0.607; Brier 0.1014 vs base 0.1029",
+ "train_n": 825,
+ "positives_test": 100,
+ "brier": 0.1014,
+ "brier_base": 0.1029,
+ "best_single": {
+  "name": "bad_max",
+  "auc": 0.607
+ },
+ "weights": {
+  "bad_max": 0.358,
+  "good_max": 0.038,
+  "material_max": 0.024,
+  "about_company_mean": 0.011,
+  "earnings_event": 0.187,
+  "legal_event": 0.071,
+  "analyst_event": -0.148,
+  "capital_event": 0.015,
+  "roundup_share": -0.009,
+  "headline_count": 0.179
+ },
+ "single_auc": {
+  "bad_max": 0.607,
+  "good_max": 0.442,
+  "material_max": 0.541,
+  "about_company_mean": 0.497,
+  "earnings_event": 0.545,
+  "legal_event": 0.501,
+  "analyst_event": 0.492,
+  "capital_event": 0.493,
+  "roundup_share": 0.499,
+  "headline_count": 0.55
+ },
+ "calibration": [
+  "P 0.05\u20130.10: n=162 predicted 0.09 realized 0.06",
+  "P 0.10\u20130.20: n=536 predicted 0.12 realized 0.11",
+  "P 0.20\u20130.40: n=167 predicted 0.25 realized 0.17",
+  "P 0.40\u20131.00: n=8 predicted 0.47 realized 0.50"
+ ]
+}
