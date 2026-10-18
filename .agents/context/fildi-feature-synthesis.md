@@ -137,6 +137,7 @@ When a name or the book looks interesting, walk **layers top → bottom**. Lower
 
 ## Maintenance
 
-- After shipping a distinctive surface: add one row to the tables above + one line under Overlap if it collides.
+- **Multi-agent:** [A166](../../research/common/asks/A166.md) — Muse (product/reels), Claude (quant/studies), Grok (skeptic). Append reviews there; edit this file when you find a miss.
+- After shipping a distinctive surface: add one row to the tables above + one line under Overlap if it collides (same commit when possible).
 - Factor-level homes stay in `FACTOR_MAP.md`.
 - Studies that kill or promote a layer: `research/studies/INDEX.md`.
