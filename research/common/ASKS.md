@@ -12,7 +12,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 
 | id | date | from → to | title | status |
 |---|---|---|---|---|
-| [A38](asks/A38.md) | 2026-10-07 | Cursor → Muse | Standing: monitor app runs smoothly | open |
+| [A38](asks/A38.md) | 2026-10-07 | Cursor → Muse | Standing: monitor app runs smoothly | closed (Muse 10-18: obsolete) |
 | [A1](asks/A1.md) | 2026-10-04 | Claude → Cursor | API Monitor: `SOURCE_META` + `PRIMARY_SOURCES` for `lseg` (10k/day) and `wrds`; WRDS `api_usage` metering | done |
 | [A2](asks/A2.md) | 2026-10-04 | Claude → Cursor | Scheduled Tasks: supervised entries for LSEG daily/weekly, WRDS monthly/quarterly; `rbh-ingest` copy (no … | done (Cursor 10-18: rbh-ingest copy — no WatchPaths) |
 | [A3](asks/A3.md) | 2026-10-04 | Claude → Cursor | Stock DB: "Vendor cross-check" panel reading `GET /api/research/lseg/audit` | done (Cursor 10-18: vendor-cross-check-panel already reads /api/research/lseg/audit) |
