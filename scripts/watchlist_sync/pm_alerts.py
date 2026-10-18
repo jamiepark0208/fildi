@@ -317,6 +317,15 @@ def _ticker_betas(conn, tickers: list[str]) -> dict[str, float]:
     return out
 
 
+def _bs_put(S: float, K: float, t: float, v: float, r: float = 0.04) -> float:
+    if S <= 0 or K <= 0 or t <= 0 or v <= 0:
+        return max(K - S, 0.0)
+    d1 = (math.log(S / K) + (r + 0.5 * v * v) * t) / (v * math.sqrt(t))
+    d2 = d1 - v * math.sqrt(t)
+    n = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
+    return K * math.exp(-r * t) * n(-d2) - S * n(-d1)
+
+
 def _scenario_loss(b: dict, puts: list[dict], longs: list[dict], rets: dict[str, float]) -> float:
     """P&L loss (+) when each name moves by rets[ticker] (fraction). Short puts → intrinsic Δ; IV held."""
     loss = 0.0
@@ -326,9 +335,10 @@ def _scenario_loss(b: dict, puts: list[dict], longs: list[dict], rets: dict[str,
         if not p.get("spot") or not p.get("qty"):
             continue
         st = p["spot"] * (1 + rets.get(p["ticker"], 0.0))
-        old_i = max(p["strike"] - p["spot"], 0) * 100 * p["qty"]
-        new_i = max(p["strike"] - st, 0) * 100 * p["qty"]
-        loss += new_i - old_i
+        # Claude review A161: instant move → reprice (BS, IV held, time left), not intrinsic — OTM puts lose value too.
+        t = max((date.fromisoformat(str(p["expiry"])[:10]) - date.today()).days, 1) / 365 if p.get("expiry") else 7 / 365
+        iv = p.get("iv") or 0.6
+        loss += (_bs_put(st, p["strike"], t, iv) - _bs_put(p["spot"], p["strike"], t, iv)) * 100 * p["qty"]
     return max(0.0, loss)
 
 
