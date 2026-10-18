@@ -69,8 +69,9 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "ffoProxy",           priority: [] },
 
   // ── Margins & returns (TTM: yahoo → finnhub → fmp → av → factset) ─────────────
-  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["factset","grossMargin"]] },
-  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["alpha_vantage","operatingMargin"], ["factset","operatingMargin"]] },
+  // A84: polygon last-resort = stored bronze only (fetch dead); fills when free sources null.
+  { tfCol: "grossMargin",        priority: [["yahoo","grossMargin"],      ["finnhub","grossMargin"],      ["fmp","grossMargin"],      ["factset","grossMargin"], ["polygon","grossMargin"]] },
+  { tfCol: "operatingMargin",    priority: [["yahoo","operatingMargin"],  ["finnhub","operatingMargin"],  ["fmp","operatingMargin"],  ["alpha_vantage","operatingMargin"], ["factset","operatingMargin"], ["polygon","operatingMargin"]] },
   { tfCol: "netMargin",          priority: [["yahoo","netMargin"],        ["finnhub","netMargin"],        ["fmp","netMargin"],        ["alpha_vantage","netMargin"], ["factset","netMargin"]] },
   { tfCol: "returnOnEquity",     priority: [["yahoo","returnOnEquity"],   ["finnhub","returnOnEquity"],   ["fmp","returnOnEquity"],   ["alpha_vantage","returnOnEquity"], ["factset","returnOnEquity"]] },
   { tfCol: "returnOnAssets",     priority: [["yahoo","returnOnAssets"],   ["finnhub","returnOnAssets"],   ["fmp","returnOnAssets"], ["factset","returnOnAssets"]] },
@@ -105,14 +106,14 @@ export const FIELD_DEFS: FieldDef[] = [
   // bank deposits, e.g. GS=$1.68T; EDGAR often captures only long-term debt, e.g. MSFT=$43B).
   // The residual Yahoo-vs-FMP gap is genuine operating-lease inclusion — see DIVERGENCE_TOL.
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
-  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"]] },
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────
-  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"]] },
-  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"], ["factset","netIncome"]] },
+  { tfCol: "totalRevenue",       priority: [["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"], ["polygon","totalRevenue"]] },
+  { tfCol: "netIncome",          priority: [["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"], ["factset","netIncome"], ["polygon","netIncome"]] },
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },

@@ -230,7 +230,7 @@ const INVENTORY_SPEC: Record<
     owner: "launchd · com.fildi.rbh-daily-export",
     writes: ["portfolio_* from RH CSVs"],
     mutex: "CSV presence + ingest lock",
-    cadence: "weekdays 3:00 PM PT + WatchPaths",
+    cadence: "weekdays 3:00 PM PT · catch-up on wake (7d)",
     primary: true,
   },
   "option-scores": {
