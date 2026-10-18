@@ -19,8 +19,16 @@ interface SideSummary {
   capitalWeightedAvgPnlPct?: number | null;
   maxDrawdownPct?: number | null;
   pending: number;
+  assigned?: number;
   noData: number;
-  equityCurve: Array<{ expiry: string; pnlPct: number; cumPnlPct: number; capitalCumPnlPct?: number; ticker: string }>;
+  equityCurve: Array<{
+    expiry: string;
+    pnlPct: number;
+    cumPnlPct: number;
+    premiumCumPnlPct?: number;
+    capitalCumPnlPct?: number;
+    ticker: string;
+  }>;
 }
 
 interface HotlistSummary {
@@ -224,29 +232,57 @@ function RegimeCard({ grid }: { grid: RegimeCell[] }) {
 
 function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
   const [side, setSide] = useState<"put" | "call">("put");
+  // A92 — default all-in (day-10 assignment); premium-only is the old chart.
+  const [mode, setMode] = useState<"allIn" | "premium">("allIn");
   const summary = side === "put" ? put : call;
   const color = side === "put" ? "#38bdf8" : "#fbbf24";
+  const dataKey = mode === "allIn" ? "cumPnlPct" : "premiumCumPnlPct";
 
   return (
     <Card className="bg-zinc-950 border-[#d4af37]/20">
-      <CardHeader className="px-3 py-1.5 flex-row items-center justify-between space-y-0">
+      <CardHeader className="px-3 py-1.5 flex-row items-center justify-between space-y-0 gap-2">
         <CardTitle className="text-xs text-[#d4af37]">Cumulative P&L</CardTitle>
-        <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
-          {(["put", "call"] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setSide(s)}
-              className={cn(
-                "px-2 py-0.5 capitalize transition-colors",
-                side === s ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white hover:text-[#d4af37]",
-              )}
-            >
-              {s}s
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {([
+              { id: "allIn" as const, label: "All-in" },
+              { id: "premium" as const, label: "Premium" },
+            ]).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMode(m.id)}
+                title={m.id === "allIn" ? "Includes day-10 stock leg after assignment" : "Option premium only"}
+                className={cn(
+                  "px-2 py-0.5 transition-colors",
+                  mode === m.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white hover:text-[#d4af37]",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {(["put", "call"] as const).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSide(s)}
+                className={cn(
+                  "px-2 py-0.5 capitalize transition-colors",
+                  side === s ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white hover:text-[#d4af37]",
+                )}
+              >
+                {s}s
+              </button>
+            ))}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-3 pb-2 pt-0">
+        {(summary.assigned ?? 0) > 0 && (
+          <p className="text-[10px] text-amber-200/50 mb-1">{summary.assigned} assigned — stock leg open (day-10 pending)</p>
+        )}
         {summary.equityCurve.length === 0 ? (
           <div className="h-[70px] flex items-center justify-center text-xs text-zinc-400">
             No graded {side}s yet
@@ -268,14 +304,21 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
               />
               <Tooltip
                 contentStyle={{ background: "#09090b", border: "1px solid #d4af3740", fontSize: 11 }}
-                formatter={(v: number, key: string) => [`${v.toFixed(2)}%`, key === "cumPnlPct" ? "Cumulative" : key]}
+                formatter={(v: number, key: string) => {
+                  const label =
+                    key === "cumPnlPct" ? "All-in cum"
+                      : key === "premiumCumPnlPct" ? "Premium cum"
+                        : key === "capitalCumPnlPct" ? "Capital-wtd"
+                          : key;
+                  return [`${Number(v).toFixed(2)}%`, label];
+                }}
                 labelFormatter={(_: string, payload) => {
                   const p = payload?.[0]?.payload as { ticker?: string; expiry?: string } | undefined;
                   return p ? `${p.ticker} · exp ${p.expiry}` : "";
                 }}
               />
-              <Area type="monotone" dataKey="cumPnlPct" stroke={color} fill="url(#trackRecordGrad)" dot={false} strokeWidth={1.5} />
-              {summary.equityCurve.some(p => p.capitalCumPnlPct != null) && (
+              <Area type="monotone" dataKey={dataKey} stroke={color} fill="url(#trackRecordGrad)" dot={false} strokeWidth={1.5} />
+              {mode === "allIn" && summary.equityCurve.some(p => p.capitalCumPnlPct != null) && (
                 <Area type="monotone" dataKey="capitalCumPnlPct" stroke="#a78bfa" fill="none" dot={false} strokeWidth={1} strokeDasharray="4 3" />
               )}
             </AreaChart>

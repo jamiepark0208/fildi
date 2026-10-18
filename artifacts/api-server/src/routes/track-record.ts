@@ -51,6 +51,8 @@ interface SideSummary {
   equityCurve: Array<{
     expiry: string; pnlPct: number; cumPnlPct: number; ticker: string;
     capitalCumPnlPct?: number;
+    /** A92 — premium-only cumulative (toggle). */
+    premiumCumPnlPct?: number;
   }>;
 }
 
@@ -64,30 +66,54 @@ async function buildSideSummary(side: "put" | "call"): Promise<SideSummary> {
 
   const graded = rows.filter(r => r.status === "WIN" || r.status === "LOSS");
   const wins = graded.filter(r => r.status === "WIN").length;
-  const pnls = graded.map(r => num(r.pnlPct)).filter((v): v is number => v != null);
 
-  // Prefer managed label when present (dual settlement); fall back to hold pnlPct.
-  const effectivePnl = (r: typeof graded[0]): number => {
-    const cs = r.componentScores as { _settlement?: { managed?: { pnlPct?: number } } } | null;
-    const m = cs?._settlement?.managed?.pnlPct;
-    if (typeof m === "number" && Number.isFinite(m)) return m;
-    return num(r.pnlPct) ?? 0;
+  /** A92: all-in (day-10) vs premium-only; legacy rows fall back to managed → pnlPct. */
+  const settlementPnls = (r: typeof graded[0]): { allIn: number; premium: number } => {
+    const cs = r.componentScores as {
+      _settlement?: {
+        hold?: { pnlPct?: number };
+        managed?: { pnlPct?: number };
+        assignment?: { allInPnlPerShare?: number | null; premiumPnlPerShare?: number; windowComplete?: boolean };
+      };
+    } | null;
+    const strike = num(r.strike) ?? 0;
+    const spot = num(r.spot) ?? 0;
+    const basis = side === "put" ? strike : spot;
+    const a = cs?._settlement?.assignment;
+    const hold = cs?._settlement?.hold;
+    const managed = cs?._settlement?.managed?.pnlPct;
+    const premium =
+      typeof hold?.pnlPct === "number" && Number.isFinite(hold.pnlPct)
+        ? hold.pnlPct
+        : typeof a?.premiumPnlPerShare === "number" && basis > 0
+          ? (a.premiumPnlPerShare / basis) * 100
+          : (num(r.pnlPct) ?? 0);
+    const allIn =
+      typeof a?.allInPnlPerShare === "number" && Number.isFinite(a.allInPnlPerShare) && basis > 0
+        ? (a.allInPnlPerShare / basis) * 100
+        : typeof managed === "number" && Number.isFinite(managed)
+          ? managed
+          : (num(r.pnlPct) ?? premium);
+    return { allIn, premium };
   };
 
+  const pnls = graded.map((r) => settlementPnls(r).allIn);
+
   let cum = 0;
+  let premCum = 0;
   let capCum = 0;
   let capWeightSum = 0;
   let capPnlSum = 0;
   let peak = 0;
   let maxDd = 0;
   const equityCurve = graded.map(r => {
-    const p = effectivePnl(r);
+    const { allIn: p, premium: prem } = settlementPnls(r);
     const collateral = side === "put" ? (num(r.strike) ?? 1) : (num(r.spot) ?? 1);
     cum += p;
+    premCum += prem;
     // Capital-weighted: weight each trade's pnlPct by collateral notionals
     capPnlSum += p * collateral;
     capWeightSum += collateral;
-    const cwAvg = capWeightSum > 0 ? capPnlSum / capWeightSum : 0;
     // Running capital-weighted cumulative approx: sum(p * w) / mean(w) scaled
     capCum += p * (collateral / (capWeightSum / graded.length || 1));
     peak = Math.max(peak, cum);
@@ -96,9 +122,9 @@ async function buildSideSummary(side: "put" | "call"): Promise<SideSummary> {
       expiry: r.expiry,
       pnlPct: p,
       cumPnlPct: Math.round(cum * 100) / 100,
+      premiumCumPnlPct: Math.round(premCum * 100) / 100,
       capitalCumPnlPct: Math.round(capCum * 100) / 100,
       ticker: r.ticker,
-      _cwAvg: cwAvg,
     };
   });
   const capitalWeightedAvgPnlPct = capWeightSum > 0 ? capPnlSum / capWeightSum : null;
@@ -114,8 +140,8 @@ async function buildSideSummary(side: "put" | "call"): Promise<SideSummary> {
     pending: rows.filter(r => r.status === "PENDING").length,
     assigned: rows.filter(r => r.status === "ASSIGNED").length,
     noData: rows.filter(r => r.status === "NO_DATA").length,
-    equityCurve: equityCurve.map(({ expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker }) => ({
-      expiry, pnlPct, cumPnlPct, capitalCumPnlPct, ticker,
+    equityCurve: equityCurve.map(({ expiry, pnlPct, cumPnlPct, premiumCumPnlPct, capitalCumPnlPct, ticker }) => ({
+      expiry, pnlPct, cumPnlPct, premiumCumPnlPct, capitalCumPnlPct, ticker,
     })),
   };
 }
@@ -153,7 +179,7 @@ async function buildHotlistSummary(): Promise<HotlistSummary[]> {
 
 router.get("/track-record/summary", async (_req, res) => {
   try {
-    const data = await trackRecordCache.getOrCompute("summary", async () => {
+    const data = await trackRecordCache.getOrCompute("summary-a92", async () => {
       const [put, call, hotlist, calibration] = await Promise.all([
         buildSideSummary("put"), buildSideSummary("call"), buildHotlistSummary(),
         getCalibrationTable(),
