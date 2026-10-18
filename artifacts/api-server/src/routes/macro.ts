@@ -410,10 +410,63 @@ router.get("/breadth", async (_req: Request, res: Response) => {
 // GET /macro/risk-free-rate — returns SOFR (or fedFundsRate fallback) from macro cache for scoring
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();
-  if (!data) return res.json({ riskFreeRate: null });
+  if (!data) {
+    res.json({ riskFreeRate: null });
+    return;
+  }
   const rate = data.series.sofr?.value ?? data.series.fedFundsRate?.value ?? null;
   // FRED returns rates as percentage points (e.g. 5.33 for 5.33%) — convert to decimal for scoring
-  return res.json({ riskFreeRate: rate !== null ? rate / 100 : null });
+  res.json({ riskFreeRate: rate !== null ? rate / 100 : null });
+});
+
+/**
+ * A98 P1 — SSGA NAV hist fund flows (Δshares × NAV).
+ * GET /macro/etf-flows?etfs=XLK,XLF&days=30
+ */
+router.get("/etf-flows", async (req: Request, res: Response) => {
+  try {
+    const { pool } = await import("@workspace/db");
+    const days = Math.min(3650, Math.max(1, Number(req.query.days) || 30));
+    const raw = String(req.query.etfs ?? "XLB,XLE,XLF,XLI,XLK,XLP,XLU,XLV,XLY,XLRE,XLC");
+    const etfs = raw.split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2,5}$/.test(s)).slice(0, 40);
+    if (!etfs.length) {
+      res.status(400).json({ error: "etfs required" });
+      return;
+    }
+    const r = await pool.query(
+      `SELECT etf, date::text, nav, shares, flow_usd, aum, source
+       FROM watchlist_sync.etf_flows
+       WHERE etf = ANY($1::text[])
+         AND date >= (CURRENT_DATE - $2::int)
+       ORDER BY etf, date`,
+      [etfs, days],
+    );
+    const byEtf: Record<string, typeof r.rows> = {};
+    for (const row of r.rows) {
+      (byEtf[row.etf] ??= []).push(row);
+    }
+    const summary = etfs.map((etf) => {
+      const rows = byEtf[etf] ?? [];
+      const flowSum = rows.reduce((s: number, x: { flow_usd: number }) => s + Number(x.flow_usd), 0);
+      const last = rows[rows.length - 1];
+      const aum = last ? Number(last.aum) : null;
+      return {
+        etf,
+        days: rows.length,
+        flowUsd: flowSum,
+        flowPctAum: aum && aum > 0 ? (flowSum / aum) * 100 : null,
+        lastDate: last?.date ?? null,
+      };
+    });
+    res.json({
+      days,
+      summary,
+      series: byEtf,
+      note: "SSGA navhist: flow_usd ≈ Δshares × NAV. Display / research — not a Model List input (A98).",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 export default router;
