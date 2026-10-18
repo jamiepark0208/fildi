@@ -57,8 +57,10 @@ type Idea = {
   /** Latest agent touch (ASKS status note / Reviews line), YYYY-MM-DD. */
   touchedAt: string | null;
   touchedBy: AgentId | null;
-  /** accepted/partial / explicit in-progress — cube pulses until it leaves this state. */
+  /** True work-in-flight: explicit "in progress" or building touched ≤3d (not stale accepted). */
   inProgress: boolean;
+  /** building + not inProgress — status debt; UI hides behind "Show debt". */
+  stale: boolean;
   /** Same calendar day as the newest touch across the board → "this wave" glow. */
   hot: boolean;
 };
@@ -147,7 +149,10 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (onBoard) {
       const phase = ideaPhase(st);
       const touch = ideaTouch(id!, st, d!);
-      const inProgress = phase === "building" || /\bin progress\b/i.test(st);
+      const touchAgeD = touch.at ? (Date.now() - Date.parse(touch.at)) / 864e5 : Infinity;
+      const inProgress = /\bin progress\b/i.test(st)
+        || (phase === "building" && Number.isFinite(touchAgeD) && touchAgeD <= 3);
+      const stale = phase === "building" && !inProgress;
       ideas.push({
         id: id!, date: d!, from, to: dest,
         title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
@@ -158,6 +163,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         touchedAt: touch.at,
         touchedBy: touch.by,
         inProgress,
+        stale,
         hot: false,
       });
     }
@@ -178,7 +184,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       if (m) ideas.push({
         id: m[1]!, date: "", from: "claude", to: "jamie", title: m[2]!.trim(), status: "needs you",
         phase: "needs you", quant: false, blurb: body.join("\n").trim(),
-        touchedAt: null, touchedBy: null, inProgress: false, hot: false,
+        touchedAt: null, touchedBy: null, inProgress: false, stale: false, hot: false,
       });
     }
   } catch { /* none */ }
@@ -189,6 +195,74 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   // Phase columns first, then ascending ask id (A3 before A148) — Jamie 10-17.
   ideas.sort((a, b) => (rank[a.phase] ?? 9) - (rank[b.phase] ?? 9) || askNum(a.id) - askNum(b.id) || a.id.localeCompare(b.id));
   return { ev, queue, ideas };
+}
+
+/** Cursor queue pointer from `.cursor/context/cursor-state.md` § Next build (or Phase line fallback). */
+function nextBuildFromState(ideas: Idea[]): { ids: string[]; items: { id: string; title: string }[] } {
+  const byId = new Map(ideas.map((i) => [i.id, i.title]));
+  const ids: string[] = [];
+  try {
+    const txt = readFileSync(resolve(ROOT, ".cursor/context/cursor-state.md"), "utf8");
+    const sec = txt.match(/## Next build\s*\n([\s\S]*?)(?=\n## |\n*$)/i);
+    if (sec) {
+      for (const line of sec[1].split("\n")) {
+        const m = line.trim().match(/^(A\d+)\b/i);
+        if (m && !ids.includes(m[1]!.toUpperCase())) ids.push(m[1]!.toUpperCase());
+      }
+    }
+    if (!ids.length) {
+      const m = txt.match(/Next Cursor:\s*(A\d+)/i);
+      if (m) ids.push(m[1]!.toUpperCase());
+      const then = txt.match(/Then\s+([A0-9\/,\s]+)/i);
+      if (then) {
+        for (const x of then[1].matchAll(/\bA\d+\b/gi)) {
+          const id = x[0]!.toUpperCase();
+          if (!ids.includes(id)) ids.push(id);
+        }
+      }
+    }
+  } catch { /* missing */ }
+  // Fallback: first ready-to-build Muse/Claude→Cursor row
+  if (!ids.length) {
+    for (const i of ideas) {
+      if (i.phase === "reviewed" && (i.to === "cursor")) { ids.push(i.id); break; }
+    }
+  }
+  return { ids, items: ids.map((id) => ({ id, title: byId.get(id) ?? id })) };
+}
+
+/** A150 OpenJev registry summary (read REGISTRY.md tiers — do not invent numbers). */
+function openjevRegistrySummary(): {
+  updated: string | null;
+  counts: Record<"A" | "B" | "C" | "X", number>;
+  samples: { id: string; tier: string; ask: string }[];
+  note: string;
+} {
+  const counts = { A: 0, B: 0, C: 0, X: 0 };
+  const samples: { id: string; tier: string; ask: string }[] = [];
+  let updated: string | null = null;
+  try {
+    const j = JSON.parse(readFileSync(resolve(ROOT, ".agents/openjev/registry.json"), "utf8")) as { updated?: string };
+    updated = j.updated ?? null;
+  } catch { /* */ }
+  try {
+    const md = readFileSync(resolve(ROOT, ".agents/openjev/REGISTRY.md"), "utf8");
+    for (const line of md.split("\n")) {
+      const m = line.match(/^\| ([ABCX]) \| ((?:P|R)\d+) \| ([^|]+) \|/);
+      if (!m) continue;
+      const tier = m[1] as "A" | "B" | "C" | "X";
+      counts[tier] += 1;
+      if (samples.length < 5 && (tier === "A" || tier === "B")) {
+        samples.push({ id: m[2]!, tier, ask: m[3]!.trim().slice(0, 72) });
+      }
+    }
+  } catch { /* */ }
+  return {
+    updated,
+    counts,
+    samples,
+    note: "A150 · tier A may gate work · B = hint only · P16 Needs-Jamie still C — never block on OpenJev",
+  };
 }
 
 /** Claude token use per day from session logs (dedupe streamed blocks by requestId). */
@@ -227,7 +301,7 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
   return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d }));
 }
 
-type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; subType?: string; sig?: string };
+type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; subType?: string; sig?: string; caller?: string };
 
 /** Background agents (Claude Code subagents/forks): events carry `sub` (agent_id). Description = the parent session's latest
  *  Agent-tool call before the subagent's first event. Running until SubagentStop, or idle > 10 min without one. */
@@ -523,9 +597,9 @@ function museLiveStatus(live: LiveEv[], nowMs: number): MuseLive {
  *  last = newest openjev_runs row, else /tmp/fildi-logs/openjev-last.json. Cached 15 s (one pgrep + one small query). */
 let ojCache: { at: number; body: unknown } | null = null;
 async function openjevStatus(live: LiveEv[], nowMs: number) {
-  if (ojCache && Date.now() - ojCache.at < 15_000) return ojCache.body;
+  if (ojCache && Date.now() - ojCache.at < 3_000) return ojCache.body;
   let proc = false;
-  try { await run("pgrep", ["-f", "python -m openjev"]); proc = true; } catch { proc = false; }
+  try { await run("pgrep", ["-if", "python -m openjev"]); proc = true; } catch { proc = false; } // -i: macOS binary is "Python"
   const evs = live.filter((e) => e.agent === "openjev");
   const lastEv = evs.at(-1) ?? null;
   const evLive = !!lastEv && nowMs - Date.parse(lastEv.t) < 2 * 60_000 && !["stop", "session-end"].includes(lastEv.event);
@@ -543,8 +617,11 @@ async function openjevStatus(live: LiveEv[], nowMs: number) {
       last = { at: new Date(j.ts).toISOString(), ok: !!j.ok, detail: j.detail ?? null, answered: j.answered ?? null, questions: j.questions ?? null, peakGb: j.peak_gb ?? null, totalS: j.total_s ?? null };
     } catch { /* never ran */ }
   }
+  // Agents asking OpenJev (scripts/oj.py, A150): one entry per caller, newest ask in the last 30 s → UI beam caller → OpenJev
+  const callers = new Map<string, { who: string; at: string; what: string | null }>();
+  for (const e of evs) if (e.caller && nowMs - Date.parse(e.t) < 30_000) callers.set(e.caller, { who: e.caller, at: e.t, what: e.detail ?? null });
   const body = { running: proc || evLive, proc, doing: evLive ? lastEv?.detail ?? lastEv?.event ?? null : null,
-    pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last };
+    pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last, callers: [...callers.values()] };
   ojCache = { at: Date.now(), body };
   return body;
 }
@@ -734,10 +811,18 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     ...(await (async () => { const ps = await psAll(); return { jobs: await jobs(nowMs, ps), procs: await runningProcs(ps, nowMs) }; })()),
     // GitHub node: commits in the last hour (fresh, one git log); pushes come from hook events (git: ["push"]) + Muse's cloud commits
     gitHour: (await commits("1 hour ago").catch((): Ev[] => [])).map((c) => ({ t: c.t, agent: c.from, text: c.text.slice(0, 70) })),
+    openjevRegistry: openjevRegistrySummary(),
   };
-  if (cache && Date.now() - cache.at < 10 * 60_000) return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
+  if (cache && Date.now() - cache.at < 10 * 60_000) {
+    const body = withoutDismissed(cache.body as object, gone) as { ideas?: Idea[] };
+    return res.json({
+      ...body, ...fresh, windows: windows(),
+      nextBuild: nextBuildFromState(body.ideas ?? []),
+    });
+  }
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
   const { ev, queue, ideas } = asks();
+  const nextBuild = nextBuildFromState(ideas);
   const day = Date.now() - 864e5;
   const agents = (["muse", "claude", "cursor", "grok", "jamie"] as AgentId[]).map((id) => {
     const mine = cm.filter((c) => c.from === id);
@@ -753,8 +838,14 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     };
   });
   const events = [...cm, ...ev].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
-  cache = { at: Date.now(), body: { agents, events, ideas, asOf: new Date().toISOString(), rules: rules(), skills: skills() } };
-  return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, windows: windows() });
+  cache = {
+    at: Date.now(),
+    body: {
+      agents, events, ideas, nextBuild,
+      asOf: new Date().toISOString(), rules: rules(), skills: skills(),
+    },
+  };
+  return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, nextBuild, windows: windows() });
 });
 
 export default router;

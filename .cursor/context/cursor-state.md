@@ -1,18 +1,22 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-17
+**Last updated:** 2026-10-18
+
+## Next build
+A146
+A114
+A87
 
 ## Phase
-**build** — A147 next (P1 data: dual peer groups + zero div yields). Then A146 / A114.
+**build** — AI tab value pass (Next strip + phase labels + OpenJev registry). Then A146.
 
 ## Active
-- Ideas board: Reviewed≈planned backlog (~26 Muse); Building≈accepted/partial (many stale Claude rows A2–A25 + A84/A131). Not “in flight.”
-- Done today: A63, A136 badges, A74, Ideas UX, Grok PRs. Waiting Jamie: A99/A84/A88.
-- Leave alone: OpenJev, Claude cache-overview / ttl-cache / cache-registry.
+- A150 OpenJev framework (Claude): registry + oj.py — AI tab surfaces tiers; do not gate Needs You on P16 (still C).
+- A147 shipped. Waiting Jamie: A99/A84/A88; seed duals sole?
 
 ## Do not
 - Merge-trusted until A84 before/after posted
-- Treat Ideas “Reviewed” as “waiting on Claude” — it means planned/buildable
+- Treat Ideas “Ready to build” as “waiting on Claude” — it means planned/buildable
 - Touch A88 without asking Jamie
-- Merge Grok PRs without review — pattern OK: branch → PR → Cursor assess/sync/merge
+- Gate agent work on OpenJev tier B/C (hint only); exit 3 = decide yourself

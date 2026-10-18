@@ -37,10 +37,17 @@ type Sub = { id: string; agent: string; session: string | null; type: string | n
 const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
 type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
-type Idea = {
-  id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
-  touchedAt?: string | null; touchedBy?: Id | null; inProgress?: boolean; hot?: boolean;
-};
+  type Idea = {
+    id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
+    touchedAt?: string | null; touchedBy?: Id | null; inProgress?: boolean; stale?: boolean; hot?: boolean;
+  };
+  type NextBuild = { ids: string[]; items: { id: string; title: string }[] };
+  type OjRegistry = {
+    updated: string | null;
+    counts: Record<"A" | "B" | "C" | "X", number>;
+    samples: { id: string; tier: string; ask: string }[];
+    note: string;
+  };
 const IDEA_WAVE_ACK_KEY = "fildi_ideas_wave_ack";
 /** Hot-wave glow (status just changed this batch). Distinct from phase colours. */
 const HOT_GLOW = "#ff4d8d";
@@ -50,6 +57,8 @@ type Data = {
   needsUnread?: Record<string, number>;
   jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
   agents: Agent[]; events: Ev[]; live: Live[]; ideas?: Idea[];
+  nextBuild?: NextBuild;
+  openjevRegistry?: OjRegistry;
   status: Record<"claude" | "cursor" | "grok", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
@@ -86,6 +95,7 @@ const NODES: Record<string, { label: string; row: number; kinds: string[] }> = {
 const GITHUB = "#a5b4fc", JOBS = "#f59e0b", OJ_COLOR = "#fb7185";
 /** OpenJev = local calibrated-probability model (A129): runs a daily batch (load → answer → unload), writes the forecast ledger. */
 type OpenJev = { running: boolean; proc: boolean; doing: string | null; pingAt: string | null; pingWhat: string | null;
+  callers?: { who: string; at: string; what: string | null }[];
   last: { at: string; ok: boolean; detail: string | null; answered: number | null; questions: number | null; peakGb: number | null; totalS: number | null } | null };
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
@@ -98,6 +108,16 @@ const META: Record<Id, { label: string; role: string; color: string; ang: number
   grok: { label: "Grok", role: "red team", color: "#fb923c", ang: 140 },
 };
 const PHASES = ["needs you", "filed", "reviewed", "building", "done", "parked"] as const;
+/** Human labels — "reviewed" means Claude planned / Cursor can build (not "waiting on Claude"). */
+const PHASE_LABEL: Record<string, string> = {
+  "needs you": "Needs you",
+  filed: "Inbox",
+  reviewed: "Ready to build",
+  building: "In progress",
+  done: "Done",
+  verified: "Verified",
+  parked: "Parked",
+};
 const PHASE_COLOR: Record<string, string> = {
   "needs you": "#fde047", filed: "#e879f9", reviewed: "#38e1ff", building: "#4ade80", done: "#fbbf24", verified: "#4ade80", parked: "#a1a1aa",
 };
@@ -571,7 +591,12 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     const oj = d.openjev;
     if (oj?.pingAt && oj.pingAt !== ojPing.current.at) ojPing.current = { at: oj.pingAt, t0: ojPing.current.at === null && !oj.running ? 0 : now };
     const flash = Math.max(0, 1 - (now - ojPing.current.t0) / 1500);
-    if (oj?.running) pulseLink(OJP, npos("db"), OJ_COLOR, 1, { title: "OpenJev → Database", what: oj.doing ?? "answering forecast questions", etaS: null, etaMethod: "unknown" });
+    if (oj?.running && !oj.callers?.length) pulseLink(OJP, npos("db"), OJ_COLOR, 1, { title: "OpenJev → Database", what: oj.doing ?? "answering forecast questions", etaS: null, etaMethod: "unknown" });
+    for (const c of oj?.callers ?? []) { // agent asking OpenJev (scripts/oj.py): beam from the caller's orb, fades over 30 s
+      if (!(c.who in META)) continue;
+      const alpha = Math.max(0.25, 1 - (Date.now() - Date.parse(c.at)) / 30_000);
+      pulseLink(pos(c.who as Id), OJP, META[c.who as Id].color, alpha, { title: `${META[c.who as Id].label} → OpenJev`, what: c.what ?? "typed question", etaS: null, etaMethod: "unknown" });
+    }
     if (flash > 0 && !reduce) {
       ctx.globalAlpha = flash; ctx.strokeStyle = OJ_COLOR; ctx.lineWidth = 3; ctx.shadowColor = OJ_COLOR; ctx.shadowBlur = 16;
       ctx.beginPath(); ctx.arc(OJP.x, OJP.y, 15 + 14 * (1 - flash), 0, 7); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
@@ -855,6 +880,80 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
   );
 }
 
+function OpenJevRegistryStrip({ reg }: { reg?: OjRegistry }) {
+  if (!reg) return null;
+  const c = reg.counts;
+  return (
+    <div className="rounded border border-violet-400/25 bg-violet-500/5 px-2.5 py-1.5 text-[11px] space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold uppercase tracking-wider text-violet-300">OpenJev</span>
+        <span className="text-white/40">A150 token triage · local $0</span>
+        {reg.updated && <span className="text-white/35">registry {reg.updated}</span>}
+        <span className="ml-auto font-mono tabular-nums text-white/80">
+          <span className="text-emerald-300">A {c.A}</span>
+          <span className="text-white/30"> · </span>
+          <span className="text-cyan-300">B {c.B}</span>
+          <span className="text-white/30"> · </span>
+          <span className="text-amber-200/80">C {c.C}</span>
+          <span className="text-white/30"> · </span>
+          <span className="text-zinc-400">X {c.X}</span>
+        </span>
+      </div>
+      <p className="text-[10px] text-white/45 leading-snug">{reg.note}</p>
+      {reg.samples.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {reg.samples.map((s) => (
+            <span key={s.id} title={s.ask}
+              className={cn(
+                "text-[9px] font-mono px-1 py-0.5 rounded border",
+                s.tier === "A" ? "border-emerald-400/40 text-emerald-200" : "border-cyan-400/30 text-cyan-200/90",
+              )}
+            >
+              {s.tier}:{s.id}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NextBuildStrip({
+  next, ideas, onPick,
+}: {
+  next?: NextBuild;
+  ideas: Idea[];
+  onPick?: (id: string) => void;
+}) {
+  const items = next?.items?.length
+    ? next.items
+    : ideas.filter((i) => i.phase === "reviewed").slice(0, 3).map((i) => ({ id: i.id, title: i.title }));
+  if (!items.length) return null;
+  const [head, ...rest] = items;
+  return (
+    <div className="rounded border border-[#d4af37]/30 bg-[#d4af37]/8 px-2.5 py-1.5 text-[11px]">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-bold uppercase tracking-wider text-[#d4af37]">Next</span>
+        <button type="button" onClick={() => onPick?.(head.id)}
+          className="font-mono font-bold text-white hover:text-[#d4af37]">
+          {head.id}
+        </button>
+        <span className="text-white/70 truncate max-w-[28rem]">{head.title}</span>
+      </div>
+      {rest.length > 0 && (
+        <div className="mt-0.5 text-[10px] text-white/45 font-mono">
+          then {rest.map((r, i) => (
+            <span key={r.id}>
+              {i > 0 ? " · " : ""}
+              <button type="button" className="hover:text-[#d4af37]" onClick={() => onPick?.(r.id)}>{r.id}</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamPanel({ d }: { d: Data }) {
   const [focus, setFocus] = useState<Id | "all">("all");
   const rows = useMemo(() => {
@@ -865,6 +964,8 @@ function TeamPanel({ d }: { d: Data }) {
   }, [d, focus]);
   return (
     <div className="space-y-3">
+      <NextBuildStrip next={d.nextBuild} ideas={d.ideas ?? []} />
+      <OpenJevRegistryStrip reg={d.openjevRegistry} />
       <TeamMap d={d} sel={focus} onSel={setFocus} />
       <div className={GRID_WRAP}>
         <table className="w-full border-collapse">
@@ -957,9 +1058,16 @@ function askSortKey(id: string): number {
   return m ? Number(m[1]) : 1e9;
 }
 
-function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<string, number> }) {
+function IdeasPanel({
+  ideas, unread = {}, nextBuild,
+}: {
+  ideas: Idea[];
+  unread?: Record<string, number>;
+  nextBuild?: NextBuild;
+}) {
   const [sel, setSel] = useState<string | null>(null);
   const [showParked, setShowParked] = useState(false);
+  const [showDebt, setShowDebt] = useState(false);
   const [query, setQuery] = useState("");
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -973,6 +1081,8 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const waveActive = !!wave && wave !== waveAck;
   const isHot = (i: Idea) => !!i.hot && waveActive;
   const isProg = (i: Idea) => !!i.inProgress;
+  const isDebt = (i: Idea) => !!i.stale || (i.phase === "building" && !i.inProgress);
+  const debtCount = ideas.filter(isDebt).length;
   const qn = query.trim().toLowerCase();
   const matches = (i: Idea) => {
     if (!qn) return true;
@@ -981,11 +1091,12 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
       || i.status.toLowerCase().includes(qn)
       || `${i.from}→${i.to}`.includes(qn);
   };
-  // Open stages + done ≤ 7d + this-wave / in-progress. Search also surfaces parked/done hits.
+  // Open stages + done ≤ 7d + this-wave / in-progress. Stale "Building" debt hidden unless toggled.
   const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
   const shown = ideas.filter((i) => {
     const hit = matches(i);
     if (qn) return hit; // search = filter the board to matches (incl. parked)
+    if (isDebt(i) && !showDebt && !isHot(i) && !isProg(i)) return false;
     return showParked
       || isHot(i)
       || isProg(i)
@@ -1029,8 +1140,9 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
       const n = shown.filter((i) => i.phase === ph).length;
-      ctx.fillStyle = PHASE_COLOR[ph]; ctx.font = "600 12px ui-sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(`${ph.toUpperCase()} · ${n}`, x0 + ci * COLW, -150);
+      ctx.fillStyle = PHASE_COLOR[ph]; ctx.font = "600 11px ui-sans-serif"; ctx.textAlign = "center";
+      const label = (PHASE_LABEL[ph] ?? ph).toUpperCase();
+      ctx.fillText(`${label} · ${n}`, x0 + ci * COLW, -150);
       ctx.strokeStyle = PHASE_COLOR[ph] + "25"; ctx.lineWidth = 1 / v.z;
       ctx.beginPath(); ctx.moveTo(x0 + ci * COLW + COLW / 2, -165); ctx.lineTo(x0 + ci * COLW + COLW / 2, 400); ctx.stroke();
     });
@@ -1062,7 +1174,7 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
     return (
       <>
         <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
-          <span style={{ color: PHASE_COLOR[i.phase] }}>{i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
+          <span style={{ color: PHASE_COLOR[i.phase] }}>{PHASE_LABEL[i.phase] ?? i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
         <div className="mt-0.5">{i.title}</div>
         {(isHot(i) || isProg(i) || who) && (
           <div className="mt-1 text-[11px]" style={{ color: isProg(i) ? PROG_GLOW : isHot(i) ? HOT_GLOW : "#a1a1aa" }}>
@@ -1077,11 +1189,13 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
   const hit = (x: number, y: number) => layout.find((p) => Math.abs(p.x - x) < S + 2 && y > p.y - S && y < p.y + S * 1.4)?.idea.id ?? null;
   return (
     <div className="space-y-3">
+      <NextBuildStrip next={nextBuild} ideas={ideas} onPick={setSel} />
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
-        <InfoTip>Each cube shows its ask id (A148). Sorted by number inside a stage. Search filters id/title/status.
-          Pink glow = this wave. Teal = in progress. Badge Cu/Cl/M/Y = last touch.
-          Stages: needs you → filed → reviewed (= planned) → building → done.</InfoTip>
+        <InfoTip>Each cube shows its ask id (A148). Sorted by number. Search filters id/title/status.
+          Pink = this wave. Teal = in progress (touched ≤3d). Badge Cu/Cl/M/Y = last touch.
+          Stages: Needs you → Inbox → Ready to build (planned) → In progress → Done.
+          Ready to build ≠ waiting on Claude. Stale accepted rows hide under Show debt.</InfoTip>
         <input
           type="search"
           value={query}
@@ -1109,6 +1223,12 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
             Clear highlights
           </button>
         )}
+        {debtCount > 0 && (
+          <button type="button" onClick={() => setShowDebt((v) => !v)}
+            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-amber-200/80 hover:border-amber-400/40">
+            {showDebt ? "Hide debt" : `Show debt (${debtCount})`}
+          </button>
+        )}
         <button type="button" onClick={() => setShowParked((v) => !v)} className="ml-auto text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#d4af37]/50">
           {showParked ? "Hide done / parked" : "Show done / parked"}
         </button>
@@ -1121,7 +1241,8 @@ function IdeasPanel({ ideas, unread = {} }: { ideas: Idea[]; unread?: Record<str
         }}>
           <div className="flex flex-wrap items-baseline gap-2 text-[12px]">
             <span className="font-semibold text-white">{active.id}</span>
-            <span style={{ color: PHASE_COLOR[active.phase] }}>{active.phase}</span>
+            <span style={{ color: PHASE_COLOR[active.phase] }}>{PHASE_LABEL[active.phase] ?? active.phase}</span>
+            {isDebt(active) && <span className="text-amber-200/80">stale status</span>}
             {isProg(active) && <span style={{ color: PROG_GLOW }}>in progress</span>}
             {isHot(active) && !isProg(active) && <span style={{ color: HOT_GLOW }}>this wave</span>}
             <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · ${META[active.from]?.label ?? active.from} → ${META[active.to]?.label ?? active.to}${active.quant ? " · quant" : ""}`}</span>
@@ -1365,33 +1486,41 @@ export function AgentsTab() {
     },
     refetchInterval: 15_000, // live events are a cheap file tail; commits/tokens are cached server-side
   });
-  const [tab, setTab] = useState<(typeof SUB_TABS)[number]>("Stage");
+  const [tab, setTab] = useState<(typeof SUB_TABS)[number] | null>(null);
   if (isLoading || !data) return <p className="text-xs text-white/50">Loading…</p>;
   const looks = (["claude", "cursor"] as const).map((x) => attention(data.status[x])).filter(Boolean);
   const needLook = looks.length;
   const stageNeedsRed = looks.includes("#f87171");
   const ideas = data.ideas ?? [];
+  const needsYou = ideas.some((i) => i.phase === "needs you");
+  // Default: Needs you / Next → Ideas; else Stage (Jamie 10-18 value pass).
+  const activeTab = tab ?? (needsYou || (data.nextBuild?.ids?.length ?? 0) > 0 ? "Ideas" : "Stage");
   return (
     <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
         <div className="ml-auto inline-flex rounded-md border border-[#d4af37]/30 overflow-hidden text-[12px] font-semibold">
           {SUB_TABS.map((t) => (
             <button key={t} type="button" onClick={() => setTab(t)}
-              className={cn("relative px-3 py-1.5 transition-colors", tab === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]")}>
+              className={cn("relative px-3 py-1.5 transition-colors", activeTab === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]")}>
               {t}
               {t === "Stage" && needLook > 0 && ( // agents waiting on you / looping / erroring → check Stage
                 <span className={cn("ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black animate-pulse motion-reduce:animate-none",
                   stageNeedsRed ? "bg-red-400" : "bg-yellow-300")}>{needLook}</span>
               )}
+              {t === "Ideas" && needsYou && (
+                <span className="ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black bg-yellow-300 animate-pulse motion-reduce:animate-none">
+                  {ideas.filter((i) => i.phase === "needs you").length}
+                </span>
+              )}
             </button>
           ))}
         </div>
       </div>
-      {tab === "Stage" && <TeamPanel d={data} />}
-      {tab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
-      {tab === "Usage" && <Usage d={data} />}
-      {tab === "Rules" && <Rules d={data} />}
-      {tab === "Skills" && <Skills d={data} />}
+      {activeTab === "Stage" && <TeamPanel d={data} />}
+      {activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} nextBuild={data.nextBuild} />}
+      {activeTab === "Usage" && <Usage d={data} />}
+      {activeTab === "Rules" && <Rules d={data} />}
+      {activeTab === "Skills" && <Skills d={data} />}
     </div>
   );
 }
