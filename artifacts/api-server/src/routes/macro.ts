@@ -389,6 +389,17 @@ router.post("/bank-research/generate", requireAdmin, aiLimiter, async (req: Requ
   }
 });
 
+/** A96 — market breadth history (display only; not a signal). */
+router.get("/breadth", async (_req: Request, res: Response) => {
+  try {
+    const { getBreadthHistory } = await import("../lib/market-breadth.js");
+    const points = await getBreadthHistory(500);
+    res.json({ points, note: "Display only — not a trading signal (S027)." });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /macro/risk-free-rate — returns SOFR (or fedFundsRate fallback) from macro cache for scoring
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();

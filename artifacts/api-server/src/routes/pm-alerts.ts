@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { exDivWarningBullets } from "../lib/ex-div-warnings.js";
 
 const router = Router();
 type SqlRows<T> = T[] | { rows?: T[] };
@@ -105,7 +106,18 @@ router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
     if (!ok) return res.json({ run: null });
     const row = rowsOf<{ generated_at: string; payload: unknown }>(await db.execute(sql`
       SELECT generated_at, payload FROM watchlist_sync.pm_alerts ORDER BY id DESC LIMIT 1`) as SqlRows<{ generated_at: string; payload: unknown }>)[0];
-    return res.json({ run: row ? { generatedAt: row.generated_at, ...(row.payload as object) } : null });
+    if (!row) return res.json({ run: null });
+    const payload = row.payload as { bullets?: Array<Record<string, unknown>> };
+    const bullets = [...(payload.bullets ?? [])];
+    // A96: merge live ex-div early-assign warnings for short calls (Polygon dividends + portfolio_options).
+    try {
+      const ex = await exDivWarningBullets();
+      const keys = new Set(bullets.map((b) => String(b.key)));
+      for (const b of ex) {
+        if (!keys.has(b.key)) bullets.push({ ...b, change: "new" });
+      }
+    } catch { /* non-fatal */ }
+    return res.json({ run: { generatedAt: row.generated_at, ...payload, bullets } });
   } catch (err) {
     return next(err);
   }

@@ -100,6 +100,7 @@ const GITHUB = "#a5b4fc", JOBS = "#f59e0b", OJ_COLOR = "#fb7185";
 /** OpenJev = local calibrated-probability model (A129): runs a daily batch (load → answer → unload), writes the forecast ledger. */
 type OpenJev = { running: boolean; proc: boolean; doing: string | null; pingAt: string | null; pingWhat: string | null;
   callers?: { who: string; at: string; what: string | null }[];
+  usage24h?: { asks: number; stateChars: number; byAgent: Record<string, number> };
   last: { at: string; ok: boolean; detail: string | null; answered: number | null; questions: number | null; peakGb: number | null; totalS: number | null } | null };
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
@@ -882,7 +883,17 @@ function Available({ id, d }: { id: Id; d: Data }) {
     );
   }
   if (id === "grok") {
-    return cell("—", "No separate meter — shares Cursor plan pool (Available on Cursor row).");
+    // Same Cursor plan pool — Grok Bot draws from it (Jamie 10-18). Show identical %.
+    const l = d.limits?.cursor;
+    if (!l || l.totalPct == null) {
+      return cell(l?.error ? "auth?" : "…", "Shares Cursor plan pool. Snap from cursor-usage-snap.mjs.");
+    }
+    const left = Math.max(0, 100 - Math.round(l.totalPct));
+    return cell(
+      <>{left}%</>,
+      <>Same pool as Cursor (Grok Bot included). Resets {day(l.resetsAt)}. Cu+G actions counted in Tokens tooltip.</>,
+      leftCls(left),
+    );
   }
   if (id === "muse") {
     const m = d.limits?.muse;
@@ -1044,22 +1055,24 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? (
                     <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
-                  ) : a.id === "cursor" ? (
+                  ) : a.id === "cursor" || a.id === "grok" ? (
                     (() => {
                       const l = d.limits?.cursor;
-                      // Cursor Dashboard API gives plan % + $, not raw token counts — show used/left of the pool.
+                      // Shared Cursor plan pool (Cursor + Grok Bot). API has plan %, not raw tokens.
                       if (l?.totalPct != null) {
                         const used = Math.round(l.totalPct);
                         const left = Math.max(0, 100 - used);
+                        const cst = d.status.cursor;
+                        const gst = d.status.grok;
                         return (
                           <Tooltip delayDuration={150}>
                             <TooltipTrigger asChild>
                               <span className="cursor-default">{used}% <span className="text-white/50">used</span> · {left}% <span className="text-white/50">left</span></span>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className={TIP}>
-                              Plan pool (not raw tokens — Cursor doesn’t expose those locally).
+                              Shared Cursor plan pool (Cursor + Grok).
                               {l.spendUsd != null ? ` $${l.spendUsd.toFixed(0)}${l.limitUsd != null ? `/$${l.limitUsd.toFixed(0)}` : ""} included.` : ""}
-                              {st ? ` ${st.tools24h} hook actions / 24h.` : ""}
+                              {` Cu ${cst?.tools24h ?? 0} + G ${gst?.tools24h ?? 0} actions / 24h.`}
                             </TooltipContent>
                           </Tooltip>
                         );
@@ -1075,7 +1088,51 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{st?.lastEvent ? humanAction(st.lastEvent) : "—"}</td>
               </tr>
             );
-          })}</tbody>
+          })}
+          {d.openjev && (() => {
+            const oj = d.openjev;
+            const u = oj.usage24h;
+            const asks = u?.asks ?? 0;
+            const tokEst = u ? Math.round(u.stateChars / 4) : 0;
+            return (
+              <tr className={cn(gridRow(d.agents.length), "opacity-95")}>
+                <td className={cn(GRID_TD, "font-semibold")} style={{ color: OJ_COLOR }}>OpenJev</td>
+                <td className={cn(GRID_TD, "whitespace-nowrap", oj.running ? "text-emerald-300" : "text-white/60")}>
+                  {oj.running ? `● ${oj.doing?.slice(0, 36) || "loaded"}` : "idle · local"}
+                </td>
+                <td className={cn(GRID_TD, "text-right text-white/50")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
+                  <Tooltip delayDuration={150}>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default">{asks} <span className="text-white/50">asks/24h</span>
+                        {tokEst > 0 ? <> · ~{fmt(tokEst)} <span className="text-white/50">tok in</span></> : null}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className={TIP}>
+                      Shared local 26B (port 8091) — $0 API. Agents offload long text here to save their plan tokens.
+                      {u?.byAgent ? ` ${Object.entries(u.byAgent).map(([k, n]) => `${k}:${n}`).join(" · ")}` : ""}
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
+                <td className={cn(GRID_TD, "text-right")}>
+                  <Tooltip delayDuration={150}>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default text-emerald-300">$0</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className={TIP}>
+                      Local Mac — no plan pool. Needs ~26 GB free RAM to load; one instance for all agents.
+                      {oj.last?.peakGb != null ? ` Last peak ${oj.last.peakGb} GB.` : ""}
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{asks || "—"}</td>
+                <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{oj.doing || oj.last?.detail || "—"}</td>
+              </tr>
+            );
+          })()}
+          </tbody>
         </table>
       </div>
       {focus !== "all" && <Timeline d={d} agent={focus} />}

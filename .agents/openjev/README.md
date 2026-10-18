@@ -99,5 +99,21 @@ while `*v2` trains (see P14 notes).
 Training levers (cheapest first): (1) hard examples via `teach`, (2) better input state, (3) `analyze` learned heads,
 (4) calibration, (5) fine-tune at ≥1k labels/task.
 
+## 9. Fildi score goals (Jamie 10-18) — don't quit after S039/R0x
+OpenJev also exists to help **subjective** Fildi surfaces (fund/tech/options scores, internal FV, best put to sell,
+Model List) while agents save tokens. Early tests (R01–R08, S039) were weak when the question was too big or the
+state was the wrong shape. Same train loop, different packaging:
+
+| Goal | Don't ask | Do instead | Labels |
+|---|---|---|---|
+| Fund / tech score | “Is this score right?” | Decompose: coverage thin? peer outlier? one metric dominating? (`analyze` features) | A102 dispositions + before/after snaps |
+| Internal FV | “What’s fair value?” | Choice over bins vs street / our model; or noul “is street > our FV by >X%?” | realized 3–6m excess vs bins |
+| Best put to sell | “Which put?” | Rank features already in scorer (IV/RV, DTE, OTM%) — OJ as second opinion on **ties**, not the scorer | S003 / optlab outcomes |
+| Model List | “Pick winners” | Gate-only: quarantine / event / stale data flags (display) | trade_mistakes + survival |
+
+Shared target for every agent: (a) **token save** via P10/P11/P27… and (b) **Fildi display aids** that beat a
+cheap baseline on a pre-registered metric — never silent score changes (AGENTS rule 7). Miss → teach → rebuild;
+rephrase or decompose before retiring.
+
 Owner: Claude (PM) keeps the registry honest (session start: `oj.py audit`; re-verify on triggers). Jamie decides gates that change scores.
 Any agent may `teach`.

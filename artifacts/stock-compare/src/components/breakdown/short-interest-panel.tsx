@@ -8,7 +8,14 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { cn } from "@/lib/utils";
 
 type Point = { date: string; sharesShort: number; daysToCover: number | null };
-type View = { points: Point[]; current: { shortPctFloat: number | null; asOf: string | null }; refreshing: boolean };
+type VolPoint = { date: string; shortVolumeRatio: number };
+type View = {
+  points: Point[];
+  shortVolume?: VolPoint[];
+  shortVolumeAvg20?: number | null;
+  current: { shortPctFloat: number | null; asOf: string | null };
+  refreshing: boolean;
+};
 
 const RANGES = [["1Y", 365], ["3Y", 1095], ["All", 99_999]] as const;
 
@@ -33,6 +40,10 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
   const pts = useMemo(() => {
     const cutoff = Date.now() - range * 86_400_000;
     return (data?.points ?? []).filter((p) => new Date(p.date).getTime() >= cutoff);
+  }, [data, range]);
+  const volPts = useMemo(() => {
+    const cutoff = Date.now() - Math.min(range, 90) * 86_400_000;
+    return (data?.shortVolume ?? []).filter((p) => new Date(p.date).getTime() >= cutoff);
   }, [data, range]);
 
   if (isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
@@ -86,6 +97,30 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
       <p className="text-[9px] text-amber-200/30">
         Gold = shares short, dashed = days to cover (FINRA, twice monthly). % float: LSEG {data.current.asOf ?? ""}. Context, not a signal.
       </p>
+      {volPts.length >= 2 && (
+        <div className="pt-1 space-y-0.5">
+          <div className="flex items-baseline gap-2 text-[10px] text-amber-200/60">
+            <span>Short volume ratio</span>
+            {data.shortVolumeAvg20 != null && (
+              <span className="tabular-nums text-amber-100/80">20d avg {(data.shortVolumeAvg20 * 100).toFixed(0)}%</span>
+            )}
+            <span className="text-amber-200/30">· no proven edge</span>
+          </div>
+          <div className="h-16 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={volPts} margin={{ top: 2, right: 4, left: 0, bottom: 0 }}>
+                <XAxis dataKey="date" hide />
+                <YAxis hide domain={[0, "auto"]} />
+                <Tooltip
+                  contentStyle={{ background: "#09090b", border: "1px solid #d4af3733", fontSize: 10 }}
+                  formatter={(v: number) => [`${(v * 100).toFixed(1)}%`, "short vol / total"]}
+                />
+                <Line type="monotone" dataKey="shortVolumeRatio" stroke="#94a3b8" strokeWidth={1.2} dot={false} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -698,8 +698,29 @@ async function openjevStatus(live: LiveEv[], nowMs: number) {
   // Agents asking OpenJev (scripts/oj.py, A150): one entry per caller, newest ask in the last 30 s → UI beam caller → OpenJev
   const callers = new Map<string, { who: string; at: string; what: string | null }>();
   for (const e of evs) if (e.caller && nowMs - Date.parse(e.t) < 30_000) callers.set(e.caller, { who: e.caller, at: e.t, what: e.detail ?? null });
-  const body = { running: proc || evLive, proc, doing: evLive ? lastEv?.detail ?? lastEv?.event ?? null : null,
-    pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last, callers: [...callers.values()] };
+  // Local $0 meter: asks + state chars from ~/.fildi/openjev-usage.jsonl (all agents share one model).
+  let usage24h: { asks: number; stateChars: number; byAgent: Record<string, number> } = { asks: 0, stateChars: 0, byAgent: {} };
+  try {
+    const since = Date.now() - 864e5;
+    const lines = readFileSync(join(homedir(), ".fildi/openjev-usage.jsonl"), "utf8").split("\n");
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const r = JSON.parse(line) as { id?: string; at?: string; agent?: string; state_chars?: number; outcome_for?: string };
+        if (r.outcome_for || !r.id || !r.at) continue;
+        if (Date.parse(r.at) < since) continue;
+        usage24h.asks += 1;
+        usage24h.stateChars += r.state_chars ?? 0;
+        const a = r.agent || "?";
+        usage24h.byAgent[a] = (usage24h.byAgent[a] ?? 0) + 1;
+      } catch { /* skip */ }
+    }
+  } catch { /* no usage file yet */ }
+  const body = {
+    running: proc || evLive, proc, doing: evLive ? lastEv?.detail ?? lastEv?.event ?? null : null,
+    pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last, callers: [...callers.values()],
+    usage24h,
+  };
   ojCache = { at: Date.now(), body };
   return body;
 }
