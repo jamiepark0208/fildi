@@ -96,6 +96,8 @@ When a name or the book looks interesting, walk **layers top → bottom**. Lower
 | **Ops Nucleus** | Scheduled Tasks L0/L1 + workers | Live |
 | **Reel inbox / Video Lab** | Forwarded Instagram → ASKS + hooks | Planned P3 (A125) |
 | **Order-flow charts** | Volume + 1D VWAP; Polygon profile next | Phase 0 live (A126) |
+| **S/R v2 zones (study)** | Volume-profile zones hold AUC 0.671 (S041 PASS) | Study only — not in setup.py yet (A159) |
+| **Grok audit snapshot** | Aggregate freshness/coverage JSON for cloud agents | Stage 1 local (A162); cite `snapshot_at` |
 | **ICT detectors** | Overlays only until S036 | Planned (A139) |
 | **Conviction ledger** | Thesis + kill rules for held names | Planned (A94) |
 | **Figure tracker (personal Dub)** | Macro tab scoreable prints | Planned (A85) |
