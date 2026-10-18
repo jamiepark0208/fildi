@@ -6,7 +6,7 @@
    "id": "P01",
    "question": "Which of our peer groups fits this company? (description + financials + 3 example members per group; 2 shuffled reads)",
    "type": "choice",
-   "use": "review queue for the peer audit \u2014 never auto-apply",
+   "use": "review queue for the peer audit — never auto-apply",
    "rule": {
     "kind": "accuracy",
     "metric": "agrees with reviewed truth (hard set + random names)",
@@ -89,7 +89,7 @@
     "kind": "ic",
     "metric": "rank corr with same-day abnormal move (pre-open headlines)",
     "target": 0.05,
-    "baseline": "keyword lexicon IC 0.080; OpenJev adds coverage where keywords are silent (IC +0.05\u2026+0.09)"
+    "baseline": "keyword lexicon IC 0.080; OpenJev adds coverage where keywords are silent (IC +0.05…+0.09)"
    },
    "label_source": "prices_historical",
    "created_by": "claude",
@@ -103,7 +103,7 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "never a trading signal (next-day IC \u2248 0, see R01)",
+   "notes": "never a trading signal (next-day IC ≈ 0, see R01)",
    "created": "2026-10-17"
   },
   {
@@ -115,7 +115,7 @@
     "kind": "ic",
     "metric": "rank corr with realized factor beta beyond SPY (worst of the 4)",
     "target": 0.2,
-    "baseline": "peer-group avg beta +0.53\u2026+0.78 (stronger)"
+    "baseline": "peer-group avg beta +0.53…+0.78 (stronger)"
    },
    "label_source": "12-month ETF betas",
    "created_by": "claude",
@@ -129,12 +129,12 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "oil .35 housing .37 AI .29 consumer .20; within-group +0.10\u2026+0.18",
+   "notes": "oil .35 housing .37 AI .29 consumer .20; within-group +0.10…+0.18",
    "created": "2026-10-17"
   },
   {
    "id": "P06",
-   "question": "Calibrated head on OpenJev headline answers \u2192 P(big move today) for a ticker-day",
+   "question": "Calibrated head on OpenJev headline answers → P(big move today) for a ticker-day",
    "type": "model",
    "use": "flag big-move days",
    "rule": {
@@ -181,7 +181,7 @@
     "at": "2026-10-17"
    },
    "verified_by": null,
-   "notes": "yes-side only ~60 % precise \u2192 never use alone",
+   "notes": "yes-side only ~60 % precise → never use alone",
    "created": "2026-10-17"
   },
   {
@@ -297,7 +297,7 @@
     "kind": "auc",
     "metric": "test AUC on anonymous charts",
     "target": 0.55,
-    "baseline": "price-rule model also fails (AUC 0.47\u20130.52)"
+    "baseline": "price-rule model also fails (AUC 0.47–0.52)"
    },
    "label_source": "prices_historical",
    "created_by": "claude",
@@ -394,7 +394,7 @@
     "evidence": "oj eval P10"
    },
    "verified_by": "cursor",
-   "notes": "small models can't replace the 26B here: AUC 26B 0.84 \u00b7 Verdict 0.53 \u00b7 Laya 0.40 (10-18)",
+   "notes": "small models can't replace the 26B here: AUC 26B 0.84 · Verdict 0.53 · Laya 0.40 (10-18)",
    "created": "2026-10-17",
    "verified_at": "2026-10-18"
   },
@@ -426,7 +426,7 @@
     "evidence": "oj eval P11"
    },
    "verified_by": "cursor",
-   "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) \u2014 OpenJev's extra value = semantic catches | AUC 26B 0.98 \u00b7 Laya 0.93 \u00b7 Verdict 0.25 (10-18)",
+   "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) — OpenJev's extra value = semantic catches | AUC 26B 0.98 · Laya 0.93 · Verdict 0.25 (10-18)",
    "created": "2026-10-17",
    "verified_at": "2026-10-18"
   },
@@ -441,7 +441,7 @@
     "target": 0.9,
     "baseline": ""
    },
-   "label_source": "commits with Refs to [quant] rows + path rules (needs \u2265 50/class)",
+   "label_source": "commits with Refs to [quant] rows + path rules (needs ≥ 50/class)",
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
@@ -476,16 +476,16 @@
     "k": 3,
     "metric": "queries whose top-3 studies include a cited one",
     "target": 0.7,
-    "baseline": "random top-3 \u2248 8 %"
+    "baseline": "random top-3 ≈ 8 %"
    },
-   "label_source": "ASKS files that cite S0xx (citing \u2260 answering \u2192 weak labels)",
+   "label_source": "ASKS files that cite S0xx (citing ≠ answering → weak labels)",
    "created_by": "claude",
    "measured": {
     "value": 0.2593,
     "lo": 0.174,
     "hi": 0.367,
     "n": 54,
-    "secondary": "1890 query\u00d7study pairs; random top-3 would hit ~9% per cited study",
+    "secondary": "1890 query×study pairs; random top-3 would hit ~9% per cited study",
     "by": "claude",
     "at": "2026-10-18",
     "model": "openjev-latest",
@@ -494,7 +494,7 @@
     "evidence": "oj eval P14"
    },
    "verified_by": null,
-   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 \u2192 keyword shortlist for now. NOT retired: teach hard negatives + P14v2 (Jamie 10-18: miss = train, don't quit)",
+   "notes": "10-18: OpenJev top-3 14/54 vs keyword overlap 24/54 → `oj.py studies` now uses keywords only (no model)",
    "created": "2026-10-17"
   },
   {
@@ -512,7 +512,7 @@
    "created_by": "claude",
    "measured": null,
    "verified_by": null,
-   "notes": "command exists (oj.py dupes / skill); too few labels to measure yet \u2192 hint only",
+   "notes": "command exists (oj.py dupes / skill); too few labels to measure yet → hint only",
    "created": "2026-10-17"
   },
   {
@@ -528,7 +528,20 @@
    },
    "label_source": "past needs-jamie items + outcomes",
    "created_by": "claude",
-   "measured": null,
+   "measured": {
+    "value": 0.7606,
+    "lo": 0.669,
+    "hi": 0.833,
+    "n": 71,
+    "s_per_item": 1.688,
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "21169368a8ece1d3",
+    "answers_sha": "26239b61fb3e3010",
+    "evidence": "oj eval P16",
+    "question_sha": "5291a8af8ab7"
+   },
    "verified_by": null,
    "notes": "",
    "created": "2026-10-17"
@@ -542,7 +555,7 @@
     "kind": "accuracy",
     "metric": "accuracy on own vs another commit's message",
     "target": 0.9,
-    "baseline": "word overlap message\u2194paths"
+    "baseline": "word overlap message↔paths"
    },
    "label_source": "git history: each diff with its own subject (match) and a random other subject (mismatch)",
    "created_by": "claude",
@@ -621,7 +634,7 @@
   },
   {
    "id": "P21",
-   "question": "Overnight news \u2192 P(stock falls > 1\u03c3 vs SPY today) for put names (decomposed: bad_max, good_max, material_max, about_company_mean, earnings_event, legal_event, analyst_event, capital_event, roundup_share, headline_count)",
+   "question": "Overnight news → P(stock falls > 1σ vs SPY today) for put names (decomposed: bad_max, good_max, material_max, about_company_mean, earnings_event, legal_event, analyst_event, capital_event, roundup_share, headline_count)",
    "type": "analyze",
    "use": "Put seller's 6:30 am question, decomposed: is the news about the company, is it bad, is it material, what kind of event; weights learned from S037 outcomes.",
    "created_by": "claude",
@@ -689,10 +702,10 @@
     "target": 0.6,
     "baseline": "touch-count rule (S040 0.54); volume-profile rule alone"
    },
-   "label_source": "prices_historical 2025-04\u2192: thousands of touched zones (labels are plentiful \u2192 train a head / fine-tune)",
+   "label_source": "prices_historical 2025-04→: thousands of touched zones (labels are plentiful → train a head / fine-tune)",
    "measured": null,
    "verified_by": null,
-   "notes": "Jamie 10-18: don't quit \u2014 give OpenJev the right data (volume profile as text, not lines on an image) and TRAIN on outcomes. Study S041 next."
+   "notes": "Jamie 10-18: don't quit — give OpenJev the right data (volume profile as text, not lines on an image) and TRAIN on outcomes. Study S041 next."
   },
   {
    "id": "P23",
@@ -705,7 +718,7 @@
     "target": 0.9,
     "baseline": ""
    },
-   "label_source": "paired (diff + error) \u2192 fixed-by-revert vs still-failing-on-clean",
+   "label_source": "paired (diff + error) → fixed-by-revert vs still-failing-on-clean",
    "created_by": "cursor",
    "measured": null,
    "verified_by": null,
@@ -714,7 +727,7 @@
   },
   {
    "id": "P24",
-   "question": "Which planned Muse\u2192Cursor ASKS row is buildable next (no open study gate / no Jamie decision)?",
+   "question": "Which planned Muse→Cursor ASKS row is buildable next (no open study gate / no Jamie decision)?",
    "type": "choice",
    "use": "Cursor queue: pick next Ready without reading every A## file",
    "rule": {
@@ -759,7 +772,7 @@
     "target": 0.85,
     "baseline": ""
    },
-   "label_source": "sessions: explore \u2192 edit success without further Read vs needed more",
+   "label_source": "sessions: explore → edit success without further Read vs needed more",
    "created_by": "cursor",
    "measured": null,
    "verified_by": null,
@@ -768,7 +781,7 @@
   },
   {
    "id": "P10v2",
-   "question": "Would a developer need to read or edit this file to do <task>? (path + first 80 lines)\n\nThink beyond filename matching. UI tasks touch shared components; API tasks touch routes and everything they import.\nExamples:\n- Task 'A136: on-demand book-risk badge on Model List + scanner' + file 'model-thesis-report.tsx' (renders Model List pick headers) \u2192 YES, needed.\n- Task 'A74: Model List P(OTM) calibration chip from forecast_ledger' + file 'watchlist.ts' (API route serving watchlist data) \u2192 YES, needed.\n- Task 'Fix typo in README' + file 'artifacts/api-server/src/lib/edgar-client.ts' (SEC filings client, unrelated) \u2192 NO, not needed.",
+   "question": "Would a developer need to read or edit this file to do <task>? (path + first 80 lines)\n\nThink beyond filename matching. UI tasks touch shared components; API tasks touch routes and everything they import.\nExamples:\n- Task 'A136: on-demand book-risk badge on Model List + scanner' + file 'model-thesis-report.tsx' (renders Model List pick headers) → YES, needed.\n- Task 'A74: Model List P(OTM) calibration chip from forecast_ledger' + file 'watchlist.ts' (API route serving watchlist data) → YES, needed.\n- Task 'Fix typo in README' + file 'artifacts/api-server/src/lib/edgar-client.ts' (SEC filings client, unrelated) → NO, not needed.",
    "type": "noul",
    "use": "candidate to supersede P10: gate that skips reading files with P < 0.1, if misses drop",
    "rule": {
@@ -781,25 +794,7 @@
    "label_source": "git history: files a commit changed vs untouched files in the same folder (same builder as P10)",
    "created_by": "muse",
    "created": "2026-10-18",
-   "notes": "Few-shot from P10's 2026-10-18 legitimate misses. Candidate to supersede P10 pending oj.py eval P10v2. Also merges oj.py teach corrections (P10 + P10v2)."
-  },
-  {
-   "id": "P27",
-   "question": "Which Ideas stage is this ASKS row in? (needs you / filed / reviewed=Ready to build / building / done / parked / verified)",
-   "type": "choice",
-   "use": "second opinion when agents disagree on Ready vs Inbox vs parked; catches one-angle status misreads",
-   "rule": {
-    "kind": "accuracy",
-    "metric": "accuracy vs labels",
-    "target": 0.9,
-    "baseline": "status-word prefix rules (ideaPhase)"
-   },
-   "label_source": "ASKS index status → ideaPhase() + agent teach corrections when UI/agent disagree",
-   "created_by": "cursor",
-   "measured": null,
-   "verified_by": null,
-   "notes": "cmd: oj.py ready A## · teach: oj.py teach P27 --ask A## --label reviewed · C until eval",
-   "created": "2026-10-18"
+   "notes": "Few-shot from P10's 2026-10-18 legitimate misses. Candidate to supersede P10 pending oj.py eval P10v2."
   }
  ]
 }

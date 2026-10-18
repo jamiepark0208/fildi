@@ -26,7 +26,6 @@ Examples:
 | C | P12 | Does this diff affect scores, Model List picks, option pricing, backtests or market-data pipelines? | review-loop gate: quant review or not | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P13 | Is new idea X the same need as existing ASKS row A##? (top-5 by keyword first) | dedupe ASKS / inbox before filing | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P15 | Which skill / context file does this task need? (choice over the SKILLS table) | load one skill, not several | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
-| C | P16 | Does this item need Jamie to act or decide (not just info)? | gate for needs-jamie.md (J8 mistake 10-17) | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P18 | Does this diff make section S of doc D out of date? | doc-drift check after edits | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P19 | Which data source/tool answers this Explain AI question? (choice) | route Explain AI before calling Haiku | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
 | C | P20 | Did management raise, keep or cut guidance on this call? (choice) | earnings-call tags | accuracy vs labels ≥ 0.9 () | — | — | — | claude / — |
@@ -35,8 +34,8 @@ Examples:
 | C | P24 | Which planned Muse→Cursor ASKS row is buildable next (no open study gate / no Jamie decision)? | Cursor queue: pick next Ready without reading every A## file | accuracy vs labels ≥ 0.85 () | — | — | — | cursor / — |
 | C | P25 | Does this commit need a Refs: A## trailer (and which id)? | Cursor: stop missing ASKS attribution on agent-bus commits | accuracy vs labels ≥ 0.9 () | — | — | — | cursor / — |
 | C | P26 | Is codegraph explore output enough to edit, or do I still need another symbol/file? | Cursor: stop over-reading after codegraph already answered | accuracy vs labels ≥ 0.85 () | — | — | — | cursor / — |
-| C | P27 | Which Ideas stage is this ASKS row in? (needs you / filed / reviewed=Ready to build / building / done / parked / verified) | second opinion when agents disagree on Ready vs Inbox vs parked; catches one-angle status misreads | accuracy vs labels ≥ 0.9 (status-word prefix rules (ideaPhase)) | — | — | — | cursor / — |
 | X | P14 | Does study S0xx already answer question Q? (over research/studies/INDEX.md rows) | skip re-running analyses | queries whose top-3 studies include a cited one ≥ 0.7 (random top-3 ≈ 8 %) | 0.259 [0.174, 0.367] | 54 | oj eval P14 | claude / — |
+| X | P16 | Does this item need Jamie to act or decide (not just info)? | gate for needs-jamie.md (J8 mistake 10-17) | accuracy vs labels ≥ 0.9 () | 0.761 [0.669, 0.833] | 71 | oj eval P16 | claude / — |
 | X | R01 | Will this stock beat the market tomorrow / next week? (from news, state, or scores) | price forecast | rank corr with NEXT-session move ≥ 0.05 () | -0.006 [-0.046, 0.041] | 1554 | S037 | claude / — |
 | X | R02 | Is this fair value / target / weight about right? (any question that SHOWS it a number to judge) | audit FV, PT, weights | share of the answer NOT moved by a fake number ≥ 0.8 () | 0.28 [?, 0.35] | 80 | S038 C4 placebo | claude / — |
 | X | R03 | Which vendor's value is right / why do sources disagree? | golden-source pick | agrees with simple rules where they fire ≥ 0.8 (rules + FactSet referee) | 0.5 [0.31, 0.69] | 16 | S038 C2 | claude / — |

@@ -200,7 +200,10 @@ def build_p16(seed: int = 17) -> list[dict]:
                 continue
             seen.add(head)
             body = "\n".join(l for l in sec.splitlines() if not l.lower().lstrip("0123456789. ").startswith("reply"))
-            pos.append({"id": f"J:{head[:40]}", "label": True, "state": body[:1500]})
+            # a J item already settled ("Done", "not needed", "resolved") is info, not an ask (label fix 10-18)
+            lines2 = sec.splitlines()[1:2]
+            settled = bool(re.search(r"not needed|resolved|no action", head, re.I)) or bool(lines2 and lines2[0].lower().startswith("done"))
+            pos.append({"id": f"J:{head[:40]}", "label": not settled, "state": body[:1500]})
     ask_rx = re.compile(r"needs jamie|jamie's call|awaiting jamie|waiting on jamie|needs your (ok|call)|jamie to (decide|approve)", re.I)
     done_rx = re.compile(r"jamie (ok|approved|said|asked|agreed)|approved by jamie|\(jamie 20", re.I)
     neg, hard = [], []
