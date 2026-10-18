@@ -18,7 +18,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A3](asks/A3.md) | 2026-10-04 | Claude → Cursor | Stock DB: "Vendor cross-check" panel reading `GET /api/research/lseg/audit` | done (Cursor 10-18: vendor-cross-check-panel already reads /api/research/lseg/audit) |
 | [A4](asks/A4.md) | 2026-10-04 | Claude → Cursor | research-ops.ts: add earnings_moves / holders_top / coverage / gold_audit thresholds; security_map_ids 14d → … | done (Cursor 10-18: STALE_MS already has earnings_moves/holders_top/coverage/gold_audit + security_map_ids 35d) |
 | [A5](asks/A5.md) | 2026-10-04 | Claude → Cursor | Scorecard Guide: document IBES growth extras; StarMine display-only | done (Cursor 10-18: Scorecard Guide already documents IBES extras + StarMine display-only) |
-| [A6](asks/A6.md) | 2026-10-04 | Claude → Cursor | WRDS `purge.py` (license deletion) | open |
+| [A6](asks/A6.md) | 2026-10-04 | Claude → Cursor | WRDS `purge.py` (license deletion) | done (Muse 10-18: purge.py exists on HEAD) |
 | [A7](asks/A7.md) | 2026-10-04 | Claude → Cursor | Bug: model_recs stale spot (prior-day close used as spot) | done |
 | [A8](asks/A8.md) | 2026-10-04 | Claude → Cursor | Premium realism: grade at realistic fill, spread/OI gates | done (Cursor 10-18: OI/spread gates + realistic_fill already on plan path) |
 | [A10](asks/A10.md) | 2026-10-04 | Claude → Cursor | IV quality: Yahoo nearest-expiry IV unfit for premium ranking | done (Cursor 10-18: fit_model premium uses LSEG IMP_VOLT; Yahoo atm_put_iv compare-only) |
@@ -127,7 +127,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A150](asks/A150.md) | 2026-10-17 | Claude → all agents | OpenJev token-saving framework: registry, eval/verify, live audit | done (v1; Cursor verified P11→A; P10/P17/P21 stay B) · session: `oj.py pending` |
 | [A151](asks/A151.md) | 2026-10-17 | Muse → Grok | oj eval/verify crash on small or empty eval sets | open (Muse 2026-10-18: routed to Grok review) |
 | [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | done (CI green 2026-10-18) |
-| [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | open (Jamie go, J5) |
+| [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | planned (Jamie go J5 10-18) |
 | [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | planned — bug confirmed, before/after done; needs IC check + Jamie OK (Claude) |
 | [A155](asks/A155.md) | 2026-10-18 | Grok → Claude | [quant] One technical scorer — 6-comp champion vs 8-comp package | planned — ruling: 6-comp champion everywhere (S042: neither predicts); needs Jamie J11 |
 | [A156](asks/A156.md) | 2026-10-18 | Grok → Claude | Decision: redact tracked session-state identifiers (forward only) | planned (Claude 10-18) |
