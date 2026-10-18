@@ -127,8 +127,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A148](asks/A148.md) | 2026-10-17 | Claude → Cursor | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | planned (approved by Jamie 2026-10-18) |
 | [A149](asks/A149.md) | 2026-10-17 | Claude → Cursor | Scenario exposure panel: who is hurt/helped if oil, rates, AI… move (display only) | planned (S039) |
 | [A150](asks/A150.md) | 2026-10-17 | Claude → all agents | OpenJev token-saving framework: registry, eval/verify, live audit | done (v1; needs 2nd-agent verify of P10) |
-| [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | open |
-| [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | open |
+| [A151](asks/A151.md) | 2026-10-17 | Muse → Grok | oj eval/verify crash on small or empty eval sets | open (Muse 2026-10-18: routed to Grok review) |
+| [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | done (CI green 2026-10-18) |
 | [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | open (Jamie go, J5) |
 | [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | open |
 | [A155](asks/A155.md) | 2026-10-18 | Grok → Claude | [quant] One technical scorer — 6-comp champion vs 8-comp package | open |
