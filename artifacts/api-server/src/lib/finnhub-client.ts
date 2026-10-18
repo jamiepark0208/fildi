@@ -67,24 +67,31 @@ export interface FinnhubEarningsQuarter {
 // well-known small/mid-caps (e.g. AAOI, GME) despite the ticker having public
 // earnings history. Finnhub's /stock/earnings covers the same actual-vs-estimate
 // data on the free tier.
+/**
+ * Past + recent earnings with *announcement* dates (A114).
+ * `/stock/earnings` only has fiscal period ends (`period`) — never use that as reportDate.
+ * `/calendar/earnings` carries the real announcement `date` (free tier, dated range).
+ */
 export async function fetchFinnhubEarningsHistory(ticker: string, trigger = "unknown"): Promise<FinnhubEarningsQuarter[]> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
 
   const t = ticker.toUpperCase();
-  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+  const to = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - 800 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${encodeURIComponent(t)}&token=${apiKey}`;
 
   try {
     const raw = await fetchWithRetry(url);
-    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
-      reportDate: r.period,
-      epsEstimate: n(r.estimate) ?? null,
-      epsActual: n(r.actual) ?? null,
-    })).filter(r => !!r.reportDate);
+    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw?.earningsCalendar) ? raw.earningsCalendar : []).map((r: any) => ({
+      reportDate: r.date as string,
+      epsEstimate: n(r.epsEstimate) ?? null,
+      epsActual: n(r.epsActual) ?? null,
+    })).filter((r: FinnhubEarningsQuarter) => !!r.reportDate);
     logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
     return rows;
   } catch (err: any) {
-    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/earnings" });
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "calendar/earnings" });
     throw err;
   }
 }

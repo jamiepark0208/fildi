@@ -13,6 +13,17 @@ type Row = {
   pAssign: number | null; backToStrike20d: number | null; atStrike20d: number | null; drop5?: number;
   hist: { n: number; med: number; up: number } | null;
 };
+
+/** A117 — American early-assignment risk: deep ITM short put with ≤21d left (display heuristic). */
+function earlyAssignRisk(r: Row): "high" | "watch" | null {
+  if (r.spot == null || r.spot <= 0 || r.strike <= 0) return null;
+  const itmPct = (r.strike - r.spot) / r.spot;
+  if (itmPct < 0.03) return null;
+  if (itmPct >= 0.08 && r.days_left <= 14) return "high";
+  if (itmPct >= 0.05 && r.days_left <= 21) return "watch";
+  if (itmPct >= 0.10) return "watch";
+  return null;
+}
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const tone = (x: number | null, hi: boolean) => (x == null ? "text-white/40" : (hi ? x >= 0.6 : x < 0.4) ? "text-emerald-300" : (hi ? x < 0.4 : x >= 0.6) ? "text-red-300" : "text-white");
 
@@ -54,22 +65,37 @@ export function PutOdds() {
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Put</th><th className={cn(GRID_TH, "text-left")}>Acct</th>
             <th className={cn(GRID_TH, "text-right")}>Spot</th><th className={cn(GRID_TH, "text-right")}>Assigned</th>
+            <th className={cn(GRID_TH, "text-right")}>Early assign</th>
             <th className={cn(GRID_TH, "text-right")}>Touches strike ≤20d</th><th className={cn(GRID_TH, "text-right")}>At strike d20</th>
             <th className={cn(GRID_TH, "text-right")}>After drops like this</th>
           </tr></thead>
-          <tbody>{rows.map((r, i) => (
+          <tbody>{rows.map((r, i) => {
+            const early = earlyAssignRisk(r);
+            return (
             <tr key={`${r.account}-${r.ticker}-${r.strike}-${r.expiry}`} className={gridRow(i)}>
               <td className={cn(GRID_TD, "text-white font-semibold whitespace-nowrap")}>{r.ticker} {r.strike}P <span className="font-normal text-white/50">{r.expiry.slice(5)}{r.qty > 1 ? ` ×${r.qty}` : ""}</span></td>
               <td className={cn(GRID_TD, "text-white/60")}>{r.account}</td>
               <td className={cn(GRID_TD, "text-right text-white/80")}>{r.spot?.toFixed(2) ?? "—"}</td>
               <td className={cn(GRID_TD, "text-right font-semibold", tone(r.pAssign, false))}>{pct(r.pAssign)}</td>
+              <td
+                className={cn(
+                  GRID_TD, "text-right text-[11px]",
+                  early === "high" && "text-red-300 font-semibold",
+                  early === "watch" && "text-amber-300",
+                  !early && "text-white/30",
+                )}
+                title="Deep ITM short put near expiry — American early-assignment risk (heuristic, not advice)"
+              >
+                {early === "high" ? "high" : early === "watch" ? "watch" : "—"}
+              </td>
               <td className={cn(GRID_TD, "text-right", tone(r.backToStrike20d, true))}>{pct(r.backToStrike20d)}</td>
               <td className={cn(GRID_TD, "text-right", tone(r.atStrike20d, true))}>{pct(r.atStrike20d)}</td>
               <td className={cn(GRID_TD, "text-right text-white/80 whitespace-nowrap")}>
                 {r.hist ? <>up {pct(r.hist.up)} · {r.hist.med >= 0 ? "+" : ""}{Math.round(r.hist.med * 100)}% <span className="text-white/40">n {r.hist.n}</span></> : "—"}
               </td>
             </tr>
-          ))}</tbody>
+            );
+          })}</tbody>
         </table>
       </div>
     </div>

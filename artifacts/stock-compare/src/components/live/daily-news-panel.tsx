@@ -103,6 +103,14 @@ interface MarketChip {
   changePercent: number | null;
 }
 
+/** A82 — Kalshi macro odds (internal display). */
+interface PredMarketsStrip {
+  asOf: string;
+  fomc: { dateLabel: string; holdPct: number; cutPct: number; hikePct: number; oi: number } | null;
+  cpi: { monthLabel: string; medianYoY: number; oi: number } | null;
+  error?: string;
+}
+
 async function fetchDailyNews(): Promise<DailyNewsResponse> {
   const r = await fetch("/api/desk-commentaries/daily-news", { credentials: "include" });
   if (!r.ok) throw new Error(await r.text());
@@ -423,6 +431,17 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
       return r.json();
     },
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: predMarkets } = useQuery({
+    queryKey: ["live-pred-markets"],
+    queryFn: async (): Promise<PredMarketsStrip> => {
+      const r = await fetch("/api/live/pred-markets", { credentials: "include" });
+      if (!r.ok) throw new Error("pred-markets failed");
+      return r.json();
+    },
+    staleTime: 30 * 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -785,6 +804,28 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                 </span>
               </span>
             ))}
+          </div>
+        )}
+
+        {/* A82 — Kalshi FOMC / CPI (internal only) */}
+        {(predMarkets?.fomc || predMarkets?.cpi) && (
+          <div
+            className="rounded-md border border-cyan-400/25 bg-zinc-950 px-1.5 py-0.5 flex flex-nowrap items-baseline gap-x-2 overflow-hidden whitespace-nowrap text-[10px] font-mono tabular-nums text-cyan-100/90"
+            title="Kalshi market odds · internal use only · not advice"
+          >
+            <span className="text-cyan-400/70 shrink-0">Kalshi</span>
+            {predMarkets.fomc && (
+              <span className="shrink-0" title={`OI ${predMarkets.fomc.oi.toLocaleString()}`}>
+                FOMC {predMarkets.fomc.dateLabel}: hold {predMarkets.fomc.holdPct}%
+                {predMarkets.fomc.cutPct > 0 ? ` · cut ${predMarkets.fomc.cutPct}%` : ""}
+                {predMarkets.fomc.hikePct > 0 ? ` · hike ${predMarkets.fomc.hikePct}%` : ""}
+              </span>
+            )}
+            {predMarkets.cpi && (
+              <span className="shrink-0" title={`OI ${predMarkets.cpi.oi.toLocaleString()}`}>
+                CPI {predMarkets.cpi.monthLabel}: ~{predMarkets.cpi.medianYoY}% YoY
+              </span>
+            )}
           </div>
         )}
 

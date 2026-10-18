@@ -7,7 +7,7 @@ export type OhlcBar = {
   low?: number | null;
 };
 
-/** Subset of ticker_technicals fields used for chart zones */
+/** Subset of ticker_technicals fields used for chart zones + IV band (A93) */
 export type DbTechnicalLevels = {
   swingHigh20d?: string | number | null;
   swingLow20d?: string | number | null;
@@ -21,6 +21,10 @@ export type DbTechnicalLevels = {
   bbUpper?: string | number | null;
   bbLower?: string | number | null;
   vwap20d?: string | number | null;
+  /** ATM put IV in percent (e.g. 35 = 35%). */
+  atmPutIv?: string | number | null;
+  /** Weekly implied move as fraction of spot (e.g. 0.06 = 6%). */
+  impliedMoveWeekly?: string | number | null;
 };
 
 /**

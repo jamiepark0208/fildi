@@ -369,6 +369,10 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
   const fitted = useRef(false);
   const gridRef = useRef(grid);
   gridRef.current = grid;
+  // Jamie 10-18: default off so page/tab scroll works over the map; +/− buttons always work.
+  const [wheelZoom, setWheelZoom] = useState(false);
+  const wheelZoomRef = useRef(wheelZoom);
+  wheelZoomRef.current = wheelZoom;
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   useEffect(() => {
     const cv = ref.current;
@@ -395,8 +399,13 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    // gentle zoom: ~5 % per mouse-wheel notch, proportional for trackpads (user: 12 %/notch was too fast)
-    const onWheel = (e: WheelEvent) => { e.preventDefault(); const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.0009))); };
+    // Only capture wheel when scroll-zoom is on; otherwise let the page scroll.
+    const onWheel = (e: WheelEvent) => {
+      if (!wheelZoomRef.current) return;
+      e.preventDefault();
+      const v = view.current;
+      v.z = Math.min(5, Math.max(0.4, v.z * Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.0009)));
+    };
     cv.addEventListener("wheel", onWheel, { passive: false });
     return () => { cancelAnimationFrame(raf); cv.removeEventListener("wheel", onWheel); };
   }, []);
@@ -430,6 +439,19 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
         </div>
       )}
       <div className="absolute top-2 right-2 flex gap-1">
+        <button
+          type="button"
+          onClick={() => setWheelZoom((v) => !v)}
+          title={wheelZoom ? "Scroll zoom on — click to scroll the page instead" : "Scroll zoom off — click to zoom with the wheel"}
+          className={cn(
+            "px-2 h-7 rounded-md border text-[11px] font-semibold",
+            wheelZoom
+              ? "bg-cyan-400/90 border-cyan-300 text-black"
+              : "bg-black/70 border-white/15 text-white/80 hover:border-cyan-300/50",
+          )}
+        >
+          {wheelZoom ? "scroll zoom on" : "scroll zoom"}
+        </button>
         {([["+", 1.25], ["−", 0.8]] as const).map(([l, k]) => (
           <button key={l} type="button" onClick={() => { const v = view.current; v.z = Math.min(5, Math.max(0.4, v.z * k)); }}
             className="w-7 h-7 rounded-md bg-black/70 border border-white/15 text-white text-sm hover:border-cyan-300/50">{l}</button>
@@ -823,20 +845,24 @@ function Available({ id, d }: { id: Id; d: Data }) {
   if (id === "claude") {
     const l = d.limits?.claude;
     if (!l || l.fiveHour.pct == null) return cell("see /usage", "Claude Code shares plan limits with its status line; the number appears here after the next status-line refresh in a Claude session. Until then type /usage in Claude.");
-    // Cell = 5-hour headroom. Tip also shows weekly — label both so 77% left ≠ weekly 78% used.
     const used5 = Math.round(l.fiveHour.pct);
     const left5 = Math.max(0, 100 - used5);
     const used7 = l.sevenDay.pct != null ? Math.round(l.sevenDay.pct) : null;
     const left7 = used7 != null ? Math.max(0, 100 - used7) : null;
-    return cell(<>{left5}% left (5h) · resets {hm(l.fiveHour.resetsAt)}</>,
+    // Cell = the binding limit (user 10-18: 5h "78% left" read as weekly while weekly was 78% used).
+    const weeklyBinds = left7 != null && left7 < left5;
+    const left = weeklyBinds ? left7 : left5;
+    return cell(weeklyBinds
+        ? <>{left7}% left (week) · resets {l.sevenDay.resetsAt ? new Date(l.sevenDay.resetsAt).toLocaleDateString([], { weekday: "short" }) : "—"}</>
+        : <>{left5}% left (5h) · resets {hm(l.fiveHour.resetsAt)}</>,
       <>
         <div>5-hour: {used5}% used · {left5}% left · resets {hm(l.fiveHour.resetsAt)}</div>
         {used7 != null && (
           <div>Weekly: {used7}% used · {left7}% left{l.sevenDay.resetsAt ? ` · resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}</div>
         )}
-        <div className="text-white/50">As of {hm(l.at)}. Cell shows 5-hour only.</div>
+        <div className="text-white/50">As of {hm(l.at)}. Cell shows whichever limit is tighter.</div>
       </>,
-      left5 < 20 ? "text-red-300 font-semibold" : left5 < 50 ? "text-amber-200" : "text-emerald-300");
+      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
   }
   if (id === "cursor") {
     const l = d.limits?.cursor;

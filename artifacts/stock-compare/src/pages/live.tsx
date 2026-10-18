@@ -20,6 +20,7 @@ import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers"
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
+import { ScenarioExposurePanel } from "@/components/live/scenario-exposure-panel";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
@@ -448,13 +449,16 @@ export default function Live() {
           </div>
 
           {pageTab === "macro" ? (
-            <Suspense fallback={
-              <div className="flex items-center justify-center min-h-[40vh]">
-                <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
-              </div>
-            }>
-              <MacroEmbedded embedded />
-            </Suspense>
+            <div className="space-y-3 px-6 pt-3">
+              <ScenarioExposurePanel />
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[40vh]">
+                  <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
+                </div>
+              }>
+                <MacroEmbedded embedded />
+              </Suspense>
+            </div>
           ) : pageTab === "alerts" ? (
             <PortfolioAlertsPanel />
           ) : pageTab === "news" ? (

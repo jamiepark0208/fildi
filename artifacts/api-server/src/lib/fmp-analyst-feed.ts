@@ -62,7 +62,49 @@ function toEventDate(publishedDate: string): string | null {
   return publishedDate ? publishedDate.slice(0, 10) : null;
 }
 
-export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; targetsWritten: number }> {
+/** A146 — drop market-roundup headlines that FMP attaches to every name in a digest. */
+const ROUNDUP_RE = /what you missed on wall street|wall street'?s top analyst calls|stocks to (?:buy|watch)|top (?:analyst )?calls|morning movers|market wrap|today'?s biggest|analysts (?:are )?saying|here are the/i;
+
+/**
+ * Keep newsTitle only when it names this ticker (word boundary). Roundups → null.
+ * Company-name matching needs a name map we don't have here — ticker mention is the gate.
+ */
+export function headlineForTicker(ticker: string, title: string | null | undefined): string | null {
+  if (!title?.trim()) return null;
+  const trimmed = title.trim();
+  if (ROUNDUP_RE.test(trimmed)) return null;
+  const esc = ticker.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!new RegExp(`\\b${esc}\\b`, "i").test(trimmed)) return null;
+  return trimmed;
+}
+
+/** Parse "from $180" / "raised from 180" → prior target when FMP omits the field. */
+export function priorTargetFromHeadline(title: string | null | undefined): number | null {
+  if (!title) return null;
+  const m = title.match(/(?:from|was)\s*\$?\s*([\d,]+(?:\.\d+)?)/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]!.replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 && n < 1_000_000 ? n : null;
+}
+
+/** Null out stored roundup titles (FMP digest noise). Does not touch firm-specific company-name headlines. */
+async function scrubStaleRoundupTitles(): Promise<number> {
+  const res = await db.execute(sql`
+    UPDATE analyst_events
+    SET news_title = NULL
+    WHERE news_title IS NOT NULL
+      AND (
+        news_title ~* 'what you missed on wall street'
+        OR news_title ~* 'wall street''?s top analyst calls'
+        OR news_title ~* 'stocks to (buy|watch)'
+        OR news_title ~* 'top analyst calls'
+        OR news_title ~* 'morning movers'
+      )
+  `);
+  return Number((res as { rowCount?: number }).rowCount ?? 0);
+}
+
+export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; targetsWritten: number; scrubbed: number }> {
   const universe = await getTrackedTickers();
 
   const [grades, targets] = await Promise.all([
@@ -75,6 +117,8 @@ export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; 
     const symbol = item.symbol?.toUpperCase();
     const eventDate = toEventDate(item.publishedDate);
     if (!symbol || !universe.has(symbol) || !eventDate || !item.gradingCompany) continue;
+    const newsTitle = headlineForTicker(symbol, item.newsTitle);
+    const prior = priorTargetFromHeadline(item.newsTitle);
 
     await db.insert(analystEvents)
       .values({
@@ -85,7 +129,8 @@ export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; 
         fromGrade: item.previousGrade ?? null,
         toGrade: item.newGrade ?? null,
         eventDate,
-        newsTitle: item.newsTitle ?? null,
+        newsTitle,
+        ...(prior != null ? { priorPriceTarget: String(prior) } : {}),
       })
       .onConflictDoUpdate({
         target: [analystEvents.ticker, analystEvents.firm, analystEvents.eventDate, analystEvents.source],
@@ -93,7 +138,8 @@ export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; 
           action: (item.action ?? "maintain").toLowerCase(),
           fromGrade: item.previousGrade ?? null,
           toGrade: item.newGrade ?? null,
-          newsTitle: item.newsTitle ?? null,
+          newsTitle,
+          ...(prior != null ? { priorPriceTarget: String(prior) } : {}),
           fetchedAt: sql`now()`,
         },
       });
@@ -105,6 +151,8 @@ export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; 
     const symbol = item.symbol?.toUpperCase();
     const eventDate = toEventDate(item.publishedDate);
     if (!symbol || !universe.has(symbol) || !eventDate || !item.analystCompany || item.priceTarget == null) continue;
+    const newsTitle = headlineForTicker(symbol, item.newsTitle);
+    const prior = priorTargetFromHeadline(item.newsTitle);
 
     await db.insert(analystEvents)
       .values({
@@ -114,19 +162,26 @@ export async function runFmpAnalystFeedPoll(): Promise<{ gradesWritten: number; 
         action: "price-target",
         eventDate,
         priceTarget: String(item.priceTarget),
-        newsTitle: item.newsTitle ?? null,
+        newsTitle,
+        ...(prior != null ? { priorPriceTarget: String(prior) } : {}),
       })
       .onConflictDoUpdate({
         target: [analystEvents.ticker, analystEvents.firm, analystEvents.eventDate, analystEvents.source],
         set: {
           priceTarget: String(item.priceTarget),
-          newsTitle: item.newsTitle ?? null,
+          newsTitle,
+          ...(prior != null ? { priorPriceTarget: String(prior) } : {}),
           fetchedAt: sql`now()`,
         },
       });
     targetsWritten++;
   }
 
-  logger.info({ gradesWritten, targetsWritten }, "fmp-analyst-feed: poll complete");
-  return { gradesWritten, targetsWritten };
+  const scrubbed = await scrubStaleRoundupTitles().catch((err) => {
+    logger.warn({ err }, "fmp-analyst-feed: scrub failed");
+    return 0;
+  });
+
+  logger.info({ gradesWritten, targetsWritten, scrubbed }, "fmp-analyst-feed: poll complete");
+  return { gradesWritten, targetsWritten, scrubbed };
 }

@@ -14,6 +14,7 @@ import { trackRecordCache } from '../routes/track-record.js';
 import { screenerCache, globalMoversCache } from './live-movers.js';
 import { marketDataCache } from '../routes/daily-brief.js';
 import { fredYieldCache } from './fair-value-snapshots.js';
+import { kalshiMacroCache } from './kalshi-macro.js';
 import {
   loadMacroCache, loadChartsCache,
   MACRO_DATA_TTL_MS, MACRO_CHARTS_TTL_MS,
@@ -61,6 +62,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'daily-brief-market':      'Daily Brief Market Strip',
   'track-record':            'Model Track Record Aggregates',
   'fair-value-yields':       'Fair Value Yields (FRED AAA / 10Y)',
+  'kalshi-macro':            'Kalshi Macro Odds (FOMC / CPI)',
 };
 
 const MACRO_DATA_FILE   = join(ROOT, 'macro-data.json');
@@ -96,6 +98,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   'daily-brief-market':      marketDataCache,
   'fair-value-yields':       fredYieldCache,
   'track-record':            trackRecordCache,
+  'kalshi-macro':            kalshiMacroCache,
   'macro-data':     fileCacheHandle(MACRO_DATA_FILE),
   'macro-charts':   fileCacheHandle(MACRO_CHARTS_FILE),
   'macro-cot':      fileCacheHandle(COT_CACHE_FILE),
@@ -140,7 +143,10 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, ivTermCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache, tickerNewsCache, livePriceCache, screenerCache, globalMoversCache, marketDataCache, fredYieldCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, ivTermCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache, tickerNewsCache, livePriceCache, screenerCache, globalMoversCache, marketDataCache, fredYieldCache, techRankingsCache, trackRecordCache, kalshiMacroCache];
+
+/** Non-TTLCache entries (single objects / files) have no hit counters. */
+const NO_COUNTERS = { sets: 0, evictions: 0, coalesced: 0, callsSaved: 0, startedAt: 0, estBytes: null } as const;
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
 
@@ -175,7 +181,7 @@ export function getAllCaches(): CacheStats[] {
       displayName: DISPLAY_NAMES['volatility-regime']!,
       ttlMs: MACRO_REGIME_TTL,
       entryCount: macroRegimeEntry ? 1 : 0,
-      hits: null, misses: null, hitRate: '—',
+      hits: null, misses: null, hitRate: '—', ...NO_COUNTERS,
       entries: fileEntry(macroRegimeEntry?.fetchedAt ?? null, MACRO_REGIME_TTL, 'market-data', now),
     },
     {
@@ -183,7 +189,7 @@ export function getAllCaches(): CacheStats[] {
       displayName: DISPLAY_NAMES['business-cycle-regime']!,
       ttlMs: BUSINESS_CYCLE_REGIME_TTL,
       entryCount: getBusinessCycleRegimeState() ? 1 : 0,
-      hits: null, misses: null, hitRate: '—',
+      hits: null, misses: null, hitRate: '—', ...NO_COUNTERS,
       entries: fileEntry(getBusinessCycleRegimeState()?.cachedAt ?? null, BUSINESS_CYCLE_REGIME_TTL, 'business-cycle', now),
     },
     {
@@ -191,7 +197,7 @@ export function getAllCaches(): CacheStats[] {
       displayName: DISPLAY_NAMES['macro-data']!,
       ttlMs: MACRO_DATA_TTL_MS,
       entryCount: macroDataEntry ? 1 : 0,
-      hits: null, misses: null, hitRate: '—',
+      hits: null, misses: null, hitRate: '—', ...NO_COUNTERS,
       entries: fileEntry(macroDataEntry ? new Date(macroDataEntry.fetchedAt).getTime() : null, MACRO_DATA_TTL_MS, 'macro-data', now),
     },
     {
@@ -199,7 +205,7 @@ export function getAllCaches(): CacheStats[] {
       displayName: DISPLAY_NAMES['macro-charts']!,
       ttlMs: MACRO_CHARTS_TTL_MS,
       entryCount: macroChartsEntry ? 1 : 0,
-      hits: null, misses: null, hitRate: '—',
+      hits: null, misses: null, hitRate: '—', ...NO_COUNTERS,
       entries: macroChartsFieldEntries(macroChartsEntry, MACRO_CHARTS_TTL_MS, now),
     },
     {
@@ -207,7 +213,7 @@ export function getAllCaches(): CacheStats[] {
       displayName: DISPLAY_NAMES['macro-cot']!,
       ttlMs: COT_TTL_MS,
       entryCount: cotFetchedAt ? 1 : 0,
-      hits: null, misses: null, hitRate: '—',
+      hits: null, misses: null, hitRate: '—', ...NO_COUNTERS,
       entries: fileEntry(cotFetchedAt, COT_TTL_MS, 'cot-all-instruments', now),
     },
   ];

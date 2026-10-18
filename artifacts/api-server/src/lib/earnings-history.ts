@@ -9,6 +9,11 @@ const STALE_DAYS = 30; // earnings only report ~4x/year — no need to re-fetch 
 const UPCOMING_STALE_DAYS = 3; // consensus EPS estimates move more often than reported actuals
 const MAX_QUARTERS = 9; // 8 past + room for 1 upcoming without dropping a reported quarter
 
+/** A114 — fiscal quarter ends mislabeled as announcement dates (Finnhub `period`, bad FMP rows). */
+export function isFiscalPeriodEndDate(dateStr: string): boolean {
+  return /-(03-31|06-30|09-30|12-31)$/.test(dateStr.slice(0, 10));
+}
+
 export interface EarningsQuarter {
   reportDate: string;
   epsEstimate: number | null;
@@ -90,9 +95,14 @@ export async function isEarningsDataFresh(ticker: string): Promise<boolean> {
 export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuarter[]): Promise<void> {
   const upperTicker = ticker.toUpperCase();
   if (rows.length === 0) return;
+  const today = new Date().toISOString().slice(0, 10);
 
   await db.transaction(async tx => {
     for (const r of rows) {
+      const date = r.reportDate.slice(0, 10);
+      // A114: never store fiscal period ends as past announcement dates.
+      if (date < today && r.epsActual != null && isFiscalPeriodEndDate(date)) continue;
+
       const surprisePct = r.epsActual != null && r.epsEstimate != null && r.epsEstimate !== 0
         ? ((r.epsActual - r.epsEstimate) / Math.abs(r.epsEstimate)) * 100
         : null;
@@ -100,7 +110,7 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
       await tx.insert(earningsCalendar)
         .values({
           ticker: upperTicker,
-          reportDate: r.reportDate,
+          reportDate: date,
           isConfirmed: true,
           epsEstimate: r.epsEstimate?.toString() ?? null,
           epsActual: r.epsActual?.toString() ?? null,
@@ -120,6 +130,36 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
     logger.warn({ ticker: upperTicker, err }, "writeEarningsHistory transaction failed");
     throw err;
   });
+}
+
+/**
+ * A114 repair: drop past fiscal-period-end rows; insert real announcement dates from LSEG.
+ * Safe to re-run. EPS left null on LSEG-only inserts (date correctness > surprise %).
+ */
+export async function repairPastEarningsFromLseg(): Promise<{ deleted: number; inserted: number }> {
+  const del = await db.execute(sql`
+    DELETE FROM earnings_calendar
+    WHERE eps_actual IS NOT NULL
+      AND report_date < CURRENT_DATE
+      AND to_char(report_date, 'MM-DD') IN ('03-31', '06-30', '09-30', '12-31')
+  `);
+  const deleted = Number((del as { rowCount?: number }).rowCount ?? 0);
+
+  let inserted = 0;
+  try {
+    const ins = await db.execute(sql`
+      INSERT INTO earnings_calendar (ticker, report_date, is_confirmed, eps_estimate, eps_actual, surprise_pct, fetched_at)
+      SELECT m.ticker, m.report_date, true, NULL, NULL, NULL, now()
+      FROM lseg_research.earnings_moves m
+      WHERE m.report_date < CURRENT_DATE
+      ON CONFLICT (ticker, report_date) DO NOTHING
+    `);
+    inserted = Number((ins as { rowCount?: number }).rowCount ?? 0);
+  } catch (err) {
+    logger.warn({ err }, "repairPastEarningsFromLseg: LSEG insert skipped (table missing?)");
+  }
+  logger.info({ deleted, inserted }, "A114 earnings_calendar repair from LSEG");
+  return { deleted, inserted };
 }
 
 /** Read reported + upcoming quarters for a ticker, most recent/soonest first, capped to MAX_QUARTERS. */
@@ -205,6 +245,11 @@ const GAP_MS = 350;
 // stock-breakdown's Earnings tab is always DB-served — no user click should ever be
 // the first thing that triggers an FMP/Finnhub call. Run nightly from the scheduler.
 export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise<{ attempted: number; written: number; empty: number }> {
+  // A114 — once per backfill: purge fiscal period-end past rows + seed LSEG announcement dates.
+  await repairPastEarningsFromLseg().catch((err) => {
+    logger.warn({ err }, "A114 repair skipped");
+  });
+
   const universe = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
   const stale = await getStaleEarningsTickers(universe.map(r => r.ticker));
   const batch = stale.slice(0, MAX_PER_RUN);

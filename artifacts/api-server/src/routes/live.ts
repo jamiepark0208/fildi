@@ -9,8 +9,28 @@ import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
 import { hasHighImportanceCatalystToday, isEconomicCalendarStale } from "../lib/macro-static.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { fetchKalshiMacroStrip } from "../lib/kalshi-macro.js";
+import { getScenarioExposure, parseScenarioId, SCENARIO_IDS, SCENARIO_LABELS } from "../lib/scenario-exposure.js";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, watchlist, positions } from "@workspace/db";
 
 const router = Router();
+
+/** Book tickers for A149 — watchlist ∪ open positions. */
+async function bookTickersForScenarios(userId: number | undefined): Promise<string[]> {
+  const out = new Set<string>();
+  if (userId == null) return [];
+  try {
+    const wl = await db.select({ ticker: watchlist.ticker }).from(watchlist).where(eq(watchlist.userId, userId)).limit(80);
+    for (const r of wl) out.add(r.ticker.toUpperCase());
+  } catch { /* ignore */ }
+  try {
+    const pos = await db.select({ ticker: positions.ticker }).from(positions)
+      .where(and(eq(positions.userId, userId), isNull(positions.closedAt))).limit(40);
+    for (const r of pos) out.add(r.ticker.toUpperCase());
+  } catch { /* ignore */ }
+  return [...out];
+}
 
 export interface MarketContextQuote {
   ticker: string;
@@ -187,6 +207,35 @@ router.get("/live/entry-signals", async (_req, res, next) => {
 router.get("/live/entry-stats", async (_req, res, next) => {
   try {
     res.json(await computeEntryStats(30));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /live/pred-markets — A82 Kalshi FOMC + CPI odds strip (hourly cache).
+ * Internal display only; personal use per Kalshi ToS.
+ */
+router.get("/live/pred-markets", async (_req, res, next) => {
+  try {
+    res.json(await fetchKalshiMacroStrip());
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /live/scenarios?scenario=oil — A149 scenario exposure for book names (OpenJev S039).
+ */
+router.get("/live/scenarios", async (req, res, next) => {
+  try {
+    const scenario = parseScenarioId(req.query["scenario"]) ?? "oil";
+    const book = await bookTickersForScenarios(req.session?.userId);
+    const data = getScenarioExposure(scenario, book);
+    res.json({
+      ...data,
+      scenarios: SCENARIO_IDS.map((id) => ({ id, label: SCENARIO_LABELS[id] })),
+    });
   } catch (err) {
     next(err);
   }
