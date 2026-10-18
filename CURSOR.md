@@ -7,6 +7,7 @@
 2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js` then `scripts/agent-git-sync.sh`
 3. **Team bus is sync'd in step 1** — do not hand `git pull` / stash / rebase (AGENTS.md rule 2). If Sync line says behind/conflict, fix via the script only.
 4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##` + `Agent: cursor` when the build finishes — do not ask Jamie whether to commit agent-bus work. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
+4b. **Ship gate (Jamie 2026-10-18 / A94):** before any commit that touches `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**`, run `scripts/agent-ship-check.sh` (typecheck; healthz warn). `agent-git-sync.sh` also runs it before push. Wrong middleware imports crash the whole API — never skip. No loops/subagents for ship automation.
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
 6. Task code context: **codegraph** MCP
 7. **NEEDS YOU inbox (A153):** `node .agents/hooks/needs-inbox.mjs --agent=cursor` — unanswered Jamie comments; reply with `needs-reply.mjs J# "…" cursor` (Owner does the work; Muse is default first responder)

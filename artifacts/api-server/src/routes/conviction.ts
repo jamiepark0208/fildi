@@ -3,7 +3,7 @@
  */
 import { Router } from "express";
 import { pool } from "@workspace/db";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { ensureConvictionTables } from "../lib/conviction-ledger.js";
 
 const router = Router();
@@ -40,10 +40,19 @@ router.post("/conviction/:ticker", requireAdmin, async (req, res, next) => {
     await ensureConvictionTables();
     const ticker = String(req.params.ticker || "").toUpperCase();
     const { claim, horizon, confidence, reason, subTheses } = req.body ?? {};
-    if (!claim || String(claim).length < 5) return res.status(400).json({ error: "claim (≥5 chars) required" });
-    if (!reason || String(reason).length < 5) return res.status(400).json({ error: "reason (≥5 chars) required" });
+    if (!claim || String(claim).length < 5) {
+      res.status(400).json({ error: "claim (≥5 chars) required" });
+      return;
+    }
+    if (!reason || String(reason).length < 5) {
+      res.status(400).json({ error: "reason (≥5 chars) required" });
+      return;
+    }
     const conf = Number(confidence);
-    if (!Number.isInteger(conf) || conf < 1 || conf > 5) return res.status(400).json({ error: "confidence 1–5" });
+    if (!Number.isInteger(conf) || conf < 1 || conf > 5) {
+      res.status(400).json({ error: "confidence 1–5" });
+      return;
+    }
     const who = (req as { user?: { email?: string } }).user?.email ?? "admin";
     const t = (await pool.query(
       `INSERT INTO conviction_theses (ticker, claim, horizon, confidence, reason, created_by, reviewed_at)
@@ -75,14 +84,23 @@ router.post("/conviction/thesis/:id/confidence", requireAdmin, async (req, res, 
     const id = Number(req.params.id);
     const { confidence, reason } = req.body ?? {};
     const conf = Number(confidence);
-    if (!Number.isInteger(conf) || conf < 1 || conf > 5) return res.status(400).json({ error: "confidence 1–5" });
-    if (!reason || String(reason).length < 5) return res.status(400).json({ error: "reason (≥5 chars) required" });
+    if (!Number.isInteger(conf) || conf < 1 || conf > 5) {
+      res.status(400).json({ error: "confidence 1–5" });
+      return;
+    }
+    if (!reason || String(reason).length < 5) {
+      res.status(400).json({ error: "reason (≥5 chars) required" });
+      return;
+    }
     const who = (req as { user?: { email?: string } }).user?.email ?? "admin";
     const t = (await pool.query(
       `UPDATE conviction_theses SET confidence = $2, reviewed_at = now() WHERE id = $1 AND status = 'active' RETURNING *`,
       [id, conf],
     )).rows[0];
-    if (!t) return res.status(404).json({ error: "not found" });
+    if (!t) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
     await pool.query(
       `INSERT INTO conviction_events (thesis_id, event, confidence, reason, created_by)
        VALUES ($1,'confidence',$2,$3,$4)`,
@@ -99,13 +117,19 @@ router.post("/conviction/thesis/:id/kill", requireAdmin, async (req, res, next) 
     await ensureConvictionTables();
     const id = Number(req.params.id);
     const { reason } = req.body ?? {};
-    if (!reason || String(reason).length < 5) return res.status(400).json({ error: "reason (≥5 chars) required" });
+    if (!reason || String(reason).length < 5) {
+      res.status(400).json({ error: "reason (≥5 chars) required" });
+      return;
+    }
     const who = (req as { user?: { email?: string } }).user?.email ?? "admin";
     const t = (await pool.query(
       `UPDATE conviction_theses SET status = 'killed', killed_at = now(), kill_note = $2 WHERE id = $1 AND status = 'active' RETURNING *`,
       [id, String(reason)],
     )).rows[0];
-    if (!t) return res.status(404).json({ error: "not found" });
+    if (!t) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
     await pool.query(
       `INSERT INTO conviction_events (thesis_id, event, confidence, reason, created_by)
        VALUES ($1,'killed',$2,$3,$4)`,
