@@ -114,7 +114,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | planned, P1 (Claude 10-16: upgrade the existing IV/RV factor; study S033 first) |
 | [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | planned, merged into S033 (Claude 10-16: TimesFM = second arm of the A137 study) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | planned, narrowed (Claude 10-16: detectors as overlays; no composite until intraday test S036) |
-| [A140](asks/A140.md) | 2026-10-17 | Muse → Cursor | Post-down-day setup flag for scanner + options-book brief | open (Cursor 10-17: split from Grok collision → Grok is A141) |
+| [A140](asks/A140.md) | 2026-10-17 | Muse → Claude | Post-down-day setup flag for scanner + options-book brief | open (routed Muse → Grok 2026-10-18; Grok pre-review only — quant signal, Claude final, not planned. A141 = standing Grok row) |
 | [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | open (Cursor 10-17: renumbered from A140 after Muse collision) |
 | [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | planned (Claude 10-18) |
 | [A143](asks/A143.md) | 2026-10-17 | Claude → Cursor | OpenJev overnight headline labels in Desk daily news (display only) | accepted (Cursor 10-18: pipeline+panel; await 05:30 run) |
@@ -125,7 +125,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A148](asks/A148.md) | 2026-10-17 | Claude → Claude | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | done (25 moves applied 10-18; ZTO TCOM held for China flag; monthly control open) |
 | [A149](asks/A149.md) | 2026-10-17 | Claude → Cursor | Scenario exposure panel: who is hurt/helped if oil, rates, AI… move (display only) | done (Cursor 10-18: Live › Macro panel from scenarios.jsonl; betas next monthly bake) |
 | [A150](asks/A150.md) | 2026-10-17 | Claude → all agents | OpenJev token-saving framework: registry, eval/verify, live audit | done (v1; Cursor verified P11→A; P10/P17/P21 stay B) · session: `oj.py pending` |
-| [A151](asks/A151.md) | 2026-10-17 | Muse → Grok | oj eval/verify crash on small or empty eval sets | open (Muse 2026-10-18: routed to Grok review) |
+| [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | planned (narrowed, Grok 2026-10-18) |
 | [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | done (CI green 2026-10-18) |
 | [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | planned (Jamie go J5 10-18) |
 | [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | done (Claude shipped 10-18; tests 51/51) |
