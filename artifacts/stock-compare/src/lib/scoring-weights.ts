@@ -1,5 +1,5 @@
 import { FAMILY_PRESETS, SCORECARD_METRICS_V2, type FamilyPreset } from "@/lib/rankings";
-import { TECHNICAL_SCORECARD_METRICS_V2 } from "@/lib/technical-rankings";
+import { TECHNICAL_DISPLAY_ONLY_KEYS, TECHNICAL_SCORECARD_METRICS_V2 } from "@/lib/technical-rankings";
 import {
   W_INCOME, W_BUFFER, W_IV_RELATIVE, W_IV_ABSOLUTE, W_STOCK_QUALITY, W_SUPPORT, W_DTE,
   WS_TECHNICAL, WS_FUNDAMENTAL, WS_RELATIVE_MOVE, WS_BEST_OPTION, WS_TAG,
@@ -20,7 +20,7 @@ export function buildDefaultScoringWeights(): ScoringWeightsConfig {
       SCORECARD_METRICS_V2.map(m => [m.key, m.intraWeight]),
     ),
     technical: Object.fromEntries(
-      TECHNICAL_SCORECARD_METRICS_V2.map(m => [m.key, m.weight]),
+      TECHNICAL_SCORECARD_METRICS_V2.filter(m => m.weight > 0).map(m => [m.key, m.weight]),
     ),
     optionStock: {
       technical: WS_TECHNICAL,
@@ -47,7 +47,11 @@ export function mergeScoringWeights(partial?: Partial<ScoringWeightsConfig> | nu
   return {
     familyPreset: { ...d.familyPreset, ...partial.familyPreset },
     fundamentalMetrics: { ...d.fundamentalMetrics, ...partial.fundamentalMetrics },
-    technical: { ...d.technical, ...partial.technical },
+    technical: (() => {
+      const t = { ...d.technical, ...partial.technical };
+      for (const k of TECHNICAL_DISPLAY_ONLY_KEYS) t[k] = 0; // A155
+      return t;
+    })(),
     optionStock: { ...d.optionStock, ...partial.optionStock },
     optionStrike: { ...d.optionStrike, ...partial.optionStrike },
   };
@@ -61,7 +65,9 @@ function sumValues(o: Record<string, number>): number {
 export function validateScoringWeights(c: ScoringWeightsConfig): string | null {
   const famSum = c.familyPreset.value + c.familyPreset.growth + c.familyPreset.quality + c.familyPreset.safety;
   if (Math.abs(famSum - 100) > 0.01) return `Family weights must sum to 100 (got ${famSum})`;
-  const techSum = sumValues(c.technical);
+  const techSum = Object.entries(c.technical)
+    .filter(([k]) => !(TECHNICAL_DISPLAY_ONLY_KEYS as readonly string[]).includes(k))
+    .reduce((a, [, v]) => a + v, 0);
   if (Math.abs(techSum - 1) > 0.01) return `Technical weights must sum to 1.0 (got ${techSum.toFixed(3)})`;
   const osSum = sumValues(c.optionStock);
   if (Math.abs(osSum - 1) > 0.01) return `Option stock weights must sum to 1.0 (got ${osSum.toFixed(3)})`;

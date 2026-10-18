@@ -102,11 +102,13 @@ export const TECHNICAL_GUIDE_ROWS: GuideMetricRow[] = TECHNICAL_SCORECARD_METRIC
   source: "Yahoo→DB",
   refresh: "Daily" as const,
   coverageDomain: "technicals" as const,
-  notes: m.key === "volatilityState"
-    ? "Labeled realized-vol rank in UI; true IV rank pending S019"
-    : m.key === "optionsFlow"
-      ? "Put/call percentile needs ~60d history"
-      : m.description,
+  notes: m.weight === 0
+    ? `Display only (A155) — not in total. ${m.description}`
+    : m.key === "volatilityState"
+      ? "Labeled realized-vol rank in UI; true IV rank pending S019"
+      : m.key === "optionsFlow"
+        ? "Put/call percentile needs ~60d history"
+        : m.description,
   weightGroup: "technical",
   weightKey: m.key,
 }));

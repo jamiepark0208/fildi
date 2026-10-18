@@ -98,25 +98,29 @@ export interface TechnicalRow {
   shortRatio?: number | null;
 }
 
-// ── Named weight constants (total = 1.00) — v4
-const W_OVERSOLD_DEPTH   = 0.20;
-const W_REVERSAL_SIGNAL  = 0.17;
-const W_VOLATILITY_STATE = 0.14;
-const W_TREND_CONTEXT    = 0.14;
-const W_RELATIVE_PRESSURE = 0.08;
-const W_OPTIONS_FLOW     = 0.08;
-const W_ANALYST_UPSIDE   = 0.12;
-const W_VOLUME_CONFIRM   = 0.07;
+// ── Named weight constants (total = 1.00) — A155: 6-comp champion (tech-1.0.0)
+// relativePressure / analystUpside stay in the metric list at weight 0 (display-only; S042/S042b).
+const W_OVERSOLD_DEPTH   = 0.25;
+const W_REVERSAL_SIGNAL  = 0.20;
+const W_VOLATILITY_STATE = 0.22;
+const W_TREND_CONTEXT    = 0.18;
+const W_OPTIONS_FLOW     = 0.10;
+const W_VOLUME_CONFIRM   = 0.05;
+const W_RELATIVE_PRESSURE = 0; // display-only (A155 / S042b)
+const W_ANALYST_UPSIDE   = 0; // display-only (A155 / S042)
+
+/** Keys that appear on the scorecard but do not enter totalScore. */
+export const TECHNICAL_DISPLAY_ONLY_KEYS = ["relativePressure", "analystUpside"] as const;
 
 export const TECHNICAL_SCORECARD_METRICS_V2 = [
   { key: "oversoldDepth",   label: "Oversold Depth",   weight: W_OVERSOLD_DEPTH,   description: "RSI/MFI/Stoch vs own trailing history (sector-dampened)" },
   { key: "reversalSignal",  label: "Reversal Signal",  weight: W_REVERSAL_SIGNAL,  description: "MACD direction, RSI velocity, proximity to own support" },
   { key: "volatilityState", label: "Volatility State", weight: W_VOLATILITY_STATE, description: "Hist/cross ATM IV rank + IV/RV premium + BB squeeze" },
   { key: "trendContext",    label: "Trend Context",    weight: W_TREND_CONTEXT,    description: "Regime, price vs MA50 in own ATR units, vs VWAP" },
-  { key: "relativePressure",label: "Relative Pressure",weight: W_RELATIVE_PRESSURE, description: "Price z-score + 20d vs SPY; short DTC & speculative peers haircut total" },
   { key: "optionsFlow",     label: "Options Flow",     weight: W_OPTIONS_FLOW,     description: "Put/call volume ratio, put skew, IV term structure" },
-  { key: "analystUpside",   label: "Analyst Upside",   weight: W_ANALYST_UPSIDE,   description: "Consensus target vs spot (Yahoo/FMP); |upside|>75% rejected" },
   { key: "volumeConfirm",   label: "Volume Confirm",   weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
+  { key: "relativePressure",label: "Relative Pressure",weight: W_RELATIVE_PRESSURE, description: "Display only (A155) — price z + 20d vs SPY; not in total" },
+  { key: "analystUpside",   label: "Analyst Upside",   weight: W_ANALYST_UPSIDE,   description: "Display only (A155) — consensus target vs spot; not in total" },
 ] as const;
 
 // Call-side ("sell calls into strength") variant. SAME component keys as the put
@@ -129,10 +133,10 @@ export const TECHNICAL_SCORECARD_METRICS_V2_CALL = [
   { key: "reversalSignal",  label: "Exhaustion Signal",  weight: W_REVERSAL_SIGNAL,  description: "MACD rolling over, RSI velocity fading, proximity to own resistance" },
   { key: "volatilityState", label: "Volatility State",   weight: W_VOLATILITY_STATE, description: "Hist/cross ATM IV rank + IV/RV premium + BB squeeze" },
   { key: "trendContext",    label: "Trend Extension",    weight: W_TREND_CONTEXT,    description: "Regime, price stretched above MA50 in own ATR units, above VWAP" },
-  { key: "relativePressure",label: "Relative Extension", weight: W_RELATIVE_PRESSURE, description: "Price z-score + 20d vs SPY; short DTC & speculative peers haircut total" },
   { key: "optionsFlow",     label: "Call-Side Flow",     weight: W_OPTIONS_FLOW,     description: "Call-heavy volume, call wing richness (negative skew), IV term structure" },
-  { key: "analystUpside",   label: "Above Target",       weight: W_ANALYST_UPSIDE,   description: "Price vs consensus target — extended above target favors call overwriting" },
   { key: "volumeConfirm",   label: "Volume Confirm",     weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
+  { key: "relativePressure",label: "Relative Extension", weight: W_RELATIVE_PRESSURE, description: "Display only (A155) — price z + 20d vs SPY; not in total" },
+  { key: "analystUpside",   label: "Above Target",       weight: W_ANALYST_UPSIDE,   description: "Display only (A155) — price vs consensus target; not in total" },
 ] as const;
 
 export function getTechnicalScorecardMetrics(side: ScoreSide) {
@@ -590,7 +594,9 @@ export function computeTechnicalRankingsV2(
 ): TechnicalScore[] {
   if (rows.length === 0) return [];
 
-  const w = (key: string, def: number) => technicalWeights?.[key] ?? def;
+  const displayOnly = new Set<string>(TECHNICAL_DISPLAY_ONLY_KEYS);
+  const w = (key: string, def: number) =>
+    displayOnly.has(key) ? 0 : (technicalWeights?.[key] ?? def);
 
   // Raw depth before peer dampening
   const rawDepth = rows.map((row) =>
@@ -627,7 +633,8 @@ export function computeTechnicalRankingsV2(
       { key: "analystUpside",    weight: w("analystUpside", W_ANALYST_UPSIDE),    score: scoreAnalystUpside(row, side) },
       { key: "volumeConfirm",    weight: w("volumeConfirm", W_VOLUME_CONFIRM),    score: scoreVolumeConfirm(row) },
     ];
-    const available = compScores.filter((c) => c.score !== null) as { key: string; weight: number; score: number }[];
+    // A155: only positive-weight comps enter the total (extras stay in compScores for display)
+    const available = compScores.filter((c) => c.score !== null && c.weight > 0) as { key: string; weight: number; score: number }[];
 
     let totalScore = 0;
     if (available.length > 0) {
@@ -636,12 +643,9 @@ export function computeTechnicalRankingsV2(
       totalScore = (weightedSum / availWeight) * 100;
     }
 
-    // Risk haircuts (multiplicative on total — not ranked components)
+    // Short-interest haircut only (A155: drop analystUpside / speculative haircuts — extras are display-only)
     const siH = shortInterestHaircut(row.shortRatio);
-    const spH = speculativeHaircut(row.peerGroupId, row.analystUpside);
-    const tpH = missingTpHaircut(row.analystUpside);
-    const combinedH = Math.min(0.30, siH + spH + tpH);
-    if (combinedH > 0) totalScore *= 1 - combinedH;
+    if (siH > 0) totalScore *= 1 - Math.min(0.30, siH);
 
     return {
       row,
