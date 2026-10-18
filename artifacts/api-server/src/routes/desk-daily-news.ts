@@ -1185,4 +1185,37 @@ router.get("/desk-commentaries/daily-news/feedback", requireAdmin, async (req, r
   }
 });
 
+/** A143 — OpenJev overnight headline labels (display only; S037: no forecast). */
+router.get("/desk-commentaries/daily-news/oj-labels", requireAdmin, async (req, res) => {
+  try {
+    const ticker = req.query["ticker"] ? String(req.query["ticker"]).toUpperCase() : null;
+    const since = new Date(Date.now() - 36 * 3600_000).toISOString();
+    const rows = ticker
+      ? await db.execute(sql`
+          SELECT ticker, ts::text, headline, url, rel, dir, cat
+          FROM watchlist_sync.openjev_headline_labels
+          WHERE ticker = ${ticker} AND ts >= ${since}::timestamptz AND rel > 0.5
+          ORDER BY ABS(dir) DESC, ts DESC LIMIT 40`)
+      : await db.execute(sql`
+          SELECT ticker, ts::text, headline, url, rel, dir, cat
+          FROM watchlist_sync.openjev_headline_labels
+          WHERE ts >= ${since}::timestamptz AND rel > 0.5
+          ORDER BY
+            CASE cat WHEN 'earnings' THEN 0 WHEN 'legal' THEN 1 ELSE 2 END,
+            ABS(dir) DESC, ts DESC
+          LIMIT 80`);
+    const list = (Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows ?? []) as Array<{
+      ticker: string; ts: string; headline: string; url: string | null; rel: number; dir: number; cat: string;
+    }>;
+    return res.json({
+      note: "OpenJev label, not a forecast (S037: no next-day edge)",
+      count: list.length,
+      items: list,
+    });
+  } catch (err: any) {
+    // Table may not exist until first 05:30 desk-headlines run.
+    return res.json({ note: "OpenJev labels pending first overnight run", count: 0, items: [], error: String(err?.message ?? err).slice(0, 120) });
+  }
+});
+
 export default router;

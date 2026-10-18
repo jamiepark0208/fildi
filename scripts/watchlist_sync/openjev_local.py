@@ -862,11 +862,19 @@ def tick(conn, now: dt.datetime | None = None) -> dict:
     if fz["status"] != "frozen":
         # A148: after the day's batch, run the peer review when due (monthly, or new tickers); same shared server.
         import openjev_controls as ojc
+        extra: dict = {"done": fz["status"]}
         if fz["status"] == "done" and ojc.peers_review_due(conn):
             cmd = ["/usr/bin/caffeinate", "-s", sys.executable, str(HERE / "openjev_controls.py"), "--peers-review"]
             r = subprocess.run(cmd, cwd=str(HERE), capture_output=True, text=True, timeout=3600)
-            return {"done": fz["status"], "peer_review_exit": r.returncode}
-        return {"done": fz["status"]}
+            extra["peer_review_exit"] = r.returncode
+        # A143: overnight Desk headline labels (display only) after the batch finishes.
+        if fz["status"] == "done":
+            try:
+                import openjev_desk_headlines as odh
+                extra["desk_headlines"] = odh.run()
+            except Exception as e:
+                extra["desk_headlines"] = {"ok": False, "error": str(e)[:200]}
+        return extra
     if t >= WINDOWS[-1][1]:
         conn.execute("""UPDATE watchlist_sync.openjev_batches SET status = 'missed', detail = 'both windows failed'
                         WHERE made_on = %s AND status = 'frozen'""", (today,))

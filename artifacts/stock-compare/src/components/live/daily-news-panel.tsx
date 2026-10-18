@@ -445,6 +445,19 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
     refetchOnWindowFocus: false,
   });
 
+  /** A143 — OpenJev overnight labels (display only). */
+  const { data: ojLabels } = useQuery({
+    queryKey: ["desk-oj-labels"],
+    queryFn: async (): Promise<{ note: string; items: Array<{ ticker: string; headline: string; url: string | null; dir: number; cat: string }> }> => {
+      const r = await fetch("/api/desk-commentaries/daily-news/oj-labels", { credentials: "include" });
+      if (!r.ok) throw new Error("oj-labels failed");
+      return r.json();
+    },
+    staleTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled: !!isAdmin,
+  });
+
   const refresh = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true || forceNext;
     setGenerating(true);
@@ -826,6 +839,29 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                 CPI {predMarkets.cpi.monthLabel}: ~{predMarkets.cpi.medianYoY}% YoY
               </span>
             )}
+          </div>
+        )}
+
+        {/* A143 — OpenJev overnight headlines (rel>0.5), display only */}
+        {!!ojLabels?.items?.length && (
+          <div className="rounded-md border border-[#fb7185]/30 bg-zinc-950 px-1.5 py-1 space-y-0.5" title={ojLabels.note}>
+            <div className="text-[9px] uppercase tracking-wide text-[#fb7185]/80">Overnight · OpenJev labels</div>
+            <ul className="space-y-0.5 max-h-28 overflow-y-auto">
+              {ojLabels.items.slice(0, 12).map((it, i) => {
+                const tone = it.dir > 0.15 ? "text-emerald-300" : it.dir < -0.15 ? "text-rose-300" : "text-amber-100/70";
+                return (
+                  <li key={`${it.ticker}-${i}`} className="text-[10px] flex gap-1.5 min-w-0">
+                    <span className="font-semibold text-amber-100 shrink-0 w-10">{it.ticker}</span>
+                    <span className={cn("shrink-0 rounded px-1 border border-white/10", tone)}>{it.cat}</span>
+                    {it.url ? (
+                      <a href={it.url} target="_blank" rel="noreferrer" className={cn("truncate hover:underline", tone)}>{it.headline}</a>
+                    ) : (
+                      <span className={cn("truncate", tone)}>{it.headline}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
 
