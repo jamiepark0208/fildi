@@ -833,15 +833,18 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   );
 }
 
-/** Plan headroom. Claude: statusline rate_limits (5-hour / 7-day used %) saved by ~/.claude/statusline.sh. */
+/** Plan headroom. Cell = % remaining only; reset + detail in tooltip (Jamie 10-18). */
 function Available({ id, d }: { id: Id; d: Data }) {
   const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—");
+  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }) : "—");
   const cell = (text: React.ReactNode, tip: React.ReactNode, cls = "text-white/60") => (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
       <TooltipContent side="bottom" className={TIP}>{tip}</TooltipContent>
     </Tooltip>
   );
+  const leftCls = (left: number) =>
+    left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300";
   if (id === "claude") {
     const l = d.limits?.claude;
     if (!l || l.fiveHour.pct == null) return cell("see /usage", "Claude Code shares plan limits with its status line; the number appears here after the next status-line refresh in a Claude session. Until then type /usage in Claude.");
@@ -849,20 +852,17 @@ function Available({ id, d }: { id: Id; d: Data }) {
     const left5 = Math.max(0, 100 - used5);
     const used7 = l.sevenDay.pct != null ? Math.round(l.sevenDay.pct) : null;
     const left7 = used7 != null ? Math.max(0, 100 - used7) : null;
-    // Cell = the binding limit (user 10-18: 5h "78% left" read as weekly while weekly was 78% used).
     const weeklyBinds = left7 != null && left7 < left5;
-    const left = weeklyBinds ? left7 : left5;
-    return cell(weeklyBinds
-        ? <>{left7}% left (week) · resets {l.sevenDay.resetsAt ? new Date(l.sevenDay.resetsAt).toLocaleDateString([], { weekday: "short" }) : "—"}</>
-        : <>{left5}% left (5h) · resets {hm(l.fiveHour.resetsAt)}</>,
+    const left = weeklyBinds ? left7! : left5;
+    return cell(
+      <>{left}%</>,
       <>
-        <div>5-hour: {used5}% used · {left5}% left · resets {hm(l.fiveHour.resetsAt)}</div>
-        {used7 != null && (
-          <div>Weekly: {used7}% used · {left7}% left{l.sevenDay.resetsAt ? ` · resets ${new Date(l.sevenDay.resetsAt).toLocaleDateString()}` : ""}</div>
-        )}
-        <div className="text-white/50">As of {hm(l.at)}. Cell shows whichever limit is tighter.</div>
+        <div>Resets {weeklyBinds ? day(l.sevenDay.resetsAt) : hm(l.fiveHour.resetsAt)} ({weeklyBinds ? "week" : "5h"})</div>
+        <div>5h: {used5}% used · {left5}% left</div>
+        {used7 != null && <div>Week: {used7}% used · {left7}% left</div>}
       </>,
-      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300");
+      leftCls(left),
+    );
   }
   if (id === "cursor") {
     const l = d.limits?.cursor;
@@ -871,23 +871,28 @@ function Available({ id, d }: { id: Id; d: Data }) {
     }
     const used = Math.round(l.totalPct);
     const left = Math.max(0, 100 - used);
-    const spend = l.spendUsd != null && l.limitUsd != null ? ` · $${l.spendUsd.toFixed(0)}/$${l.limitUsd.toFixed(0)}` : "";
     return cell(
-      <>{left}% left · resets {hm(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</>,
-      <>Plan pool this cycle: {used}% used{spend}. Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API models {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"}. As of {hm(l.at)}. High-effort / third-party models burn the API pool faster — not unlimited. Grok Bot also draws from this Cursor meter.</>,
-      left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300",
+      <>{left}%</>,
+      <>
+        <div>Resets {day(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</div>
+        <div>{used}% of plan pool used{l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)} included` : ""}</div>
+        <div>Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"} · Grok shares this meter</div>
+      </>,
+      leftCls(left),
     );
   }
   if (id === "grok") {
-    return cell("review-only", "Devil’s advocate (GROK.md / A141). No separate meter — usage is on the Cursor plan. Challenges plans/commits/studies; does not implement.");
+    return cell("—", "No separate meter — shares Cursor plan pool (Available on Cursor row).");
   }
   if (id === "muse") {
     const m = d.limits?.muse;
     if (!m || m.pct == null) return cell("—", "Muse reports its weekly usage via heartbeat events; the number appears here after its next status update.");
     const mLeft = Math.max(0, 100 - m.pct);
-    return cell(<>{Math.round(mLeft)}% left · resets {hm(m.resetsAt)}</>,
-      <>Weekly free limit: {Math.round(m.pct)}% used{m.resetsAt ? `, resets ${new Date(m.resetsAt).toLocaleDateString()}` : ""}. As of {hm(m.at)}. Reported by Muse's heartbeat events.</>,
-      mLeft < 20 ? "text-red-300 font-semibold" : mLeft < 50 ? "text-amber-200" : "text-emerald-300");
+    return cell(
+      <>{Math.round(mLeft)}%</>,
+      <>Resets {day(m.resetsAt)} · {Math.round(m.pct)}% weekly used</>,
+      leftCls(mLeft),
+    );
   }
   return cell("—", "No local usage meter for this agent.");
 }
@@ -1042,21 +1047,26 @@ function TeamPanel({ d }: { d: Data }) {
                   ) : a.id === "cursor" ? (
                     (() => {
                       const l = d.limits?.cursor;
-                      if (l?.spendUsd != null) {
+                      // Cursor Dashboard API gives plan % + $, not raw token counts — show used/left of the pool.
+                      if (l?.totalPct != null) {
+                        const used = Math.round(l.totalPct);
+                        const left = Math.max(0, 100 - used);
                         return (
                           <Tooltip delayDuration={150}>
                             <TooltipTrigger asChild>
-                              <span className="cursor-default">${l.spendUsd.toFixed(0)} <span className="text-white/50">cycle</span></span>
+                              <span className="cursor-default">{used}% <span className="text-white/50">used</span> · {left}% <span className="text-white/50">left</span></span>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className={TIP}>
-                              Included spend this billing cycle (Cursor Dashboard API). {l.totalPct != null ? `${Math.round(l.totalPct)}% of plan pool.` : ""} {st ? `${st.tools24h} hook actions / 24h.` : ""}
+                              Plan pool (not raw tokens — Cursor doesn’t expose those locally).
+                              {l.spendUsd != null ? ` $${l.spendUsd.toFixed(0)}${l.limitUsd != null ? `/$${l.limitUsd.toFixed(0)}` : ""} included.` : ""}
+                              {st ? ` ${st.tools24h} hook actions / 24h.` : ""}
                             </TooltipContent>
                           </Tooltip>
                         );
                       }
                       return st ? <>{st.tools24h} <span className="text-white/50">actions</span></> : "—";
                     })()
-                  ) : mu?.pct != null ? <>{Math.round(mu.pct)}% <span className="text-white/50">weekly</span></> : "—"}
+                  ) : mu?.pct != null ? <>{Math.round(mu.pct)}% <span className="text-white/50">used</span></> : "—"}
                 </td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
@@ -1509,7 +1519,7 @@ function Usage({ d }: { d: Data }) {
         </table>
       </div>
       <p className="text-[12px] text-white/60">
-        Cursor: {d.limits?.cursor?.totalPct != null ? `${Math.round(100 - d.limits.cursor.totalPct)}% plan left` : "usage snap pending"}
+        Cursor: {d.limits?.cursor?.totalPct != null ? `${Math.round(100 - d.limits.cursor.totalPct)}% left` : "usage snap pending"}
         {" · "}{d.status.cursor.tools24h} actions / 24h
         {" · "}Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits · heartbeat {d.muse?.live?.working ? "working" : "idle"}
       </p>
