@@ -4,12 +4,12 @@
 **Last updated:** 2026-10-18
 
 ## Next build
-1. A92 remainder: chart toggle (all-in default) + ITM regrade + drill-down
+1. A92 remainder: ticker drill-down + before/after after grade run
 2. A126 overnight backfill (running / resumable)
 3. Skip: A163 (Jamie go), A133 (Jamie signup), A143 (await 05:30), A83 scorer unify (Jamie)
 
 ## Phase
-**ops** — Ship-check on every TS push. Shipped 10-18: A83 W1, A126 1a+1b, A98 P1+P2, A92 settle. No sleep-loops.
+**ops** — Ship-check on every TS push. Shipped 10-18: A83 W1, A126 1a+1b, A98 P1+P2, A92 settle+toggle+regrade. No sleep-loops.
 
 ## Active
 - OpenJev: P14/P16 Cursor-verified; teach loop live; one shared 8091 instance
