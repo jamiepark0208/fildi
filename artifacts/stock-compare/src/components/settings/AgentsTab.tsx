@@ -39,6 +39,8 @@ type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
   type Idea = {
     id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
+    /** Who owns work now — cube letter. Not last-touch. */
+    assignee?: Id;
     reviews?: string;
     commits?: { sha: string; text: string; at: string; agent: Id }[];
     touchedAt?: string | null; touchedBy?: Id | null; inProgress?: boolean; stale?: boolean; hot?: boolean;
@@ -1156,7 +1158,7 @@ function IdeasPanel({
         hot: isHot(idea) && !isProg(idea),
         progress: isProg(idea),
         now,
-        by: idea.touchedBy ?? null,
+        by: idea.assignee ?? idea.to ?? null,
         label: idea.id,
         match: hit,
       });
@@ -1172,18 +1174,18 @@ function IdeasPanel({
   const tip = (id: string) => {
     const i = ideas.find((x) => x.id === id);
     if (!i) return null;
-    const who = i.touchedBy ? META[i.touchedBy]?.label : null;
+    const owner = i.assignee ?? i.to;
+    const ownerL = META[owner]?.label ?? owner;
     return (
       <>
         <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
           <span style={{ color: PHASE_COLOR[i.phase] }}>{PHASE_LABEL[i.phase] ?? i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
         <div className="mt-0.5">{i.title}</div>
-        {(isHot(i) || isProg(i) || who) && (
-          <div className="mt-1 text-[11px]" style={{ color: isProg(i) ? PROG_GLOW : isHot(i) ? HOT_GLOW : "#a1a1aa" }}>
-            {isProg(i) ? "In progress" : isHot(i) ? "Changed this wave" : null}
-            {who ? `${isProg(i) || isHot(i) ? " · " : ""}${who}${i.touchedAt ? ` · ${i.touchedAt.slice(5)}` : ""}` : ""}
-          </div>
-        )}
+        <div className="mt-1 text-[11px]" style={{ color: META[owner]?.color ?? "#a1a1aa" }}>
+          Assigned: {ownerL}
+          {isProg(i) ? " · in progress" : isHot(i) ? " · this wave" : ""}
+          {i.touchedBy && i.touchedBy !== owner ? ` · last touch ${META[i.touchedBy]?.label}` : ""}
+        </div>
         <div className="mt-1 text-[11px] text-white/50">{unread[i.id] ? `${unread[i.id]} new repl${unread[i.id] > 1 ? "ies" : "y"} · ` : ""}click for details</div>
       </>
     );
@@ -1192,12 +1194,27 @@ function IdeasPanel({
   return (
     <div className="space-y-3">
       <NextBuildStrip next={nextBuild} ideas={ideas} onPick={setSel} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-white/50 font-mono">
+        <span className="text-white/35 uppercase tracking-wider">Owner</span>
+        {([
+          ["cursor", "builds Ready / In progress"],
+          ["claude", "plans Inbox → Cursor rows"],
+          ["grok", "review queue"],
+          ["muse", "filed to someone"],
+          ["jamie", "Needs you"],
+        ] as const).map(([id, why]) => (
+          <span key={id} className="inline-flex items-center gap-1">
+            <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-black px-0.5"
+              style={{ background: META[id].color }}>{WHO_LETTER[id]}</span>
+            <span>{why}</span>
+          </span>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
-        <InfoTip>Each cube shows its ask id (A148). Sorted by number. Search filters id/title/status.
-          Pink = this wave. Teal = in progress (touched ≤3d). Badge Cu/Cl/M/Y = last touch.
-          Stages: Needs you → Inbox → Ready to build (planned) → In progress → Done.
-          Ready to build ≠ waiting on Claude. Stale accepted rows hide under Show debt.</InfoTip>
+        <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
+          Ready to build → always Cu. Inbox Muse/Claude→Cursor → Cl (needs plan). Inbox G → Grok&apos;s queue.
+          Pink = this wave. Teal = in progress. Stale accepted → Show debt.</InfoTip>
         <input
           type="search"
           value={query}
@@ -1249,11 +1266,15 @@ function IdeasPanel({
             {isHot(active) && !isProg(active) && <span style={{ color: HOT_GLOW }}>this wave</span>}
             <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · ${META[active.from]?.label ?? active.from} → ${META[active.to]?.label ?? active.to}${active.quant ? " · quant" : ""}`}</span>
           </div>
-          {active.touchedBy && (
-            <p className="text-[12px]" style={{ color: META[active.touchedBy].color }}>
-              Last touch: {META[active.touchedBy].label}{active.touchedAt ? ` · ${active.touchedAt}` : ""}
-            </p>
-          )}
+          <p className="text-[12px]">
+            <span style={{ color: META[active.assignee ?? active.to]?.color }}>
+              Assigned: {META[active.assignee ?? active.to]?.label ?? active.to}
+            </span>
+            <span className="text-white/40"> · {META[active.from]?.label} → {META[active.to]?.label}</span>
+            {active.touchedBy && (
+              <span className="text-white/45"> · last touch {META[active.touchedBy].label}{active.touchedAt ? ` ${active.touchedAt}` : ""}</span>
+            )}
+          </p>
           <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
           <RichText text={active.blurb || "No Context section in the ask file yet."} />
           {!!active.reviews?.trim() && (

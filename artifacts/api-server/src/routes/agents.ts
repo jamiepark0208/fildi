@@ -60,6 +60,8 @@ async function commits(since = "7 days ago"): Promise<Ev[]> {
 type Idea = {
   id: string; date: string; from: AgentId; to: AgentId; title: string; status: string;
   phase: string; quant: boolean; blurb: string;
+  /** Who owns the work now (cube badge). Not last-touch. */
+  assignee: AgentId;
   /** ## Reviews section from asks/A##.md (A88). */
   reviews: string;
   /** Recent commits with Refs: A## (filled in overview). */
@@ -74,6 +76,23 @@ type Idea = {
   /** Same calendar day as the newest touch across the board → "this wave" glow. */
   hot: boolean;
 };
+
+/**
+ * Current owner for the Ideas cube letter (Cu/Cl/M/G/Y).
+ * Ready to build → always Cursor. Inbox Muse/Claude→Cursor open → Claude (plan first).
+ * Last-touch is separate (touchedBy) — do not use for the badge (Jamie 10-18).
+ */
+function ideaAssignee(from: AgentId, to: AgentId, phase: string): AgentId {
+  if (phase === "needs you") return "jamie";
+  if (phase === "reviewed") return "cursor";
+  if (phase === "building") return to === "cursor" || from === "muse" || from === "claude" ? "cursor" : to;
+  if (phase === "filed") {
+    // Review loop: open Muse→Cursor / Claude→Cursor waits on Claude plan, not Cursor build.
+    if (to === "cursor" && (from === "muse" || from === "claude")) return "claude";
+    return to;
+  }
+  return to;
+}
 
 function ideaBlurb(id: string): string {
   try {
@@ -183,6 +202,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
         status: st,
         phase,
+        assignee: ideaAssignee(from, dest, phase),
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
         reviews: ideaReviews(id!),
@@ -210,7 +230,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       const m = head.match(/^## (J\d+) (.+)$/);
       if (m) ideas.push({
         id: m[1]!, date: "", from: "claude", to: "jamie", title: m[2]!.trim(), status: "needs you",
-        phase: "needs you", quant: false, blurb: body.join("\n").trim(),
+        phase: "needs you", assignee: "jamie", quant: false, blurb: body.join("\n").trim(),
         reviews: "", commits: [],
         touchedAt: null, touchedBy: null, inProgress: false, stale: false, hot: false,
       });
