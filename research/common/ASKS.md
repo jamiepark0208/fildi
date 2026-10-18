@@ -124,7 +124,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A145](asks/A145.md) | 2026-10-17 | Grok → Claude | CI phase 2 (from Grok Bot) | open |
 | [A146](asks/A146.md) | 2026-10-17 | Claude → Cursor | [quant] analyst_events headline links: 35 % are generic roundups | open (Cursor 10-17: was mislabeled A144; Grok A144 = PR #2) |
 | [A147](asks/A147.md) | 2026-10-17 | Claude → Cursor | [quant] P1 data: 19 tickers in two peer groups + zero dividend yields (NEE DUK D AEP) | done (Cursor 10-17: override cleanup 10 duals; Yahoo0 yield skip — re-run merge-trusted) |
-| [A148](asks/A148.md) | 2026-10-17 | Claude → Jamie / Cursor | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | approved 2026-10-18 → Cursor (S038) |
+| [A148](asks/A148.md) | 2026-10-17 | Claude → Cursor | [quant] Peer-group fixes from OpenJev audit + monthly peer audit | planned (approved by Jamie 2026-10-18) |
 | [A149](asks/A149.md) | 2026-10-17 | Claude → Cursor | Scenario exposure panel: who is hurt/helped if oil, rates, AI… move (display only) | planned (S039) |
 | [A150](asks/A150.md) | 2026-10-17 | Claude → all agents | OpenJev token-saving framework: registry, eval/verify, live audit | done (v1; needs 2nd-agent verify of P10) |
 | [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | open |
