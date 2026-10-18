@@ -1289,7 +1289,7 @@ function IdeasPanel({
           <span style={{ color: PHASE_COLOR[i.phase] }}>{PHASE_LABEL[i.phase] ?? i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
         <div className="mt-0.5">{i.title}</div>
         <div className="mt-1 text-[11px]" style={{ color: META[owner]?.color ?? "#a1a1aa" }}>
-          Assigned: {ownerL}
+          {i.phase === "needs you" ? `Owner: ${ownerL} · for you` : `Assigned: ${ownerL}`}
           {isProg(i) ? " · in progress" : isHot(i) ? " · this wave" : ""}
           {i.touchedBy && i.touchedBy !== owner ? ` · last touch ${META[i.touchedBy]?.label}` : ""}
         </div>
@@ -1308,7 +1308,7 @@ function IdeasPanel({
           ["claude", "plans Inbox → Cursor rows"],
           ["grok", "review queue"],
           ["muse", "filed to someone"],
-          ["jamie", "Needs you"],
+          ["jamie", "Needs you (you act)"],
         ] as const).map(([id, why]) => (
           <span key={id} className="inline-flex items-center gap-1">
             <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-black px-0.5"
@@ -1320,7 +1320,8 @@ function IdeasPanel({
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
         <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
-          Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you/Claude — not every ASKS row (e.g. done/parked stay off).
+          Needs you cubes show the agent Owner (from needs-jamie.md); you still act — Owner replies first (A153).
+          Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you — not every ASKS row (e.g. done/parked stay off).
           Ready / In progress Cu = Cursor queue (not auto-run). Status &quot;needs Claude&quot; / sign-off → Cl. Inbox Cl = awaits plan. Inbox G = Grok.
           Pink = this wave. Teal = active claim. Stale accepted → Show debt. Inbox: <span style={{color:"#e879f9"}}>pink</span> = non-quant, <span style={{color:"#8b5cf6"}}>violet</span> = quant (Claude\u2019s lane).</InfoTip>
         <input
@@ -1376,7 +1377,9 @@ function IdeasPanel({
           </div>
           <p className="text-[12px]">
             <span style={{ color: META[active.assignee ?? active.to]?.color }}>
-              Assigned: {META[active.assignee ?? active.to]?.label ?? active.to}
+              {active.phase === "needs you"
+                ? `Owner: ${META[active.assignee ?? active.from]?.label ?? active.from}`
+                : `Assigned: ${META[active.assignee ?? active.to]?.label ?? active.to}`}
             </span>
             <span className="text-white/40"> · {META[active.from]?.label} → {META[active.to]?.label}</span>
             {active.touchedBy && (

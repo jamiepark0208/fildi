@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { splitInboxDelivery } from "./needs-inbox.mjs";
+import { detectInboxAgent, splitInboxDelivery } from "./needs-inbox.mjs";
 
 test("short comments are all delivered", () => {
   const rows = [
@@ -36,4 +36,12 @@ test("ten long comments only print what fits in 1500 chars", () => {
   const next = undelivered[0];
   const nextLine = `[NEEDS YOU ${next.item}] Jamie: ${String(next.body).slice(0, 300)}`;
   assert.ok(used + nextLine.length > 1500);
+});
+
+test("detectInboxAgent: --agent flag and FILDI_AGENT beat Cursor env", () => {
+  assert.equal(detectInboxAgent({ FILDI_AGENT: "muse" }, {}, ["node", "needs-inbox.mjs"]), "muse");
+  assert.equal(detectInboxAgent({}, {}, ["node", "x", "--agent=cursor"]), "cursor");
+  assert.equal(detectInboxAgent({ CURSOR_TRACE_ID: "1" }, {}, ["node", "x"]), "cursor");
+  assert.equal(detectInboxAgent({}, { cursor_version: "1" }, ["node", "x"]), "cursor");
+  assert.equal(detectInboxAgent({}, {}, ["node", "x"]), "claude");
 });

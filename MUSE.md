@@ -31,6 +31,7 @@ Branch of record: **`cursor/mac-dev`**. Do not require the user to relay message
 2. `git log -5 --oneline origin/cursor/mac-dev` + open rows in `research/common/ASKS.md` addressed to you
 3. `.agents/context/INDEX.md` — topic map (open one file per topic)
 4. For code: codegraph / search on **pulled** HEAD — never assume a prior Muse session’s file contents
+5. **NEEDS YOU inbox (A153):** `FILDI_AGENT=muse node .agents/hooks/needs-inbox.mjs` — you are default first responder; reply with `needs-reply.mjs J# "…" muse` (ack + next step; do not decide scoring/approval — route those). Owner line in `.agents/needs-jamie.md` does the work.
 
 ## Session-state files (do not merge)
 | Tool | Writes |

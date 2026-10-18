@@ -226,15 +226,20 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
   const rank: Record<string, number> = {
     "needs you": 0, filed: 1, reviewed: 2, building: 3, done: 4, verified: 5, parked: 6,
   };
-  // Jamie's to-dos (.agents/needs-jamie.md: "## J# title" + steps) → NEEDS YOU cubes
+  // Jamie's to-dos (.agents/needs-jamie.md: "## J# title" + `Owner: …` + steps) → NEEDS YOU cubes (A153)
   try {
     const txt = readFileSync(resolve(ROOT, ".agents/needs-jamie.md"), "utf8");
     for (const block of txt.split(/\n(?=## )/).filter((b) => b.startsWith("## "))) {
-      const [head, ...body] = block.split("\n");
+      const [head, ...bodyLines] = block.split("\n");
       const m = head.match(/^## (J\d+) (.+)$/);
-      if (m) ideas.push({
-        id: m[1]!, date: "", from: "claude", to: "jamie", title: m[2]!.trim(), status: "needs you",
-        phase: "needs you", assignee: "jamie", quant: false, blurb: body.join("\n").trim(),
+      if (!m) continue;
+      const body = bodyLines.join("\n").trim();
+      const own = body.match(/^\s*Owner:\s*(claude|cursor|muse|grok)\b/im)?.[1]?.toLowerCase() as AgentId | undefined;
+      const agentOwner: AgentId = own && own !== "jamie" ? own : "muse"; // Muse = default first responder (A153)
+      ideas.push({
+        id: m[1]!, date: "", from: agentOwner, to: "jamie", title: m[2]!.trim(), status: "needs you",
+        // Cube letter = agent owner (who replies / owns the work); phase still "needs you" for Jamie.
+        phase: "needs you", assignee: agentOwner, quant: false, blurb: body,
         reviews: "", commits: [],
         touchedAt: null, touchedBy: null, inProgress: false, stale: false, hot: false,
       });
@@ -511,8 +516,13 @@ let commentsDdl = false;
 async function ensureComments() {
   if (commentsDdl) return;
   await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.needs_comments (id serial PRIMARY KEY, item text NOT NULL,
-    author text NOT NULL CHECK (author IN ('jamie','claude','cursor','muse')), body text NOT NULL CHECK (length(body) <= 2000),
+    author text NOT NULL CHECK (author IN ('jamie','claude','cursor','muse','grok')), body text NOT NULL CHECK (length(body) <= 2000),
     created_at timestamptz NOT NULL DEFAULT now(), read_by_claude boolean NOT NULL DEFAULT false)`);
+  try {
+    await db.execute(sql`ALTER TABLE watchlist_sync.needs_comments DROP CONSTRAINT IF EXISTS needs_comments_author_check`);
+    await db.execute(sql`ALTER TABLE watchlist_sync.needs_comments ADD CONSTRAINT needs_comments_author_check
+      CHECK (author IN ('jamie','claude','cursor','muse','grok'))`);
+  } catch { /* already migrated / race */ }
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_needs_comments_item ON watchlist_sync.needs_comments (item, created_at)`);
   commentsDdl = true;
 }

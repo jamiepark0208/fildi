@@ -9,6 +9,7 @@
 4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##` + `Agent: cursor` when the build finishes — do not ask Jamie whether to commit agent-bus work. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
 6. Task code context: **codegraph** MCP
+7. **NEEDS YOU inbox (A153):** `node .agents/hooks/needs-inbox.mjs --agent=cursor` — unanswered Jamie comments; reply with `needs-reply.mjs J# "…" cursor` (Owner does the work; Muse is default first responder)
 
 ## PROJECT RULES (`.cursor/rules/`)
 **Policy:** default `alwaysApply: false`. A **4th** always-on rule needs explicit user approval (R1).

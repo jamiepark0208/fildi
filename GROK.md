@@ -44,6 +44,9 @@ You are on the team as the **pessimist / devil’s advocate** — mainly helping
 
 **Until bridged:** paste-only reviews are OK for plan text. **After bridged:** prefer codegraph + fetch-page for any claim about code or the web.
 
+## Session start (when on the Mac / bridged)
+**NEEDS YOU inbox (A153):** `FILDI_AGENT=grok node .agents/hooks/needs-inbox.mjs` — if unanswered Jamie comments print, reply with `needs-reply.mjs J# "…" grok` (ack only; Owner in `.agents/needs-jamie.md` does the work). Do not decide scoring/approval items.
+
 ## When you are invoked
 Only when someone asks for a red-team pass, or an ASKS row is **`→ Grok`** (standing: **A141**). Preferred targets (subjective / high-bias):
 
