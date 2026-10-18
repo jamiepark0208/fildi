@@ -25,7 +25,8 @@ Why: the local forecast run happens 5:30–9:00 AM when RAM is free. If the Mac 
 2. Undo anytime: `sudo pmset repeat cancel`.
 3. Reply "done" or "skip".
 
-## J10 Fund-score coverage fix (A154) — OK after Claude's check?
-Why: a real bug quietly shrinks fund scores whenever a metric doesn't apply to that kind of stock (e.g. debt ratios for banks). Fixing it moves 444 of 579 scores, mean +0.2, max ±10 (IONS 39→49, XPEV 46→56, MMC 48→43).
-1. Claude first explains why some unprofitable names rise and checks the new scores predict returns at least as well as the old.
-2. Then you reply "ship" (becomes fund-1.1.2) or "hold". Nothing changes until you say so.
+## J10 Fund-score coverage fix (A154) — ship?
+Why: a real bug quietly threw away whole score families (growth, value, safety) whenever one metric didn't apply to that kind of stock (e.g. debt ratios for banks). The dropped family was ignored, or safety fell back to a fixed 38.
+Fix effect: 444 of 579 scores move, mean +0.2, max ±10. Fast growers rise because their growth score comes back (IONS 39→49, XPEV 46→56); BK 49→55 (real safety replaces the 38 default); MMC 48→43 (value score returns, low).
+Claude recommends ship (becomes fund-1.1.2). It can't be backtested (no point-in-time history), so old vs new get tracked forward for 63 days.
+Reply "ship" or "hold". Nothing changes until you say so.
