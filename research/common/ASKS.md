@@ -100,7 +100,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A123](asks/A123.md) | 2026-10-15 | Muse → Cursor | Crawl4AI + Browser Use pilot (tested before filing) | done (Claude 10-16 v4: on-demand fetcher; Jamie approved) |
 | [A124](asks/A124.md) | 2026-10-16 | Muse → Cursor | Pythia forecasting-oracle pilot (tested before filing) | planned, merged (Claude 10-16: one forecast ledger with A129/A82/A85/A74; Pythia = first LLM forecaster) |
 | [A125](asks/A125.md) | 2026-10-16 | Muse → Cursor | Video Lab tab: upload test shorts + co-generate ideas | planned, P3 (Claude 10-16: + 'Reel inbox' so Jamie's forwarded videos feed ASKS) |
-| [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | planned, P2 — Phase 0+1a shipped (Cursor 10-18); Polygon 1m backfill Phase 1b open |
+| [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | planned, P2 — Phase 1b pipeline shipped (Cursor 10-18); overnight universe backfill open |
 | [A127](asks/A127.md) | 2026-10-16 | Muse → Cursor | UI motion polish (Lenis + react-bits) | planned, P3 (Claude 10-16: exclude charts/tables from Lenis) |
 | [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | done (Claude 10-16: route-map + commit-impact scripts, no MCP) |
 | [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | local 26B live (Claude 10-16); first resolutions 10-17; pass test ≥ 50 resolved puts |

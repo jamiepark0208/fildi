@@ -1,9 +1,10 @@
 /**
- * A126 Phase 1a — session VWAP + volume profile + estimated delta from Yahoo 5m bars.
- * Polygon 1m overnight backfill remains Phase 1b (Claude plan).
+ * A126 — session VWAP + volume profile + estimated delta.
+ * Prefers Polygon 1m from DB (Phase 1b); falls back to Yahoo 5m (Phase 1a).
  */
 import { TTLCache } from "./ttl-cache.js";
 import { etDateOf, fetchIntradayHistory } from "./intraday-history.js";
+import { fetchPolygon1mSessions } from "./intraday-bars-1m.js";
 import type { Bar } from "./intraday-regime.js";
 
 export interface SessionFlowPoint {
@@ -19,7 +20,7 @@ export interface VolumeProfileLevel {
 export interface SessionFlowResult {
   ticker: string;
   sessionDate: string;
-  source: "yahoo-5m";
+  source: "polygon-1m" | "yahoo-5m";
   barCount: number;
   vwap: SessionFlowPoint[];
   /** Volume-weighted POC (highest volume bin mid). */
@@ -144,13 +145,22 @@ export function computeVolumeProfile(bars: Bar[], bins = PROFILE_BINS): {
   };
 }
 
-export function buildSessionFlow(ticker: string, sessionDate: string, bars: Bar[]): SessionFlowResult {
+export function buildSessionFlow(
+  ticker: string,
+  sessionDate: string,
+  bars: Bar[],
+  source: SessionFlowResult["source"] = "yahoo-5m",
+): SessionFlowResult {
   const vwap = computeSessionVwap(bars);
   const { profile, poc, vah, val } = computeVolumeProfile(bars);
+  const note =
+    source === "polygon-1m"
+      ? "Polygon 1m RTH (DB) — estimated delta via tick rule (not true footprint)."
+      : "Yahoo 5m RTH session — estimated delta via tick rule (not true footprint).";
   return {
     ticker: ticker.toUpperCase(),
     sessionDate,
-    source: "yahoo-5m",
+    source,
     barCount: bars.length,
     vwap,
     poc,
@@ -158,22 +168,40 @@ export function buildSessionFlow(ticker: string, sessionDate: string, bars: Bar[
     val,
     profile,
     estimatedDelta: estimateDelta(bars),
-    note: "Yahoo 5m RTH session — estimated delta via tick rule (not true footprint). Polygon 1m backfill = A126 Phase 1b.",
+    note,
   };
 }
 
-/** Latest ET session with enough bars for the ticker (Yahoo 5m, ~60d window). */
+function pickLatestSession(
+  sessions: Map<string, Bar[]>,
+  minBars: number,
+  source: SessionFlowResult["source"],
+  ticker: string,
+): SessionFlowResult | null {
+  const dates = [...sessions.keys()].sort();
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const date = dates[i]!;
+    const bars = sessions.get(date) ?? [];
+    if (bars.length >= minBars) return buildSessionFlow(ticker, date, bars, source);
+  }
+  return null;
+}
+
+/** Latest ET session — Polygon 1m DB first (≈390 RTH bars), else Yahoo 5m. */
 export async function getSessionFlow(ticker: string): Promise<SessionFlowResult | null> {
   const key = ticker.toUpperCase();
   return cache.getOrCompute(key, async () => {
-    const sessions = await fetchIntradayHistory(key, 10);
-    const dates = [...sessions.keys()].sort();
-    for (let i = dates.length - 1; i >= 0; i--) {
-      const date = dates[i]!;
-      const bars = sessions.get(date) ?? [];
-      if (bars.length >= 12) return buildSessionFlow(key, date, bars);
+    try {
+      const poly = await fetchPolygon1mSessions(key, 10);
+      // ~1h of 1m tape
+      const hit = pickLatestSession(poly, 60, "polygon-1m", key);
+      if (hit) return hit;
+    } catch {
+      // table missing / DB blip → Yahoo
     }
-    // Empty sentinel so we don't hammer Yahoo — callers treat barCount 0 as miss.
+    const sessions = await fetchIntradayHistory(key, 10);
+    const hit = pickLatestSession(sessions, 12, "yahoo-5m", key);
+    if (hit) return hit;
     return {
       ticker: key,
       sessionDate: etDateOf(Date.now()),
@@ -185,7 +213,7 @@ export async function getSessionFlow(ticker: string): Promise<SessionFlowResult 
       val: null,
       profile: [],
       estimatedDelta: [],
-      note: "No RTH 5m session in Yahoo window",
+      note: "No RTH session in Polygon 1m DB or Yahoo 5m window",
     };
   });
 }
