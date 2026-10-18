@@ -781,9 +781,9 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     const st = id === "claude" || id === "cursor" ? d.status[id] : null;
     if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
     if (id === "grok") {
-      const q = a?.queue ? `${a.queue} in queue` : "devil’s advocate";
-      const last = a?.lastActive ? `last commit ${ago(a.lastActive)}` : "no commits attributed yet";
-      return <Lines color={m.color} a="Grok · red team" b={`${q} · ${last}`} c={`${a?.commits24h ?? 0} commits today · GROK.md · Cursor meter`} />;
+      const q = a?.queue ? `${a.queue} in Ideas (G)` : "devil’s advocate";
+      const last = a?.lastActive ? `last commit ${ago(a.lastActive)}` : "no local hooks — idle until a review session";
+      return <Lines color={m.color} a="Grok · red team (not auto)" b={`${q} · ${last}`} c={`${a?.commits24h ?? 0} commits today · Agent: grokbot · GROK.md`} />;
     }
     const ml = id === "muse" ? d.muse?.live : undefined;
     const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
@@ -1213,8 +1213,9 @@ function IdeasPanel({
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
         <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
-          Ready to build → always Cu. Inbox Muse/Claude→Cursor → Cl (needs plan). Inbox G → Grok&apos;s queue.
-          Pink = this wave. Teal = in progress. Stale accepted → Show debt.</InfoTip>
+          Ready / In progress Cu = Cursor&apos;s queue — not auto-running. Agents only work when a chat/session is open on that row.
+          Ready = planned (build next). In progress = accepted/partial (claimed or recently touched). Stale accepted → Show debt.
+          Inbox Cl = awaits Claude plan. Inbox G = Grok review queue. Pink = this wave. Teal = active claim.</InfoTip>
         <input
           type="search"
           value={query}

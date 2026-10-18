@@ -10,7 +10,7 @@ export default function AgentsPage() {
     return (
       <div className="min-h-[100dvh] bg-zinc-900">
         <TopNav />
-        <main className="pt-14 p-6">
+        <main className="pt-14 px-6 pb-6">
           <p className="text-xs text-amber-200/40 animate-pulse">Loading…</p>
         </main>
       </div>
@@ -21,7 +21,7 @@ export default function AgentsPage() {
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
-      <main className="pt-14 p-4 max-w-6xl mx-auto">
+      <main className="pt-14 px-4 pb-4 max-w-6xl mx-auto">
         <AgentsTab />
       </main>
     </div>
