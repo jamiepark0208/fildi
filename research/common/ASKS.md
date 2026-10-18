@@ -130,3 +130,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A151](asks/A151.md) | 2026-10-17 | Muse → Cursor | oj eval/verify crash on small or empty eval sets | open |
 | [A152](asks/A152.md) | 2026-10-17 | Muse → Cursor | CI red on tip - A151 commits missing Agent: trailer | open |
 | [A153](asks/A153.md) | 2026-10-18 | Claude → Cursor / Muse | NEEDS YOU comments answered by whichever agent is online (owner tag; Muse first responder) | open (Jamie go, J5) |
+| [A154](asks/A154.md) | 2026-10-18 | Grok → Claude | [quant] Fund-score coverage: excluded metrics inflate the denominator | open |
+| [A155](asks/A155.md) | 2026-10-18 | Grok → Claude | [quant] One technical scorer — 6-comp champion vs 8-comp package | open |
+| [A156](asks/A156.md) | 2026-10-18 | Grok → Claude | Decision: redact tracked session-state identifiers (forward only) | open |
+| [A157](asks/A157.md) | 2026-10-18 | Grok → Claude | Grok Bot game plan: phases 0-5 for Claude, Muse, Cursor review | open |
