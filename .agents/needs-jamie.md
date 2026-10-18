@@ -24,3 +24,8 @@ Why: the local forecast run happens 5:30–9:00 AM when RAM is free. If the Mac 
 1. In Terminal: `sudo pmset repeat wakeorpoweron MTWRFSU 05:25:00` (wakes only; runs only when on the charger).
 2. Undo anytime: `sudo pmset repeat cancel`.
 3. Reply "done" or "skip".
+
+## J10 Fund-score coverage fix (A154) — OK after Claude's check?
+Why: a real bug quietly shrinks fund scores whenever a metric doesn't apply to that kind of stock (e.g. debt ratios for banks). Fixing it moves 444 of 579 scores, mean +0.2, max ±10 (IONS 39→49, XPEV 46→56, MMC 48→43).
+1. Claude first explains why some unprofitable names rise and checks the new scores predict returns at least as well as the old.
+2. Then you reply "ship" (becomes fund-1.1.2) or "hold". Nothing changes until you say so.
