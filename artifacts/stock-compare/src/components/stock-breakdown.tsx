@@ -39,6 +39,7 @@ import { ShortInterestPanel } from "./breakdown/short-interest-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
 import { AssumptionsTab } from "./breakdown/assumptions-tab";
+import { ThesisTab } from "./breakdown/thesis-tab";
 import { useFundamentalsProvenance } from "@/hooks/use-fundamentals-provenance";
 import { provFieldForScoreKey } from "@/lib/provenance-display";
 
@@ -62,7 +63,7 @@ export function StockBreakdown({
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
   const [tvOpen, setTvOpen] = useState(false);
   const [peerEditOpen, setPeerEditOpen] = useState(false);
-  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "calls" | "options">("news");
+  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "thesis" | "calls" | "options">("news");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -619,6 +620,7 @@ export function StockBreakdown({
                               ["history", "Score history"],
                               ["accounting", "Accounting"],
                               ["assumptions", "Assumptions"],
+                              ["thesis", "Thesis"],
                               ["calls", "Earnings calls"],
                               ["options", "Options history"],
                             ] as const
@@ -667,6 +669,7 @@ export function StockBreakdown({
                           <AccountingStatementsSection ticker={activeTicker} />
                         )}
                         {digTab === "assumptions" && activeTicker && <AssumptionsTab ticker={activeTicker} />}
+                        {digTab === "thesis" && activeTicker && <ThesisTab ticker={activeTicker} />}
                         {digTab === "calls" && activeTicker && <EarningsCallsTab ticker={activeTicker} />}
                         {digTab === "options" && activeTicker && <OptionsHistoryTab ticker={activeTicker} isAdmin={!!isAdmin} />}
                       </div>
