@@ -6,6 +6,9 @@
   retire    drop a challenger
 
 Evidence sources:
+  rh        A24: the trader's real Robinhood short puts (analysis/trade_mistakes.py, S015 grain): premium-kept P&L vs
+            entry IV/RV. Confirmation only — never fits a weight; a backtest-driven IV/RV move is held when the real book
+            contradicts it (n ≥ 300, opposite sign, week-cluster p < 0.10).
   backtest  analysis/backtest_puts.py on lseg_research.daily_history (17k+ reconstructed puts since 2020), IV held fixed
   live      watchlist_sync.grades (from 2026-10-09 expiries on). Grades in the 'data' bucket are NEVER used: a data bug is
             fixed in the data lane, it doesn't teach the model anything.
@@ -63,6 +66,20 @@ def backtest_evidence() -> dict:
             "own": {k: pick(v) for k, v in own.items()}, "flags": flags}
 
 
+def rh_evidence(conn) -> dict:
+    """A24: IC of entry IV/RV vs premium-kept P&L (÷ strike) on the trader's real puts, week-clustered."""
+    import trade_mistakes as TM
+    try:
+        trades = TM.build_trades(*TM.load(conn))
+    except Exception as e:  # noqa: BLE001 — evidence is optional; a broken export must not stop the cycle
+        return {"source": "rh", "error": str(e)[:200]}
+    pairs = [(t["ivrv"], t["pnl"], t) for t in trades if t.get("ivrv") is not None]
+    if len(pairs) < 30:
+        return {"source": "rh", "n": len(pairs)}
+    ic, p = TM.cluster_boot(pairs, lambda it: TM.week(it[2]["d0"]), lambda its: TM.ic([(x, y) for x, y, _ in its]))
+    return {"source": "rh", "n": len(pairs), "ivrv_kept_ic": ic, "p": p}
+
+
 def live_evidence(conn) -> dict:
     if not rows(conn, "SELECT to_regclass('watchlist_sync.grades') IS NOT NULL ok")[0]["ok"]:
         return {"graded": 0}
@@ -99,6 +116,11 @@ def propose_params(P: dict, ev: dict, live: dict) -> tuple[dict, list[dict]]:
         for k, v in sig.items():
             old = P["premium"][k]
             nv = bounded(old, v / tot, L["max_rel_step"], 0.0, 1.0)
+            rh = ev.get("rh") or {}
+            if (k == "w_iv_rv" and abs(nv - old) >= 0.01 and rh.get("n", 0) >= 300 and rh.get("p") is not None
+                    and rh["p"] < 0.10 and (rh["ivrv_kept_ic"] > 0) != (nv > old)):
+                rh["held"] = f"premium.{k} {old} → {nv} held: real RH puts disagree (IV/RV kept IC {rh['ivrv_kept_ic']:+.3f}, p {rh['p']:.2f}, n {rh['n']})"
+                continue  # logged in the cycle's evidence JSON; no challenger from a held move alone
             if abs(nv - old) >= 0.01:
                 new["premium"][k] = nv
                 why.append({"param": f"premium.{k}", "old": old, "new": nv, "why": f"premium-kept IC {comp[k]['pic'] if k != 'w_iv_level' else comp[k]['ic']:+.3f} → target share {v / tot:.2f}"})
@@ -209,6 +231,7 @@ def main() -> None:
         OUT.mkdir(parents=True, exist_ok=True)
         state_f.write_text(json.dumps({"last_cycle": date.today().isoformat(), "graded": live.get("graded", 0)}))
         ev = backtest_evidence()
+        ev["rh"] = rh_evidence(conn)
         NP, why = propose_params(CP, ev, live)
         OUT.mkdir(parents=True, exist_ok=True)
         if not why:
