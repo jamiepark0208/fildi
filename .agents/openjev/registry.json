@@ -670,7 +670,25 @@
     "by": "claude",
     "at": "2026-10-18"
    },
-   "notes": "picked a random decoy line 45 % of the time (chance 33 %); swing-low levels themselves hold 62 % vs random lines 57 %"
+   "notes": "picked a random decoy line 45 % of the time (chance 33 %); swing-low levels themselves hold 62 % vs random lines 57 % | v1 framing only (lines on a chart image). NOT a verdict on S/R: v2 = P22."
+  },
+  {
+   "id": "P22",
+   "question": "S/R v2: given a zone table (volume-at-price node/POC, touches, recency, distance in ATR, reaction size) + chart, will this zone hold if price reaches it?",
+   "type": "noul",
+   "use": "support/resistance zones per stock (TradingView-style volume profile), trained on our outcomes",
+   "created_by": "claude",
+   "created": "2026-10-18",
+   "rule": {
+    "kind": "auc",
+    "metric": "test AUC for 'zone holds' among touched zones (time split)",
+    "target": 0.6,
+    "baseline": "touch-count rule (S040 0.54); volume-profile rule alone"
+   },
+   "label_source": "prices_historical 2025-04→: thousands of touched zones (labels are plentiful → train a head / fine-tune)",
+   "measured": null,
+   "verified_by": null,
+   "notes": "Jamie 10-18: don't quit — give OpenJev the right data (volume profile as text, not lines on an image) and TRAIN on outcomes. Study S041 next."
   }
  ]
 }

@@ -183,23 +183,12 @@ fs.writeFileSync(STATE, JSON.stringify(next, null, 2));
 syncStateFile(path.join(ROOT, '.agents/context/state.md'), next, now.slice(0, 10));
 writeSessionEntry(next, args.note||'', now);
 
-// Stage all useful changes — source files, skills, docs, config, agent context
+// Stage ONLY what this script writes (AGENTS rule 2, 10-18): the tree is shared with Cursor/Muse/Grok/Kiro, so `add -u` /
+// untracked sweeps would commit other agents' unfinished work. Claude commits its own code changes separately before wrapping.
 const { execSync, execFileSync } = require('child_process');
 try {
-  // Stage all tracked modified files
-  execSync(`git -C "${ROOT}" add -u`, { stdio: 'pipe' });
-  // Stage new untracked files that belong in the repo (skills, docs, source)
-  // Use -z to get null-delimited output — avoids quoting issues with special chars in filenames
-  const untracked = execSync(`git -C "${ROOT}" ls-files --others --exclude-standard -z`, { stdio: 'pipe' })
-    .toString().split('\0').filter(f =>
-      f && !f.startsWith('attached_assets/') && !f.includes('.codegraph/') &&
-      !/\.(png|jpg|jpeg|gif|webp)$/.test(f)
-    );
-  if (untracked.length) {
-    // Add in batches to avoid arg length limits
-    for (const f of untracked) {
-      try { execSync(`git -C "${ROOT}" add "${f.replace(/"/g, '\\"')}"`, { stdio: 'pipe' }); } catch {}
-    }
+  for (const f of ['.claude/state.json', '.agents/context/state.md', '.agents/sessions']) {
+    try { execSync(`git -C "${ROOT}" add -- "${f}"`, { stdio: 'pipe' }); } catch {}
   }
   const staged = execSync(`git -C "${ROOT}" diff --cached --name-only`, { stdio: 'pipe' }).toString().trim();
   console.log(`✅ Staged: ${staged.split('\n').join(', ')}`);
@@ -221,10 +210,11 @@ try {
   if (staged) {
     const commitArgs = ['-C', ROOT, 'commit', '-m', commitSubject];
     if (rawNote !== subjectNote) commitArgs.push('-m', rawNote);
+    commitArgs.push('-m', 'Agent: claude');   // AGENTS: every commit carries an Agent: trailer
     execFileSync('git', commitArgs, { stdio: 'pipe' });
     console.log(`✅ Committed: ${commitSubject}`);
     try {
-      execSync(`git -C "${ROOT}" push origin main`, { stdio: 'pipe' });
+      execSync(`"${ROOT}/scripts/agent-git-sync.sh"`, { stdio: 'pipe', cwd: ROOT }); // AGENTS rule 2: never push by hand / to main
       console.log(`✅ Pushed to origin/main`);
     } catch (pushErr) {
       console.warn(`⚠️  push failed (will retry next session): ${pushErr.message}`);

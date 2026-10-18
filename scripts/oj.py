@@ -568,6 +568,21 @@ def cmd_analyze(spec_path: str, record: bool) -> int:
     return 0
 
 
+def pending() -> int:
+    """Work waiting for YOU (any agent, session start; no relaying through Jamie): measured patterns you did not author that
+    still need a second key. Prints the exact commands."""
+    who = me()
+    rows = [e for e in load_reg()["patterns"] if e.get("measured") and e["measured"].get("items_sha")
+            and not e.get("verified_by") and not e.get("retired") and e["measured"].get("by") != who]
+    if not rows:
+        print("oj pending: nothing to verify")
+        return 0
+    print(f"oj pending for {who}: {len(rows)} pattern(s) need a second agent's verify (~3–10 min each, local, $0):")
+    for e in rows:
+        print(f"  FILDI_AGENT={who if who != '?' else '<you>'} python3 scripts/oj.py verify {e['id']}   # {e['question'][:70]}")
+    return 0
+
+
 def check() -> int:
     """Server-free registry integrity (runs in validate-workflow every session): any number without script evidence,
     self-verification, manifest mismatch, or a hand-edited REGISTRY.md fails."""
@@ -617,6 +632,7 @@ def main() -> int:
     sp.add_parser("stop")
     sp.add_parser("audit")
     sp.add_parser("check")
+    sp.add_parser("pending")
     p = sp.add_parser("analyze")
     p.add_argument("--spec", required=True)
     p.add_argument("--record", action="store_true")
@@ -660,6 +676,8 @@ def main() -> int:
         audit()
     if a.cmd == "check":
         return check()
+    if a.cmd == "pending":
+        return pending()
     if a.cmd == "analyze":
         return cmd_analyze(a.spec, a.record)
     if a.cmd == "files":
