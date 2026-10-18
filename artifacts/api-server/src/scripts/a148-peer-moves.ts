@@ -20,14 +20,19 @@ const MOVES: Record<string, string[]> = {
   "utilities.water_gas_multi_utilities": ["ATO"],
   "healthcare.speculative_biotech": ["CABA"],
   "consumer_discretionary.restaurants_food_service": ["SG", "REBN"],
-  "technology.enterprise_software_cloud": ["BB", "SOUN"],
+  "technology.enterprise_software_cloud": ["BB", "SOUN", "SHOP"],
   "fintech.digital_finance_payments": ["BULL"],
   "financials.asset_management_alt_finance": ["STT", "BK"],
   "healthcare.large_pharma": ["GILD", "AMGN", "BIIB"],
   "industrials.transportation_logistics": ["ZTO"],
   "consumer_discretionary.travel_leisure_hospitality": ["TCOM"],
+  // monthly review 10-18: business match (OpenJev ≥ 0.8) AND multiples closer to the new group (fwd P/E, P/S, GM, growth)
+  "energy.clean_energy_renewables": ["PN"],
+  "technology.semiconductors_design": ["CEVA"],
+  "speculative_thematic.space_aerospace_tech": ["ONDS"],
+  "consumer_discretionary.autos_evs": ["XPEV", "NIO", "LI"],
 };
-const MODE_PINS: Record<string, string> = { ZTO: "chinese", TCOM: "chinese" };
+const MODE_PINS: Record<string, string> = { ZTO: "chinese", TCOM: "chinese", XPEV: "chinese", NIO: "chinese", LI: "chinese" };
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",");
 const apply = process.argv.includes("--apply");
 const regime = await getLatestRegime();
@@ -38,7 +43,7 @@ if (apply) {
   for (const [group, tickers] of Object.entries(MOVES)) {
     for (const t of tickers) {
       if (only && !only.includes(t)) continue;
-      await setPeerGroupOverride(t, group, "A148 S038 OpenJev audit, Jamie OK 2026-10-18");
+      await setPeerGroupOverride(t, group, "A148 OpenJev peer audit (Claude-reviewed), 2026-10-18");
       if (MODE_PINS[t]) await db.update(peerGroupOverrides).set({ scoringMode: MODE_PINS[t] }).where(eq(peerGroupOverrides.ticker, t));
     }
   }

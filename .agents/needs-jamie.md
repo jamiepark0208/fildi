@@ -25,20 +25,3 @@ Why: the local forecast run happens 5:30–9:00 AM when RAM is free. If the Mac 
 2. Undo anytime: `sudo pmset repeat cancel`.
 3. Reply "done" or "skip".
 
-## J10 Fund-score coverage fix (A154) — ship?
-Why: a real bug quietly threw away whole score families (growth, value, safety) whenever one metric didn't apply to that kind of stock (e.g. debt ratios for banks). The dropped family was ignored, or safety fell back to a fixed 38.
-Fix effect: 444 of 579 scores move, mean +0.2, max ±10. Fast growers rise because their growth score comes back (IONS 39→49, XPEV 46→56); BK 49→55 (real safety replaces the 38 default); MMC 48→43 (value score returns, low).
-Claude recommends ship (becomes fund-1.1.2). It can't be backtested (no point-in-time history), so old vs new get tracked forward for 63 days.
-Reply "ship" or "hold". Nothing changes until you say so.
-
-## J11 One technical score everywhere (A155) — OK?
-Why: two different technical scores run today (Breakdown uses one, Scanner/Model List use another), so the same stock can rank differently on different pages.
-Claude tested both over 6 years (S042): neither predicts returns or put outcomes; they're interchangeable. Proposal: keep one (the versioned champion), use it on every page. Scanner/Model List order will shuffle somewhat; no edge is lost.
-Reply "ok" or "hold".
-
-## J12 Peer-group moves from the first monthly check (A148)
-Why: OpenJev's monthly check flagged stocks compared against the wrong peers. Claude reviewed all 22.
-1. Clear misfilings (recommend yes): PN, RUM, TEM, SUPX, LQDA, CEVA, ONDS — mostly sitting in "Speculative Small Cap".
-2. XPEV, NIO, LI → Autos & EVs, keeping the China adjustment (same as you approved for ZTO/TCOM).
-3. Style, your call: SHOP, FDS, VRSK, BILL, TOST → Software; GPN, FIS, CME → Payment Networks.
-Reply e.g. "1 2 yes, 3 no". Claude shows each score's before/after when applying.

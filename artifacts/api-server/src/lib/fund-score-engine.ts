@@ -806,7 +806,7 @@ export function scoreUniverse(
         metricScores[m.key] = { value: null, peerNorm: null, histNorm: null, blended: null, weightedScore: 0 };
         continue;
       }
-      famAcc[m.family].total += m.baseIntra;
+      // A154: excluded metrics aren't part of this ticker's family → must not dilute coverage (dropped whole families).
       if (isExcluded(m, style, r.scoringMode, r)) {
         metricScores[m.key] = {
           value: raw[m.key][i],
@@ -817,6 +817,7 @@ export function scoreUniverse(
         };
         continue;
       }
+      famAcc[m.family].total += m.baseIntra;
       const histArr = history[r.ticker]?.[m.key];
       const histN = histArr ? ownHistoryNorm(raw[m.key][i], histArr, m.higherIsBetter) : null;
       const pN = crossNorm[m.key][i];
