@@ -3,10 +3,10 @@
 > After the user confirms a plan (or says implement/proceed), **execute** — do not stay in plan-only mode.
 
 ## STARTUP (every new chat)
-1. Context is auto-injected by `.cursor/hooks/session-start.js` (phase, tasks, git, codegraph)
-2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js`
-3. **Pull team bus:** `scripts/agent-git-sync.sh` (Muse may have pushed while Mac was closed; never stash/rebase/pull by hand — AGENTS.md rule 2)
-4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##`; fix Muse/Claude review findings → `done`. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
+1. Context is auto-injected by `.cursor/scripts/session-start.js` (runs `agent-git-sync.sh` first, then phase/tasks/git/codegraph banner). Sets `FILDI_AGENT=cursor` for child processes.
+2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js` then `scripts/agent-git-sync.sh`
+3. **Team bus is sync'd in step 1** — do not hand `git pull` / stash / rebase (AGENTS.md rule 2). If Sync line says behind/conflict, fix via the script only.
+4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##` + `Agent: cursor` when the build finishes — do not ask Jamie whether to commit agent-bus work. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
 6. Task code context: **codegraph** MCP
 

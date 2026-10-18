@@ -258,7 +258,9 @@ def verify(pid: str | None, live_frac: float = 0.2) -> int:
     """Recompute metrics from stored answers; hashes must match; re-ask a live sample (same model → answers must agree)."""
     import oj_evals
     reg = load_reg()
-    me = os.environ.get("FILDI_AGENT", "?")
+    # Use me() (parent-process guess) — bare FILDI_AGENT env was often unset so verify
+    # printed OK but never stamped verified_by (Cursor 10-18, A158 follow-up).
+    who = me()
     bad = 0
     for e in reg["patterns"]:
         if pid and e["id"] != pid:
@@ -274,8 +276,8 @@ def verify(pid: str | None, live_frac: float = 0.2) -> int:
             re_v = oj_analyze.run(spec_p, quiet=True)["value"]
             ok &= abs(re_v - m["value"]) < 1e-9
             print(f"{e['id']}: {'OK' if ok else 'MISMATCH'} (stored {m['value']}, recomputed {re_v})")
-            if ok and me not in ("?", m.get("by")):
-                e["verified_by"], e["verified_at"] = me, dt.date.today().isoformat()
+            if ok and who not in ("?", m.get("by")):
+                e["verified_by"], e["verified_at"] = who, dt.date.today().isoformat()
             elif not ok:
                 e["verified_by"] = None
                 bad += 1
@@ -294,8 +296,8 @@ def verify(pid: str | None, live_frac: float = 0.2) -> int:
             ok &= agree >= 0.9 * len(sample)
             print(f"{e['id']}: live re-ask agreement {agree}/{len(sample)}")
         print(f"{e['id']}: {'OK' if ok else 'MISMATCH'} (stored {m['value']:.4g}, recomputed {re_m['value']:.4g})")
-        if ok and me not in ("?", m.get("by")):
-            e["verified_by"], e["verified_at"] = me, dt.date.today().isoformat()
+        if ok and who not in ("?", m.get("by")):
+            e["verified_by"], e["verified_at"] = who, dt.date.today().isoformat()
         elif not ok:
             e["verified_by"] = None
             bad += 1

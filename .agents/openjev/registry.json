@@ -393,9 +393,10 @@
     "answers_sha": "edf51cd40a5f332a",
     "evidence": "oj eval P10"
    },
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "small models can't replace the 26B here: AUC 26B 0.84 · Verdict 0.53 · Laya 0.40 (10-18)",
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "P11",
@@ -424,9 +425,10 @@
     "answers_sha": "6093df30d9b692d9",
     "evidence": "oj eval P11"
    },
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "`oj.py run` = regex OR OpenJev per 40-line chunk + always the tail; regex-labelled eval (weak) — OpenJev's extra value = semantic catches | AUC 26B 0.98 · Laya 0.93 · Verdict 0.25 (10-18)",
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "P12",
@@ -558,9 +560,10 @@
     "evidence": "oj eval P17",
     "question_sha": "3b12fc21c526"
    },
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "",
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "P18",
@@ -622,7 +625,7 @@
    "type": "analyze",
    "use": "Put seller's 6:30 am question, decomposed: is the news about the company, is it bad, is it material, what kind of event; weights learned from S037 outcomes.",
    "created_by": "claude",
-   "verified_by": null,
+   "verified_by": "cursor",
    "notes": "",
    "rule": {
     "kind": "analyze_auc",
@@ -644,7 +647,8 @@
     "evidence": "oj analyze .agents/openjev/specs/P21_overnight_put_risk.json",
     "secondary": "best single bad_max 0.607; Brier 0.1014 vs base 0.1029"
    },
-   "created": "2026-10-17"
+   "created": "2026-10-17",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "R08",
@@ -689,6 +693,78 @@
    "measured": null,
    "verified_by": null,
    "notes": "Jamie 10-18: don't quit — give OpenJev the right data (volume profile as text, not lines on an image) and TRAIN on outcomes. Study S041 next."
+  },
+  {
+   "id": "P23",
+   "question": "Is this tsc/test failure caused by my uncommitted diff (vs pre-existing on HEAD)?",
+   "type": "noul",
+   "use": "Cursor: skip chasing failures I didn't introduce; cut verify loops",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "paired (diff + error) → fixed-by-revert vs still-failing-on-clean",
+   "created_by": "cursor",
+   "measured": null,
+   "verified_by": null,
+   "notes": "Cursor 10-18: high token cost when verifier fails on dirty tree; C until labelled",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "P24",
+   "question": "Which planned Muse→Cursor ASKS row is buildable next (no open study gate / no Jamie decision)?",
+   "type": "choice",
+   "use": "Cursor queue: pick next Ready without reading every A## file",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.85,
+    "baseline": ""
+   },
+   "label_source": "sessions where Cursor picked a row then Claude/Muse agreed it was Ready",
+   "created_by": "cursor",
+   "measured": null,
+   "verified_by": null,
+   "notes": "Feed: ASKS index lines + one-line blockers from each file Reviews; C until labelled",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "P25",
+   "question": "Does this commit need a Refs: A## trailer (and which id)?",
+   "type": "choice",
+   "use": "Cursor: stop missing ASKS attribution on agent-bus commits",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": ""
+   },
+   "label_source": "past Cursor commits with/without Refs vs paths touched",
+   "created_by": "cursor",
+   "measured": null,
+   "verified_by": null,
+   "notes": "Options = ASKS ids in the dirty set + none; C until labelled",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "P26",
+   "question": "Is codegraph explore output enough to edit, or do I still need another symbol/file?",
+   "type": "noul",
+   "use": "Cursor: stop over-reading after codegraph already answered",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.85,
+    "baseline": ""
+   },
+   "label_source": "sessions: explore → edit success without further Read vs needed more",
+   "created_by": "cursor",
+   "measured": null,
+   "verified_by": null,
+   "notes": "Pairs with P10 (files); this gates second-pass reads after explore; C until labelled",
+   "created": "2026-10-18"
   }
  ]
 }
