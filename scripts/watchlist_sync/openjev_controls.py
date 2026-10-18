@@ -109,14 +109,19 @@ def peers_review_due(conn) -> bool:
     return bool(set(load_peers(conn)[1]) - done)
 
 
-def peers_review(conn) -> int:
+def peers_review(conn, skip_run: bool = False) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     out_f, last = DATA / "peers.jsonl", DATA / "peers_review_last.txt"
     month = dt.date.today().isoformat()[:7]
-    if out_f.exists() and (not last.exists() or last.read_text().strip()[:7] != month):
+    if not skip_run and out_f.exists() and (not last.exists() or last.read_text().strip()[:7] != month):
         out_f.rename(DATA / f"peers-{dt.date.today():%Y%m%d}.jsonl")  # monthly: re-ask everyone
-    peers(conn, None)
-    groups, member, fixes = load_peers(conn)
+    if not skip_run:
+        peers(conn, None)
+    groups, _, fixes = load_peers(conn)
+    # compare with the SCORING group (ticker_registry primary), not taxonomy display memberships (NVDA in Big Tech etc.)
+    with conn.cursor() as c:
+        c.execute("select ticker, primary_peer_group_id from ticker_registry where primary_peer_group_id is not null")
+        member = dict(c.fetchall())
     rs = [json.loads(x) for x in out_f.open()] if out_f.exists() else []
     dis = sorted((r for r in rs if r["t"] in member and r["t"] not in fixes and r["t"] not in PEER_REJECTED
                   and r["top"][0][0] != member[r["t"]] and r["top"][0][1] >= 0.8), key=lambda r: -r["top"][0][1])

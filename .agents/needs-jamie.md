@@ -35,3 +35,10 @@ Reply "ship" or "hold". Nothing changes until you say so.
 Why: two different technical scores run today (Breakdown uses one, Scanner/Model List use another), so the same stock can rank differently on different pages.
 Claude tested both over 6 years (S042): neither predicts returns or put outcomes; they're interchangeable. Proposal: keep one (the versioned champion), use it on every page. Scanner/Model List order will shuffle somewhat; no edge is lost.
 Reply "ok" or "hold".
+
+## J12 Peer-group moves from the first monthly check (A148)
+Why: OpenJev's monthly check flagged stocks compared against the wrong peers. Claude reviewed all 22.
+1. Clear misfilings (recommend yes): PN, RUM, TEM, SUPX, LQDA, CEVA, ONDS — mostly sitting in "Speculative Small Cap".
+2. XPEV, NIO, LI → Autos & EVs, keeping the China adjustment (same as you approved for ZTO/TCOM).
+3. Style, your call: SHOP, FDS, VRSK, BILL, TOST → Software; GPN, FIS, CME → Payment Networks.
+Reply e.g. "1 2 yes, 3 no". Claude shows each score's before/after when applying.
