@@ -27,8 +27,8 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["telecom"],                              groupId: "telecom.telecommunications" },
   { keywords: ["broadcasting", "media"],                groupId: "technology.consumer_internet_digital_media" },
   // Financial Services
-  { keywords: ["banks—diversified", "banks-diversified", "diversified bank"],  groupId: "financials.large_banks" },
-  { keywords: ["banks—regional", "banks-regional", "regional bank"],           groupId: "financials.regional_banks" },
+  // A160: large + regional → financials.banks
+  { keywords: ["banks—diversified", "banks-diversified", "diversified bank", "banks—regional", "banks-regional", "regional bank", "banks"], groupId: "financials.banks" },
   { keywords: ["asset management", "capital markets", "investment management"], groupId: "financials.asset_management_alt_finance" },
   { keywords: ["credit services", "financial data", "stock exchange"],         groupId: "financials.payment_networks_credit" },
   { keywords: ["insurance"],                            groupId: "financials.insurance" },
@@ -50,7 +50,8 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["beverages", "packaged foods", "household & personal", "tobacco"], groupId: "consumer_staples.packaged_goods_beverages" },
   // Industrials
   { keywords: ["aerospace & defense"],                  groupId: "industrials.aerospace_defense" },
-  { keywords: ["waste management"],                     groupId: "industrials.waste_management_services" },
+  // A160: waste → industrial conglomerates
+  { keywords: ["waste management"],                     groupId: "industrials.industrial_conglomerates_machinery" },
   { keywords: ["railroads", "trucking", "air freight", "freight & logistics"], groupId: "industrials.transportation_logistics" },
   { keywords: ["staffing", "consulting", "financial exchanges", "research & consulting"], groupId: "industrials.professional_services" },
   { keywords: ["specialty industrial", "farm & heavy construction", "electrical equipment", "industrial machinery"], groupId: "industrials.industrial_conglomerates_machinery" },

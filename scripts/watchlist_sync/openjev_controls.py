@@ -137,7 +137,7 @@ def peers_review(conn, skip_run: bool = False) -> int:
 
 # Claude's review of v1's confident disagreements (S038) + human fixes = hard-case truth set for prompt variants
 HARD_TRUTH = {**{t: "consumer_staples.packaged_goods_beverages" for t in "CPB CAG GIS HRL HSY KHC MDLZ SJM COTY".split()},
-              "GE": "industrials.aerospace_defense", "TFC": "financials.regional_banks", "PNC": "financials.regional_banks",
+              "GE": "industrials.aerospace_defense", "TFC": "financials.banks", "PNC": "financials.banks",
               "GFS": "technology.semiconductor_foundry_specialty", "ATO": "utilities.water_gas_multi_utilities",
               "CABA": "healthcare.speculative_biotech", "SG": "consumer_discretionary.restaurants_food_service",
               "REBN": "consumer_discretionary.restaurants_food_service", "BB": "technology.enterprise_software_cloud",

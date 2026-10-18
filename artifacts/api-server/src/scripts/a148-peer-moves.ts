@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 const MOVES: Record<string, string[]> = {
   "consumer_staples.packaged_goods_beverages": ["CPB", "CAG", "GIS", "HRL", "HSY", "KHC", "MDLZ", "SJM", "COTY"],
   "industrials.aerospace_defense": ["GE"],
-  "financials.regional_banks": ["TFC", "PNC"],
+  "financials.banks": ["TFC", "PNC"], // A160: was regional_banks
   "technology.semiconductor_foundry_specialty": ["GFS"],
   "utilities.water_gas_multi_utilities": ["ATO"],
   "healthcare.speculative_biotech": ["CABA"],

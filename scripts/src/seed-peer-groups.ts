@@ -1,4 +1,5 @@
-import { db, peerGroups, peerGroupMembers, tickerRegistry, ETF_EXCLUSIONS } from "@workspace/db";
+import { db, peerGroups, peerGroupMembers, peerGroupOverrides, tickerRegistry, ETF_EXCLUSIONS } from "@workspace/db";
+import { eq, and, isNull } from "drizzle-orm";
 
 // ── Dual-membership primary overrides ─────────────────────────────────────────
 // For tickers that appear in multiple groups, this sets the canonical scoring group.
@@ -36,8 +37,8 @@ const GROUPS: GroupDef[] = [
   { id: "technology.it_hardware_networking",           name: "IT Hardware & Networking",             scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["DELL","SMCI","CSCO","ANET","HPE","HPQ","NTAP","PSTG","JNPR","ZBRA"] },
   { id: "technology.chinese_tech",                     name: "Chinese Tech",                         scoringMode: "chinese",                 metricExclusions: ["roe"],                                                  lowConfidence: false, tickers: ["BABA","PDD","JD","BIDU","NIO","XPEV","LI","NTES","BILI","TME","ZTO","FUTU","VNET","TCOM"] },
   { id: "fintech.digital_finance_payments",            name: "Digital Finance & Payments",           scoringMode: "financial_mixed",         metricExclusions: ["pb_ratio"],                                             lowConfidence: false, tickers: ["PYPL","SQ","SOFI","COIN","AFRM","HOOD","UPST","TOST","BILL","FIS","FISV","GPN","FOUR","RELY","ADYEN","NU","PAGS"] },
-  { id: "financials.large_banks",                      name: "Large Banks",                          scoringMode: "financial",               metricExclusions: ["ev_ebitda","grossMargin","ps_ratio","ev_revenue","ps","netDebtEbitda"],       lowConfidence: false, tickers: ["JPM","BAC","C","WFC","GS","MS","USB","PNC","SCHW","TFC","BK","STT"] },
-  { id: "financials.regional_banks",                   name: "Regional Banks",                       scoringMode: "financial",               metricExclusions: ["ev_ebitda","grossMargin","ps_ratio","ev_revenue","ps","netDebtEbitda"],       lowConfidence: false, tickers: ["RF","FITB","KEY","CFG","HBAN","MTB","ZION","CMA","FHN","EWBC","WAL"] },
+  // A160: large_banks + regional_banks → one Banks group (NIM lenders; distance 0.12)
+  { id: "financials.banks",                            name: "Banks",                                scoringMode: "financial",               metricExclusions: ["ev_ebitda","grossMargin","ps_ratio","ev_revenue","ps","netDebtEbitda"],       lowConfidence: false, tickers: ["JPM","BAC","C","WFC","GS","MS","USB","PNC","SCHW","TFC","BK","STT","RF","FITB","KEY","CFG","HBAN","MTB","ZION","CMA","FHN","EWBC","WAL"] },
   { id: "financials.asset_management_alt_finance",     name: "Asset Management & Alt Finance",       scoringMode: "financial",               metricExclusions: ["ev_ebitda","grossMargin"],                               lowConfidence: false, tickers: ["BLK","BX","OWL","KKR","APO","ARES","CG","TPG","BAM","TROW","IVZ","BEN","AMG"] },
   { id: "financials.payment_networks_credit",          name: "Payment Networks & Credit",            scoringMode: "standard",                metricExclusions: ["pb_ratio"],                                             lowConfidence: false, tickers: ["V","MA","AXP","COF","DFS","SYF"] },
   { id: "financials.insurance",                        name: "Insurance",                            scoringMode: "insurance",               metricExclusions: ["ev_ebitda","grossMargin","ps_ratio","ps","netDebtEbitda"],    lowConfidence: false, tickers: ["BRK.B","PGR","TRV","ALL","MET","AIG","AFL","CB","HIG","CINF","GL","AJG","MMC","AON","WTW"] },
@@ -55,8 +56,8 @@ const GROUPS: GroupDef[] = [
   { id: "healthcare.medical_devices_equipment",         name: "Medical Devices & Equipment",        scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["BAX","ABT","MDT","SYK","ISRG","BSX","EW","DXCM","BDX","ZBH","HOLX","IDXX","A","TMO","DHR"] },
   { id: "healthcare.speculative_biotech",               name: "Speculative Biotech",                scoringMode: "speculative_pre_revenue", metricExclusions: ["pe_ratio","peg","earningsYield","roe","ev_ebitda","pb_ratio"], lowConfidence: false, tickers: ["DNA","NTLA","RXRX","CMPS","BNGO","GOSS","CRSP","BEAM","EDIT"] },
   { id: "industrials.aerospace_defense",                name: "Aerospace & Defense",                scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["BA","LMT","RTX","GD","NOC","HII","TDG","HWM","AXON","LHX","HEI"] },
-  { id: "industrials.industrial_conglomerates_machinery", name: "Industrial Conglomerates & Machinery", scoringMode: "standard",            metricExclusions: [],                                                       lowConfidence: false, tickers: ["GE","CAT","HON","DE","MMM","EMR","ETN","ITW","ROK","PH","IR","DOV","OTIS","CMI","PCAR"] },
-  { id: "industrials.waste_management_services",        name: "Waste Management & Services",        scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: true,  tickers: ["WM","RSG","WCN","CLH","ECOL"] },
+  // A160: waste_management_services (n=5, thin) → industrial conglomerates (distance 0.12)
+  { id: "industrials.industrial_conglomerates_machinery", name: "Industrial Conglomerates & Machinery", scoringMode: "standard",            metricExclusions: [],                                                       lowConfidence: false, tickers: ["GE","CAT","HON","DE","MMM","EMR","ETN","ITW","ROK","PH","IR","DOV","OTIS","CMI","PCAR","WM","RSG","WCN","CLH","ECOL"] },
   { id: "industrials.transportation_logistics",         name: "Transportation & Logistics",         scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["UNP","CSX","NSC","UPS","FDX","ODFL","SAIA","JBHT","XPO","CHRW"] },
   { id: "industrials.professional_services",            name: "Professional Services",              scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["ACN","SPGI","MCO","ICE","CME","NDAQ","MSCI","VRSK","FDS","BR"] },
   { id: "energy.integrated_oil_gas",                   name: "Integrated Oil & Gas",               scoringMode: "energy",                  metricExclusions: ["ps_ratio","grossMargin"],                               lowConfidence: false, tickers: ["XOM","CVX","COP","EOG","PXD","DVN","MPC","VLO","PSX","OXY","FANG","HES","APA","CTRA"] },
@@ -142,6 +143,23 @@ async function main() {
 
   const uniqueTickers = primaryMap.size;
   console.log(`✓ ${uniqueTickers} unique tickers in registry`);
+
+  // A160: retire emptied groups — rewrite registry/overrides/members, then delete rows
+  const RETIRED: Record<string, string> = {
+    "industrials.waste_management_services": "industrials.industrial_conglomerates_machinery",
+    "financials.large_banks": "financials.banks",
+    "financials.regional_banks": "financials.banks",
+  };
+  for (const [from, to] of Object.entries(RETIRED)) {
+    const reg = await db.update(tickerRegistry).set({ primaryPeerGroupId: to })
+      .where(eq(tickerRegistry.primaryPeerGroupId, from)).returning({ ticker: tickerRegistry.ticker });
+    const ovr = await db.update(peerGroupOverrides).set({ groupId: to })
+      .where(eq(peerGroupOverrides.groupId, from)).returning({ ticker: peerGroupOverrides.ticker });
+    await db.update(peerGroupMembers).set({ removedAt: new Date() })
+      .where(and(eq(peerGroupMembers.groupId, from), isNull(peerGroupMembers.removedAt)));
+    await db.delete(peerGroups).where(eq(peerGroups.id, from));
+    console.log(`✓ retired ${from} → ${to} (registry ${reg.length}, overrides ${ovr.length})`);
+  }
 
   process.exit(0);
 }
