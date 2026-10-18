@@ -4,12 +4,12 @@
 **Last updated:** 2026-10-18
 
 ## Next build
-A146
-A114
-A87
+A88
+A143
+A149
 
 ## Phase
-**build** — AI tab value pass (Next strip + phase labels + OpenJev registry). Then A146.
+**build** — Finish A88 (Reviews + Refs on Ideas). Then Ready: A143 / A149. A146 stays open until Claude plans.
 
 ## Active
 - A150 OpenJev framework (Claude): registry + oj.py — AI tab surfaces tiers; do not gate Needs You on P16 (still C).

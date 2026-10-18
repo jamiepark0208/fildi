@@ -30,7 +30,7 @@ const run = promisify(execFile);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const LOGS = join(homedir(), ".claude/projects", ROOT.replace(/[/.]/g, "-"));
 type AgentId = "muse" | "claude" | "cursor" | "jamie" | "grok";
-type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
+type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "ask"; text: string; ref?: string; askRef?: string; sha?: string };
 
 const NAMES: Record<string, AgentId> = {
   muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie",
@@ -47,13 +47,23 @@ async function commits(since = "7 days ago"): Promise<Ev[]> {
     const [sha, t, email, subject, agentTrailer, coauthor, body] = r.split("\x1f");
     const fromBody = (body ?? "").match(/^\s*Agent:\s*(\S+)\s*$/im)?.[1] ?? "";
     const from = who(agentTrailer ?? "") ?? who(fromBody) ?? (/claude/i.test(coauthor ?? "") ? "claude" : /users\.noreply\.github\.com$/.test(email) ? "muse" : "cursor");
-    return { t, from, to: "repo" as const, kind: "commit" as const, text: subject, ref: sha.slice(0, 7) };
+    const askRef = (body ?? "").match(/^\s*Refs:\s*(A\d+)\b/im)?.[1]
+      ?? (subject ?? "").match(/\bRefs:\s*(A\d+)\b/i)?.[1]
+      ?? undefined;
+    return {
+      t, from, to: "repo" as const, kind: "commit" as const, text: subject,
+      ref: sha.slice(0, 7), sha: sha.slice(0, 7), askRef,
+    };
   });
 }
 
 type Idea = {
   id: string; date: string; from: AgentId; to: AgentId; title: string; status: string;
   phase: string; quant: boolean; blurb: string;
+  /** ## Reviews section from asks/A##.md (A88). */
+  reviews: string;
+  /** Recent commits with Refs: A## (filled in overview). */
+  commits: { sha: string; text: string; at: string; agent: AgentId }[];
   /** Latest agent touch (ASKS status note / Reviews line), YYYY-MM-DD. */
   touchedAt: string | null;
   touchedBy: AgentId | null;
@@ -75,11 +85,26 @@ function ideaBlurb(id: string): string {
   }
 }
 
+function ideaReviews(id: string): string {
+  try {
+    const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
+    const m = txt.match(/## Reviews\s*\n([\s\S]*?)(?=\n## |\n*$)/);
+    return (m?.[1] ?? "").trim().slice(0, 1600);
+  } catch {
+    return "";
+  }
+}
+
 function ideaPhase(status: string): string {
-  const s = status.trim().toLowerCase();
+  const raw = status.trim();
+  const s = raw.toLowerCase();
   if (s.startsWith("verified")) return "verified";
   if (s.startsWith("done")) return "done";
-  if (s.startsWith("declined") || s.startsWith("deferred")) return "parked";
+  if (s.startsWith("declined") || s.startsWith("deferred") || s.startsWith("parked")) return "parked";
+  // Grok STOP / "no build" — not Inbox; Claude still owns decline text (Jamie 10-18).
+  if (/\bSTOP\b/.test(raw) || /\bstop:\s*no build\b/i.test(raw) || /\bstop:\s*no library\b/i.test(raw)) {
+    return "parked";
+  }
   if (s.startsWith("accepted") || s.startsWith("partial")) return "building";
   if (s.startsWith("planned")) return "reviewed";
   if (/needs jamie|user call/.test(s)) return "needs you";
@@ -160,6 +185,8 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         phase,
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
+        reviews: ideaReviews(id!),
+        commits: [],
         touchedAt: touch.at,
         touchedBy: touch.by,
         inProgress,
@@ -184,6 +211,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       if (m) ideas.push({
         id: m[1]!, date: "", from: "claude", to: "jamie", title: m[2]!.trim(), status: "needs you",
         phase: "needs you", quant: false, blurb: body.join("\n").trim(),
+        reviews: "", commits: [],
         touchedAt: null, touchedBy: null, inProgress: false, stale: false, hot: false,
       });
     }
@@ -222,13 +250,39 @@ function nextBuildFromState(ideas: Idea[]): { ids: string[]; items: { id: string
       }
     }
   } catch { /* missing */ }
-  // Fallback: first ready-to-build Muse/Claude→Cursor row
-  if (!ids.length) {
+  // open/filed ≠ ready — drop them from Next (Jamie 10-18: A146 was wrong).
+  const use = ids.filter((id) => {
+    const i = ideas.find((x) => x.id === id);
+    return !!i && (i.phase === "reviewed" || i.phase === "building");
+  });
+  if (!use.length) {
     for (const i of ideas) {
-      if (i.phase === "reviewed" && (i.to === "cursor")) { ids.push(i.id); break; }
+      if (i.phase === "reviewed" && i.to === "cursor") {
+        use.push(i.id);
+        if (use.length >= 3) break;
+      }
     }
   }
-  return { ids, items: ids.map((id) => ({ id, title: byId.get(id) ?? id })) };
+  return { ids: use, items: use.map((id) => ({ id, title: byId.get(id) ?? id })) };
+}
+
+/** Attach Refs: A## commits (last 7d) onto idea cards — A88. */
+function attachIdeaCommits(ideas: Idea[], cm: Ev[]): void {
+  const byAsk = new Map<string, Ev[]>();
+  for (const c of cm) {
+    if (c.kind !== "commit" || !c.askRef) continue;
+    const list = byAsk.get(c.askRef) ?? [];
+    if (list.length < 10) list.push(c);
+    byAsk.set(c.askRef, list);
+  }
+  for (const i of ideas) {
+    i.commits = (byAsk.get(i.id) ?? []).map((c) => ({
+      sha: c.sha ?? c.ref ?? "",
+      text: c.text,
+      at: c.t,
+      agent: c.from,
+    }));
+  }
 }
 
 /** A150 OpenJev registry summary (read REGISTRY.md tiers — do not invent numbers). */
@@ -813,15 +867,22 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     gitHour: (await commits("1 hour ago").catch((): Ev[] => [])).map((c) => ({ t: c.t, agent: c.from, text: c.text.slice(0, 70) })),
     openjevRegistry: openjevRegistrySummary(),
   };
+  // Ideas always fresh (ASKS + Reviews + STOP→Parked).
+  const { ev, queue, ideas } = asks();
   if (cache && Date.now() - cache.at < 10 * 60_000) {
-    const body = withoutDismissed(cache.body as object, gone) as { ideas?: Idea[] };
+    const body = withoutDismissed(cache.body as object, gone) as { events?: Ev[] };
+    const cmCached = (body.events ?? []).filter((e) => e.kind === "commit");
+    attachIdeaCommits(ideas, cmCached);
+    if (!ideas.some((i) => i.commits.length > 0)) {
+      attachIdeaCommits(ideas, await commits().catch((): Ev[] => []));
+    }
     return res.json({
-      ...body, ...fresh, windows: windows(),
-      nextBuild: nextBuildFromState(body.ideas ?? []),
+      ...body, ...fresh, ideas, windows: windows(),
+      nextBuild: nextBuildFromState(ideas),
     });
   }
   const [cm, tok] = await Promise.all([commits().catch((): Ev[] => []), claudeTokens()]);
-  const { ev, queue, ideas } = asks();
+  attachIdeaCommits(ideas, cm);
   const nextBuild = nextBuildFromState(ideas);
   const day = Date.now() - 864e5;
   const agents = (["muse", "claude", "cursor", "grok", "jamie"] as AgentId[]).map((id) => {
@@ -841,11 +902,13 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   cache = {
     at: Date.now(),
     body: {
-      agents, events, ideas, nextBuild,
-      asOf: new Date().toISOString(), rules: rules(), skills: skills(),
+      agents, events, asOf: new Date().toISOString(), rules: rules(), skills: skills(),
     },
   };
-  return res.json({ ...withoutDismissed(cache.body as object, gone), ...fresh, nextBuild, windows: windows() });
+  return res.json({
+    ...withoutDismissed(cache.body as object, gone), ...fresh,
+    ideas, nextBuild, windows: windows(),
+  });
 });
 
 export default router;

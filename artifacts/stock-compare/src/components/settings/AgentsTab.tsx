@@ -39,6 +39,8 @@ type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
   type Idea = {
     id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
+    reviews?: string;
+    commits?: { sha: string; text: string; at: string; agent: Id }[];
     touchedAt?: string | null; touchedBy?: Id | null; inProgress?: boolean; stale?: boolean; hot?: boolean;
   };
   type NextBuild = { ids: string[]; items: { id: string; title: string }[] };
@@ -1254,6 +1256,27 @@ function IdeasPanel({
           )}
           <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
           <RichText text={active.blurb || "No Context section in the ask file yet."} />
+          {!!active.reviews?.trim() && (
+            <div className="space-y-1 pt-1 border-t border-white/10">
+              <div className="text-[10px] uppercase tracking-wider text-amber-200/50">Reviews</div>
+              <RichText text={active.reviews} />
+            </div>
+          )}
+          {(active.commits?.length ?? 0) > 0 && (
+            <div className="space-y-1 pt-1 border-t border-white/10">
+              <div className="text-[10px] uppercase tracking-wider text-amber-200/50">Commits · Refs: {active.id}</div>
+              <ul className="space-y-0.5 font-mono text-[11px] text-white/75">
+                {active.commits!.map((c) => (
+                  <li key={c.sha} className="flex flex-wrap gap-x-2">
+                    <span style={{ color: META[c.agent]?.color ?? "#a1a1aa" }}>{WHO_LETTER[c.agent] ?? c.agent}</span>
+                    <span className="text-cyan-200/80">{c.sha}</span>
+                    <span className="text-white/40">{ago(c.at)}</span>
+                    <span className="text-white/70 truncate max-w-[28rem]">{c.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <p className="text-[11px] text-white/80">Status: {active.status}</p>
             {/^A\d+$/.test(active.id) && active.phase !== "needs you" && (
