@@ -82,7 +82,9 @@ type Idea = {
  * Ready to build → always Cursor. Inbox Muse/Claude→Cursor open → Claude (plan first).
  * Last-touch is separate (touchedBy) — do not use for the badge (Jamie 10-18).
  */
-function ideaAssignee(from: AgentId, to: AgentId, phase: string): AgentId {
+function ideaAssignee(from: AgentId, to: AgentId, phase: string, status = ""): AgentId {
+  // Explicit wait on Claude (commit/quant sign-off) — not the same as ASKS `to`.
+  if (/needs claude|\bclaude \[quant\] sign-off|sign-off still open/i.test(status)) return "claude";
   if (phase === "needs you") return "jamie";
   if (phase === "reviewed") return "cursor";
   if (phase === "building") return to === "cursor" || from === "muse" || from === "claude" ? "cursor" : to;
@@ -184,12 +186,14 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (/^(open|planned|accepted|partial)/i.test(st)) queue[dest] += 1;
     if (/needs jamie|user call/i.test(st)) queue.jamie += 1;
     if (Date.parse(d!) >= since) ev.push({ t: `${d}T12:00:00`, from, to: dest, kind: "ask", text: `${id} ${title!.replace(/\[quant\] /, "")}`.slice(0, 120), ref: id });
-    // Idea cubes: Muse→Cursor, Claude→Cursor, Grok either side, or anything Needs Jamie (Jamie 10-17).
+    // Idea cubes: Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs Jamie/Claude (Jamie 10-18).
+    // Cursor→Claude was missing → A24 invisible on Ideas (Jamie 10-18).
     const onBoard = (from === "muse" && dest === "cursor")
       || (from === "claude" && dest === "cursor")
+      || dest === "claude"
       || from === "grok" || dest === "grok"
       || dest === "jamie"
-      || /needs jamie|user call/i.test(st);
+      || /needs jamie|needs claude|user call|sign-off still open/i.test(st);
     if (onBoard) {
       const phase = ideaPhase(st);
       const touch = ideaTouch(id!, st, d!);
@@ -202,7 +206,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
         status: st,
         phase,
-        assignee: ideaAssignee(from, dest, phase),
+        assignee: ideaAssignee(from, dest, phase, st),
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
         reviews: ideaReviews(id!),

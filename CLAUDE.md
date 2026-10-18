@@ -12,7 +12,7 @@ Run once per session: `node .claude/scripts/validate-workflow.js` · `python3 sc
 Then sync: `scripts/agent-git-sync.sh` (safe pull/push; never stash/rebase/pull by hand — AGENTS.md rule 2) →
 sync Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark those ASKS rows `declined (Jamie dismissed <date>)` and commit →
 triage `research/inbox.md` (user's raw thoughts → numbered items, dedupe vs ASKS/INDEX, priority P1–P3, file rows, clear the inbox; user 2026-10-15) →
-read open `research/common/ASKS.md` rows addressed **to Claude** →
+read open `research/common/ASKS.md` rows addressed **to Claude**, plus any status with `needs Claude` / `sign-off still open` (e.g. A131 quant gate) →
 review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review **every** open Muse row (user 2026-10-14; `[quant]` ones also get the eval) → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
 (b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` in `asks/A##.md` § Reviews; update the SHA.
 **Never implement** Muse rows — Cursor owns them (user 2026-10-07).

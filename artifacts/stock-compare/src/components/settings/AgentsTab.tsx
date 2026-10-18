@@ -1213,9 +1213,9 @@ function IdeasPanel({
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
         <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
         <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
-          Ready / In progress Cu = Cursor&apos;s queue — not auto-running. Agents only work when a chat/session is open on that row.
-          Ready = planned (build next). In progress = accepted/partial (claimed or recently touched). Stale accepted → Show debt.
-          Inbox Cl = awaits Claude plan. Inbox G = Grok review queue. Pink = this wave. Teal = active claim.</InfoTip>
+          Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you/Claude — not every ASKS row (e.g. done/parked stay off).
+          Ready / In progress Cu = Cursor queue (not auto-run). Status &quot;needs Claude&quot; / sign-off → Cl. Inbox Cl = awaits plan. Inbox G = Grok.
+          Pink = this wave. Teal = active claim. Stale accepted → Show debt.</InfoTip>
         <input
           type="search"
           value={query}
