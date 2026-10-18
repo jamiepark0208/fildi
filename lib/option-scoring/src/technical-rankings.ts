@@ -793,14 +793,7 @@ export function explainRelativePressurePut(r: TechnicalRow): ComponentPart[] {
       score: 1 - siH,
     });
   }
-  const spH = speculativeHaircut(r.peerGroupId, r.analystUpside);
-  if (spH > 0) {
-    parts.push({
-      label: `Speculative peer haircut (−${(spH * 100).toFixed(0)}% total)`,
-      raw: r.peerGroupId ?? "speculative",
-      score: 1 - spH,
-    });
-  }
+  // A155: speculative haircut no longer applied to the total → not shown (was misleading).
   return parts;
 }
 
@@ -819,14 +812,7 @@ export function explainRelativePressureCall(r: TechnicalRow): ComponentPart[] {
       score: 1 - siH,
     });
   }
-  const spH = speculativeHaircut(r.peerGroupId, r.analystUpside);
-  if (spH > 0) {
-    parts.push({
-      label: `Speculative peer haircut (−${(spH * 100).toFixed(0)}% total)`,
-      raw: r.peerGroupId ?? "speculative",
-      score: 1 - spH,
-    });
-  }
+  // A155: speculative haircut no longer applied to the total → not shown (was misleading).
   return parts;
 }
 

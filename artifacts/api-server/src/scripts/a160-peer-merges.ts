@@ -36,7 +36,7 @@ async function main() {
   const reg = await db.execute(sql`
     SELECT ticker, primary_peer_group_id AS g FROM ticker_registry
     WHERE ticker IN (${sql.join(list.map((t) => sql`${t}`), sql`, `)}) ORDER BY ticker`);
-  const regRows = ((reg as { rows?: { ticker: string; g: string }[] }).rows
+  const regRows = ((reg as unknown as { rows?: { ticker: string; g: string }[] }).rows
     ?? (reg as unknown as { ticker: string; g: string }[])) as { ticker: string; g: string }[];
   console.log("registry:", Object.fromEntries(regRows.map((r) => [r.ticker, r.g])));
 

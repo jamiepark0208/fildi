@@ -144,6 +144,13 @@ async function main() {
   const uniqueTickers = primaryMap.size;
   console.log(`✓ ${uniqueTickers} unique tickers in registry`);
 
+  // Manual overrides always win over the seed (10-18: a re-seed reverted all 32 A148/A147 overrides).
+  const ovRows = await db.select({ ticker: peerGroupOverrides.ticker, groupId: peerGroupOverrides.groupId }).from(peerGroupOverrides);
+  for (const o of ovRows) {
+    await db.update(tickerRegistry).set({ primaryPeerGroupId: o.groupId }).where(eq(tickerRegistry.ticker, o.ticker));
+  }
+  console.log(`✓ ${ovRows.length} manual overrides re-applied`);
+
   // A160: retire emptied groups — rewrite registry/overrides/members, then delete rows
   const RETIRED: Record<string, string> = {
     "industrials.waste_management_services": "industrials.industrial_conglomerates_machinery",
