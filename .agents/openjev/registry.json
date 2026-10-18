@@ -797,6 +797,37 @@
    "created_by": "muse",
    "created": "2026-10-18",
    "notes": "Few-shot from P10's 2026-10-18 legitimate misses. Candidate to supersede P10 pending oj.py eval P10v2."
+  },
+  {
+   "id": "P16v2",
+   "question": "Is this item a request for Jamie (the user) to act or decide now — approve, choose, reply, log in, run a command? Answer NO for: an agent's plan, review, finding or status note written for other agents (Claude/Cursor/Muse/Grok), even if it proposes changes; and anything Jamie already approved or that is marked done/not needed. Answer YES for a NEEDS YOU item addressed to Jamie, even if optional or 'later'.",
+   "type": "noul",
+   "use": "gate for needs-jamie.md (v2 prompt from P16 misses)",
+   "rule": {
+    "kind": "accuracy",
+    "metric": "accuracy vs labels",
+    "target": 0.9,
+    "baseline": "P16 0.761"
+   },
+   "label_source": "same items as P16 (needs-jamie history + ASKS lines); prompt written after seeing P16 misses → optimistic until new items",
+   "created_by": "claude",
+   "notes": "",
+   "created": "2026-10-18",
+   "measured": {
+    "value": 0.8228,
+    "lo": 0.742,
+    "hi": 0.882,
+    "n": 79,
+    "s_per_item": 0.51,
+    "by": "claude",
+    "at": "2026-10-18",
+    "model": "openjev-latest",
+    "items_sha": "1ba2a0e16b6992a1",
+    "answers_sha": "ba92694ed5938e88",
+    "evidence": "oj eval P16v2",
+    "question_sha": "c056e720df4e"
+   },
+   "verified_by": null
   }
  ]
 }

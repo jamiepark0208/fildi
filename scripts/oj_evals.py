@@ -247,8 +247,16 @@ def build_p10v2(n_commits: int = 400, seed: int = 17) -> list[dict]:
     return out
 
 
+def build_p16v2() -> list[dict]:
+    """P16 items with the v2 question (registry P16v2)."""
+    from oj import load_reg, _find
+    q = {"type": "noul", "instructions": _find(load_reg(), "P16v2")["question"]}
+    return [{**x, "question": q} for x in build_p16()] + load_corrections("P16v2")
+
+
 BUILDERS = {
     "P16": build_p16,
+    "P16v2": build_p16v2,
     "P10": build_p10,
     "P10v2": build_p10v2,
     "P11": build_p11,
