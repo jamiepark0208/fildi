@@ -20,6 +20,17 @@ export type PmAccount = {
   headroom_now?: number;
   headroom_if_assigned?: number;
   headroom_crash?: number;
+  /** A161 — MC loss quantiles + −10% scenario (provisional until Kupiec) */
+  var?: {
+    var95?: number | null;
+    var99?: number | null;
+    var95_pct?: number | null;
+    method?: string;
+    market_m10?: { loss: number; pct: number | null; label: string };
+    disagree?: { hist_var95: number; mc_var95: number; rel: number } | null;
+    calibrated?: boolean;
+    note?: string;
+  } | null;
 };
 
 export type PmPosition = {
@@ -204,6 +215,18 @@ export function PmBookCard({ className, embedded = false }: { className?: string
                     </span>
                   </span>
                 </div>
+                {a.var?.var95 != null && (
+                  <div
+                    className="mt-0.5 text-[10px] tabular-nums text-amber-100/70 leading-snug"
+                    title={[a.var.note, a.var.market_m10?.label, a.var.method].filter(Boolean).join(" · ")}
+                  >
+                    95% VaR {money(a.var.var95)}
+                    {a.var.var99 != null ? ` · 99% ${money(a.var.var99)}` : ""}
+                    {a.var.market_m10?.loss != null ? ` · −10% ${money(a.var.market_m10.loss)}` : ""}
+                    {!a.var.calibrated ? " · provisional" : ""}
+                    {a.var.disagree ? ` · hist disagrees ${(a.var.disagree.rel * 100).toFixed(0)}%` : ""}
+                  </div>
+                )}
               </div>
             );
           })}

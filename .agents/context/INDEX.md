@@ -32,6 +32,7 @@
 | Earnings-window triggers | `.agents/context/event-driven-refresh.md` | — |
 | Derived PEG/formulas | `.agents/context/derived-metrics-framework.md` | — |
 | Data-ops value log | `.agents/context/data-ops-value-log.md` | — |
+| **Unique features + how to synthesize overlapping analysis** | `.agents/context/fildi-feature-synthesis.md` | `FACTOR_MAP.md` (factors only); reels → ASKS |
 | API catalog | `.agents/context/api-endpoints.md` | — |
 | Workflow / build | `.agents/context/workflow.md` | — |
 | Agent routing | `.agents/AGENTS.md` | — |

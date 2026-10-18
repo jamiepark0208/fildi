@@ -283,6 +283,110 @@ def _cholesky_draws(names: list[str], L: list[list[float]], rng: random.Random) 
     return draws
 
 
+def _ticker_betas(conn, tickers: list[str]) -> dict[str, float]:
+    """60d OLS beta vs SPY (display/scenario); default 1.0 when thin."""
+    out = {t: 1.0 for t in tickers}
+    if not conn or not tickers:
+        return out
+    spy = rows(conn, "SELECT date::text AS d, close::float8 AS c FROM prices_historical WHERE ticker = 'SPY' ORDER BY date DESC LIMIT 61")
+    if len(spy) < 40:
+        return out
+    spy_m = {r["d"]: r["c"] for r in spy if r["c"]}
+    for t in tickers:
+        px = rows(conn, "SELECT date::text AS d, close::float8 AS c FROM prices_historical WHERE ticker = %s ORDER BY date DESC LIMIT 61", (t,))
+        if len(px) < 40:
+            continue
+        tm = {r["d"]: r["c"] for r in px if r["c"]}
+        dates = sorted(set(spy_m) & set(tm))[-60:]
+        if len(dates) < 30:
+            continue
+        xs, ys = [], []
+        for i in range(1, len(dates)):
+            d0, d1 = dates[i - 1], dates[i]
+            if spy_m[d0] and spy_m[d1] and tm[d0] and tm[d1]:
+                xs.append(math.log(spy_m[d1] / spy_m[d0]))
+                ys.append(math.log(tm[d1] / tm[d0]))
+        if len(xs) < 25:
+            continue
+        mx = sum(xs) / len(xs)
+        my = sum(ys) / len(ys)
+        cov = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+        var = sum((a - mx) ** 2 for a in xs)
+        if var > 1e-12:
+            out[t] = max(0.2, min(2.5, cov / var))
+    return out
+
+
+def _scenario_loss(b: dict, puts: list[dict], longs: list[dict], rets: dict[str, float]) -> float:
+    """P&L loss (+) when each name moves by rets[ticker] (fraction). Short puts → intrinsic Δ; IV held."""
+    loss = 0.0
+    for x in longs:
+        loss += -(x["mv"] or 0) * rets.get(x["t"], 0.0)
+    for p in puts:
+        if not p.get("spot") or not p.get("qty"):
+            continue
+        st = p["spot"] * (1 + rets.get(p["ticker"], 0.0))
+        old_i = max(p["strike"] - p["spot"], 0) * 100 * p["qty"]
+        new_i = max(p["strike"] - st, 0) * 100 * p["qty"]
+        loss += new_i - old_i
+    return max(0.0, loss)
+
+
+def _market_down10(b: dict, puts: list[dict], longs: list[dict], betas: dict[str, float]) -> dict:
+    """A161: −10% SPY scenario — each name × (1 − β·0.10); IV held = understates."""
+    rets = {t: -0.10 * betas.get(t, 1.0) for t in {p["ticker"] for p in puts} | {x["t"] for x in longs}}
+    loss = _scenario_loss(b, puts, longs, rets)
+    eq = float(b.get("equity") or 0)
+    return {
+        "loss": round(loss, 0),
+        "pct": round(loss / eq, 4) if eq else None,
+        "label": "−10% SPY · β-scaled · IV held (understates vol spike)",
+    }
+
+
+def _hist_var(conn, b: dict, puts: list[dict], longs: list[dict], days: int = 504) -> dict | None:
+    """A161: historical 1-day book loss from aligned ticker returns (~2y)."""
+    if not conn:
+        return None
+    names = sorted({p["ticker"] for p in puts} | {x["t"] for x in longs})
+    if len(names) < 1:
+        return None
+    series = {}
+    for t in names:
+        px = rows(conn, "SELECT date::text AS d, close::float8 AS c FROM prices_historical WHERE ticker = %s ORDER BY date DESC LIMIT %s",
+                  (t, days + 1))
+        if len(px) < 60:
+            return None
+        series[t] = {r["d"]: r["c"] for r in px if r["c"]}
+    dates = sorted(set.intersection(*(set(series[t]) for t in names)))
+    if len(dates) < 60:
+        return None
+    losses = []
+    for i in range(1, len(dates)):
+        d0, d1 = dates[i - 1], dates[i]
+        rets = {}
+        ok = True
+        for t in names:
+            a, c = series[t].get(d0), series[t].get(d1)
+            if not a or not c:
+                ok = False
+                break
+            rets[t] = c / a - 1
+        if not ok:
+            continue
+        losses.append(_scenario_loss(b, puts, longs, rets))
+    if len(losses) < 60:
+        return None
+    losses.sort()
+    n = len(losses)
+    return {
+        "var95": round(losses[int(0.95 * (n - 1))], 0),
+        "var99": round(losses[int(0.99 * (n - 1))], 0),
+        "n_days": n,
+        "method": "historical_1d",
+    }
+
+
 def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random,
              conn=None) -> dict | None:
     import time
@@ -309,12 +413,14 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
         draws = _one_factor_draws(names, rng)
     corr_ms = (time.perf_counter() - t0) * 1000
 
-    def run(closed: frozenset[int]) -> dict:
+    def run(closed: frozenset[int], track_loss: bool = False) -> dict:
         calls = short = 0
         assign_cash = []
+        losses = []
         n_assigned = [0] * len(expiring)
+        eq0 = float(b["equity"] or 0)
         for z in draws:
-            eq, req_long, cash_need = b["equity"], 0.0, 0.0
+            eq, req_long, cash_need = eq0, 0.0, 0.0
             for x in longs:
                 s = vols.get(x["t"], 0.6)
                 r = math.exp(-0.5 * s * s * t + s * math.sqrt(t) * z[x["t"]])
@@ -332,15 +438,22 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
                     cash_need += p["assign_cash"]
                     req_long += st * 100 * p["qty"]
             assign_cash.append(cash_need)
+            if track_loss:
+                losses.append(max(0.0, eq0 - eq))
             if margin and eq < ratio * req_long:
                 calls += 1
             if not margin and cash_need > max(b["cash"], 0) + 1:
                 short += 1
         assign_cash.sort()
-        return {"p_call": calls / PATHS if margin else None, "p_short": short / PATHS if not margin else None,
-                "assign_p90": assign_cash[int(0.9 * PATHS)], "p_assign": [n / PATHS for n in n_assigned]}
+        out = {"p_call": calls / PATHS if margin else None, "p_short": short / PATHS if not margin else None,
+               "assign_p90": assign_cash[int(0.9 * PATHS)], "p_assign": [n / PATHS for n in n_assigned]}
+        if track_loss and losses:
+            losses.sort()
+            out["var95"] = round(losses[int(0.95 * (PATHS - 1))], 0)
+            out["var99"] = round(losses[int(0.99 * (PATHS - 1))], 0)
+        return out
 
-    base = run(frozenset())
+    base = run(frozenset(), track_loss=True)
     key = "p_call" if margin else "p_short"
     amber = THRESH["margin_amber"] if margin else THRESH["cash_amber"]
     # cheapest closes (per $ of close cost) that bring the risk under the amber line — information, not advice
@@ -355,8 +468,33 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
             if best is None or gain > best[0]:
                 best = (gain, i, r)
         closed.add(best[1]); cost += expiring[best[1]]["close_cost"]; cur = best[2]
+
+    # A161 VaR block (same engine — no second risk model)
+    betas = _ticker_betas(conn, names)
+    m10 = _market_down10(b, puts, longs, betas)
+    hist = _hist_var(conn, b, puts, longs) if conn is not None else None
+    var95, var99 = base.get("var95"), base.get("var99")
+    disagree = None
+    if hist and var95 and hist["var95"] > 0:
+        ratio_d = abs(hist["var95"] - var95) / max(var95, 1)
+        if ratio_d > 0.30:
+            disagree = {"hist_var95": hist["var95"], "mc_var95": var95, "rel": round(ratio_d, 2)}
+    eq = float(b.get("equity") or 0)
+    var = {
+        "var95": var95, "var99": var99,
+        "var95_pct": round(var95 / eq, 4) if var95 is not None and eq else None,
+        "var99_pct": round(var99 / eq, 4) if var99 is not None and eq else None,
+        "method": f"mc_{corr_mode}",
+        "horizon": f"{days}d_to_{near}",
+        "market_m10": m10,
+        "hist": hist if disagree else None,  # only surface hist when it disagrees >30%
+        "disagree": disagree,
+        "calibrated": False,  # Kupiec study pending — show as provisional
+        "note": "provisional — Kupiec 4–7% breach gate pending (A161)",
+    }
+
     return {"expiry": near, "days_left": days, "margin": margin, "risk": base[key], "assign_p90": base["assign_p90"],
-            "corr": corr_mode, "corr_ms": round(corr_ms, 1),
+            "corr": corr_mode, "corr_ms": round(corr_ms, 1), "var": var,
             "puts": [{**p, "p_assign": pa} for p, pa in zip(expiring, base["p_assign"])],
             "fix": {"close": [f"{expiring[i]['ticker']} {expiring[i]['strike']:g}P" for i in sorted(closed)], "cost": cost,
                     "risk_after": cur[key]} if closed else None}
@@ -572,6 +710,12 @@ def main() -> None:
                # per-put odds, kept so analysis/scoreboard.py can grade them at expiry (live calibration of S016)
                "predictions": [{"account": a, "ticker": p["ticker"], "strike": p["strike"], "expiry": str(s["expiry"]),
                                 "p_assign": round(p["p_assign"], 4)} for a, s in sims.items() if s for p in s["puts"]]}
+    # A161: attach VaR onto book accounts before persist (Book card reads pm_book_latest)
+    for a, s in sims.items():
+        if s and s.get("var") and a in book.get("accounts", {}):
+            book["accounts"][a]["var"] = s["var"]
+    book["var_as_of"] = now.isoformat(timespec="seconds")
+    (OUT / "book-latest.json").write_text(json.dumps(book, default=str))
     conn.execute("INSERT INTO watchlist_sync.pm_alerts (payload) VALUES (%s)", (json.dumps(payload, default=str),))
     conn.execute("""INSERT INTO watchlist_sync.pm_book_latest (id, generated_at, book) VALUES (1, now(), %s)
                     ON CONFLICT (id) DO UPDATE SET generated_at = now(), book = excluded.book""", (json.dumps(book, default=str),))
