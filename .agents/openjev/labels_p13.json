@@ -1,0 +1,242 @@
+[
+ {
+  "id": "P13|A107|A54",
+  "label": true,
+  "state": "New idea: GS Quant evaluation: borrow Goldman's derivatives toolkit\nContext: Evaluate GS Quant library for derivatives pricing tools.\n---\nExisting row A54: [quant] Greeks/IV math library (port marketcalls/opengreeks, MIT)\nContext: Port open-source Greeks/IV math into fildi's lib/options.ts.\n---\nNote: A107 was folded into A54 \u2014 same need, one row.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A118|A116",
+  "label": true,
+  "state": "New idea: Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena)\nContext: Evaluate additional agent-coding tools beyond the first roundup.\n---\nExisting row A116: Agent-tooling roundup: adopt the good skills, vet the rest\nContext: Roundup evaluation of agent dev tools; adopt the good ones.\n---\nNote: A118 was merged into A116 \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A66|A62",
+  "label": true,
+  "state": "New idea: Repair A62 row collision \u2014 staleness-guard spec was overwritten\nContext: A62's spec was overwritten by another agent; restore it.\n---\nExisting row A62: Brief staleness guard (A45 gap)\nContext: Guard against showing a stale (e.g. Friday) brief as fresh on Monday.\n---\nNote: A66 is a repair of the A62 row itself \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A146|A144",
+  "label": true,
+  "state": "New idea: analyst_events headline links: 35% are generic roundups\nContext: Fix generic-roundup headline links in analyst_events.\n---\nExisting row A144: Review + merge PR #2 (Grok Bot fixes) into cursor/mac-dev\nContext: A146 was mislabeled A144 on filing; same row, label fix.\n---\nNote: Mislabeled row \u2014 identical need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|REEL-DESW|A125",
+  "label": true,
+  "state": "New idea: Claude Code shorts pipeline reel (Apify+vidIQ hook discovery, yt-dlp+Whisper+ffmpeg, Remotion/Higgsfield)\nContext: Reel describing an AI short-video pipeline; test tools then plan.\n---\nExisting row A125: Video Lab tab: upload test shorts + co-generate ideas\nContext: Video Lab tab for testing/generating short-video ideas.\n---\nNote: Reel content folded into A125 phase 2 \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|REEL-CHARLIE|A125",
+  "label": true,
+  "state": "New idea: Charlie Automates playbook reel (AI automation workflows)\nContext: Reel describing automation playbooks; test tools then plan.\n---\nExisting row A125: Video Lab tab: upload test shorts + co-generate ideas\nContext: Video Lab tab for testing/generating short-video ideas.\n---\nNote: Reel content folded into A125 phase 2 \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|NISH-VOL|A137",
+  "label": true,
+  "state": "New idea: @nishantaqc vol-surface forecaster reel\nContext: Reel on forecasting the vol surface; trader prior to validate.\n---\nExisting row A137: [quant] Vol-mispricing signal E[RV] vs IV (HAR model)\nContext: Put-seller edge number: expected realized vol vs implied vol.\n---\nNote: Reel idea folded into A137 \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|NISH-EARN|A79",
+  "label": true,
+  "state": "New idea: @nishantaqc earnings sentiment reel\nContext: Reel on earnings sentiment signals; trader prior to validate.\n---\nExisting row A79: Earnings risk score on the calendar (pre-earnings blowup flag)\nContext: Flag blowup risk before earnings prints on the event calendar.\n---\nNote: Reel idea folded into A79 \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|HARDEN-A130|A130",
+  "label": true,
+  "state": "New idea: Add concrete use cases + quantitative expected results + pass/fail verification to A130\nContext: Apply the plan quality bar to the OmniRoute pilot plan.\n---\nExisting row A130: Pilot OmniRoute free-tier gateway\nContext: Pilot a free-tier LLM gateway; already got use-case hardening 2026-10-17.\n---\nNote: A130 was already hardened 2026-10-17; refiling = duplicate.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|HARDEN-A124|A124",
+  "label": true,
+  "state": "New idea: Add concrete use cases + quantitative expected results + pass/fail verification to A124\nContext: Apply the plan quality bar to A124.\n---\nExisting row A124: A124 plan (hardened 2026-10-17)\nContext: Plan row; already got use-case hardening 2026-10-17.\n---\nNote: Already hardened 2026-10-17; refiling = duplicate.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A69|A62",
+  "label": true,
+  "state": "New idea: Restore Claude's FYI note on the A62 staleness-guard spec\nContext: Claude's note was displaced in the A62 overwrite incident.\n---\nExisting row A62: Brief staleness guard (A45 gap)\nContext: Guard against showing a stale brief as fresh.\n---\nNote: Same row family (A62 overwrite incident) \u2014 same need.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A140|A140P",
+  "label": true,
+  "state": "New idea: Post-down-day setup flag for scanner + options-book brief\nContext: Flag post-down-day setups (event-density gate) in scanner.\n---\nExisting row A140P: Post-down-day scanner study (parent row, Grok collaboration)\nContext: Parent study row from which A140 was split.\n---\nNote: A140 was split from the parent \u2014 same need as the parent's portion.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A63|A136",
+  "label": false,
+  "state": "New idea: Source-ranked upsert for price bars (Schwab > FMP/Polygon > Yahoo)\nContext: Rank bar sources so better vendors overwrite worse ones.\n---\nExisting row A136: Pre-trade risk gate ('the bot that only says no')\nContext: Risk gate that blocks trades failing risk checks.\n---",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A122|A73",
+  "label": false,
+  "state": "New idea: Muse live status on the Stage orb grid (git heartbeat)\nContext: Show Muse's working status in the Stage orb.\n---\nExisting row A73: Schwab auth resilience: 7-day lifecycle manager\nContext: Manage the 7-day Schwab token lifecycle with warnings + one-click re-auth.\n---",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A132|A79",
+  "label": false,
+  "state": "New idea: Competitive teardown: FinceptTerminal vs fildi (steal features, don't adopt)\nContext: Evaluate a competing terminal for features worth stealing.\n---\nExisting row A79: Earnings risk score on the calendar\nContext: Flag blowup risk before earnings prints.\n---",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A134|A137",
+  "label": false,
+  "state": "New idea: Gamma exposure (GEX) regime indicator (negative gamma = don't sell premium)\nContext: Regime indicator from options positioning gamma.\n---\nExisting row A137: [quant] Vol-mispricing signal E[RV] vs IV (HAR model)\nContext: Expected realized vol vs implied vol edge number.\n---\nNote: Both vol-related and [quant], but distinct: positioning vs pricing.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A152|A151",
+  "label": false,
+  "state": "New idea: CI red on tip - A151 commits missing Agent: trailer\nContext: Fix the CI guard trip caused by trailer-less commits.\n---\nExisting row A151: oj eval/verify crash on small or empty eval sets\nContext: Fix latent crashes in OpenJev eval scripts.\n---\nNote: Related via the same commits, but different needs.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A53|A63",
+  "label": false,
+  "state": "New idea: Use Schwab chains for options data\nContext: Options chain source selection.\n---\nExisting row A63: [quant] Source-ranked upsert for price bars\nContext: Daily price bar source ranking.\n---\nNote: Both market-data sourcing, but chains vs bars \u2014 distinct.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A72|A73",
+  "label": false,
+  "state": "New idea: Always-on server for fildi\nContext: Keep fildi running server-side for reliability.\n---\nExisting row A73: Schwab auth resilience: 7-day lifecycle manager\nContext: Token lifecycle + re-auth UX.\n---\nNote: Both reliability-adjacent, but distinct needs.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A129|A130",
+  "label": false,
+  "state": "New idea: Pilot OpenJev calibrated-probability layer\nContext: Local-model typed decisions with calibration.\n---\nExisting row A130: Pilot OmniRoute free-tier gateway\nContext: Free-tier LLM gateway pilot.\n---\nNote: Both 'pilot X' agent-infra, but distinct systems.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A148|A147",
+  "label": false,
+  "state": "New idea: [quant] Peer-group fixes from OpenJev audit + monthly peer audit\nContext: Apply OpenJev's peer-group corrections as overrides.\n---\nExisting row A147: Peer-group data fixes\nContext: Data plumbing fixes for peer groups.\n---\nNote: Similar titles, but distinct: audit overrides vs data plumbing.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A79|A81",
+  "label": false,
+  "state": "New idea: Earnings risk score on the calendar\nContext: Pre-earnings blowup flag on the event calendar.\n---\nExisting row A81: Put-seller 'so what' one-liner in the scanner\nContext: One-line trade takeaway next to big movers.\n---\nNote: Both scanner-adjacent, distinct needs.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A85|A94",
+  "label": false,
+  "state": "New idea: Pundit tracker: personalized monitor of public timely ideas\nContext: Track pundit calls with Brier scoring.\n---\nExisting row A94: Conviction ledger\nContext: Ledger of conviction evidence for positions.\n---\nNote: A85 Tier 4 doubles as A94 evidence, but distinct needs.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ },
+ {
+  "id": "P13|A138|A137",
+  "label": false,
+  "state": "New idea: TimesFM pilot (Google time-series foundation model)\nContext: Pilot a foundation model for forecasting.\n---\nExisting row A137: [quant] Vol-mispricing signal E[RV] vs IV\nContext: HAR-based vol edge number.\n---\nNote: Both forecasting-related, distinct needs.",
+  "question": {
+   "type": "noul",
+   "instructions": "Is the new idea the same need as the existing ASKS row (would filing it create a duplicate)?"
+  },
+  "label_source": "Muse-labelled from ASKS history 2026-10-18"
+ }
+]
