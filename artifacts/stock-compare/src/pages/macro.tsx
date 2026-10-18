@@ -27,6 +27,7 @@ import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsC
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
 import { SectorRotationBubbles, SectorHeatmapGrid, SectorFundFlowBars } from "@/components/macro/macro-sector-rotation";
+import { SectorRevisionBreadth } from "@/components/macro/sector-revision-breadth";
 import { ExpandableChartFrame } from "@/components/macro/expandable-chart-frame";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
 import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
@@ -786,6 +787,9 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
               </div>
               <div className="space-y-1.5">
                 <SectorFundFlowBars enabled={activeTab === "heatmap"} />
+              </div>
+              <div className="space-y-1.5">
+                <SectorRevisionBreadth enabled={activeTab === "heatmap"} />
               </div>
               <div className="space-y-1.5">
                 <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="1D / 1W / 1M price performance by sector ETF — not fund creations">

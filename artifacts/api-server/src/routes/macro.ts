@@ -469,4 +469,57 @@ router.get("/etf-flows", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * A95 — LSEG EPS-revision breadth by sector (display only until S0xx).
+ * GET /macro/revision-breadth?days=60
+ * breadth = (# eps_drift_30d_pct > +1%) − (# < −1%) among covered names that day.
+ */
+router.get("/revision-breadth", async (req: Request, res: Response) => {
+  try {
+    const { pool } = await import("@workspace/db");
+    const days = Math.min(400, Math.max(7, Number(req.query.days) || 60));
+    const r = await pool.query(
+      `WITH base AS (
+         SELECT d.as_of::text AS date,
+                COALESCE(NULLIF(TRIM(reg.sector), ''), 'Unknown') AS sector,
+                d.eps_drift_30d_pct::float8 AS drift
+         FROM lseg_research.signals_daily d
+         LEFT JOIN ticker_registry reg ON reg.ticker = d.ticker
+         WHERE d.as_of >= (CURRENT_DATE - $1::int)
+           AND d.eps_drift_30d_pct IS NOT NULL
+       )
+       SELECT date, sector,
+              COUNT(*)::int AS n,
+              COUNT(*) FILTER (WHERE drift > 1)::int AS up,
+              COUNT(*) FILTER (WHERE drift < -1)::int AS down,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY drift)::float8 AS medianDrift
+       FROM base
+       GROUP BY date, sector
+       ORDER BY date, sector`,
+      [days],
+    );
+    const bySector: Record<string, Array<{
+      date: string; n: number; up: number; down: number; breadth: number; medianDrift: number | null;
+    }>> = {};
+    for (const row of r.rows) {
+      const sector = String(row.sector);
+      (bySector[sector] ??= []).push({
+        date: row.date,
+        n: Number(row.n),
+        up: Number(row.up),
+        down: Number(row.down),
+        breadth: Number(row.up) - Number(row.down),
+        medianDrift: row.mediandrift != null ? Number(row.mediandrift) : null,
+      });
+    }
+    res.json({
+      days,
+      bySector,
+      note: "LSEG eps_drift_30d_pct breadth — display only, not a Model List input (A95). History from signals_daily start (~2026-10-04). Unknown = no ticker_registry.sector.",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
