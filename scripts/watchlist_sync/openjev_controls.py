@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime as dt
 import json
 import random
 import statistics
@@ -92,6 +93,41 @@ def peers(conn, limit: int | None) -> None:
             top = probs.most_common(3)
             w.write(json.dumps({"t": t, "cur": member[t], "top": top, "ind": p.get("industry"), "name": p.get("companyName")}) + "\n")
             w.flush()
+
+
+# A148 control: monthly full re-run + every new auto-classified ticker → confident disagreements land in a review
+# list (out/peer_review.md), never applied. Claude-reviewed rejects (S038/A148) stay out of the list.
+PEER_REJECTED = set("KGC SVM MSFT SNDK VNET BNGO DDD MSCI MCO SPGI".split())
+
+
+def peers_review_due(conn) -> bool:
+    last = DATA / "peers_review_last.txt"
+    if not last.exists() or last.read_text().strip()[:7] != dt.date.today().isoformat()[:7]:
+        return True
+    out_f = DATA / "peers.jsonl"
+    done = {json.loads(x)["t"] for x in out_f.open()} if out_f.exists() else set()
+    return bool(set(load_peers(conn)[1]) - done)
+
+
+def peers_review(conn) -> int:
+    DATA.mkdir(parents=True, exist_ok=True)
+    out_f, last = DATA / "peers.jsonl", DATA / "peers_review_last.txt"
+    month = dt.date.today().isoformat()[:7]
+    if out_f.exists() and (not last.exists() or last.read_text().strip()[:7] != month):
+        out_f.rename(DATA / f"peers-{dt.date.today():%Y%m%d}.jsonl")  # monthly: re-ask everyone
+    peers(conn, None)
+    groups, member, fixes = load_peers(conn)
+    rs = [json.loads(x) for x in out_f.open()] if out_f.exists() else []
+    dis = sorted((r for r in rs if r["t"] in member and r["t"] not in fixes and r["t"] not in PEER_REJECTED
+                  and r["top"][0][0] != member[r["t"]] and r["top"][0][1] >= 0.8), key=lambda r: -r["top"][0][1])
+    lines = [f"# Peer review list ({dt.date.today()}) — OpenJev disagrees ≥ 0.8 with the current group",
+             "Never auto-applied. Claude reviews; real misfilings → peer_group_overrides with fund before/after (A148).", ""]
+    lines += [f"- {r['t']} ({r.get('name') or ''}): now {groups.get(member[r['t']], (member[r['t']],))[0]} → "
+              f"suggest {groups.get(r['top'][0][0], (r['top'][0][0],))[0]} ({r['top'][0][1]:.2f})" for r in dis] or ["- none"]
+    (HERE / "out" / "peer_review.md").write_text("\n".join(lines) + "\n")
+    last.write_text(dt.date.today().isoformat())
+    print(f"peer review: {len(dis)} confident disagreement(s) → out/peer_review.md")
+    return len(dis)
 
 
 # Claude's review of v1's confident disagreements (S038) + human fixes = hard-case truth set for prompt variants
@@ -489,6 +525,7 @@ if __name__ == "__main__":
     ap.add_argument("--divergence", action="store_true")
     ap.add_argument("--peers", action="store_true")
     ap.add_argument("--peers-report", action="store_true")
+    ap.add_argument("--peers-review", action="store_true")
     ap.add_argument("--limit", type=int, default=None)
     a = ap.parse_args()
     if a.peers:
@@ -505,3 +542,5 @@ if __name__ == "__main__":
         peers_v2(connect(), a.think)
     if a.peers_report:
         peers_report(connect())
+    if a.peers_review:
+        peers_review(connect())

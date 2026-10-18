@@ -700,6 +700,8 @@ export const peerGroupOverrides = pgTable('peer_group_overrides', {
   // land on a different group than the ticker was originally mapped to.
   previousGroupId: text('previous_group_id'),
   note:            text('note'),
+  // A148: keep a scoring mode across a group move (e.g. 'chinese' for ZTO/TCOM). NULL = group's mode.
+  scoringMode:     text('scoring_mode'),
   createdAt:       timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

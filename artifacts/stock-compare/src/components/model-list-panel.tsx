@@ -352,14 +352,17 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
   ];
   const cal = h.calibration;
   if (cal && cal.n > 0) {
-    const gap = Math.abs(cal.pred - cal.real);
-    const calTone: Tone = cal.n < 20 ? "idle" : gap <= 0.05 ? "ok" : gap <= 0.12 ? "warn" : "bad";
     const pct = (x: number) => `${Math.round(x * 100)}%`;
-    parts.push({
-      label: `cal ${pct(cal.pred)}→${pct(cal.real)}`,
-      tone: calTone,
-      title: `Model List P(OTM) calibration (A74): predicted ${pct(cal.pred)} → happened ${pct(cal.real)} on ${cal.n} resolved pick${cal.n === 1 ? "" : "s"} (forecast_ledger · model_winrate). Grey = under 20 samples; green = within 5 pts.`,
-    });
+    // A74: first forecast per pick, split by expiry week (1st = this week's expiry, 2nd = next week's after the roll).
+    const weeks = cal.byWeek?.length ? cal.byWeek : [{ week: 1 as const, ...cal }];
+    for (const w of weeks) {
+      const gap = Math.abs(w.pred - w.real);
+      parts.push({
+        label: `cal ${cal.byWeek?.length ? `wk${w.week} ` : ""}${pct(w.pred)}→${pct(w.real)}`,
+        tone: w.n < 20 ? "idle" : gap <= 0.05 ? "ok" : gap <= 0.12 ? "warn" : "bad",
+        title: `Model List P(OTM) calibration (A74), ${w.week === 1 ? "1st-week" : "2nd-week"} expiry: predicted ${pct(w.pred)} → happened ${pct(w.real)} on ${w.n} resolved pick${w.n === 1 ? "" : "s"}. Uses the P(OTM) shown when each pick was first recommended. Grey = under 20 samples; green = within 5 pts.`,
+      });
+    }
   }
   const champTip = `Champion model ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`;
   return (

@@ -44,3 +44,5 @@ Closed rows (done / reviewed ok) moved from ASKS.md on 2026-10-06 to keep the li
 | [A60](asks/A60.md) | 2026-10-11 | Claude → Muse | New team workflow: ASKS index + per-row files, review loop, [quant] tags (please re-read MUSE.md) | closed — FYI, superseded by later rows (Claude cleanup 10-15) |
 | [A61](asks/A61.md) | 2026-10-11 | Claude → Cursor | New team workflow: ASKS index + per-row files, review loop, rule fixes | closed — FYI, superseded by later rows (Claude cleanup 10-15) |
 | [A69](asks/A69.md) | 2026-10-11 | Claude → Cursor | FYI: Model List daily build in maintain + intraday re-check hook in scheduler (ed25aae) | closed — FYI, superseded by later rows (Claude cleanup 10-15) |
+| [A20](asks/A20.md) | 2026-10-05 | Cursor → Claude | A19 progress | verified (FYI, Claude ack 10-18) |
+| [A22](asks/A22.md) | 2026-10-05 | Cursor → Claude | Data-ops notes from user Qs | verified (FYI, Claude ack 10-18) |

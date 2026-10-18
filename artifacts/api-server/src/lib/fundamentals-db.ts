@@ -2,6 +2,7 @@ import { eq, sql, inArray } from "drizzle-orm";
 import {
   db, tickerFundamentals, tickerRegistry, peerGroups, finnhubFundamentals,
   type TickerFundamentalsRow, type TickerRegistryRow,
+  peerGroupOverrides,
 } from "@workspace/db";
 import { recordApiUsage } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
@@ -367,9 +368,14 @@ export async function computeAndPersistFundamentalScores(
     if (m != null && m > 0) finnhubMcapByTicker.set(r.ticker, m);
   }
 
+  // A148: an override may pin a scoring mode across a group move (ZTO/TCOM keep 'chinese').
+  const modeOverrideRows = await db.select({ ticker: peerGroupOverrides.ticker, mode: peerGroupOverrides.scoringMode })
+    .from(peerGroupOverrides).where(inArray(peerGroupOverrides.ticker, tickers));
+  const modeByTicker = new Map(modeOverrideRows.filter(r => r.mode).map(r => [r.ticker, r.mode as string]));
+
   const inputs: FundRowInput[] = scoreRows.map(row => {
     const gid = peerGroupByTicker.get(row.ticker) ?? null;
-    const mode = gid ? (modeByGroup.get(gid) ?? null) : null;
+    const mode = modeByTicker.get(row.ticker) ?? (gid ? (modeByGroup.get(gid) ?? null) : null);
     return enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
   });
 

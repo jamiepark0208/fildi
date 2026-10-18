@@ -107,7 +107,7 @@ export async function loadInputs(): Promise<FvTickerInput[]> {
       WHERE measure = 'EPS' AND fpi IN ('0','1','2') AND statpers >= CURRENT_DATE - 120 AND meanest IS NOT NULL AND oftic IS NOT NULL
       ORDER BY UPPER(oftic), fpi, statpers DESC
     )
-    SELECT f.ticker, COALESCE(g.scoring_mode, 'standard') AS mode, r.primary_peer_group_id AS peer_group_id,
+    SELECT f.ticker, COALESCE(po.scoring_mode, g.scoring_mode, 'standard') AS mode, r.primary_peer_group_id AS peer_group_id,
            COALESCE(g.metric_exclusions, '{}') AS metric_exclusions,
            -- freshest close: our Yahoo history, or LSEG when it is newer / ours is missing
            CASE WHEN lpx.date IS NOT NULL AND (px.date IS NULL OR lpx.date > px.date) THEN lpx.close ELSE px.close END AS price,
@@ -119,6 +119,7 @@ export async function loadInputs(): Promise<FvTickerInput[]> {
     FROM ticker_fundamentals f
     JOIN ticker_registry r ON r.ticker = f.ticker AND COALESCE(r.is_active, true)
     LEFT JOIN peer_groups g ON g.id = r.primary_peer_group_id
+    LEFT JOIN peer_group_overrides po ON po.ticker = f.ticker  -- A148: per-ticker mode (e.g. ZTO/TCOM keep 'chinese')
     LEFT JOIN px ON px.ticker = f.ticker
     LEFT JOIN lpx ON lpx.ticker = f.ticker
     LEFT JOIN mom ON mom.ticker = f.ticker

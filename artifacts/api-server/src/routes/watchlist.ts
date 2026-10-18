@@ -149,25 +149,37 @@ router.get("/watchlist/model", async (req, res) => {
     const health = healthRows[0] ?? {};
 
     // A74: Model List P(OTM) calibration from forecast_ledger (model_winrate on model_pick_otm).
-    // Same grain as forecast_ledger.py --report. Missing table → skip (publisher may not have run).
-    let calibration: { n: number; pred: number; real: number } | null = null;
+    // Grade the FIRST forecast per contract (what the pick showed when recommended; later re-prices sit
+    // closer to expiry and flatter accuracy), split by horizon: ≤ 7 days = this week's expiry, else next week's.
+    type Cal = { n: number; pred: number; real: number };
+    let calibration: (Cal & { byWeek: (Cal & { week: 1 | 2 })[] }) | null = null;
     try {
       const calRows = rowsOf(await db.execute(sql`
-        SELECT COUNT(*)::int AS n,
+        SELECT CASE WHEN resolves_on - made_on <= 7 THEN 1 ELSE 2 END AS week,
+               COUNT(*)::int AS n,
                AVG(prob)::float8 AS pred,
                AVG(CASE WHEN outcome THEN 1.0 ELSE 0.0 END)::float8 AS real
         FROM (
-          SELECT DISTINCT ON (question_id, forecaster) prob, outcome
+          SELECT DISTINCT ON (question_id, forecaster) prob, outcome, made_on, resolves_on
           FROM watchlist_sync.forecast_ledger
           WHERE outcome IS NOT NULL
             AND qtype = 'model_pick_otm'
             AND forecaster = 'model_winrate'
             AND made_on < resolves_on
-          ORDER BY question_id, forecaster, made_at DESC
-        ) x`) as SqlRows<{ n: number; pred: number | null; real: number | null }>);
-      const c = calRows[0];
-      if (c && Number(c.n) > 0 && c.pred != null && c.real != null) {
-        calibration = { n: Number(c.n), pred: Number(c.pred), real: Number(c.real) };
+          ORDER BY question_id, forecaster, made_at ASC
+        ) x
+        GROUP BY 1 ORDER BY 1`) as SqlRows<{ week: number; n: number; pred: number | null; real: number | null }>);
+      const byWeek = calRows
+        .filter((c) => Number(c.n) > 0 && c.pred != null && c.real != null)
+        .map((c) => ({ week: (Number(c.week) === 1 ? 1 : 2) as 1 | 2, n: Number(c.n), pred: Number(c.pred), real: Number(c.real) }));
+      const n = byWeek.reduce((a, c) => a + c.n, 0);
+      if (n > 0) {
+        calibration = {
+          n,
+          pred: byWeek.reduce((a, c) => a + c.pred * c.n, 0) / n,
+          real: byWeek.reduce((a, c) => a + c.real * c.n, 0) / n,
+          byWeek,
+        };
       }
     } catch { /* forecast_ledger not created yet */ }
 

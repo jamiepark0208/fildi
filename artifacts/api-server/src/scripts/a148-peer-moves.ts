@@ -1,13 +1,16 @@
 /**
  * A148 — apply Jamie-approved peer moves (S038 OpenJev audit) as peer_group_overrides,
  * with fund-score before/after (AGENTS rule 7).
- * Held: ZTO TCOM (China scoring mode is tied to technology.chinese_tech; Jamie's caveat = keep
- * the China lens, so they wait for a separate China flag). COST already in Retail.
+ * ZTO TCOM move to their industry with scoring_mode pinned to 'chinese' (peer_group_overrides.scoring_mode,
+ * Jamie's caveat: keep the China lens). COST already in Retail.
+ * --only=ZTO,TCOM limits the run to those tickers (second pass, 10-18).
  * Usage: cd artifacts/api-server && pnpm exec tsx src/scripts/a148-peer-moves.ts [--apply]
  */
 import { computeAndPersistFundamentalScores, type FundScoreResult } from "../lib/fundamentals-db.js";
 import { setPeerGroupOverride } from "../lib/peer-classifier.js";
 import { getLatestRegime } from "../routes/regime.js";
+import { db, peerGroupOverrides } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const MOVES: Record<string, string[]> = {
   "consumer_staples.packaged_goods_beverages": ["CPB", "CAG", "GIS", "HRL", "HSY", "KHC", "MDLZ", "SJM", "COTY"],
@@ -21,7 +24,11 @@ const MOVES: Record<string, string[]> = {
   "fintech.digital_finance_payments": ["BULL"],
   "financials.asset_management_alt_finance": ["STT", "BK"],
   "healthcare.large_pharma": ["GILD", "AMGN", "BIIB"],
+  "industrials.transportation_logistics": ["ZTO"],
+  "consumer_discretionary.travel_leisure_hospitality": ["TCOM"],
 };
+const MODE_PINS: Record<string, string> = { ZTO: "chinese", TCOM: "chinese" };
+const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",");
 const apply = process.argv.includes("--apply");
 const regime = await getLatestRegime();
 const byTicker = (rs: FundScoreResult[]) => new Map(rs.map((r) => [r.ticker, r]));
@@ -29,13 +36,17 @@ const byTicker = (rs: FundScoreResult[]) => new Map(rs.map((r) => [r.ticker, r])
 const before = byTicker(await computeAndPersistFundamentalScores(regime, "peer_override", { dryRun: true }));
 if (apply) {
   for (const [group, tickers] of Object.entries(MOVES)) {
-    for (const t of tickers) await setPeerGroupOverride(t, group, "A148 S038 OpenJev audit, Jamie OK 2026-10-18");
+    for (const t of tickers) {
+      if (only && !only.includes(t)) continue;
+      await setPeerGroupOverride(t, group, "A148 S038 OpenJev audit, Jamie OK 2026-10-18");
+      if (MODE_PINS[t]) await db.update(peerGroupOverrides).set({ scoringMode: MODE_PINS[t] }).where(eq(peerGroupOverrides.ticker, t));
+    }
   }
 }
 const after = byTicker(await computeAndPersistFundamentalScores(regime, "peer_override", { dryRun: !apply }));
 
 const f = (v: number | null | undefined) => (v == null ? "n/a" : v.toFixed(1));
-const moved = new Set(Object.values(MOVES).flat());
+const moved = new Set(Object.values(MOVES).flat().filter((t) => !only || only.includes(t)));
 const rows: string[] = [];
 let changedOthers = 0;
 for (const [t, a] of after) {

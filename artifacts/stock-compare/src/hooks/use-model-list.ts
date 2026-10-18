@@ -84,7 +84,7 @@ export type ModelListHealth = {
   grades?: number;
   last_graded_at?: string | null; split_repairs?: number;
   /** A74: resolved Model List pick P(OTM) vs actual (forecast_ledger model_winrate). */
-  calibration?: { n: number; pred: number; real: number } | null;
+  calibration?: { n: number; pred: number; real: number; byWeek?: { week: 1 | 2; n: number; pred: number; real: number }[] } | null;
 };
 
 export type ModelList = {
