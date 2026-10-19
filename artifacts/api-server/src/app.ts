@@ -71,8 +71,6 @@ app.use((session as any)({
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
 }));
-// A125 Video Lab uploads use base64 JSON; keep default 100kb everywhere else.
-app.use("/api/video-lab/videos", express.json({ limit: "100mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
