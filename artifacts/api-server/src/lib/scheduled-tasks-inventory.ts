@@ -320,7 +320,10 @@ export function detectOpsAlerts(opts: {
   research?: ResearchOpsAlertInput | null;
   opsDigest?: OpsDigestAlertInput | null;
   /** Daily-bar coverage (lib/price-coverage.ts); null/omitted = not checked */
-  priceCoverage?: { expected: string; fresh: number; active: number; pct: number; staleSample: string[] } | null;
+  priceCoverage?: {
+    expected: string; fresh: number; active: number; pct: number; staleSample: string[];
+    noBar5d?: number; noBar5dSample?: string[];
+  } | null;
 }): OpsAlert[] {
   const { tasks, enrichmentDisabled } = opts;
   const alerts: OpsAlert[] = [];
@@ -547,6 +550,17 @@ export function detectOpsAlerts(opts: {
         `Oldest: ${pc.staleSample.join(", ")}`,
       taskIds: ["maintain"],
       fix: "cd artifacts/api-server && pnpm exec tsx src/scripts/backfill-stale-prices.ts (Schwab → Yahoo)",
+    });
+  }
+  // A87 Maintain: active with no bar in ≥5 calendar days
+  if (pc && typeof pc.noBar5d === "number" && pc.noBar5d > 0) {
+    alerts.push({
+      id: "prices-no-bar-5d",
+      severity: pc.noBar5d > 20 ? "warn" : "info",
+      title: "Active tickers with no bar in 5+ days",
+      detail: `${pc.noBar5d} active · sample: ${(pc.noBar5dSample ?? []).join(", ")}`,
+      taskIds: ["maintain"],
+      fix: "backfill-stale-prices.ts (now includes Polygon soft-fill via fetchAndStoreOHLCV)",
     });
   }
 

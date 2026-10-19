@@ -27,7 +27,10 @@ function task(partial: Partial<InventoryTaskInput> & { id: string; name: string 
 describe("detectOpsAlerts", () => {
   it("flags missing daily price bars below 95% coverage (critical below 80%)", () => {
     const base = { enrichmentDisabled: false, todayYmd: "2026-10-11", installedLaunchAgents: ALL_AGENTS, tasks: [] };
-    const cov = (fresh: number) => ({ expected: "2026-10-09", fresh, active: 569, pct: fresh / 569, staleSample: ["A"] });
+    const cov = (fresh: number) => ({
+      expected: "2026-10-09", fresh, active: 569, pct: fresh / 569, staleSample: ["A"],
+      noBar5d: 0, noBar5dSample: [] as string[],
+    });
     assert.ok(!detectOpsAlerts({ ...base, priceCoverage: cov(560) }).some((a) => a.id === "prices-coverage"));
     assert.equal(detectOpsAlerts({ ...base, priceCoverage: cov(500) }).find((a) => a.id === "prices-coverage")?.severity, "warn");
     assert.equal(detectOpsAlerts({ ...base, priceCoverage: cov(305) }).find((a) => a.id === "prices-coverage")?.severity, "critical");

@@ -9,6 +9,7 @@ import {
 import { TopNav } from "@/components/top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TickerDrilldown } from "@/components/track-record/ticker-drilldown";
+import { AnimatedNumber } from "@/components/animated-number";
 import { cn } from "@/lib/utils";
 
 interface SideSummary {
@@ -179,7 +180,12 @@ function ScoreCard({ title, summary, color }: { title: string; summary: SideSumm
         "text-[12px] font-bold ml-auto font-mono tabular-nums",
         exp != null && exp >= 0 ? "text-green-400" : "text-red-400",
       )}>
-        {signed(exp)}
+        {exp == null ? "—" : (
+          <AnimatedNumber
+            value={exp * 100}
+            format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
+          />
+        )}
       </span>
       <span className="text-[10px] text-sky-200/70 whitespace-nowrap">
         n={summary.n} · {pct(summary.winRate)}

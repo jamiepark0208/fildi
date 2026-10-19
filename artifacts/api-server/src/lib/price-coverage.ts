@@ -15,6 +15,9 @@ export interface PriceCoverage {
   pct: number;
   /** Up to 10 stale / never-barred tickers, oldest bar first (null last = never) */
   staleSample: string[];
+  /** A87 Maintain: active tickers with no bar in ≥5 calendar days (or never). */
+  noBar5d: number;
+  noBar5dSample: string[];
 }
 
 export async function priceCoverage(expected: string = lastCompletedSessionYmd()): Promise<PriceCoverage> {
@@ -30,6 +33,14 @@ export async function priceCoverage(expected: string = lastCompletedSessionYmd()
   const stale = rows
     .filter((r) => r.last == null || r.last < expected)
     .sort((a, b) => (a.last ?? "").localeCompare(b.last ?? ""));
+  const cutoff5 = (() => {
+    const d = new Date(`${expected}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 5);
+    return d.toISOString().slice(0, 10);
+  })();
+  const no5 = rows
+    .filter((r) => r.last == null || r.last < cutoff5)
+    .sort((a, b) => (a.last ?? "").localeCompare(b.last ?? ""));
   const active = rows.length;
   const fresh = active - stale.length;
   return {
@@ -38,5 +49,7 @@ export async function priceCoverage(expected: string = lastCompletedSessionYmd()
     active,
     pct: active ? fresh / active : 0,
     staleSample: stale.slice(0, 10).map((r) => (r.last == null ? `${r.ticker}(none)` : r.ticker)),
+    noBar5d: no5.length,
+    noBar5dSample: no5.slice(0, 10).map((r) => (r.last == null ? `${r.ticker}(none)` : `${r.ticker}@${r.last}`)),
   };
 }
