@@ -14,6 +14,16 @@ const SECTOR_FLOW_LABELS: Record<string, string> = {
   XLK: "Tech", XLP: "Staples", XLU: "Utilities", XLV: "Health",
   XLY: "Discretionary", XLRE: "Real Estate", XLC: "Comm",
 };
+/** Theme / market SPDRs with SSGA navhist (A98). */
+const THEME_FLOW_LABELS: Record<string, string> = {
+  SPY: "S&P 500", MDY: "Midcap", GLD: "Gold", XBI: "Biotech",
+  KRE: "Regional banks", XOP: "Oil & gas", XHB: "Homebuilders",
+};
+const FLOW_UNIVERSE = {
+  sector: SECTOR_FLOW_LABELS,
+  theme: THEME_FLOW_LABELS,
+} as const;
+const ALL_FLOW_ETFS = [...Object.keys(SECTOR_FLOW_LABELS), ...Object.keys(THEME_FLOW_LABELS)].join(",");
 
 // Discrete red→green intensity bands — same visual language as TradingView/Finviz
 // heatmaps (a handful of solid, saturated steps reads far better at a glance than
@@ -344,9 +354,11 @@ function windowZ(rows: FlowRow[], n: number): number | null {
 /** A98 P2 — SSGA creation/redemption flows (% AUM), not price RS. */
 export function SectorFundFlowBars({ enabled }: { enabled: boolean }) {
   const [win, setWin] = useState<(typeof FLOW_WINDOWS)[number]>(FLOW_WINDOWS[0]!);
+  const [univ, setUniv] = useState<keyof typeof FLOW_UNIVERSE>("sector");
+  const labels = FLOW_UNIVERSE[univ];
   const { data, isLoading, isError } = useQuery<FlowApi>({
-    queryKey: ["macro-etf-flows", 400],
-    queryFn: () => fetch("/api/macro/etf-flows?days=400").then((r) => {
+    queryKey: ["macro-etf-flows", 400, ALL_FLOW_ETFS],
+    queryFn: () => fetch(`/api/macro/etf-flows?days=400&etfs=${ALL_FLOW_ETFS}`).then((r) => {
       if (!r.ok) throw new Error(`etf-flows ${r.status}`);
       return r.json();
     }),
@@ -357,19 +369,19 @@ export function SectorFundFlowBars({ enabled }: { enabled: boolean }) {
 
   const bars = useMemo(() => {
     if (!data?.series) return [];
-    return Object.keys(SECTOR_FLOW_LABELS)
+    return Object.keys(labels)
       .map((etf) => {
         const rows = data.series[etf] ?? [];
         return {
           etf,
-          label: SECTOR_FLOW_LABELS[etf]!,
+          label: labels[etf]!,
           pct: windowFlowPct(rows, win.days),
           z: windowZ(rows, win.days),
           lastDate: rows[rows.length - 1]?.date ?? null,
         };
       })
       .sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity));
-  }, [data, win]);
+  }, [data, win, labels]);
 
   const maxAbs = Math.max(0.5, ...bars.map((b) => Math.abs(b.pct ?? 0)));
 
@@ -393,10 +405,25 @@ export function SectorFundFlowBars({ enabled }: { enabled: boolean }) {
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
       <div className="flex items-center justify-between px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
         <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
-          Sector Fund Flows
+          ETF Fund Flows
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <span className="text-[10px] text-amber-200/40">% AUM · z vs 1y</span>
+          <div className="flex gap-1">
+            {(["sector", "theme"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setUniv(u)}
+                className={cn(
+                  "px-2 py-1 transition-colors text-[11px] font-semibold rounded border border-[#d4af37]/20 capitalize",
+                  univ === u ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                )}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-1">
             {FLOW_WINDOWS.map((w) => (
               <button

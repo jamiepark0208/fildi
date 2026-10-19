@@ -30,6 +30,9 @@ SSGA_URL = "https://www.ssga.com/library-content/products/fund-data/etfs/us/navh
 
 # 11 Select Sector SPDRs (Claude plan A98).
 SECTOR_SPDRS = ("XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY", "XLRE", "XLC")
+# Theme / market SPDRs with live navhist (probed 2026-10-18). SMH/ITA = not SSGA → skip.
+THEME_ETFS = ("SPY", "MDY", "GLD", "XBI", "KRE", "XOP", "XHB")
+DEFAULT_ETFS = SECTOR_SPDRS + THEME_ETFS
 
 DATE_RE = re.compile(r"^(\d{1,2})-([A-Za-z]{3})-(\d{4})$")
 MONTHS = {m: i for i, m in enumerate(
@@ -155,10 +158,10 @@ def upsert_flows(conn, etf: str, rows: Iterable[tuple[str, float, float, float, 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("tickers", nargs="*", help="ETF tickers (default: 11 sector SPDRs)")
+    p.add_argument("tickers", nargs="*", help="ETF tickers (default: sector SPDRs + theme set)")
     p.add_argument("--dry-run", action="store_true", help="parse + print only; no DB")
     args = p.parse_args(argv)
-    tickers = [t.upper() for t in (args.tickers or list(SECTOR_SPDRS))]
+    tickers = [t.upper() for t in (args.tickers or list(DEFAULT_ETFS))]
 
     conn = None
     if not args.dry_run:

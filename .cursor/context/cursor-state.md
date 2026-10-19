@@ -4,13 +4,13 @@
 **Last updated:** 2026-10-18
 
 ## Next build
-1. A92 ticker drill-down / wheel total
-2. A95 event dots + PT breadth when history deepens
-3. A126 1m backfill done (42/42, ~1.06M bars) — optional 5m forever rollup still open
+1. A98 theme ETFs (SSGA navhist extend) or A83 Wave 2 FMP concurrency
+2. A95 book toggle / PT breadth when history deepens
+3. A126 optional 5m-forever rollup
 4. Skip: A163 (Jamie go), A133 (Jamie signup), A143 (await 05:30), A83 scorer unify (Jamie)
 
 ## Phase
-**ops** — Ship-check every TS push. Shipped 10-18: A83 W1, A126 1a+1b, A98 P1+P2, A92 settle+toggle, A95 breadth. No sleep-loops.
+**ops** — Assume Ready continue (no “next”). Ship-check every TS push. A92 drill + A95 events shipped.
 
 ## Active
 - OpenJev: P14/P16 Cursor-verified; teach loop live; one shared 8091 instance
