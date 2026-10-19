@@ -28,7 +28,6 @@ const Sentiment = lazy(() => import("@/pages/sentiment"));
 const Live = lazy(() => import("@/pages/live"));
 const Agents = lazy(() => import("@/pages/agents"));
 const TrackRecord = lazy(() => import("@/pages/track-record"));
-const VideoLab = lazy(() => import("@/pages/video-lab"));
 
 /** Old /macro bookmarks → Live › Macro (keeps ?tab=). */
 function MacroToLiveRedirect() {
@@ -157,9 +156,6 @@ function Router() {
       </Route>
       <Route path="/track-record">
         <ProtectedRoute><TrackRecord /></ProtectedRoute>
-      </Route>
-      <Route path="/video-lab">
-        <ProtectedRoute><VideoLab /></ProtectedRoute>
       </Route>
       <Route>
         <Suspense fallback={<PageSkeleton />}>
