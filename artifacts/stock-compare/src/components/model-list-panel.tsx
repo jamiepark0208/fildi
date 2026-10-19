@@ -449,7 +449,7 @@ export function ModelListPanel({
   })).filter((g) => g.folders.length > 0);
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+    <div className="flex-1 overflow-y-auto flex flex-col min-h-0" data-lenis-prevent>
       {data.health ? (
         <div className="px-2 py-1 border-b border-[#d4af37]/20 text-[9px] text-amber-200/50 leading-snug shrink-0">
           <HealthStrip h={data.health} />

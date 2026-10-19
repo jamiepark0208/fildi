@@ -339,7 +339,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
         </div>
 
         {/* ── Tab content ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2" data-lenis-prevent>
 
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
           {activeTab === "regime" && (

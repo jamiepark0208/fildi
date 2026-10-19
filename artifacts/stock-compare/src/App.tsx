@@ -8,6 +8,7 @@ import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext"
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { SchwabAuthBanner } from "@/components/schwab-auth-banner";
+import { LenisProvider } from "@/components/lenis-provider";
 import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import { useSessionState } from "@/hooks/use-session-state";
 import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
@@ -171,12 +172,14 @@ function App() {
       <AuthProvider>
         <ScoringPreferencesProvider>
         <TooltipProvider>
+          <LenisProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <SchwabAuthBanner />
             <Router />
           </WouterRouter>
           <FeedbackWidget />
           <Toaster />
+          </LenisProvider>
         </TooltipProvider>
         </ScoringPreferencesProvider>
       </AuthProvider>

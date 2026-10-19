@@ -420,7 +420,7 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   }, [overlays]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" data-lenis-prevent>
       <div ref={containerRef} className="w-full h-full" />
       <div
         ref={tooltipRef}
@@ -739,7 +739,9 @@ export function PriceChart({
   }, [techTicker, tickers, selectedPeriod, queryClient]);
 
   return (
-    <div className={compact
+    <div
+      data-lenis-prevent
+      className={compact
       ? "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-3 h-full flex flex-col"
       : "bg-card border border-border rounded-xl p-4 shadow-sm mb-4"}
     >
