@@ -51,6 +51,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("publish Model List", PY, HERE, ["publish_model_list.py"]),
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades
+        ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
         ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
