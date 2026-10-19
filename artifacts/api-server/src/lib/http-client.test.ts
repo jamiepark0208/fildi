@@ -1,6 +1,8 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { redactUrl, retryAfterMs, fetchJsonWithRetry, acquireProviderSlot } from "./http-client.ts";
+import {
+  redactUrl, retryAfterMs, fetchJsonWithRetry, acquireProviderSlot, mapWithConcurrency,
+} from "./http-client.ts";
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -77,7 +79,7 @@ describe("fetchJsonWithRetry", () => {
 describe("acquireProviderSlot", () => {
   it("is a no-op for unlimited providers", async () => {
     const t0 = Date.now();
-    for (let i = 0; i < 50; i++) await acquireProviderSlot("FMP");
+    for (let i = 0; i < 50; i++) await acquireProviderSlot("NoLimitProvider");
     assert.ok(Date.now() - t0 < 100);
   });
 
@@ -88,5 +90,21 @@ describe("acquireProviderSlot", () => {
     done.sort((a, b) => a - b);
     assert.ok(done[8]! < 200, "first 9 immediate");
     assert.ok(done[9]! >= 950, "10th waits for the window");
+  });
+});
+
+describe("mapWithConcurrency", () => {
+  it("preserves order and respects concurrency", async () => {
+    let inflight = 0;
+    let peak = 0;
+    const out = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (n) => {
+      inflight++;
+      peak = Math.max(peak, inflight);
+      await new Promise((r) => setTimeout(r, 20));
+      inflight--;
+      return n * 10;
+    });
+    assert.deepEqual(out, [10, 20, 30, 40, 50]);
+    assert.ok(peak <= 2, `peak=${peak}`);
   });
 });

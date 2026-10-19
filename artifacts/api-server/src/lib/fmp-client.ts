@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
-import { fetchJsonWithRetry, sleep } from "./http-client.js";
+import { fetchJsonWithRetry, mapWithConcurrency } from "./http-client.js";
 import { isFmpPremiumError, isFmpRestricted, markFmpRestricted } from "./fmp-restricted.js";
 
 /** Loose row shape from /stable/earnings — unknown keys ignored (A83 Wave 1). */
@@ -85,17 +85,16 @@ function secondOf(arr: unknown): Record<string, unknown> {
   return (Array.isArray(arr) && arr.length > 1 ? arr[1] : {}) as Record<string, unknown>;
 }
 
-// Fetches the 5 annual FMP endpoints in parallel + the quarterly cash-flow endpoint.
-// Returns undefined for any field where FMP returned null/missing.
-// Never throws on individual field absence — only throws on network failure after retries.
-// Sequential fetch with a short gap — used by backfill to avoid rate-limit bursts.
-async function fetchSerial(urls: string[], gapMs = 300): Promise<any[]> {
-  const results: any[] = [];
-  for (const url of urls) {
-    results.push(await fetchWithRetry(url).catch(() => null));
-    if (gapMs > 0) await sleep(gapMs);
-  }
-  return results;
+// Soft endpoints may 402/empty on free tier — never fail the whole ticker.
+const FMP_SOFT_IDX = new Set([4, 7]); // price-target-consensus, wacc
+/** Default in-flight FMP GETs per ticker; paced by PROVIDER_LIMITS.FMP (A83 Wave 2). */
+const FMP_ENDPOINT_CONCURRENCY = 3;
+
+async function fetchEndpoints(urls: string[], concurrency: number): Promise<any[]> {
+  return mapWithConcurrency(urls, concurrency, async (url, i) => {
+    if (FMP_SOFT_IDX.has(i)) return fetchWithRetry(url).catch(() => null);
+    return fetchWithRetry(url);
+  });
 }
 
 function fmpBodyError(raw: unknown): string | null {
@@ -132,12 +131,9 @@ export async function fetchFMPFundamentals(
     `${FMP_BASE}/wacc?${q}&limit=1`,
     `${FMP_BASE}/cash-flow-statement?${q}&limit=1`,
   ];
+  // serial=true → concurrency 1 (backfill); else bounded pool (PROVIDER_LIMITS gates the rest).
   const [kmRaw, ratiosRaw, incomeRaw, balanceRaw, targetRaw, cfQtrRaw, growthRaw, waccRaw, cfAnnualRaw] =
-    serial
-      ? await fetchSerial(endpoints, 400)
-      : await Promise.all(endpoints.map((url, i) =>
-          [4, 7].includes(i) ? fetchWithRetry(url).catch(() => null) : fetchWithRetry(url)
-        ));
+    await fetchEndpoints(endpoints, serial ? 1 : FMP_ENDPOINT_CONCURRENCY);
 
   for (const raw of [kmRaw, ratiosRaw, incomeRaw]) {
     const bodyErr = fmpBodyError(raw);

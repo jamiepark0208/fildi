@@ -41,7 +41,32 @@ const PROVIDER_LIMITS: Record<string, { max: number; windowMs: number }> = {
   Polygon: { max: 5,  windowMs: 60_000 }, // 5/min free tier
   AV:      { max: 5,  windowMs: 60_000 }, // 5/min free tier (daily cap enforced by AV_MAX_DAILY_CALLS)
   EDGAR:   { max: 9,  windowMs: 1_000 },  // SEC fair-access: 10 req/s
+  // FMP starter ~300/min published; book quota ~220/day (A46). Cap burst, not daily.
+  FMP:     { max: 8,  windowMs: 1_000 },  // ~8/s — replaces ad-hoc 300–400ms sleeps (A83)
 };
+
+/** Run `fn` over items with at most `concurrency` in flight (order preserved). */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const n = items.length;
+  if (n === 0) return [];
+  const out = new Array<R>(n);
+  let next = 0;
+  const workers = Math.min(Math.max(1, concurrency), n);
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= n) return;
+        out[i] = await fn(items[i]!, i);
+      }
+    }),
+  );
+  return out;
+}
 
 const recentCalls = new Map<string, number[]>();
 const acquireChain = new Map<string, Promise<void>>();
