@@ -154,7 +154,7 @@ export function StockBreakdown({
   const dayUp = (m?.dayChange ?? 0) >= 0;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {/* Search header — hidden when ticker is driven by parent (e.g. watchlist) */}
       {!propTicker && <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-900/95 backdrop-blur px-6 py-3 z-10">
         <div className="max-w-5xl mx-auto flex gap-2">
