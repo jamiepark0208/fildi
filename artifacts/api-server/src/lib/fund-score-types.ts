@@ -55,3 +55,53 @@ export type FundRowInput = {
   peerGroupId: string | null;
   scoringMode: string | null;
 };
+
+export type MetricKey =
+  | "earningsYield"
+  | "fcfYield"
+  | "ps"
+  | "peg"
+  | "fwdpe"
+  | "evEbitda"
+  | "evRev"
+  | "pb"
+  | "ptbv"
+  | "pFfo"
+  | "expEy"
+  | "divy"
+  | "revgrow"
+  | "revaccel"
+  | "epsgrow"
+  | "upside"
+  | "avgEpsSurprise"
+  | "ibesRevBreadth"
+  | "ibesSue"
+  | "ibesFwdGrowth"
+  | "grossmgn"
+  | "operatingmgn"
+  | "netmgn"
+  | "roe"
+  | "fcfmgn"
+  | "roicwacc"
+  | "gpa"
+  | "accruals"
+  | "fScore"
+  | "cashrun"
+  | "intcov"
+  | "dilution"
+  | "cr"
+  | "de"
+  | "netDebtEbitda"
+  | "beta"
+  | "netCashAssets";
+
+export type MetricDef = {
+  key: MetricKey;
+  family: FamilyName;
+  baseIntra: number;
+  higherIsBetter: boolean;
+  /** Metrics excluded for these styles */
+  excludeStyles?: StyleBucket[];
+  /** Externally-covered metric (e.g. IBES): a null value is skipped entirely instead of shrinking coverage. */
+  optional?: boolean;
+};
