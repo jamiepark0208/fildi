@@ -789,7 +789,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
                 <SectorFundFlowBars enabled={activeTab === "heatmap"} />
               </div>
               <div className="space-y-1.5">
-                <SectorRevisionBreadth enabled={activeTab === "heatmap"} />
+                <SectorRevisionBreadth enabled={activeTab === "heatmap"} watchlistTickers={watchlistTickers} />
               </div>
               <div className="space-y-1.5">
                 <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide" title="1D / 1W / 1M price performance by sector ETF — not fund creations">

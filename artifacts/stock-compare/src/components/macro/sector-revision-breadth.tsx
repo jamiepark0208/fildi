@@ -32,7 +32,14 @@ type Api = {
   note?: string;
 };
 
-export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
+export function SectorRevisionBreadth({
+  enabled,
+  watchlistTickers = [],
+}: {
+  enabled: boolean;
+  /** When set, "Watchlist only" filters event chips to these tickers. */
+  watchlistTickers?: string[];
+}) {
   const { data, isLoading, isError } = useQuery<Api>({
     queryKey: ["macro-revision-breadth", 60, "v2"],
     queryFn: () => fetch("/api/macro/revision-breadth?days=60").then((r) => {
@@ -52,12 +59,19 @@ export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
   }, [data]);
 
   const [sector, setSector] = useState<string>("");
+  const [wlOnly, setWlOnly] = useState(false);
+  const wlSet = useMemo(
+    () => new Set(watchlistTickers.map((t) => t.toUpperCase())),
+    [watchlistTickers],
+  );
+
   const active = sector && data?.bySector[sector] ? sector : sectors[0] ?? "";
   const series = active ? (data?.bySector[active] ?? []) : [];
-  const events = useMemo(
-    () => (data?.events ?? []).filter((e) => e.sector === active).slice(0, 24),
-    [data, active],
-  );
+  const events = useMemo(() => {
+    let list = (data?.events ?? []).filter((e) => e.sector === active);
+    if (wlOnly && wlSet.size > 0) list = list.filter((e) => wlSet.has(e.ticker));
+    return list.slice(0, 24);
+  }, [data, active, wlOnly, wlSet]);
 
   if (isLoading || (!data && enabled)) {
     return (
@@ -81,17 +95,32 @@ export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
         <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide shrink-0">
           Sector Revision Breadth
         </h3>
-        <select
-          value={active}
-          onChange={(e) => setSector(e.target.value)}
-          className={cn(
-            "text-[11px] bg-zinc-950 text-amber-200/80 border border-[#d4af37]/20 rounded px-2 py-0.5 max-w-[200px]",
+        <div className="flex items-center gap-2">
+          {wlSet.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setWlOnly((v) => !v)}
+              className={cn(
+                "text-[10px] font-semibold px-2 py-0.5 rounded border border-[#d4af37]/20",
+                wlOnly ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+              )}
+              title="Filter rating chips to your watchlist tickers"
+            >
+              Watchlist
+            </button>
           )}
-        >
-          {sectors.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+          <select
+            value={active}
+            onChange={(e) => setSector(e.target.value)}
+            className={cn(
+              "text-[11px] bg-zinc-950 text-amber-200/80 border border-[#d4af37]/20 rounded px-2 py-0.5 max-w-[200px]",
+            )}
+          >
+            {sectors.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="h-[140px] px-1 pt-1">
         <ResponsiveContainer width="100%" height="100%">

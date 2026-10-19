@@ -54,6 +54,19 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.intraday_1m_chunks (
   fetched_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (ticker, from_date, to_date)
 );
+CREATE TABLE IF NOT EXISTS watchlist_sync.intraday_bars_5m (
+  ticker text NOT NULL,
+  ts timestamptz NOT NULL,
+  o double precision NOT NULL,
+  h double precision NOT NULL,
+  l double precision NOT NULL,
+  c double precision NOT NULL,
+  v double precision NOT NULL DEFAULT 0,
+  source text NOT NULL DEFAULT 'polygon-1m-rollup',
+  PRIMARY KEY (ticker, ts)
+);
+CREATE INDEX IF NOT EXISTS idx_intraday_bars_5m_ts
+  ON watchlist_sync.intraday_bars_5m (ts DESC);
 """
 
 _last = 0.0
@@ -200,6 +213,36 @@ def prune(conn, keep_days: int) -> None:
     conn.commit()
 
 
+def rollup_5m(conn, ticker: str) -> int:
+    """Aggregate 1m → 5m forever table (A126 Claude plan). Idempotent upsert."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            WITH b AS (
+              SELECT ticker,
+                     to_timestamp(floor(extract(epoch FROM ts) / 300) * 300) AT TIME ZONE 'UTC' AS ts,
+                     (array_agg(o ORDER BY ts))[1] AS o,
+                     max(h) AS h,
+                     min(l) AS l,
+                     (array_agg(c ORDER BY ts DESC))[1] AS c,
+                     sum(v) AS v
+              FROM watchlist_sync.intraday_bars_1m
+              WHERE ticker = %s
+              GROUP BY 1, 2
+            )
+            INSERT INTO watchlist_sync.intraday_bars_5m (ticker, ts, o, h, l, c, v, source)
+            SELECT ticker, ts, o, h, l, c, v, 'polygon-1m-rollup' FROM b
+            ON CONFLICT (ticker, ts) DO UPDATE SET
+              o = EXCLUDED.o, h = EXCLUDED.h, l = EXCLUDED.l, c = EXCLUDED.c,
+              v = EXCLUDED.v, source = EXCLUDED.source
+            """,
+            (ticker,),
+        )
+        n = cur.rowcount
+    conn.commit()
+    return n
+
+
 def backfill_ticker(conn, ticker: str, days: int) -> int:
     end = date.today()
     start = end - timedelta(days=days)
@@ -209,6 +252,9 @@ def backfill_ticker(conn, ticker: str, days: int) -> int:
         total += n
         if n:
             progress(f"{ticker} {lo}→{hi} +{n}")
+    n5 = rollup_5m(conn, ticker)
+    if n5:
+        progress(f"{ticker} 5m rollup +{n5}")
     return total
 
 
@@ -217,6 +263,7 @@ def main() -> None:
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--ticker", action="append", default=[])
     ap.add_argument("--days", type=int, default=KEEP_DAYS_DEFAULT)
+    ap.add_argument("--rollup-only", action="store_true", help="only rebuild 5m from existing 1m")
     args = ap.parse_args()
 
     lock_path = Path("/tmp/fildi-logs/intraday-1m.lock")
@@ -238,6 +285,15 @@ def main() -> None:
     if args.plan:
         chunks = (args.days + CHUNK_DAYS - 1) // CHUNK_DAYS
         print(f"tickers {len(tickers)} · days {args.days} · ~{len(tickers) * chunks} calls · {' '.join(tickers[:20])}{'…' if len(tickers) > 20 else ''}")
+        return
+
+    if args.rollup_only:
+        if not args.ticker:
+            tickers = [r["ticker"] for r in rows(conn, "SELECT DISTINCT ticker FROM watchlist_sync.intraday_bars_1m ORDER BY 1")]
+        for i, t in enumerate(tickers):
+            n5 = rollup_5m(conn, t)
+            progress(f"rollup {t} ({i + 1}/{len(tickers)}) 5m+={n5}")
+        progress("rollup done")
         return
 
     for i, t in enumerate(tickers):
