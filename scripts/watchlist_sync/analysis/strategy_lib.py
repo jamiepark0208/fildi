@@ -125,7 +125,8 @@ STRATEGIES = [
 
 # ── Runner ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-def equity(trades, spy, holdout_start):
+def equity(trades, spy, holdout_start, bankroll=None):
+    """bankroll set (long-option lanes) → equity = 1 + cumulative pnl ÷ bankroll, no compounding."""
     wk = defaultdict(lambda: [0.0, 0.0, None])
     for t in trades:
         e = t["exit_ts"].date()
@@ -133,7 +134,7 @@ def equity(trades, spy, holdout_start):
         w[0] += t["pnl"]
         w[1] += t["capital"]
         w[2] = max(w[2] or e, e)
-    step = {w[2]: w[0] / w[1] for w in wk.values() if w[1] > 0}
+    step = {w[2]: (w[0] / bankroll if bankroll else w[0] / w[1]) for w in wk.values() if w[1] > 0}
     first = min(t["entry_ts"].date() for t in trades)
     last = max(step)
     days = [(d, c) for d, c in spy if first <= d <= last]
@@ -141,7 +142,8 @@ def equity(trades, spy, holdout_start):
     pending = sorted(step.items())
     for d, c in days:
         while pending and pending[0][0] <= d:
-            eq *= 1 + pending.pop(0)[1]
+            r = pending.pop(0)[1]
+            eq = eq + r if bankroll else eq * (1 + r)
         peak = max(peak, eq)
         out.append((d, eq, c / base, eq / peak - 1, bool(holdout_start and d >= holdout_start)))
     return out, step
