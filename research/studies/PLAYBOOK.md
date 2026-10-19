@@ -67,5 +67,5 @@ Null on puts (IV-controlled): HAR, 2σ-drop, streaks, SUE, IBES drift/breadth/di
 Rule-based strategies (not score features) go here: pre-register in the ASKS file (rule, split, pass bar), one run, then publish
 pass **or fail** via `strategy_lib.write_rows()` + `equity()` (`bankroll=` for long-option / pair lanes; default = put-book weekly
 compounding). Templates: event study `s050_sector_laggard.py` (numpy, 2018→, ~4 s); real option closes `s049_panic_puts.py`;
-intraday `s048_0dte.py`. Backlog = A184. Compute is seconds; Polygon's 5 calls/min is the only slow part → background it.
+intraday `s048_0dte.py`. Backlog = A184 / A188. **Order every time:** 5-name smoke run with trades hand-checked → full run → if FAIL or mixed, winner-pattern pass (`s054_panic_put_patterns.py`) → `conditions_grid.py <study>` (market / vol / sector-trend / sector / IV band; save trades to `watchlist_sync.study_trades`) → confirm on an untouched period (e.g. 2025). Compute is seconds; Polygon's 5 calls/min is the only slow part → background it.
 

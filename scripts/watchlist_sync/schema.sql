@@ -126,3 +126,18 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_equity (
   PRIMARY KEY (strategy_id, version, d),
   FOREIGN KEY (strategy_id, version) REFERENCES watchlist_sync.strategies ON DELETE CASCADE
 );
+
+-- Study trade logs (A178/A188): every trade a study simulated, both arms (event vs baseline), for analysis/conditions_grid.py.
+-- Written by each study (delete + insert per study/period); research only, never shown as a strategy.
+CREATE TABLE IF NOT EXISTS watchlist_sync.study_trades (
+  study      text NOT NULL,             -- e.g. S049
+  period     text NOT NULL,             -- e.g. 2026 / 2025
+  arm        text NOT NULL,             -- event | base
+  ticker     text NOT NULL,
+  entry_d    date NOT NULL,
+  exit_d     date,
+  ret        double precision NOT NULL, -- pnl ÷ capital
+  loss       boolean,                   -- e.g. put finished ITM
+  feats      jsonb                      -- study-specific (iv, z, strike …)
+);
+CREATE INDEX IF NOT EXISTS study_trades_s ON watchlist_sync.study_trades (study, period);

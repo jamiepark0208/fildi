@@ -188,6 +188,8 @@ def main(write=False):
                         bt.update(below=below.get(rows[j][0]))
                         base.append(bt)
             print(f"{t}: {len(lst)} events · running {len(ev)} ev / {len(base)} base", flush=True)
+    if not only:
+        dump(conn, ev, base)
     if only:  # smoke mode: show trades to hand-check, no verdict/publish
         for x in (ev + base)[:12]:
             print(f"{x['t']} {x['d']} → {x['e']} K {x['K']} S {x['S']:.2f} entry {x['prem']:.2f} exit {x['intr']:.2f} "
@@ -196,6 +198,19 @@ def main(write=False):
     report(ev, base)
     if write:
         publish(conn, ev)
+
+
+def dump(conn, ev, base):
+    """All simulated trades → watchlist_sync.study_trades for analysis/conditions_grid.py."""
+    import json
+    period = str(START.year)
+    conn.execute("DELETE FROM watchlist_sync.study_trades WHERE study = 'S049' AND period = %s", (period,))
+    with conn.cursor() as cur:
+        cur.executemany("INSERT INTO watchlist_sync.study_trades VALUES ('S049', %s, %s, %s, %s, %s, %s, %s, %s)",
+                        [(period, arm, x["t"], x["d"], x["e"], x["ret"], x["breach"],
+                          json.dumps({"iv": x["iv"], "K": x["K"], "S": x["S"], "z": x.get("z"), "prem": x["prem"], "exit": x["intr"]}))
+                         for arm, xs in (("event", ev), ("base", base)) for x in xs])
+    conn.commit()
 
 
 def report(ev, base):
@@ -245,5 +260,38 @@ def publish(conn, ev):
     conn.commit()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and "--publish-rule" not in sys.argv:
     main("--write" in sys.argv)
+
+
+def publish_rule(conn):
+    """S054 rule, confirmed on 2026 H2 + 2025 (A178): panic drop AND stock iv30 > 48.7 → strategy panic-puts-hiv."""
+    import strategy_lib as SL
+    rows = conn.execute("""SELECT ticker, entry_d, exit_d, ret, feats FROM watchlist_sync.study_trades
+                           WHERE study = 'S049' AND arm = 'event' AND (feats->>'iv')::float > 48.7 ORDER BY entry_d""").fetchall()
+    tr = [dict(entry_ts=SL.ts(d), exit_ts=SL.ts(e), ticker=t, instrument="option", side="short", option_type="P",
+               strike=f["K"], expiry=e, dte_at_entry=(e - d).days, qty=100, entry_px=f["prem"], exit_px=f["exit"],
+               capital=f["K"] * 100, pnl=r * f["K"] * 100, ret_pct=r,
+               trigger=f"{t} fell {f['z']:.1f}σ in 5 days; IV {f['iv']:.0f} % (> 49)", exit_reason="held to expiry")
+          for t, d, e, r, f in rows]
+    spy = [(d, float(c)) for d, c in conn.execute("SELECT date, close FROM lseg_research.daily_history WHERE ticker = 'SPY' "
+                                                  "AND date >= %s AND close > 0 ORDER BY date", (min(x["expiry"] for x in tr) - timedelta(days=60),)).fetchall()]
+    s = dict(strategy_id="panic-puts-hiv", version="1", name="Panic puts, high IV", family="options-income", instrument="option",
+             status="live", study_ref="S049/S054",
+             summary="After a ≥ 2σ 5-day drop, sell the ~0.20Δ monthly put next day, only when the stock's IV30 > 49.",
+             rules_md=("Event: 5-day log return ÷ (60-day σ·√5) ≤ −2 (one per name per 10 days). Filter: IV30 > 48.7 at entry "
+                       "(fear priced in). Sell the monthly put nearest 0.20Δ, ~30 DTE (15–45), at the LSEG mid; hold to expiry."),
+             caveats_md=("- Found on 2026 Jan–Jun; confirmed on 2026 Jul–Oct (+4.05 % vs +0.26 % skipped) and on 2025 "
+                         "(+3.15 % vs +1.63 % normal-week puts, p 0.002, worst decile −6.2 % vs −13.3 %).\n"
+                         "- Mid fills, no fees; exit = intrinsic at the expiry close. ~265 LSEG names.\n"
+                         "- Conditions grid (S049_grid.md): no single regime/sector cell passes Holm yet; stressed-vol regimes "
+                         "lift all put selling."),
+             price_source="real_quote", holdout_start=None)
+    eq, _ = SL.equity(tr, spy, None)
+    SL.write_rows(conn, s, tr, eq)
+    conn.commit()
+    print(f"published panic-puts-hiv: {len(tr)} trades, total {eq[-1][1] - 1:+.1%} vs SPY {eq[-1][2] - 1:+.1%}, max DD {min(r[3] for r in eq):.1%}")
+
+
+if __name__ == "__main__" and "--publish-rule" in sys.argv:
+    publish_rule(connect())
