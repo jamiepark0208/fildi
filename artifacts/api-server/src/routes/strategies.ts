@@ -1,0 +1,372 @@
+/**
+ * Strategy Library (A175) — read-only. Tables written by Claude's A176 runner
+ * (scripts/watchlist_sync/analysis/strategy_lib.py). This route never computes trades.
+ *
+ * GET /api/strategies              — list + headline stats (admin)
+ * GET /api/strategies/:id          — meta, stats, equity, trades (admin)
+ */
+import { Router } from "express";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
+import { requireAdmin } from "../middleware/requireAdmin.js";
+
+const router = Router();
+
+type SqlRows<T> = T[] | { rows?: T[] };
+const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
+
+/** Missing schema / empty tables → [] (not 500). Same pattern as options-history. */
+async function safe<T>(q: ReturnType<typeof sql>): Promise<T[]> {
+  try {
+    return rowsOf<T>((await db.execute(q)) as SqlRows<never>);
+  } catch {
+    return [];
+  }
+}
+
+interface StrategyRow {
+  strategyId: string;
+  version: string;
+  name: string;
+  family: string;
+  instrument: string;
+  status: string;
+  summary: string;
+  rulesMd: string;
+  caveatsMd: string | null;
+  studyRef: string | null;
+  windowStart: string;
+  windowEnd: string;
+  holdoutStart: string | null;
+  priceSource: string;
+  updatedAt: string;
+}
+
+interface EquityPt {
+  d: string;
+  equity: number;
+  spyEquity: number;
+  drawdown: number;
+  isHoldout: boolean;
+}
+
+interface TradeRow {
+  id: number;
+  entryTs: string;
+  exitTs: string | null;
+  ticker: string;
+  instrument: string;
+  side: string;
+  optionType: string | null;
+  strike: number | null;
+  expiry: string | null;
+  dteAtEntry: number | null;
+  qty: number;
+  entryPx: number;
+  exitPx: number | null;
+  capital: number;
+  pnl: number | null;
+  retPct: number | null;
+  trigger: string;
+  exitReason: string | null;
+  isHoldout: boolean;
+}
+
+export interface StrategyStats {
+  totalReturn: number | null;
+  annualizedReturn: number | null;
+  sharpe: number | null;
+  maxDrawdown: number | null;
+  winRate: number | null;
+  avgWin: number | null;
+  avgLoss: number | null;
+  profitFactor: number | null;
+  tradeCount: number;
+  holdoutReturn: number | null;
+  vsSpy: number | null;
+  lastEquity: number | null;
+  lastSpyEquity: number | null;
+}
+
+function mean(xs: number[]): number {
+  return xs.reduce((s, v) => s + v, 0) / xs.length;
+}
+
+/** Stats from equity + trade rows. One helper — list and detail share it. */
+export function computeStats(
+  equity: EquityPt[],
+  trades: Pick<TradeRow, "pnl" | "isHoldout">[],
+): StrategyStats {
+  const tradeCount = trades.length;
+  const pnls = trades.map((t) => t.pnl).filter((v): v is number => v != null);
+  const wins = pnls.filter((p) => p > 0);
+  const losses = pnls.filter((p) => p < 0);
+  const sumWin = wins.reduce((s, v) => s + v, 0);
+  const sumLossAbs = Math.abs(losses.reduce((s, v) => s + v, 0));
+
+  let totalReturn: number | null = null;
+  let annualizedReturn: number | null = null;
+  let sharpe: number | null = null;
+  let maxDrawdown: number | null = null;
+  let vsSpy: number | null = null;
+  let holdoutReturn: number | null = null;
+  let lastEquity: number | null = null;
+  let lastSpyEquity: number | null = null;
+
+  if (equity.length > 0) {
+    const first = equity[0]!;
+    const last = equity[equity.length - 1]!;
+    lastEquity = last.equity;
+    lastSpyEquity = last.spyEquity;
+    // Acceptance: totalReturn = last equity − 1 (index @1.0)
+    totalReturn = last.equity - 1;
+    vsSpy = last.equity - last.spyEquity;
+    maxDrawdown = Math.min(...equity.map((e) => e.drawdown));
+
+    const daily: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      const prev = equity[i - 1]!.equity;
+      if (prev > 1e-12) daily.push(equity[i]!.equity / prev - 1);
+    }
+    if (daily.length >= 2) {
+      const m = mean(daily);
+      const variance = daily.reduce((s, v) => s + (v - m) ** 2, 0) / (daily.length - 1);
+      const stdev = Math.sqrt(variance);
+      sharpe = stdev > 1e-12 ? (m / stdev) * Math.sqrt(252) : null;
+    }
+    if (equity.length >= 2 && first.equity > 1e-12) {
+      const t0 = Date.parse(first.d);
+      const t1 = Date.parse(last.d);
+      const years = (t1 - t0) / (365.25 * 24 * 3600 * 1000);
+      if (years > 1 / 365) {
+        annualizedReturn = Math.pow(last.equity / first.equity, 1 / years) - 1;
+      }
+    }
+
+    const hold = equity.filter((e) => e.isHoldout);
+    if (hold.length >= 2 && hold[0]!.equity > 1e-12) {
+      holdoutReturn = hold[hold.length - 1]!.equity / hold[0]!.equity - 1;
+    }
+  }
+
+  return {
+    totalReturn,
+    annualizedReturn,
+    sharpe,
+    maxDrawdown,
+    winRate: pnls.length ? wins.length / pnls.length : null,
+    avgWin: wins.length ? mean(wins) : null,
+    avgLoss: losses.length ? mean(losses) : null,
+    profitFactor: sumLossAbs > 1e-12 ? sumWin / sumLossAbs : null,
+    tradeCount,
+    holdoutReturn,
+    vsSpy,
+    lastEquity,
+    lastSpyEquity,
+  };
+}
+
+const ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+
+router.get("/strategies", requireAdmin, async (req, res, next) => {
+  try {
+    const family = typeof req.query.family === "string" ? req.query.family : null;
+    const status = typeof req.query.status === "string" ? req.query.status : null;
+    const instrument = typeof req.query.instrument === "string" ? req.query.instrument : null;
+
+    const strategies = await safe<StrategyRow>(sql`
+      SELECT DISTINCT ON (strategy_id)
+        strategy_id AS "strategyId", version, name, family, instrument, status, summary,
+        rules_md AS "rulesMd", caveats_md AS "caveatsMd", study_ref AS "studyRef",
+        window_start::text AS "windowStart", window_end::text AS "windowEnd",
+        holdout_start::text AS "holdoutStart", price_source AS "priceSource",
+        updated_at::text AS "updatedAt"
+      FROM watchlist_sync.strategies
+      ORDER BY strategy_id, version DESC`);
+
+    const tried = strategies.length;
+    const passed = strategies.filter((s) => s.status !== "failed").length;
+
+    let filtered = strategies;
+    if (family) filtered = filtered.filter((s) => s.family === family);
+    if (status) filtered = filtered.filter((s) => s.status === status);
+    if (instrument) filtered = filtered.filter((s) => s.instrument === instrument);
+
+    if (filtered.length === 0) {
+      res.json({ tried, passed, strategies: [] });
+      return;
+    }
+
+    // Batch equity + trade pnl for all listed versions (lean list: no series in response)
+    const pairs = filtered.map((s) => ({ id: s.strategyId, v: s.version }));
+    const equityAll = await safe<EquityPt & { strategyId: string; version: string }>(sql`
+      SELECT strategy_id AS "strategyId", version, d::text AS d,
+             equity::float8 AS equity, spy_equity::float8 AS "spyEquity",
+             drawdown::float8 AS drawdown, is_holdout AS "isHoldout"
+      FROM watchlist_sync.strategy_equity
+      WHERE (strategy_id, version) IN (
+        ${sql.join(
+          pairs.map((p) => sql`(${p.id}, ${p.v})`),
+          sql`, `,
+        )}
+      )
+      ORDER BY strategy_id, version, d`);
+
+    const tradePnls = await safe<{ strategyId: string; version: string; pnl: number | null; isHoldout: boolean }>(sql`
+      SELECT strategy_id AS "strategyId", version, pnl::float8 AS pnl, is_holdout AS "isHoldout"
+      FROM watchlist_sync.strategy_trades
+      WHERE (strategy_id, version) IN (
+        ${sql.join(
+          pairs.map((p) => sql`(${p.id}, ${p.v})`),
+          sql`, `,
+        )}
+      )`);
+
+    const eqBy = new Map<string, EquityPt[]>();
+    for (const e of equityAll) {
+      const k = `${e.strategyId}\0${e.version}`;
+      const arr = eqBy.get(k) ?? [];
+      arr.push(e);
+      eqBy.set(k, arr);
+    }
+    const trBy = new Map<string, Pick<TradeRow, "pnl" | "isHoldout">[]>();
+    for (const t of tradePnls) {
+      const k = `${t.strategyId}\0${t.version}`;
+      const arr = trBy.get(k) ?? [];
+      arr.push({ pnl: t.pnl, isHoldout: t.isHoldout });
+      trBy.set(k, arr);
+    }
+
+    const items = filtered.map((s) => {
+      const k = `${s.strategyId}\0${s.version}`;
+      const stats = computeStats(eqBy.get(k) ?? [], trBy.get(k) ?? []);
+      return {
+        strategyId: s.strategyId,
+        version: s.version,
+        name: s.name,
+        family: s.family,
+        instrument: s.instrument,
+        status: s.status,
+        summary: s.summary,
+        studyRef: s.studyRef,
+        priceSource: s.priceSource,
+        windowStart: s.windowStart,
+        windowEnd: s.windowEnd,
+        holdoutStart: s.holdoutStart,
+        stats: {
+          totalReturn: stats.totalReturn,
+          annualizedReturn: stats.annualizedReturn,
+          sharpe: stats.sharpe,
+          maxDrawdown: stats.maxDrawdown,
+          winRate: stats.winRate,
+          profitFactor: stats.profitFactor,
+          tradeCount: stats.tradeCount,
+          holdoutReturn: stats.holdoutReturn,
+          vsSpy: stats.vsSpy,
+          lastEquity: stats.lastEquity,
+        },
+      };
+    });
+
+    res.json({ tried, passed, strategies: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/strategies/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const id = String(req.params.id ?? "");
+    if (!ID_RE.test(id)) {
+      res.status(400).json({ error: "bad strategy id" });
+      return;
+    }
+    const versionQ = typeof req.query.version === "string" ? req.query.version : null;
+    const from = typeof req.query.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.from)
+      ? req.query.from
+      : "2026-01-01";
+    const to = typeof req.query.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.to)
+      ? req.query.to
+      : null;
+
+    const metaRows = versionQ
+      ? await safe<StrategyRow>(sql`
+          SELECT strategy_id AS "strategyId", version, name, family, instrument, status, summary,
+                 rules_md AS "rulesMd", caveats_md AS "caveatsMd", study_ref AS "studyRef",
+                 window_start::text AS "windowStart", window_end::text AS "windowEnd",
+                 holdout_start::text AS "holdoutStart", price_source AS "priceSource",
+                 updated_at::text AS "updatedAt"
+          FROM watchlist_sync.strategies
+          WHERE strategy_id = ${id} AND version = ${versionQ}
+          LIMIT 1`)
+      : await safe<StrategyRow>(sql`
+          SELECT DISTINCT ON (strategy_id)
+            strategy_id AS "strategyId", version, name, family, instrument, status, summary,
+            rules_md AS "rulesMd", caveats_md AS "caveatsMd", study_ref AS "studyRef",
+            window_start::text AS "windowStart", window_end::text AS "windowEnd",
+            holdout_start::text AS "holdoutStart", price_source AS "priceSource",
+            updated_at::text AS "updatedAt"
+          FROM watchlist_sync.strategies
+          WHERE strategy_id = ${id}
+          ORDER BY strategy_id, version DESC`);
+
+    const meta = metaRows[0];
+    if (!meta) {
+      res.status(404).json({ error: "strategy not found" });
+      return;
+    }
+
+    const equity = to
+      ? await safe<EquityPt>(sql`
+          SELECT d::text AS d, equity::float8 AS equity, spy_equity::float8 AS "spyEquity",
+                 drawdown::float8 AS drawdown, is_holdout AS "isHoldout"
+          FROM watchlist_sync.strategy_equity
+          WHERE strategy_id = ${meta.strategyId} AND version = ${meta.version}
+            AND d >= ${from}::date AND d <= ${to}::date
+          ORDER BY d`)
+      : await safe<EquityPt>(sql`
+          SELECT d::text AS d, equity::float8 AS equity, spy_equity::float8 AS "spyEquity",
+                 drawdown::float8 AS drawdown, is_holdout AS "isHoldout"
+          FROM watchlist_sync.strategy_equity
+          WHERE strategy_id = ${meta.strategyId} AND version = ${meta.version}
+            AND d >= ${from}::date
+          ORDER BY d`);
+
+    const trades = to
+      ? await safe<TradeRow>(sql`
+          SELECT id::int AS id, entry_ts::text AS "entryTs", exit_ts::text AS "exitTs",
+                 ticker, instrument, side, option_type AS "optionType",
+                 strike::float8 AS strike, expiry::text AS expiry, dte_at_entry AS "dteAtEntry",
+                 qty::float8 AS qty, entry_px::float8 AS "entryPx", exit_px::float8 AS "exitPx",
+                 capital::float8 AS capital, pnl::float8 AS pnl, ret_pct::float8 AS "retPct",
+                 trigger, exit_reason AS "exitReason", is_holdout AS "isHoldout"
+          FROM watchlist_sync.strategy_trades
+          WHERE strategy_id = ${meta.strategyId} AND version = ${meta.version}
+            AND entry_ts::date >= ${from}::date AND entry_ts::date <= ${to}::date
+          ORDER BY entry_ts`)
+      : await safe<TradeRow>(sql`
+          SELECT id::int AS id, entry_ts::text AS "entryTs", exit_ts::text AS "exitTs",
+                 ticker, instrument, side, option_type AS "optionType",
+                 strike::float8 AS strike, expiry::text AS expiry, dte_at_entry AS "dteAtEntry",
+                 qty::float8 AS qty, entry_px::float8 AS "entryPx", exit_px::float8 AS "exitPx",
+                 capital::float8 AS capital, pnl::float8 AS pnl, ret_pct::float8 AS "retPct",
+                 trigger, exit_reason AS "exitReason", is_holdout AS "isHoldout"
+          FROM watchlist_sync.strategy_trades
+          WHERE strategy_id = ${meta.strategyId} AND version = ${meta.version}
+            AND entry_ts::date >= ${from}::date
+          ORDER BY entry_ts`);
+
+    const stats = computeStats(equity, trades);
+
+    res.json({
+      strategy: meta,
+      stats,
+      equity,
+      trades,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default router;

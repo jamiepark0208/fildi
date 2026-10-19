@@ -9,7 +9,10 @@ import {
 import { TopNav } from "@/components/top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TickerDrilldown } from "@/components/track-record/ticker-drilldown";
+import { StrategiesTab } from "@/components/track-record/strategies-tab";
 import { AnimatedNumber } from "@/components/animated-number";
+import { useAuth } from "@/context/AuthContext";
+import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 
 interface SideSummary {
@@ -907,7 +910,13 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
   );
 }
 
+type TrackTab = "model" | "strategies";
+
 export default function TrackRecord() {
+  const { isAdmin } = useAuth();
+  const [tab, setTab] = useSessionState<TrackTab>("fildi_track_record_tab", "model");
+  const activeTab: TrackTab = tab === "strategies" && !isAdmin ? "model" : tab;
+
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["track-record", "summary"],
     queryFn: async (): Promise<SummaryResponse> => {
@@ -916,6 +925,7 @@ export default function TrackRecord() {
       return res.json();
     },
     staleTime: 10 * 60_000,
+    enabled: activeTab === "model",
   });
 
   const { data: regime } = useQuery({
@@ -926,6 +936,7 @@ export default function TrackRecord() {
       return res.json();
     },
     staleTime: 10 * 60_000,
+    enabled: activeTab === "model",
   });
 
   // Defer heavy by-ticker table until summary chrome is up (or immediately if summary cached).
@@ -937,14 +948,37 @@ export default function TrackRecord() {
       return res.json();
     },
     staleTime: 5 * 60_000,
-    enabled: !!summary || !summaryLoading,
+    enabled: activeTab === "model" && (!!summary || !summaryLoading),
   });
 
   return (
     <div className="min-h-screen bg-zinc-900">
       <TopNav />
       <main className="pt-14 px-4 pb-4 space-y-2 max-w-7xl mx-auto">
-        {summaryLoading || !summary ? (
+        {isAdmin && (
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {([
+              { id: "model" as const, label: "Model" },
+              { id: "strategies" as const, label: "Strategies" },
+            ]).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  "px-2.5 py-0.5 transition-colors",
+                  activeTab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white hover:text-[#d4af37]",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTab === "strategies" && isAdmin ? (
+          <StrategiesTab />
+        ) : summaryLoading || !summary ? (
           <div className="text-xs text-zinc-400 py-10 text-center">Loading…</div>
         ) : (
           <>
