@@ -22,23 +22,33 @@ export interface PutScoringInputs {
   strikeWeights: Record<string, number> | undefined;
   /** Put-lane technical weights (undefined = engine defaults, i.e. the display score). */
   putTechWeights: Record<string, number> | undefined;
+  /** Call-lane technical weights (S046; undefined = engine defaults). */
+  callTechWeights: Record<string, number> | undefined;
 }
 
 export async function loadPutScoringInputs(): Promise<PutScoringInputs> {
   const champ = await getChampionScorecardParams("options");
-  const p = champ.params as { strikeWeights?: Record<string, number>; putTechWeights?: Record<string, number> };
-  return { version: champ.version, strikeWeights: p.strikeWeights, putTechWeights: p.putTechWeights };
+  const p = champ.params as {
+    strikeWeights?: Record<string, number>; putTechWeights?: Record<string, number>; callTechWeights?: Record<string, number>;
+  };
+  return { version: champ.version, strikeWeights: p.strikeWeights, putTechWeights: p.putTechWeights, callTechWeights: p.callTechWeights };
 }
 
 /**
- * Put-lane tech totals per ticker. With champion putTechWeights: new ordering, levels matched to the
+ * Lane tech totals per ticker. With champion lane weights: new ordering, levels matched to the
  * default-weight distribution (keeps the stockQuality floor's meaning). Without: default weights.
  */
-export function putTechScores(rows: TechnicalRow[], putTechWeights: Record<string, number> | undefined): Map<string, number> {
-  const base = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "put").map((s) => [s.ticker, s.totalScore]));
-  if (!putTechWeights) return base;
-  const tuned = new Map(computeTechnicalRankingsV2(rows, {}, putTechWeights, "put").map((s) => [s.ticker, s.totalScore]));
+export function laneTechScores(
+  rows: TechnicalRow[], weights: Record<string, number> | undefined, side: "put" | "call",
+): Map<string, number> {
+  const base = new Map(computeTechnicalRankingsV2(rows, {}, undefined, side).map((s) => [s.ticker, s.totalScore]));
+  if (!weights) return base;
+  const tuned = new Map(computeTechnicalRankingsV2(rows, {}, weights, side).map((s) => [s.ticker, s.totalScore]));
   return matchDistribution(tuned, base);
+}
+
+export function putTechScores(rows: TechnicalRow[], putTechWeights: Record<string, number> | undefined): Map<string, number> {
+  return laneTechScores(rows, putTechWeights, "put");
 }
 
 const NODE_SESSIONS = 60;

@@ -21,7 +21,7 @@ import {
   pricesHistorical, type InsertModelRec, type InsertHotlistSnapshot,
 } from "@workspace/db";
 import {
-  pickBestStrike, computeTechnicalRankingsV2, applyPolicy,
+  pickBestStrike, applyPolicy,
   CALL_STRIKE_WEIGHTS, EMPTY_TILT_STATE, computeUnifiedScore,
   selectPremiumCandidates,
   buildCalibrationTable, walkForwardCalibration,
@@ -34,7 +34,7 @@ import { fetchChainsForTickers } from "./options-chain-batch.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadPutScoringInputs, loadVolumeNodes, putTechScores } from "./put-scoring-inputs.js";
+import { loadPutScoringInputs, loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { deriveHotList } from "./live-hotlist.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
@@ -159,7 +159,7 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const rows = techRows as unknown as TechnicalRow[];
   const putInputs = await loadPutScoringInputs();
   const putRankings  = putTechScores(rows, putInputs.putTechWeights);
-  const callRankings = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "call").map(s => [s.ticker, s.totalScore]));
+  const callRankings = laneTechScores(rows, putInputs.callTechWeights, "call");
   const techRowMap = new Map(rows.map(r => [r.ticker, r]));
 
   // Fetch chains (bounded concurrency; per-ticker failures don't kill the run).

@@ -108,6 +108,13 @@ const W_OPTIONS_FLOW     = 0.10;
 const W_VOLUME_CONFIRM   = 0.05;
 const W_RELATIVE_PRESSURE = 0; // display-only (A155 / S042b)
 const W_ANALYST_UPSIDE   = 0; // display-only (A155 / S042)
+/** S046: stretch above the 200-day (ATR units). Off by default; the options champion's callTechWeights uses it (negative). */
+const W_MA200_STRETCH    = 0;
+
+function scoreMa200Stretch(r: TechnicalRow): number | null {
+  const x = pf(r.priceVsMa200Atr);
+  return x == null ? null : c01(0.5 + x / 10); // −5 ATR → 0, at MA200 → 0.5, +5 ATR → 1
+}
 
 /** Keys that appear on the scorecard but do not enter totalScore. */
 export const TECHNICAL_DISPLAY_ONLY_KEYS = ["relativePressure", "analystUpside"] as const;
@@ -632,6 +639,7 @@ export function computeTechnicalRankingsV2(
       { key: "optionsFlow",      weight: w("optionsFlow", W_OPTIONS_FLOW),        score: side === "call" ? scoreCallFlow(row) : scoreOptionsFlow(row) },
       { key: "analystUpside",    weight: w("analystUpside", W_ANALYST_UPSIDE),    score: scoreAnalystUpside(row, side) },
       { key: "volumeConfirm",    weight: w("volumeConfirm", W_VOLUME_CONFIRM),    score: scoreVolumeConfirm(row) },
+      { key: "ma200Stretch",     weight: w("ma200Stretch", W_MA200_STRETCH),      score: scoreMa200Stretch(row) },
     ];
     // A155: zero-weight comps stay display-only. A167/S045: a negative weight means "lower is better"
     // for that lane (put option lane: volumeConfirm) → enters as |w| × (1 − score).

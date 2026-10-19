@@ -2,19 +2,26 @@
  * A167 before/after — options-1.0.0 vs options-1.1.0 on the latest stored put snapshots.
  * Re-scores each stored best strike with its stored components, swapping in:
  *   stockQuality from the put-tuned tech score (trend − volumeConfirm) and nodeGap (S045).
- * Usage: cd artifacts/api-server && pnpm exec tsx --env-file=../../.env.local src/scripts/a167-before-after.ts
+ * Calls (A170/S046): `--side call` → call lane tech = low volume + not stretched above the 200-day; strike weights unchanged.
+ * Usage: cd artifacts/api-server && pnpm exec tsx --env-file=../../.env.local src/scripts/a167-before-after.ts [--side call]
  */
 import { pool } from "@workspace/db";
-import { computeTechnicalRankingsV2, scoreStockQuality, scoreNodeGap, SQ_FLOOR_BASE, type TechnicalRow } from "@workspace/option-scoring";
+import { computeTechnicalRankingsV2, scoreStockQuality, scoreNodeGap, SQ_FLOOR_BASE, CALL_STRIKE_WEIGHTS, type TechnicalRow } from "@workspace/option-scoring";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
-import { loadVolumeNodes, putTechScores } from "../lib/put-scoring-inputs.js";
+import { loadVolumeNodes, laneTechScores } from "../lib/put-scoring-inputs.js";
 
 export const PUT_TECH_WEIGHTS_1_1 = {
   oversoldDepth: 0, reversalSignal: 0, volatilityState: 0, trendContext: 0.5,
   optionsFlow: 0, relativePressure: 0, analystUpside: 0, volumeConfirm: -0.5,
 };
-const OLD_W: Record<string, number> = { income: 0.30, buffer: 0.32, ivRelative: 0.10, ivAbsolute: 0.06, stockQuality: 0.12, support: 0.06, dte: 0.04 };
-const NEW_W: Record<string, number> = { ...OLD_W, support: 0, nodeGap: 0.06 };
+export const CALL_TECH_WEIGHTS_1_2 = {
+  oversoldDepth: 0, reversalSignal: 0, volatilityState: 0, trendContext: 0,
+  optionsFlow: 0, relativePressure: 0, analystUpside: 0, volumeConfirm: -0.5, ma200Stretch: -0.5,
+};
+const SIDE: "put" | "call" = process.argv.includes("--side") && process.argv[process.argv.indexOf("--side") + 1] === "call" ? "call" : "put";
+const PUT_OLD_W: Record<string, number> = { income: 0.30, buffer: 0.32, ivRelative: 0.10, ivAbsolute: 0.06, stockQuality: 0.12, support: 0.06, dte: 0.04 };
+const OLD_W: Record<string, number> = SIDE === "call" ? { ...PUT_OLD_W, ...CALL_STRIKE_WEIGHTS } : PUT_OLD_W; // calls override income/buffer only
+const NEW_W: Record<string, number> = SIDE === "call" ? OLD_W : { ...PUT_OLD_W, support: 0, nodeGap: 0.06 };
 
 type Comp = Record<string, { score: number | null; weight: number }>;
 
@@ -38,14 +45,14 @@ function spearman(a: number[], b: number[]): number {
 
 async function main() {
   const rows = (await getAllTechnicalsRows()) as unknown as TechnicalRow[];
-  const oldTech = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "put").map((s) => [s.ticker, s.totalScore]));
-  const newTech = putTechScores(rows, PUT_TECH_WEIGHTS_1_1);
+  const oldTech = new Map(computeTechnicalRankingsV2(rows, {}, undefined, SIDE).map((s) => [s.ticker, s.totalScore]));
+  const newTech = laneTechScores(rows, SIDE === "call" ? CALL_TECH_WEIGHTS_1_2 : PUT_TECH_WEIGHTS_1_1, SIDE);
 
   const { rows: snaps } = await pool.query(`
     SELECT ticker, strike::float8 AS strike, spot::float8 AS spot, option_score::float8 AS score, component_scores
     FROM option_score_snapshots
-    WHERE side = 'put' AND as_of = (SELECT max(as_of) FROM option_score_snapshots WHERE side = 'put')`);
-  const { rows: [{ as_of }] } = await pool.query(`SELECT max(as_of)::text AS as_of FROM option_score_snapshots WHERE side = 'put'`);
+    WHERE side = $1 AND as_of = (SELECT max(as_of) FROM option_score_snapshots WHERE side = $1)`, [SIDE]);
+  const { rows: [{ as_of }] } = await pool.query(`SELECT max(as_of)::text AS as_of FROM option_score_snapshots WHERE side = $1`, [SIDE]);
   const nodes = await loadVolumeNodes(snaps.map((s: { ticker: string }) => s.ticker));
 
   const out: { t: string; before: number; after: number; sqOld: number | null; sqNew: number | null; gap: number | null }[] = [];
@@ -59,7 +66,7 @@ async function main() {
     if (sqStored != null && tOld != null) fund = Math.max(0, Math.min(100, (sqStored * 100 - 0.6 * tOld) / 0.4));
     else if (sqStored != null && tOld == null) fund = sqStored * 100;
     const sqNew = scoreStockQuality(tNew, fund);
-    const gap = scoreNodeGap(s.strike, s.spot, nodes.get(s.ticker));
+    const gap = SIDE === "call" ? null : scoreNodeGap(s.strike, s.spot, nodes.get(s.ticker));
     const rawOld = weighted(c, OLD_W);
     const rawNew = weighted({ ...c, stockQuality: sqNew, nodeGap: gap }, NEW_W);
     if (rawOld == null || rawNew == null || rawOld <= 0) continue;
@@ -72,10 +79,10 @@ async function main() {
   const ov = (n: number) => [...top("before", n)].filter((t) => top("after", n).has(t)).length;
   const below = (k: "sqOld" | "sqNew") => out.filter((x) => x[k] != null && x[k]! < SQ_FLOOR_BASE).length;
   const gaps = out.filter((x) => x.gap != null);
-  console.log(`A167 before/after · put snapshots as_of ${as_of} · n ${out.length}`);
+  console.log(`A167/A170 before/after · ${SIDE} snapshots as_of ${as_of} · n ${out.length}`);
   console.log(`rank corr old vs new option score: ${spearman(out.map((x) => x.before), out.map((x) => x.after)).toFixed(3)}`);
   console.log(`top-10 overlap ${ov(10)}/10 · top-20 ${ov(20)}/20 · top-40 ${ov(40)}/40`);
-  console.log(`stockQuality < floor ${SQ_FLOOR_BASE}: before ${below("sqOld")} · after ${below("sqNew")} (gate drops a put candidate)`);
+  console.log(`stockQuality < floor ${SQ_FLOOR_BASE}: before ${below("sqOld")} · after ${below("sqNew")} (gate drops a candidate)`);
   console.log("newly gated:", out.filter((x) => x.sqNew != null && x.sqNew < SQ_FLOOR_BASE && !(x.sqOld != null && x.sqOld < SQ_FLOOR_BASE)).map((x) => x.t).join(" "));
   console.log(`nodeGap known ${gaps.length}/${out.length}; node between strike and spot: ${gaps.filter((x) => x.gap === 0).length}`);
   const fmt = (x: typeof out[number]) => `${x.t} ${x.before.toFixed(1)}→${x.after.toFixed(1)}`;

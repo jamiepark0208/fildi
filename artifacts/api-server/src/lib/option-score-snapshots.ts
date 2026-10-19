@@ -9,7 +9,7 @@ import {
   db, optionScoreSnapshots, type InsertOptionScoreSnapshot,
 } from "@workspace/db";
 import {
-  pickBestStrike, computeTechnicalRankingsV2, selectPremiumCandidates,
+  pickBestStrike, selectPremiumCandidates,
   isViablePremiumIncome, CALL_STRIKE_WEIGHTS, CALL_INCOME_FLOOR, INCOME_FLOOR,
   applyPolicy,
   type StockContext, type TechnicalRow, type MacroRegime,
@@ -23,7 +23,7 @@ import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadVolumeNodes, putTechScores } from "./put-scoring-inputs.js";
+import { loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
 import { logger } from "./logger.js";
 
 const CHAIN_CONCURRENCY = 3;
@@ -222,11 +222,12 @@ export async function computeAndPersistOptionScores(opts?: {
     logger.warn({ err }, "option-score-snapshots: fund scores unavailable");
   }
 
-  // A167: put lane uses the options champion's put tech weights (S045); calls + display keep defaults.
+  // A167/A170: put + call lanes use the options champion's lane tech weights (S045/S046); display keeps defaults.
   const putTechWeights = (optChamp.params.putTechWeights ?? undefined) as Record<string, number> | undefined;
+  const callTechWeights = (optChamp.params.callTechWeights ?? undefined) as Record<string, number> | undefined;
   const putRankings = putTechScores(rows, putTechWeights);
   const volumeNodes = await loadVolumeNodes(candidates);
-  const callRankings = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "call").map((s) => [s.ticker, s.totalScore]));
+  const callRankings = laneTechScores(rows, callTechWeights, "call");
   const techRowMap = new Map(rows.map((r) => [r.ticker, r]));
 
   let chainsByTicker: Map<string, OptionsChainResult[]>;
