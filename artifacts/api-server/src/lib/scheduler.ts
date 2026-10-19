@@ -28,6 +28,7 @@ import { runEventBulletCheck } from "./event-bullets.js";
 import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 import { ingestDeskCommentaries } from "./desk-commentary.js";
+import { ingestFedSpeeches } from "./figure-views-ingest.js";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
 import {
   runResearchOpsHealthJob,
@@ -60,6 +61,7 @@ const LAST_EVENT_BULLETS_RUN_KEY = "last_event_bullets_run";
 const LAST_EARNINGS_BACKFILL_RUN_KEY = "last_earnings_backfill_run";
 const LAST_FMP_ANALYST_FEED_RUN_KEY = "last_fmp_analyst_feed_run";
 const LAST_DESK_INGEST_RUN_KEY = "last_desk_commentary_ingest_run";
+const LAST_VOICES_INGEST_RUN_KEY = "last_voices_ingest_run";
 const LAST_SCHWAB_HEALTH_RUN_KEY = "last_schwab_health_run";
 const LAST_RESEARCH_OPS_RUN_KEY = "last_research_ops_health_run";
 
@@ -91,6 +93,8 @@ export let lastFmpAnalystFeedRun: Date | null = null;
 export let fmpAnalystFeedRunning = false;
 export let lastDeskIngestRun: Date | null = null;
 export let deskIngestRunning = false;
+export let lastVoicesIngestRun: Date | null = null;
+export let voicesIngestRunning = false;
 export let lastSchwabHealthRun: Date | null = null;
 export let schwabHealthRunning = false;
 /** Re-export for scheduled-tasks — probe only, never vendor sync. */
@@ -211,26 +215,33 @@ function shouldRunFmpAnalystFeedNow(): boolean {
   return shouldRunDailyPrecomputeAt(lastFmpAnalystFeedRun, new Date(), attempts.fmp);
 }
 
-  /** Drive → DB catch-up. Cheap; only files newer than last run. No missed-poll replay. */
-  function shouldRunDeskIngestNow(): boolean {
-    if (deskIngestRunning) return false;
-    if (!lastDeskIngestRun) return true;
-    return Date.now() - lastDeskIngestRun.getTime() >= 25 * 60 * 1000;
-  }
+/** Drive → DB catch-up. Cheap; only files newer than last run. No missed-poll replay. */
+function shouldRunDeskIngestNow(): boolean {
+  if (deskIngestRunning) return false;
+  if (!lastDeskIngestRun) return true;
+  return Date.now() - lastDeskIngestRun.getTime() >= 25 * 60 * 1000;
+}
 
-  /** Proactive access-token refresh + re-auth warning. No market-data pulls. */
-  function shouldRunSchwabHealthNow(): boolean {
-    if (schwabHealthRunning) return false;
-    if (!lastSchwabHealthRun) return true;
-    return Date.now() - lastSchwabHealthRun.getTime() >= 6 * 60 * 60 * 1000;
-  }
+/** A85 Fed speeches RSS → figure_views. Cheap; 6h cadence. */
+function shouldRunVoicesIngestNow(): boolean {
+  if (voicesIngestRunning) return false;
+  if (!lastVoicesIngestRun) return true;
+  return Date.now() - lastVoicesIngestRun.getTime() >= 6 * 60 * 60 * 1000;
+}
 
-  /** Local WRDS/LSEG cache + LSEG :9000 probe. Never syncs vendors (lane contract). */
-  function shouldRunResearchOpsNow(): boolean {
-    if (researchOpsRunning) return false;
-    if (!lastResearchOpsRun) return true;
-    return Date.now() - lastResearchOpsRun.getTime() >= 6 * 60 * 60 * 1000;
-  }
+/** Proactive access-token refresh + re-auth warning. No market-data pulls. */
+function shouldRunSchwabHealthNow(): boolean {
+  if (schwabHealthRunning) return false;
+  if (!lastSchwabHealthRun) return true;
+  return Date.now() - lastSchwabHealthRun.getTime() >= 6 * 60 * 60 * 1000;
+}
+
+/** Local WRDS/LSEG cache + LSEG :9000 probe. Never syncs vendors (lane contract). */
+function shouldRunResearchOpsNow(): boolean {
+  if (researchOpsRunning) return false;
+  if (!lastResearchOpsRun) return true;
+  return Date.now() - lastResearchOpsRun.getTime() >= 6 * 60 * 60 * 1000;
+}
 
 // Weekly (Saturday) cadence — same missed-window risk as enrichment, so apply the
 // same catch-up guard rather than depending entirely on the lazy /feed/posts fallback.
@@ -454,6 +465,23 @@ export async function runDeskIngestJob() {
  * Schwab OAuth health: refresh access token (keeps file warm) + warn before 7d refresh expiry.
  * Does NOT pull market data — zero RPM cost beyond the token endpoint.
  */
+
+export async function runVoicesIngestJob() {
+  if (voicesIngestRunning) return;
+  voicesIngestRunning = true;
+  logger.info("scheduler: starting voices (Fed speeches) ingest");
+  try {
+    const result = await ingestFedSpeeches({ limit: 40 });
+    lastVoicesIngestRun = new Date();
+    await setConfigDate(LAST_VOICES_INGEST_RUN_KEY, lastVoicesIngestRun);
+    logger.info(result, "scheduler: voices ingest complete");
+  } catch (err) {
+    logger.error({ err }, "scheduler: voices ingest failed");
+  } finally {
+    voicesIngestRunning = false;
+  }
+}
+
 export async function runSchwabHealthJob() {
   if (schwabHealthRunning) return;
   schwabHealthRunning = true;
@@ -608,7 +636,7 @@ async function loadAttempt(slot: AttemptSlot): Promise<void> {
 
 /** Re-read app_config (and enrichment_runs) so a Maintain write after startup is visible. */
 async function refreshPersistedLastRuns(): Promise<void> {
-  const [enrichment, retention, trade, model, option, bullets, earnings, fmp, desk, schwab, research] = await Promise.all([
+  const [enrichment, retention, trade, model, option, bullets, earnings, fmp, desk, voices, schwab, research] = await Promise.all([
     loadDate(LAST_ENRICHMENT_RUN_KEY),
     loadDate(LAST_RETENTION_PRUNE_KEY),
     loadDate(LAST_TRADE_EXPIRY_RUN_KEY),
@@ -618,6 +646,7 @@ async function refreshPersistedLastRuns(): Promise<void> {
     loadDate(LAST_EARNINGS_BACKFILL_RUN_KEY),
     loadDate(LAST_FMP_ANALYST_FEED_RUN_KEY),
     loadDate(LAST_DESK_INGEST_RUN_KEY),
+    loadDate(LAST_VOICES_INGEST_RUN_KEY),
     loadDate(LAST_SCHWAB_HEALTH_RUN_KEY),
     loadDate(LAST_RESEARCH_OPS_RUN_KEY),
   ]);
@@ -630,6 +659,7 @@ async function refreshPersistedLastRuns(): Promise<void> {
   lastEarningsBackfillRun = pickFresherStamp(lastEarningsBackfillRun, earnings);
   lastFmpAnalystFeedRun = pickFresherStamp(lastFmpAnalystFeedRun, fmp);
   lastDeskIngestRun = pickFresherStamp(lastDeskIngestRun, desk);
+  lastVoicesIngestRun = pickFresherStamp(lastVoicesIngestRun, voices);
   lastSchwabHealthRun = pickFresherStamp(lastSchwabHealthRun, schwab);
   lastResearchOpsRun = pickFresherStamp(lastResearchOpsRun, research);
 
@@ -660,6 +690,7 @@ function runDueJobs(): void {
   if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
   if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
   if (shouldRunDeskIngestNow()) runDeskIngestJob();
+  if (shouldRunVoicesIngestNow()) runVoicesIngestJob();
   if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
   if (shouldRunResearchOpsNow()) runResearchOpsJob();
   // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.

@@ -446,6 +446,18 @@ router.post("/voices", requireAdmin, async (req: Request, res: Response) => {
   }
 });
 
+/** A85 — pull Fed speeches RSS into figure_views (admin / scheduler). */
+router.post("/voices/ingest", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { ingestFedSpeeches } = await import("../lib/figure-views-ingest.js");
+    const dryRun = Boolean(req.body?.dryRun);
+    const result = await ingestFedSpeeches({ dryRun, limit: Number(req.body?.limit) || 40 });
+    res.json({ ...result, note: "Fed speeches RSS only; Substack/YT later." });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /macro/risk-free-rate — returns SOFR (or fedFundsRate fallback) from macro cache for scoring
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();
