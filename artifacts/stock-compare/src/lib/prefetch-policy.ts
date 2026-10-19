@@ -14,7 +14,6 @@ const ROUTE_CHUNKS: Record<string, ChunkLoader> = {
   macro: () => import("@/pages/macro"), // Live › Macro sub-tab chunk
   agents: () => import("@/pages/agents"),
   "track-record": () => import("@/pages/track-record"),
-  "video-lab": () => import("@/pages/video-lab"),
   "profile/me": () => import("@/pages/profile"),
   settings: () => import("@/pages/settings"),
   feed: () => import("@/pages/feed"),
