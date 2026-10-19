@@ -153,3 +153,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | open |
 | [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | open |
 | [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | open |
+| [A179](asks/A179.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | open |
