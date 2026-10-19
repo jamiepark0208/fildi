@@ -25,3 +25,6 @@
 - Parallel `oj verify` (registry race) — one at a time
 - Auto-promote scorecard weights
 - Orchestrator / subagent fan-out for Ready queue
+
+## Session 2026-10-18 cont
+Shipped: A83 normalizeCohort; A86 street reverse-DCF + vsSt column; A85 Fed RSS ingest; A125 upload + Ollama hooks. Next buildable: A125 reel inbox, A83 more splits, A139 study, A96 breadth overnight.

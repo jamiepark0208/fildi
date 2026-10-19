@@ -94,6 +94,22 @@ export default function VideoLab() {
     },
     onError: (e: Error) => setUpErr(e.message),
   });
+  const gen = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/video-lab/hooks", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, save: true }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json() as Promise<{ source: string; model?: string; error?: string; ideas: { hook: string }[] }>;
+    },
+    onSuccess: (d) => {
+      if (d.ideas?.[0]?.hook) setHook(d.ideas[0].hook);
+      qc.invalidateQueries({ queryKey: ["video-lab"] });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-zinc-950 text-amber-100/90">
@@ -145,14 +161,32 @@ export default function VideoLab() {
             placeholder="Hook line"
             className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[12px]"
           />
-          <button
-            type="button"
-            disabled={add.isPending || topic.length < 2 || hook.length < 2}
-            onClick={() => add.mutate()}
-            className="text-[11px] font-semibold text-[#d4af37] disabled:opacity-40"
-          >
-            Save to backlog
-          </button>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              type="button"
+              disabled={add.isPending || topic.length < 2 || hook.length < 2}
+              onClick={() => add.mutate()}
+              className="text-[11px] font-semibold text-[#d4af37] disabled:opacity-40"
+            >
+              Save to backlog
+            </button>
+            <button
+              type="button"
+              disabled={gen.isPending || topic.length < 2}
+              onClick={() => gen.mutate()}
+              className="text-[11px] font-semibold text-sky-300 disabled:opacity-40"
+              title="Local Ollama if running; else template hooks"
+            >
+              {gen.isPending ? "Brainstorming…" : "Brainstorm hooks (Ollama)"}
+            </button>
+          </div>
+          {gen.data?.source ? (
+            <p className="text-[9px] text-amber-200/40">
+              source={gen.data.source}
+              {gen.data.model ? ` · ${gen.data.model}` : ""}
+              {gen.data.error ? ` · ${gen.data.error}` : ""}
+            </p>
+          ) : null}
         </div>
 
         {isLoading ? (

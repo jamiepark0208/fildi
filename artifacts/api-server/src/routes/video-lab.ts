@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { insertIdea, listIdeas, listVideos, saveUploadedVideo } from "../lib/video-lab.js";
+import { generateVideoHooks } from "../lib/video-lab-ollama.js";
 
 const router = Router();
 
@@ -62,6 +63,28 @@ router.post("/video-lab/videos", requireAdmin, async (req, res, next) => {
       res.status(400).json({ error: msg });
       return;
     }
+    next(err);
+  }
+});
+
+/** A125 — brainstorm hooks via local Ollama (template fallback if offline). */
+router.post("/video-lab/hooks", requireAdmin, async (req, res, next) => {
+  try {
+    const topic = String(req.body?.topic ?? "").trim();
+    if (topic.length < 2) {
+      res.status(400).json({ error: "topic required" });
+      return;
+    }
+    const save = Boolean(req.body?.save);
+    const out = await generateVideoHooks(topic);
+    const ids: number[] = [];
+    if (save) {
+      for (const idea of out.ideas) {
+        ids.push(await insertIdea({ topic: idea.topic, hook: idea.hook, outline: idea.outline }));
+      }
+    }
+    res.json({ ...out, savedIds: ids });
+  } catch (err) {
     next(err);
   }
 });
