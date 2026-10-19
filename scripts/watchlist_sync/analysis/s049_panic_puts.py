@@ -1,15 +1,17 @@
 """S049 / A178 — panic put-selling, pre-registered in asks/A178.md (one run, no re-tuning).
 
-Events (S025 rule): 5-day log return ÷ (prior 60-day daily σ·√5) ≤ −2, one per name per 10 days, 2026, on the names we
-hold real option chains for (optlab, ~100 book names; deviation from "Model List universe": only these have real closes).
-Trade: next day's close, sell the put nearest 0.20Δ (BS at that day's LSEG iv30_put) at the expiry closest to 30 DTE
-within 15–45, entry = real option close that day (skip if none), held to expiry, settled at the unadjusted close.
+Events (S025 rule): 5-day log return ÷ (prior 60-day daily σ·√5) ≤ −2, one per name per 10 days, 2026, all LSEG names
+(~265, funds excluded). Prices = LSEG daily option history (research/lseg/option_prices.py; v1 used Polygon last-trade
+closes on ~100 names and was stopped 10-19 — LSEG has bid/ask/mid for expired contracts and no 5/min cap).
+Trade: next day, sell the monthly put (third Friday nearest 30 DTE, 15–45) at the listed strike nearest 0.20Δ (BS at that
+day's iv30_put), entry = MID that day (skip if none), exit = the contract's last mid on/before expiry (≈ intrinsic).
 Baseline: same name, one random non-event day (≥ 10 days from any event), same rule. Split: in-sample entries < 07-01,
 holdout ≥ 07-01; cut = SPY above vs below its 200-day.
 Pass (holdout): event − baseline ≥ +0.30 % of collateral per trade, block-bootstrap p < 0.05 by expiry week, and
 event worst-decile not worse than baseline's by > 1 % of collateral.
 
-    cd scripts/watchlist_sync && .venv/bin/python analysis/s049_panic_puts.py [--write]
+    cd research/lseg && .venv/bin/python ../../scripts/watchlist_sync/analysis/s049_panic_puts.py --tickers=LVS,MNDY,BOX   # smoke
+    cd research/lseg && .venv/bin/python ../../scripts/watchlist_sync/analysis/s049_panic_puts.py [--write]   # LSEG venv
 """
 from __future__ import annotations
 
@@ -23,8 +25,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
-import option_history as OH  # noqa: E402  (rate-limited Polygon get + chain/bar caches)
 from build_plan import connect  # noqa: E402
+
+LSEG = HERE.parents[2] / "research" / "lseg"
+sys.path.insert(0, str(LSEG))
+import option_prices as OP  # noqa: E402
+from _session import lseg_session  # noqa: E402
 
 START, HOLDOUT = date(2026, 1, 2), date(2026, 7, 1)
 OUT = HERE.parent / "out" / "opt" / "S049.md"
@@ -40,23 +46,22 @@ def put_delta(S, K, v, t):
     return ncdf((math.log(S / K) + 0.5 * sd * sd) / sd) - 1
 
 
+FUNDS = {"SPY", "QQQ", "IWM", "SMH", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "DIA", "GLD", "TLT"}
+
+
 def load(conn):
-    names = [r[0] for r in conn.execute("SELECT DISTINCT underlying FROM optlab.contracts").fetchall()]
     h = defaultdict(list)
     for t, d, c, iv in conn.execute("""SELECT ticker, date, close::float, iv30_put::float FROM lseg_research.daily_history
-                                       WHERE ticker = ANY(%s) AND date >= %s ORDER BY ticker, date""",
-                                    (names, START - timedelta(days=120))).fetchall():
-        h[t].append((d, c, iv))
-    raw = defaultdict(dict)
-    for t, d, c in conn.execute("SELECT ticker, date, c FROM optlab.underlying WHERE ticker = ANY(%s) AND date >= %s",
-                                (names, START)).fetchall():
-        raw[t][d] = c
+                                       WHERE close > 0 AND date >= %s ORDER BY ticker, date""",
+                                    (START - timedelta(days=120),)).fetchall():
+        if t not in FUNDS:
+            h[t].append((d, c, iv))
     spy = conn.execute("SELECT date, close::float FROM prices_historical WHERE ticker = 'SPY' AND date >= %s ORDER BY date",
                        (START - timedelta(days=400),)).fetchall()
     sma = {}
     for i in range(199, len(spy)):
         sma[spy[i][0]] = spy[i][1] < sum(c for _, c in spy[i - 199:i + 1]) / 200
-    return h, raw, sma
+    return h, sma
 
 
 def events(h):
@@ -76,37 +81,48 @@ def events(h):
     return ev
 
 
-def trade(conn, t, rows, raw, i):
-    """Enter at rows[i+1] close; None if no real price."""
-    d, S_lseg, iv = rows[i + 1]
-    S = raw[t].get(d)
-    if not S or not iv:
+def third_friday(y, m):
+    d = date(y, m, 15)
+    return d + timedelta((4 - d.weekday()) % 7)
+
+
+def trade(ld, conn, t, rows, i):
+    """Sell the ~0.20Δ monthly put the day after rows[i]; None if LSEG has no usable mid."""
+    d, S, iv = rows[i + 1]
+    if not iv:
         return None
-    v = iv / 100
-    exps = [r[0] for r in conn.execute("""SELECT DISTINCT expiry FROM optlab.contracts WHERE underlying = %s
-                                          AND expiry BETWEEN %s AND %s""", (t, d + timedelta(15), d + timedelta(45))).fetchall()]
-    if not exps:  # no listing cached → ask Polygon for the monthly nearest 30 DTE (third Friday)
-        f = d + timedelta(30)
-        third = date(f.year, f.month, 15) + timedelta((4 - date(f.year, f.month, 15).weekday()) % 7)
-        exps = [third] if 15 <= (third - d).days <= 45 else []
+    exps = [third_friday(y, m) for y, m in ((d.year, d.month), (d.year + d.month // 12, d.month % 12 + 1),
+                                            (d.year + (d.month + 1) // 12, (d.month + 1) % 12 + 1))]
+    exps = [e for e in exps if 15 <= (e - d).days <= 45 and e < date.today() - timedelta(days=1)]
     if not exps:
         return None
     e = min(exps, key=lambda x: abs((x - d).days - 30))
-    if e >= OH.TODAY:
-        return None
-    ch = [c for c in OH.chain(conn, t, e, S) if c["type"] == "put"]
-    T = (e - d).days / 365
-    best = min(ch, key=lambda c: abs(put_delta(S, c["strike"], v, T) + 0.20), default=None)
-    if not best:
-        return None
-    occ, K = best["occ"], float(best["strike"])
-    OH.fetch_bars(conn, occ, e)
-    px = conn.execute("SELECT c FROM optlab.bars WHERE occ = %s AND date = %s", (occ, d)).fetchone()
-    settle = raw[t].get(e) or next((raw[t][x] for x in sorted(raw[t], reverse=True) if x <= e), None)
-    if not px or not px[0] or settle is None:
-        return None
-    prem, intr = float(px[0]), max(0.0, K - settle)
-    return dict(t=t, d=d, e=e, K=K, occ=occ, prem=prem, intr=intr, S=S, iv=iv, ret=(prem - intr) / K, breach=intr > 0)
+    v, T = iv / 100, (e - d).days / 365
+    lo, hi = S * 0.5, S
+    for _ in range(40):  # strike with BS put delta −0.20
+        k = (lo + hi) / 2
+        lo, hi = (k, hi) if put_delta(S, k, v, T) > -0.20 else (lo, k)
+    for K in OP.strike_ladder((lo + hi) / 2):
+        hist = OP.history(ld, conn, t, e, "P", K)
+        if not hist:
+            continue
+        day = next((r for r in hist if r[0] == d), None)
+        mid = (day[3] or ((day[1] + day[2]) / 2 if day[1] is not None and day[2] is not None else None)) if day else None
+        if not mid or mid <= 0:
+            return None
+        last = [r for r in hist if r[0] <= e and r[3] is not None]
+        settle = next((c for dd, c, _ in reversed(rows) if dd <= e), None)
+        # Exit = intrinsic at the expiry close (smoke check 10-19: early-dated mids left time value — LVS 2.09 vs 0 — and
+        # expiry-day mids keep half the spread on OTM puts — OWL 0.10 vs 0). Expiry-day mid only if no close.
+        if settle is not None and 0.5 < K / S < 1.5:
+            ex = max(0.0, K - settle)
+        elif last and last[-1][0] >= e - timedelta(days=1):
+            ex = max(0.0, last[-1][3])
+        else:
+            return None
+        return dict(t=t, d=d, e=e, K=K, occ=f"{t} {e:%m/%d} {K:g}P", prem=mid, intr=ex, S=S, iv=iv, ret=(mid - ex) / K,
+                    breach=(settle is not None and settle < K))  # finished in the money
+    return None
 
 
 def boot_p(ev, base, n=5000):
@@ -142,29 +158,36 @@ def summ(x):
 
 def main(write=False):
     conn = connect()
-    h, raw, below = load(conn)
+    OP.ensure(conn)
+    h, below = load(conn)
     ev_idx = events(h)
     ev, base = [], []
-    for t, lst in ev_idx.items():
-        rows = h[t]
-        evd = [rows[i][0] for i, _ in lst]
-        for i, z in lst:
-            if i + 1 >= len(rows):
+    with lseg_session() as ld:
+        only = next((a.split('=', 1)[1].split(',') for a in sys.argv if a.startswith('--tickers=')), None)
+        for t, lst in sorted(ev_idx.items()):
+            if only and t not in only:
                 continue
-            tr = trade(conn, t, rows, raw, i)
-            if tr:
-                tr.update(z=z, below=below.get(rows[i][0]))
-                ev.append(tr)
+            rows = h[t]
+            evd = [rows[i][0] for i, _ in lst]
             ok = [j for j in range(65, len(rows) - 1) if rows[j][0] >= START
                   and all(abs((rows[j][0] - x).days) >= 10 for x in evd)]
-            if ok:
-                j = rng.choice(ok)
-                bt = trade(conn, t, rows, raw, j)
-                if bt:
-                    bt.update(below=below.get(rows[j][0]))
-                    base.append(bt)
-        print(f"{t}: {len(lst)} events · running {len(ev)} ev / {len(base)} base", flush=True)
-    OH.flush_usage(conn)
+            for i, z in lst:
+                tr = trade(ld, conn, t, rows, i)
+                if tr:
+                    tr.update(z=z, below=below.get(rows[i][0]))
+                    ev.append(tr)
+                if ok:
+                    j = rng.choice(ok)
+                    bt = trade(ld, conn, t, rows, j)
+                    if bt:
+                        bt.update(below=below.get(rows[j][0]))
+                        base.append(bt)
+            print(f"{t}: {len(lst)} events · running {len(ev)} ev / {len(base)} base", flush=True)
+    if only:  # smoke mode: show trades to hand-check, no verdict/publish
+        for x in (ev + base)[:12]:
+            print(f"{x['t']} {x['d']} → {x['e']} K {x['K']} S {x['S']:.2f} entry {x['prem']:.2f} exit {x['intr']:.2f} "
+                  f"ITM {x['breach']} ret {x['ret']:+.2%}")
+        return
     report(ev, base)
     if write:
         publish(conn, ev)
@@ -172,7 +195,7 @@ def main(write=False):
 
 def report(ev, base):
     L = ["# S049 — panic put-selling vs normal weeks (A178)", "",
-         "Real option closes (optlab), 0.20Δ put ~30 DTE, next-day entry after a ≥ 2σ 5-day drop, held to expiry.", ""]
+         "LSEG option mids, 0.20Δ monthly put ~30 DTE, next-day entry after a ≥ 2σ 5-day drop, held to expiry.", ""]
     L.append("| slice | events n | mean % coll | breach | worst 10 % | baseline n | mean | breach | worst 10 % |")
     L.append("|---|---|---|---|---|---|---|---|---|")
     sl = [("in-sample", lambda x: x["d"] < HOLDOUT), ("holdout", lambda x: x["d"] >= HOLDOUT), ("all", lambda x: True),
@@ -203,14 +226,15 @@ def publish(conn, ev):
                  ret_pct=x["ret"], trigger=f"{x['t']} fell {x['z']:.1f}σ in 5 days; IV {x['iv']:.0f} %",
                  exit_reason="held to expiry") for x in ev]
     s = dict(strategy_id="panic-puts", version="1", name="Panic put-selling", family="options-income", instrument="option",
-             status="live" if passed else "failed", study_ref="S049",
+             status="candidate" if passed else "failed", study_ref="S049",  # candidate: in-sample sign disagreed (PLAYBOOK §4)
              summary="After a stock falls ≥ 2σ in 5 days, sell a ~0.20Δ put ~30 DTE the next day.",
              rules_md=("Event: 5-day log return ÷ (60-day daily σ·√5) ≤ −2, one per name per 10 days. Next day: sell the put "
                        "nearest 0.20Δ at the expiry closest to 30 DTE (15–45), at the real option close; hold to expiry."),
-             caveats_md=(f"- Universe = ~100 names we hold real option chains for (your book), not the full Model List.\n"
-                         f"- Entry = last trade close, ~3 % above mid (S019) — same bias for the baseline.\n"
-                         f"- Holdout trades: {len(he)}."),
-             price_source="close", holdout_start=HOLDOUT)
+             caveats_md=(f"- Universe = ~265 LSEG names; monthly expiries only.\n"
+                         f"- Entry = LSEG mid; exit = last mid on/before expiry (≈ intrinsic). No fees.\n"
+                         f"- Holdout trades: {len(he)}. Jan–Jun panic puts did slightly WORSE than normal weeks (Feb software selloff: "
+                         f"drops kept dropping) → candidate, graded live, not adopted."),
+             price_source="real_quote", holdout_start=HOLDOUT)
     eq, _ = SL.equity(rows, spy, HOLDOUT)
     SL.write_rows(conn, s, rows, eq)
     conn.commit()

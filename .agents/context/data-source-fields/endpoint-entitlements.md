@@ -34,6 +34,9 @@ Per-symbol endpoints (`quote`, `key-metrics`, `price-target-consensus`, `grades-
 ## SEC EDGAR (keyless; User-Agent required, ≤ 10 req/s)
 ✅ **used** `companyfacts`, `submissions`, `company_tickers.json` · ✅ full-text `efts.sec.gov/LATEST/search-index` (⚠ ticker text matching is noisy, so use `submissions` by CIK and filter forms S-3 / 424B* for offerings).
 
+## LSEG options history (probed 10-19, Workspace desktop session)
+✅ **Daily history for any US equity option, live or expired**: `ld.get_history(OPRA RIC)` → BID, ASK, MID_PRICE, TRDPRC_1, OPINT_1, IMP_VOLT (+ greeks on live contracts). Expired RIC = live RIC + `^` + A–L month + YY (e.g. `SPYU182665000.U^I26`: full life 2025-06-17 → 2026-09-18). Contracts a few days past expiry may not be renamed yet. Limits: 10k req/day, ≤ 4 req/s (`_session.py`). Helper + cache: `research/lseg/option_prices.py` → `optlab.lseg_opt_daily`. **Use this, not Polygon, for daily option backtests**: it has mids and OI, with no 5/min cap.
+
 ## WRDS (Postgres `wrds-pgdata.wharton.upenn.edu:9737`)
 ✅ crsp (⚠ `dsf` ends 2024-12-31), ibes, comp, ciq, taqm_2026, fisd, compsamp, tfn, audit, wrdsapps.
 ❌ **OptionMetrics** (`optionm` → `optionm_all` permission denied).

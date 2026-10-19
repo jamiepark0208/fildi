@@ -152,7 +152,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A175](asks/A175.md) | 2026-10-18 | Claude → Cursor | [quant] Strategy Library page (Track Record › Strategies): filter, curve vs SPY, stats, trade log | done (Cursor 10-19; needs Muse+Claude commit review) |
 | [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | done (Claude 10-19: 3 seeds, IRA replay = scoreboard exactly; S047) |
 | [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | done (Claude 10-19: S048 FAIL — 10 triggers, 0 winners; thin) |
-| [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | open |
+| [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | done (Claude 10-19: S049 holdout +1.47 %/trade PASS; in-sample disagrees → candidate) |
 | [A179](asks/A179.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | open |
 | [A180](asks/A180.md) | 2026-10-19 | Muse → Cursor | Pre-Dec-11 build capacity plan — rank the queue, kill the tail | open |
 | [A181](asks/A181.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |

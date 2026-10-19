@@ -23,6 +23,7 @@ Stock return / direction (rel_21, ret_5) is the wrong target for these — S042 
 | `lseg_research.daily_history` | **split-adjusted daily OHLCV + iv30/60/90 put/call**, 273 tickers | 2016 → |
 | `prices_historical` | app's daily bars — **only from 2025-04**; don't backtest on it | 2025-04 → |
 | `optlab.*` | Jamie's real option trades (551), legs, chain closes, earnings moves | ~1 y |
+| `optlab.lseg_opt_daily` | **LSEG daily option bid/ask/mid/OI/IV, any contract incl. expired** (`research/lseg/option_prices.history()`, run in `research/lseg/.venv`). First choice for daily option backtests | 2024 → |
 | `optlab.contracts` / `optlab.bars` | real daily option closes, ~100 book names; `option_history.chain()` / `fetch_bars()` fill gaps from Polygon (5 calls/min) | 2024-10 → |
 | `optlab.minute_bars` | 1-min **trade** bars (no quotes on our plan): SPY full 2026 + fetched contracts; `s048_0dte.minute_bars()` caches | 2026-01 → |
 | `ticker_registry.primary_peer_group_id` | fine peer group per stock (39 groups, 22 with ≥ 5 members); `.split('.')[0]` = sector | static |
