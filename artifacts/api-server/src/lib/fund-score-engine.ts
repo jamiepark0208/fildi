@@ -23,14 +23,35 @@ import {
   blendWeightsFor,
   blendThree,
   applyPostScoreAdjustments,
-  isExtendedCyclical,
   isMegacap,
   PEG_UNRELIABLE_FLOOR,
   DEFAULT_BLEND,
 } from "./fund-score-guards.js";
 import { applySectorLayerToScores, SECTOR_LAYER_WEIGHT } from "./fund-sector-layer.js";
+import type { FamilyName, FundRowInput, StyleBucket } from "./fund-score-types.js";
+import {
+  assignStyleBucket,
+  isChineseLike,
+  isCyclicalLike,
+  isDistressed,
+  isEconomicallyPreRevenue,
+  isFinancialLike,
+  isReitLike,
+  isUnprofitableOperator,
+} from "./fund-score-style.js";
 
 export { SECTOR_LAYER_WEIGHT };
+export type { FamilyName, FundRowInput, StyleBucket } from "./fund-score-types.js";
+export {
+  assignStyleBucket,
+  isChineseLike,
+  isCyclicalLike,
+  isDistressed,
+  isEconomicallyPreRevenue,
+  isFinancialLike,
+  isReitLike,
+  isUnprofitableOperator,
+} from "./fund-score-style.js";
 
 /** Default peer/sector/universe weights (soft peers / megacaps / expEy override per ticker). */
 export const PEER_NORM_WEIGHT = DEFAULT_BLEND.peer;
@@ -42,62 +63,6 @@ function sectorIdOf(peerGroupId: string | null): string {
   const i = peerGroupId.indexOf(".");
   return i > 0 ? peerGroupId.slice(0, i) : peerGroupId;
 }
-
-export type FamilyName = "value" | "growth" | "quality" | "safety";
-export type StyleBucket =
-  | "value"
-  | "growth"
-  | "blend"
-  | "garp"
-  | "quality_defensive"
-  | "pre_revenue"
-  | "financial";
-
-export type FundRowInput = {
-  ticker: string;
-  peRatio: number | null;
-  pegRatio: number | null;
-  forwardPe: number | null;
-  evEbitda: number | null;
-  evRevenue: number | null;
-  priceToBook: number | null;
-  priceToSales: number | null;
-  dividendYield: number | null;
-  netIncome: number | null;
-  freeCashFlow: number | null;
-  totalRevenue: number | null;
-  ebitda: number | null;
-  ebit: number | null;
-  interestExpense: number | null;
-  grossMargin: number | null;
-  operatingMargin: number | null;
-  netMargin: number | null;
-  returnOnEquity: number | null;
-  returnOnAssets: number | null;
-  roic: number | null;
-  wacc: number | null;
-  revenueGrowthYoY: number | null;
-  revenueGrowthYoyPrior: number | null;
-  epsGrowth: number | null;
-  analystTargetPrice: number | null;
-  currentPrice: number | null; // optional — for yields / upside
-  marketCap: number | null;
-  currentRatio: number | null;
-  debtToEquity: number | null;
-  totalDebt: number | null;
-  cashAndEquivalents: number | null;
-  quarterlyOperatingCashFlow: number | null;
-  sharesOutstanding: number | null;
-  sharesOutstandingPrior: number | null;
-  beta: number | null;
-  grossProfit: number | null;
-  totalAssets: number | null;
-  annualOperatingCashFlow: number | null;
-  tangibleBookValuePerShare: number | null;
-  ffoProxy: number | null;
-  peerGroupId: string | null;
-  scoringMode: string | null;
-};
 
 export type MetricKey =
   | "earningsYield"
@@ -217,54 +182,12 @@ export const MEGACAP_BLEND_FAMILY_WEIGHTS: Record<FamilyName, number> = {
   value: 15, growth: 20, quality: 40, safety: 25,
 };
 
-const FINANCIAL_GROUP_RE = /(bank|insur|reit|financial|broker|asset_manag)/i;
-const DEFENSIVE_GROUP_RE = /(staples|utilities|healthcare|pharma|telecom)/i;
-const FINANCIAL_MODE = new Set(["financial", "insurance", "reit", "financial_mixed"]);
-
 const MIN_Z_N = 8;
 const MIN_PEERS_CONFIDENT = 5;
 
 function approxWacc(beta: number | null): number | null {
   if (beta == null || !Number.isFinite(beta)) return null;
   return 0.045 + beta * 0.055;
-}
-
-/** True pre-revenue / pre-profit speculative: tiny or null revenue, or loss-making with small scale. */
-export function isEconomicallyPreRevenue(r: FundRowInput): boolean {
-  const rev = r.totalRevenue;
-  const ni = r.netIncome;
-  if (rev == null || rev <= 0) return true;
-  if (rev < 50_000_000 && (ni == null || ni < 0)) return true;
-  return false;
-}
-
-/** Loss-making operating company (has real revenue but negative earnings). */
-export function isUnprofitableOperator(r: FundRowInput): boolean {
-  return !isEconomicallyPreRevenue(r) && r.netIncome != null && r.netIncome < 0;
-}
-
-export function isFinancialLike(r: FundRowInput): boolean {
-  if (r.scoringMode && FINANCIAL_MODE.has(r.scoringMode)) return true;
-  return !!(r.peerGroupId && FINANCIAL_GROUP_RE.test(r.peerGroupId));
-}
-
-export function isCyclicalLike(r: FundRowInput): boolean {
-  return isExtendedCyclical(r);
-}
-
-export function isChineseLike(r: FundRowInput): boolean {
-  return r.scoringMode === "chinese" || !!(r.peerGroupId && /chinese/i.test(r.peerGroupId));
-}
-
-export function isReitLike(r: FundRowInput): boolean {
-  return r.scoringMode === "reit" || !!(r.peerGroupId && /reit/i.test(r.peerGroupId));
-}
-
-/** Neg equity (neg PB), or critically thin liquidity. */
-export function isDistressed(r: FundRowInput): boolean {
-  if (r.priceToBook != null && r.priceToBook < 0) return true;
-  if (r.currentRatio != null && r.currentRatio > 0 && r.currentRatio < 0.5) return true;
-  return false;
 }
 
 function intraTilt(key: MetricKey, style: StyleBucket, base: number, r: FundRowInput): number {
@@ -367,30 +290,6 @@ function isExcluded(m: MetricDef, style: StyleBucket, scoringMode: string | null
   if (m.key === "pFfo" && !isReitLike(r)) return true;
 
   return false;
-}
-
-export function assignStyleBucket(
-  r: FundRowInput,
-  peerValueNorm: number | null,
-  peerGrowthNorm: number | null,
-): StyleBucket {
-  if (isEconomicallyPreRevenue(r)) return "pre_revenue";
-  // scoringMode / peer path for financials (banks, insurance, REITs, brokers)
-  if (isFinancialLike(r)) return "financial";
-  if (r.peerGroupId && DEFENSIVE_GROUP_RE.test(r.peerGroupId) && (peerValueNorm == null || peerValueNorm < 0.7)) {
-    if (peerGrowthNorm == null || peerGrowthNorm < 0.55) return "quality_defensive";
-  }
-  const v = peerValueNorm ?? 0.5;
-  const g = peerGrowthNorm ?? 0.5;
-  if (isUnprofitableOperator(r)) {
-    if (g >= 0.55) return "growth";
-    return "blend";
-  }
-  if (v >= 0.55 && g >= 0.55) return "garp";
-  if (v >= 0.6 && g < 0.45) return "value";
-  if (g >= 0.6 && v < 0.45) return "growth";
-  if (v < 0.4 && g < 0.4 && (r.beta == null || r.beta < 0.9)) return "quality_defensive";
-  return "blend";
 }
 
 export function rawMetricValue(
