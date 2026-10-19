@@ -470,6 +470,65 @@ router.get("/etf-flows", async (req: Request, res: Response) => {
 });
 
 /**
+ * A98 P3 — per-ticker ETF bid ≈ Σ (ETF flow_usd over window × latest weight).
+ * GET /macro/etf-bid?tickers=NVDA,AAPL&days=20
+ * Weights from latest watchlist_sync.etf_holdings snapshot per ETF (monthly OK).
+ */
+router.get("/etf-bid", async (req: Request, res: Response) => {
+  try {
+    const { pool } = await import("@workspace/db");
+    const days = Math.min(120, Math.max(1, Number(req.query.days) || 20));
+    const raw = String(req.query.tickers ?? "");
+    const tickers = raw
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => /^[A-Z.]{1,8}$/.test(s))
+      .slice(0, 80);
+    if (!tickers.length) {
+      res.status(400).json({ error: "tickers required" });
+      return;
+    }
+    const r = await pool.query(
+      `WITH latest_h AS (
+         SELECT DISTINCT ON (etf, ticker)
+                etf, ticker, as_of, weight_pct
+         FROM watchlist_sync.etf_holdings
+         WHERE ticker = ANY($1::text[])
+         ORDER BY etf, ticker, as_of DESC
+       ),
+       flows AS (
+         SELECT etf, SUM(flow_usd)::float8 AS flow_usd
+         FROM watchlist_sync.etf_flows
+         WHERE date >= (CURRENT_DATE - $2::int)
+         GROUP BY etf
+       )
+       SELECT h.ticker,
+              SUM(f.flow_usd * (h.weight_pct / 100.0))::float8 AS bid_usd,
+              COUNT(*)::int AS etf_n,
+              MAX(h.as_of)::text AS holdings_as_of
+       FROM latest_h h
+       JOIN flows f ON f.etf = h.etf
+       GROUP BY h.ticker
+       ORDER BY bid_usd DESC NULLS LAST`,
+      [tickers, days],
+    );
+    res.json({
+      days,
+      tickers,
+      rows: r.rows.map((row) => ({
+        ticker: row.ticker as string,
+        bidUsd: row.bid_usd != null ? Number(row.bid_usd) : null,
+        etfN: Number(row.etf_n),
+        holdingsAsOf: row.holdings_as_of as string | null,
+      })),
+      note: "ETF bid ≈ Σ flow_usd × weight (latest SSGA holdings). Display only — not Model List (A98 P3).",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
  * A95 — LSEG EPS + PT revision breadth by sector (display only until S0xx).
  * GET /macro/revision-breadth?days=60
  * EPS breadth = (# eps_drift_30d_pct > +1%) − (# < −1%).
