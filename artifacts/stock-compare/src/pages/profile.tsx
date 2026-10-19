@@ -1,4 +1,5 @@
-import { useState, useMemo, Fragment } from "react"
+import { useState, useMemo, Fragment, type ReactNode } from "react"
+import { AnimatedNumber } from "@/components/animated-number"
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -214,18 +215,30 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
   const lowSample = stats.closed < 5
   const winRateColor = stats.winRate == null ? "text-white/70" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
   const pnlColor = stats.totalPnl == null ? "text-white/70" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
-  const pnl = stats.totalPnl != null ? (stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(0)}` : `-$${Math.abs(stats.totalPnl).toFixed(0)}`) : "—"
   const avgPnl = stats.closed > 0 && stats.totalPnl != null ? stats.totalPnl / stats.closed : null
   const streak = computeStreak(posts)
 
-  const items = [
+  const items: { label: string; value: ReactNode; color: string; dim: boolean }[] = [
     {
       label: "Win Rate",
       value: stats.winRate != null ? `${Math.round(stats.winRate * 100)}% (${stats.wins}-${stats.losses})` : "—",
       color: winRateColor,
       dim: lowSample,
     },
-    { label: "P&L", value: pnl, color: pnlColor, dim: lowSample },
+    {
+      label: "P&L",
+      value:
+        stats.totalPnl == null ? (
+          "—"
+        ) : (
+          <AnimatedNumber
+            value={stats.totalPnl}
+            format={(n) => (n >= 0 ? `+$${n.toFixed(0)}` : `-$${Math.abs(n).toFixed(0)}`)}
+          />
+        ),
+      color: pnlColor,
+      dim: lowSample,
+    },
     {
       label: "Avg",
       value: avgPnl != null ? (avgPnl >= 0 ? `+$${avgPnl.toFixed(0)}` : `-$${Math.abs(avgPnl).toFixed(0)}`) : "—",

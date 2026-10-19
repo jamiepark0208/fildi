@@ -60,6 +60,7 @@ def held_and_model(conn) -> list[str]:
     try:
         rows = conn.execute(q, (sid, sid)).fetchall()
     except Exception:
+        conn.rollback()
         rows = conn.execute(
             """SELECT DISTINCT UPPER(symbol) FROM portfolio_positions WHERE snapshot_id = %s
                UNION SELECT DISTINCT UPPER(symbol) FROM portfolio_options
@@ -148,7 +149,7 @@ def run(limit: int | None = None) -> dict:
         ).fetchall():
             names[r[0]] = r[1]
     except Exception:
-        pass
+        conn.rollback()
     n_lab, n_skip = 0, 0
     for t in tickers:
         for h in finnhub_news(t, since, today)[:12]:
@@ -156,15 +157,19 @@ def run(limit: int | None = None) -> dict:
             if not lab:
                 n_skip += 1
                 continue
-            conn.execute(
-                """INSERT INTO watchlist_sync.openjev_headline_labels
-                   (ticker, ts, headline, url, rel, dir, cat)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (ticker, ts, headline) DO UPDATE SET
-                     rel = EXCLUDED.rel, dir = EXCLUDED.dir, cat = EXCLUDED.cat, labeled_at = now()""",
-                (t, h["ts"], h["headline"], h["url"], lab["rel"], lab["dir"], lab["cat"]),
-            )
-            n_lab += 1
+            try:
+                conn.execute(
+                    """INSERT INTO watchlist_sync.openjev_headline_labels
+                       (ticker, ts, headline, url, rel, dir, cat)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (ticker, ts, headline) DO UPDATE SET
+                         rel = EXCLUDED.rel, dir = EXCLUDED.dir, cat = EXCLUDED.cat, labeled_at = now()""",
+                    (t, h["ts"], h["headline"], h["url"], lab["rel"], lab["dir"], lab["cat"]),
+                )
+                n_lab += 1
+            except Exception:
+                conn.rollback()
+                n_skip += 1
         conn.commit()
     return {"ok": True, "tickers": len(tickers), "labeled": n_lab, "skipped": n_skip}
 
