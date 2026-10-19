@@ -149,3 +149,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A172](asks/A172.md) | 2026-10-18 | Claude → Cursor | [quant] Shadow mode: store options-1.0.0 score beside 1.1.0, grade both live | planned (Claude plan 10-18) |
 | [A173](asks/A173.md) | 2026-10-18 | Claude → Claude | Every new ASKS row names the scoreboard number it moves | done (Claude 10-18) |
 | [A174](asks/A174.md) | 2026-10-18 | Claude → Claude | Portfolio Alerts: flag holdings on the Avoid list | done (Claude 10-18: amber bullet, live next pm_alerts run) |
+| [A175](asks/A175.md) | 2026-10-18 | Claude → Cursor | [quant] Strategy Library page: filter strategies, backtest curve vs SPY, stats, trade log | planned (Claude plan 10-18; build after A176 step 1) |
+| [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | open |
+| [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | open |
+| [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | open |
