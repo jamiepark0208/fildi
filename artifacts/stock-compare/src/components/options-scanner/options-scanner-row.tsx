@@ -43,6 +43,8 @@ interface ScannerRowProps {
   score: TechnicalScore | null;
   optionsData: OptionsChainResult[] | null;
   optionsLoading: boolean;
+  /** Set when chain fetch failed/timed out — stop spinner, show reason. */
+  chainError?: string | null;
   expanded: boolean;
   minIncome: number;
   overrideEnabled: boolean;
@@ -97,6 +99,7 @@ export function ScannerRow({
   score,
   optionsData,
   optionsLoading,
+  chainError = null,
   expanded,
   minIncome,
   overrideEnabled,
@@ -612,7 +615,13 @@ export function ScannerRow({
             );
           })()}
 
-          {subTab === "strikes" && !optionsLoading && optionsData && strikes.length === 0 && (
+          {subTab === "strikes" && !optionsLoading && optionsData && optionsData.length === 0 && (
+            <p className="text-xs text-amber-200/80 italic">
+              {chainError ?? "Empty options chain for this name."}
+            </p>
+          )}
+
+          {subTab === "strikes" && !optionsLoading && optionsData && optionsData.length > 0 && strikes.length === 0 && (
             <div className="space-y-2">
               <p className="text-xs text-white italic">
                 {optionStrikeSummary(optionsData, minIncome, isCall)}
@@ -646,7 +655,9 @@ export function ScannerRow({
           )}
 
           {subTab === "strikes" && !optionsLoading && !optionsData && (
-            <p className="text-xs text-white italic">No options data.</p>
+            <p className="text-xs text-amber-200/80 italic">
+              {chainError ?? "No options data — thin chain or fetch failed."}
+            </p>
           )}
         </div>
       )}

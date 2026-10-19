@@ -74,6 +74,10 @@ export function OptionsScannerContent({
     try { const s = sessionStorage.getItem("fildi_scanner_expanded"); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
   });
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
+  /** Chain fetch failed / timed out — clears infinite "Loading options…" spinner. */
+  const [chainFailed, setChainFailed] = useState<Map<string, string>>(new Map());
+  /** Watchlist: show names with no nightly option snapshot (thin / no chain). Off by default. */
+  const [showUnscored, setShowUnscored] = useState(false);
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("optionScore");
   // Sell Puts vs. Sell Calls — a page-level mode, not a per-row sub-tab, so the whole
@@ -181,6 +185,7 @@ export function OptionsScannerContent({
         otmPct: number | null;
         delta: number | null;
         strikeIv: number | null;
+        atmPutIv: number | null;
         dte: number | null;
         spot: number;
         strike: number;
@@ -206,15 +211,34 @@ export function OptionsScannerContent({
   }, [optionRankings]);
 
   const activeTickers = useMemo(() => {
+    // Drop incomplete snapshots (score with no income) — they render blank Inc/Buf and clutter the board.
+    const usableSnap = (optionRankings?.rankings ?? []).filter(
+      (r) => Number.isFinite(r.optionScore) && r.weeklyIncomePct != null && r.weeklyIncomePct >= 0,
+    );
     if (universe === "overall") {
-      const fromSnap = (optionRankings?.rankings ?? [])
-        .map((r) => r.ticker)
-        .filter((t) => !hiddenTickers.has(t));
+      const fromSnap = usableSnap.map((r) => r.ticker).filter((t) => !hiddenTickers.has(t));
       if (fromSnap.length > 0) return fromSnap;
       return overallTickers.filter((t) => !hiddenTickers.has(t));
     }
-    return entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
-  }, [universe, optionRankings, overallTickers, entries, hiddenTickers]);
+    // Watchlist ∩ scored snapshots (comment above). Unscored thin names (CABA/ALOY-class) stay hidden unless toggled.
+    const wl = entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
+    if (showUnscored || optionRankingsLoading) return wl;
+    const scored = new Set(usableSnap.map((r) => r.ticker));
+    const intersect = wl.filter((t) => scored.has(t));
+    return intersect.length > 0 ? intersect : wl;
+  }, [universe, optionRankings, overallTickers, entries, hiddenTickers, showUnscored, optionRankingsLoading]);
+
+  const unscoredWatchlistCount = useMemo(() => {
+    if (universe !== "watchlist" || optionRankingsLoading) return 0;
+    const scored = new Set(
+      (optionRankings?.rankings ?? [])
+        .filter((r) => Number.isFinite(r.optionScore) && r.weeklyIncomePct != null)
+        .map((r) => r.ticker),
+    );
+    return entries.filter(
+      (e) => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker) && !scored.has(e.ticker),
+    ).length;
+  }, [universe, optionRankings, optionRankingsLoading, entries, hiddenTickers]);
 
   const colorMap = useMemo(
     () => new Map(entries.map(e => [e.ticker, e.colorTag])),
@@ -299,10 +323,11 @@ export function OptionsScannerContent({
     displayTickers.forEach(t => {
       const entry = batchOptionsData?.[t];
       const hasData = refreshedOptions.has(t) || (entry != null && !("error" in entry));
-      m.set(t, expandedSet.has(t) && !hasData);
+      const failed = chainFailed.has(t);
+      m.set(t, expandedSet.has(t) && !hasData && !failed);
     });
     return m;
-  }, [displayTickers, batchOptionsData, refreshedOptions, expandedSet]);
+  }, [displayTickers, batchOptionsData, refreshedOptions, expandedSet, chainFailed]);
 
   // ── Today's oversold/overbought hotlist membership (Live tab) — surfaced as a
   // badge in this table so a ticker flagged there isn't missed here too.
@@ -439,8 +464,10 @@ export function OptionsScannerContent({
         scoreMap.set(ticker, snap.optionScore);
         if (snap.weeklyIncomePct != null) incomeMap.set(ticker, snap.weeklyIncomePct);
         // Snapshot otmPct is a fraction (0.08 = 8%), same as live pickBestStrike — not "percent points".
+        // Prefer strike IV; fall back to ATM put IV so Buf isn't blank when strike IV missing.
         const otm = snap.otmPct ?? 0;
-        const iv = snap.strikeIv ?? 0;
+        const ivRaw = snap.strikeIv ?? snap.atmPutIv ?? 0;
+        const iv = ivRaw > 2 ? ivRaw / 100 : ivRaw; // tolerate percent-point storage
         const dte = snap.dte ?? 0;
         if (otm > 0 && iv > 0 && dte > 0) {
           bufMap.set(ticker, otm / (iv * Math.sqrt(dte / 365)));
@@ -531,7 +558,8 @@ export function OptionsScannerContent({
       const snap = rankingByTicker.get(t);
       if (!snap) return null;
       const otm = snap.otmPct ?? 0; // fraction, not percent points
-      const iv = snap.strikeIv ?? 0;
+      const ivRaw = snap.strikeIv ?? snap.atmPutIv ?? 0;
+      const iv = ivRaw > 2 ? ivRaw / 100 : ivRaw;
       const dte = snap.dte ?? 0;
       if (!(otm > 0 && iv > 0 && dte > 0)) return null;
       return otm / (iv * Math.sqrt(dte / 365));
@@ -663,21 +691,40 @@ export function OptionsScannerContent({
   }, [visibleTickers, bestOptionScoreMap, stockScoreMap, scorecardMap, bestIncomeMap, bufferMap]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
-  /** Priority single-ticker chain fetch (expand / admin refresh). */
+  const CHAIN_FETCH_MS = 12_000;
+
+  /** Priority single-ticker chain fetch (expand / admin refresh). Hard timeout — thin names must not spin forever. */
   const ensureTickerChain = useCallback(async (ticker: string) => {
+    setChainFailed((prev) => {
+      if (!prev.has(ticker)) return prev;
+      const next = new Map(prev);
+      next.delete(ticker);
+      return next;
+    });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CHAIN_FETCH_MS);
     try {
-      const res = await fetch(`/api/options/${ticker}`);
+      const res = await fetch(`/api/options/${ticker}`, { signal: ac.signal });
       if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
       const data = await res.json() as OptionsChainResult[];
       setRefreshedOptions(prev => new Map(prev).set(ticker, data));
-      // Keep shared batch cache warm for Live / re-visits.
       queryClient.setQueryData(
         queryKeys.optionsBatch(displayTickersKey),
         (old: Record<string, OptionsChainResult[] | { error: string }> | undefined) =>
           old ? { ...old, [ticker]: data } : { [ticker]: data },
       );
-    } catch {
-      // keep existing data on failure
+    } catch (err) {
+      const msg = err instanceof Error && err.name === "AbortError"
+        ? "Options chain timed out (thin/illiquid name?)"
+        : "No usable options chain";
+      setChainFailed((prev) => new Map(prev).set(ticker, msg));
+      queryClient.setQueryData(
+        queryKeys.optionsBatch(displayTickersKey),
+        (old: Record<string, OptionsChainResult[] | { error: string }> | undefined) =>
+          old ? { ...old, [ticker]: { error: msg } } : { [ticker]: { error: msg } },
+      );
+    } finally {
+      clearTimeout(timer);
     }
   }, [queryClient, displayTickersKey]);
 
@@ -686,10 +733,12 @@ export function OptionsScannerContent({
     || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)))
   ), [refreshedOptions, batchOptionsData]);
 
-  /** Prefetch full chain on hover so expand isn't a cold Schwab/Yahoo wait. */
+  /** Prefetch only scored names — don't burn Schwab/Yahoo on thin watchlist junk on hover. */
   const handleRowPrefetch = useCallback((ticker: string) => {
+    if (!rankingByTicker.has(ticker)) return;
+    if (chainFailed.has(ticker)) return;
     if (!hasCachedChain(ticker)) void ensureTickerChain(ticker);
-  }, [hasCachedChain, ensureTickerChain]);
+  }, [hasCachedChain, ensureTickerChain, rankingByTicker, chainFailed]);
 
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
@@ -697,12 +746,33 @@ export function OptionsScannerContent({
       const opening = !next.has(ticker);
       if (opening) next.add(ticker);
       else next.delete(ticker);
-      if (opening && !hasCachedChain(ticker)) void ensureTickerChain(ticker);
+      // Retry after a prior fail/timeout when the user expands again.
+      if (opening && (!hasCachedChain(ticker) || chainFailed.has(ticker))) void ensureTickerChain(ticker);
       return next;
     });
   };
 
+  // sessionStorage can restore expanded rows without a fetch — remount must load or clear spinner.
+  useEffect(() => {
+    for (const t of expandedSet) {
+      if (!hasCachedChain(t) && !chainFailed.has(t)) void ensureTickerChain(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when expanded set identity changes
+  }, [expandedSet]);
+
   const handleRowRefresh = async (ticker: string) => {
+    setChainFailed((prev) => {
+      if (!prev.has(ticker)) return prev;
+      const next = new Map(prev);
+      next.delete(ticker);
+      return next;
+    });
+    setRefreshedOptions((prev) => {
+      if (!prev.has(ticker)) return prev;
+      const next = new Map(prev);
+      next.delete(ticker);
+      return next;
+    });
     await ensureTickerChain(ticker);
   };
 
@@ -762,6 +832,20 @@ export function OptionsScannerContent({
           />
         </div>
       </div>
+      {universe === "watchlist" && unscoredWatchlistCount > 0 && (
+        <label className="flex items-start gap-2 text-[11px] text-zinc-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showUnscored}
+            onChange={(e) => setShowUnscored(e.target.checked)}
+            className="mt-0.5 accent-[#d4af37]"
+          />
+          <span>
+            Show {unscoredWatchlistCount} with no option score
+            <span className="block text-[10px] text-zinc-500">Thin/no chain — blank Inc/Buf; expand may time out</span>
+          </span>
+        </label>
+      )}
       <p className="text-[10px] text-amber-200/40 leading-snug">
         Unvalidated ranking · Model List decides. Blends income/buffer with v4 technical total (lab: no edge).
       </p>
@@ -909,6 +993,7 @@ export function OptionsScannerContent({
                 score={rankings.get(ticker) ?? null}
                 optionsData={optionsMap.get(ticker) ?? null}
                 optionsLoading={optionsLoadingMap.get(ticker) ?? false}
+                chainError={chainFailed.get(ticker) ?? null}
                 expanded={expandedSet.has(ticker)}
                 minIncome={minIncome}
                 overrideEnabled={overrides.has(ticker)}

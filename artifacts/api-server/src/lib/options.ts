@@ -201,11 +201,24 @@ export async function fetchChain(ticker: string, date?: Date): Promise<RawOption
 // Returns up to 2 expiry chains: nearest 1wk + nearest 2wk (both 1-28 DTE).
 // Schwab first (1 call / ticker); Yahoo fallback on auth/rate/empty.
 
+/** Cap upstream chain work so thin names don't pin the request (scanner expand). */
+const CHAIN_BUDGET_MS = 10_000;
+
+function withBudget<T>(p: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${CHAIN_BUDGET_MS}ms`)), CHAIN_BUDGET_MS);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const key  = ticker.toUpperCase();
 
   try {
-    const schwab = await getSchwabOptionChains(key);
+    const schwab = await withBudget(getSchwabOptionChains(key), `schwab chain ${key}`);
     if (schwab?.length) {
       recordOptionsChainSource("schwab");
       return schwab.map((c) => ({ ...c, source: "schwab" as const }));
@@ -214,7 +227,7 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
     logger.warn({ ticker: key, err: String(err) }, "options: Schwab chain failed — Yahoo fallback");
   }
 
-  return getOptionsChainYahoo(key);
+  return withBudget(getOptionsChainYahoo(key), `yahoo chain ${key}`);
 }
 
 async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> {

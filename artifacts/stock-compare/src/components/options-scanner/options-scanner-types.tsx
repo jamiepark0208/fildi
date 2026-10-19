@@ -61,7 +61,7 @@ export function pfNum(v: number | string | null | undefined): number | null {
 
 export type ColRange = { lo: number; hi: number };
 
-/** Continuous column heat (low→high). Better than 3-bin green/yellow/red for ranking boards. */
+/** Continuous column heat (low→high): red → yellow → green. */
 export function columnHeatStyle(
   value: number | null | undefined,
   range: ColRange | null | undefined,
@@ -71,11 +71,11 @@ export function columnHeatStyle(
   let t = (value - range.lo) / (range.hi - range.lo);
   t = Math.max(0, Math.min(1, t));
   if (invert) t = 1 - t;
-  // slate (low) → amber (mid) → emerald (high)
-  const hue = t < 0.5 ? 210 - t * 100 : 45 + (t - 0.5) * 190;
-  const sat = 55 + t * 20;
-  const light = 32 + t * 8;
-  const alpha = 0.18 + t * 0.42;
+  // hue 0 (red) → 60 (yellow) → 120 (green)
+  const hue = t * 120;
+  const sat = 72;
+  const light = 36;
+  const alpha = 0.22 + t * 0.28;
   return { backgroundColor: `hsla(${hue}, ${sat}%, ${light}%, ${alpha})` };
 }
 
