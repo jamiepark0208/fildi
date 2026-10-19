@@ -176,11 +176,19 @@ export function dcfPerShare(fcf: number, shares: number, g0: number, k: number, 
   return (pv + (f * (1 + tg)) / (k - tg) / (1 + k) ** 10) / shares;
 }
 
-/** Reverse DCF: initial FCF growth that makes the DCF equal today's price (bisection), or null. */
-export function impliedGrowth(t: FvTickerInput, m: FvMarket, p: FairValueParams): number | null {
-  if (!pos(t.fcf) || !pos(t.shares) || !pos(t.price) || isFinancial(t) || isReit(t)) return null;
+/**
+ * Reverse DCF: initial FCF growth that makes the DCF equal `price` (default: today's price).
+ * A86: pass street consensus PT as `price` to compare street-implied growth vs price-implied.
+ */
+export function impliedGrowth(
+  t: FvTickerInput,
+  m: FvMarket,
+  p: FairValueParams,
+  price: number | null = t.price,
+): number | null {
+  if (!pos(t.fcf) || !pos(t.shares) || !pos(price) || isFinancial(t) || isReit(t)) return null;
   const k = costOfEquity(t, m, p);
-  const f = (g: number) => dcfPerShare(t.fcf!, t.shares!, g, k, p.terminalGrowth) - t.price!;
+  const f = (g: number) => dcfPerShare(t.fcf!, t.shares!, g, k, p.terminalGrowth) - price!;
   let lo = -0.3, hi = 0.8;
   if (f(lo) > 0 || f(hi) < 0) return null;
   for (let i = 0; i < 60; i++) {

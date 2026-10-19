@@ -40,14 +40,19 @@ router.get("/fair-value/:ticker/assumptions", async (req, res, next) => {
       SELECT * FROM fv_assumptions WHERE (scope = 'ticker' AND scope_key = $1) OR (scope = 'peer_group' AND scope_key = $2)
       ORDER BY created_at DESC`, [t, cohort?.id ?? ""])).rows;
     const fv = (await pool.query(`
-      SELECT as_of::text, price::float8, fair_value::float8, adjusted_fair_value::float8, confidence, mode, model_version, adjustments, votes
+      SELECT as_of::text, price::float8, fair_value::float8, adjusted_fair_value::float8, confidence, mode, model_version,
+             implied_growth::float8, adjustments, votes
       FROM fair_value_snapshots WHERE ticker = $1 ORDER BY as_of DESC LIMIT 180`, [t])).rows;
+    const streetPt = (await pool.query(`
+      SELECT median_pt::float8 AS median_pt FROM street_pt_daily
+      WHERE ticker = $1 ORDER BY as_of DESC LIMIT 1`, [t])).rows[0]?.median_pt as number | null | undefined;
     return res.json({
       ticker: t,
       shared: { version, changedAt: meta?.promoted_at ?? meta?.created_at ?? null, rationale: meta?.rationale ?? null, approvedBy: meta?.approved_by ?? null,
                 params: Object.fromEntries(SHARED_KEYS.map((k) => [k, (params as Record<string, unknown>)[k]])) },
       cohort, cohortParams: COHORT_PARAMS, inputs, inputsSince: hist[0]?.first_seen ?? null, assumptions: rows,
       latest: fv[0] ?? null, history: fv.map(({ votes: _v, adjustments: _a, ...r }) => r).reverse(),
+      streetPt: streetPt != null ? Number(streetPt) : null,
     });
   } catch (err) {
     return next(err);

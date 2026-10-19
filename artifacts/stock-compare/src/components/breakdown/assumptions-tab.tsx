@@ -22,8 +22,9 @@ type Sheet = {
   shared: { version: string; changedAt: string | null; rationale: string | null; params: Record<string, unknown> };
   cohort: { id: string; name: string; scoring_mode: string; members: number } | null;
   inputs: Input[]; inputsSince: string | null; assumptions: Row[];
-  latest: { as_of: string; price: number | null; fair_value: number | null; adjusted_fair_value: number | null; confidence: string | null; mode: string; model_version: string } | null;
+  latest: { as_of: string; price: number | null; fair_value: number | null; adjusted_fair_value: number | null; confidence: string | null; mode: string; model_version: string; implied_growth?: number | null } | null;
   history: { as_of: string; price: number | null; fair_value: number | null; adjusted_fair_value: number | null }[];
+  streetPt?: number | null;
 };
 type FieldHistory = { changes: { date: string; value: number | null }[]; overrides: Row[] };
 
@@ -135,6 +136,24 @@ export function AssumptionsTab({ ticker }: { ticker: string }) {
           {L?.confidence && <span className="text-amber-200/40"> ({L.confidence})</span>}</span>
         {L?.adjusted_fair_value != null && <span><span className="text-amber-200/50">Adjusted</span> <b className="text-[#d4af37]">${L.adjusted_fair_value.toFixed(2)}</b></span>}
         <span className="text-amber-200/50">price {L?.price != null ? `$${L.price.toFixed(2)}` : "—"}</span>
+        {data.streetPt != null && (
+          <span className="text-amber-200/50">street ${data.streetPt.toFixed(0)}
+            {L?.fair_value != null && data.streetPt > 0 && (
+              <span className={cn(
+                "ml-1",
+                ((L.fair_value - data.streetPt) / data.streetPt) >= 0 ? "text-green-400/80" : "text-red-400/80",
+              )}>
+                ({((L.fair_value - data.streetPt) / data.streetPt * 100) >= 0 ? "+" : ""}
+                {((L.fair_value - data.streetPt) / data.streetPt * 100).toFixed(0)}% vs FV)
+              </span>
+            )}
+          </span>
+        )}
+        {L?.implied_growth != null && (
+          <span className="text-amber-200/50" title="Reverse DCF: FCF growth that prices today's share price (not street PT yet)">
+            px implies {(L.implied_growth * 100).toFixed(0)}% g
+          </span>
+        )}
         <span className="ml-auto text-[10px] text-amber-200/40">{L?.as_of}</span>
       </div>
       <FvVsStreetChart ticker={ticker} />
