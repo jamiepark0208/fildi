@@ -25,6 +25,8 @@ if (!clientId || !secret) {
 }
 
 const pastedArg = process.argv[2]?.trim();
+// schwab-auth-watch.mjs raises this so an unattended prompt waits for Jamie.
+const timeoutMs = Number(process.env.SCHWAB_OAUTH_TIMEOUT_MS) || 180_000;
 
 function normalizeAuthCode(raw) {
   let code = String(raw ?? "").trim();
@@ -215,8 +217,8 @@ const done = new Promise((resolve, reject) => {
   server.on("error", reject);
   setTimeout(() => {
     server.close();
-    reject(new Error("Timed out waiting for OAuth callback (3 min)"));
-  }, 180_000);
+    reject(new Error(`Timed out waiting for OAuth callback (${Math.round(timeoutMs / 60_000)} min)`));
+  }, timeoutMs);
 });
 
 const code = await done;
