@@ -135,7 +135,10 @@ def fetch_store(conn, t: str, quarter: str) -> str:
         return "limit"
     segs = (d.get("transcript") or []) if isinstance(d, dict) else []
     sent = [float(x["sentiment"]) for x in segs if x.get("sentiment") not in (None, "")]
-    summary = summarize(t, quarter, segs) if segs else None
+    try:
+        summary = summarize(t, quarter, segs) if segs else None
+    except Exception:  # noqa: BLE001 — Haiku timeout must not kill the run or waste the AV call; resummarize() fills it next run
+        summary = None
     if summary:
         summary["schema"] = SCHEMA_VERSION
     conn.execute("""INSERT INTO watchlist_sync.earnings_transcripts (ticker, quarter, status, segments, av_sentiment, transcript, summary, summary_model)
@@ -168,7 +171,10 @@ def resummarize(conn) -> None:
     """Summaries that failed (or a prompt change): re-run from stored transcripts; no AV calls."""
     for r in rows(conn, """SELECT ticker, quarter, transcript FROM watchlist_sync.earnings_transcripts
                          WHERE status = 'ok' AND (summary IS NULL OR COALESCE((summary->>'schema')::int, 1) < %s)""", (SCHEMA_VERSION,)):
-        s = summarize(r["ticker"], r["quarter"], r["transcript"])
+        try:
+            s = summarize(r["ticker"], r["quarter"], r["transcript"])
+        except Exception:  # noqa: BLE001 — one slow call skips that row, not the whole run
+            continue
         if s:
             s["schema"] = SCHEMA_VERSION
             conn.execute("UPDATE watchlist_sync.earnings_transcripts SET summary = %s, summary_model = %s WHERE ticker = %s AND quarter = %s",
