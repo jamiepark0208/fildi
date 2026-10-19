@@ -10,6 +10,7 @@ import { db, modelRecs, hotlistSnapshots, regimeGrades, pricesHistorical } from 
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { getLivePrices } from "../lib/live-quote.js";
+import { getWheelPnl } from "../lib/wheel-pnl.js";
 import {
   runModelSnapshot, runModelGrading, getTiltState, insertRegimeGradeStubs,
   getCalibrationTable, resetModelTrackRecord, backfillPathRisk,
@@ -502,10 +503,12 @@ router.get("/track-record/recs", async (req, res) => {
   try {
     const side = req.query["side"] === "call" ? "call" : req.query["side"] === "put" ? "put" : null;
     const status = typeof req.query["status"] === "string" ? req.query["status"].toUpperCase() : null;
+    const ticker = typeof req.query["ticker"] === "string" ? req.query["ticker"].toUpperCase() : null;
     const limit = Math.min(500, Math.max(1, parseInt(String(req.query["limit"] ?? "100"), 10) || 100));
 
     const conditions = [];
     if (side) conditions.push(eq(modelRecs.side, side));
+    if (ticker && /^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) conditions.push(eq(modelRecs.ticker, ticker));
     if (status && ["PENDING", "ASSIGNED", "WIN", "LOSS", "NO_DATA"].includes(status)) conditions.push(eq(modelRecs.status, status));
 
     const rows = await db.select().from(modelRecs)
@@ -513,6 +516,108 @@ router.get("/track-record/recs", async (req, res) => {
       .orderBy(desc(modelRecs.snapshotDate), asc(modelRecs.ticker))
       .limit(limit);
     return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+/**
+ * A92 — per-ticker drill-down: model recs + cum P&L + real-book wheel total.
+ * GET /track-record/ticker/:ticker
+ */
+router.get("/track-record/ticker/:ticker", async (req, res) => {
+  try {
+    const ticker = String(req.params.ticker ?? "").toUpperCase();
+    if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) {
+      return res.status(400).json({ error: "bad ticker" });
+    }
+    const data = await trackRecordCache.getOrCompute(`ticker-drill-${ticker}`, async () => {
+      const recs = await db.select({
+        id: modelRecs.id,
+        side: modelRecs.side,
+        status: modelRecs.status,
+        snapshotDate: modelRecs.snapshotDate,
+        expiry: modelRecs.expiry,
+        strike: modelRecs.strike,
+        premium: modelRecs.premium,
+        spot: modelRecs.spot,
+        settleClose: modelRecs.settleClose,
+        pnlPct: modelRecs.pnlPct,
+        pnlPerShare: modelRecs.pnlPerShare,
+        intrinsic: modelRecs.intrinsic,
+        componentScores: modelRecs.componentScores,
+      }).from(modelRecs)
+        .where(eq(modelRecs.ticker, ticker))
+        .orderBy(asc(modelRecs.expiry), asc(modelRecs.side));
+
+      const graded = recs
+        .filter((r) => r.status === "WIN" || r.status === "LOSS")
+        .slice()
+        .sort((a, b) => a.expiry.localeCompare(b.expiry) || a.side.localeCompare(b.side));
+
+      let cumAllIn = 0;
+      let cumPremium = 0;
+      const equityCurve = graded.map((r) => {
+        const cs = r.componentScores as {
+          _settlement?: {
+            hold?: { pnlPct?: number };
+            assignment?: { allInPnlPerShare?: number | null; premiumPnlPerShare?: number };
+          };
+        } | null;
+        const strike = num(r.strike) ?? 0;
+        const spot = num(r.spot) ?? 0;
+        const basis = r.side === "put" ? strike : spot;
+        const a = cs?._settlement?.assignment;
+        const hold = cs?._settlement?.hold;
+        const premiumPct =
+          typeof hold?.pnlPct === "number" ? hold.pnlPct
+            : typeof a?.premiumPnlPerShare === "number" && basis > 0
+              ? (a.premiumPnlPerShare / basis) * 100
+              : (num(r.pnlPct) ?? 0);
+        const allInPct =
+          typeof a?.allInPnlPerShare === "number" && basis > 0
+            ? (a.allInPnlPerShare / basis) * 100
+            : (num(r.pnlPct) ?? premiumPct);
+        cumAllIn += allInPct;
+        cumPremium += premiumPct;
+        return {
+          expiry: r.expiry,
+          side: r.side,
+          status: r.status,
+          allInPct: Math.round(allInPct * 100) / 100,
+          premiumPct: Math.round(premiumPct * 100) / 100,
+          cumAllInPct: Math.round(cumAllIn * 100) / 100,
+          cumPremiumPct: Math.round(cumPremium * 100) / 100,
+        };
+      });
+
+      const wheel = await getWheelPnl(ticker);
+      return {
+        ticker,
+        recs: recs.map((r) => ({
+          id: r.id,
+          side: r.side,
+          status: r.status,
+          snapshotDate: r.snapshotDate,
+          expiry: r.expiry,
+          strike: num(r.strike),
+          premium: num(r.premium),
+          spot: num(r.spot),
+          settleClose: num(r.settleClose),
+          pnlPct: num(r.pnlPct),
+          pnlPerShare: num(r.pnlPerShare),
+          intrinsic: num(r.intrinsic),
+          assigned: !!(r.componentScores as { _settlement?: { assignment?: { assigned?: boolean } } } | null)
+            ?._settlement?.assignment?.assigned,
+          allInPnlPerShare: (r.componentScores as {
+            _settlement?: { assignment?: { allInPnlPerShare?: number | null } };
+          } | null)?._settlement?.assignment?.allInPnlPerShare ?? null,
+        })),
+        equityCurve,
+        wheel,
+      };
+    });
+    return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

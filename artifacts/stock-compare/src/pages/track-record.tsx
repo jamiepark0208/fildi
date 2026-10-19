@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { TopNav } from "@/components/top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TickerDrilldown } from "@/components/track-record/ticker-drilldown";
 import { cn } from "@/lib/utils";
 
 interface SideSummary {
@@ -738,6 +739,7 @@ function PriceCell({ price, changePct }: { price: number | null; changePct: numb
 
 function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
   const [sortMode, setSortMode] = useState<SortMode>("put-shrpe");
+  const [openTicker, setOpenTicker] = useState<string | null>(null);
 
   const bestPut = useMemo(() => bestEdgeRow(rows, "put"), [rows]);
   const bestCall = useMemo(() => bestEdgeRow(rows, "call"), [rows]);
@@ -790,7 +792,7 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
           ))}
         </div>
         <span className="text-[10px] text-zinc-500">
-          Shrp n≥{SHARPE_MIN_N} · Adv = path MAE%/cush% · hover for full explain
+          Shrp n≥{SHARPE_MIN_N} · Adv = path MAE%/cush% · click ticker for drill-down
         </span>
       </div>
 
@@ -849,20 +851,34 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
             <tbody className="divide-y divide-zinc-800/80">
               {sorted.map(r => {
                 const isBest = highlightTicker != null && r.ticker === highlightTicker;
+                const isOpen = openTicker === r.ticker;
                 return (
                   <tr
                     key={r.ticker}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOpenTicker(isOpen ? null : r.ticker)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setOpenTicker(isOpen ? null : r.ticker);
+                      }
+                    }}
                     className={cn(
-                      "transition-colors",
-                      isBest
-                        ? "bg-[#d4af37]/10 ring-1 ring-inset ring-[#d4af37]/35"
-                        : "bg-zinc-900/70 even:bg-zinc-800/50 hover:bg-amber-500/10",
+                      "transition-colors cursor-pointer",
+                      isOpen ? "bg-[#d4af37]/15"
+                        : isBest
+                          ? "bg-[#d4af37]/10 ring-1 ring-inset ring-[#d4af37]/35"
+                          : "bg-zinc-900/70 even:bg-zinc-800/50 hover:bg-amber-500/10",
                     )}
                   >
                     <td className={cn(TD, "text-left font-semibold text-white")}>
                       {r.ticker}
                       {isBest && (
                         <span className="ml-1 text-[8px] font-bold uppercase tracking-wide text-[#d4af37]">edge</span>
+                      )}
+                      {isOpen && (
+                        <span className="ml-1 text-[8px] font-bold uppercase tracking-wide text-sky-300">open</span>
                       )}
                     </td>
                     <PriceCell price={r.currentPrice} changePct={r.priceChangePct} />
@@ -876,6 +892,10 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {openTicker && (
+        <TickerDrilldown ticker={openTicker} onClose={() => setOpenTicker(null)} />
       )}
     </section>
   );
