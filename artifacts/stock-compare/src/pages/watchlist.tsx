@@ -511,7 +511,7 @@ function WatchlistView() {
 
       <ResizableHandle className="bg-[#d4af37]/15 hover:bg-[#d4af37]/40 transition-colors w-[3px]" />
 
-      <ResizablePanel defaultSize={87} className="bg-zinc-900 overflow-hidden flex flex-col min-w-0">
+      <ResizablePanel defaultSize={87} className="bg-zinc-900 overflow-hidden flex flex-col min-h-0 min-w-0">
         {!selectedTicker ? (
           <div className="h-full flex flex-col items-center justify-center text-amber-200/30 space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-zinc-950 flex items-center justify-center border border-dashed border-[#d4af37]/25">
@@ -520,11 +520,13 @@ function WatchlistView() {
             <p className="text-sm font-medium">Select a security</p>
           </div>
         ) : (
-          <StockBreakdown
-            ticker={selectedTicker}
-            watchlistMetrics={watchlistTagMetrics}
-            modelThesis={modelThesis}
-          />
+          <div className="h-full min-h-0 flex flex-col" data-lenis-prevent>
+            <StockBreakdown
+              ticker={selectedTicker}
+              watchlistMetrics={watchlistTagMetrics}
+              modelThesis={modelThesis}
+            />
+          </div>
         )}
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -158,6 +158,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A181](asks/A181.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |
 | [A182](asks/A182.md) | 2026-10-19 | Muse → Cursor | Model-version promotion protocol — scoreboard-gated, preregistered | open |
 | [A179](asks/A179.md) | 2026-10-19 | Cursor → Claude | Daily put-seller desk workflow UX (Today strip, ticker Open Options, trust chrome) | open |
-| [A180](asks/A180.md) | 2026-10-19 | Cursor → Claude | DB-first shell for Breakdown / quote / compare (cut request-path Yahoo) | open |
-| [A181](asks/A181.md) | 2026-10-19 | Cursor → Claude | Price chart history ≥1W from prices_historical (not Yahoo chart) | open |
-| [A182](asks/A182.md) | 2026-10-19 | Cursor → Claude | LazyMount Breakdown PriceChart (defer history fetch) | open |
+| [A180](asks/A180.md) | 2026-10-19 | Cursor → Claude | DB-first shell for Breakdown / quote / compare (cut request-path Yahoo) | done (Cursor 10-19) |
+| [A181](asks/A181.md) | 2026-10-19 | Cursor → Claude | Price chart history ≥1W from prices_historical (not Yahoo chart) | done (Cursor 10-19) |
+| [A182](asks/A182.md) | 2026-10-19 | Cursor → Claude | LazyMount Breakdown PriceChart (defer history fetch) | done (Cursor 10-19) |

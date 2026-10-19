@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { yahooFinance } from "../lib/yahoo-client.js";
 import { readLatestFairValue, type LatestFairValue } from "../lib/fair-value-snapshots.js";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   CompareStocksQueryParams,
   SearchStocksQueryParams,
@@ -15,6 +15,7 @@ import {
   edgarStatementHistory,
   type EdgarStatementHistoryRow,
   tickerEventBullets,
+  pricesHistorical,
 } from "@workspace/db";
 import { readFundamentalsRow, readRegistryRow } from "../lib/fundamentals-db.js";
 import { TTLCache } from "../lib/ttl-cache.js";
@@ -26,7 +27,7 @@ import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, write
 import { parseAnalystHeadlines } from "../lib/analyst-headline-parser.js";
 import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
-import { getLivePrices } from "../lib/live-quote.js";
+import { getLivePrices, type LivePrice } from "../lib/live-quote.js";
 import { fetchEdgarStatementHistory, fetchFiscalYearEnd } from "../lib/edgar-client.js";
 import {
   resolvePegGrowth,
@@ -236,6 +237,48 @@ function fmpNum(v: string | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   const n = parseFloat(v);
   return isFinite(n) ? n : null;
+}
+
+/** A180 — gold row present enough to skip Yahoo fund modules. */
+function hasGoldFundamentals(fmp: TickerFundamentalsRow | null | undefined): boolean {
+  if (!fmp) return false;
+  return fmpNum(fmp.peRatio) != null
+    || fmpNum(fmp.revenueGrowthYoY) != null
+    || fmpNum(fmp.netMargin) != null
+    || fmpNum(fmp.returnOnEquity) != null;
+}
+
+/**
+ * Live quote → Yahoo-shaped stub for buildMetrics.
+ * getLivePrices changePercent is percent points (−6.83); metrics.dayChangePercent is a fraction.
+ */
+function quoteStubFromLive(live: LivePrice | undefined): Record<string, unknown> {
+  const price = live?.price ?? null;
+  const pctPts = live?.changePercent ?? null;
+  const frac = pctPts != null ? pctPts / 100 : null;
+  return {
+    regularMarketPrice: price,
+    regularMarketChangePercent: frac,
+    regularMarketChange: price != null && frac != null ? price * frac : null,
+    regularMarketOpen: live?.open ?? null,
+  };
+}
+
+/** Overlay Schwab→Yahoo live last + day% onto metrics (list/header parity). */
+function applyLivePriceFields<T extends {
+  currentPrice: number | null;
+  dayChange?: number | null;
+  dayChangePercent?: number | null;
+}>(metrics: T, live: LivePrice | undefined): T {
+  if (!live || live.price == null) return metrics;
+  const pctPts = live.changePercent;
+  const frac = pctPts != null ? pctPts / 100 : null;
+  return {
+    ...metrics,
+    currentPrice: live.price,
+    dayChangePercent: frac ?? metrics.dayChangePercent ?? null,
+    dayChange: frac != null ? live.price * frac : metrics.dayChange ?? null,
+  };
 }
 
 // Build StockMetrics from Yahoo quote data + optional FMP fundamentals DB row.
@@ -457,26 +500,40 @@ router.get("/stocks/compare", async (req, res) => {
   try {
     const t1 = ticker1.toUpperCase();
     const t2 = ticker2.toUpperCase();
-    const [q1, q2, fmp1, fmp2, reg1, reg2, fv1, fv2] = await Promise.all([
-      yahooFinance.quoteSummary(t1, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
-      }),
-      yahooFinance.quoteSummary(t2, {
-        modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
-      }),
+    // A180: gold + live first; Yahoo quoteSummary only when a side lacks gold.
+    const [fmp1, fmp2, reg1, reg2, fv1, fv2, liveMap] = await Promise.all([
       readFundamentalsRow(t1),
       readFundamentalsRow(t2),
       readRegistryRow(t1),
       readRegistryRow(t2),
       readLatestFairValue(t1),
       readLatestFairValue(t2),
+      getLivePrices([t1, t2]),
+    ]);
+    const needYahoo1 = !hasGoldFundamentals(fmp1);
+    const needYahoo2 = !hasGoldFundamentals(fmp2);
+    const [q1, q2] = await Promise.all([
+      needYahoo1
+        ? yahooFinance.quoteSummary(t1, {
+            modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
+          })
+        : Promise.resolve(null),
+      needYahoo2
+        ? yahooFinance.quoteSummary(t2, {
+            modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics"],
+          })
+        : Promise.resolve(null),
     ]);
 
-    const merged1 = { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics };
-    const merged2 = { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics };
+    const merged1 = q1
+      ? { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics }
+      : quoteStubFromLive(liveMap.get(t1));
+    const merged2 = q2
+      ? { ...q2.price, ...q2.summaryDetail, ...q2.financialData, ...q2.defaultKeyStatistics }
+      : quoteStubFromLive(liveMap.get(t2));
 
-    const stock1 = buildMetrics(merged1, fmp1, t1, reg1, fv1);
-    const stock2 = buildMetrics(merged2, fmp2, t2, reg2, fv2);
+    const stock1 = applyLivePriceFields(buildMetrics(merged1, fmp1, t1, reg1, fv1), liveMap.get(t1));
+    const stock2 = applyLivePriceFields(buildMetrics(merged2, fmp2, t2, reg2, fv2), liveMap.get(t2));
     const scorecard = buildScorecard(stock1, stock2, ticker1.toUpperCase(), ticker2.toUpperCase());
 
     const payload = { stock1, stock2, scorecard };
@@ -559,8 +616,47 @@ router.get("/stocks/history", async (req, res) => {
   const cached = cache.get(key);
   if (cached) return res.json(cached);
 
+  const upper = ticker.toUpperCase();
+
+  // A181: daily periods from prices_historical (same bars as scorers); 1D stays Yahoo/intraday.
+  if (period !== "1D") {
+    try {
+      const cutoff = getPeriod1(period);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const minBars = period === "1W" ? 3 : period === "1M" ? 10 : period === "3M" ? 40 : 120;
+      const rows = await db
+        .select({
+          date: pricesHistorical.date,
+          open: pricesHistorical.open,
+          high: pricesHistorical.high,
+          low: pricesHistorical.low,
+          close: pricesHistorical.close,
+          volume: pricesHistorical.volume,
+        })
+        .from(pricesHistorical)
+        .where(and(eq(pricesHistorical.ticker, upper), gte(pricesHistorical.date, cutoffStr)))
+        .orderBy(asc(pricesHistorical.date));
+      const usable = rows.filter((r) => r.close != null && Number(r.close) > 0);
+      if (usable.length >= minBars) {
+        const data = usable.map((r) => ({
+          date: typeof r.date === "string" ? `${r.date}T00:00:00.000Z` : new Date(r.date as unknown as string).toISOString(),
+          close: Number(r.close),
+          open: r.open != null ? Number(r.open) : null,
+          high: r.high != null ? Number(r.high) : null,
+          low: r.low != null ? Number(r.low) : null,
+          volume: r.volume ?? null,
+        }));
+        cache.set(key, data);
+        return res.json(data);
+      }
+      logger.info({ ticker: upper, period, n: usable.length, minBars }, "history: prices_historical thin — Yahoo chart fallback");
+    } catch (err: any) {
+      logger.warn({ ticker: upper, period, err: String(err?.message ?? err) }, "history: DB read failed — Yahoo chart fallback");
+    }
+  }
+
   try {
-    const result = await yahooFinance.chart(ticker.toUpperCase(), {
+    const result = await yahooFinance.chart(upper, {
       period1: getPeriod1(period),
       interval: getInterval(period) as any,
     });
@@ -584,9 +680,9 @@ type QuoteMetrics = ReturnType<typeof buildMetrics> & { earningsDate: ReturnType
 
 export const quoteCache = new TTLCache<QuoteMetrics>(60 * 60 * 1000, 'quote', 1000); // key = ticker
 
-async function fetchQuoteSummary(ticker: string) {
+async function fetchQuoteSummary(ticker: string, modules: string[]) {
   return yahooFinance.quoteSummary(ticker.toUpperCase(), {
-    modules: ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "calendarEvents"],
+    modules: modules as any,
   });
 }
 
@@ -594,25 +690,35 @@ async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
   // getOrCompute coalesces concurrent misses for the same ticker into one Yahoo call.
   return quoteCache.getOrCompute(key, async () => {
-    const [q, fmpRow, regRow, fv] = await Promise.all([
-      fetchQuoteSummary(key),
+    const [fmpRow, regRow, fv, liveMap] = await Promise.all([
       readFundamentalsRow(key),
       readRegistryRow(key),
       readLatestFairValue(key),
+      getLivePrices([key]),
     ]);
-    // assetProfile carries sector/industry — price/summaryDetail/financialData/
-    // defaultKeyStatistics never do, so quote.sector was always undefined without it.
+    const live = liveMap.get(key);
+    // A180: gold + live stub — skip Yahoo when fundamentals are already in DB.
+    if (hasGoldFundamentals(fmpRow)) {
+      const metrics = buildMetrics(quoteStubFromLive(live), fmpRow, key, regRow, fv);
+      return { ...applyLivePriceFields(metrics, live), earningsDate: null };
+    }
+    const q = await fetchQuoteSummary(key, [
+      "price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "calendarEvents",
+    ]);
     const merged = { ...q.price, ...q.summaryDetail, ...q.financialData, ...q.defaultKeyStatistics, ...q.assetProfile };
-    return { ...buildMetrics(merged, fmpRow, key, regRow, fv), earningsDate: parseEarningsDate(q, null) };
+    const metrics = buildMetrics(merged, fmpRow, key, regRow, fv);
+    return { ...applyLivePriceFields(metrics, live), earningsDate: parseEarningsDate(q, null) };
   });
 }
 
-// Overlays the golden-source live price (same cache Live Monitor reads) onto a metrics
-// object built by buildMetrics(), so currentPrice matches exactly across breakdown/quote/live.
-async function withLivePrice<T extends { currentPrice: number | null }>(ticker: string, metrics: T): Promise<T> {
+// Overlays golden-source live last + day% (same cache as Live / Watchlist list).
+async function withLivePrice<T extends {
+  currentPrice: number | null;
+  dayChange?: number | null;
+  dayChangePercent?: number | null;
+}>(ticker: string, metrics: T): Promise<T> {
   const live = await getLivePrices([ticker]);
-  const price = live.get(ticker.toUpperCase())?.price;
-  return price != null ? { ...metrics, currentPrice: price } : metrics;
+  return applyLivePriceFields(metrics, live.get(ticker.toUpperCase()));
 }
 
 router.get("/stocks/quote", async (req, res) => {
@@ -665,9 +771,8 @@ router.get("/stocks/quotes", async (req, res) => {
   const live = await getLivePrices(keys);
   for (const key of keys) {
     const r = results[key];
-    const livePrice = live.get(key)?.price;
-    if (r && !("error" in r) && livePrice != null) {
-      results[key] = { ...r, currentPrice: livePrice };
+    if (r && !("error" in r)) {
+      results[key] = applyLivePriceFields(r as any, live.get(key));
     }
   }
 
@@ -726,15 +831,14 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 14; // 14: blended fair value fields
+const BREAKDOWN_CACHE_VER = 15; // 15: A180 lighter Yahoo when gold; live day% overlay
 
-// Overlays the golden-source live price onto the (possibly 2h-stale, cached) breakdown
-// payload's metrics.currentPrice, so it matches exactly what Live Monitor / quote show.
+// Overlays golden-source live last + day% onto cached breakdown metrics (list/header parity).
 async function overlayBreakdownPrice(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
   const live = await getLivePrices([ticker]);
-  const price = live.get(ticker)?.price;
-  if (price != null && payload.metrics && typeof payload.metrics === "object") {
-    (payload.metrics as any).currentPrice = price;
+  const entry = live.get(ticker);
+  if (entry && payload.metrics && typeof payload.metrics === "object") {
+    payload.metrics = applyLivePriceFields(payload.metrics as any, entry);
   }
   return payload;
 }
@@ -748,16 +852,11 @@ router.get("/stocks/breakdown", async (req, res) => {
   const key = `${upperTicker}:v${BREAKDOWN_CACHE_VER}`;
 
   try {
-    // getOrCompute coalesces concurrent misses for the same ticker into one build
-    // (breakdown is the heaviest fan-out: Yahoo summary + news + peers + fundamentals).
+    // getOrCompute coalesces concurrent misses for the same ticker into one build.
     const payload = (await breakdownCache.getOrCompute(key, async () => {
-    const analystFresh = await isAnalystDataFresh(upperTicker);
-    const modules = ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
-    if (!analystFresh) modules.push("upgradeDowngradeHistory");
-
-    const [summary, newsRes, fmpRow, regRow, earningsDbRows, peersPayload, fv] = await Promise.all([
-      yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
-      yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
+    // A180: load gold + live first so we can drop Yahoo fund modules when DB covers them.
+    const [analystFresh, fmpRow, regRow, earningsDbRows, peersPayload, fv, liveMap] = await Promise.all([
+      isAnalystDataFresh(upperTicker),
       readFundamentalsRow(upperTicker),
       readRegistryRow(upperTicker),
       db.select({ earningsDate: indicatorCache.earningsDate })
@@ -769,16 +868,34 @@ router.get("/stocks/breakdown", async (req, res) => {
         return { ticker: upperTicker, sector: null, industry: null, peers: [] as string[] };
       }),
       readLatestFairValue(upperTicker),
+      getLivePrices([upperTicker]),
+    ]);
+    const live = liveMap.get(upperTicker);
+    const gold = hasGoldFundamentals(fmpRow);
+    // Gold path: profile/rec/calendar only (no fund modules). Cold path without gold: full modules.
+    const modules = gold
+      ? ["price", "assetProfile", "recommendationTrend", "calendarEvents"]
+      : ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
+    if (!analystFresh) modules.push("upgradeDowngradeHistory");
+
+    const [summary, newsRes] = await Promise.all([
+      yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
+      yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
     ]);
 
-    const merged = {
-      ...summary.price,
-      ...summary.summaryDetail,
-      ...summary.financialData,
-      ...summary.defaultKeyStatistics,
-      ...summary.assetProfile,
-    };
-    const metrics = buildMetrics(merged, fmpRow, upperTicker, regRow, fv) as ReturnType<typeof buildMetrics> & {
+    const merged = gold
+      ? { ...quoteStubFromLive(live), ...summary.price, ...summary.assetProfile }
+      : {
+          ...summary.price,
+          ...summary.summaryDetail,
+          ...summary.financialData,
+          ...summary.defaultKeyStatistics,
+          ...summary.assetProfile,
+        };
+    const metrics = applyLivePriceFields(
+      buildMetrics(merged, fmpRow, upperTicker, regRow, fv),
+      live,
+    ) as ReturnType<typeof buildMetrics> & {
       pegGrowthPeerZ?: number | null;
       pegGrowthPeerN?: number;
       pegGrowthPeerGroup?: string | null;
@@ -854,12 +971,12 @@ router.get("/stocks/breakdown", async (req, res) => {
       }
     }
 
-    // Aggregate price target range from financialData
+    // Aggregate price target range — Yahoo financialData when present; gold analyst target as mean fallback (A180).
     const fd = (summary as any).financialData ?? {};
     const priceTargetRange = {
       high:   safeNum(fd.targetHighPrice)   ?? null,
       low:    safeNum(fd.targetLowPrice)    ?? null,
-      mean:   safeNum(fd.targetMeanPrice)   ?? null,
+      mean:   safeNum(fd.targetMeanPrice)   ?? metrics.analystTargetPrice ?? null,
       median: safeNum(fd.targetMedianPrice) ?? null,
     };
 

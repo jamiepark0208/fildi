@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { ModelThesisReport, type ModelThesis } from "@/components/model-thesis-report";
 import { FairValueBadge } from "@/components/fair-value-badge";
+import { LazyMount } from "@/components/lazy-mount";
 
 import {
   useBreakdown, overviewBullets, TagBadge, BreakdownPanel,
@@ -154,7 +155,7 @@ export function StockBreakdown({
   const dayUp = (m?.dayChange ?? 0) >= 0;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" data-lenis-prevent>
       {/* Search header — hidden when ticker is driven by parent (e.g. watchlist) */}
       {!propTicker && <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-900/95 backdrop-blur px-6 py-3 z-10">
         <div className="max-w-5xl mx-auto flex gap-2">
@@ -207,8 +208,8 @@ export function StockBreakdown({
         </div>
       </div>}
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Content area — min-h-0 + data-lenis-prevent so nested scroll works under A127 Lenis */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" data-lenis-prevent>
         {/* Empty state */}
         {!activeTicker && (
           <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground/60 gap-4 py-20">
@@ -472,7 +473,7 @@ export function StockBreakdown({
               ]}
             />
 
-            {/* ── Price chart + Technicals dig ── */}
+            {/* ── Price chart + Technicals dig (A182: defer mount / history fetch) ── */}
             <div className="space-y-1">
               <div className="flex items-center justify-end">
                 <button
@@ -483,17 +484,27 @@ export function StockBreakdown({
                   Technicals
                 </button>
               </div>
-              <div className="h-[340px] w-full min-w-0">
-                <PriceChart
-                  tickers={[m.ticker]}
-                  loadedStocks={[m]}
-                  selectedPeriod={chartPeriod}
-                  onPeriodChange={setChartPeriod}
-                  showTechnicalZones={!!propTicker}
-                  tickerForTechnicals={propTicker}
-                  compact
-                />
-              </div>
+              <LazyMount
+                minHeight={340}
+                rootMargin="320px 0px"
+                fallback={
+                  <div className="h-[340px] w-full min-w-0 rounded-lg border border-[#d4af37]/15 bg-zinc-950/80 flex items-center justify-center text-[10px] text-amber-200/40">
+                    Chart · scroll to load
+                  </div>
+                }
+              >
+                <div className="h-[340px] w-full min-w-0">
+                  <PriceChart
+                    tickers={[m.ticker]}
+                    loadedStocks={[m]}
+                    selectedPeriod={chartPeriod}
+                    onPeriodChange={setChartPeriod}
+                    showTechnicalZones={!!propTicker}
+                    tickerForTechnicals={propTicker}
+                    compact
+                  />
+                </div>
+              </LazyMount>
             </div>
 
             {/* ── Priority stack ── */}
