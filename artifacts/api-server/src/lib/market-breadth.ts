@@ -153,11 +153,11 @@ export async function backfillMarketBreadth(days: number): Promise<{ ok: number;
     ok++;
   }
   let ma = 0;
-  // Fill MA% for newest-first dates missing pct_above_50 (cap so Maintain stays fast).
+  // MA% window SQL is heavy — only newest few missing dates (Maintain + long backfill).
   const needMa = rowsOf<{ date: string }>((await db.execute(sql`
     SELECT date::text AS date FROM market_breadth_daily
     WHERE pct_above_50 IS NULL
-    ORDER BY date DESC LIMIT 60`)) as SqlRows<never>);
+    ORDER BY date DESC LIMIT 3`)) as SqlRows<never>);
   for (const r of needMa) {
     if (await fillMaPctForDate(r.date)) ma++;
   }
