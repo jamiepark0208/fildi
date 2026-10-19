@@ -64,6 +64,7 @@ Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impa
 Everything else — spec, replies, status notes, reviews — lives in `research/common/asks/A##.md` (template `asks/_TEMPLATE.md`). Read the index; open a file only to act on it.
 
 1. **Muse files** `Muse → Cursor` (unchanged): new `asks/A##.md` + one index line. Quant rows: title starts with `[quant]`.
+   **Every row (any agent) carries a `Moves:` line** — the scoreboard number it moves (A171) or `ops` (A173, S044: ~40 % of a week moved none). Plan review sends back rows without one.
 2. **Claude plan review** (every Muse row, before build; user 2026-10-14): checks overlap with existing code + `research/studies/INDEX.md`,
    adds the eval (test cases / pre-registered study row with stop rule / before-after), appends
    `**Claude plan <date>:** …` to the file's `## Reviews` and sets the index status to `planned`. Claude never implements Muse rows.
