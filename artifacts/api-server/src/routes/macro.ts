@@ -479,6 +479,21 @@ router.post("/voices/ingest", requireAdmin, async (req: Request, res: Response) 
   }
 });
 
+/** A85 — auto-resolve open views vs prices_historical at horizon. */
+router.post("/voices/auto-resolve", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { autoResolveOpenViews } = await import("../lib/figure-views-auto-resolve.js");
+    const dryRun = Boolean(req.body?.dryRun);
+    const result = await autoResolveOpenViews({
+      dryRun,
+      limit: Number(req.body?.limit) || 80,
+    });
+    res.json({ ...result, note: "Needs direction+horizon+mappable asset; TLT proxies rates." });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /macro/risk-free-rate — returns SOFR (or fedFundsRate fallback) from macro cache for scoring
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();

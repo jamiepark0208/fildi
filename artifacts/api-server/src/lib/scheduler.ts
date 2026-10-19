@@ -29,6 +29,7 @@ import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 import { ingestDeskCommentaries } from "./desk-commentary.js";
 import { ingestFedSpeeches } from "./figure-views-ingest.js";
+import { autoResolveOpenViews } from "./figure-views-auto-resolve.js";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
 import {
   runResearchOpsHealthJob,
@@ -475,6 +476,8 @@ export async function runVoicesIngestJob() {
     lastVoicesIngestRun = new Date();
     await setConfigDate(LAST_VOICES_INGEST_RUN_KEY, lastVoicesIngestRun);
     logger.info(result, "scheduler: voices ingest complete");
+    const resolved = await autoResolveOpenViews({ limit: 80 });
+    logger.info(resolved, "scheduler: voices auto-resolve complete");
   } catch (err) {
     logger.error({ err }, "scheduler: voices ingest failed");
   } finally {
