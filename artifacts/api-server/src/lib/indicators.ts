@@ -12,10 +12,12 @@ import { decidePriceReplace } from "./price-source-rank.js";
 import {
   barYmd,
   mergeSchwabYahoo,
+  mergeWithPolygon,
   mergeYahooLseg,
   type SourcedBar,
   type YahooBar,
 } from "./indicator-bar-merge.js";
+import { fetchPolygonDailyBars } from "./polygon-daily.js";
 export { mergeSchwabYahoo } from "./indicator-bar-merge.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -473,6 +475,24 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
         },
         "fetchAndStoreOHLCV: merged/filled from LSEG daily_history",
       );
+    }
+  }
+
+  // A87: Polygon soft fill when Schwab/Yahoo/LSEG still thin (BK/MMC-class holes).
+  if (sourced.length < 15 || isOHLCVStale(sourced.length ? barYmd(sourced[sourced.length - 1]!) : null)) {
+    try {
+      const poly = await fetchPolygonDailyBars(upper, period1);
+      if (poly.length >= 15) {
+        sourced = sourced.length
+          ? mergeWithPolygon(sourced, poly)
+          : poly.map((b) => ({ ...b, source: "polygon" as const }));
+        logger.info(
+          { ticker: key, polyRows: poly.length, merged: sourced.length },
+          "fetchAndStoreOHLCV: filled from Polygon daily aggs",
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: Polygon daily fallback skipped");
     }
   }
 
