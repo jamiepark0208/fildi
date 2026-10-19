@@ -67,3 +67,62 @@ INSERT INTO watchlist_sync.lists (list_key, display_name, emoji, enabled, max_it
   ('long_calls', 'Fildi · Long Calls',     '📈', false, 10, 4, 'needs a graded directional model first'),
   ('long_puts',  'Fildi · Long Puts',      '📉', false, 10, 4, 'needs a graded directional model first')
 ON CONFLICT (list_key) DO NOTHING;
+
+-- Strategy Library (A175/A176): backtested strategies the Track Record › Strategies tab reads. Written only by
+-- analysis/strategy_lib.py (delete + insert per strategy version); the page and API never compute trades.
+CREATE TABLE IF NOT EXISTS watchlist_sync.strategies (
+  strategy_id    text NOT NULL,
+  version        text NOT NULL,
+  name           text NOT NULL,
+  family         text NOT NULL,            -- options-income | tail/long-option | stock-swing | index
+  instrument     text NOT NULL,            -- stock | option | mixed
+  status         text NOT NULL,            -- live | candidate | failed | retired
+  summary        text NOT NULL,            -- one line
+  rules_md       text NOT NULL,
+  caveats_md     text,
+  study_ref      text,                     -- e.g. S046 / A171
+  window_start   date NOT NULL,
+  window_end     date NOT NULL,
+  holdout_start  date,                     -- NULL = nothing tuned → no holdout split
+  price_source   text NOT NULL,            -- real_quote | close | model
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (strategy_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_trades (
+  id            bigserial PRIMARY KEY,
+  strategy_id   text NOT NULL,
+  version       text NOT NULL,
+  entry_ts      timestamptz NOT NULL,
+  exit_ts       timestamptz,
+  ticker        text NOT NULL,
+  instrument    text NOT NULL,             -- stock | option
+  side          text NOT NULL,             -- long | short
+  option_type   text,                      -- P | C | NULL for stock
+  strike        double precision,
+  expiry        date,
+  dte_at_entry  int,
+  qty           double precision NOT NULL,
+  entry_px      double precision NOT NULL,
+  exit_px       double precision,
+  capital       double precision NOT NULL, -- $ at risk (collateral for short puts)
+  pnl           double precision,
+  ret_pct       double precision,          -- pnl ÷ capital
+  trigger       text NOT NULL,             -- plain words: why it fired
+  exit_reason   text,
+  is_holdout    boolean NOT NULL DEFAULT false,
+  FOREIGN KEY (strategy_id, version) REFERENCES watchlist_sync.strategies ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS strategy_trades_sv ON watchlist_sync.strategy_trades (strategy_id, version, entry_ts);
+
+CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_equity (
+  strategy_id  text NOT NULL,
+  version      text NOT NULL,
+  d            date NOT NULL,
+  equity       double precision NOT NULL,  -- index, starts at 1.0
+  spy_equity   double precision NOT NULL,  -- SPY buy-and-hold, same base
+  drawdown     double precision NOT NULL,  -- equity ÷ running max − 1
+  is_holdout   boolean NOT NULL DEFAULT false,
+  PRIMARY KEY (strategy_id, version, d),
+  FOREIGN KEY (strategy_id, version) REFERENCES watchlist_sync.strategies ON DELETE CASCADE
+);

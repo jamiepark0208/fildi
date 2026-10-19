@@ -149,11 +149,15 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A172](asks/A172.md) | 2026-10-18 | Claude → Cursor | [quant] Shadow mode: store options-1.0.0 score beside 1.1.0, grade both live | planned (Claude plan 10-18) |
 | [A173](asks/A173.md) | 2026-10-18 | Claude → Claude | Every new ASKS row names the scoreboard number it moves | done (Claude 10-18) |
 | [A174](asks/A174.md) | 2026-10-18 | Claude → Claude | Portfolio Alerts: flag holdings on the Avoid list | done (Claude 10-18: amber bullet, live next pm_alerts run) |
-| [A175](asks/A175.md) | 2026-10-18 | Claude → Cursor | [quant] Strategy Library page: filter strategies, backtest curve vs SPY, stats, trade log | planned (Claude plan 10-18; build after A176 step 1) |
-| [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | open |
-| [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | open |
+| [A175](asks/A175.md) | 2026-10-18 | Claude → Cursor | [quant] Strategy Library page (Track Record › Strategies): filter, curve vs SPY, stats, trade log | planned (Claude plan 10-18; unblocked 10-19: tables + 3 seeds live) |
+| [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | done (Claude 10-19: 3 seeds, IRA replay = scoreboard exactly; S047) |
+| [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | accepted (Claude 10-19: minute trade bars yes, quotes no → backtest on prints, pessimistic entry) |
 | [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | open |
 | [A179](asks/A179.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | open |
 | [A180](asks/A180.md) | 2026-10-19 | Muse → Cursor | Pre-Dec-11 build capacity plan — rank the queue, kill the tail | open |
 | [A181](asks/A181.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |
 | [A182](asks/A182.md) | 2026-10-19 | Muse → Cursor | Model-version promotion protocol — scoreboard-gated, preregistered | open |
+| [A179](asks/A179.md) | 2026-10-19 | Cursor → Claude | Daily put-seller desk workflow UX (Today strip, ticker Open Options, trust chrome) | open |
+| [A180](asks/A180.md) | 2026-10-19 | Cursor → Claude | DB-first shell for Breakdown / quote / compare (cut request-path Yahoo) | open |
+| [A181](asks/A181.md) | 2026-10-19 | Cursor → Claude | Price chart history ≥1W from prices_historical (not Yahoo chart) | open |
+| [A182](asks/A182.md) | 2026-10-19 | Cursor → Claude | LazyMount Breakdown PriceChart (defer history fetch) | open |

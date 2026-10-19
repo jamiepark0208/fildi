@@ -337,6 +337,8 @@ def main() -> None:
     option_derive.main()
     import scoreboard  # promised vs live for adopted scores (Settings › Research)
     scoreboard.main()
+    import strategy_lib  # Track Record › Strategies backtests (A176)
+    strategy_lib.main(write=True)
     progress(conn, "all done")
 
 

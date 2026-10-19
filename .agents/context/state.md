@@ -60,3 +60,4 @@ ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47,
 Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical distance-to-floor, placebo 0.624; A98/A126 pass)
 
 - 2026-10-18 Strategy Library filed: A175 page → Cursor (planned, waits on A176 step 1 DDL). Claude next: A176 DDL+runner+3 seeds → A177 0DTE data probe → A178 panic puts study.
+- 2026-10-19 A176 done (S047). A177 probe done → next: A177b 0DTE backtest (pre-registered in A177), then A178 panic puts. A175 unblocked for Cursor (Track Record › Strategies).
