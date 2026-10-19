@@ -58,3 +58,5 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
 Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical distance-to-floor, placebo 0.624; A98/A126 pass)
+
+- 2026-10-18 Strategy Library filed: A175 page → Cursor (planned, waits on A176 step 1 DDL). Claude next: A176 DDL+runner+3 seeds → A177 0DTE data probe → A178 panic puts study.
