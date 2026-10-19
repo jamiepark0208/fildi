@@ -3,15 +3,15 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-18
+**build** — last updated 2026-10-19
 
 ## Active work
-- Working: openjev-shared-instance, oj-token-savers, oj-registry-check, oj-pending-verify, ai-tab-caller-beams
-- In progress: openjev second-key verifies by cursor/muse (oj.py pending)
+- Working: S041-reclassified-fail, S044-roi-review, S045-put-retest, options-1.1.0-live, schwab-auth-watchdog, transcripts-timeout-fix, ASKS-A170-A174
+- In progress: none
 - Blocked: none
 
 ## Next tasks (priority order)
-- **PLAN (Claude 10-18, after S044/S045):** (1) S046 call-side + Avoid-list re-test on their own outcomes (covered-call pnl; Avoid = left tail / 2σ drop) with s045 harness. (2) Weekly scoreboard job (Own−Avoid vol-matched, FV quintile spread, put Brier vs market-IV, IRA put pnl vs naive SPY/QQQ 1σ puts) → Portfolio Alerts card. (3) Shadow mode: store options-1.0.0 score beside 1.1.0 per snapshot, grade both at ≥ 8 expiries. (4) Gate new ASKS rows: must name which scoreboard number they move. (5) Holding-on-Avoid line in Portfolio Alerts. Done 10-18 late: 12 expired picks graded early; transcripts Haiku-timeout crash fixed.
+- **PLAN → Ideas board (ASKS A170–A174, Claude 10-18):** pick up A170 first (S046 calls + Avoid re-test), then A171 scoreboard, A174 Avoid-holdings alert (Claude); A172 shadow mode = Cursor. Old summary: (1) S046 call-side + Avoid-list re-test on their own outcomes (covered-call pnl; Avoid = left tail / 2σ drop) with s045 harness. (2) Weekly scoreboard job (Own−Avoid vol-matched, FV quintile spread, put Brier vs market-IV, IRA put pnl vs naive SPY/QQQ 1σ puts) → Portfolio Alerts card. (3) Shadow mode: store options-1.0.0 score beside 1.1.0 per snapshot, grade both at ≥ 8 expiries. (4) Gate new ASKS rows: must name which scoreboard number they move. (5) Holding-on-Avoid line in Portfolio Alerts. Done 10-18 late: 12 expired picks graded early; transcripts Haiku-timeout crash fixed.
 - **10-18 late (Claude):** A167 built: options-1.1.0 (put tech = trend − volumeConfirm, quantile-matched; nodeGap replaces support) behind champion; both pick paths share `put-scoring-inputs.ts`. options-1.1.0 PROMOTED 10-18 (rollback: promote_options_1_1_0.py --rollback). Grade vs 1.0.0 history at ≥ 8 expiries. Schwab re-authed 10-19 01:0xZ (167 h). Next if wanted: shadow mode for challengers (A167 design section).
 - **10-18 night (Claude):** Jamie: "don't ship" studies tested the wrong thing → S045 re-test on put pnl/breach (79k puts, LSEG 2020→): tech score works for puts when reweighted (trend − volumeConfirm, +15.7 bp/wk OOS) → A167 needs Jamie yes; S/R node between strike/spot = worse; HAR/2σ/streak/SUE/IBES still null; regime sizing marginal. METHODS rule 1b. Schwab: watchdog LaunchAgent com.fildi.schwab-auth-watch (first prompt Mon 10-20 08:00 PT; token dies Tue 14:19 PT).
 - **10-18 late (Claude):** S041 reclassified FAIL (mechanical). S044 week-ROI review written (`research/studies/S044-week-roi-review.md`): scoreboard = Own−Avoid vol-matched, FV quintile spread, put Brier, IRA P&L vs naive SPY/QQQ puts. Rec: slow builds ~4 wks. Waiting Jamie: reaction to S044 + 5 holdings on Avoid.
