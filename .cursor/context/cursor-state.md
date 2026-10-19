@@ -6,7 +6,7 @@
 ## Next build
 1. A92 ticker drill-down / wheel total
 2. A95 event dots + PT breadth when history deepens
-3. A126 overnight backfill (~12/42 done when last checked)
+3. A126 1m backfill done (42/42, ~1.06M bars) — optional 5m forever rollup still open
 4. Skip: A163 (Jamie go), A133 (Jamie signup), A143 (await 05:30), A83 scorer unify (Jamie)
 
 ## Phase
