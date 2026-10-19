@@ -76,8 +76,6 @@ export function OptionsScannerContent({
   const [refreshedOptions, setRefreshedOptions] = useState<Map<string, OptionsChainResult[]>>(new Map());
   /** Chain fetch failed / timed out — clears infinite "Loading options…" spinner. */
   const [chainFailed, setChainFailed] = useState<Map<string, string>>(new Map());
-  /** Watchlist: show names with no nightly option snapshot (thin / no chain). Off by default. */
-  const [showUnscored, setShowUnscored] = useState(false);
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
   const [sort,          setSort]          = useState<SortKey>("optionScore");
   // Sell Puts vs. Sell Calls — a page-level mode, not a per-row sub-tab, so the whole
@@ -211,34 +209,16 @@ export function OptionsScannerContent({
   }, [optionRankings]);
 
   const activeTickers = useMemo(() => {
-    // Drop incomplete snapshots (score with no income) — they render blank Inc/Buf and clutter the board.
-    const usableSnap = (optionRankings?.rankings ?? []).filter(
-      (r) => Number.isFinite(r.optionScore) && r.weeklyIncomePct != null && r.weeklyIncomePct >= 0,
-    );
     if (universe === "overall") {
-      const fromSnap = usableSnap.map((r) => r.ticker).filter((t) => !hiddenTickers.has(t));
+      const fromSnap = (optionRankings?.rankings ?? [])
+        .map((r) => r.ticker)
+        .filter((t) => !hiddenTickers.has(t));
       if (fromSnap.length > 0) return fromSnap;
       return overallTickers.filter((t) => !hiddenTickers.has(t));
     }
-    // Watchlist ∩ scored snapshots (comment above). Unscored thin names (CABA/ALOY-class) stay hidden unless toggled.
-    const wl = entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
-    if (showUnscored || optionRankingsLoading) return wl;
-    const scored = new Set(usableSnap.map((r) => r.ticker));
-    const intersect = wl.filter((t) => scored.has(t));
-    return intersect.length > 0 ? intersect : wl;
-  }, [universe, optionRankings, overallTickers, entries, hiddenTickers, showUnscored, optionRankingsLoading]);
-
-  const unscoredWatchlistCount = useMemo(() => {
-    if (universe !== "watchlist" || optionRankingsLoading) return 0;
-    const scored = new Set(
-      (optionRankings?.rankings ?? [])
-        .filter((r) => Number.isFinite(r.optionScore) && r.weeklyIncomePct != null)
-        .map((r) => r.ticker),
-    );
-    return entries.filter(
-      (e) => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker) && !scored.has(e.ticker),
-    ).length;
-  }, [universe, optionRankings, optionRankingsLoading, entries, hiddenTickers]);
+    // Full watchlist (minus red/hidden). Missing nightly scores show N/A + reason; gap-fill tries live calc.
+    return entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
+  }, [universe, optionRankings, overallTickers, entries, hiddenTickers]);
 
   const colorMap = useMemo(
     () => new Map(entries.map(e => [e.ticker, e.colorTag])),
@@ -512,6 +492,42 @@ export function OptionsScannerContent({
     return { bestOptionScoreMap: scoreMap, bestIncomeMap: incomeMap, bufferMap: bufMap };
   }, [displayTickers, optionsMap, techRowMap, rankings, fundScoreMap, macroRegimeData, allWatchlistIVs, effectiveStrikeWeights, isCallMode, pickOpts, rankingByTicker, streetRiskMap]);
 
+  /** Why Opt/Inc/Buf show N/A — hover explains; never hide the row. */
+  const scoreNAReasonMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const ticker of displayTickers) {
+      const hasOpt = bestOptionScoreMap.has(ticker);
+      const hasInc = bestIncomeMap.has(ticker);
+      const hasBuf = bufferMap.has(ticker);
+      if (hasOpt && hasInc && hasBuf) continue;
+
+      if (chainFailed.has(ticker)) {
+        m.set(ticker, chainFailed.get(ticker)!);
+        continue;
+      }
+
+      const snap = rankingByTicker.get(ticker);
+      if (!snap) {
+        const chains = optionsMap.get(ticker);
+        if (optionsLoadingMap.get(ticker)) {
+          m.set(ticker, "Loading live options chain to score…");
+        } else if (chains == null) {
+          m.set(ticker, "No nightly option score — will try live chain (expand or wait for gap-fill). Often thin/illiquid options.");
+        } else if (chains.length === 0) {
+          m.set(ticker, "Live chain empty — no strikes in the 1–28 DTE window.");
+        } else {
+          m.set(ticker, "Chain loaded but no viable live-bid strike met income/OTM gates.");
+        }
+        continue;
+      }
+
+      if (!hasOpt) m.set(ticker, "Nightly snapshot missing option score.");
+      else if (!hasInc) m.set(ticker, "No weekly income on snapshot (Inc N/A).");
+      else if (!hasBuf) m.set(ticker, "Buffer N/A — need OTM%, strike/ATM IV, and DTE on the snapshot strike.");
+    }
+    return m;
+  }, [displayTickers, bestOptionScoreMap, bestIncomeMap, bufferMap, rankingByTicker, optionsMap, chainFailed, optionsLoadingMap]);
+
   // Stock Score for collapsed columns — snap/scorecard spot (stable sort). Live price
   // is display-only via /live/prices; do not feed it here or the board reshuffles.
   const stockScoreMap = useMemo(() => {
@@ -733,12 +749,11 @@ export function OptionsScannerContent({
     || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)))
   ), [refreshedOptions, batchOptionsData]);
 
-  /** Prefetch only scored names — don't burn Schwab/Yahoo on thin watchlist junk on hover. */
+  /** Prefetch on hover — skip names that already failed (timeouts); others get a chance to score. */
   const handleRowPrefetch = useCallback((ticker: string) => {
-    if (!rankingByTicker.has(ticker)) return;
     if (chainFailed.has(ticker)) return;
     if (!hasCachedChain(ticker)) void ensureTickerChain(ticker);
-  }, [hasCachedChain, ensureTickerChain, rankingByTicker, chainFailed]);
+  }, [hasCachedChain, ensureTickerChain, chainFailed]);
 
   const handleExpand = (ticker: string) => {
     setExpandedSet(prev => {
@@ -759,6 +774,28 @@ export function OptionsScannerContent({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when expanded set identity changes
   }, [expandedSet]);
+
+  // Gap-fill: watchlist names with no nightly snapshot — fetch chains (concurrency 2) so Opt/Inc/Buf
+  // can calculate live. Failures become N/A + reason, not hidden rows.
+  useEffect(() => {
+    if (universe !== "watchlist" || !isLoaded || optionRankingsLoading) return;
+    const need = displayTickers.filter(
+      (t) => !rankingByTicker.has(t) && !hasCachedChain(t) && !chainFailed.has(t),
+    );
+    if (need.length === 0) return;
+    let cancelled = false;
+    let cursor = 0;
+    const CONCURRENCY = 2;
+    async function worker() {
+      while (!cancelled && cursor < need.length) {
+        const t = need[cursor++]!;
+        await ensureTickerChain(t);
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(CONCURRENCY, need.length) }, () => worker()));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [universe, isLoaded, optionRankingsLoading, displayTickersKey, optionRankings?.asOf]);
 
   const handleRowRefresh = async (ticker: string) => {
     setChainFailed((prev) => {
@@ -832,22 +869,9 @@ export function OptionsScannerContent({
           />
         </div>
       </div>
-      {universe === "watchlist" && unscoredWatchlistCount > 0 && (
-        <label className="flex items-start gap-2 text-[11px] text-zinc-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showUnscored}
-            onChange={(e) => setShowUnscored(e.target.checked)}
-            className="mt-0.5 accent-[#d4af37]"
-          />
-          <span>
-            Show {unscoredWatchlistCount} with no option score
-            <span className="block text-[10px] text-zinc-500">Thin/no chain — blank Inc/Buf; expand may time out</span>
-          </span>
-        </label>
-      )}
       <p className="text-[10px] text-amber-200/40 leading-snug">
         Unvalidated ranking · Model List decides. Blends income/buffer with v4 technical total (lab: no edge).
+        Names without a nightly score show N/A until a live chain scores them (or stay N/A if the chain is thin).
       </p>
     </div>
   );
@@ -1011,6 +1035,7 @@ export function OptionsScannerContent({
                 bestOptionScore={bestOptionScoreMap.get(ticker) ?? null}
                 bestIncome={bestIncomeMap.get(ticker) ?? null}
                 bestBuffer={bufferMap.get(ticker) ?? null}
+                scoreNAReason={scoreNAReasonMap.get(ticker) ?? null}
                 stockScore={stockScoreMap.get(ticker) ?? null}
                 isCall={isCallMode}
                 isOversold={oversoldSet.has(ticker)}

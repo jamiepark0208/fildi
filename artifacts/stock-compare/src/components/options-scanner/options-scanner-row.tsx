@@ -69,6 +69,8 @@ interface ScannerRowProps {
   bestOptionScore?: number | null;
   bestIncome?: number | null;
   bestBuffer?: number | null;
+  /** Hover text when Opt/Inc/Buf are N/A. */
+  scoreNAReason?: string | null;
   stockScore?: number | null;
   isCall: boolean;
   // Today's Live-tab hotlist membership — dip hotlist = oversold (sell-put setup),
@@ -117,6 +119,7 @@ export function ScannerRow({
   bestOptionScore = null,
   bestIncome = null,
   bestBuffer = null,
+  scoreNAReason = null,
   stockScore = null,
   isCall,
   isOversold = false,
@@ -389,10 +392,14 @@ export function ScannerRow({
 
         {/* Option Score */}
         <span
-          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          className={cn(
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
+            bestOptionScore != null ? "text-white" : "text-zinc-500",
+          )}
           style={columnHeatStyle(bestOptionScore, heat?.opt)}
+          title={bestOptionScore != null ? undefined : (scoreNAReason ?? "N/A")}
         >
-          {bestOptionScore != null ? bestOptionScore.toFixed(1) : "—"}
+          {bestOptionScore != null ? bestOptionScore.toFixed(1) : "N/A"}
         </span>
 
         {/* Stock Score */}
@@ -413,19 +420,30 @@ export function ScannerRow({
 
         {/* Income% */}
         <span
-          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          className={cn(
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
+            bestIncome != null && bestIncome >= 0 ? "text-white" : "text-zinc-500",
+          )}
           style={columnHeatStyle(bestIncome, heat?.inc)}
+          title={bestIncome != null && bestIncome >= 0 ? undefined : (scoreNAReason ?? "N/A")}
         >
-          {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "—"}
+          {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "N/A"}
         </span>
 
         {/* Buffer — σ of expected move to recommended strike */}
         <span
-          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
+          className={cn(
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
+            bestBuffer != null && bestBuffer >= 0 ? "text-white" : "text-zinc-500",
+          )}
           style={columnHeatStyle(bestBuffer, heat?.buf)}
-          title="OTM distance ÷ (strike IV × √(DTE/365)) for the snapshot strike"
+          title={
+            bestBuffer != null && bestBuffer >= 0
+              ? "OTM distance ÷ (strike IV × √(DTE/365)) for the snapshot strike"
+              : (scoreNAReason ?? "N/A")
+          }
         >
-          {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "—"}
+          {bestBuffer != null && bestBuffer >= 0 ? `${bestBuffer.toFixed(2)}σ` : "N/A"}
         </span>
 
         {/* Actions + expand chevron (must stay in this grid cell — a 13th item wraps a second row).
