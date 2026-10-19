@@ -407,6 +407,45 @@ router.get("/breadth", async (_req: Request, res: Response) => {
   }
 });
 
+/** A85 — Voices: figure registry + latest views (Phase 1; Brier badges Phase 2). */
+router.get("/voices", async (_req: Request, res: Response) => {
+  try {
+    const { getVoicesSummary } = await import("../lib/figure-views.js");
+    const voices = await getVoicesSummary();
+    res.json({
+      voices,
+      note: "Phase 1 registry + views. Accuracy badges after ≥ resolvable calls (Claude plan).",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/** A85 — manual view ingest (admin). Body: figureId, asOf, claim, asset?, direction?, horizon?, confidence?, sourceUrl? */
+router.post("/voices", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { insertView } = await import("../lib/figure-views.js");
+    const b = req.body ?? {};
+    if (!b.figureId || !b.asOf || !b.claim) {
+      res.status(400).json({ error: "figureId, asOf, claim required" });
+      return;
+    }
+    const id = await insertView({
+      figureId: String(b.figureId),
+      asOf: String(b.asOf).slice(0, 10),
+      claim: String(b.claim),
+      asset: b.asset != null ? String(b.asset) : null,
+      direction: b.direction != null ? String(b.direction) : null,
+      horizon: b.horizon != null ? String(b.horizon) : null,
+      confidence: b.confidence != null ? Number(b.confidence) : null,
+      sourceUrl: b.sourceUrl != null ? String(b.sourceUrl) : null,
+    });
+    res.json({ id });
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
+  }
+});
+
 // GET /macro/risk-free-rate — returns SOFR (or fedFundsRate fallback) from macro cache for scoring
 router.get("/risk-free-rate", (_req: Request, res: Response) => {
   const data = loadMacroCache();

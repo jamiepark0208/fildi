@@ -31,6 +31,7 @@ import { SectorRevisionBreadth } from "@/components/macro/sector-revision-breadt
 import { ExpandableChartFrame } from "@/components/macro/expandable-chart-frame";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
 import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
+import { VoicesPanel } from "@/components/macro/voices-panel";
 import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
 import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
@@ -740,6 +741,8 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
                   </div>
                 </div>
               )}
+
+              <VoicesPanel />
 
               {/* Bank Research — 2 rows of 4 */}
               <div className="space-y-1.5">
