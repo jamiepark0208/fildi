@@ -32,3 +32,4 @@ Shipped: A83 normalizeCohort; A86 street reverse-DCF + vsSt column; A85 Fed RSS 
 ## Cont 2026-10-18 evening
 Shipped inline: A83 (normalize, tilt, metrics, raw, model-track-bars); A86 (street reverse-DCF + vsSt); A85 Fed RSS; A125 upload+Ollama+reel inbox.
 Still open buildable: A83 more god-file; A85 Brier; A125 Whisper; A139 S036 study-first; skip A133/A163 Jamie.
+- Also: A85 Brier, A139 BOS/S&D+fire-count, A95 Book filter, more A83 splits.
