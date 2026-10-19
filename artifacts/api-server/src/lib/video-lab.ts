@@ -42,6 +42,8 @@ async function ensure(): Promise<void> {
       notes text,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
+  await db.execute(sql`
+    ALTER TABLE video_lab_videos ADD COLUMN IF NOT EXISTS transcript text`);
   ensured = true;
 }
 
@@ -61,9 +63,10 @@ export async function listVideos(limit = 50) {
   await ensure();
   return rowsOf<{
     id: number; title: string; hook: string | null; topic: string | null; status: string;
-    path: string | null; idea_id: number | null; rating: number | null; notes: string | null; created_at: string;
+    path: string | null; idea_id: number | null; rating: number | null; notes: string | null;
+    created_at: string; transcript: string | null;
   }>((await db.execute(sql`
-    SELECT id, title, hook, topic, status, path, idea_id, rating, notes, created_at::text
+    SELECT id, title, hook, topic, status, path, idea_id, rating, notes, created_at::text, transcript
     FROM video_lab_videos ORDER BY created_at DESC LIMIT ${limit}`)) as SqlRows<never>);
 }
 

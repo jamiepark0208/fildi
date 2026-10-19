@@ -41,7 +41,21 @@ router.post("/video-lab/ideas", requireAdmin, async (req, res, next) => {
   }
 });
 
-export default router;
+/** A125 — local Whisper transcript for an uploaded video. */
+router.post("/video-lab/videos/:id/transcribe", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "id required" });
+      return;
+    }
+    const { transcribeVideoLab } = await import("../lib/video-lab-whisper.js");
+    const result = await transcribeVideoLab(id);
+    res.status(result.ok ? 200 : 422).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** A125 — upload short: JSON { title, filename, dataBase64, hook?, topic?, notes? }. */
 router.post("/video-lab/videos", requireAdmin, async (req, res, next) => {
@@ -120,3 +134,5 @@ router.post("/video-lab/reels", requireAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
+export default router;
