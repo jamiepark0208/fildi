@@ -10,7 +10,7 @@ import {
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import { computeChartZones, pfNum, type DbTechnicalLevels } from "@/lib/chart-levels";
-import { detectFvg, detectSweeps } from "@/lib/ict-detectors";
+import { detectBos, detectFvg, detectSupplyDemand, detectSweeps } from "@/lib/ict-detectors";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -644,24 +644,37 @@ export function PriceChart({
   const ictMarkers = useMemo((): LWMarker[] => {
     if (!showIct || !showTechnicalZones || tickers.length !== 1) return [];
     const bars = historyByTicker[tickers[0]] ?? [];
-    return detectSweeps(bars).map((s) => ({
+    const sweeps = detectSweeps(bars).map((s) => ({
       time: toUnixTime(s.date),
       price: s.price,
       color: s.side === "bull" ? "#38bdf8" : "#fb7185",
       text: s.side === "bull" ? "Sw↑" : "Sw↓",
     }));
+    const bos = detectBos(bars).map((b) => ({
+      time: toUnixTime(b.date),
+      price: b.price,
+      color: b.side === "bull" ? "#4ade80" : "#f87171",
+      text: b.side === "bull" ? "BOS↑" : "BOS↓",
+    }));
+    return [...sweeps, ...bos];
   }, [showIct, showTechnicalZones, tickers, historyByTicker]);
 
   const ictPriceLines = useMemo((): LWPriceLine[] => {
     if (!showIct || !showTechnicalZones || tickers.length !== 1) return [];
     const bars = historyByTicker[tickers[0]] ?? [];
-    // Last few unfilled-looking FVGs as price lines (mid + edges clutter — show mid only).
-    return detectFvg(bars).slice(-6).map((f, i) => ({
+    const fvg = detectFvg(bars).slice(-6).map((f) => ({
       price: (f.top + f.bottom) / 2,
       color: f.side === "bull" ? "#22d3ee88" : "#f472b688",
       title: f.side === "bull" ? `FVGb ${f.date.slice(5)}` : `FVGs ${f.date.slice(5)}`,
       dashed: true,
     }));
+    const zones = detectSupplyDemand(bars).map((z) => ({
+      price: (z.top + z.bottom) / 2,
+      color: z.side === "demand" ? "#86efac99" : "#fda4af99",
+      title: z.side === "demand" ? `Dem ${z.date.slice(5)}` : `Sup ${z.date.slice(5)}`,
+      dashed: true,
+    }));
+    return [...fvg, ...zones];
   }, [showIct, showTechnicalZones, tickers, historyByTicker]);
 
   const allPriceLines = useMemo((): LWPriceLine[] => {
@@ -809,7 +822,7 @@ export function PriceChart({
                     ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200"
                     : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
                 )}
-                title="A139 ICT overlays: FVG midlines + liquidity sweeps. Display only — no score use until S036."
+                title="A139 ICT overlays: FVG, sweeps, BOS, S&D. Display only — no score use until S036."
               >
                 ICT
               </button>
