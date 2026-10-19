@@ -66,6 +66,12 @@ describe("DCF and reverse DCF", () => {
     assert.equal(impliedGrowth(stock({ ticker: "B", mode: "financial" }), M, P), null);
     assert.equal(impliedGrowth(stock({ ticker: "N", fcf: -1e9 }), M, P), null);
   });
+  it("A86: street PT as price yields higher implied growth when PT > price", () => {
+    const t = stock({ ticker: "X", price: 100 });
+    const gPx = impliedGrowth(t, M, P, 100)!;
+    const gSt = impliedGrowth(t, M, P, 130)!;
+    assert.ok(gSt > gPx);
+  });
 });
 
 describe("methods", () => {

@@ -9,12 +9,84 @@ import { Router, type Request } from "express";
 import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { getChampionScorecardParams } from "../lib/scorecard-params.js";
+import { impliedGrowth, type FvTickerInput, type FairValueParams } from "../lib/fair-value.js";
+import { loadMarket } from "../lib/fair-value-snapshots.js";
 import { persistFairValueSnapshots } from "../lib/fair-value-snapshots.js";
 import { COHORT_PARAMS, INPUT_FIELDS, OVERRIDABLE_INPUTS, ensureAssumptionTables, type InputField } from "../lib/fv-assumptions.js";
 
 const router = Router();
 const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
 const SHARED_KEYS = ["equityRiskPremium", "terminalGrowth", "growthCap", "growthFloor", "costOfEquityClamp", "betaClamp", "analystBias", "blend", "minPeers"];
+
+/** A86 — reverse-DCF on street PT + voters furthest from target (display). */
+async function streetBackOut(
+  ticker: string,
+  streetPt: number | null,
+  params: FairValueParams,
+  votesRaw: unknown,
+): Promise<{
+  streetImpliedGrowth: number | null;
+  growthCap: number;
+  furthestVoters: { name: string; value: number; gapPct: number }[];
+}> {
+  const growthCap = params.growthCap;
+  let furthestVoters: { name: string; value: number; gapPct: number }[] = [];
+  if (streetPt != null && streetPt > 0 && Array.isArray(votesRaw)) {
+    furthestVoters = (votesRaw as { name?: string; value?: number }[])
+      .filter((v) => v?.name && typeof v.value === "number" && Number.isFinite(v.value))
+      .map((v) => ({
+        name: String(v.name),
+        value: Number(v.value),
+        gapPct: ((Number(v.value) - streetPt) / streetPt) * 100,
+      }))
+      .sort((a, b) => Math.abs(b.gapPct) - Math.abs(a.gapPct))
+      .slice(0, 3);
+  }
+  let streetImpliedGrowth: number | null = null;
+  if (streetPt != null && streetPt > 0) {
+    const inp = (await pool.query(
+      `SELECT inputs FROM fair_value_inputs WHERE ticker = $1 ORDER BY first_seen DESC LIMIT 1`,
+      [ticker],
+    )).rows[0]?.inputs as Record<string, unknown> | undefined;
+    if (inp && typeof inp === "object") {
+      const n = (k: string) => {
+        const v = inp[k];
+        return typeof v === "number" && Number.isFinite(v) ? v : null;
+      };
+      const t: FvTickerInput = {
+        ticker,
+        mode: typeof inp.mode === "string" ? inp.mode : "standard",
+        peerGroupId: typeof inp.peerGroupId === "string" ? inp.peerGroupId : null,
+        metricExclusions: Array.isArray(inp.metricExclusions) ? inp.metricExclusions as string[] : [],
+        price: streetPt,
+        forwardEps: n("forwardEps"),
+        eps2: n("eps2"),
+        ltg: n("ltg"),
+        trailingEps: n("trailingEps"),
+        revenueGrowth: n("revenueGrowth"),
+        fcf: n("fcf"),
+        shares: n("shares"),
+        totalDebt: n("totalDebt"),
+        cash: n("cash"),
+        ebitda: n("ebitda"),
+        equity: n("equity"),
+        roe: n("roe"),
+        beta: n("beta"),
+        ffo: n("ffo"),
+        analystTarget: n("analystTarget"),
+        starminePriceToIntrinsic: n("starminePriceToIntrinsic"),
+      };
+      try {
+        const market = await loadMarket(params as FairValueParams & { aaaYieldFallbackSpread?: number });
+        streetImpliedGrowth = impliedGrowth(t, market, params, streetPt);
+      } catch {
+        streetImpliedGrowth = null;
+      }
+    }
+  }
+  return { streetImpliedGrowth, growthCap, furthestVoters };
+}
+
 const who = (req: Request) => String((req as Request & { session?: { userId?: unknown } }).session?.userId ?? "admin");
 
 router.get("/fair-value/:ticker/assumptions", async (req, res, next) => {
@@ -43,16 +115,21 @@ router.get("/fair-value/:ticker/assumptions", async (req, res, next) => {
       SELECT as_of::text, price::float8, fair_value::float8, adjusted_fair_value::float8, confidence, mode, model_version,
              implied_growth::float8, adjustments, votes
       FROM fair_value_snapshots WHERE ticker = $1 ORDER BY as_of DESC LIMIT 180`, [t])).rows;
-    const streetPt = (await pool.query(`
+    const streetPtRaw = (await pool.query(`
       SELECT median_pt::float8 AS median_pt FROM street_pt_daily
       WHERE ticker = $1 ORDER BY as_of DESC LIMIT 1`, [t])).rows[0]?.median_pt as number | null | undefined;
+    const streetPt = streetPtRaw != null ? Number(streetPtRaw) : null;
+    const back = await streetBackOut(t, streetPt, params as unknown as FairValueParams, fv[0]?.votes);
     return res.json({
       ticker: t,
       shared: { version, changedAt: meta?.promoted_at ?? meta?.created_at ?? null, rationale: meta?.rationale ?? null, approvedBy: meta?.approved_by ?? null,
                 params: Object.fromEntries(SHARED_KEYS.map((k) => [k, (params as Record<string, unknown>)[k]])) },
       cohort, cohortParams: COHORT_PARAMS, inputs, inputsSince: hist[0]?.first_seen ?? null, assumptions: rows,
       latest: fv[0] ?? null, history: fv.map(({ votes: _v, adjustments: _a, ...r }) => r).reverse(),
-      streetPt: streetPt != null ? Number(streetPt) : null,
+      streetPt,
+      streetImpliedGrowth: back.streetImpliedGrowth,
+      growthCap: back.growthCap,
+      furthestVoters: back.furthestVoters,
     });
   } catch (err) {
     return next(err);

@@ -25,6 +25,9 @@ type Sheet = {
   latest: { as_of: string; price: number | null; fair_value: number | null; adjusted_fair_value: number | null; confidence: string | null; mode: string; model_version: string; implied_growth?: number | null } | null;
   history: { as_of: string; price: number | null; fair_value: number | null; adjusted_fair_value: number | null }[];
   streetPt?: number | null;
+  streetImpliedGrowth?: number | null;
+  growthCap?: number | null;
+  furthestVoters?: { name: string; value: number; gapPct: number }[];
 };
 type FieldHistory = { changes: { date: string; value: number | null }[]; overrides: Row[] };
 
@@ -150,12 +153,31 @@ export function AssumptionsTab({ ticker }: { ticker: string }) {
           </span>
         )}
         {L?.implied_growth != null && (
-          <span className="text-amber-200/50" title="Reverse DCF: FCF growth that prices today's share price (not street PT yet)">
+          <span className="text-amber-200/50" title="Reverse DCF on today's price">
             px implies {(L.implied_growth * 100).toFixed(0)}% g
+          </span>
+        )}
+        {data.streetImpliedGrowth != null && (
+          <span className="text-sky-300/80" title="Reverse DCF on street consensus PT (same cost of equity / terminal g)">
+            street implies {(data.streetImpliedGrowth * 100).toFixed(0)}% g
+            {data.growthCap != null && (
+              <span className="text-amber-200/40"> vs our cap {(data.growthCap * 100).toFixed(0)}%</span>
+            )}
           </span>
         )}
         <span className="ml-auto text-[10px] text-amber-200/40">{L?.as_of}</span>
       </div>
+      {data.furthestVoters && data.furthestVoters.length > 0 && data.streetPt != null && (
+        <p className="text-[10px] text-amber-200/45">
+          Voters furthest from street ${data.streetPt.toFixed(0)}:{" "}
+          {data.furthestVoters.map((v, i) => (
+            <span key={v.name}>
+              {i > 0 ? " · " : ""}
+              {v.name} ${v.value.toFixed(0)} ({v.gapPct >= 0 ? "+" : ""}{v.gapPct.toFixed(0)}%)
+            </span>
+          ))}
+        </p>
+      )}
       <FvVsStreetChart ticker={ticker} />
       {L && L.fair_value == null && (
         <p className="text-[10px] text-amber-200/50">No model value: the {data.cohort?.name ?? L.mode} cohort ({L.mode}) gets no model fair value by design (pre-revenue / speculative); the analyst target is shown separately.</p>
