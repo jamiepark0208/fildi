@@ -9,6 +9,7 @@ import { insertView, FIGURE_REGISTRY } from "./figure-views.js";
 import { logger } from "./logger.js";
 
 const FED_SPEECHES_RSS = "https://www.federalreserve.gov/feeds/speeches.xml";
+const FED_PRESS_RSS = "https://www.federalreserve.gov/feeds/press_all.xml";
 
 /** Last-name / slug → figure_id (only registry Fed officials). */
 const FED_SPEAKER_MAP: Record<string, string> = {
@@ -92,7 +93,7 @@ export type VoicesIngestResult = {
 };
 
 /** Fetch Fed speeches RSS and insert new views for known registry figures. */
-export async function ingestFedSpeeches(opts?: {
+export async function ingestFedSpeechesOnly(opts?: {
   limit?: number;
   dryRun?: boolean;
 }): Promise<VoicesIngestResult> {
@@ -159,3 +160,78 @@ export async function ingestFedSpeeches(opts?: {
   }
   return result;
 }
+
+/** Monetary-policy press (FOMC minutes/statements) -> fed-powell. */
+export async function ingestFedMonetaryPress(opts?: {
+  limit?: number;
+  dryRun?: boolean;
+}): Promise<VoicesIngestResult> {
+  const limit = opts?.limit ?? 20;
+  const result: VoicesIngestResult = {
+    fetched: 0, inserted: 0, skipped: 0, unknownSpeaker: 0, errors: 0,
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  let xml: string;
+  try {
+    const res = await fetch(FED_PRESS_RSS, {
+      signal: controller.signal,
+      headers: { "User-Agent": "TradeDash/1.0 (A85 voices ingest)" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Fed press RSS HTTP ${res.status}`);
+    xml = await res.text();
+  } catch (err) {
+    clearTimeout(timer);
+    logger.warn({ err: String(err) }, "figure-views-ingest: Fed press RSS failed");
+    result.errors++;
+    return result;
+  }
+  const items = parseFedSpeechesRss(xml).filter((it) => {
+    const t = `${it.title} ${it.description}`.toLowerCase();
+    return t.includes("federal open market") || t.includes("fomc") || t.includes("monetary policy");
+  }).slice(0, limit);
+  result.fetched = items.length;
+  for (const item of items) {
+    try {
+      if (await sourceExists(item.link)) { result.skipped++; continue; }
+      if (opts?.dryRun) { result.inserted++; continue; }
+      await insertView({
+        figureId: "fed-powell",
+        asOf: asOfFromPub(item.pubDate),
+        claim: item.title.slice(0, 500),
+        asset: "rates",
+        direction: null,
+        horizon: null,
+        confidence: null,
+        sourceUrl: item.link,
+      });
+      result.inserted++;
+    } catch (err) {
+      result.errors++;
+      logger.warn({ err: String(err), link: item.link }, "figure-views-ingest: press insert failed");
+    }
+  }
+  return result;
+}
+
+function mergeResults(a: VoicesIngestResult, b: VoicesIngestResult): VoicesIngestResult {
+  return {
+    fetched: a.fetched + b.fetched,
+    inserted: a.inserted + b.inserted,
+    skipped: a.skipped + b.skipped,
+    unknownSpeaker: a.unknownSpeaker + b.unknownSpeaker,
+    errors: a.errors + b.errors,
+  };
+}
+
+/** Speeches + FOMC/monetary press. */
+export async function ingestFedSpeeches(opts?: {
+  limit?: number;
+  dryRun?: boolean;
+}): Promise<VoicesIngestResult> {
+  const a = await ingestFedSpeechesOnly(opts);
+  const b = await ingestFedMonetaryPress(opts);
+  return mergeResults(a, b);
+}
+
