@@ -130,6 +130,21 @@ router.post("/fair-value/assumptions/:id", requireAdmin, async (req, res, next) 
   }
 });
 
+/** A86 — largest Fildi-vs-street gaps (review queue; not an alert). */
+router.get("/fair-value/street-gaps", async (req, res, next) => {
+  try {
+    const { listLargestStreetGaps } = await import("../lib/street-pt.js");
+    const limit = Math.min(80, Math.max(5, Number(req.query.limit) || 30));
+    const gaps = await listLargestStreetGaps(limit);
+    return res.json({
+      gaps,
+      note: "Largest |FV − street PT| / street. Review queue only — gaps do not time returns (FINDINGS).",
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** A86 — FV vs street consensus PT series (display / disagreement lab). */
 router.get("/fair-value/:ticker/vs-street", async (req, res, next) => {
   const t = String(req.params.ticker ?? "").toUpperCase();

@@ -50,6 +50,48 @@ export async function backfillStreetPtFromEvents(): Promise<number> {
   return n;
 }
 
+/** Largest |Fildi FV − street PT| / street among latest snapshots (review queue, not alert). */
+export async function listLargestStreetGaps(limit = 40): Promise<Array<{
+  ticker: string;
+  asOf: string;
+  fairValue: number;
+  streetPt: number;
+  gapPct: number;
+  price: number | null;
+}>> {
+  await ensure();
+  return rowsOf<{
+    ticker: string; as_of: string; fair_value: number; street_pt: number; gap_pct: number; price: number | null;
+  }>((await db.execute(sql`
+    WITH latest AS (
+      SELECT DISTINCT ON (ticker) ticker, as_of, fair_value::float8 AS fair_value, price::float8 AS price
+      FROM fair_value_snapshots
+      WHERE fair_value IS NOT NULL
+      ORDER BY ticker, as_of DESC
+    ),
+    gaps AS (
+      SELECT l.ticker, l.as_of::text AS as_of, l.fair_value, l.price,
+        (SELECT s.median_pt FROM street_pt_daily s
+         WHERE s.ticker = l.ticker AND s.as_of <= l.as_of
+         ORDER BY s.as_of DESC LIMIT 1) AS street_pt
+      FROM latest l
+    )
+    SELECT ticker, as_of, fair_value, street_pt, price,
+           ((fair_value - street_pt) / street_pt * 100) AS gap_pct
+    FROM gaps
+    WHERE street_pt IS NOT NULL AND street_pt > 0
+    ORDER BY abs((fair_value - street_pt) / street_pt) DESC
+    LIMIT ${limit}`)) as SqlRows<never>)
+    .map((r) => ({
+      ticker: r.ticker,
+      asOf: r.as_of,
+      fairValue: Number(r.fair_value),
+      streetPt: Number(r.street_pt),
+      gapPct: Number(r.gap_pct),
+      price: r.price != null ? Number(r.price) : null,
+    }));
+}
+
 export async function getStreetPtSeries(
   ticker: string,
   days = 400,
