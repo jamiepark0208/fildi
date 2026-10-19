@@ -27,6 +27,9 @@ async function ensure(): Promise<void> {
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
   await db.execute(sql`
+    ALTER TABLE video_lab_ideas ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'idea';
+    ALTER TABLE video_lab_ideas ADD COLUMN IF NOT EXISTS source_url text;
+    ALTER TABLE video_lab_ideas ADD COLUMN IF NOT EXISTS asks_ref text;
     CREATE TABLE IF NOT EXISTS video_lab_videos (
       id bigserial PRIMARY KEY,
       title text NOT NULL,
@@ -47,8 +50,10 @@ export async function listIdeas(limit = 50) {
   return rowsOf<{
     id: number; topic: string; hook: string; outline: unknown; status: string;
     rating: number | null; notes: string | null; created_at: string;
+    source: string; source_url: string | null; asks_ref: string | null;
   }>((await db.execute(sql`
-    SELECT id, topic, hook, outline, status, rating, notes, created_at::text
+    SELECT id, topic, hook, outline, status, rating, notes, created_at::text,
+           source, source_url, asks_ref
     FROM video_lab_ideas ORDER BY created_at DESC LIMIT ${limit}`)) as SqlRows<never>);
 }
 
@@ -64,14 +69,19 @@ export async function listVideos(limit = 50) {
 
 export async function insertIdea(input: {
   topic: string; hook: string; outline?: unknown[]; status?: string;
+  source?: string; sourceUrl?: string | null; asksRef?: string | null; notes?: string | null;
 }): Promise<number> {
   await ensure();
   const rows = rowsOf<{ id: number }>((await db.execute(sql`
-    INSERT INTO video_lab_ideas (topic, hook, outline, status)
+    INSERT INTO video_lab_ideas (topic, hook, outline, status, source, source_url, asks_ref, notes)
     VALUES (
       ${input.topic}, ${input.hook},
       ${JSON.stringify(input.outline ?? [])}::jsonb,
-      ${input.status ?? "backlog"}
+      ${input.status ?? "backlog"},
+      ${input.source ?? "idea"},
+      ${input.sourceUrl ?? null},
+      ${input.asksRef ?? null},
+      ${input.notes ?? null}
     ) RETURNING id`)) as SqlRows<never>);
   return Number(rows[0]?.id);
 }

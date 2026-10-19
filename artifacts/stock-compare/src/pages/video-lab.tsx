@@ -13,6 +13,9 @@ type Idea = {
   rating: number | null;
   notes: string | null;
   created_at: string;
+  source?: string;
+  source_url?: string | null;
+  asks_ref?: string | null;
 };
 
 type Video = {
@@ -35,6 +38,9 @@ export default function VideoLab() {
   const [upTitle, setUpTitle] = useState("");
   const [upFile, setUpFile] = useState<File | null>(null);
   const [upErr, setUpErr] = useState<string | null>(null);
+  const [reelUrl, setReelUrl] = useState("");
+  const [reelTake, setReelTake] = useState("");
+  const [reelAsks, setReelAsks] = useState("");
   const { data, isLoading } = useQuery<{ ideas: Idea[]; videos: Video[]; note?: string }>({
     queryKey: ["video-lab"],
     queryFn: () => fetch("/api/video-lab", { credentials: "include" }).then((r) => {
@@ -110,6 +116,23 @@ export default function VideoLab() {
       qc.invalidateQueries({ queryKey: ["video-lab"] });
     },
   });
+  const reel = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/video-lab/reels", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: reelUrl, take: reelTake, asksRef: reelAsks || null }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+    },
+    onSuccess: () => {
+      setReelUrl("");
+      setReelTake("");
+      setReelAsks("");
+      qc.invalidateQueries({ queryKey: ["video-lab"] });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-zinc-950 text-amber-100/90">
@@ -118,7 +141,7 @@ export default function VideoLab() {
         <div>
           <h1 className="text-lg font-semibold text-[#d4af37]">Video Lab</h1>
           <p className="text-[11px] text-amber-200/50">
-            A125 — shorts ideas + reel inbox. Upload mp4 → ~/.fildi/videos/.
+            A125 — shorts ideas + reel inbox + upload → ~/.fildi/videos/.
           </p>
         </div>
 
@@ -145,6 +168,36 @@ export default function VideoLab() {
             {upload.isPending ? "Uploading…" : "Save to disk"}
           </button>
           {upErr ? <p className="text-[10px] text-red-300">{upErr}</p> : null}
+        </div>
+
+        <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-3 space-y-2">
+          <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Reel inbox</h2>
+          <input
+            value={reelUrl}
+            onChange={(e) => setReelUrl(e.target.value)}
+            placeholder="Instagram / video URL"
+            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[12px]"
+          />
+          <input
+            value={reelTake}
+            onChange={(e) => setReelTake(e.target.value)}
+            placeholder="One-line take (why it caught you)"
+            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[12px]"
+          />
+          <input
+            value={reelAsks}
+            onChange={(e) => setReelAsks(e.target.value)}
+            placeholder="ASKS ref optional e.g. A125"
+            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[12px]"
+          />
+          <button
+            type="button"
+            disabled={reel.isPending || reelUrl.length < 8 || reelTake.length < 4}
+            onClick={() => reel.mutate()}
+            className="text-[11px] font-semibold text-[#d4af37] disabled:opacity-40"
+          >
+            Log reel
+          </button>
         </div>
 
         <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-3 space-y-2">
@@ -203,9 +256,21 @@ export default function VideoLab() {
                 ) : (
                   data!.ideas.map((i) => (
                     <div key={i.id} className="px-3 py-1.5 text-[11px]">
-                      <div className="font-semibold text-white/90">{i.hook}</div>
+                      <div className="font-semibold text-white/90">
+                        {i.source === "reel" ? <span className="text-orange-400/80 mr-1">reel</span> : null}
+                        {i.hook}
+                      </div>
                       <div className="text-[10px] text-amber-200/40">
                         {i.topic} · {i.status} · {i.created_at.slice(0, 10)}
+                        {i.asks_ref ? ` · ${i.asks_ref}` : ""}
+                        {i.source_url ? (
+                          <>
+                            {" · "}
+                            <a href={i.source_url} target="_blank" rel="noreferrer" className="text-[#d4af37]/70 hover:underline">
+                              link
+                            </a>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   ))

@@ -28,7 +28,13 @@ router.post("/video-lab/ideas", requireAdmin, async (req, res, next) => {
       return;
     }
     const outline = Array.isArray(req.body?.outline) ? req.body.outline : [];
-    const id = await insertIdea({ topic, hook, outline });
+    const id = await insertIdea({
+      topic, hook, outline,
+      source: req.body?.source != null ? String(req.body.source) : "idea",
+      sourceUrl: req.body?.sourceUrl != null ? String(req.body.sourceUrl) : null,
+      asksRef: req.body?.asksRef != null ? String(req.body.asksRef) : null,
+      notes: req.body?.notes != null ? String(req.body.notes) : null,
+    });
     res.json({ id });
   } catch (err) {
     next(err);
@@ -84,6 +90,32 @@ router.post("/video-lab/hooks", requireAdmin, async (req, res, next) => {
       }
     }
     res.json({ ...out, savedIds: ids });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** A125 — Reel inbox: paste IG/URL + one-line take (+ optional ASKS ref). */
+router.post("/video-lab/reels", requireAdmin, async (req, res, next) => {
+  try {
+    const url = String(req.body?.sourceUrl ?? req.body?.url ?? "").trim();
+    const take = String(req.body?.take ?? req.body?.hook ?? "").trim();
+    const topic = String(req.body?.topic ?? "reel").trim() || "reel";
+    if (url.length < 8 || take.length < 4) {
+      res.status(400).json({ error: "sourceUrl and take required" });
+      return;
+    }
+    const id = await insertIdea({
+      topic,
+      hook: take,
+      outline: ["reel", "take", "asks?"],
+      status: "inbox",
+      source: "reel",
+      sourceUrl: url,
+      asksRef: req.body?.asksRef != null ? String(req.body.asksRef) : null,
+      notes: req.body?.notes != null ? String(req.body.notes) : null,
+    });
+    res.json({ id });
   } catch (err) {
     next(err);
   }
