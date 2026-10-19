@@ -1,23 +1,27 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-18 (evening)
 
 ## Next build
-1. A98 theme ETFs (SSGA navhist extend) or A83 Wave 2 FMP concurrency
-2. A95 book toggle / PT breadth when history deepens
-3. A126 optional 5m-forever rollup
-4. Skip: A163 (Jamie go), A133 (Jamie signup), A143 (await 05:30), A83 scorer unify (Jamie)
+1. A83 Wave 2 leftovers (fund-score normalize extract; scorer unify = Jamie)
+2. A85 ingest pipes / A86 reverse-DCF-on-street / A125 upload
+3. A96 overnight breadth `--days=500` (MA% capped)
+4. Skip: A163 (Jamie go), A133 (Jamie signup), study-first A79/A101/A115
 
 ## Phase
-**ops** — Assume Ready continue (no “next”). Ship-check every TS push. A92 drill + A95 events shipped.
+**ops** — Ready continue inline (no “next?”, no orchestrator). Ship-check every TS push.
 
-## Active
-- OpenJev: P14/P16 Cursor-verified; teach loop live; one shared 8091 instance
-- Await Claude quant reviews: A82 A93 A114 A146 A149 A96 A113
+## Shipped this session (sample)
+- A83: ohlcv-freshness, indicator-compute, model-track-grade
+- A87 Maintain noBar5d; A127 AnimatedNumber accents done
+- A96 Regime breadth backfill+MA defer; A98 closed (iShares WAF)
+- A85 Voices P1 + seed; A86 street_pt + chart + gaps panel
+- A139 ICT toggle; A125 Video Lab P1
 
 ## Do not
 - Ask Jamie whether to commit agent-bus / Ready digs — commit + sync
 - Hand `git pull` — only `scripts/agent-git-sync.sh`
 - Parallel `oj verify` (registry race) — one at a time
 - Auto-promote scorecard weights
+- Orchestrator / subagent fan-out for Ready queue
