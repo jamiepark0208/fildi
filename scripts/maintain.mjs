@@ -624,6 +624,10 @@ async function main() {
     const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
     actions.push(`backfill_stale_prices_exit_${stalePrices.status}`);
 
+    // (a3b) A96 market breadth — last 5 sessions A/D (Polygon) + MA% (prices_historical). Full 2y = backfill-market-breadth --days=500.
+    const breadth = runApiTsx("src/scripts/backfill-market-breadth.ts", ["--days=5"]);
+    actions.push(`backfill_market_breadth_exit_${breadth.status}`);
+
     // (a4) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
     //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
     //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
