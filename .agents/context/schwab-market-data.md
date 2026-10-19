@@ -67,4 +67,4 @@ Callback must match portal: `https://127.0.0.1:8182`
 - On hard 429/401 after retry → Yahoo automatically
 
 ## Re-auth watchdog (Claude 2026-10-18)
-Refresh token hard-expires 7 d after login; only a browser login renews it. LaunchAgent `com.fildi.schwab-auth-watch` (hourly; copy of plist in `scripts/launchd-com.fildi.schwab-auth-watch.plist`) runs `scripts/schwab-auth-watch.mjs`: < 36 h left or invalid → macOS notification + auto-runs `schwab-oauth.mjs` (Chrome login, 20 min wait), 8 AM–10 PM, retry every 3 h. `--status` / `--force`. State `~/.tradedash/schwab-reauth-watch.json`, log `/tmp/fildi-logs/schwab-auth-watch.out`.
+Refresh token hard-expires 7 d after login; only a browser login renews it. LaunchAgent `com.fildi.schwab-auth-watch` (every 5 min, fires on wake; copy of plist in `scripts/launchd-com.fildi.schwab-auth-watch.plist`) runs `scripts/schwab-auth-watch.mjs`: < 48 h left or invalid → macOS notification + auto-runs `schwab-oauth.mjs` (Chrome login, 20 min wait), 7 AM–11 PM, retry every 3 h. `--status` / `--force`. State `~/.tradedash/schwab-reauth-watch.json`, log `~/.tradedash/schwab-auth-watch.log`.

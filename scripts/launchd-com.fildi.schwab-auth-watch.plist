@@ -9,9 +9,11 @@
     <string>/Users/jamiepark/Cursor/fildi/scripts/schwab-auth-watch.mjs</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/jamiepark/Cursor/fildi</string>
-  <key>StartInterval</key><integer>3600</integer>
+  <!-- 5 min: a missed interval fires once on wake, so it checks within minutes of opening the Mac -->
+  <key>StartInterval</key><integer>300</integer>
   <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>/tmp/fildi-logs/schwab-auth-watch.out</string>
-  <key>StandardErrorPath</key><string>/tmp/fildi-logs/schwab-auth-watch.err</string>
+  <!-- ~/.tradedash survives reboot (/tmp does not; a missing log dir stops launchd starting the job) -->
+  <key>StandardOutPath</key><string>/Users/jamiepark/.tradedash/schwab-auth-watch.log</string>
+  <key>StandardErrorPath</key><string>/Users/jamiepark/.tradedash/schwab-auth-watch.log</string>
 </dict>
 </plist>

@@ -20,9 +20,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN_PATH = join(homedir(), ".tradedash", "schwab-tokens.json");
 const STATE_PATH = join(homedir(), ".tradedash", "schwab-reauth-watch.json");
-const WINDOW_H = 36;
+const WINDOW_H = 48;
 const RETRY_H = 3;
-const WAKE_HOURS = [8, 22]; // local time; never pop a login at night
+const WAKE_HOURS = [7, 23]; // local time; never pop a login at night
 const REFRESH_LIFE_MS = 7 * 24 * 3600 * 1000;
 
 const args = new Set(process.argv.slice(2));
@@ -53,10 +53,13 @@ const hoursLeft = Number.isFinite(obtained) ? (obtained + REFRESH_LIFE_MS - now)
 const invalid = !tok?.refresh_token || /invalid_grant|unauthorized/i.test(String(tok?.lastError ?? ""));
 const needs = invalid || hoursLeft < WINDOW_H;
 
-console.log(
-  `${new Date(now).toISOString()} schwab refresh: ${hoursLeft.toFixed(1)} h left` +
-    (invalid ? " (invalid)" : "") + (needs ? " → needs re-auth" : " → ok"),
-);
+// Runs every 5 min (launchd) → log only when action is due, plus one heartbeat per hour.
+if (needs || args.size > 0 || new Date(now).getMinutes() < 5) {
+  console.log(
+    `${new Date(now).toISOString()} schwab refresh: ${hoursLeft.toFixed(1)} h left` +
+      (invalid ? " (invalid)" : "") + (needs ? " → needs re-auth" : " → ok"),
+  );
+}
 if (args.has("--status")) process.exit(0);
 if (!needs && !args.has("--force")) process.exit(0);
 

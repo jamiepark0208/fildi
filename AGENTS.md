@@ -38,6 +38,7 @@ Practical rules:
 6. **Session-state files stay per tool:** Claude → `.agents/context/state.md`, Cursor →
    `.cursor/context/cursor-state.md`. Muse uses ASKS only.
 7. Scoring/selection changes need user approval + before/after; bug fixes and display changes don’t.
+   **Jamie asking for the task IS the approval** (Jamie 10-18) — do it end to end (incl. promotion), show the before/after, don't re-ask.
 8. **Before coding** (A135, Karpathy guidelines): state your assumptions; write the success check first, then loop until it passes.
  Every changed line traces to the request — no drive-by refactors, no speculative options; match the surrounding style.
 8b. **Ship gate (Jamie 2026-10-18):** any change under `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**` must pass `scripts/agent-ship-check.sh` (package typecheck) before commit/push. `agent-git-sync.sh` enforces it on push. A94 lesson: a bad import took down the live API + Vite proxies — CI emails are the symptom; boot failure is the product damage. Do not use sleep-loops / subagent fan-out to ship Ready rows.
