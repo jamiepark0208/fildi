@@ -23,6 +23,10 @@ Stock return / direction (rel_21, ret_5) is the wrong target for these — S042 
 | `lseg_research.daily_history` | **split-adjusted daily OHLCV + iv30/60/90 put/call**, 273 tickers | 2016 → |
 | `prices_historical` | app's daily bars — **only from 2025-04**; don't backtest on it | 2025-04 → |
 | `optlab.*` | Jamie's real option trades (551), legs, chain closes, earnings moves | ~1 y |
+| `optlab.contracts` / `optlab.bars` | real daily option closes, ~100 book names; `option_history.chain()` / `fetch_bars()` fill gaps from Polygon (5 calls/min) | 2024-10 → |
+| `optlab.minute_bars` | 1-min **trade** bars (no quotes on our plan): SPY full 2026 + fetched contracts; `s048_0dte.minute_bars()` caches | 2026-01 → |
+| `ticker_registry.primary_peer_group_id` | fine peer group per stock (39 groups, 22 with ≥ 5 members); `.split('.')[0]` = sector | static |
+| `watchlist_sync.strategies` / `strategy_trades` / `strategy_equity` | Strategy Library (Track Record › Strategies); written only via `analysis/strategy_lib.py` | 2026-01 → |
 | `option_score_snapshots`, `model_recs` | live option scores + component_scores JSON, Friday picks | 2026-10 → |
 | `watchlist_sync.grades` | live Model List grades (folder × horizon) | 2026-10-09 → |
 | `fair_value_snapshots` | FV history (live only) | 2026-10-06 → |
@@ -57,3 +61,10 @@ Works for calls: low volume + not stretched above the 200-day (S046, live option
 Avoid list: no reconstructable flag (falling knife, IBES, alpha) predicts ≥ 2σ crashes beyond IV; low alpha / high idio vol → deeper drawdowns (S005/S046).
 Harnesses: puts `analysis/s045_put_retest.py`, calls + Avoid `analysis/s046_calls_avoid.py`. Live grading: `analysis/scoreboard.py` (Settings › Research).
 Null on puts (IV-controlled): HAR, 2σ-drop, streaks, SUE, IBES drift/breadth/disp, regime mean (sizing marginal), swing-low support.
+
+## 7. Trading-strategy studies → Strategy Library (A176)
+Rule-based strategies (not score features) go here: pre-register in the ASKS file (rule, split, pass bar), one run, then publish
+pass **or fail** via `strategy_lib.write_rows()` + `equity()` (`bankroll=` for long-option / pair lanes; default = put-book weekly
+compounding). Templates: event study `s050_sector_laggard.py` (numpy, 2018→, ~4 s); real option closes `s049_panic_puts.py`;
+intraday `s048_0dte.py`. Backlog = A184. Compute is seconds; Polygon's 5 calls/min is the only slow part → background it.
+
