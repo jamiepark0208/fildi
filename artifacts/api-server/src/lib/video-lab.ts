@@ -1,6 +1,10 @@
 /**
- * A125 — Video Lab / Reel inbox metadata (mp4s on disk later; Postgres metadata only).
+ * A125 — Video Lab / Reel inbox (mp4s under ~/.fildi/videos/; Postgres metadata).
  */
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, basename } from "node:path";
+import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 
@@ -70,4 +74,63 @@ export async function insertIdea(input: {
       ${input.status ?? "backlog"}
     ) RETURNING id`)) as SqlRows<never>);
   return Number(rows[0]?.id);
+}
+
+export function videoLabDir(): string {
+  return process.env.FILDI_VIDEOS_DIR ?? join(homedir(), ".fildi", "videos");
+}
+
+export async function insertVideo(input: {
+  title: string;
+  hook?: string | null;
+  topic?: string | null;
+  status?: string;
+  path?: string | null;
+  ideaId?: number | null;
+  notes?: string | null;
+}): Promise<number> {
+  await ensure();
+  const rows = rowsOf<{ id: number }>((await db.execute(sql`
+    INSERT INTO video_lab_videos (title, hook, topic, status, path, idea_id, notes)
+    VALUES (
+      ${input.title},
+      ${input.hook ?? null},
+      ${input.topic ?? null},
+      ${input.status ?? "draft"},
+      ${input.path ?? null},
+      ${input.ideaId ?? null},
+      ${input.notes ?? null}
+    ) RETURNING id`)) as SqlRows<never>);
+  return Number(rows[0]?.id);
+}
+
+const MAX_BYTES = 80 * 1024 * 1024; // 80MB shorts
+
+/** Save mp4 bytes under ~/.fildi/videos and insert metadata row. */
+export async function saveUploadedVideo(opts: {
+  title: string;
+  filename: string;
+  bytes: Buffer;
+  hook?: string | null;
+  topic?: string | null;
+  notes?: string | null;
+}): Promise<{ id: number; path: string }> {
+  if (opts.bytes.length === 0) throw new Error("empty file");
+  if (opts.bytes.length > MAX_BYTES) throw new Error(`file too large (max ${MAX_BYTES} bytes)`);
+  const safeName = basename(opts.filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+  if (!/\.(mp4|webm|mov)$/i.test(safeName)) throw new Error("only mp4/webm/mov allowed");
+  const dir = videoLabDir();
+  await mkdir(dir, { recursive: true });
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const dest = join(dir, `${stamp}-${randomBytes(4).toString("hex")}-${safeName}`);
+  await writeFile(dest, opts.bytes);
+  const id = await insertVideo({
+    title: opts.title.trim() || safeName,
+    hook: opts.hook ?? null,
+    topic: opts.topic ?? null,
+    path: dest,
+    status: "uploaded",
+    notes: opts.notes ?? null,
+  });
+  return { id, path: dest };
 }
