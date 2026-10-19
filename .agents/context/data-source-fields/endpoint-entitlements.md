@@ -14,7 +14,7 @@ Tools: positions/orders/tax lots/realized P&L, `review_option_order` (pre-trade 
 Positions/history overlap the existing RH CSV export (user already has it), so the new value is only `review_option_order` and RH-app alerts. Token lifetime is undocumented.
 
 ## Polygon / Massive (free Basic: 5 calls/min, end-of-day, ~2 y history)
-✅ `/v2/aggs/ticker/{T}/range|prev` · ✅ `/v2/aggs/grouped/.../{date}` (whole market, 1 call) · ✅ `/v3/reference/tickers/{T}` · ✅ `/v2/reference/news` · ✅ dividends, splits · ✅ `/v1/marketstatus/now|upcoming` · ✅ `/v3/reference/options/contracts` · ✅ **option contract daily bars** `/v2/aggs/ticker/O:{OCC}/range` (end-of-day only) · ✅ `/v1/open-close` · ✅ `/v1/indicators/rsi` · ✅ **used** `stocks/v1/short-interest` (1 call = full history since 2020; `lib/short-interest.ts` → Breakdown › Short interest), ✅ `stocks/v1/short-volume`.
+✅ `/v2/aggs/ticker/{T}/range|prev` · ✅ `/v2/aggs/grouped/.../{date}` (whole market, 1 call) — **stocks only**: `/v2/aggs/grouped/locale/us/market/options/{date}` → 403/404 (probed 10-19) · ✅ `/v3/reference/tickers/{T}` · ✅ `/v2/reference/news` · ✅ dividends, splits · ✅ `/v1/marketstatus/now|upcoming` · ✅ `/v3/reference/options/contracts` · ✅ **option contract daily bars** `/v2/aggs/ticker/O:{OCC}/range` (end-of-day only) · ✅ `/v1/open-close` · ✅ `/v1/indicators/rsi` · ✅ **used** `stocks/v1/short-interest` (1 call = full history since 2020; `lib/short-interest.ts` → Breakdown › Short interest), ✅ `stocks/v1/short-volume`.
 ❌ `/v3/snapshot/options/*` (live chain) · ❌ `/v2/snapshot/...tickers` · ❌ `/v3/trades`. ⚠ **`/vX/reference/financials` is GONE** (deprecated; `lib/polygon-client.ts` still calls it).
 
 ## FMP (free) — ⚠ **symbol-restricted**
