@@ -18,7 +18,7 @@ export const WATCHLIST_ROW =
 
 /** My List only — trailing 14px for always-visible remove X (keeps headers aligned). */
 export const WATCHLIST_ROW_MINE =
-  "grid grid-cols-[14px_4.5ch_7ch_6ch_5.5ch_14px] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
+  "grid grid-cols-[14px_4.5ch_7ch_6ch_5.5ch_4.5ch_14px] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
 
 const DEFAULT_OPEN: Record<string, boolean> = {
   sell_puts: true,

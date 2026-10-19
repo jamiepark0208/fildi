@@ -38,7 +38,7 @@ function listQuoteFromLive(
   return { currentPrice: live.price, dayChange, dayChangePercent };
 }
 
-type SortField = "symbol" | "last" | "chg" | "chgPct";
+type SortField = "symbol" | "last" | "chg" | "chgPct" | "streetGap";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
@@ -198,7 +198,7 @@ function WatchlistView() {
   // DB-only name/sector/industry for breakdown tag popups (no Yahoo).
   const { data: watchlistMeta } = useQuery({
     queryKey: ["watchlist-meta", tickerKey],
-    queryFn: async (): Promise<Record<string, { companyName?: string | null; sector?: string | null; industry?: string | null }>> => {
+    queryFn: async (): Promise<Record<string, { companyName?: string | null; sector?: string | null; industry?: string | null; streetGapPct?: number | null }>> => {
       const res = await fetch("/api/watchlist/meta", { credentials: "include" });
       if (!res.ok) throw new Error("watchlist meta failed");
       return res.json();
@@ -239,6 +239,12 @@ function WatchlistView() {
       } else if (sortField === "chg") {
         va = qa?.dayChange ?? 0;
         vb = qb?.dayChange ?? 0;
+      } else if (sortField === "streetGap") {
+        va = Math.abs(watchlistMeta?.[a.ticker]?.streetGapPct ?? -1);
+        vb = Math.abs(watchlistMeta?.[b.ticker]?.streetGapPct ?? -1);
+        // nulls last
+        if (watchlistMeta?.[a.ticker]?.streetGapPct == null) va = -1;
+        if (watchlistMeta?.[b.ticker]?.streetGapPct == null) vb = -1;
       } else {
         va = qa?.dayChangePercent ?? 0;
         vb = qb?.dayChangePercent ?? 0;
@@ -246,7 +252,7 @@ function WatchlistView() {
       return sortDir === "asc" ? va - vb : vb - va;
     });
     return sorted;
-  }, [filteredEntries, quoteMap, sortField, sortDir]);
+  }, [filteredEntries, quoteMap, sortField, sortDir, watchlistMeta]);
 
   const usedColors = useMemo(() => {
     const colors = new Set<string>();
@@ -266,7 +272,7 @@ function WatchlistView() {
   return (
     <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 overflow-hidden">
       {/* Left Panel — hug row content (Sym/Last/Chg/%); no ellipsis, minimal spare */}
-      <ResizablePanel defaultSize={16} minSize={12} maxSize={24} className="flex flex-col bg-zinc-950 min-w-[13.25rem]">
+      <ResizablePanel defaultSize={18} minSize={14} maxSize={28} className="flex flex-col bg-zinc-950 min-w-[15rem]">
         <div className="flex border-b border-[#d4af37]/20 text-[11px] font-bold shrink-0">
           {([["mine", "My List"], ["model", "Model List"]] as const).map(([key, label]) => (
             <button
@@ -379,6 +385,9 @@ function WatchlistView() {
           <button onClick={() => handleSort("chgPct")} className="w-full flex items-center justify-end gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none min-w-0">
             %<SortIcon field="chgPct" sortField={sortField} sortDir={sortDir} />
           </button>
+          <button onClick={() => handleSort("streetGap")} title="Fildi FV vs street PT (A86 review)" className="w-full flex items-center justify-end gap-0.5 text-[9px] font-bold uppercase tracking-wider hover:text-amber-200 select-none min-w-0">
+            vsSt<SortIcon field="streetGap" sortField={sortField} sortDir={sortDir} />
+          </button>
           <div />
         </div>
 
@@ -441,6 +450,21 @@ function WatchlistView() {
                       <div className={cn("text-right font-mono tabular-nums whitespace-nowrap", chgColor)}>
                         {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(1)}%` : "—"}
                       </div>
+                      {(() => {
+                        const g = watchlistMeta?.[entry.ticker]?.streetGapPct;
+                        const hot = g != null && Math.abs(g) >= 15;
+                        return (
+                          <div
+                            title={g != null ? `FV vs street ${g >= 0 ? "+" : ""}${g.toFixed(0)}%` : "No street PT gap"}
+                            className={cn(
+                              "text-right font-mono tabular-nums whitespace-nowrap text-[10px]",
+                              g == null ? "text-amber-200/25" : hot ? "text-sky-300" : "text-amber-200/50",
+                            )}
+                          >
+                            {g == null ? "—" : `${g >= 0 ? "+" : ""}${g.toFixed(0)}`}
+                          </div>
+                        );
+                      })()}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

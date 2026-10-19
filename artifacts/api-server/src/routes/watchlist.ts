@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
-import { db, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
+import { db, pool, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
 import { isExcludedEtf } from "../lib/etf-exclusions.js";
@@ -39,13 +39,42 @@ router.get("/watchlist/meta", async (req, res) => {
     .from(watchlist)
     .leftJoin(tickerRegistry, eq(watchlist.ticker, tickerRegistry.ticker))
     .where(eq(watchlist.userId, req.session.userId!));
-  const out: Record<string, { companyName: string | null; sector: string | null; industry: string | null }> = {};
+  const out: Record<string, {
+    companyName: string | null; sector: string | null; industry: string | null; streetGapPct: number | null;
+  }> = {};
   for (const r of rows) {
     out[r.ticker] = {
       companyName: r.companyName ?? null,
       sector: r.sector ?? null,
       industry: r.industry ?? null,
+      streetGapPct: null,
     };
+  }
+  // A86 — Fildi FV vs street PT gap % for watchlist tickers (review column; not a signal).
+  const tickers = Object.keys(out);
+  if (tickers.length > 0) {
+    try {
+      const gaps = await pool.query<{ ticker: string; gap_pct: number }>(`
+        WITH latest AS (
+          SELECT DISTINCT ON (ticker) ticker, as_of, fair_value::float8 AS fair_value
+          FROM fair_value_snapshots
+          WHERE fair_value IS NOT NULL AND ticker = ANY($1::text[])
+          ORDER BY ticker, as_of DESC
+        )
+        SELECT l.ticker,
+               ((l.fair_value - s.median_pt) / s.median_pt * 100)::float8 AS gap_pct
+        FROM latest l
+        JOIN LATERAL (
+          SELECT median_pt FROM street_pt_daily s
+          WHERE s.ticker = l.ticker AND s.as_of <= l.as_of
+          ORDER BY s.as_of DESC LIMIT 1
+        ) s ON s.median_pt IS NOT NULL AND s.median_pt > 0`, [tickers]);
+      for (const g of gaps.rows) {
+        if (out[g.ticker]) out[g.ticker]!.streetGapPct = Number(g.gap_pct);
+      }
+    } catch {
+      /* table may be empty — leave nulls */
+    }
   }
   return res.json(out);
 });
