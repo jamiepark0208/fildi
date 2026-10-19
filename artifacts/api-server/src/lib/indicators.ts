@@ -9,7 +9,14 @@ import { getSchwabDailyBars } from "./schwab-client.js";
 import { schwabSymbol, yahooSymbol } from "./vendor-ticker.js";
 import { lastCompletedSessionYmd } from "./market-hours.js";
 import { decidePriceReplace } from "./price-source-rank.js";
-
+import {
+  barYmd,
+  mergeSchwabYahoo,
+  mergeYahooLseg,
+  type SourcedBar,
+  type YahooBar,
+} from "./indicator-bar-merge.js";
+export { mergeSchwabYahoo } from "./indicator-bar-merge.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -369,10 +376,6 @@ export async function ensureFreshOHLCV(key: string): Promise<OHLCVRow[]> {
   return rows;
 }
 
-type YahooBar = {
-  date: Date; open: number; high: number; low: number; close: number; volume: number;
-};
-
 /**
  * LSEG daily_history fallback when Yahoo returns empty/thin history (A19/A21).
  * Close-only series — synthesize OHLC as close, volume 0 (enough for price freshness
@@ -400,30 +403,6 @@ async function fetchOHLCVFromLseg(key: string, period1: string): Promise<YahooBa
       volume: 0,
     };
   });
-}
-
-function barYmd(b: YahooBar): string {
-  return b.date.toISOString().slice(0, 10);
-}
-
-type SourcedBar = YahooBar & { source: "schwab" | "yahoo" | "lseg" };
-
-/** Merge by date: Schwab wins on conflict; Yahoo fills dates Schwab lacks (or the whole series when Schwab is down). */
-export function mergeSchwabYahoo(schwab: YahooBar[], yahoo: YahooBar[]): SourcedBar[] {
-  const byDate = new Map<string, SourcedBar>();
-  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: "yahoo" });
-  for (const b of schwab) byDate.set(barYmd(b), { ...b, source: "schwab" });
-  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
-}
-
-/** Merge by date: prefer Yahoo OHLC when present; fill missing/newer dates from LSEG. */
-function mergeYahooLseg(yahoo: (YahooBar & { source?: SourcedBar["source"] })[], lseg: YahooBar[]): SourcedBar[] {
-  const byDate = new Map<string, SourcedBar>();
-  for (const b of lseg) byDate.set(barYmd(b), { ...b, source: "lseg" });
-  for (const b of yahoo) byDate.set(barYmd(b), { ...b, source: b.source ?? "yahoo" }); // Schwab/Yahoo win on conflict
-  return [...byDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => v);
 }
 
 export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
