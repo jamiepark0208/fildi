@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Bookmark, BriefcaseBusiness, Trophy, User, Settings as SettingsIcon,
-  Activity, ShieldCheck, Bot,
+  Activity, ShieldCheck, Bot, Clapperboard,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ const LEFT_NAV_ITEMS: NavItem[] = [
 
 const RIGHT_NAV_ITEMS: NavItem[] = [
   { id: "ai",        href: "/agents",     label: "AI",         icon: Bot,           color: "#c084fc", adminOnly: true }, // violet robot
+  { id: "video-lab", href: "/video-lab",  label: "Video",      icon: Clapperboard,  color: "#f97316", adminOnly: true }, // A125
   { id: "profile",   href: "/profile/me", label: "Profile",    icon: User,          color: "#f472b6" }, // pink
   { id: "settings",  href: "/settings",   label: "Settings",   icon: SettingsIcon,  color: "#2dd4bf" }, // teal
 ];
