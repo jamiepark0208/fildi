@@ -28,6 +28,7 @@ type Event = {
 
 type Api = {
   bySector: Record<string, Point[]>;
+  bySectorPt?: Record<string, Point[]>;
   events?: Event[];
   note?: string;
 };
@@ -60,13 +61,18 @@ export function SectorRevisionBreadth({
 
   const [sector, setSector] = useState<string>("");
   const [wlOnly, setWlOnly] = useState(false);
+  const [metric, setMetric] = useState<"eps" | "pt">("eps");
   const wlSet = useMemo(
     () => new Set(watchlistTickers.map((t) => t.toUpperCase())),
     [watchlistTickers],
   );
 
   const active = sector && data?.bySector[sector] ? sector : sectors[0] ?? "";
-  const series = active ? (data?.bySector[active] ?? []) : [];
+  const series = active
+    ? metric === "pt"
+      ? (data?.bySectorPt?.[active] ?? [])
+      : (data?.bySector[active] ?? [])
+    : [];
   const events = useMemo(() => {
     let list = (data?.events ?? []).filter((e) => e.sector === active);
     if (wlOnly && wlSet.size > 0) list = list.filter((e) => wlSet.has(e.ticker));
@@ -109,6 +115,21 @@ export function SectorRevisionBreadth({
               Watchlist
             </button>
           )}
+          <div className="flex rounded border border-[#d4af37]/20 overflow-hidden">
+            {(["eps", "pt"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMetric(m)}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 uppercase",
+                  metric === m ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
           <select
             value={active}
             onChange={(e) => setSector(e.target.value)}
@@ -134,7 +155,13 @@ export function SectorRevisionBreadth({
               formatter={(v: number, key: string) => [v, key === "breadth" ? "up − down" : key]}
               labelFormatter={(d) => String(d)}
             />
-            <Line type="monotone" dataKey="breadth" stroke="#38bdf8" dot={false} strokeWidth={1.5} />
+            <Line
+              type="monotone"
+              dataKey="breadth"
+              stroke={metric === "pt" ? "#fbbf24" : "#38bdf8"}
+              dot={false}
+              strokeWidth={1.5}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -157,7 +184,8 @@ export function SectorRevisionBreadth({
         </div>
       )}
       <p className="text-[10px] text-amber-200/35 px-3 pb-2">
-        Line = LSEG FY1 EPS 30d drift breadth. Chips = rating up/down only (no maintain/reiterate). Display only.
+        Line = {metric === "pt" ? "PT mean 30d % change" : "FY1 EPS 30d drift"} breadth (up − down).
+        Chips = rating up/down only. Display only until S0xx.
       </p>
     </div>
   );

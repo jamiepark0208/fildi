@@ -470,14 +470,34 @@ router.get("/etf-flows", async (req: Request, res: Response) => {
 });
 
 /**
- * A95 — LSEG EPS-revision breadth by sector (display only until S0xx).
+ * A95 — LSEG EPS + PT revision breadth by sector (display only until S0xx).
  * GET /macro/revision-breadth?days=60
- * breadth = (# eps_drift_30d_pct > +1%) − (# < −1%) among covered names that day.
+ * EPS breadth = (# eps_drift_30d_pct > +1%) − (# < −1%).
+ * PT breadth = same on 30d % change in pt_mean (needs ≥30d history per name).
  */
 router.get("/revision-breadth", async (req: Request, res: Response) => {
   try {
     const { pool } = await import("@workspace/db");
     const days = Math.min(400, Math.max(7, Number(req.query.days) || 60));
+    type BreadthPt = {
+      date: string; n: number; up: number; down: number; breadth: number; medianDrift: number | null;
+    };
+    const pack = (rows: Array<Record<string, unknown>>): Record<string, BreadthPt[]> => {
+      const out: Record<string, BreadthPt[]> = {};
+      for (const row of rows) {
+        const sector = String(row.sector);
+        (out[sector] ??= []).push({
+          date: String(row.date),
+          n: Number(row.n),
+          up: Number(row.up),
+          down: Number(row.down),
+          breadth: Number(row.up) - Number(row.down),
+          medianDrift: row.mediandrift != null ? Number(row.mediandrift) : null,
+        });
+      }
+      return out;
+    };
+
     const r = await pool.query(
       `WITH base AS (
          SELECT d.as_of::text AS date,
@@ -498,20 +518,45 @@ router.get("/revision-breadth", async (req: Request, res: Response) => {
        ORDER BY date, sector`,
       [days],
     );
-    const bySector: Record<string, Array<{
-      date: string; n: number; up: number; down: number; breadth: number; medianDrift: number | null;
-    }>> = {};
-    for (const row of r.rows) {
-      const sector = String(row.sector);
-      (bySector[sector] ??= []).push({
-        date: row.date,
-        n: Number(row.n),
-        up: Number(row.up),
-        down: Number(row.down),
-        breadth: Number(row.up) - Number(row.down),
-        medianDrift: row.mediandrift != null ? Number(row.mediandrift) : null,
-      });
-    }
+    const bySector = pack(r.rows as Array<Record<string, unknown>>);
+
+    const rpt = await pool.query(
+      `WITH pts AS (
+         SELECT d.as_of,
+                d.ticker,
+                d.pt_mean::float8 AS pt,
+                COALESCE(NULLIF(TRIM(reg.sector), ''), 'Unknown') AS sector
+         FROM lseg_research.signals_daily d
+         LEFT JOIN ticker_registry reg ON reg.ticker = d.ticker
+         WHERE d.as_of >= (CURRENT_DATE - ($1::int + 45))
+           AND d.pt_mean IS NOT NULL AND d.pt_mean > 0
+       ),
+       lagged AS (
+         SELECT a.as_of::text AS date,
+                a.sector,
+                CASE WHEN b.pt > 0 THEN (a.pt / b.pt - 1.0) * 100.0 ELSE NULL END AS drift
+         FROM pts a
+         LEFT JOIN LATERAL (
+           SELECT p.pt FROM pts p
+           WHERE p.ticker = a.ticker AND p.as_of <= a.as_of - 30
+           ORDER BY p.as_of DESC
+           LIMIT 1
+         ) b ON true
+         WHERE a.as_of >= (CURRENT_DATE - $1::int)
+       )
+       SELECT date, sector,
+              COUNT(*) FILTER (WHERE drift IS NOT NULL)::int AS n,
+              COUNT(*) FILTER (WHERE drift > 1)::int AS up,
+              COUNT(*) FILTER (WHERE drift < -1)::int AS down,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY drift)
+                FILTER (WHERE drift IS NOT NULL)::float8 AS medianDrift
+       FROM lagged
+       GROUP BY date, sector
+       HAVING COUNT(*) FILTER (WHERE drift IS NOT NULL) > 0
+       ORDER BY date, sector`,
+      [days],
+    );
+    const bySectorPt = pack(rpt.rows as Array<Record<string, unknown>>);
     const ev = await pool.query(
       `SELECT a.event_date::text AS date,
               a.ticker,
@@ -541,8 +586,9 @@ router.get("/revision-breadth", async (req: Request, res: Response) => {
     res.json({
       days,
       bySector,
+      bySectorPt,
       events,
-      note: "LSEG eps_drift_30d_pct breadth + rating up/down dots (maintain/reiterate/initiate excluded). Display only (A95).",
+      note: "LSEG EPS + PT 30d drift breadth + rating up/down dots (maintain/reiterate/initiate excluded). Display only (A95).",
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
