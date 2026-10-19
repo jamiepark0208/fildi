@@ -677,7 +677,19 @@ export function PriceChart({
     return [...fvg, ...zones];
   }, [showIct, showTechnicalZones, tickers, historyByTicker]);
 
-  const allPriceLines = useMemo((): LWPriceLine[] => {
+  
+  // A139 — log overlay fire counts (≥5/month expected; under = decoration).
+  useEffect(() => {
+    if (!showIct || !showTechnicalZones || tickers.length !== 1) return;
+    const bars = historyByTicker[tickers[0]] ?? [];
+    const fvg = detectFvg(bars).length;
+    const sweeps = detectSweeps(bars).length;
+    const bos = detectBos(bars).length;
+    const sd = detectSupplyDemand(bars).length;
+    console.info("[ict-fire-count]", { ticker: tickers[0], fvg, sweeps, bos, supplyDemand: sd, bars: bars.length });
+  }, [showIct, showTechnicalZones, tickers, historyByTicker]);
+
+const allPriceLines = useMemo((): LWPriceLine[] => {
     if (!showTechnicalZones || tickers.length !== 1) return [];
     return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines, ...sessionFlowLines, ...ictPriceLines];
   }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines, sessionFlowLines, ictPriceLines]);
