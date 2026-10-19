@@ -154,3 +154,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | open |
 | [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | open |
 | [A179](asks/A179.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | open |
+| [A180](asks/A180.md) | 2026-10-19 | Muse → Cursor | Pre-Dec-11 build capacity plan — rank the queue, kill the tail | open |
+| [A181](asks/A181.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |
+| [A182](asks/A182.md) | 2026-10-19 | Muse → Cursor | Model-version promotion protocol — scoreboard-gated, preregistered | open |
