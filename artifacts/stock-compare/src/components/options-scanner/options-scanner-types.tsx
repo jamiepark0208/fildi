@@ -31,6 +31,8 @@ export interface OptionsChainResult {
   puts: OptionRow[];
   calls: OptionRow[];
   fetchedAt: number;
+  /** Vendor that produced this chain — Yahoo usually means Schwab miss/fallback. */
+  source?: "schwab" | "yahoo";
 }
 
 export interface IvTermPoint {

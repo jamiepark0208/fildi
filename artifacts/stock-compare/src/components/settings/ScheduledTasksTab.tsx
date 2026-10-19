@@ -114,6 +114,8 @@ interface ScheduledTasksStatus {
     yahoo: number;
     total: number;
     schwabSharePct: number | null;
+    schwabZeroBid?: number;
+    yahooZeroBid?: number;
   };
   /** Weekly Mac resource snapshot (scripts/resource-audit.py, Jamie 10-16). */
   macResources?: {

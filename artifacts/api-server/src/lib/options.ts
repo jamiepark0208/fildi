@@ -4,7 +4,8 @@ import { TTLCache } from "./ttl-cache.js";
 import { isPlausibleOptionQuote } from "@workspace/option-scoring";
 import { getSchwabOptionChains } from "./schwab-client.js";
 import { logger } from "./logger.js";
-import { recordOptionsChainSource } from "./options-chain-source-stats.js";
+import { recordOptionsChainSource, recordOptionsChainBidQuality } from "./options-chain-source-stats.js";
+import { assessOptionChainQuoteDq } from "@workspace/option-scoring";
 import { bsGreeks } from "./options-greeks.js";
 export { bsGreeks, normCDF } from "./options-greeks.js";
 import { daysUntilCeil, exactDaysUntil, settlementOffsetDays } from "./date-util.js";
@@ -214,6 +215,20 @@ function withBudget<T>(p: Promise<T>, label: string): Promise<T> {
   });
 }
 
+function noteBidQuality(source: "schwab" | "yahoo", chains: OptionsChainResult[]): void {
+  const put = assessOptionChainQuoteDq(chains, false);
+  const call = assessOptionChainQuoteDq(chains, true);
+  const inBand = put.inBand + call.inBand;
+  const withLiveBid = put.withLiveBid + call.withLiveBid;
+  recordOptionsChainBidQuality(source, inBand, withLiveBid);
+  if (inBand > 0 && withLiveBid === 0) {
+    logger.warn(
+      { ticker: chains[0]?.ticker, source, inBand, withAskNoBid: put.withAskNoBid + call.withAskNoBid },
+      "options: chain has zero live bids in OTM band — quote DQ fail",
+    );
+  }
+}
+
 export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const key  = ticker.toUpperCase();
 
@@ -221,7 +236,9 @@ export async function getOptionsChain(ticker: string): Promise<OptionsChainResul
     const schwab = await withBudget(getSchwabOptionChains(key), `schwab chain ${key}`);
     if (schwab?.length) {
       recordOptionsChainSource("schwab");
-      return schwab.map((c) => ({ ...c, source: "schwab" as const }));
+      const tagged = schwab.map((c) => ({ ...c, source: "schwab" as const }));
+      noteBidQuality("schwab", tagged);
+      return tagged;
     }
   } catch (err) {
     logger.warn({ ticker: key, err: String(err) }, "options: Schwab chain failed — Yahoo fallback");
@@ -317,7 +334,9 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
   }
 
   recordOptionsChainSource("yahoo");
-  return results.map((c) => ({ ...c, source: "yahoo" as const }));
+  const tagged = results.map((c) => ({ ...c, source: "yahoo" as const }));
+  noteBidQuality("yahoo", tagged);
+  return tagged;
 }
 
 export { getIvTermStructure, type IvTermPoint } from "./options-iv-term.js";

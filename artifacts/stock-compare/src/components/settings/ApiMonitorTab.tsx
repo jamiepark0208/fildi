@@ -251,6 +251,8 @@ export function ApiMonitorTab() {
       yahoo: number;
       total: number;
       schwabSharePct: number | null;
+      schwabZeroBid?: number;
+      yahooZeroBid?: number;
     };
   }>({
     queryKey: ["schwab-status"],
@@ -414,6 +416,9 @@ export function ApiMonitorTab() {
               schwab.usage ? `${schwab.usage.requestsLast60s}/${schwab.usage.rpmBudget} rpm` : null,
               schwab.optionsChainSource?.total
                 ? `chains ${schwab.optionsChainSource.schwabSharePct}% Sw / ${100 - (schwab.optionsChainSource.schwabSharePct ?? 0)}% Y`
+                : null,
+              (schwab.optionsChainSource?.schwabZeroBid || schwab.optionsChainSource?.yahooZeroBid)
+                ? `zero-bid DQ Sw${schwab.optionsChainSource.schwabZeroBid ?? 0}/Y${schwab.optionsChainSource.yahooZeroBid ?? 0}`
                 : null,
               schwab.reauthHint,
             )}

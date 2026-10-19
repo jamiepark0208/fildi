@@ -1,3 +1,4 @@
+import { assessOptionChainQuoteDq } from "@/lib/option-scorer";
 import type { MacroRegime } from "@/lib/option-scorer-constants";
 import type { OptionRow, OptionsChainResult, ScorecardRow } from "./options-scanner-types";
 
@@ -31,7 +32,7 @@ export function viableOptionStrikes(
     });
 }
 
-/** Diagnose why the expanded panel says "no viable strikes" — gates are intentional, message should say which. */
+/** Diagnose why the expanded panel says "no viable strikes" — lead with quote DQ when bids are missing. */
 export function optionStrikeSummary(
   chains: OptionsChainResult[] | null,
   minWeeklyIncome: number,
@@ -40,45 +41,43 @@ export function optionStrikeSummary(
   if (!chains) return "—";
   if (chains.length === 0) return "empty chain (no 1–28 DTE expiries)";
 
+  const dq = assessOptionChainQuoteDq(chains, isCall);
   const side = isCall ? "calls" : "puts";
-  let inBand = 0;
-  let liveBid = 0;
-  let meetsGate = 0;
-  let bestLive = 0;
-  for (const c of chains) {
-    const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
-    for (const p of (isCall ? c.calls : c.puts)) {
-      inBand++;
-      if (p.bid > 0 || p.bidIsLive) liveBid++;
-      if (p.meetsGate) {
-        meetsGate++;
-        const wk = p.incomePct / (settlementDte / 7);
-        if (wk > bestLive) bestLive = wk;
-      }
-    }
-  }
 
   const strikes = viableOptionStrikes(chains, minWeeklyIncome, isCall);
   if (strikes.length > 0) {
     const best = Math.max(...strikes.map(s => s.weeklyIncome));
-    return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk`;
+    const src = dq.source !== "unknown" ? ` · ${dq.source}` : "";
+    return `${strikes.length} strike${strikes.length !== 1 ? "s" : ""} · best ${best.toFixed(2)}%/wk${src}`;
   }
 
-  // No viable — explain which gate fired (most restrictive first)
-  if (inBand === 0) {
+  // Zero live bids = data quality failure (we expect Schwab bids in RTH)
+  if (dq.inBand > 0 && dq.withLiveBid === 0) {
+    return dq.message;
+  }
+  if (dq.inBand === 0) {
     return `no ${side} in 3–25% OTM band (chain may be thin or all ATM/deep)`;
   }
-  if (liveBid === 0) {
-    return `no live bid on ${inBand} ${side} in band — not sellable (Yahoo/Schwab quote stale)`;
+  if (dq.meetsGate === 0 && dq.withLiveBid > 0) {
+    return `${dq.withLiveBid} live bid${dq.withLiveBid !== 1 ? "s" : ""} rejected as implausible quotes (garbage filter)`;
   }
-  if (meetsGate === 0) {
-    return `${liveBid} live bid${liveBid !== 1 ? "s" : ""} rejected as implausible quotes (garbage filter)`;
+
+  let bestLive = 0;
+  for (const c of chains) {
+    const settlementDte = c.settlementDte ?? c.exactDte ?? Math.max(1, c.daysToExpiry);
+    for (const p of (isCall ? c.calls : c.puts)) {
+      if (!p.meetsGate) continue;
+      const wk = p.incomePct / (settlementDte / 7);
+      if (wk > bestLive) bestLive = wk;
+    }
   }
   return (
-    `${meetsGate} live · all < ${minWeeklyIncome.toFixed(1)}%/wk min` +
+    `${dq.meetsGate} live · all < ${minWeeklyIncome.toFixed(1)}%/wk min` +
     (bestLive > 0 ? ` (best ${bestLive.toFixed(2)}%/wk — lower Min %/wk or Override)` : "")
   );
 }
+
+export { assessOptionChainQuoteDq };
 
 // RSI thresholds are per-ticker, calibrated from historical win rate by tier — not a
 // universal constant. Shown alongside the threshold so "35" reads as a calibrated value,

@@ -4,7 +4,8 @@ import { TTLCache } from "../lib/ttl-cache.js";
 import { readLatestOptionRankings, computeAndPersistOptionScores } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
-import { selectPremiumCandidates } from "@workspace/option-scoring";
+import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
+import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 
 const router = Router();
 
@@ -131,6 +132,49 @@ router.get("/options/batch", async (req, res) => {
   await Promise.all(Array.from({ length: Math.min(OPTIONS_BATCH_CONCURRENCY, keys.length) }, worker));
 
   return res.json(results);
+});
+
+/**
+ * GET /api/options/quote-dq?tickers=A,B&side=put
+ * Probe live chains and return bid data-quality (source + live-bid coverage).
+ * "No live bid" = vendor returned bid=0 — not a trading preference.
+ */
+router.get("/options/quote-dq", async (req, res) => {
+  const sideRaw = String(req.query.side ?? "put").toLowerCase();
+  const isCall = sideRaw === "call";
+  const raw = typeof req.query.tickers === "string" ? req.query.tickers : "";
+  const tickers = [...new Set(raw.split(",").map((t) => t.trim().toUpperCase()).filter((t) => /^[A-Z]{1,10}$/.test(t)))].slice(0, 40);
+  if (tickers.length === 0) {
+    return res.status(400).json({ error: "tickers required" });
+  }
+
+  const processStats = getOptionsChainSourceStats();
+  const rows: Array<{
+    ticker: string;
+    ok: boolean;
+    error?: string;
+    dq?: ReturnType<typeof assessOptionChainQuoteDq>;
+  }> = [];
+
+  // Sequential — each chain already budgets upstream; keep fan-out small for DQ probes.
+  for (const ticker of tickers) {
+    try {
+      const chains = await fetchOptionsChain(ticker);
+      const dq = assessOptionChainQuoteDq(chains, isCall);
+      rows.push({ ticker, ok: !dq.degraded || dq.code === "yahoo_fallback", dq });
+    } catch (err: unknown) {
+      rows.push({ ticker, ok: false, error: String((err as Error)?.message ?? err) });
+    }
+  }
+
+  const fail = rows.filter((r) => r.dq?.code === "zero_bids_schwab" || r.dq?.code === "zero_bids_yahoo" || r.error);
+  return res.json({
+    side: isCall ? "call" : "put",
+    processStats,
+    probed: rows.length,
+    failCount: fail.length,
+    rows,
+  });
 });
 
 // GET /api/options/:ticker/term-structure — ATM IV across the expiry calendar (1W/1M/2M/3M/6M/1Y)

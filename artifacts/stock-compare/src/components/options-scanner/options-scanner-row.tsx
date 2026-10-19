@@ -14,7 +14,7 @@ import {
   pfNum, OPTIONS_BOARD_COLS, columnHeatStyle, type ColRange, type OptionRow, type OptionsChainResult,
   type ScorecardRow, type IvTermPoint,
 } from "./options-scanner-types";
-import { viableOptionStrikes, optionStrikeSummary, buildReasoning } from "./options-scanner-helpers";
+import { viableOptionStrikes, optionStrikeSummary, buildReasoning, assessOptionChainQuoteDq } from "./options-scanner-helpers";
 import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
 import { ExpirySection } from "./options-expiry-section";
 import { IvTermStructureChart } from "./options-iv-chart";
@@ -629,6 +629,24 @@ export function ScannerRow({
               Loading options…
             </div>
           )}
+
+          {subTab === "strikes" && !optionsLoading && optionsData && (() => {
+            const dq = assessOptionChainQuoteDq(optionsData, isCall);
+            if (!dq.degraded && dq.code === "ok") return null;
+            return (
+              <p
+                className={cn(
+                  "text-[10px] font-mono leading-snug px-1.5 py-1 rounded border mb-1",
+                  dq.code === "zero_bids_schwab" || dq.code === "zero_bids_yahoo" || dq.code === "zero_bids"
+                    ? "border-red-500/40 bg-red-500/10 text-red-200/90"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-100/80",
+                )}
+                title="Sell income uses live bid only. Missing bids = vendor/quote DQ, not a strategy filter."
+              >
+                {dq.message}
+              </p>
+            );
+          })()}
 
           {subTab === "strikes" && !optionsLoading && optionsData && strikes.length > 0 && (() => {
             // Group strikes by expiry, preserving chronological chain order
