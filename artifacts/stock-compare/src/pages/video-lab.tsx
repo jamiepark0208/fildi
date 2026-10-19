@@ -29,6 +29,7 @@ type Video = {
   rating: number | null;
   notes: string | null;
   created_at: string;
+  transcript?: string | null;
 };
 
 export default function VideoLab() {
@@ -115,6 +116,23 @@ export default function VideoLab() {
       if (d.ideas?.[0]?.hook) setHook(d.ideas[0].hook);
       qc.invalidateQueries({ queryKey: ["video-lab"] });
     },
+  });
+  const [txErr, setTxErr] = useState<string | null>(null);
+  const transcribe = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/video-lab/videos/${id}/transcribe`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `transcribe ${r.status}`);
+      return body as { transcript?: string };
+    },
+    onSuccess: () => {
+      setTxErr(null);
+      qc.invalidateQueries({ queryKey: ["video-lab"] });
+    },
+    onError: (e: Error) => setTxErr(e.message),
   });
   const reel = useMutation({
     mutationFn: async () => {
@@ -281,6 +299,7 @@ export default function VideoLab() {
               <h3 className="text-[10px] font-semibold text-[#d4af37]/80 uppercase px-3 py-1.5 bg-black border-b border-[#d4af37]/15">
                 Videos ({data?.videos?.length ?? 0})
               </h3>
+              {txErr ? <p className="text-[10px] text-red-300/80 px-3 py-1">{txErr}</p> : null}
               <div className="divide-y divide-zinc-800/80 max-h-[360px] overflow-y-auto">
                 {(data?.videos ?? []).length === 0 ? (
                   <p className="text-[11px] text-amber-200/40 italic px-3 py-2">
@@ -288,12 +307,29 @@ export default function VideoLab() {
                   </p>
                 ) : (
                   data!.videos.map((v) => (
-                    <div key={v.id} className="px-3 py-1.5 text-[11px]">
-                      <div className={cn("font-semibold", "text-white/90")}>{v.title}</div>
-                      <div className="text-[10px] text-amber-200/40">
-                        {v.status} · {v.created_at.slice(0, 10)}
-                        {v.path ? ` · ${v.path.replace(/^.*\//, "")}` : ""}
+                    <div key={v.id} className="px-3 py-1.5 text-[11px] space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className={cn("font-semibold", "text-white/90")}>{v.title}</div>
+                          <div className="text-[10px] text-amber-200/40">
+                            {v.status} · {v.created_at.slice(0, 10)}
+                            {v.path ? ` · ${v.path.replace(/^.*\//, "")}` : ""}
+                          </div>
+                        </div>
+                        {v.path ? (
+                          <button
+                            type="button"
+                            disabled={transcribe.isPending}
+                            onClick={() => transcribe.mutate(v.id)}
+                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-[#d4af37]/40 text-[#d4af37]/90 hover:bg-[#d4af37]/10 disabled:opacity-40"
+                          >
+                            {transcribe.isPending ? "…" : v.transcript ? "Re-Whisper" : "Whisper"}
+                          </button>
+                        ) : null}
                       </div>
+                      {v.transcript ? (
+                        <p className="text-[10px] text-amber-100/60 line-clamp-3 whitespace-pre-wrap">{v.transcript}</p>
+                      ) : null}
                     </div>
                   ))
                 )}
