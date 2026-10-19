@@ -474,3 +474,85 @@ export function SectorFundFlowBars({ enabled }: { enabled: boolean }) {
     </div>
   );
 }
+
+type BidApi = {
+  rows: Array<{ ticker: string; bidUsd: number | null; etfN: number; holdingsAsOf: string | null }>;
+};
+
+const BID_FALLBACK = ["NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AVGO", "JPM"];
+
+/** A98 P3 — Σ ETF flow × weight for watchlist (or mega fallback). */
+export function EtfBidStrip({
+  enabled,
+  tickers = [],
+}: {
+  enabled: boolean;
+  tickers?: string[];
+}) {
+  const list = (tickers.length ? tickers.map((t) => t.toUpperCase()) : BID_FALLBACK).slice(0, 12);
+  const q = list.join(",");
+  const { data, isLoading, isError } = useQuery<BidApi>({
+    queryKey: ["macro-etf-bid", 20, q],
+    queryFn: () =>
+      fetch(`/api/macro/etf-bid?tickers=${encodeURIComponent(q)}&days=20`).then((r) => {
+        if (!r.ok) throw new Error(`etf-bid ${r.status}`);
+        return r.json();
+      }),
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled: enabled && list.length > 0,
+  });
+
+  if (isLoading || (!data && enabled)) {
+    return (
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-3 flex items-center justify-center h-[72px]">
+        <Loader2 className="h-4 w-4 animate-spin text-amber-200/40" />
+      </div>
+    );
+  }
+  if (isError || !data?.rows?.length) {
+    return (
+      <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 p-2 text-[11px] text-amber-200/50">
+        No ETF-bid rows — need holdings + flows (A98 P3).
+      </div>
+    );
+  }
+
+  const fmt = (n: number) => {
+    const a = Math.abs(n);
+    if (a >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+    if (a >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (a >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+    return n.toFixed(0);
+  };
+
+  return (
+    <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black border-b border-[#d4af37]/20">
+        <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+          ETF Bid (20d)
+        </h3>
+        <span className="text-[10px] text-amber-200/40">flow × weight · display only</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 p-2">
+        {data.rows.map((r) => {
+          const pos = (r.bidUsd ?? 0) >= 0;
+          return (
+            <span
+              key={r.ticker}
+              title={`${r.etfN} ETFs · holdings ${r.holdingsAsOf ?? "—"}`}
+              className={cn(
+                "text-[11px] font-mono px-2 py-0.5 rounded border",
+                pos
+                  ? "text-emerald-300 border-emerald-600/40 bg-emerald-950/40"
+                  : "text-rose-300 border-rose-600/40 bg-rose-950/40",
+              )}
+            >
+              {r.ticker} {r.bidUsd != null ? `${pos ? "+" : ""}${fmt(r.bidUsd)}` : "—"}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

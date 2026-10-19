@@ -26,7 +26,7 @@ import { RegimeAccuracyStrip } from "@/components/macro/regime-accuracy-strip";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
 import { MacroRow } from "@/components/macro/macro-indicator-row";
 import { LiquidityFlowDiagram, LiquidityImplicationsCard } from "@/components/macro/macro-liquidity-section";
-import { SectorRotationBubbles, SectorHeatmapGrid, SectorFundFlowBars } from "@/components/macro/macro-sector-rotation";
+import { SectorRotationBubbles, SectorHeatmapGrid, SectorFundFlowBars, EtfBidStrip } from "@/components/macro/macro-sector-rotation";
 import { SectorRevisionBreadth } from "@/components/macro/sector-revision-breadth";
 import { ExpandableChartFrame } from "@/components/macro/expandable-chart-frame";
 import { VolatilityImplicationsCard, PolicyCspSummary } from "@/components/macro/macro-volatility-policy";
@@ -787,6 +787,9 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
               </div>
               <div className="space-y-1.5">
                 <SectorFundFlowBars enabled={activeTab === "heatmap"} />
+              </div>
+              <div className="space-y-1.5">
+                <EtfBidStrip enabled={activeTab === "heatmap"} tickers={watchlistTickers} />
               </div>
               <div className="space-y-1.5">
                 <SectorRevisionBreadth enabled={activeTab === "heatmap"} watchlistTickers={watchlistTickers} />
