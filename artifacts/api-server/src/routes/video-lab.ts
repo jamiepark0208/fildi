@@ -1,7 +1,16 @@
 /** A125 — Video Lab API (metadata; mp4 upload phase later). */
+import { createReadStream } from "node:fs";
+import { extname } from "node:path";
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
-import { insertIdea, listIdeas, listVideos, saveUploadedVideo } from "../lib/video-lab.js";
+import {
+  deleteVideo,
+  getVideoFilePath,
+  insertIdea,
+  listIdeas,
+  listVideos,
+  saveUploadedVideo,
+} from "../lib/video-lab.js";
 import { generateVideoHooks } from "../lib/video-lab-ollama.js";
 
 const router = Router();
@@ -36,6 +45,49 @@ router.post("/video-lab/ideas", requireAdmin, async (req, res, next) => {
       notes: req.body?.notes != null ? String(req.body.notes) : null,
     });
     res.json({ id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** A125 — stream mp4 for inline preview (path must be under Video Lab dir). */
+router.get("/video-lab/videos/:id/file", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "id required" });
+      return;
+    }
+    const path = await getVideoFilePath(id);
+    if (!path) {
+      res.status(404).json({ error: "video file not found" });
+      return;
+    }
+    const ext = extname(path).toLowerCase();
+    const type =
+      ext === ".webm" ? "video/webm" : ext === ".mov" ? "video/quicktime" : "video/mp4";
+    res.setHeader("Content-Type", type);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    createReadStream(path).pipe(res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** A125 — delete upload (disk + row). */
+router.delete("/video-lab/videos/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "id required" });
+      return;
+    }
+    const ok = await deleteVideo(id);
+    if (!ok) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

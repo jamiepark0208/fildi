@@ -118,6 +118,7 @@ export default function VideoLab() {
     },
   });
   const [txErr, setTxErr] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<number | null>(null);
   const transcribe = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/video-lab/videos/${id}/transcribe`, {
@@ -130,6 +131,20 @@ export default function VideoLab() {
     },
     onSuccess: () => {
       setTxErr(null);
+      qc.invalidateQueries({ queryKey: ["video-lab"] });
+    },
+    onError: (e: Error) => setTxErr(e.message),
+  });
+  const removeVideo = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/video-lab/videos/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(await r.text());
+    },
+    onSuccess: (_d, id) => {
+      if (previewId === id) setPreviewId(null);
       qc.invalidateQueries({ queryKey: ["video-lab"] });
     },
     onError: (e: Error) => setTxErr(e.message),
@@ -317,16 +332,42 @@ export default function VideoLab() {
                           </div>
                         </div>
                         {v.path ? (
-                          <button
-                            type="button"
-                            disabled={transcribe.isPending}
-                            onClick={() => transcribe.mutate(v.id)}
-                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-[#d4af37]/40 text-[#d4af37]/90 hover:bg-[#d4af37]/10 disabled:opacity-40"
-                          >
-                            {transcribe.isPending ? "…" : v.transcript ? "Re-Whisper" : "Whisper"}
-                          </button>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewId(previewId === v.id ? null : v.id)}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-[#d4af37]/40 text-[#d4af37]/90 hover:bg-[#d4af37]/10"
+                            >
+                              {previewId === v.id ? "Hide" : "Play"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={transcribe.isPending}
+                              onClick={() => transcribe.mutate(v.id)}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-[#d4af37]/40 text-[#d4af37]/90 hover:bg-[#d4af37]/10 disabled:opacity-40"
+                            >
+                              {transcribe.isPending ? "…" : v.transcript ? "Re-Whisper" : "Whisper"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={removeVideo.isPending}
+                              onClick={() => {
+                                if (confirm(`Delete “${v.title}”?`)) removeVideo.mutate(v.id);
+                              }}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-red-400/40 text-red-300/80 hover:bg-red-500/10 disabled:opacity-40"
+                            >
+                              Del
+                            </button>
+                          </div>
                         ) : null}
                       </div>
+                      {previewId === v.id && v.path ? (
+                        <video
+                          controls
+                          className="w-full max-h-48 rounded border border-zinc-800 bg-black"
+                          src={`/api/video-lab/videos/${v.id}/file`}
+                        />
+                      ) : null}
                       {v.transcript ? (
                         <p className="text-[10px] text-amber-100/60 line-clamp-3 whitespace-pre-wrap">{v.transcript}</p>
                       ) : null}

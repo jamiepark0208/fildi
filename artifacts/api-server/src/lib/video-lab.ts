@@ -1,9 +1,10 @@
 /**
  * A125 — Video Lab / Reel inbox (mp4s under ~/.fildi/videos/; Postgres metadata).
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, unlink, access } from "node:fs/promises";
+import { constants } from "node:fs";
 import { homedir } from "node:os";
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
@@ -146,4 +147,35 @@ export async function saveUploadedVideo(opts: {
     notes: opts.notes ?? null,
   });
   return { id, path: dest };
+}
+
+/** Resolve a video row path only if it lives under the Video Lab dir. */
+export async function getVideoFilePath(id: number): Promise<string | null> {
+  await ensure();
+  const rows = rowsOf<{ path: string | null }>((await db.execute(sql`
+    SELECT path FROM video_lab_videos WHERE id = ${id} LIMIT 1`)) as SqlRows<never>);
+  const p = rows[0]?.path;
+  if (!p) return null;
+  const root = resolve(videoLabDir());
+  const full = resolve(p);
+  if (!full.startsWith(root + "/") && full !== root) return null;
+  try {
+    await access(full, constants.R_OK);
+    return full;
+  } catch {
+    return null;
+  }
+}
+
+/** Delete metadata row + disk file (best-effort unlink). */
+export async function deleteVideo(id: number): Promise<boolean> {
+  await ensure();
+  const path = await getVideoFilePath(id);
+  const rows = rowsOf<{ id: number }>((await db.execute(sql`
+    DELETE FROM video_lab_videos WHERE id = ${id} RETURNING id`)) as SqlRows<never>);
+  if (rows.length === 0) return false;
+  if (path) {
+    try { await unlink(path); } catch { /* already gone */ }
+  }
+  return true;
 }
