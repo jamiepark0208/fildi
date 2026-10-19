@@ -5,6 +5,7 @@
 import { TTLCache } from "./ttl-cache.js";
 import { etDateOf, fetchIntradayHistory } from "./intraday-history.js";
 import { fetchPolygon1mSessions } from "./intraday-bars-1m.js";
+import { fetchPolygon5mSessions } from "./intraday-bars-5m.js";
 import type { Bar } from "./intraday-regime.js";
 
 export interface SessionFlowPoint {
@@ -20,7 +21,7 @@ export interface VolumeProfileLevel {
 export interface SessionFlowResult {
   ticker: string;
   sessionDate: string;
-  source: "polygon-1m" | "yahoo-5m";
+  source: "polygon-1m" | "polygon-5m" | "yahoo-5m";
   barCount: number;
   vwap: SessionFlowPoint[];
   /** Volume-weighted POC (highest volume bin mid). */
@@ -156,7 +157,9 @@ export function buildSessionFlow(
   const note =
     source === "polygon-1m"
       ? "Polygon 1m RTH (DB) — estimated delta via tick rule (not true footprint)."
-      : "Yahoo 5m RTH session — estimated delta via tick rule (not true footprint).";
+      : source === "polygon-5m"
+        ? "Polygon 5m rollup (DB) — estimated delta via tick rule (not true footprint)."
+        : "Yahoo 5m RTH session — estimated delta via tick rule (not true footprint).";
   return {
     ticker: ticker.toUpperCase(),
     sessionDate,
@@ -197,7 +200,14 @@ export async function getSessionFlow(ticker: string): Promise<SessionFlowResult 
       const hit = pickLatestSession(poly, 60, "polygon-1m", key);
       if (hit) return hit;
     } catch {
-      // table missing / DB blip → Yahoo
+      // table missing / DB blip → 5m / Yahoo
+    }
+    try {
+      const poly5 = await fetchPolygon5mSessions(key, 60);
+      const hit5 = pickLatestSession(poly5, 12, "polygon-5m", key);
+      if (hit5) return hit5;
+    } catch {
+      // fall through
     }
     const sessions = await fetchIntradayHistory(key, 10);
     const hit = pickLatestSession(sessions, 12, "yahoo-5m", key);
