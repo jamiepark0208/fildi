@@ -48,6 +48,18 @@ import {
   settleWithAssignment,
   type AssignmentSide,
 } from "./assignment-settle.js";
+import {
+  expectedDirectionFor,
+  settleRec,
+  gradeRegimeCall,
+  maxDrawdownPct,
+} from "./model-track-grade.js";
+export {
+  expectedDirectionFor,
+  settleRec,
+  gradeRegimeCall,
+  maxDrawdownPct,
+} from "./model-track-grade.js";
 
 export { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
 export {
@@ -366,15 +378,6 @@ export const REGIME_HORIZONS = [
   { horizon: "12w", days: 84 },
 ] as const;
 
-export function expectedDirectionFor(regime: string): "bullish" | "bearish" | "neutral" {
-  switch (regime) {
-    case "expansion":
-    case "recovery":    return "bullish";
-    case "contraction":
-    case "recession":   return "bearish";
-    default:            return "neutral"; // late_cycle, stagflation, insufficient_data
-  }
-}
 
 export async function insertRegimeGradeStubs(): Promise<number> {
   // Last row per UTC day, via DISTINCT ON over computed_at::date.
@@ -408,27 +411,6 @@ export async function insertRegimeGradeStubs(): Promise<number> {
 // pnlPerShare = premium - intrinsic (we always model SELL). WIN iff > 0.
 // pnlPct basis: put → strike (cash-secured collateral); call → spot (covered stock).
 
-export function settleRec(input: {
-  side: string; strike: number; spot: number; premium: number; close: number;
-}): {
-  intrinsic: number; pnlPerShare: number; pnlPct: number; status: "WIN" | "LOSS";
-  managedPnlPerShare: number; managedPnlPct: number; managedStatus: "WIN" | "LOSS";
-} {
-  const intrinsic = input.side === "put"
-    ? Math.max(input.strike - input.close, 0)
-    : Math.max(input.close - input.strike, 0);
-  const pnlPerShare = input.premium - intrinsic;
-  const basis = input.side === "put" ? input.strike : input.spot;
-  const pnlPct = basis > 0 ? (pnlPerShare / basis) * 100 : 0;
-  const status: "WIN" | "LOSS" = pnlPerShare > 0 ? "WIN" : "LOSS";
-  // Managed (path-free): bank half credit on winners; stop at −2× premium on losers.
-  const managedPnlPerShare = pnlPerShare > 0
-    ? 0.5 * input.premium
-    : Math.max(pnlPerShare, -2 * input.premium);
-  const managedPnlPct = basis > 0 ? (managedPnlPerShare / basis) * 100 : 0;
-  const managedStatus: "WIN" | "LOSS" = managedPnlPerShare > 0 ? "WIN" : "LOSS";
-  return { intrinsic, pnlPerShare, pnlPct, status, managedPnlPerShare, managedPnlPct, managedStatus };
-}
 
 export async function fetchPathBars(
   ticker: string,
@@ -707,33 +689,7 @@ export async function gradeHotlistSnapshots(): Promise<{ graded: number; noData:
 }
 
 // ── Grading: regime calls (multi-horizon vs SPY) ──────────────────────────────
-
-// Horizon-scaled dead bands: |fwd| inside the band is "partial", not wrong.
-const REGIME_BAND: Record<string, number> = { "1w": 1, "4w": 2, "12w": 4 };
-// Neutral regimes also get credit if the window avoided a meaningful drawdown.
-const NEUTRAL_DD_OK: Record<string, number> = { "1w": -3, "4w": -6, "12w": -10 };
-
-export function gradeRegimeCall(input: {
-  expectedDirection: string; horizon: string; fwdReturnPct: number; maxDrawdownPct: number;
-}): "correct" | "partial" | "incorrect" {
-  const band = REGIME_BAND[input.horizon] ?? 2;
-  const fwd = input.fwdReturnPct;
-  if (input.expectedDirection === "bullish") {
-    if (fwd > band) return "correct";
-    if (fwd < -band) return "incorrect";
-    return "partial";
-  }
-  if (input.expectedDirection === "bearish") {
-    if (fwd < -band) return "correct";
-    if (fwd > band) return "incorrect";
-    return "partial";
-  }
-  // neutral: flat tape or contained drawdown counts; a strong trend is a miss
-  if (Math.abs(fwd) <= 1.5 * band || input.maxDrawdownPct >= (NEUTRAL_DD_OK[input.horizon] ?? -6)) {
-    return Math.abs(fwd) > 3 * band ? "incorrect" : "correct";
-  }
-  return Math.abs(fwd) > 3 * band ? "incorrect" : "partial";
-}
+// Pure helpers: model-track-grade.ts (expectedDirectionFor / gradeRegimeCall / maxDrawdownPct).
 
 async function spyClosesBetween(startDate: string, endDate: string): Promise<Array<{ date: string; close: number }>> {
   const rows = await db.select({ date: pricesHistorical.date, close: pricesHistorical.close })
@@ -747,15 +703,6 @@ async function spyClosesBetween(startDate: string, endDate: string): Promise<Arr
   return rows.filter(r => r.close != null).map(r => ({ date: r.date, close: Number(r.close) }));
 }
 
-export function maxDrawdownPct(closes: number[]): number {
-  let peak = -Infinity;
-  let dd = 0;
-  for (const c of closes) {
-    if (c > peak) peak = c;
-    else dd = Math.min(dd, (c / peak - 1) * 100);
-  }
-  return dd;
-}
 
 export async function gradeRegimeRows(): Promise<{ graded: number; noData: number; pending: number }> {
   const now = Date.now();
