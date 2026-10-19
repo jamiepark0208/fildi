@@ -34,7 +34,6 @@ import pmAlertsRouter from "./pm-alerts";
 import stockContextRouter from "./stock-context";
 import fairValueAssumptionsRouter from "./fair-value-assumptions";
 import convictionRouter from "./conviction";
-import videoLabRouter from "./video-lab";
 import optionsHistoryRouter from "./options-history";
 import agentsRouter from "./agents";
 import agentsDrillRouter from "./agents-drill";
@@ -65,7 +64,6 @@ router.use(deskDailyNewsRouter);
 router.use(pmAlertsRouter);
 router.use(fairValueAssumptionsRouter);
 router.use(convictionRouter);
-router.use(videoLabRouter);
 router.use(agentsRouter);
 router.use(agentsDrillRouter);
 // Loopback quote helpers for local scripts. No session cookie. Each handler 403s non-loopback.
