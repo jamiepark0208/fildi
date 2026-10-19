@@ -33,6 +33,9 @@ import option_prices as OP  # noqa: E402
 from _session import lseg_session  # noqa: E402
 
 START, HOLDOUT = date(2026, 1, 2), date(2026, 7, 1)
+END = date(2099, 1, 1)
+if "--year2025" in sys.argv:  # A178 confirmation period (S054 rule), never published
+    START, HOLDOUT, END = date(2025, 1, 2), date(2025, 1, 2), date(2025, 12, 31)
 OUT = HERE.parent / "out" / "opt" / "S049.md"
 rng = random.Random(49)
 
@@ -75,6 +78,8 @@ def events(h):
             lr = [math.log(rows[j][1] / rows[j - 1][1]) for j in range(i - 64, i - 4)]
             sd = (sum((x - sum(lr) / len(lr)) ** 2 for x in lr) / (len(lr) - 1)) ** 0.5
             z = math.log(rows[i][1] / rows[i - 5][1]) / (sd * math.sqrt(5)) if sd else 0
+            if d > END:
+                break
             if z <= -2 and (last is None or (d - last).days >= 10):
                 ev[t].append((i, z))
                 last = d
@@ -169,7 +174,7 @@ def main(write=False):
                 continue
             rows = h[t]
             evd = [rows[i][0] for i, _ in lst]
-            ok = [j for j in range(65, len(rows) - 1) if rows[j][0] >= START
+            ok = [j for j in range(65, len(rows) - 1) if START <= rows[j][0] <= END
                   and all(abs((rows[j][0] - x).days) >= 10 for x in evd)]
             for i, z in lst:
                 tr = trade(ld, conn, t, rows, i)

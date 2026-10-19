@@ -32,7 +32,10 @@ def rics(root: str, expiry: date, cp: str, strike: float) -> list[str]:
     letter = chr(ord("A") + m) if cp == "C" else chr(ord("M") + m)
     base = f"{root}{letter}{expiry:%d%y}{round(strike * 100):05d}.U"
     exp_suffix = f"^{chr(ord('A') + m)}{expiry:%y}"
-    return [base + exp_suffix, base] if expiry < date.today() else [base]
+    if expiry >= date.today():
+        return [base]
+    # renamed with ^ a few days after expiry; only recent expiries need the bare form too (each miss = 1 request)
+    return [base + exp_suffix, base] if expiry >= date.today() - timedelta(days=7) else [base + exp_suffix]
 
 
 def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> list[tuple] | None:
