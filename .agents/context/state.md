@@ -62,3 +62,7 @@ Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical di
 - 2026-10-18 Strategy Library filed: A175 page → Cursor (planned, waits on A176 step 1 DDL). Claude next: A176 DDL+runner+3 seeds → A177 0DTE data probe → A178 panic puts study.
 - 2026-10-19 A176 done (S047). A177 probe done → next: A177b 0DTE backtest (pre-registered in A177), then A178 panic puts. A175 unblocked for Cursor (Track Record › Strategies).
 - 2026-10-19 running in bg: S049 panic puts (s049.log), S053 vol-day lotto $ test (s053.log) → on finish: record verdicts in A178/A177 + INDEX, publish (--write), winner-pattern pass if FAIL. A185 Node Polygon gate → Cursor.
+- 2026-10-19 Strategy Library status (Claude). Done: A176 runner, S048/S050/S051/S052/S055 (fail or hypothesis), S049/S054 panic-puts-hiv LIVE (2025 p 0.004, split-fixed), conditions grid, nightly strategy_signals in daily.py, LSEG option history (2019→, research/lseg/option_prices.py), Polygon gate, splits table.
+  In flight: S049 2022 run (/private/tmp/claude-501/s049_2022.log), S053 vol-day 0DTE $ test (s053.log).
+  Next (Claude, in order): record 2022 → run 2020 (+2019/21/23/24 as budget allows; ~2.7k LSEG req/yr, 10k/day) → conditions_grid across all years → vol-regime put-book dial study → S053 verdict → strike-list fix (cut ~60 % wasted LSEG requests) → A186 sim_rec job → A188 #1/#3/#4 (option day/night, 0DTE regime, opex pinning w/ LSEG OI) → A184 backlog.
+  Cursor queue: A175 page, A189 signals UI, A185 Node Polygon gate, A186 UI.
