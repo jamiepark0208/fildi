@@ -52,5 +52,8 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 5. Grade live: shadow score (A172) + `analysis/scoreboard.py` (Settings › Research); verdict at ≥ 8 expiries / ≥ 100 picks.
 
 ## 6. Already answered (don't redo — see INDEX)
-Works for puts: IV/RV (S003), put-tuned tech = trend − volumeConfirm (S045, live options-1.1.0), volume node between K and S = worse (S045).
+Works for puts: IV/RV (S003), put-tuned tech = trend − volumeConfirm (S045, live), volume node between K and S = worse (S045).
+Works for calls: low volume + not stretched above the 200-day (S046, live options-1.2.0); current call tech total was wrong-way.
+Avoid list: no reconstructable flag (falling knife, IBES, alpha) predicts ≥ 2σ crashes beyond IV; low alpha / high idio vol → deeper drawdowns (S005/S046).
+Harnesses: puts `analysis/s045_put_retest.py`, calls + Avoid `analysis/s046_calls_avoid.py`. Live grading: `analysis/scoreboard.py` (Settings › Research).
 Null on puts (IV-controlled): HAR, 2σ-drop, streaks, SUE, IBES drift/breadth/disp, regime mean (sizing marginal), swing-low support.
