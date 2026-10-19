@@ -34,6 +34,7 @@ import { fetchChainsForTickers } from "./options-chain-batch.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
+import { loadPutScoringInputs, loadVolumeNodes, putTechScores } from "./put-scoring-inputs.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { deriveHotList } from "./live-hotlist.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
@@ -178,10 +179,11 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
     logger.warn({ err }, "model-track-record: fundamentals scores unavailable, scoring without them");
   }
 
-  // Technical totals per side with DEFAULT weights — the model's own judgment,
-  // independent of any user's custom weight overrides.
+  // Technical totals per side — the model's own judgment, independent of any user's custom
+  // weight overrides. A167: put side reads the options champion (same as option-score-snapshots).
   const rows = techRows as unknown as TechnicalRow[];
-  const putRankings  = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "put").map(s => [s.ticker, s.totalScore]));
+  const putInputs = await loadPutScoringInputs();
+  const putRankings  = putTechScores(rows, putInputs.putTechWeights);
   const callRankings = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "call").map(s => [s.ticker, s.totalScore]));
   const techRowMap = new Map(rows.map(r => [r.ticker, r]));
 
@@ -197,7 +199,8 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
     for (const c of chains) for (const p of c.puts) if (p.iv > 0) allWatchlistIVs.push(p.iv);
   }
 
-  const putPolicy  = applyPolicy(tiltState.put, undefined, { regime: macroRegimeName });
+  const volumeNodes = await loadVolumeNodes(tickers);
+  const putPolicy  = applyPolicy(tiltState.put, putInputs.strikeWeights, { regime: macroRegimeName });
   const callPolicy = applyPolicy(tiltState.call, CALL_STRIKE_WEIGHTS, { regime: macroRegimeName });
 
   // Single query for the unified-score's regime component — same confidence
@@ -228,12 +231,13 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         techTotalScore:        (isCall ? callRankings : putRankings).get(ticker) ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
         earningsDaysOut:       num(techRow.earningsDaysOut),
+        volumeNodes:           volumeNodes.get(ticker) ?? null,
       };
       const policy: SidePolicy = isCall ? callPolicy : putPolicy;
       // Per-ticker EB when available
       const tickerPolicy = applyPolicy(
         isCall ? tiltState.call : tiltState.put,
-        isCall ? CALL_STRIKE_WEIGHTS : undefined,
+        isCall ? CALL_STRIKE_WEIGHTS : putInputs.strikeWeights,
         { regime: macroRegimeName, ticker },
       );
       const best = pickBestStrike(

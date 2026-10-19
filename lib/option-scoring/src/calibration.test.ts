@@ -53,11 +53,12 @@ describe("calibration", () => {
 
 describe("multi-knob policy", () => {
   it("raises SQ floor when expectancy is negative", () => {
-    const neg = applyPolicy({ winRate: 0.8, avgPnlPct: -0.4, n: 40, updatedAt: null });
+    // nExpiries ≥ TILT_MIN_EXPIRIES (8) — the tilt stays off below that (METHODS rule 9).
+    const neg = applyPolicy({ winRate: 0.8, avgPnlPct: -0.4, n: 40, nExpiries: 10, updatedAt: null });
     assert.equal(neg.sqFloor, SQ_FLOOR_STRICT);
     assert.ok(neg.factor < 0);
 
-    const pos = applyPolicy({ winRate: 0.8, avgPnlPct: 0.4, n: 40, updatedAt: null });
+    const pos = applyPolicy({ winRate: 0.8, avgPnlPct: 0.4, n: 40, nExpiries: 10, updatedAt: null });
     assert.equal(pos.sqFloor, SQ_FLOOR_BASE);
     assert.ok(pos.factor > 0);
   });

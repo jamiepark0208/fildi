@@ -23,6 +23,7 @@ import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
+import { loadVolumeNodes, putTechScores } from "./put-scoring-inputs.js";
 import { logger } from "./logger.js";
 
 const CHAIN_CONCURRENCY = 3;
@@ -221,7 +222,10 @@ export async function computeAndPersistOptionScores(opts?: {
     logger.warn({ err }, "option-score-snapshots: fund scores unavailable");
   }
 
-  const putRankings = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "put").map((s) => [s.ticker, s.totalScore]));
+  // A167: put lane uses the options champion's put tech weights (S045); calls + display keep defaults.
+  const putTechWeights = (optChamp.params.putTechWeights ?? undefined) as Record<string, number> | undefined;
+  const putRankings = putTechScores(rows, putTechWeights);
+  const volumeNodes = await loadVolumeNodes(candidates);
   const callRankings = new Map(computeTechnicalRankingsV2(rows, {}, undefined, "call").map((s) => [s.ticker, s.totalScore]));
   const techRowMap = new Map(rows.map((r) => [r.ticker, r]));
 
@@ -281,6 +285,7 @@ export async function computeAndPersistOptionScores(opts?: {
         techTotalScore:        (isCall ? callRankings : putRankings).get(ticker) ?? null,
         fundTotalScore:        fundScoreMap.get(ticker) ?? null,
         earningsDaysOut:       num(techRow.earningsDaysOut),
+        volumeNodes:           volumeNodes.get(ticker) ?? null,
       };
       const policy = isCall ? callPolicy : putPolicy;
       const sideChains = chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts }));

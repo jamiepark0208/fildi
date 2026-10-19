@@ -70,6 +70,8 @@ export const W_IV_ABSOLUTE   = 0.06;
 export const W_STOCK_QUALITY = 0.12;
 export const W_SUPPORT       = 0.06;
 export const W_DTE           = 0.04;
+/** S045 volume-node gap (puts only). 0 = off unless the options champion sets strikeWeights.nodeGap. */
+export const W_NODE_GAP      = 0;
 
 // ── Call strike-weight overrides ──────────────────────────────────────────────
 // De-emphasize income, emphasize buffer/OTM distance — capital-gains preference

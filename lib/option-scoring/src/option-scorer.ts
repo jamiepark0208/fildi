@@ -11,7 +11,7 @@ import {
   SD_BUFFER_TARGET, BUFFER_WEIGHT_DELTA, BUFFER_WEIGHT_SD,
   IV_VS_REALIZED_BONUS, IV_SKEW_BONUS, IV_ABSOLUTE_CAP,
   W_INCOME, W_BUFFER, W_IV_RELATIVE, W_IV_ABSOLUTE,
-  W_STOCK_QUALITY, W_SUPPORT, W_DTE,
+  W_STOCK_QUALITY, W_SUPPORT, W_DTE, W_NODE_GAP,
   MIN_OI, MAX_SPREAD_PCT, MIN_VOL, LIQUIDITY_GATE_HARD,
   MIN_SCORED_COMPONENTS,
   EARNINGS_RISK_DAYS, EARNINGS_NEAR_HAIRCUT, EARNINGS_DEEP_OTM_HAIRCUT,
@@ -20,6 +20,7 @@ import {
 import { isPlausibleOptionQuote, isViablePremiumIncome } from "./premium-candidates.ts";
 import { applyCalibrationToScore, type CalibrationTable, type OptionSide } from "./calibration.ts";
 import { SQ_FLOOR_BASE } from "./tilt.ts";
+import { scoreNodeGap } from "./volume-nodes.ts";
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ export interface StockContext {
    * Tightens soft ER haircut for both puts and calls — does not hard-exclude.
    */
   streetEventRisk?: boolean | null;
+  /** S045: top daily volume-profile nodes (60 sessions). Feeds the put nodeGap component. */
+  volumeNodes?: number[] | null;
 }
 
 export interface LiquidityResult {
@@ -363,6 +366,8 @@ export function computeOptionScore(
       score: isCall
         ? scoreStrikeResistance(candidate.strike, candidate.spot, stock.swingHigh20d, stock.swingHigh50d, stock.pivotR1)
         : scoreStrikeSupport(candidate.strike, candidate.spot, stock.swingLow20d, stock.swingLow50d, stock.pivotS1) },
+    { key: "nodeGap",     weight: isCall ? 0 : w("nodeGap", W_NODE_GAP),
+      score: isCall ? null : scoreNodeGap(candidate.strike, candidate.spot, stock.volumeNodes) },
     { key: "dte",         weight: w("dte", W_DTE),
       score: isCall ? scoreDtePreferenceCall(candidate.dte) : scoreDtePreference(candidate.dte) },
   ];

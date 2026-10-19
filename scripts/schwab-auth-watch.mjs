@@ -68,6 +68,13 @@ if (!args.has("--force")) {
   if (sinceTry < RETRY_H) process.exit(0);
 }
 
+// Another login (manual run or another agent) already owns the callback port → don't fight it.
+const busy = spawnSync("lsof", ["-nP", "-iTCP:8182", "-sTCP:LISTEN"], { encoding: "utf8" }).stdout?.trim();
+if (busy) {
+  console.log("callback port 8182 busy — another Schwab login is in progress; skipping");
+  process.exit(0);
+}
+
 writeFileSync(STATE_PATH, JSON.stringify({ ...state, lastAttemptAt: new Date(now).toISOString() }, null, 2));
 const left = hoursLeft > 0 ? `${Math.round(hoursLeft)} h left` : "expired";
 notify("Schwab login needed", `Refresh token ${left}. Chrome is opening the Schwab login — sign in + Allow.`);
@@ -84,7 +91,7 @@ const ok = r.status === 0 && after?.obtainedAt && Date.parse(after.obtainedAt) >
 writeFileSync(
   STATE_PATH,
   JSON.stringify(
-    { lastAttemptAt: new Date(now).toISOString(), lastResult: ok ? "ok" : `fail (exit ${r.status})`, lastOkAt: ok ? new Date().toISOString() : state.lastOkAt ?? null },
+    { lastAttemptAt: new Date(now).toISOString(), lastResult: ok ? "ok" : `fail (exit ${r.status ?? r.signal})`, lastOkAt: ok ? new Date().toISOString() : state.lastOkAt ?? null },
     null,
     2,
   ),

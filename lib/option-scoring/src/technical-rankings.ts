@@ -633,8 +633,11 @@ export function computeTechnicalRankingsV2(
       { key: "analystUpside",    weight: w("analystUpside", W_ANALYST_UPSIDE),    score: scoreAnalystUpside(row, side) },
       { key: "volumeConfirm",    weight: w("volumeConfirm", W_VOLUME_CONFIRM),    score: scoreVolumeConfirm(row) },
     ];
-    // A155: only positive-weight comps enter the total (extras stay in compScores for display)
-    const available = compScores.filter((c) => c.score !== null && c.weight > 0) as { key: string; weight: number; score: number }[];
+    // A155: zero-weight comps stay display-only. A167/S045: a negative weight means "lower is better"
+    // for that lane (put option lane: volumeConfirm) → enters as |w| × (1 − score).
+    const available = compScores
+      .filter((c) => c.score !== null && c.weight !== 0)
+      .map((c) => (c.weight < 0 ? { key: c.key, weight: -c.weight, score: 1 - (c.score as number) } : c)) as { key: string; weight: number; score: number }[];
 
     let totalScore = 0;
     if (available.length > 0) {

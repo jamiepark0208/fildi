@@ -40,6 +40,8 @@ fi
 fail=0
 if [ "$need_api" -eq 1 ]; then
   echo "agent-ship-check: typecheck api-server…"
+  # Referenced lib/* projects resolve through emitted .d.ts — rebuild them first or new lib exports look missing.
+  (cd artifacts/api-server && pnpm exec tsc -b ../../lib/option-scoring ../../lib/db >/dev/null 2>&1) || true
   if ! (cd artifacts/api-server && pnpm exec tsc -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL api-server typecheck — fix before push (A94)" >&2
     fail=1
