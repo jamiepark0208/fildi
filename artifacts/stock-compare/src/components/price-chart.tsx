@@ -10,6 +10,7 @@ import {
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import { computeChartZones, pfNum, type DbTechnicalLevels } from "@/lib/chart-levels";
+import { detectFvg, detectSweeps } from "@/lib/ict-detectors";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -445,6 +446,8 @@ export function PriceChart({
   const [refreshing, setRefreshing] = useState(false);
   /** A126 Phase 1a — Yahoo 5m session VWAP / volume profile levels. */
   const [showSessionFlow, setShowSessionFlow] = useState(false);
+  /** A139 — ICT FVG + liquidity sweep overlays (display only). */
+  const [showIct, setShowIct] = useState(false);
   const techTicker = showTechnicalZones ? tickerForTechnicals?.toUpperCase() : undefined;
 
   const queries = useQueries({
@@ -637,17 +640,41 @@ export function PriceChart({
     return lines;
   }, [showSessionFlow, sessionFlowQuery.data]);
 
+
+  const ictMarkers = useMemo((): LWMarker[] => {
+    if (!showIct || !showTechnicalZones || tickers.length !== 1) return [];
+    const bars = historyByTicker[tickers[0]] ?? [];
+    return detectSweeps(bars).map((s) => ({
+      time: toUnixTime(s.date),
+      price: s.price,
+      color: s.side === "bull" ? "#38bdf8" : "#fb7185",
+      text: s.side === "bull" ? "Sw↑" : "Sw↓",
+    }));
+  }, [showIct, showTechnicalZones, tickers, historyByTicker]);
+
+  const ictPriceLines = useMemo((): LWPriceLine[] => {
+    if (!showIct || !showTechnicalZones || tickers.length !== 1) return [];
+    const bars = historyByTicker[tickers[0]] ?? [];
+    // Last few unfilled-looking FVGs as price lines (mid + edges clutter — show mid only).
+    return detectFvg(bars).slice(-6).map((f, i) => ({
+      price: (f.top + f.bottom) / 2,
+      color: f.side === "bull" ? "#22d3ee88" : "#f472b688",
+      title: f.side === "bull" ? `FVGb ${f.date.slice(5)}` : `FVGs ${f.date.slice(5)}`,
+      dashed: true,
+    }));
+  }, [showIct, showTechnicalZones, tickers, historyByTicker]);
+
   const allPriceLines = useMemo((): LWPriceLine[] => {
     if (!showTechnicalZones || tickers.length !== 1) return [];
-    return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines, ...sessionFlowLines];
-  }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines, sessionFlowLines]);
+    return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines, ...sessionFlowLines, ...ictPriceLines];
+  }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines, sessionFlowLines, ictPriceLines]);
 
   const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
   const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
 
   const allMarkers = useMemo(
-    () => [...periodExtremaMarkers, ...zoneMarkers].sort((a, b) => a.time - b.time),
-    [periodExtremaMarkers, zoneMarkers],
+    () => [...periodExtremaMarkers, ...zoneMarkers, ...ictMarkers].sort((a, b) => a.time - b.time),
+    [periodExtremaMarkers, zoneMarkers, ictMarkers],
   );
 
   const emaSeries = useMemo(() => {
@@ -759,19 +786,34 @@ export function PriceChart({
         </div>
         <div className="flex items-center gap-2">
           {showTechnicalZones && techTicker && tickers.length === 1 && (
-            <button
-              type="button"
-              onClick={() => setShowSessionFlow((v) => !v)}
-              className={cn(
-                "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
-                showSessionFlow
-                  ? "border-pink-400/50 bg-pink-400/15 text-pink-200"
-                  : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
-              )}
-              title="Yahoo 5m session VWAP + volume profile (POC/VAH/VAL). Estimated delta in API; Polygon 1m backfill still open (A126)."
-            >
-              Session flow{sessionFlowQuery.isFetching ? "…" : ""}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowSessionFlow((v) => !v)}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
+                  showSessionFlow
+                    ? "border-pink-400/50 bg-pink-400/15 text-pink-200"
+                    : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
+                )}
+                title="Yahoo 5m session VWAP + volume profile (POC/VAH/VAL). Estimated delta in API; Polygon 1m backfill still open (A126)."
+              >
+                Session flow{sessionFlowQuery.isFetching ? "…" : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIct((v) => !v)}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
+                  showIct
+                    ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200"
+                    : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
+                )}
+                title="A139 ICT overlays: FVG midlines + liquidity sweeps. Display only — no score use until S036."
+              >
+                ICT
+              </button>
+            </>
           )}
           {isAdmin && showTechnicalZones && techTicker && (
             <button

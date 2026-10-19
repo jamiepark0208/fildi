@@ -133,15 +133,15 @@ export async function hasBreadthAd(date: string): Promise<boolean> {
 }
 
 /**
- * Backfill A/D (Polygon) + MA% (prices_historical) for the last `days` sessions.
+ * Backfill A/D (Polygon) for the last `days` sessions, then MA% for dates still null.
  * Skips dates that already have advance_decline. Respects polygon limiter (~5/min).
+ * MA% is deferred — per-day window SQL over the full registry is too heavy mid-loop.
  */
-export async function backfillMarketBreadth(days: number): Promise<{ ok: number; skip: number; fail: number }> {
+export async function backfillMarketBreadth(days: number): Promise<{ ok: number; skip: number; fail: number; ma: number }> {
   const dates = tradingDaysBack(days);
   let ok = 0, skip = 0, fail = 0;
   for (const date of dates) {
     if (await hasBreadthAd(date)) {
-      await fillMaPctForDate(date);
       skip++;
       continue;
     }
@@ -150,11 +150,19 @@ export async function backfillMarketBreadth(days: number): Promise<{ ok: number;
       fail++;
       continue;
     }
-    await fillMaPctForDate(date);
     ok++;
   }
-  logger.info({ days, ok, skip, fail }, "market-breadth: backfill done");
-  return { ok, skip, fail };
+  let ma = 0;
+  // Fill MA% for newest-first dates missing pct_above_50 (cap so Maintain stays fast).
+  const needMa = rowsOf<{ date: string }>((await db.execute(sql`
+    SELECT date::text AS date FROM market_breadth_daily
+    WHERE pct_above_50 IS NULL
+    ORDER BY date DESC LIMIT 60`)) as SqlRows<never>);
+  for (const r of needMa) {
+    if (await fillMaPctForDate(r.date)) ma++;
+  }
+  logger.info({ days, ok, skip, fail, ma }, "market-breadth: backfill done");
+  return { ok, skip, fail, ma };
 }
 
 export async function getBreadthHistory(days = 400): Promise<Array<{ date: string; pctAbove50: number | null; pctAbove200: number | null; advanceDecline: number | null }>> {
