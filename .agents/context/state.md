@@ -6,9 +6,9 @@
 **build** — last updated 2026-10-19
 
 ## Active work
-- Working: options-1.2.0-calls-live, scoreboard-four-numbers, avoid-holdings-alert, backtest-playbook
-- In progress: none
-- Blocked: none
+- Working: A176 strategy runner + 8 strategies, panic-puts-hiv live (2025 p0.004 · 2022 p0.08), nightly strategy_signals in daily.py, LSEG option history 2019+ helper, conditions grid, Polygon shared gate + splits table
+- In progress: S053 vol-day 0DTE dollar test (2026 leg running)
+- Blocked: LSEG daily budget used today (~9.5k/10k)
 
 ## Next tasks (priority order)
 - **10-18 night DONE:** A170 (S046 → options-1.2.0 calls live), A171 (scoreboard: Own−Avoid vol-matched +5.3 pp wk1; IRA +62 bp vs SPY/QQQ +3 bp per trade, return/risk 0.88 vs 0.06 — 6/396 trades app-era), A174 (Avoid-holdings alert: GOSS MP ONDS OPEN), PLAYBOOK.md for all agents. Open: A172 shadow mode (Cursor). Next session = Jamie trading-strategy analysis. Old summary: (1) S046 call-side + Avoid-list re-test on their own outcomes (covered-call pnl; Avoid = left tail / 2σ drop) with s045 harness. (2) Weekly scoreboard job (Own−Avoid vol-matched, FV quintile spread, put Brier vs market-IV, IRA put pnl vs naive SPY/QQQ 1σ puts) → Portfolio Alerts card. (3) Shadow mode: store options-1.0.0 score beside 1.1.0 per snapshot, grade both at ≥ 8 expiries. (4) Gate new ASKS rows: must name which scoreboard number they move. (5) Holding-on-Avoid line in Portfolio Alerts. Done 10-18 late: 12 expired picks graded early; transcripts Haiku-timeout crash fixed.
