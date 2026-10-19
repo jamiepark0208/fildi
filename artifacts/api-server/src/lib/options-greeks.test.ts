@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { bsGreeks, normCDF } from "./options.ts";
+import { bsGreeks, normCDF } from "./options-greeks.ts";
 
 describe("normCDF", () => {
   it("matches known points", () => {

@@ -5,7 +5,10 @@ import { isPlausibleOptionQuote } from "@workspace/option-scoring";
 import { getSchwabOptionChains } from "./schwab-client.js";
 import { logger } from "./logger.js";
 import { recordOptionsChainSource } from "./options-chain-source-stats.js";
+import { bsGreeks } from "./options-greeks.js";
+export { bsGreeks, normCDF } from "./options-greeks.js";
 import { daysUntilCeil, exactDaysUntil, settlementOffsetDays } from "./date-util.js";
+import { mapWithConcurrency } from "./http-client.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -76,39 +79,6 @@ const MONTHLY_MAX_DIFF_RATIO = 0.6; // same nearest-match sanity cutoff as getIv
 export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry', 1000); // key = ticker
 
 // ── Black-Scholes Greeks ──────────────────────────────────────────────────────
-
-function normPDF(x: number): number {
-  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
-}
-
-/** Standard normal CDF (Abramowitz–Stegun). Exported for Greeks unit + Python cross-tests (A83). */
-export function normCDF(x: number): number {
-  const t   = 1 / (1 + 0.2316419 * Math.abs(x));
-  const d   = 0.3989422820 * Math.exp(-x * x / 2);
-  const p   = d * t * (0.3193815310 + t * (-0.3565638140 + t * (1.7814779370 + t * (-1.8212559780 + t * 1.3302744290))));
-  return x > 0 ? 1 - p : p;
-}
-
-/** Black–Scholes delta/gamma/theta (theta per calendar day). Exported for unit tests (A83). */
-export function bsGreeks(
-  S: number, K: number, T: number, r: number, sigma: number, isCall: boolean
-): { delta: number; gamma: number; theta: number } {
-  if (T <= 0 || sigma <= 0 || S <= 0) {
-    return { delta: 0, gamma: 0, theta: 0 };
-  }
-  const sqrtT = Math.sqrt(T);
-  const d1    = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
-  const d2    = d1 - sigma * sqrtT;
-  const nd1   = normPDF(d1);
-
-  const delta = isCall ? normCDF(d1) : normCDF(d1) - 1;
-  const gamma = nd1 / (S * sigma * sqrtT);
-  const thetaAnnual = isCall
-    ? (-S * nd1 * sigma / (2 * sqrtT)) - r * K * Math.exp(-r * T) * normCDF(d2)
-    : (-S * nd1 * sigma / (2 * sqrtT)) + r * K * Math.exp(-r * T) * normCDF(-d2);
-
-  return { delta, gamma, theta: thetaAnnual / 365 };
-}
 
 // ── Option position quote ─────────────────────────────────────────────────────
 
@@ -467,25 +437,39 @@ export async function getIvTermStructure(ticker: string): Promise<IvTermPoint[]>
   if (!spot) return [];
 
   const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
+  const pickedList = [...picked.values()];
 
-  const results: IvTermPoint[] = [];
-  for (const { label, date } of picked.values()) {
-    const canReuse = Math.abs(daysUntil(date) - firstRawDte) <= 1 && (raw0.options?.[0]?.puts?.length ?? 0) > 0;
-    const raw      = canReuse ? raw0 : await fetchChain(key, date);
-    const contracts = [...(raw.options?.[0]?.puts ?? []), ...(raw.options?.[0]?.calls ?? [])]
-      .filter((c): c is RawContract & { strike: number; impliedVolatility: number } =>
-        typeof c.strike === "number" && typeof c.impliedVolatility === "number" && c.impliedVolatility > 0);
-    if (contracts.length === 0) continue;
+  const results = (
+    await mapWithConcurrency(pickedList, 3, async ({ label, date }) => {
+      const canReuse =
+        Math.abs(daysUntil(date) - firstRawDte) <= 1 && (raw0!.options?.[0]?.puts?.length ?? 0) > 0;
+      const raw = canReuse ? raw0! : await fetchChain(key, date);
+      const contracts = [...(raw.options?.[0]?.puts ?? []), ...(raw.options?.[0]?.calls ?? [])].filter(
+        (c): c is RawContract & { strike: number; impliedVolatility: number } =>
+          typeof c.strike === "number" &&
+          typeof c.impliedVolatility === "number" &&
+          c.impliedVolatility > 0,
+      );
+      if (contracts.length === 0) return null;
 
-    let atm = contracts[0];
-    let bestDiff = Math.abs(atm.strike - (spot as number));
-    for (const c of contracts) {
-      const diff = Math.abs(c.strike - (spot as number));
-      if (diff < bestDiff) { bestDiff = diff; atm = c; }
-    }
+      let atm = contracts[0]!;
+      let bestDiff = Math.abs(atm.strike - (spot as number));
+      for (const c of contracts) {
+        const diff = Math.abs(c.strike - (spot as number));
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          atm = c;
+        }
+      }
 
-    results.push({ label, expiry: toDateStr(date), dte: Math.round(exactDaysUntil(date)), iv: atm.impliedVolatility });
-  }
+      return {
+        label,
+        expiry: toDateStr(date),
+        dte: Math.round(exactDaysUntil(date)),
+        iv: atm.impliedVolatility,
+      } satisfies IvTermPoint;
+    })
+  ).filter((r): r is IvTermPoint => r != null);
 
   return results.sort((a, b) => a.dte - b.dte);
 }
