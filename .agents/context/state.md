@@ -61,3 +61,4 @@ Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical di
 
 - 2026-10-18 Strategy Library filed: A175 page → Cursor (planned, waits on A176 step 1 DDL). Claude next: A176 DDL+runner+3 seeds → A177 0DTE data probe → A178 panic puts study.
 - 2026-10-19 A176 done (S047). A177 probe done → next: A177b 0DTE backtest (pre-registered in A177), then A178 panic puts. A175 unblocked for Cursor (Track Record › Strategies).
+- 2026-10-19 running in bg: S049 panic puts (s049.log), S053 vol-day lotto $ test (s053.log) → on finish: record verdicts in A178/A177 + INDEX, publish (--write), winner-pattern pass if FAIL. A185 Node Polygon gate → Cursor.
