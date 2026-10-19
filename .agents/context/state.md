@@ -66,3 +66,4 @@ Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical di
   In flight: S049 2022 run (/private/tmp/claude-501/s049_2022.log), S053 vol-day 0DTE $ test (s053.log).
   Next (Claude, in order): record 2022 → run 2020 (+2019/21/23/24 as budget allows; ~2.7k LSEG req/yr, 10k/day) → conditions_grid across all years → vol-regime put-book dial study → S053 verdict → strike-list fix (cut ~60 % wasted LSEG requests) → A186 sim_rec job → A188 #1/#3/#4 (option day/night, 0DTE regime, opex pinning w/ LSEG OI) → A184 backlog.
   Cursor queue: A175 page, A189 signals UI, A185 Node Polygon gate, A186 UI.
+- 2026-10-19 late: S049 2022 done (rule same sign, p 0.077). A186 sim_rec data done (nightly). Vol-regime dial = covered by S027 (no redo). Remaining needs LSEG budget (resets daily): S049 2020/2019/21/23/24 → grid all years; strike-list fix; A188 #1 (LSEG OPEN_PRC) / #4 pinning (LSEG OI). S053 2026 leg still running (s053.log).
