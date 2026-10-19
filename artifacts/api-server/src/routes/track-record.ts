@@ -11,6 +11,7 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import { getWheelPnl } from "../lib/wheel-pnl.js";
+import { readLatestOptionRankings } from "../lib/option-score-snapshots.js";
 import {
   runModelSnapshot, runModelGrading, getTiltState, insertRegimeGradeStubs,
   getCalibrationTable, resetModelTrackRecord, backfillPathRisk,
@@ -334,10 +335,17 @@ interface CurrentPick {
   /** Strike IV at snapshot (entry), decimal or % as stored. */
   strikeIv: number | null;
 }
+/** Latest Overall Options Rankings row for this ticker/side (same board as Rankings page). */
+interface RankPick {
+  strike: number; expiry: string; spot: number; premium: number;
+  optionScore: number; rank: number; dte: number | null; delta: number | null;
+  asOf: string;
+}
 interface TickerSummaryRow {
   ticker: string; put: TickerSideAgg; call: TickerSideAgg;
   currentPrice: number | null; priceChangePct: number | null;
   currentPut: CurrentPick | null; currentCall: CurrentPick | null;
+  rankPut: RankPick | null; rankCall: RankPick | null;
 }
 
 type RecRow = {
@@ -450,46 +458,60 @@ router.get("/track-record/ticker-summary", async (_req, res) => {
     // Opportunistic backfill — never block page load.
     void backfillPathRisk(40).catch(() => null);
 
-    // Aggregate + live prices only (path MAE from stored scores). Fast cold + warm.
-    const enriched = await trackRecordCache.getOrCompute("ticker-summary-enriched-v7", async () => {
-      const data = await trackRecordCache.getOrCompute("ticker-summary-v5", async () => {
-        const rows = await db.select({
-          ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
-          snapshotDate: modelRecs.snapshotDate, expiry: modelRecs.expiry, strike: modelRecs.strike,
-          premium: modelRecs.premium, incomePct: modelRecs.incomePct, dte: modelRecs.dte,
-          spot: modelRecs.spot, settleClose: modelRecs.settleClose,
-          componentScores: modelRecs.componentScores,
-          delta: modelRecs.delta, strikeIv: modelRecs.strikeIv,
-        }).from(modelRecs);
+    // Aggregate + rankings join cached; live prices overlaid outside so warm hits stay cheap.
+    const data = await trackRecordCache.getOrCompute("ticker-summary-v8", async () => {
+      const rows = await db.select({
+        ticker: modelRecs.ticker, side: modelRecs.side, status: modelRecs.status, pnlPct: modelRecs.pnlPct,
+        snapshotDate: modelRecs.snapshotDate, expiry: modelRecs.expiry, strike: modelRecs.strike,
+        premium: modelRecs.premium, incomePct: modelRecs.incomePct, dte: modelRecs.dte,
+        spot: modelRecs.spot, settleClose: modelRecs.settleClose,
+        componentScores: modelRecs.componentScores,
+        delta: modelRecs.delta, strikeIv: modelRecs.strikeIv,
+      }).from(modelRecs);
 
-        const byTicker = new Map<string, { put: RecRow[]; call: RecRow[] }>();
-        for (const r of rows) {
-          const side = r.side as "put" | "call";
-          if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
-          byTicker.get(r.ticker)![side].push(r);
-        }
+      const byTicker = new Map<string, { put: RecRow[]; call: RecRow[] }>();
+      for (const r of rows) {
+        const side = r.side as "put" | "call";
+        if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, { put: [], call: [] });
+        byTicker.get(r.ticker)![side].push(r);
+      }
 
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const out: Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">[] = [...byTicker.entries()].map(([ticker, sides]) => ({
-          ticker,
-          put: aggregateSide(sides.put, "put"),
-          call: aggregateSide(sides.call, "call"),
-          currentPut: currentPick(sides.put, todayStr),
-          currentCall: currentPick(sides.call, todayStr),
-        }));
-        out.sort((a, b) => a.ticker.localeCompare(b.ticker));
-        return out;
-      });
+      const [putBoard, callBoard] = await Promise.all([
+        readLatestOptionRankings("put"),
+        readLatestOptionRankings("call"),
+      ]);
+      const putByT = new Map(putBoard.rows.map((r) => [r.ticker, r]));
+      const callByT = new Map(callBoard.rows.map((r) => [r.ticker, r]));
+      const toRank = (r: (typeof putBoard.rows)[0] | undefined): RankPick | null => {
+        if (!r) return null;
+        return {
+          strike: r.strike, expiry: r.expiry, spot: r.spot, premium: r.premium,
+          optionScore: r.optionScore, rank: r.rank, dte: r.dte, delta: r.delta, asOf: r.asOf,
+        };
+      };
 
-      const tickers = (data as Array<{ ticker: string }>).map(r => r.ticker);
-      const live = await getLivePrices(tickers);
-      const base = data as Array<Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">>;
-      return base.map((r) => ({
-        ...r,
-        currentPrice: live.get(r.ticker)?.price ?? null,
-        priceChangePct: live.get(r.ticker)?.changePercent ?? null,
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const out: Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">[] = [...byTicker.entries()].map(([ticker, sides]) => ({
+        ticker,
+        put: aggregateSide(sides.put, "put"),
+        call: aggregateSide(sides.call, "call"),
+        currentPut: currentPick(sides.put, todayStr),
+        currentCall: currentPick(sides.call, todayStr),
+        rankPut: toRank(putByT.get(ticker)),
+        rankCall: toRank(callByT.get(ticker)),
       }));
+      out.sort((a, b) => a.ticker.localeCompare(b.ticker));
+      return out;
     });
+
+    const base = data as Array<Omit<TickerSummaryRow, "currentPrice" | "priceChangePct">>;
+    const tickers = base.map((r) => r.ticker);
+    const live = tickers.length > 0 ? await getLivePrices(tickers) : new Map();
+    const enriched = base.map((r) => ({
+      ...r,
+      currentPrice: live.get(r.ticker)?.price ?? null,
+      priceChangePct: live.get(r.ticker)?.changePercent ?? null,
+    }));
 
     return res.json(enriched);
   } catch (err: any) {

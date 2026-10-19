@@ -71,9 +71,15 @@ export interface RawOptionsResponse {
 const FLAT_MIN_OTM   = 0.03;  // 3% — minimum OTM distance (replaces tier bands)
 const FLAT_MAX_OTM   = 0.25;  // 25% — maximum OTM distance (widened from 15% so high-IV names'
                                // income-target-optimal strikes aren't cut off before scoring)
+const FLAT_MAX_OTM_LOW_PRICE = 0.40; // sub-$10: coarse $0.50/$1 strikes (CABA/SECZ)
+const LOW_PRICE_SPOT = 10;
 const RISK_FREE_RATE = 0.045; // ~current T-bill rate
 const MONTHLY_TARGET_DTE   = 37;  // ~30-45D covered-call convention for the calls-only 3rd chain
 const MONTHLY_MAX_DIFF_RATIO = 0.6; // same nearest-match sanity cutoff as getIvTermStructure
+
+function flatMaxOtm(spot: number): number {
+  return spot > 0 && spot < LOW_PRICE_SPOT ? FLAT_MAX_OTM_LOW_PRICE : FLAT_MAX_OTM;
+}
 
 // ── Shared expiry date cache (24h TTL — expiry calendars change rarely) ───────
 export const expiryCache = new TTLCache<Date[]>(24 * 60 * 60 * 1000, 'options-expiry', 1000); // key = ticker
@@ -97,8 +103,14 @@ export function toDateStr(d: unknown): string {
 /** Alias — options path uses ceil (may be negative). */
 const daysUntil = daysUntilCeil;
 
+/** Standard equity monthly = 3rd Friday (day-of-month 15–21). */
+function isStandardMonthlyExpiry(d: Date): boolean {
+  return d.getDay() === 5 && d.getDate() >= 15 && d.getDate() <= 21;
+}
+
+/** Weekly listed Friday that is not the standard monthly. */
 function isWeeklyExpiry(d: unknown): boolean {
-  return d instanceof Date && d.getDay() === 5; // Friday
+  return d instanceof Date && d.getDay() === 5 && !isStandardMonthlyExpiry(d);
 }
 
 // daysToExpiry/exactDte/settlementDte are pure clock math (expiry date vs. now) — they
@@ -124,8 +136,9 @@ function buildRows(
   exactDte: number,
   isCall: boolean = false,
 ): OptionRow[] {
-  const lo = isCall ? spot * (1 + FLAT_MIN_OTM) : spot * (1 - FLAT_MAX_OTM);
-  const hi = isCall ? spot * (1 + FLAT_MAX_OTM) : spot * (1 - FLAT_MIN_OTM);
+  const maxOtm = flatMaxOtm(spot);
+  const lo = isCall ? spot * (1 + FLAT_MIN_OTM) : spot * (1 - maxOtm);
+  const hi = isCall ? spot * (1 + maxOtm) : spot * (1 - FLAT_MIN_OTM);
   const T  = exactDte / 365;
 
   const rows = contracts
@@ -229,19 +242,25 @@ function noteBidQuality(source: "schwab" | "yahoo", chains: OptionsChainResult[]
   }
 }
 
-export async function getOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
+export async function getOptionsChain(
+  ticker: string,
+  opts?: { forceYahoo?: boolean },
+): Promise<OptionsChainResult[]> {
   const key  = ticker.toUpperCase();
+  const forceYahoo = opts?.forceYahoo === true || process.env.OPTIONS_FORCE_YAHOO === "1";
 
-  try {
-    const schwab = await withBudget(getSchwabOptionChains(key), `schwab chain ${key}`);
-    if (schwab?.length) {
-      recordOptionsChainSource("schwab");
-      const tagged = schwab.map((c) => ({ ...c, source: "schwab" as const }));
-      noteBidQuality("schwab", tagged);
-      return tagged;
+  if (!forceYahoo) {
+    try {
+      const schwab = await withBudget(getSchwabOptionChains(key), `schwab chain ${key}`);
+      if (schwab?.length) {
+        recordOptionsChainSource("schwab");
+        const tagged = schwab.map((c) => ({ ...c, source: "schwab" as const }));
+        noteBidQuality("schwab", tagged);
+        return tagged;
+      }
+    } catch (err) {
+      logger.warn({ ticker: key, err: String(err) }, "options: Schwab chain failed — Yahoo fallback");
     }
-  } catch (err) {
-    logger.warn({ ticker: key, err: String(err) }, "options: Schwab chain failed — Yahoo fallback");
   }
 
   return withBudget(getOptionsChainYahoo(key), `yahoo chain ${key}`);
@@ -261,6 +280,10 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
     // a put right up until expiry); withFreshDte/buildRows floor exactDte at 0.5 days before
     // computing delta/weeklyIncome so those figures don't blow up for same-day expiries.
     targets = cachedDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 28).slice(0, 2);
+    // Monthly-only calendars (many small-caps): allow one expiry out to ~45 DTE.
+    if (targets.length === 0) {
+      targets = cachedDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 45).slice(0, 1);
+    }
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   } else {
     // Cache miss — initial undated fetch to discover expiry calendar
@@ -268,6 +291,9 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
     const allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
     expiryCache.set(key, allDates);
     targets = allDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 28).slice(0, 2);
+    if (targets.length === 0) {
+      targets = allDates.filter(d => exactDaysUntil(d) > 0 && exactDaysUntil(d) <= 45).slice(0, 1);
+    }
     if (targets.length === 0) throw new Error(`No viable expiry dates for ${key}`);
   }
 

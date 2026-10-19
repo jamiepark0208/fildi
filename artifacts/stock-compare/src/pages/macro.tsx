@@ -19,6 +19,7 @@ import type {
   MacroData, MacroCharts, FedMember, MacroEvent, BankResearch, SepData, IndicatorHistory, SepActuals, CurvePeriod, SepMetric,
   MacroTab, COTRecord, COTSummary, SectorRotationPoint,
 } from "@/components/macro/macro-page-types";
+import { MACRO_TABS } from "@/components/macro/macro-page-types";
 import { fmt, fmtPct, fmtK, fmtB, changeColor, getIndicatorHighlight } from "@/components/macro/macro-format";
 import { VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
 import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip } from "@/components/macro/macro-regime-overview";
@@ -34,18 +35,10 @@ import { FedScaleStrip, BankCard } from "@/components/macro/macro-fed-section";
 import { VoicesPanel } from "@/components/macro/voices-panel";
 import { StreetGapsPanel } from "@/components/macro/street-gaps-panel";
 import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
+import { ScenarioExposurePanel } from "@/components/macro/scenario-exposure-panel";
 import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/macro-tradingview-embeds";
-
-const MACRO_TABS: { id: MacroTab; label: string }[] = [
-  { id: "regime",     label: "Macro & Regime Health" },
-  { id: "liquidity",  label: "Liquidity" },
-  { id: "volatility", label: "Volatility & Sentiment" },
-  { id: "policy",     label: "Policy & Forward Guidance" },
-  { id: "heatmap",    label: "Heatmap" },
-  { id: "catalyst",   label: "Catalyst Calendar" },
-];
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 
@@ -68,10 +61,17 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
   const [selectedSepMetric, setSelectedSepMetric] = useState<SepMetric>("fedRate");
   const [selectedMacroCotId, setSelectedMacroCotId] = useState("sp500");
   const [selectedSentCotId, setSelectedSentCotId] = useState("gold");
+  const [showTvCalendar, setShowTvCalendar] = useState(false);
+
+  // Migrate old "catalyst" session tab → "calendar"
+  useEffect(() => {
+    if ((activeTab as string) === "catalyst") setActiveTab("calendar");
+  }, [activeTab, setActiveTab]);
 
   // ?tab= overrides session tab (e.g. /live?page=macro&tab=volatility)
   useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get("tab");
+    const raw = new URLSearchParams(window.location.search).get("tab");
+    const tab = raw === "catalyst" ? "calendar" : raw;
     if (tab && MACRO_TABS.some((t) => t.id === tab)) {
       setActiveTab(tab as MacroTab);
     }
@@ -108,7 +108,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
   const needsCharts = activeTab === "regime" || activeTab === "liquidity" || activeTab === "volatility";
   const needsRegimeExtras = activeTab === "regime";
   const needsPolicy = activeTab === "policy";
-  const needsCatalyst = activeTab === "catalyst";
+  const needsCalendar = activeTab === "calendar";
   // Defer /macro/charts until idle so Regime shell isn't blocked by ~800KB JSON.
   const [chartsReady, setChartsReady] = useState(false);
   useEffect(() => {
@@ -186,7 +186,15 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     queryFn: () => fetch("/api/macro/events").then((r) => r.json()),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
-    enabled: needsRegimeExtras || needsCatalyst || needsPolicy,
+    enabled: needsRegimeExtras || needsCalendar || needsPolicy,
+  });
+
+  const { data: wlEarnings } = useQuery<{ earnings: { ticker: string; date: string }[] }>({
+    queryKey: ["macro-watchlist-earnings"],
+    queryFn: () => fetch("/api/macro/watchlist-earnings", { credentials: "include" }).then((r) => r.json()),
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled: needsCalendar,
   });
 
   const { data: bankResearch } = useQuery<BankResearch[]>({
@@ -270,14 +278,25 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
   const oneWeekOut = new Date(today);
   oneWeekOut.setDate(today.getDate() + 7);
 
-  const thisWeekEvents = events?.filter((e) => {
+  // Prefer high-importance for "Your Week"; fall back to all if feed is thin.
+  const highEvents = (events ?? []).filter((e) => e.importance === "high");
+  const calendarPool = highEvents.length >= 3 ? highEvents : (events ?? []);
+  const thisWeekEvents = calendarPool.filter((e) => {
     const d = new Date(e.date + "T12:00:00");
     return d >= today && d <= oneWeekOut;
-  }) ?? [];
-  const comingUpEvents = events?.filter((e) => {
+  });
+  const comingUpEvents = calendarPool.filter((e) => {
     const d = new Date(e.date + "T12:00:00");
     return d > oneWeekOut;
-  }) ?? [];
+  }).slice(0, 12);
+  const earningsSoon = (wlEarnings?.earnings ?? []).filter((e) => {
+    const d = new Date(e.date + "T12:00:00");
+    return d >= today && d <= oneWeekOut;
+  });
+  const earningsLater = (wlEarnings?.earnings ?? []).filter((e) => {
+    const d = new Date(e.date + "T12:00:00");
+    return d > oneWeekOut;
+  }).slice(0, 20);
 
   const sortByPriority = (arr: FedMember[]) =>
     [...arr].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
@@ -850,57 +869,96 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
             </div>
           )}
 
-          {/* ── Tab 5: Catalyst Calendar ──────────────────────────────────────── */}
-          {activeTab === "catalyst" && (
-            <div className="space-y-2">
-              {/* Your Week — curated macro releases, clickable through to Regime tab */}
-              {events && events.length > 0 && (
-                <div className="space-y-1.5">
-                  <h3
-                    className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5"
-                    title="Curated high-signal releases — the TradingView calendar below is the global feed. High-importance releases jump to their indicator history on the Regime tab."
-                  >
-                    <Calendar className="h-3.5 w-3.5 text-[#d4af37]/60" />
-                    Your Week
-                  </h3>
-                  {thisWeekEvents.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">This Week</p>
-                      {thisWeekEvents.map((ev) => (
-                        <EventRow
-                          key={ev.date + ev.event}
-                          event={ev}
-                          todayStr={todayStr}
-                          onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {comingUpEvents.length > 0 && (
-                    <div className="space-y-1.5 mt-1">
-                      <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">Coming Up</p>
-                      {comingUpEvents.map((ev) => (
-                        <EventRow
-                          key={ev.date + ev.event}
-                          event={ev}
-                          todayStr={todayStr}
-                          onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* ── Calendar (ours first; TradingView optional / slow) ───────────── */}
+          {activeTab === "calendar" && (
+            <div className="space-y-3">
+              <p className="text-[10px] text-amber-200/45 leading-snug">
+                Fildi calendar = Finnhub US macro (high-tier: FOMC, CPI, NFP…) + static Fed dates + your watchlist earnings.
+                Display only — S026 found no put-seller edge from event weeks. TradingView embed is optional (slow).
+              </p>
 
-              <h3
-                className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5"
-                title="US high-importance macro releases, powered by TradingView"
-              >
-                <Calendar className="h-3.5 w-3.5 text-[#d4af37]/60" />
-                Economic Calendar
-              </h3>
-              <TradingViewEconomicCalendar />
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-[#d4af37]/60" />
+                  Macro (high importance)
+                </h3>
+                {thisWeekEvents.length === 0 && comingUpEvents.length === 0 ? (
+                  <p className="text-[11px] text-amber-200/40">No macro events in the feed window.</p>
+                ) : (
+                  <>
+                    {thisWeekEvents.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">This week</p>
+                        {thisWeekEvents.map((ev) => (
+                          <EventRow
+                            key={ev.date + ev.event}
+                            event={ev}
+                            todayStr={todayStr}
+                            onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {comingUpEvents.length > 0 && (
+                      <div className="space-y-1.5 mt-1">
+                        <p className="text-[10px] text-amber-200/40 uppercase tracking-wide font-medium">Coming up</p>
+                        {comingUpEvents.map((ev) => (
+                          <EventRow
+                            key={ev.date + ev.event}
+                            event={ev}
+                            todayStr={todayStr}
+                            onJumpToIndicator={(key) => { setSelectedIndicatorKey(key); setActiveTab("regime"); }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
+                  Watchlist earnings
+                </h3>
+                {earningsSoon.length === 0 && earningsLater.length === 0 ? (
+                  <p className="text-[11px] text-amber-200/40">No upcoming report dates on the watchlist.</p>
+                ) : (
+                  <ul className="space-y-0.5 text-[12px] font-mono">
+                    {[...earningsSoon, ...earningsLater].map((e) => (
+                      <li key={`${e.ticker}-${e.date}`} className="flex items-baseline gap-2">
+                        <span className="w-16 text-amber-200/45 tabular-nums">{e.date.slice(5)}</span>
+                        <button
+                          type="button"
+                          className="text-[#d4af37] hover:underline font-semibold"
+                          onClick={() => navigate(`/watchlist?ticker=${e.ticker}`)}
+                        >
+                          {e.ticker}
+                        </button>
+                        {earningsSoon.some((x) => x.ticker === e.ticker && x.date === e.date) && (
+                          <span className="text-[9px] uppercase text-sky-300/70">this week</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="space-y-1.5 border-t border-[#d4af37]/15 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTvCalendar((v) => !v)}
+                  className="text-[11px] font-semibold text-amber-200/55 hover:text-[#d4af37]"
+                >
+                  {showTvCalendar ? "Hide" : "Show"} TradingView economic calendar (slow)
+                </button>
+                {showTvCalendar && <TradingViewEconomicCalendar />}
+              </div>
             </div>
+          )}
+
+          {/* ── Scenario exposure (was always above Macro on Live) ───────────── */}
+          {activeTab === "scenario" && (
+            <ScenarioExposurePanel />
           )}
 
         </div>

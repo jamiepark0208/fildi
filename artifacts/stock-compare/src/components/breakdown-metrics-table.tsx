@@ -30,6 +30,8 @@ export interface MetricRowData {
   fieldKey?: string;
   /** Force estimate badge; else inferred from ESTIMATE_FIELDS. */
   isEstimate?: boolean;
+  /** Plain-English hover on the label (what the metric means). */
+  tip?: string;
 }
 
 export interface MetricGroup {
@@ -101,14 +103,21 @@ export function BreakdownMetricsTable({
             <ScoreBadge score={group.score} max={100} />
           </div>
           <div className="space-y-1">
-            {group.rows.map((row, i) => (
-              <div key={i} className="flex justify-between items-center gap-1.5">
-                <span className="text-[10px] text-amber-100/70 truncate" title={row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined}>
-                  {row.label}
-                </span>
-                <MetricValue row={row} prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined} />
-              </div>
-            ))}
+            {group.rows.map((row, i) => {
+              const provTip = row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined;
+              const labelTip = [row.tip, provTip].filter(Boolean).join("\n");
+              return (
+                <div key={i} className="flex justify-between items-center gap-1.5 min-w-0">
+                  <span
+                    className="text-[10px] text-amber-100/70 shrink min-w-0 whitespace-nowrap overflow-hidden text-ellipsis"
+                    title={labelTip || undefined}
+                  >
+                    {row.label}
+                  </span>
+                  <MetricValue row={row} prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined} />
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

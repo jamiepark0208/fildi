@@ -193,6 +193,8 @@ export function OptionsScannerContent({
       }>;
       asOf: string | null;
       computedAt: string | null;
+      /** Bundled live equity quotes — same as /live/prices (no second waterfall). */
+      prices?: Record<string, { price: number | null; changePercent: number | null }>;
     }> => {
       const res = await fetch(`/api/options/rankings?side=${rankingSide}`);
       if (!res.ok) throw new Error("options rankings fetch failed");
@@ -672,24 +674,39 @@ export function OptionsScannerContent({
     return filteredTickers;
   }, [universe, tickerQuery, filteredTickers]);
 
-  // Golden-source live equity prices (Schwab→Yahoo, 60s server TTL). Overlay only —
-  // sort/option scores stay on nightly snapshots so the board does not reshuffle.
+  // Live equity overlay. Rankings response already bundles prices (same cache) so
+  // Overall paints $ + % with the grid. Refresh keeps them warm; watchlist also
+  // prefetches as soon as My List tickers are known (parallel with rankings).
   const visibleTickersKey = visibleTickers.join(",");
+  const watchlistPrefetchKey = useMemo(() => {
+    if (universe !== "watchlist") return "";
+    return entries
+      .filter((e) => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker))
+      .map((e) => e.ticker)
+      .sort()
+      .join(",");
+  }, [universe, entries, hiddenTickers]);
+  const livePricesKey = watchlistPrefetchKey || visibleTickersKey;
   const { data: moverFacts } = useMoverFacts(visibleTickers, 5);
-  const { data: livePrices } = useQuery({
-    queryKey: ["live-prices", visibleTickersKey],
+  const { data: livePricesRefresh } = useQuery({
+    queryKey: ["live-prices", livePricesKey],
     queryFn: async (): Promise<Record<string, { price: number | null; changePercent: number | null }>> => {
-      const res = await fetch(`/api/live/prices?tickers=${encodeURIComponent(visibleTickersKey)}`, {
+      const res = await fetch(`/api/live/prices?tickers=${encodeURIComponent(livePricesKey)}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("live/prices failed");
       const body = await res.json() as { prices: Record<string, { price: number | null; changePercent: number | null }> };
       return body.prices ?? {};
     },
-    enabled: visibleTickers.length > 0,
+    enabled: livePricesKey.length > 0,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+  // Rankings-bundled prices first (same round-trip as scores); refresh overlays on top.
+  const livePrices = useMemo(() => ({
+    ...(optionRankings?.prices ?? {}),
+    ...(livePricesRefresh ?? {}),
+  }), [optionRankings?.prices, livePricesRefresh]);
 
   // Continuous heat scales for Opt/Stock/IV/Inc/Buf across the visible board.
   const columnHeat = useMemo(() => {
@@ -999,7 +1016,13 @@ export function OptionsScannerContent({
               <div className="font-semibold" title="Entry gate: puts = oversold V2 · calls = overbought V2 (hover badge for detail)">Sig</div>
               <div className="font-semibold" title="Graded live model recs only (not backtests). Empty = never snapshot-scored or not yet expired/graded.">Rec</div>
               <div className="font-semibold" title="Hover a row's RSI value for full reasoning">RSI</div>
-              <SortableHeader label="Opt" sortKey="optionScore" active={sort === "optionScore"} onClick={setSort} />
+              <SortableHeader
+                label="Opt"
+                sortKey="optionScore"
+                active={sort === "optionScore"}
+                onClick={setSort}
+                title="Option score (red→green by rank across the board)"
+              />
               <SortableHeader label="Stock" sortKey="score" active={sort === "score"} onClick={setSort} />
               <SortableHeader label="IV" sortKey="iv" active={sort === "iv"} onClick={setSort} />
               <SortableHeader label="Inc" sortKey="income" active={sort === "income"} onClick={setSort} />

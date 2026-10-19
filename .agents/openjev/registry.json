@@ -827,7 +827,8 @@
     "evidence": "oj eval P16v2",
     "question_sha": "c056e720df4e"
    },
-   "verified_by": null
+   "verified_by": "cursor",
+   "verified_at": "2026-10-18"
   }
  ]
 }

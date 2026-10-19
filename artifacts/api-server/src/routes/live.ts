@@ -3,7 +3,6 @@ import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, ASIA_INDEX_SYMBOLS, t
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers } from "../lib/live-movers.js";
-import { buildMoverFacts, formatMoverFactLine } from "../lib/mover-facts.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
@@ -160,15 +159,10 @@ router.post("/live/refresh", async (_req, res, next) => {
 
 router.get("/live/movers", async (_req, res, next) => {
   try {
+    // Facts (IV/earnings) are deferred to GET /options/mover-facts — awaiting them
+    // here blocked the board on getLivePrices + DB (~1–2s cold).
     const global = await fetchGlobalMovers();
-    // A81 facts on |move|≥5% names (display-only; no advice takes).
-    const movers = [...global.gainers, ...global.losers, ...global.mostActive];
-    const big = movers.filter((m) => m.changePercent != null && Math.abs(m.changePercent) >= 5);
-    const facts = await buildMoverFacts(big.map((m) => m.ticker));
-    const byTicker = Object.fromEntries(
-      facts.map((f) => [f.ticker, { ...f, line: formatMoverFactLine(f) }]),
-    );
-    res.json({ global, facts: byTicker });
+    res.json({ global });
   } catch (err) {
     next(err);
   }

@@ -5,7 +5,8 @@ import { Trophy, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScoreExplanation } from "@/hooks/useScoreExplanation";
 import {
-  FUNDAMENTAL_METRIC_BY_KEY, FundamentalFamily, familyWeightsForRegime, formatMetricValue,
+  FUNDAMENTAL_METRIC_BY_KEY, FundamentalFamily, FAMILY_LABEL, FAMILY_ORDER,
+  familyWeightsForStyle, formatMetricValue,
   SECTOR_WEIGHT, MIN_SECTOR_PEERS,
 } from "@/lib/fundamental-scoring-meta";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
@@ -30,8 +31,7 @@ const ROW_STYLE = (idx: number) =>
   idx === 2 ? "border-amber-700/30 bg-amber-700/10"   :
               "border-[#d4af37]/10 bg-transparent";
 
-const FAMILY_LABEL: Record<FundamentalFamily, string> = { quality: "Quality", growth: "Growth", safety: "Safety" };
-const FAMILY_ORDER: FundamentalFamily[] = ["quality", "growth", "safety"];
+const COL_COUNT = 2 + FAMILY_ORDER.length + 5; // # ticker + 4 fam + score + style + co/sec + breakdown + why
 
 function parseBullets(text: string): string[] {
   return text
@@ -160,18 +160,17 @@ export interface FamilyBreakdownRow {
   contribution: number;
 }
 
-// Reproduces the family/total roll-up in computeAndPersistFundamentalScores: totalScore is a
-// weighted average of the three family scores using the current macro regime's weights.
+// Family bar uses style-bucket weights (same as fund-score-engine). Total score also
+// blends ~10% sector opportunity — shown separately as Co / Sec columns.
 function buildFamilyBreakdown(score: StockScore): { rows: FamilyBreakdownRow[]; weightSum: number } {
-  const weights = familyWeightsForRegime(score.regime);
+  const weights = familyWeightsForStyle(score.styleBucket);
   const fs = score.familyScores;
-  const families: FundamentalFamily[] = ["quality", "growth", "safety"];
-  const rows = families.map(fam => {
+  const rows = FAMILY_ORDER.map(fam => {
     const famScore = fs?.[fam]?.score ?? 50;
     const w = weights[fam];
     return { family: fam, score: famScore, weight: w, contribution: (famScore * w) / 100 };
   });
-  const weightSum = families.reduce((s, f) => s + weights[f], 0);
+  const weightSum = FAMILY_ORDER.reduce((s, f) => s + weights[f], 0);
   return { rows, weightSum };
 }
 
@@ -288,6 +287,28 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
           <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
         </td>
 
+        <td
+          className={cn(GRID_TD, "text-right whitespace-nowrap text-[10px] text-amber-200/55 font-mono")}
+          title={`Style bucket sets family weights${score.confidence ? ` · confidence ${score.confidence}` : ""}`}
+        >
+          {score.styleBucket ? score.styleBucket.replace(/_/g, " ") : "—"}
+        </td>
+
+        <td
+          className={cn(GRID_TD, "text-right whitespace-nowrap text-[10px] font-mono text-white/55")}
+          title="Company score (pre-blend) · sector opportunity layer. Total ≈ 90% Co + 10% Sec."
+        >
+          {score.companyScore != null || score.sectorScore != null ? (
+            <>
+              <span className="text-white/80">{score.companyScore != null ? score.companyScore.toFixed(0) : "—"}</span>
+              <span className="text-white/30">/</span>
+              <span>{score.sectorScore != null ? score.sectorScore.toFixed(0) : "—"}</span>
+            </>
+          ) : (
+            "—"
+          )}
+        </td>
+
         <td className={cn(GRID_TD, "w-32")}>
           <div className="h-1.5 w-24 bg-slate-800 rounded-full overflow-hidden flex">
             {familyRows.map(r => (
@@ -313,7 +334,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
 
       {isExpanded && (
         <tr>
-        <td colSpan={8} className="p-0">
+        <td colSpan={COL_COUNT} className="p-0">
         <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/50 border-b border-[#d4af37]/15">
           {/* Metric table: every scored metric, its value, weight, and real peer comparison */}
           {metricRows.length > 0 && (
@@ -322,6 +343,15 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
                 {score.peerGroupName
                   ? <span className="text-white/50 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} peers)</span>
                   : <span className="text-white/40 normal-case tracking-normal">unclassified — vs full {allScores.length}-ticker market</span>}
+                {score.styleBucket && (
+                  <span className="text-white/40 normal-case tracking-normal ml-2">· style {score.styleBucket.replace(/_/g, " ")}</span>
+                )}
+                {score.companyScore != null && (
+                  <span className="text-white/40 normal-case tracking-normal ml-2">
+                    · Co {score.companyScore.toFixed(0)}
+                    {score.sectorScore != null ? ` / Sec ${score.sectorScore.toFixed(0)}` : ""}
+                  </span>
+                )}
               </p>
               <div className={GRID_WRAP}>
                 <table className="w-full border-collapse">
@@ -420,7 +450,7 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
           )}
         </div>
         <div className="flex items-center gap-3">
-          {(Object.keys(FAMILY_LABEL) as FundamentalFamily[]).map(fam => (
+          {FAMILY_ORDER.map(fam => (
             <span key={fam} className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <span className={cn("w-2 h-2 rounded-sm", FAMILY_BAR_COLOR[fam])} />
               {FAMILY_LABEL[fam]}
@@ -448,14 +478,16 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
               {FAMILY_ORDER.map(fam => (
                 <th key={fam} className={cn(GRID_TH, "text-right")}>{FAMILY_LABEL[fam]}</th>
               ))}
-              <th className={cn(GRID_TH, "text-right")}>Score</th>
+              <th className={cn(GRID_TH, "text-right")} title="Blended fund total (≈90% company + 10% sector opportunity)">Score</th>
+              <th className={cn(GRID_TH, "text-right")} title="Style bucket — sets Value/Growth/Quality/Safety weights">Style</th>
+              <th className={cn(GRID_TH, "text-right")} title="Company score / sector opportunity layer">Co/Sec</th>
               <th className={cn(GRID_TH, "text-left")}>Breakdown</th>
               <th className={cn(GRID_TH, "text-right")}></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+              <tr><td colSpan={COL_COUNT} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
             ) : (
               filtered.map((score, i) => (
                 <LeaderboardRow

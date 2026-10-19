@@ -109,8 +109,32 @@ function mergeClose(candidates: Candidate[]): Candidate[] {
 
 /** Marker-eligible labels render as an exact-bar dot only when a bar date is known; otherwise they fall back to a price line. */
 function renderAsFor(c: Candidate): "line" | "marker" {
-  if (c.date && (c.label.startsWith("Period") || c.label.startsWith("Swing"))) return "marker";
+  if (c.date && (
+    c.label.startsWith("Period")
+    || c.label.startsWith("Swing")
+    || c.label.startsWith("Pivot")
+  )) return "marker";
   return "line";
+}
+
+/** Bar date nearest the level — Pivot S1→low touch, Pivot R1→high touch, else closest close. */
+function nearestBarDate(
+  bars: OhlcBar[],
+  price: number,
+  kind: "support" | "resistance",
+): string | undefined {
+  if (bars.length === 0) return undefined;
+  let best = bars[0]!;
+  let bestDist = Infinity;
+  for (const b of bars) {
+    const ref = kind === "support" ? (b.low ?? b.close) : (b.high ?? b.close);
+    const d = Math.abs(ref - price);
+    if (d < bestDist) {
+      bestDist = d;
+      best = b;
+    }
+  }
+  return best.date;
 }
 
 function pickZones(
@@ -173,8 +197,12 @@ export function computeChartZones(
 
   switch (period) {
     case "1D":
-      addCandidate(candidates, d.pivotS1, "Pivot S1", "support");
-      addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance");
+      if (d.pivotS1 != null) {
+        addCandidate(candidates, d.pivotS1, "Pivot S1", "support", nearestBarDate(bars, d.pivotS1, "support"));
+      }
+      if (d.pivotR1 != null) {
+        addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance", nearestBarDate(bars, d.pivotR1, "resistance"));
+      }
       if (closes.length >= 10) {
         const s = swingHighLow(closes, lb(20));
         addCandidate(candidates, s.low, "Swing low", "support", dateAt(s.lowIndex));
@@ -213,8 +241,12 @@ export function computeChartZones(
       addCandidate(candidates, d.swingHigh20d ?? s20.high, "Swing high 20d", "resistance", d.swingHigh20d != null ? undefined : dateAt(s20.highIndex));
       addCandidate(candidates, d.swingLow50d ?? s50.low, "Swing low 50d", "support", d.swingLow50d != null ? undefined : dateAt(s50.lowIndex));
       addCandidate(candidates, d.swingHigh50d ?? s50.high, "Swing high 50d", "resistance", d.swingHigh50d != null ? undefined : dateAt(s50.highIndex));
-      addCandidate(candidates, d.pivotS1, "Pivot S1", "support");
-      addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance");
+      if (d.pivotS1 != null) {
+        addCandidate(candidates, d.pivotS1, "Pivot S1", "support", nearestBarDate(bars, d.pivotS1, "support"));
+      }
+      if (d.pivotR1 != null) {
+        addCandidate(candidates, d.pivotR1, "Pivot R1", "resistance", nearestBarDate(bars, d.pivotR1, "resistance"));
+      }
       addCandidate(candidates, d.bbLower, "BB lower", "support");
       addCandidate(candidates, d.bbUpper, "BB upper", "resistance");
       if (d.ma50 != null) addCandidate(candidates, d.ma50, "MA50", maKind(d.ma50, currentPrice));

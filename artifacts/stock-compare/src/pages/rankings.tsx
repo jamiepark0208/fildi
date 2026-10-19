@@ -60,6 +60,8 @@ export default function Rankings() {
       return res.json() as Promise<Array<{
         ticker: string;
         totalScore: number | null;
+        companyScore?: number | null;
+        sectorScore?: number | null;
         valueScore?: number | null;
         qualityScore: number | null;
         growthScore: number | null;
@@ -109,6 +111,10 @@ export default function Rankings() {
         peerGroupId:   r.peerGroupId ?? undefined,
         peerGroupName: r.peerGroupName ?? undefined,
         peerGroupSize: r.peerGroupSize,
+        styleBucket:   r.styleBucket ?? null,
+        companyScore:  r.companyScore ?? null,
+        sectorScore:   r.sectorScore ?? null,
+        confidence:    r.confidence ?? null,
       }));
   }, [serverRankings, loadedStocks]);
 

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -79,7 +80,8 @@ function fmt(score: number | null | undefined): string {
   return score != null ? score.toFixed(0) : "—";
 }
 
-const COLS = "grid-cols-[minmax(0,1.2fr)_28px_28px_22px_22px_22px_22px_28px]";
+/** Ticker · Tot · Fnd · Tch — pillars V/G/Q/S live in the hover tooltip. */
+const COLS = "grid-cols-[minmax(0,1.4fr)_36px_36px_36px]";
 
 function CompetitorRow({
   row,
@@ -97,7 +99,7 @@ function CompetitorRow({
           disabled={!clickable}
           onClick={() => clickable && onSelectTicker?.(row.ticker)}
           className={cn(
-            "grid w-full items-center gap-0.5 py-0.5 px-1 rounded text-left transition-colors",
+            "grid w-full items-center gap-1 py-0.5 px-1 rounded text-left transition-colors h-6",
             COLS,
             row.isSubject
               ? "bg-[#d4af37]/10 border border-[#d4af37]/25"
@@ -114,30 +116,23 @@ function CompetitorRow({
             {row.ticker}
             {row.isSubject ? " · you" : ""}
           </span>
-          <span className={cn("text-right font-mono text-[10px] font-bold", scoreColor(row.combinedScore))}>
+          <span className={cn("text-right font-mono text-[11px] font-bold", scoreColor(row.combinedScore))}>
             {fmt(row.combinedScore)}
           </span>
-          <span className={cn("text-right font-mono text-[10px]", scoreColor(row.fundScore))}>
+          <span className={cn("text-right font-mono text-[11px]", scoreColor(row.fundScore))}>
             {fmt(row.fundScore)}
           </span>
-          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundValue))}>
-            {fmt(row.fundValue)}
-          </span>
-          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundGrowth))}>
-            {fmt(row.fundGrowth)}
-          </span>
-          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundQuality))}>
-            {fmt(row.fundQuality)}
-          </span>
-          <span className={cn("text-right font-mono text-[9px]", scoreColor(row.fundSafety))}>
-            {fmt(row.fundSafety)}
-          </span>
-          <span className={cn("text-right font-mono text-[10px]", scoreColor(row.techScore))}>
+          <span className={cn("text-right font-mono text-[11px]", scoreColor(row.techScore))}>
             {fmt(row.techScore)}
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-[260px]">
+      <TooltipContent side="left" className="max-w-[280px]">
+        <p className="text-[10px] font-semibold text-[#d4af37] mb-1">
+          {row.ticker}
+          {" · "}
+          V {fmt(row.fundValue)} · G {fmt(row.fundGrowth)} · Q {fmt(row.fundQuality)} · S {fmt(row.fundSafety)}
+        </p>
         {row.breakdown.length === 0 ? (
           <p className="text-xs">No metric breakdown.</p>
         ) : (
@@ -163,35 +158,47 @@ function CompetitorRow({
   );
 }
 
-/** Peer cohort ranked by tech+fund — relative comparison table. */
+/** Peer cohort ranked by Tot (tech+fund) — relative comparison table. */
 export function CompetitorsSection({ ticker, onSelectTicker, compact }: CompetitorsSectionProps) {
   const { data, isLoading } = useCompetitors(ticker);
   const subtitle = data?.groupName ?? [data?.industry, data?.sector].filter(Boolean).join(" · ");
 
+  // Client-side Tot sort as belt-and-suspenders (API also sorts by Tot).
+  const ranked = useMemo(() => {
+    const rows = data?.ranked ?? [];
+    return [...rows].sort((a, b) => {
+      if (a.combinedScore == null && b.combinedScore == null) return a.ticker.localeCompare(b.ticker);
+      if (a.combinedScore == null) return 1;
+      if (b.combinedScore == null) return -1;
+      if (b.combinedScore !== a.combinedScore) return b.combinedScore - a.combinedScore;
+      if (a.isSubject !== b.isSubject) return a.isSubject ? -1 : 1;
+      return a.ticker.localeCompare(b.ticker);
+    });
+  }, [data?.ranked]);
+
   if (isLoading) {
     return <p className="text-[11px] text-amber-200/50">Loading peers…</p>;
   }
-  if (!data || data.ranked.length === 0) {
+  if (!data || ranked.length === 0) {
     return <p className="text-[11px] text-amber-200/45 italic">No peers found for this ticker yet.</p>;
   }
 
   return (
     <div className={cn(!compact && "space-y-1")}>
       {subtitle && (
-        <p className="text-[10px] text-zinc-500 truncate mb-1">{subtitle}</p>
+        <p className="text-[10px] text-zinc-500 truncate mb-1">
+          {subtitle}
+          <span className="text-zinc-600"> · {ranked.length} names · by Tot</span>
+        </p>
       )}
-      <div className={cn("grid gap-0.5 px-1 pb-0.5 border-b border-[#d4af37]/20", COLS)}>
+      <div className={cn("grid gap-1 px-1 pb-0.5 border-b border-[#d4af37]/20", COLS)}>
         <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide truncate">Ticker</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tot</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Fnd</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">V</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">G</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Q</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">S</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tch</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Combined tech + fund">Tot</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Fundamentals">Fnd</span>
+        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Technicals">Tch</span>
       </div>
-      <div className={cn(!compact && "max-h-[280px] overflow-y-auto")}>
-        {data.ranked.map((row) => (
+      <div className={cn(compact ? "max-h-[320px] overflow-y-auto" : "max-h-[280px] overflow-y-auto")}>
+        {ranked.map((row) => (
           <CompetitorRow key={row.ticker} row={row} onSelectTicker={onSelectTicker} />
         ))}
       </div>

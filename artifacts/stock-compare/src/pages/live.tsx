@@ -20,11 +20,11 @@ import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers"
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
-import { ScenarioExposurePanel } from "@/components/live/scenario-exposure-panel";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
 import { useRecConflicts } from "@/hooks/use-rec-conflicts";
+import { useMoverFacts } from "@/hooks/use-mover-facts";
 
 interface MarketContextQuote {
   ticker: string;
@@ -285,6 +285,24 @@ export default function Live() {
     placeholderData: (prev) => prev,
   });
 
+  // Facts (IV/earnings) load after the board — was blocking /live/movers cold path.
+  const moverFactInputs = useMemo(() => {
+    const lists = movers?.global;
+    if (!lists) return { tickers: [] as string[], pct: {} as Record<string, number | null> };
+    const all = [...lists.gainers, ...lists.losers, ...lists.mostActive];
+    const pctMap: Record<string, number | null> = {};
+    const tickers: string[] = [];
+    for (const m of all) {
+      const t = m.ticker.toUpperCase();
+      if (m.changePercent == null || Math.abs(m.changePercent) < 5) continue;
+      if (pctMap[t] != null) continue;
+      pctMap[t] = m.changePercent;
+      tickers.push(t);
+    }
+    return { tickers, pct: pctMap };
+  }, [movers]);
+  const { data: moverFacts } = useMoverFacts(moverFactInputs.tickers, 5, moverFactInputs.pct);
+
   const { data: regime } = useQuery({
     queryKey: ["live-regime"],
     queryFn: fetchRegime,
@@ -449,8 +467,7 @@ export default function Live() {
           </div>
 
           {pageTab === "macro" ? (
-            <div className="space-y-3 px-6 pt-3">
-              <ScenarioExposurePanel />
+            <div className="px-6 pt-3">
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-[40vh]">
                   <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
@@ -486,9 +503,9 @@ export default function Live() {
                     {moversFetching && movers && (
                       <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
                     )}
-                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} facts={movers?.facts} />
-                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} facts={movers?.facts} />
-                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={movers?.facts} />
+                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} facts={moverFacts} />
+                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} facts={moverFacts} />
+                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={moverFacts} />
                   </div>
                 )}
               </section>

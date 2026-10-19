@@ -52,12 +52,17 @@ async function ivByDay(tickers: string[]): Promise<Map<string, { today: number |
   return out;
 }
 
-export async function buildMoverFacts(tickersIn: string[]): Promise<MoverFact[]> {
+export async function buildMoverFacts(
+  tickersIn: string[],
+  /** When set, skip getLivePrices and use these % (keeps fact line aligned with screener board). */
+  movePctByTicker?: Record<string, number | null>,
+): Promise<MoverFact[]> {
   const tickers = [...new Set(tickersIn.map((t) => t.toUpperCase()).filter(Boolean))].slice(0, 80);
   if (tickers.length === 0) return [];
 
+  const needLive = movePctByTicker == null;
   const [live, ivMap, tech] = await Promise.all([
-    getLivePrices(tickers),
+    needLive ? getLivePrices(tickers) : Promise.resolve(new Map<string, { changePercent?: number | null }>()),
     ivByDay(tickers),
     pool.query<{ ticker: string; earnings_days_out: number | null; iv_rank: string | null }>(`
       SELECT UPPER(ticker) AS ticker, earnings_days_out, iv_rank::text
@@ -68,8 +73,7 @@ export async function buildMoverFacts(tickersIn: string[]): Promise<MoverFact[]>
 
   const techBy = new Map(tech.rows.map((r) => [r.ticker, r]));
   return tickers.map((ticker) => {
-    const q = live.get(ticker);
-    const movePct = q?.changePercent ?? null;
+    const movePct = movePctByTicker?.[ticker] ?? live.get(ticker)?.changePercent ?? null;
     const t = techBy.get(ticker);
     const er = t?.earnings_days_out;
     const earnings = er != null && er >= 0 && er <= 2;
@@ -95,9 +99,12 @@ export async function buildMoverFacts(tickersIn: string[]): Promise<MoverFact[]>
 }
 
 /** One-line facts string for UI (no advice). */
-export function formatMoverFactLine(f: MoverFact): string {
+export function formatMoverFactLine(f: MoverFact, opts?: { omitMovePct?: boolean }): string {
   const parts: string[] = [];
-  if (f.movePct != null) parts.push(`${f.movePct >= 0 ? "+" : ""}${f.movePct.toFixed(1)}%`);
+  // Board already shows screener % — omit here so tooltips don't disagree (IRON +36.3 vs +36.5).
+  if (!opts?.omitMovePct && f.movePct != null) {
+    parts.push(`${f.movePct >= 0 ? "+" : ""}${f.movePct.toFixed(1)}%`);
+  }
   if (f.driverDetail) parts.push(f.driverDetail);
   if (f.ivDeltaPctPts != null) {
     parts.push(`IV ${f.ivDeltaPctPts >= 0 ? "+" : ""}${f.ivDeltaPctPts.toFixed(1)}pt vs yd`);

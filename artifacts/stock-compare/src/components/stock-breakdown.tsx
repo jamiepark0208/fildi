@@ -43,7 +43,42 @@ import { AssumptionsTab } from "./breakdown/assumptions-tab";
 import { ThesisTab } from "./breakdown/thesis-tab";
 import { useFundamentalsProvenance } from "@/hooks/use-fundamentals-provenance";
 import { provFieldForScoreKey } from "@/lib/provenance-display";
+import { scoreMetricUi } from "@/lib/fund-score-treatments";
 
+/** Keys already shown as static rows in each family — skip so we don't repeat "EPS Grow" + epsgrow. */
+const STATIC_SCORE_KEYS: Record<string, Set<string>> = {
+  value: new Set(["peg", "ps", "pb", "fwdpe", "divy", "upside"]),
+  growth: new Set(["revgrow", "epsgrow", "upside"]),
+  quality: new Set(["roe", "grossmgn", "operatingmgn", "netmgn"]),
+  safety: new Set(["cr", "de", "beta", "divy"]),
+};
+
+function topScoreMetricRow(t: {
+  key: string;
+  raw: number | null;
+  peerPct: number | null;
+}) {
+  const { label, tip } = scoreMetricUi(t.key);
+  const peer = t.peerPct != null ? ` · p${t.peerPct}` : "";
+  return {
+    label,
+    tip:
+      tip
+      + (t.peerPct != null
+        ? ` Peer percentile p${t.peerPct} (100 = best vs peers on this metric).`
+        : ""),
+    value: t.raw != null ? `${formatNumber(t.raw)}${peer}` : "—",
+    fieldKey: provFieldForScoreKey(t.key),
+  };
+}
+
+function extraTopMetrics(family: string, top: Array<{ key: string; family: string; raw: number | null; peerPct: number | null }> | undefined) {
+  const skip = STATIC_SCORE_KEYS[family] ?? new Set();
+  return (top ?? [])
+    .filter((t) => t.family === family && !skip.has(t.key))
+    .slice(0, 2)
+    .map(topScoreMetricRow);
+}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -256,43 +291,46 @@ export function StockBreakdown({
         {m && !isLoading && (
           <div className="max-w-5xl mx-auto px-5 py-4 space-y-3 pb-8">
             {/* ── Header ── */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="text-2xl font-bold font-mono tracking-tight shrink-0 cursor-pointer decoration-dotted underline-offset-4 hover:underline text-left"
-                        title="Company overview"
-                      >
-                        {m.ticker}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side="bottom"
-                      align="start"
-                      className="max-w-sm w-[min(24rem,calc(100vw-2rem))] bg-card text-foreground border border-border p-3 z-[80]"
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0 flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-2xl font-bold font-mono tracking-tight shrink-0 cursor-pointer decoration-dotted underline-offset-4 hover:underline text-left"
+                      title="Company overview"
                     >
-                      <span className="text-xs font-bold tracking-tight text-foreground block mb-1.5">Company Overview</span>
-                      {m.description ? (
-                        <ul className="space-y-1.5">
-                          {overviewBullets(m.description, m.companyName).map((s: string, i: number) => (
-                            <li key={i} className="flex gap-1.5 text-xs text-foreground leading-snug">
-                              <span className="shrink-0 text-foreground mt-0.5">•</span>
-                              {s}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">No description available.</p>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                  <span className="text-base text-foreground font-medium truncate">
+                      {m.ticker}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="bottom"
+                    align="start"
+                    className="max-w-sm w-[min(24rem,calc(100vw-2rem))] bg-card text-foreground border border-border p-3 z-[80]"
+                  >
+                    <span className="text-xs font-bold tracking-tight text-foreground block mb-1.5">Company Overview</span>
+                    {m.description ? (
+                      <ul className="space-y-1.5">
+                        {overviewBullets(m.description, m.companyName).map((s: string, i: number) => (
+                          <li key={i} className="flex gap-1.5 text-xs text-foreground leading-snug">
+                            <span className="shrink-0 text-foreground mt-0.5">•</span>
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No description available.</p>
+                    )}
+                  </PopoverContent>
+                </Popover>
+                {m.companyName ? (
+                  <span
+                    className="text-[11px] text-muted-foreground font-medium truncate min-w-0"
+                    title={m.companyName}
+                  >
                     {m.companyName}
                   </span>
-                </div>
+                ) : null}
               </div>
 
               <button
@@ -308,21 +346,25 @@ export function StockBreakdown({
                   <span className="text-2xl font-bold font-mono tracking-tight">
                     {m.currentPrice != null ? `$${m.currentPrice.toFixed(2)}` : "—"}
                   </span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 text-sm font-mono font-semibold",
-                      dayUp ? "text-green-400" : "text-red-400",
-                    )}
-                  >
-                    {dayUp ? (
-                      <TrendingUp className="w-3.5 h-3.5" />
-                    ) : (
-                      <TrendingDown className="w-3.5 h-3.5" />
-                    )}
-                    {dayUp ? "+" : ""}
-                    {m.dayChange?.toFixed(2)} ({dayUp ? "+" : ""}
-                    {((m.dayChangePercent ?? 0) * 100).toFixed(2)}%)
-                  </span>
+                  {m.dayChange != null && m.dayChangePercent != null ? (
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 text-sm font-mono font-semibold",
+                        dayUp ? "text-green-400" : "text-red-400",
+                      )}
+                    >
+                      {dayUp ? (
+                        <TrendingUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <TrendingDown className="w-3.5 h-3.5" />
+                      )}
+                      {dayUp ? "+" : ""}
+                      {m.dayChange.toFixed(2)} ({dayUp ? "+" : ""}
+                      {(m.dayChangePercent * 100).toFixed(2)}%)
+                    </span>
+                  ) : (
+                    <span className="text-sm font-mono text-muted-foreground">—</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -367,30 +409,24 @@ export function StockBreakdown({
                   sectionId: "bd-family-value",
                   score: data.scoreEvidence?.value ?? null,
                   rows: [
-                    { label: "P/E Ratio", value: formatNumber(m.peRatio), fieldKey: "peRatio" },
-                    { label: "PEG Ratio", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined, fieldKey: "pegRatio" },
-                    { label: "Price / Book", value: formatNumber(m.priceToBook), fieldKey: "priceToBook" },
-                    { label: "Price / Sales", value: formatNumber(m.priceToSales), fieldKey: "priceToSales" },
+                    { label: "P/E", tip: "Price ÷ trailing earnings.", value: formatNumber(m.peRatio), fieldKey: "peRatio" },
+                    { label: "PEG", tip: "P/E ÷ expected growth. Under ~1.5 often looks cheap vs growth.", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined, fieldKey: "pegRatio" },
+                    { label: "P/B", tip: "Price ÷ book value per share.", value: formatNumber(m.priceToBook), fieldKey: "priceToBook" },
+                    { label: "P/S", tip: "Price ÷ sales (revenue) per share.", value: formatNumber(m.priceToSales), fieldKey: "priceToSales" },
                     ...(m.analystTargetPrice != null
-                      ? [{ label: "Analyst Target", value: formatCurrency(m.analystTargetPrice), fieldKey: "analystTargetPrice", isEstimate: true }]
+                      ? [{ label: "Target", tip: "Street consensus price target.", value: formatCurrency(m.analystTargetPrice), fieldKey: "analystTargetPrice", isEstimate: true }]
                       : []),
                     ...(m.analystTargetPrice != null && m.currentPrice != null
                       ? [{
-                          label: "Upside to Target",
+                          label: "Upside",
+                          tip: "Implied upside from price to street target.",
                           value: `${((m.analystTargetPrice / m.currentPrice - 1) * 100).toFixed(1)}%`,
                           good: m.analystTargetPrice > m.currentPrice,
                           fieldKey: "analystTargetPrice",
                           isEstimate: true,
                         }]
                       : []),
-                    ...((data.scoreEvidence?.topMetrics ?? [])
-                      .filter((t) => t.family === "value")
-                      .slice(0, 2)
-                      .map((t) => ({
-                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
-                        value: t.raw != null ? formatNumber(t.raw) : "—",
-                        fieldKey: provFieldForScoreKey(t.key),
-                      }))),
+                    ...extraTopMetrics("value", data.scoreEvidence?.topMetrics),
                   ],
                 },
                 {
@@ -398,10 +434,11 @@ export function StockBreakdown({
                   sectionId: "bd-family-growth",
                   score: data.scoreEvidence?.growth ?? null,
                   rows: [
-                    { label: "Revenue Growth (YoY)", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined, fieldKey: "revenueGrowthYoY" },
-                    { label: "EPS Growth", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined, fieldKey: "epsGrowth" },
+                    { label: "Rev YoY", tip: "Year-over-year revenue growth.", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined, fieldKey: "revenueGrowthYoY" },
+                    { label: "EPS Grow", tip: "Year-over-year EPS growth.", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined, fieldKey: "epsGrowth" },
                     {
-                      label: "PEG growth (peer z)",
+                      label: "PEG z",
+                      tip: "PEG-implied growth vs peers (σ = peer z-score).",
                       value: m.pegGrowth != null
                         ? `${formatPercent(m.pegGrowth)}${
                             m.pegGrowthPeerZ != null
@@ -420,15 +457,8 @@ export function StockBreakdown({
                           : undefined,
                       fieldKey: "pegRatio",
                     },
-                    { label: "Forward P/E", value: formatNumber(m.forwardPe), fieldKey: "forwardPe", isEstimate: true },
-                    ...((data.scoreEvidence?.topMetrics ?? [])
-                      .filter((t) => t.family === "growth")
-                      .slice(0, 2)
-                      .map((t) => ({
-                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
-                        value: t.raw != null ? formatNumber(t.raw) : "—",
-                        fieldKey: provFieldForScoreKey(t.key),
-                      }))),
+                    { label: "Fwd P/E", tip: "Price ÷ forward (next-year) EPS estimate.", value: formatNumber(m.forwardPe), fieldKey: "forwardPe", isEstimate: true },
+                    ...extraTopMetrics("growth", data.scoreEvidence?.topMetrics),
                   ],
                 },
                 {
@@ -436,19 +466,12 @@ export function StockBreakdown({
                   sectionId: "bd-family-quality",
                   score: data.scoreEvidence?.quality ?? null,
                   rows: [
-                    { label: "Return on Equity", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined, fieldKey: "returnOnEquity" },
-                    { label: "Gross Margin", value: formatPercent(m.grossMargin), fieldKey: "grossMargin" },
-                    { label: "Operating Margin", value: formatPercent(m.operatingMargin), fieldKey: "operatingMargin" },
-                    { label: "Net Margin", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined, fieldKey: "netMargin" },
-                    { label: "Free Cash Flow", value: formatLargeNumber(m.freeCashFlow), fieldKey: "freeCashFlow" },
-                    ...((data.scoreEvidence?.topMetrics ?? [])
-                      .filter((t) => t.family === "quality")
-                      .slice(0, 2)
-                      .map((t) => ({
-                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
-                        value: t.raw != null ? formatNumber(t.raw) : "—",
-                        fieldKey: provFieldForScoreKey(t.key),
-                      }))),
+                    { label: "ROE", tip: "Return on equity: net income ÷ shareholder equity.", value: formatPercent(m.returnOnEquity), good: m.returnOnEquity != null ? m.returnOnEquity > 0.1 : undefined, fieldKey: "returnOnEquity" },
+                    { label: "Gross Mgn", tip: "Gross profit ÷ revenue.", value: formatPercent(m.grossMargin), fieldKey: "grossMargin" },
+                    { label: "Op Mgn", tip: "Operating income ÷ revenue.", value: formatPercent(m.operatingMargin), fieldKey: "operatingMargin" },
+                    { label: "Net Mgn", tip: "Net income ÷ revenue.", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined, fieldKey: "netMargin" },
+                    { label: "FCF", tip: "Free cash flow (cash from ops after capex).", value: formatLargeNumber(m.freeCashFlow), fieldKey: "freeCashFlow" },
+                    ...extraTopMetrics("quality", data.scoreEvidence?.topMetrics),
                   ],
                 },
                 {
@@ -456,18 +479,11 @@ export function StockBreakdown({
                   sectionId: "bd-family-safety",
                   score: data.scoreEvidence?.safety ?? null,
                   rows: [
-                    { label: "Current Ratio", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined, fieldKey: "currentRatio" },
-                    { label: "Debt / Equity", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined, fieldKey: "debtToEquity" },
-                    { label: "Beta", value: formatNumber(m.beta), fieldKey: "beta" },
-                    { label: "Dividend Yield", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined, fieldKey: "dividendYield" },
-                    ...((data.scoreEvidence?.topMetrics ?? [])
-                      .filter((t) => t.family === "safety")
-                      .slice(0, 2)
-                      .map((t) => ({
-                        label: `${t.key}${t.peerPct != null ? ` p${t.peerPct}` : ""}`,
-                        value: t.raw != null ? formatNumber(t.raw) : "—",
-                        fieldKey: provFieldForScoreKey(t.key),
-                      }))),
+                    { label: "Curr Rat", tip: "Current assets ÷ current liabilities.", value: formatNumber(m.currentRatio), good: m.currentRatio != null ? m.currentRatio > 1.5 : undefined, fieldKey: "currentRatio" },
+                    { label: "D/E", tip: "Total debt ÷ equity. Lower = less leverage.", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined, fieldKey: "debtToEquity" },
+                    { label: "Beta", tip: "Equity beta vs the market (volatility).", value: formatNumber(m.beta), fieldKey: "beta" },
+                    { label: "Div Yld", tip: "Annual dividend ÷ price.", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined, fieldKey: "dividendYield" },
+                    ...extraTopMetrics("safety", data.scoreEvidence?.topMetrics),
                   ],
                 },
               ]}
@@ -523,11 +539,11 @@ export function StockBreakdown({
 
               return (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2 items-stretch">
+                  <div className="grid grid-cols-2 gap-2 items-start">
                     <BreakdownPanel
                       title="Peers (relative scores)"
                       empty="No peer group data."
-                      scrollMax="h-[280px]"
+                      scrollMax="max-h-[360px]"
                       action={
                         isAdmin ? (
                           <button
@@ -559,10 +575,10 @@ export function StockBreakdown({
                     <BreakdownPanel
                       title="Street"
                       empty="No Street synthesis yet."
-                      scrollMax="h-[280px] overflow-hidden flex flex-col"
+                      scrollMax="max-h-[360px] overflow-y-auto"
                     >
                       {activeTicker ? (
-                        <div id="bd-street" className="h-full min-h-0 flex flex-col">
+                        <div id="bd-street" className="min-h-0">
                           <StreetSynthesisCard street={data.street} ticker={activeTicker} />
                         </div>
                       ) : null}

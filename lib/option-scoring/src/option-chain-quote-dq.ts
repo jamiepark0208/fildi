@@ -8,10 +8,15 @@ export interface ChainOptionLike {
   ask: number;
   bidIsLive?: boolean;
   meetsGate?: boolean;
+  /** Present on live chains — used to name ask-only (bid=0) strikes in DQ copy. */
+  strike?: number;
 }
 
 export interface ChainLike {
   source?: "schwab" | "yahoo";
+  /** Expiry label (YYYY-MM-DD) — pairs with option.strike for ask-only samples. */
+  expiry?: string;
+  spot?: number;
   puts: ChainOptionLike[];
   calls: ChainOptionLike[];
 }
@@ -33,8 +38,27 @@ export interface OptionChainQuoteDq {
   liveBidPct: number;
   degraded: boolean;
   code: QuoteDqCode;
+  /** Ask-only (bid=0, ask>0) contract labels, e.g. "2026-10-21 $305P". */
+  askOnlySamples: string[];
   /** Short UI line */
   message: string;
+}
+
+function formatStrikeSample(expiry: string | undefined, strike: number | undefined, isCall: boolean): string | null {
+  if (strike == null || !Number.isFinite(strike)) return null;
+  const side = isCall ? "C" : "P";
+  const k = Number.isInteger(strike) ? String(strike) : strike.toFixed(2).replace(/\.?0+$/, "");
+  return expiry ? `${expiry} $${k}${side}` : `$${k}${side}`;
+}
+
+function appendAskOnly(message: string, samples: string[], withAskNoBid: number): string {
+  if (withAskNoBid <= 0) return message;
+  if (samples.length === 0) {
+    return `${message} · ${withAskNoBid} ask-only (bid=0)`;
+  }
+  const shown = samples.slice(0, 4).join(", ");
+  const more = withAskNoBid > samples.length ? ` (+${withAskNoBid - samples.length} more)` : "";
+  return `${message} · bid=0 e.g. ${shown}${more}`;
 }
 
 export function assessOptionChainQuoteDq(
@@ -51,22 +75,31 @@ export function assessOptionChainQuoteDq(
       liveBidPct: 0,
       degraded: true,
       code: "empty",
+      askOnlySamples: [],
       message: "DQ: empty chain",
     };
   }
 
   const source = chains.find((c) => c.source)?.source ?? "unknown";
+  const spot = chains.find((c) => c.spot != null && c.spot > 0)?.spot;
   let inBand = 0;
   let withLiveBid = 0;
   let withAskNoBid = 0;
   let meetsGate = 0;
+  const askOnlySamples: string[] = [];
 
   for (const c of chains) {
     for (const p of isCall ? c.calls : c.puts) {
       inBand++;
       const live = (p.bidIsLive ?? p.bid > 0) && p.bid > 0;
       if (live) withLiveBid++;
-      else if (p.ask > 0) withAskNoBid++;
+      else if (p.ask > 0) {
+        withAskNoBid++;
+        if (askOnlySamples.length < 6) {
+          const label = formatStrikeSample(c.expiry, p.strike, isCall);
+          if (label) askOnlySamples.push(label);
+        }
+      }
       if (p.meetsGate) meetsGate++;
     }
   }
@@ -79,7 +112,14 @@ export function assessOptionChainQuoteDq(
 
   if (inBand === 0) {
     code = "empty";
-    message = `DQ: ${source} chain has no contracts in 3–25% OTM band`;
+    // Keep hint aligned with chain builders (sub-$10 uses 40% max OTM for coarse strikes).
+    const maxOtm = spot != null && spot > 0 && spot < 10 ? 0.40 : 0.25;
+    const bandHint = spot != null && spot > 0
+      ? (isCall
+        ? ` (spot $${spot.toFixed(2)} → call strikes ~$${(spot * 1.03).toFixed(2)}–$${(spot * (1 + maxOtm)).toFixed(2)})`
+        : ` (spot $${spot.toFixed(2)} → put strikes ~$${(spot * (1 - maxOtm)).toFixed(2)}–$${(spot * 0.97).toFixed(2)})`)
+      : "";
+    message = `DQ: ${source} chain has no contracts in OTM band${bandHint}`;
   } else if (degraded) {
     if (source === "schwab") {
       code = "zero_bids_schwab";
@@ -94,10 +134,13 @@ export function assessOptionChainQuoteDq(
       code = "zero_bids";
       message = `DQ FAIL · unknown source · 0/${inBand} live bids`;
     }
+    message = appendAskOnly(message, askOnlySamples, withAskNoBid);
   } else if (source === "yahoo") {
     code = "yahoo_fallback";
     message = `DQ warn · Yahoo fallback · ${withLiveBid}/${inBand} live bids — prefer Schwab`;
-    // Yahoo with some bids is degraded for confidence, not a hard fail
+    message = appendAskOnly(message, askOnlySamples, withAskNoBid);
+  } else if (withAskNoBid > 0) {
+    message = appendAskOnly(message, askOnlySamples, withAskNoBid);
   }
 
   return {
@@ -109,6 +152,7 @@ export function assessOptionChainQuoteDq(
     liveBidPct,
     degraded: degraded || source === "yahoo",
     code,
+    askOnlySamples,
     message,
   };
 }

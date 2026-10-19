@@ -64,13 +64,19 @@ async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
   return movers;
 }
 
-// Overlay only *already-cached* golden-source prices — never await a 75-ticker
-// Schwab/Yahoo batch on the Live mount path (that was ~1.5–2s cold).
+// Overlay only *already-cached* golden-source quotes — never await a batch on
+// the Live mount path. Apply price + changePercent together so % never drifts
+// from a Schwab price paired with a Yahoo screener %.
 function applyCachedLivePrices(movers: ScreenerMover[]): ScreenerMover[] {
   if (movers.length === 0) return movers;
-  return movers.map(m => {
-    const price = livePriceCache.get(m.ticker.toUpperCase())?.price;
-    return price != null ? { ...m, price } : m;
+  return movers.map((m) => {
+    const q = livePriceCache.get(m.ticker.toUpperCase());
+    if (!q) return m;
+    return {
+      ...m,
+      price: q.price ?? m.price,
+      changePercent: q.changePercent ?? m.changePercent,
+    };
   });
 }
 

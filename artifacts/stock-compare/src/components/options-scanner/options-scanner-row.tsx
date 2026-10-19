@@ -14,7 +14,10 @@ import {
   pfNum, OPTIONS_BOARD_COLS, columnHeatStyle, type ColRange, type OptionRow, type OptionsChainResult,
   type ScorecardRow, type IvTermPoint,
 } from "./options-scanner-types";
-import { viableOptionStrikes, optionStrikeSummary, buildReasoning, assessOptionChainQuoteDq } from "./options-scanner-helpers";
+import {
+  viableOptionStrikes, optionStrikeSummary, buildReasoning, assessOptionChainQuoteDq,
+  isMonthlyOnlyCalendar,
+} from "./options-scanner-helpers";
 import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
 import { ExpirySection } from "./options-expiry-section";
 import { IvTermStructureChart } from "./options-iv-chart";
@@ -346,24 +349,32 @@ export function ScannerRow({
               E{techRow.earningsDaysOut}
             </span>
           )}
+          {isMonthlyOnlyCalendar(optionsData) && (
+            <span
+              className="ml-0.5 px-0.5 py-px rounded border border-sky-500/40 bg-sky-500/15 text-sky-200 text-[8px] font-bold leading-none shrink-0"
+              title="Monthly-only options calendar — no weeklies; Opt/strikes use the standard monthly expiry"
+            >
+              Mo
+            </span>
+          )}
         </div>
 
-        {/* Price + Δ on one line (keeps row height to a single track) */}
+        {/* Price + Δ — wider col track; no overflow clip so % change stays visible */}
         <div
-          className="flex items-baseline gap-1 min-w-0 whitespace-nowrap overflow-hidden"
+          className="flex items-baseline gap-0.5 min-w-0 whitespace-nowrap"
           title={snapSpot != null && snapSpot > 0 && price != null
             ? `Live ${price.toFixed(2)} · snapshot ${snapSpot.toFixed(2)}${vsSnapPct != null ? ` (${vsSnapPct >= 0 ? "+" : ""}${vsSnapPct.toFixed(1)}%)` : ""}`
             : "Live equity quote (Schwab→Yahoo cache)"}
         >
           {price != null ? (
-            <span className="text-[11px] font-mono font-semibold text-cyan-400 tabular-nums">
+            <span className="text-[11px] font-mono font-semibold text-cyan-400 tabular-nums shrink-0">
               ${price.toFixed(2)}
             </span>
           ) : null}
           {vsSnapPct != null && Math.abs(vsSnapPct) >= 1 && (
             <span
               className={cn(
-                "text-[9px] font-mono font-semibold tabular-nums",
+                "text-[9px] font-mono font-semibold tabular-nums shrink-0",
                 vsSnapPct <= -1 ? "text-red-400" : vsSnapPct >= 1 ? "text-emerald-400" : "text-muted-foreground",
               )}
             >
@@ -407,10 +418,10 @@ export function ScannerRow({
           })()}
         </div>
 
-        {/* RSI */}
+        {/* RSI — same 9px mono as Rec */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            "text-[9px] font-mono font-semibold tabular-nums min-w-0",
             indicator == null ? "text-white" :
             (isCall ? indicator.rsi >= 65 : indicator.rsiOk) ? "text-green-400" : "text-orange-400",
           )}
@@ -419,30 +430,36 @@ export function ScannerRow({
           {indicator ? indicator.rsi.toFixed(1) : "—"}
         </span>
 
-        {/* Option Score */}
+        {/* Option Score — RYG text heat. Vendor (Schwab/Yahoo) only on expand DQ, not board. */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
-            bestOptionScore != null ? "text-white" : "text-zinc-500",
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            bestOptionScore == null && "text-zinc-500",
           )}
-          style={columnHeatStyle(bestOptionScore, heat?.opt)}
-          title={bestOptionScore != null ? undefined : (scoreNAReason ?? "N/A")}
+          style={bestOptionScore != null ? columnHeatStyle(bestOptionScore, heat?.opt) : undefined}
+          title={bestOptionScore == null ? (scoreNAReason ?? "N/A") : undefined}
         >
           {bestOptionScore != null ? bestOptionScore.toFixed(1) : "N/A"}
         </span>
 
         {/* Stock Score */}
         <span
-          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
-          style={columnHeatStyle(stockScore, heat?.stock)}
+          className={cn(
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            stockScore == null && "text-zinc-500",
+          )}
+          style={stockScore != null ? columnHeatStyle(stockScore, heat?.stock) : undefined}
         >
           {stockScore != null ? stockScore.toFixed(1) : "—"}
         </span>
 
         {/* IV */}
         <span
-          className="text-[11px] font-mono font-semibold tabular-nums min-w-0 text-white rounded-sm px-0.5 -mx-0.5"
-          style={columnHeatStyle(ivNum, heat?.iv)}
+          className={cn(
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            ivPct == null && "text-zinc-500",
+          )}
+          style={ivNum != null ? columnHeatStyle(ivNum, heat?.iv) : undefined}
         >
           {ivPct != null ? `${ivPct}%` : "—"}
         </span>
@@ -450,10 +467,10 @@ export function ScannerRow({
         {/* Income% */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
-            bestIncome != null && bestIncome >= 0 ? "text-white" : "text-zinc-500",
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            !(bestIncome != null && bestIncome >= 0) && "text-zinc-500",
           )}
-          style={columnHeatStyle(bestIncome, heat?.inc)}
+          style={bestIncome != null && bestIncome >= 0 ? columnHeatStyle(bestIncome, heat?.inc) : undefined}
           title={bestIncome != null && bestIncome >= 0 ? undefined : (scoreNAReason ?? "N/A")}
         >
           {bestIncome != null && bestIncome >= 0 ? `${bestIncome.toFixed(2)}%` : "N/A"}
@@ -462,10 +479,10 @@ export function ScannerRow({
         {/* Buffer — σ of expected move to recommended strike */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold tabular-nums min-w-0 rounded-sm px-0.5 -mx-0.5",
-            bestBuffer != null && bestBuffer >= 0 ? "text-white" : "text-zinc-500",
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
+            !(bestBuffer != null && bestBuffer >= 0) && "text-zinc-500",
           )}
-          style={columnHeatStyle(bestBuffer, heat?.buf)}
+          style={bestBuffer != null && bestBuffer >= 0 ? columnHeatStyle(bestBuffer, heat?.buf) : undefined}
           title={
             bestBuffer != null && bestBuffer >= 0
               ? "OTM distance ÷ (strike IV × √(DTE/365)) for the snapshot strike"

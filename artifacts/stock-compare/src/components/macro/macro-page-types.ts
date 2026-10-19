@@ -215,14 +215,16 @@ export interface SepActuals {
 
 export type CurvePeriod = "current" | "1wk" | "1mo" | "3mo";
 export type SepMetric = "fedRate" | "gdp" | "unemployment" | "corePce";
-export type MacroTab = "regime" | "liquidity" | "volatility" | "policy" | "heatmap" | "catalyst";
+export type MacroTab = "regime" | "liquidity" | "volatility" | "policy" | "heatmap" | "calendar" | "scenario";
 
-const MACRO_TABS: { id: MacroTab; label: string }[] = [
+export const MACRO_TABS: { id: MacroTab; label: string }[] = [
   { id: "regime",     label: "Macro & Regime Health" },
+  { id: "liquidity",  label: "Liquidity" },
   { id: "volatility", label: "Volatility & Sentiment" },
   { id: "policy",     label: "Policy & Forward Guidance" },
   { id: "heatmap",    label: "Heatmap" },
-  { id: "catalyst",   label: "Catalyst Calendar" },
+  { id: "calendar",   label: "Calendar" },
+  { id: "scenario",   label: "Scenario" },
 ];
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];

@@ -4,11 +4,25 @@ import type { OptionRow, OptionsChainResult, ScorecardRow } from "./options-scan
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export function formatExpiry(expiry: string, dte: number): string {
+/** Standard equity monthly = 3rd Friday (day-of-month 15–21). */
+export function isStandardMonthlyExpiry(expiry: string): boolean {
+  const d = new Date(expiry + "T12:00:00");
+  return d.getDay() === 5 && d.getDate() >= 15 && d.getDate() <= 21;
+}
+
+export function formatExpiry(expiry: string, dte: number, isWeekly?: boolean): string {
   const d     = new Date(expiry + "T12:00:00");
   const month = d.toLocaleString("en-US", { month: "short" });
+  const monthly = isWeekly === false || (isWeekly == null && isStandardMonthlyExpiry(expiry));
+  if (monthly) return `${month} ${d.getDate()} · monthly`;
   const weeks = Math.ceil(dte / 7);
   return `${month} ${d.getDate()} · ${weeks}wk`;
+}
+
+/** True when every loaded chain is a standard monthly (no weeklies in the response). */
+export function isMonthlyOnlyCalendar(chains: OptionsChainResult[] | null | undefined): boolean {
+  if (!chains?.length) return false;
+  return chains.every((c) => c.isWeekly === false || isStandardMonthlyExpiry(c.expiry));
 }
 
 export function minutesAgo(d: Date): string {

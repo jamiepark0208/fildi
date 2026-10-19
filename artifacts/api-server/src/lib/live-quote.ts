@@ -6,7 +6,10 @@ import { getSchwabQuotes } from "./schwab-client.js";
 
 export interface LivePrice {
   price: number | null;
+  /** Day change in percent points (e.g. −6.83 = −6.83%), same as Yahoo regularMarketChangePercent. */
   changePercent: number | null;
+  /** Absolute $ day change when the vendor provides it (Schwab netChange). */
+  change?: number | null;
   /** Today's regular-session open — lets intraday consumers measure direction since the open instead of vs. prior close (gap days poison the latter). */
   open: number | null;
 }
@@ -47,6 +50,7 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
           const entry: LivePrice = {
             price: q.price,
             changePercent: q.changePercent,
+            change: q.change ?? null,
             open: q.open,
           };
           livePriceCache.set(key, entry);
@@ -68,7 +72,13 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
       stillMissing,
       {},
       { validateResult: false },
-    ) as Array<{ symbol?: string; regularMarketPrice?: number; regularMarketChangePercent?: number; regularMarketOpen?: number }>;
+    ) as Array<{
+      symbol?: string;
+      regularMarketPrice?: number;
+      regularMarketChangePercent?: number;
+      regularMarketChange?: number;
+      regularMarketOpen?: number;
+    }>;
 
     const bySymbol = new Map(quotes.map(q => [q.symbol, q]));
     for (const key of stillMissing) {
@@ -76,6 +86,7 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
       const entry: LivePrice = {
         price: q?.regularMarketPrice ?? null,
         changePercent: q?.regularMarketChangePercent ?? null,
+        change: q?.regularMarketChange ?? null,
         open: q?.regularMarketOpen ?? null,
       };
       if (entry.price != null) livePriceCache.set(key, entry);

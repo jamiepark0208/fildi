@@ -250,16 +250,19 @@ function hasGoldFundamentals(fmp: TickerFundamentalsRow | null | undefined): boo
 
 /**
  * Live quote → Yahoo-shaped stub for buildMetrics.
- * getLivePrices changePercent is percent points (−6.83); metrics.dayChangePercent is a fraction.
+ * getLivePrices changePercent is percent points (−6.83), same as Yahoo's field.
+ * buildMetrics converts that to a fraction for StockMetrics.dayChangePercent.
  */
 function quoteStubFromLive(live: LivePrice | undefined): Record<string, unknown> {
   const price = live?.price ?? null;
   const pctPts = live?.changePercent ?? null;
-  const frac = pctPts != null ? pctPts / 100 : null;
+  const dollar =
+    live?.change ??
+    (price != null && pctPts != null ? price * (pctPts / 100) : null);
   return {
     regularMarketPrice: price,
-    regularMarketChangePercent: frac,
-    regularMarketChange: price != null && frac != null ? price * frac : null,
+    regularMarketChangePercent: pctPts,
+    regularMarketChange: dollar,
     regularMarketOpen: live?.open ?? null,
   };
 }
@@ -272,12 +275,18 @@ function applyLivePriceFields<T extends {
 }>(metrics: T, live: LivePrice | undefined): T {
   if (!live || live.price == null) return metrics;
   const pctPts = live.changePercent;
-  const frac = pctPts != null ? pctPts / 100 : null;
+  const frac = pctPts != null && Number.isFinite(pctPts) ? pctPts / 100 : null;
+  const dollar =
+    live.change != null && Number.isFinite(live.change)
+      ? live.change
+      : frac != null
+        ? live.price * frac
+        : null;
   return {
     ...metrics,
     currentPrice: live.price,
     dayChangePercent: frac ?? metrics.dayChangePercent ?? null,
-    dayChange: frac != null ? live.price * frac : metrics.dayChange ?? null,
+    dayChange: dollar ?? metrics.dayChange ?? null,
   };
 }
 
@@ -463,8 +472,12 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     currency:    quote.currency    ?? "USD",
     logoUrl:     null,
     description: quote.longBusinessSummary?.slice(0, 500) ?? null,
-    dayChange:        safeNum(quote.regularMarketChange),
-    dayChangePercent: safeNum(quote.regularMarketChangePercent),
+    dayChange: safeNum(quote.regularMarketChange),
+    // Yahoo (and our live stub) use percent points; API contract is fraction (0.03 = 3%).
+    dayChangePercent: (() => {
+      const raw = safeNum(quote.regularMarketChangePercent);
+      return raw != null ? raw / 100 : null;
+    })(),
     forwardPe,
     forwardPeg,
     evEbitda,
@@ -593,10 +606,20 @@ function getPeriod1(period: string): Date {
   }
 }
 
-function getInterval(period: string): string {
+/**
+ * Chart candle frequency per view (TradingView-style structure density):
+ *   1D → 5m   (~78 RTH bars)
+ *   1W → 1h   (~35–40 RTH hours — not 5–7 daily bars)
+ *   1M → 1h   (~150 bars — swings / levels readable)
+ *   3M → 1d   (~65 sessions)
+ *   1Y → 1d   (~252 sessions)
+ * Scorers still use prices_historical daily separately; chart UX needs denser short periods.
+ */
+function getChartInterval(period: string): "5m" | "1h" | "1d" {
   switch (period) {
     case "1D": return "5m";
     case "1W": return "1h";
+    case "1M": return "1h";
     default:   return "1d";
   }
 }
@@ -611,19 +634,21 @@ router.get("/stocks/history", async (req, res) => {
   if (!period || !VALID_PERIODS.has(period)) {
     return res.status(400).json({ error: "period must be one of: 1D, 1W, 1M, 3M, 1Y" });
   }
-  const key = `${ticker.toUpperCase()}_${period}`;
-  const cache = period === "1D" ? historyCache1D : historyCache;
+  const interval = getChartInterval(period);
+  // Include interval in cache key so old A181 daily-for-1W entries don't stick.
+  const key = `${ticker.toUpperCase()}_${period}_${interval}`;
+  const cache = period === "1D" || period === "1W" || period === "1M" ? historyCache1D : historyCache;
   const cached = cache.get(key);
   if (cached) return res.json(cached);
 
   const upper = ticker.toUpperCase();
 
-  // A181: daily periods from prices_historical (same bars as scorers); 1D stays Yahoo/intraday.
-  if (period !== "1D") {
+  // Daily chart views: prefer prices_historical (same bars as scorers). Intraday = Yahoo.
+  if (interval === "1d") {
     try {
       const cutoff = getPeriod1(period);
       const cutoffStr = cutoff.toISOString().slice(0, 10);
-      const minBars = period === "1W" ? 3 : period === "1M" ? 10 : period === "3M" ? 40 : 120;
+      const minBars = period === "3M" ? 40 : 120;
       const rows = await db
         .select({
           date: pricesHistorical.date,
@@ -658,7 +683,7 @@ router.get("/stocks/history", async (req, res) => {
   try {
     const result = await yahooFinance.chart(upper, {
       period1: getPeriod1(period),
-      interval: getInterval(period) as any,
+      interval: interval as any,
     });
     const quotes = (result?.quotes ?? []).filter((q: any) => q.close != null);
     const data = quotes.map((q: any) => ({
@@ -883,14 +908,16 @@ router.get("/stocks/breakdown", async (req, res) => {
       yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
     ]);
 
+    // Live stub last so Schwab/Yahoo last+% aren't wiped by quoteSummary.price (often 0/missing).
     const merged = gold
-      ? { ...quoteStubFromLive(live), ...summary.price, ...summary.assetProfile }
+      ? { ...summary.price, ...summary.assetProfile, ...quoteStubFromLive(live) }
       : {
           ...summary.price,
           ...summary.summaryDetail,
           ...summary.financialData,
           ...summary.defaultKeyStatistics,
           ...summary.assetProfile,
+          ...quoteStubFromLive(live),
         };
     const metrics = applyLivePriceFields(
       buildMetrics(merged, fmpRow, upperTicker, regRow, fv),
@@ -1187,7 +1214,8 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
         source = "legacy";
       }
     }
-    peers = peers.slice(0, 15);
+    // Cap large taxonomy groups; small groups (e.g. Quantum Computing) show everyone.
+    peers = peers.slice(0, 24);
 
     const allTickers = [key, ...peers];
     const [techRows, fundRows] = await Promise.all([
@@ -1196,7 +1224,7 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
     ]);
 
     const ranked = rankCompetitors(key, peers, techRows, fundRows, {
-      limit: 12,
+      limit: 25,
       includeSubject: true,
     });
 

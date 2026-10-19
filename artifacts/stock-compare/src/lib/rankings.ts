@@ -54,9 +54,15 @@ export type StockScore = {
   // (/api/fundamentals/rankings), which joins peer_groups.name server-side.
   peerGroupName?: string | null;
   peerGroupSize?: number;
-  // Macro regime at score time — drives family weights server-side (REGIME_WEIGHTS in
-  // fundamentals-db.ts). Needed client-side to reproduce the same formula in the Why panel.
+  // Macro regime at score time (stored with the row; family weights use styleBucket).
   regime?: string;
+  /** Style bucket that set family weights (value/growth/garp/…). */
+  styleBucket?: string | null;
+  /** Company score before 10% peer-group opportunity blend. */
+  companyScore?: number | null;
+  /** Peer-group sector opportunity layer (blended into total). */
+  sectorScore?: number | null;
+  confidence?: string | null;
 };
 
 export function computeRankings(stocks: StockMetrics[]): StockScore[] {

@@ -158,6 +158,8 @@ export async function schwabGet<T = unknown>(path: string, query?: Record<string
 export interface SchwabQuoteNorm {
   price: number | null;
   changePercent: number | null;
+  /** Absolute $ net change (netChange / netChangeInDouble). */
+  change: number | null;
   open: number | null;
 }
 
@@ -184,6 +186,7 @@ export async function getSchwabQuotes(symbols: string[]): Promise<Map<string, Sc
       out.set(sym, {
         price: num(q?.lastPrice ?? q?.mark ?? q?.closePrice) ?? null,
         changePercent: num(q?.netPercentChangeInDouble ?? q?.netPercentChange) ?? null,
+        change: num(q?.netChangeInDouble ?? q?.netChange) ?? null,
         open: num(q?.openPrice) ?? null,
       });
     }
@@ -250,6 +253,8 @@ interface SchwabQuotePayload {
     openPrice?: number;
     netPercentChangeInDouble?: number;
     netPercentChange?: number;
+    netChangeInDouble?: number;
+    netChange?: number;
   };
 }
 
@@ -279,8 +284,15 @@ export interface SchwabChainResponse {
 
 const FLAT_MIN_OTM = 0.03;
 const FLAT_MAX_OTM = 0.25;
+/** Sub-$10 names often have $0.50/$1 strikes — 25% max leaves the band empty (e.g. CABA). */
+const FLAT_MAX_OTM_LOW_PRICE = 0.40;
+const LOW_PRICE_SPOT = 10;
 const MONTHLY_TARGET_DTE = 37;
 const MONTHLY_MAX_DIFF_RATIO = 0.6;
+
+function flatMaxOtm(spot: number): number {
+  return spot > 0 && spot < LOW_PRICE_SPOT ? FLAT_MAX_OTM_LOW_PRICE : FLAT_MAX_OTM;
+}
 
 function num(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -292,8 +304,15 @@ function num(v: unknown): number | null {
 }
 
 const daysUntil = daysUntilCeilNonNeg;
+
+/** Standard equity monthly = 3rd Friday (day-of-month 15–21). */
+export function isStandardMonthlyExpiry(d: Date): boolean {
+  return d.getDay() === 5 && d.getDate() >= 15 && d.getDate() <= 21;
+}
+
+/** Weekly listed Friday that is not the standard monthly. */
 function isWeeklyExpiry(d: Date): boolean {
-  return d.getDay() === 5;
+  return d.getDay() === 5 && !isStandardMonthlyExpiry(d);
 }
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -329,8 +348,9 @@ function buildRows(
   exactDte: number,
   isCall: boolean,
 ): OptionRow[] {
-  const lo = isCall ? spot * (1 + FLAT_MIN_OTM) : spot * (1 - FLAT_MAX_OTM);
-  const hi = isCall ? spot * (1 + FLAT_MAX_OTM) : spot * (1 - FLAT_MIN_OTM);
+  const maxOtm = flatMaxOtm(spot);
+  const lo = isCall ? spot * (1 + FLAT_MIN_OTM) : spot * (1 - maxOtm);
+  const hi = isCall ? spot * (1 + maxOtm) : spot * (1 - FLAT_MIN_OTM);
 
   const rows: OptionRow[] = [];
   for (const p of contracts) {
@@ -413,9 +433,16 @@ export function mapChainResponse(ticker: string, raw: SchwabChainResponse): Opti
 
   if (!parsed.length) return null;
 
-  const near = parsed.filter((x) => exactDaysUntil(x.date) <= 28).slice(0, 2);
+  // Near = weeklies/front month within 28 DTE. Many small-caps only list the next
+  // monthly (~30–45 DTE) — treat that as a full put+call chain, not calls-only.
+  let near = parsed.filter((x) => exactDaysUntil(x.date) <= 28).slice(0, 2);
   const allDates = parsed.map((x) => x.date);
   const monthlyDate = pickNearestExpiry(allDates, MONTHLY_TARGET_DTE, MONTHLY_MAX_DIFF_RATIO);
+
+  if (near.length === 0 && monthlyDate) {
+    const m = parsed.find((x) => toDateStr(x.date) === toDateStr(monthlyDate));
+    if (m) near = [m];
+  }
 
   const targets: Array<{ key: string; date: Date; putsOnly: boolean }> = near.map((x) => ({
     key: x.key,
@@ -426,6 +453,7 @@ export function mapChainResponse(ticker: string, raw: SchwabChainResponse): Opti
     const collides = near.some((x) => Math.abs(daysUntil(x.date) - daysUntil(monthlyDate)) <= 1);
     if (!collides) {
       const m = parsed.find((x) => toDateStr(x.date) === toDateStr(monthlyDate));
+      // Extra monthly alongside weeklies = calls-only (put scoring stays on ≤28 DTE).
       if (m) targets.push({ key: m.key, date: m.date, putsOnly: true });
     }
   }

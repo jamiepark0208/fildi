@@ -63,22 +63,19 @@ export function pfNum(v: number | string | null | undefined): number | null {
 
 export type ColRange = { lo: number; hi: number };
 
-/** Continuous column heat (low→high): red → yellow → green. */
+/** Continuous column heat (low→high): text color red → yellow → green. No background box. */
 export function columnHeatStyle(
   value: number | null | undefined,
   range: ColRange | null | undefined,
   invert = false,
-): { backgroundColor?: string } {
+): { color?: string } {
   if (value == null || !Number.isFinite(value) || !range || range.hi <= range.lo) return {};
   let t = (value - range.lo) / (range.hi - range.lo);
   t = Math.max(0, Math.min(1, t));
   if (invert) t = 1 - t;
-  // hue 0 (red) → 60 (yellow) → 120 (green)
+  // hue 0 (red) → 60 (yellow) → 120 (green); light enough to read on dark rows
   const hue = t * 120;
-  const sat = 72;
-  const light = 36;
-  const alpha = 0.22 + t * 0.28;
-  return { backgroundColor: `hsla(${hue}, ${sat}%, ${light}%, ${alpha})` };
+  return { color: `hsl(${hue}, 78%, ${58 + t * 10}%)` };
 }
 
 export function colRange(values: Array<number | null | undefined>): ColRange | null {
@@ -93,18 +90,20 @@ export function colRange(values: Array<number | null | undefined>): ColRange | n
 
 export const RED_TAG = "#ef4444";
 
-export function SortableHeader({ label, sortKey, active, className, width, onClick }: {
+export function SortableHeader({ label, sortKey, active, className, width, onClick, title }: {
   label: string;
   sortKey: SortKey;
   active: boolean;
   /** Prefer flex/grid cell classes; legacy width=* still ok. */
   className?: string;
   width?: string;
+  title?: string;
   onClick: (key: SortKey) => void;
 }) {
   return (
     <button
       type="button"
+      title={title}
       onClick={() => onClick(sortKey)}
       className={cn(
         "text-left font-semibold transition-colors min-w-0",
@@ -120,6 +119,6 @@ export function SortableHeader({ label, sortKey, active, className, width, onCli
   );
 }
 
-/** Shared leaderboard column track — fills the card width evenly. */
+/** Shared leaderboard column track — even fr on score cols; Price slightly wider for $ + %. */
 export const OPTIONS_BOARD_COLS =
-  "grid w-full grid-cols-[28px_minmax(72px,1.35fr)_minmax(52px,1fr)_minmax(44px,0.9fr)_minmax(52px,1fr)_minmax(40px,0.8fr)_minmax(44px,0.95fr)_minmax(48px,1fr)_minmax(40px,0.8fr)_minmax(48px,1fr)_minmax(44px,0.95fr)_40px] gap-x-2.5 items-center";
+  "grid w-full grid-cols-[26px_minmax(70px,1.15fr)_minmax(88px,1.25fr)_minmax(38px,0.75fr)_minmax(42px,0.8fr)_minmax(36px,0.7fr)_minmax(42px,0.85fr)_minmax(42px,0.85fr)_minmax(40px,0.8fr)_minmax(44px,0.85fr)_minmax(42px,0.85fr)_32px] gap-x-2 items-center";

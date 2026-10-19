@@ -213,7 +213,8 @@ export function BreakdownPanel({ title, children, empty, fullWidth, action, scro
   return (
     <div
       className={cn(
-        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0 h-full",
+        // h-auto by default — fixed h-full + sibling stretch left empty black in short Peers/Street.
+        "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0",
         fullWidth && "col-span-2",
       )}
     >

@@ -1,16 +1,16 @@
 {
  "artifacts/api-server/src/routes/stocks.ts": 1101,
- "artifacts/api-server/src/scripts/nightly-enrichment.ts": 1031,
+ "artifacts/api-server/src/scripts/nightly-enrichment.ts": 1039,
  "artifacts/stock-compare/src/components/ui/sidebar.tsx": 727,
  "artifacts/stock-compare/src/components/settings/StockDBTab.tsx": 1214,
- "artifacts/stock-compare/src/components/portfolio-analysis.tsx": 1379,
- "artifacts/stock-compare/src/components/price-chart.tsx": 614,
- "artifacts/stock-compare/src/components/stock-breakdown.tsx": 683,
+ "artifacts/stock-compare/src/components/portfolio-analysis.tsx": 1346,
+ "artifacts/stock-compare/src/components/price-chart.tsx": 952,
+ "artifacts/stock-compare/src/components/stock-breakdown.tsx": 715,
  "artifacts/stock-compare/src/lib/rankings-helpers.test.ts": 843,
  "artifacts/stock-compare/src/lib/rankings.ts": 759,
  "artifacts/stock-compare/src/pages/technical.tsx": 635,
- "artifacts/stock-compare/src/pages/portfolio.tsx": 1007,
- "artifacts/stock-compare/src/pages/macro.tsx": 837,
- "artifacts/stock-compare/src/pages/profile.tsx": 740,
- "artifacts/stock-compare/src/pages/settings.tsx": 740
+ "artifacts/stock-compare/src/pages/portfolio.tsx": 966,
+ "artifacts/stock-compare/src/pages/macro.tsx": 904,
+ "artifacts/stock-compare/src/pages/profile.tsx": 747,
+ "artifacts/stock-compare/src/pages/settings.tsx": 752
 }

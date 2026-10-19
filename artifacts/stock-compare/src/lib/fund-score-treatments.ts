@@ -92,6 +92,83 @@ export const ENGINE_METRICS: EngineMetric[] = [
   { key: "netCashAssets", label: "Net Cash / Assets", family: "safety", baseIntra: 2, higherIsBetter: true, goldInputs: "(cash−debt)/assets", treatment: "Solvency; ↑ Chinese" },
 ];
 
+const ENGINE_BY_KEY: Record<string, EngineMetric> = Object.fromEntries(
+  ENGINE_METRICS.map((m) => [m.key, m]),
+);
+
+/** Compact labels for Breakdown Value/Growth/Quality/Safety columns (avoid truncate “…”). */
+const SCORE_SHORT_LABEL: Record<string, string> = {
+  earningsYield: "Earn Yld",
+  fcfYield: "FCF Yld",
+  ps: "P/S",
+  peg: "PEG",
+  fwdpe: "Fwd P/E",
+  evEbitda: "EV/EBITDA",
+  evRev: "EV/Rev",
+  pb: "P/B",
+  ptbv: "P/TBV",
+  pFfo: "P/FFO",
+  expEy: "Exp EY",
+  divy: "Div Yld",
+  revgrow: "Rev Grow",
+  revaccel: "Rev Accel",
+  epsgrow: "EPS Grow",
+  upside: "Upside",
+  avgEpsSurprise: "EPS Surpr",
+  ibesSue: "IBES SUE",
+  ibesRevBreadth: "Rev Breadth",
+  ibesFwdGrowth: "Fwd EPS G",
+  grossmgn: "Gross Mgn",
+  operatingmgn: "Op Mgn",
+  netmgn: "Net Mgn",
+  roe: "ROE",
+  fcfmgn: "FCF Mgn",
+  roicwacc: "ROIC−WACC",
+  gpa: "Gross Prof",
+  accruals: "Accruals",
+  fScore: "F-Score",
+  cashrun: "Cash Run",
+  intcov: "Int Cov",
+  dilution: "Dilution",
+  cr: "Curr Rat",
+  de: "D/E",
+  netDebtEbitda: "ND/EBITDA",
+  beta: "Beta",
+  netCashAssets: "Net Cash",
+};
+
+/** Plain-English hover tips — what the number means (peer pN explained separately). */
+const SCORE_TIP: Record<string, string> = {
+  epsgrow: "Year-over-year EPS growth used in the growth score.",
+  ibesRevBreadth: "Analyst revision breadth from IBES: (upgrades − downgrades) ÷ # estimates. Positive = more raises than cuts.",
+  ibesFwdGrowth: "Street forward EPS growth: FY2 consensus ÷ FY1 − 1.",
+  ibesSue: "IBES standardized unexpected earnings (SUE). Display-weighted near zero in the live score.",
+  netmgn: "Net income ÷ revenue (net margin) in the quality score.",
+  fcfmgn: "Free cash flow ÷ revenue (cash conversion of sales).",
+  cashrun: "Cash runway in quarters: cash ÷ |quarterly operating cash burn|. Higher = more runway.",
+  intcov: "Interest coverage: EBIT ÷ interest expense. Higher = easier to service debt.",
+  accruals: "Accruals ratio (NI − OCF) ÷ assets. Higher often means weaker earnings quality.",
+  fScore: "Piotroski F-Score (0–9 style checklist of balance-sheet / profitability improvements).",
+  revaccel: "Change in revenue growth vs the prior period (acceleration).",
+  gpa: "Gross profitability: gross profit ÷ total assets.",
+  roicwacc: "ROIC minus WACC — economic spread after cost of capital.",
+  netDebtEbitda: "Net debt ÷ EBITDA. Lower = less leverage vs earnings.",
+  netCashAssets: "(Cash − debt) ÷ assets. Higher = more net cash on the balance sheet.",
+  dilution: "Share-count growth rate. Higher = more dilution (worse for safety).",
+  expEy: "Expected earnings yield from forward estimates (model input).",
+  avgEpsSurprise: "Average recent EPS surprise vs consensus.",
+};
+
+/** Short label + tooltip for score-evidence rows (topMetrics keys). */
+export function scoreMetricUi(key: string): { label: string; tip: string } {
+  const m = ENGINE_BY_KEY[key];
+  const label = SCORE_SHORT_LABEL[key] ?? m?.label ?? key;
+  const tip =
+    SCORE_TIP[key]
+    ?? (m ? `${m.label}. Inputs: ${m.goldInputs}.` : key);
+  return { label, tip };
+}
+
 export type TreatmentStep = {
   id: string;
   title: string;

@@ -60,23 +60,38 @@ export function ExpirySection({
     return map;
   }, [puts, chain, stockCtx, macroRegime, allWatchlistIVs, strikeWeights, isCall]);
 
+  // Weeklies = amber; standard monthlies (3rd Friday / isWeekly=false) = sky — easy scan when
+  // a name is monthly-only and defaults to that expiry.
+  const monthly = chain.isWeekly === false;
+  const headerTone = monthly
+    ? "hover:bg-sky-500/20 bg-sky-500/10 border-b border-sky-500/30"
+    : "hover:bg-amber-500/15 bg-amber-500/10 border-b border-amber-500/20";
+  const shellTone = monthly
+    ? "border-sky-500/40 bg-sky-950/40"
+    : "border-zinc-600/40 bg-zinc-900/70";
+
   return (
-    <div className="rounded-md border border-zinc-600/40 overflow-hidden bg-zinc-900/70 shadow-lg shadow-black/40">
-      {/* Expiry group header — warm tan accent so it reads as a section divider, not more body text */}
+    <div className={cn("rounded-md border overflow-hidden shadow-lg shadow-black/40", shellTone)}>
       <button
         className={cn(
           "w-full flex items-center gap-2 px-3 py-0.5 text-left transition-colors",
-          "hover:bg-amber-500/15 bg-amber-500/10 border-b border-amber-500/20",
+          headerTone,
         )}
         onClick={() => setCollapsed(c => !c)}
+        title={monthly ? "Standard monthly expiry (3rd Friday)" : "Weekly expiry"}
       >
         {collapsed
           ? <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
           : <ChevronDown className="w-3.5 h-3.5 text-white shrink-0" />
         }
-        <span className="font-bold text-xs tracking-wide text-foreground">
-          {formatExpiry(chain.expiry, chain.daysToExpiry)}
+        <span className={cn("font-bold text-xs tracking-wide", monthly ? "text-sky-200" : "text-foreground")}>
+          {formatExpiry(chain.expiry, chain.daysToExpiry, chain.isWeekly)}
         </span>
+        {monthly && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-sky-300/90 bg-sky-500/15 border border-sky-400/30 rounded px-1 py-px">
+            Mo
+          </span>
+        )}
         <span className="font-bold text-xs tracking-wide text-white">
           {puts.length} strike{puts.length !== 1 ? "s" : ""}
           {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}

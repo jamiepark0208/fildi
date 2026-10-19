@@ -280,7 +280,14 @@ function whyLine(tone: Tone, whenOk: string, whenBad: string): string {
   return whenBad;
 }
 
-function HealthStrip({ h }: { h: ModelListHealth }) {
+function HealthStrip({
+  h,
+  listUpdatedAt,
+}: {
+  h: ModelListHealth;
+  /** model_runs.created_at — when folders/actions were last published */
+  listUpdatedAt?: string | null;
+}) {
   const priceAsOf =
     [h.prices_date, h.prices_universe_date]
       .filter((x): x is string => !!x)
@@ -296,15 +303,16 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
   const pricesS = ageStatus(priceAsOf, "trading");
   const grades = h.grades ?? 0;
   const gradesS = grades > 0 ? ageStatus(h.last_graded_at, "clock") : { tone: "idle" as Tone, lagLabel: "" };
+  const listS = ageStatus(listUpdatedAt, "clock");
 
   const parts: Array<{ label: string; tone: Tone; title: string }> = [
     {
-      label: "export",
+      label: "RH book",
       tone: exportS.tone,
       title: whyLine(
         exportS.tone,
-        `RH portfolio snapshot OK · ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel})`,
-        `RH portfolio export stale/missing · last ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel}). Re-run the Robinhood portfolio import.`,
+        `Robinhood portfolio snapshot OK · ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel}). Drives Manage Open Positions + H (held) tags.`,
+        `Robinhood portfolio snapshot stale · last ${fmtWhen(h.snapshot_at)} (${exportS.lagLabel}). Open Positions / held tags may be wrong until you re-run the RH portfolio export (COLLECT_PROTOCOL).`,
       ),
     },
     {
@@ -337,17 +345,16 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
       ),
     },
     {
-      // Count of your graded Model List outcomes (win/loss feedback). Grey = none yet, not stale.
-      label: grades > 0 ? `g${grades}` : "grades",
+      label: grades > 0 ? `${grades} grades` : "grades",
       tone: gradesS.tone,
       title:
         grades > 0
           ? whyLine(
               gradesS.tone,
-              `${grades} graded pick${grades === 1 ? "" : "s"} · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel})`,
+              `${grades} graded Model List outcomes (win/loss feedback loop) · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel}). Not a live position count.`,
               `Grades stale · last ${fmtWhen(h.last_graded_at)} (${gradesS.lagLabel}).`,
             )
-          : "grades = your scored Model List picks (win/loss). 0 so far — grey means none yet, not a failure. Grade a pick from the list to start the learning loop.",
+          : "Graded Model List picks (win/loss). 0 so far — grey means none yet, not a failure.",
     },
   ];
   const cal = h.calibration;
@@ -364,45 +371,74 @@ function HealthStrip({ h }: { h: ModelListHealth }) {
       });
     }
   }
-  const champTip = `Champion model ${h.champion ?? "?"}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}`;
+  const champ = h.champion ?? "?";
+  const champTip =
+    `Scoring model champion: ${champ}${h.challengers ? ` · ${h.challengers} challenger(s)` : ""}. `
+    + `This is the fit-model version that ranked the folders — not a refresh timestamp.`;
+
   return (
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-      {parts.map((p) => (
-        <Tooltip key={p.label} delayDuration={150}>
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <Tooltip delayDuration={150}>
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-0.5 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-sm font-semibold hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40",
+                listS.tone === "bad" ? "text-red-300/90" : listS.tone === "warn" ? "text-amber-300/90" : "text-amber-100/70",
+              )}
             >
-              <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[p.tone])} />
-              {p.label}
+              <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[listS.tone])} />
+              List {fmtWhen(listUpdatedAt)}
+              <span className="font-normal text-amber-200/40">({listS.lagLabel})</span>
             </button>
           </TooltipTrigger>
           <TooltipContent
             side="bottom"
             className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
           >
-            {p.title}
+            When action/verdict folders were last published (model_runs). Daily after RH export → publish. Stale = re-run watchlist_sync daily/publish.
           </TooltipContent>
         </Tooltip>
-      ))}
-      <Tooltip delayDuration={150}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="rounded-sm text-amber-200/40 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="rounded-sm text-amber-200/45 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+            >
+              model {champ}
+              {h.challengers ? `+${h.challengers}` : ""}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
           >
-            m{h.champion ?? "?"}
-            {h.challengers ? `+${h.challengers}` : ""}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
-        >
-          {champTip}
-        </TooltipContent>
-      </Tooltip>
+            {champTip}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        {parts.map((p) => (
+          <Tooltip key={p.label} delayDuration={150}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-0.5 rounded-sm hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+              >
+                <span className={cn("w-1.5 h-1.5 rounded-full", TONE_DOT[p.tone])} />
+                {p.label}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug font-normal normal-case tracking-normal"
+            >
+              {p.title}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
     </div>
   );
 }
@@ -451,8 +487,8 @@ export function ModelListPanel({
   return (
     <div className="flex-1 overflow-y-auto flex flex-col min-h-0" data-lenis-prevent>
       {data.health ? (
-        <div className="px-2 py-1 border-b border-[#d4af37]/20 text-[9px] text-amber-200/50 leading-snug shrink-0">
-          <HealthStrip h={data.health} />
+        <div className="px-2 py-1.5 border-b border-[#d4af37]/20 text-[9px] text-amber-200/50 leading-snug shrink-0">
+          <HealthStrip h={data.health} listUpdatedAt={data.run?.createdAt} />
         </div>
       ) : null}
       {byKind.map(({ kind, folders }) => (

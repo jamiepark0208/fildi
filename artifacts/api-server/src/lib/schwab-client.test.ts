@@ -4,6 +4,7 @@ import {
   mapChainResponse,
   normalizeSchwabIv,
   parseExpKey,
+  isStandardMonthlyExpiry,
   type SchwabChainResponse,
 } from "./schwab-client.js";
 
@@ -17,6 +18,17 @@ function futureExpKey(daysOut: number): string {
   const ymd = d.toISOString().slice(0, 10);
   return `${ymd}:${daysOut}`;
 }
+
+describe("isStandardMonthlyExpiry", () => {
+  it("flags 3rd Friday as monthly", () => {
+    // 2026-11-20 is the 3rd Friday of Nov 2026
+    assert.equal(isStandardMonthlyExpiry(new Date("2026-11-20T16:00:00")), true);
+  });
+  it("flags other Fridays as not monthly", () => {
+    assert.equal(isStandardMonthlyExpiry(new Date("2026-11-13T16:00:00")), false);
+    assert.equal(isStandardMonthlyExpiry(new Date("2026-11-27T16:00:00")), false);
+  });
+});
 
 describe("normalizeSchwabIv", () => {
   it("divides percent-style IV (>3) by 100", () => {
@@ -97,6 +109,30 @@ describe("mapChainResponse edge cases", () => {
     assert.ok(nearSlice!.calls.every((r) => r.strike >= 103 && r.strike <= 125));
     assert.ok(nearSlice!.puts.every((r) => r.strike <= 97 && r.strike >= 75));
     assert.ok(nearSlice!.calls.some((r) => r.strike === 105 && Math.abs(r.iv - 0.28) < 1e-9));
+  });
+
+  it("monthly-only calendar keeps puts and marks isWeekly=false", () => {
+    // Pin to a known 3rd Friday so isWeekly is false (monthly).
+    const monthly = "2026-11-20:33";
+    const raw: SchwabChainResponse = {
+      underlyingPrice: 125,
+      callExpDateMap: {
+        [monthly]: {
+          "130.0": [{ strikePrice: 130, bid: 1.2, ask: 1.4, volatility: 22, delta: 0.35 }],
+        },
+      },
+      putExpDateMap: {
+        [monthly]: {
+          "120.0": [{ strikePrice: 120, bid: 1.8, ask: 2.0, volatility: 24, delta: -0.35 }],
+          "115.0": [{ strikePrice: 115, bid: 1.1, ask: 1.3, volatility: 25, delta: -0.28 }],
+        },
+      },
+    };
+    const mapped = mapChainResponse("AEP", raw);
+    assert.ok(mapped?.length === 1);
+    assert.equal(mapped![0]!.isWeekly, false);
+    assert.ok(mapped![0]!.puts.length >= 1, "puts must not be stripped when monthly is the only expiry");
+    assert.ok(mapped![0]!.puts.some((p) => p.strike === 120));
   });
 
   it("dedupes strikes preferring higher bid", () => {

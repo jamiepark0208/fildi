@@ -16,7 +16,8 @@ export const gridRow = (i: number) =>
 // use in expanded metric/inputs breakdowns so a data row never grows taller than its header.
 export const ROW_CELL = "py-0.5 text-[11px] whitespace-nowrap overflow-hidden text-ellipsis";
 
-export const FAMILY_BAR_COLOR: Record<"quality" | "growth" | "safety", string> = {
+export const FAMILY_BAR_COLOR: Record<"value" | "quality" | "growth" | "safety", string> = {
+  value:   "bg-sky-400",
   quality: "bg-purple-400",
   growth:  "bg-green-400",
   safety:  "bg-amber-400",

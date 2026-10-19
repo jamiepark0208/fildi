@@ -4,6 +4,7 @@ import { TTLCache } from "../lib/ttl-cache.js";
 import { readLatestOptionRankings, computeAndPersistOptionScores } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
+import { getLivePrices } from "../lib/live-quote.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 
@@ -64,13 +65,24 @@ router.get("/options/candidates", async (req, res) => {
   }
 });
 
-// GET /api/options/rankings?side=put|call — Overall board from nightly snapshots
+// GET /api/options/rankings?side=put|call — Overall board from nightly snapshots.
+// Includes live equity prices (same Schwab→Yahoo cache as /live/prices) so the
+// board paints price + % vs snap in one round-trip — no second waterfall.
 router.get("/options/rankings", async (req, res) => {
   const sideRaw = String(req.query.side ?? "put").toLowerCase();
   const side = sideRaw === "call" ? "call" : "put";
   try {
     const { rows, asOf, computedAt } = await readLatestOptionRankings(side);
-    return res.json({ side, asOf, computedAt, rankings: rows });
+    const tickers = rows.map((r) => r.ticker);
+    const prices: Record<string, { price: number | null; changePercent: number | null }> = {};
+    if (tickers.length > 0) {
+      const live = await getLivePrices(tickers);
+      for (const t of tickers) {
+        const q = live.get(t);
+        prices[t] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
+      }
+    }
+    return res.json({ side, asOf, computedAt, rankings: rows, prices });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

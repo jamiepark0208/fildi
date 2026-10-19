@@ -309,6 +309,25 @@ router.get("/events", async (_req: Request, res: Response) => {
   }
 });
 
+/** Watchlist next report dates from earnings_calendar (DB) — Calendar tab, not TradingView. */
+router.get("/watchlist-earnings", async (_req: Request, res: Response) => {
+  try {
+    const { getUnionWatchlistTickers } = await import("../lib/watchlist-tickers.js");
+    const { getUpcomingEarningsDates } = await import("../lib/earnings-history.js");
+    const tickers = await getUnionWatchlistTickers();
+    const dates = await getUpcomingEarningsDates(tickers);
+    const rows = Object.entries(dates)
+      .filter((entry): entry is [string, string] => entry[1] != null && entry[1] !== "")
+      .map(([ticker, date]) => ({ ticker, date }))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.ticker.localeCompare(b.ticker))
+      .slice(0, 60);
+    return res.json({ earnings: rows });
+  } catch (err) {
+    console.error("[macro] watchlist-earnings failed:", err);
+    return res.json({ earnings: [] });
+  }
+});
+
 // ── SEP projections ───────────────────────────────────────────────────────────
 
 router.get("/sep-projections", (_req: Request, res: Response) => {

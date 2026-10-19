@@ -216,17 +216,21 @@ export function rankCompetitors(
     };
   });
 
-  const peers = scored
-    .filter((s) => !s.isSubject)
+  // Sort whole cohort by Tot (tech+fund) — do not pin subject first (Breakdown Peers table).
+  const ordered = scored
+    .filter((s) => includeSubject || !s.isSubject)
     .sort((a, b) => {
-      if (a.combinedScore == null && b.combinedScore == null) return 0;
+      if (a.combinedScore == null && b.combinedScore == null) {
+        return a.ticker.localeCompare(b.ticker);
+      }
       if (a.combinedScore == null) return 1;
       if (b.combinedScore == null) return -1;
-      return b.combinedScore - a.combinedScore;
+      if (b.combinedScore !== a.combinedScore) return b.combinedScore - a.combinedScore;
+      // Tie: subject first, then ticker
+      if (a.isSubject !== b.isSubject) return a.isSubject ? -1 : 1;
+      return a.ticker.localeCompare(b.ticker);
     })
     .slice(0, limit);
 
-  const subjectRow = scored.find((s) => s.isSubject);
-  const ordered = includeSubject && subjectRow ? [subjectRow, ...peers] : peers;
   return ordered.map((s, i) => ({ rank: i + 1, ...s }));
 }

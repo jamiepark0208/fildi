@@ -112,6 +112,19 @@ interface CurrentPick {
   strikeIv?: number | null;
 }
 
+/** Same board as Options Rankings (Overall nightly snapshot). */
+interface RankPick {
+  strike: number;
+  expiry: string;
+  spot: number;
+  premium: number;
+  optionScore: number;
+  rank: number;
+  dte: number | null;
+  delta: number | null;
+  asOf: string;
+}
+
 interface TickerSummaryRow {
   ticker: string;
   put: TickerSideAgg;
@@ -120,6 +133,8 @@ interface TickerSummaryRow {
   priceChangePct: number | null;
   currentPut: CurrentPick | null;
   currentCall: CurrentPick | null;
+  rankPut: RankPick | null;
+  rankCall: RankPick | null;
 }
 
 /** Graded history header tint */
@@ -135,9 +150,9 @@ const CALL_EDGE = "border-l border-orange-500/25";
 const PUT_REC_EDGE = "border-l border-emerald-500/35";
 const CALL_REC_EDGE = "border-l border-amber-500/35";
 
-const TH = "font-semibold text-[10px] uppercase tracking-wider px-1.5 py-1";
-const TH_SUB = "font-semibold text-[9px] uppercase tracking-wider px-1.5 py-0.5";
-const TD = "px-1.5 py-1 font-mono text-[11px]";
+const TH = "font-semibold text-[9px] uppercase tracking-wide px-1 py-0.5";
+const TH_SUB = "font-semibold text-[8px] uppercase tracking-wide px-1 py-0.5";
+const TD = "px-1 py-0.5 font-mono text-[10px] leading-tight";
 
 /** "2026-08-07" → "8/7" */
 function shortDate(iso: string): string {
@@ -436,24 +451,22 @@ function displaySharpe(agg: TickerSideAgg): number | null {
 function SideAggCells({ agg, edge, side }: { agg: TickerSideAgg; edge?: string; side: "put" | "call" }) {
   const tip = sideExplain(agg, side);
   if (agg.n === 0) {
+    const pendTip = agg.pending > 0
+      ? `${agg.pending} open rec${agg.pending === 1 ? "" : "s"} not graded yet (expiry still out)`
+      : tip;
     return (
       <>
-        <td className={cn(TD, "text-right text-zinc-500 whitespace-nowrap text-[9px]", edge)} title={tip}>
-          {agg.pending > 0 ? `${agg.pending}p` : "—"}
-        </td>
-        <td className={cn(TD, "text-right text-zinc-500")} title={tip}>—</td>
-        <td className={cn(TD, "text-right text-zinc-500")} title={tip}>—</td>
-        <td className={cn(TD, "text-right text-zinc-500")} title={tip}>—</td>
+        <td className={cn(TD, "text-right text-amber-200/70 whitespace-nowrap", edge)} title={pendTip}>—</td>
+        <td className={cn(TD, "text-right text-amber-200/70")} title={pendTip}>—</td>
+        <td className={cn(TD, "text-right text-amber-200/70")} title={pendTip}>—</td>
       </>
     );
   }
   const sh = displaySharpe(agg);
-  const adv = pathAdv(agg);
-  const cush = agg.avgCushionUsedPct;
   return (
     <>
       <td
-        className={cn(TD, "text-right text-white whitespace-nowrap text-[9px] leading-none", edge)}
+        className={cn(TD, "text-right text-white whitespace-nowrap", edge)}
         title={tip}
       >
         {agg.wins}W-{agg.losses}L
@@ -470,25 +483,11 @@ function SideAggCells({ agg, edge, side }: { agg: TickerSideAgg; edge?: string; 
       <td
         className={cn(
           TD, "text-right tabular-nums",
-          sh == null ? "text-zinc-600" : sh >= 1 ? "text-emerald-300" : sh >= 0 ? "text-sky-300/80" : "text-red-400",
+          sh == null ? "text-amber-200/55" : sh >= 1 ? "text-emerald-300" : sh >= 0 ? "text-sky-300" : "text-red-400",
         )}
         title={tip}
       >
         {sh != null ? sh.toFixed(2) : "—"}
-      </td>
-      <td
-        className={cn(
-          TD, "text-right tabular-nums whitespace-nowrap",
-          adv == null ? "text-zinc-600" : adv >= 8 ? "text-red-400" : adv >= 4 ? "text-amber-300" : "text-sky-300/80",
-        )}
-        title={tip}
-      >
-        {adv == null ? "—" : (
-          <>
-            {adv.toFixed(1)}%
-            {cush != null && <span className="text-zinc-500">/{Math.round(cush)}</span>}
-          </>
-        )}
       </td>
     </>
   );
@@ -528,7 +527,7 @@ function BestEdgeChip({
 }) {
   if (!row) {
     return (
-      <span className="text-[10px] text-zinc-600 font-mono" title={`Need ≥${SHARPE_MIN_N} graded ${side}s on a ticker`}>
+      <span className="text-[10px] text-amber-200/60 font-mono" title={`Need ≥${SHARPE_MIN_N} graded ${side}s on a ticker`}>
         {label}: —
       </span>
     );
@@ -539,206 +538,70 @@ function BestEdgeChip({
     <span
       className="inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] font-mono"
       style={{ borderColor: `${color}55`, background: `${color}14` }}
-      title={sideExplain(agg, side)}
+      title={`Highest ${side} Sharpe (n≥${SHARPE_MIN_N}). ${sideExplain(agg, side)}`}
     >
       <span className="font-semibold uppercase tracking-wide" style={{ color }}>{label}</span>
       <span className="text-white font-bold">{row.ticker}</span>
       <span className="text-emerald-300">Shrp {sh.toFixed(2)}</span>
-      <span className="text-zinc-400">{agg.wins}W-{agg.losses}L</span>
+      <span className="text-amber-100/80">{agg.wins}W-{agg.losses}L</span>
       <span className={agg.avgPnlPct != null && agg.avgPnlPct >= 0 ? "text-green-400" : "text-red-400"}>
         {agg.avgPnlPct != null ? signed(agg.avgPnlPct) : "—"}
       </span>
-      {pathAdv(agg) != null && (
-        <span className="text-amber-200/70" title="Avg path MAE / cushion used">
-          MAE {pathAdv(agg)!.toFixed(1)}%
-          {agg.avgCushionUsedPct != null ? ` · cush ${Math.round(agg.avgCushionUsedPct)}%` : ""}
-        </span>
-      )}
     </span>
   );
 }
 
-/** L5 — capital-weighted Sharpe + avg path MAE across open (unexpired) model picks. */
-function openBookLens(rows: TickerSummaryRow[], side: "put" | "call") {
-  let wSum = 0, shW = 0, maeSum = 0, maeN = 0, incSum = 0, n = 0;
-  for (const r of rows) {
-    const pick = side === "put" ? r.currentPut : r.currentCall;
-    if (!pick) continue;
-    n++;
-    const coll = side === "put" ? pick.strike : pick.spot;
-    const sh = displaySharpe(r[side]);
-    if (sh != null && coll > 0) {
-      shW += sh * coll;
-      wSum += coll;
-    }
-    if (pick.maxAdversePct != null) {
-      maeSum += pick.maxAdversePct;
-      maeN++;
-    }
-    if (pick.incomePct != null) incSum += pick.incomePct;
-  }
-  return {
-    n,
-    capitalWeightedSharpe: wSum > 0 ? shW / wSum : null,
-    avgMae: maeN > 0 ? maeSum / maeN : null,
-    avgIncome: n > 0 ? incSum / n : null,
-  };
-}
-
-function OpenBookChip({
-  label, lens, color,
+/** Compact Options Rankings pick — same strike/exp/score as Rankings › Overall. */
+function RankCells({
+  pick, edge, bodyClass,
 }: {
-  label: string;
-  lens: ReturnType<typeof openBookLens>;
-  color: string;
-}) {
-  if (lens.n === 0) {
-    return (
-      <span className="text-[10px] text-zinc-600 font-mono" title="No open (unexpired) model sell recs">
-        {label}: —
-      </span>
-    );
-  }
-  const sh = lens.capitalWeightedSharpe;
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] font-mono"
-      style={{ borderColor: `${color}40`, background: `${color}0d` }}
-      title={`Open ${label}: n=${lens.n} unexpired model picks. Capital-weighted Shrp = Σ(ticker Shrp × collateral) / Σ collateral. Avg path MAE since each Init.`}
-    >
-      <span className="font-semibold uppercase tracking-wide text-zinc-400">{label}</span>
-      <span className="text-zinc-500">n={lens.n}</span>
-      {sh != null ? (
-        <span className={cn(sh >= 1 ? "text-emerald-300" : sh >= 0 ? "text-sky-300/80" : "text-red-400")}>
-          book S{sh.toFixed(2)}
-        </span>
-      ) : (
-        <span className="text-zinc-600">book S—</span>
-      )}
-      {lens.avgMae != null && (
-        <span className={cn(lens.avgMae >= 8 ? "text-red-400" : "text-amber-200/70")}>
-          MAE {lens.avgMae.toFixed(1)}%
-        </span>
-      )}
-      {lens.avgIncome != null && (
-        <span className="text-zinc-500">inc {lens.avgIncome.toFixed(1)}%</span>
-      )}
-    </span>
-  );
-}
-
-function RecCells({
-  pick, currentPrice, side, edge, bodyClass,
-}: {
-  pick: CurrentPick | null;
-  currentPrice: number | null;
-  side: "put" | "call";
+  pick: RankPick | null;
   edge?: string;
   bodyClass?: string;
 }) {
   if (!pick) {
     return (
       <>
-        <td className={cn(TD, "text-right text-zinc-600", edge, bodyClass)}>—</td>
-        <td className={cn(TD, "text-right text-zinc-600", bodyClass)}>—</td>
-        <td className={cn(TD, "text-right text-zinc-600", bodyClass)}>—</td>
-        <td className={cn(TD, "text-right text-zinc-600", bodyClass)}>—</td>
-        <td className={cn(TD, "text-right text-zinc-600", bodyClass)}>—</td>
-        <td className={cn(TD, "text-right text-zinc-600", bodyClass)}>—</td>
+        <td className={cn(TD, "text-right text-amber-200/55", edge, bodyClass)} title="Not on latest Options Rankings board">—</td>
+        <td className={cn(TD, "text-right text-amber-200/55", bodyClass)}>—</td>
+        <td className={cn(TD, "text-right text-amber-200/55", bodyClass)}>—</td>
       </>
     );
   }
-  const movePct =
-    currentPrice != null && pick.spot > 0
-      ? ((currentPrice - pick.spot) / pick.spot) * 100
-      : null;
-  // Seller-favorable: puts like up-moves; calls like down-moves (match Live badge).
-  const moveFavorable =
-    movePct == null ? null : side === "call" ? movePct < 0 : movePct > 0;
   const dte = pick.dte != null ? Math.max(0, Math.round(pick.dte)) : null;
-  const mae = pick.maxAdversePct ?? null;
-  const cush = pick.cushionUsedPct ?? null;
   return (
     <>
       <td
-        className={cn(TD, "text-right text-emerald-100/90", edge, bodyClass)}
-        title={[
-          `Model snapshot initiated ${pick.snapshotDate}`,
-          pick.incomePct != null ? `income ${pick.incomePct.toFixed(2)}%` : null,
-          `premium $${pick.premium.toFixed(2)}`,
-          pick.delta != null ? `entry δ ${pick.delta.toFixed(3)}` : null,
-          pick.strikeIv != null ? `entry IV ${(pick.strikeIv <= 3 ? pick.strikeIv * 100 : pick.strikeIv).toFixed(0)}%` : null,
-        ].filter(Boolean).join(" · ")}
-      >
-        {shortDate(pick.snapshotDate)}
-      </td>
-      <td
-        className={cn(TD, "text-right text-white/90", bodyClass)}
-        title="Underlying price when this model recommendation was made"
-      >
-        {pick.spot.toFixed(pick.spot < 10 ? 2 : 1)}
-      </td>
-      <td
-        className={cn(
-          TD, "text-right font-semibold tabular-nums", bodyClass,
-          moveFavorable == null ? "text-zinc-500" : moveFavorable ? "text-green-400" : "text-red-400",
-        )}
-        title={`Stock % change since Init (live vs Spot@). ${side === "call" ? "↓ helps short call" : "↑ helps short put"}. Not option delta.`}
-      >
-        {movePct == null ? "—" : `${movePct >= 0 ? "+" : ""}${movePct.toFixed(1)}%`}
-      </td>
-      <td
-        className={cn(
-          TD, "text-right tabular-nums whitespace-nowrap", bodyClass,
-          mae == null ? "text-zinc-600" : mae >= 8 ? "text-red-400" : mae >= 4 ? "text-amber-300" : "text-sky-300/80",
-        )}
-        title={
-          mae == null
-            ? "Path MAE needs daily highs/lows since Init"
-            : `Max adverse excursion since Init: ${mae.toFixed(1)}%` +
-              (cush != null ? ` · OTM cushion used ${Math.round(cush)}%` : "")
-        }
-      >
-        {mae == null ? "—" : (
-          <>
-            {mae.toFixed(1)}%
-            {cush != null && <span className="text-zinc-500">/{Math.round(cush)}</span>}
-          </>
-        )}
-      </td>
-      <td
-        className={cn(TD, "text-right font-semibold text-amber-300", bodyClass)}
-        title={
-          pick.delta != null || pick.strikeIv != null
-            ? `Strike ${pick.strike.toFixed(2)} · δ ${pick.delta != null ? pick.delta.toFixed(3) : "—"} · IV ${pick.strikeIv != null ? (pick.strikeIv <= 3 ? pick.strikeIv * 100 : pick.strikeIv).toFixed(0) + "%" : "—"}`
-            : undefined
-        }
+        className={cn(TD, "text-right font-semibold text-amber-300", edge, bodyClass)}
+        title={`#${pick.rank} on Options Rankings · asOf ${pick.asOf}${pick.delta != null ? ` · δ ${pick.delta.toFixed(3)}` : ""} · prem $${pick.premium.toFixed(2)}`}
       >
         {pick.strike.toFixed(pick.strike < 10 ? 2 : 1)}
-        {pick.delta != null && (
-          <span className="block text-[9px] font-normal text-sky-300/60 leading-none mt-0.5">
-            δ{Math.abs(pick.delta).toFixed(2)}
-          </span>
-        )}
       </td>
       <td
-        className={cn(TD, "text-right text-sky-300/80", bodyClass)}
+        className={cn(TD, "text-right text-sky-300", bodyClass)}
         title={dte != null ? `${dte}d to expiry` : undefined}
       >
         {shortDate(pick.expiry)}
+      </td>
+      <td
+        className={cn(TD, "text-right font-semibold tabular-nums text-emerald-300", bodyClass)}
+        title={`Option score ${pick.optionScore.toFixed(1)} · rank #${pick.rank}`}
+      >
+        {pick.optionScore.toFixed(0)}
+        <span className="text-amber-200/70 font-normal">#{pick.rank}</span>
       </td>
     </>
   );
 }
 
 function PriceCell({ price, changePct }: { price: number | null; changePct: number | null }) {
-  if (price == null) return <td className={cn(TD, "text-right text-zinc-500")}>—</td>;
+  if (price == null) return <td className={cn(TD, "text-right text-amber-200/55")}>—</td>;
   const up = changePct != null && changePct >= 0;
   return (
     <td className={cn(TD, "text-right whitespace-nowrap")}>
       <span className="text-white font-semibold">{price.toFixed(2)}</span>
       {changePct != null && (
-        <span className={cn("ml-1 text-[10px] font-semibold", up ? "text-green-400" : "text-red-400")}>
+        <span className={cn("ml-1 text-[9px] font-semibold", up ? "text-green-400" : "text-red-400")}>
           {up ? "+" : ""}{changePct.toFixed(1)}%
         </span>
       )}
@@ -752,8 +615,6 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
 
   const bestPut = useMemo(() => bestEdgeRow(rows, "put"), [rows]);
   const bestCall = useMemo(() => bestEdgeRow(rows, "call"), [rows]);
-  const putBook = useMemo(() => openBookLens(rows, "put"), [rows]);
-  const callBook = useMemo(() => openBookLens(rows, "call"), [rows]);
 
   const sorted = useMemo(() => {
     const copy = rows.slice();
@@ -788,7 +649,7 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
               onClick={() => setSortMode(mode)}
               className={cn(
                 "px-2 py-0.5 transition-colors",
-                sortMode === mode ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+                sortMode === mode ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/70 hover:text-[#d4af37]",
               )}
               title={
                 mode === "az"
@@ -800,61 +661,59 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
             </button>
           ))}
         </div>
-        <span className="text-[10px] text-zinc-500">
-          Shrp n≥{SHARPE_MIN_N} · Adv = path MAE%/cush% · click ticker for drill-down
+        <span className="text-[10px] text-amber-200/70">
+          History = graded W/L · Sell = Options Rankings pick · click row for drill-down
         </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-0.5">
-        <BestEdgeChip label="Best put edge" row={bestPut} side="put" color="#38bdf8" />
-        <BestEdgeChip label="Best call edge" row={bestCall} side="call" color="#fbbf24" />
-        <OpenBookChip label="Open put book" lens={putBook} color="#38bdf8" />
-        <OpenBookChip label="Open call book" lens={callBook} color="#fbbf24" />
+        <BestEdgeChip label="Best put" row={bestPut} side="put" color="#38bdf8" />
+        <BestEdgeChip label="Best call" row={bestCall} side="call" color="#fbbf24" />
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-zinc-400 py-4 text-center">No graded recs yet</p>
+        <p className="text-xs text-amber-200/70 py-4 text-center">No graded recs yet</p>
       ) : (
-        <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 overflow-x-auto">
-          <table className="w-full text-[11px]">
+        <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+          <table className="w-full table-fixed text-[10px]">
+            <colgroup>
+              <col className="w-[7%]" />
+              <col className="w-[9%]" />
+              <col className="w-[6%]" /><col className="w-[6%]" /><col className="w-[5%]" />
+              <col className="w-[6%]" /><col className="w-[5%]" /><col className="w-[7%]" />
+              <col className="w-[6%]" /><col className="w-[6%]" /><col className="w-[5%]" />
+              <col className="w-[6%]" /><col className="w-[5%]" /><col className="w-[7%]" />
+            </colgroup>
             <thead className="bg-black text-[#d4af37]">
               <tr className="border-b border-[#d4af37]/20">
                 <th rowSpan={2} className={cn(TH, "text-left align-bottom")}>Ticker</th>
                 <th rowSpan={2} className={cn(TH, "text-right align-bottom")}>Now</th>
-                <th colSpan={4} className={cn(TH_SUB, "text-center border-b border-[#d4af37]/10", PUT_HEAD, PUT_EDGE)}>
+                <th colSpan={3} className={cn(TH_SUB, "text-center border-b border-[#d4af37]/10", PUT_HEAD, PUT_EDGE)}>
                   Put history
                 </th>
-                <th colSpan={6} className={cn(TH_SUB, "text-center border-b border-emerald-500/20", PUT_REC_HEAD, PUT_REC_EDGE)}>
-                  Model best put to sell
+                <th colSpan={3} className={cn(TH_SUB, "text-center border-b border-emerald-500/20", PUT_REC_HEAD, PUT_REC_EDGE)}>
+                  Ranked put
                 </th>
-                <th colSpan={4} className={cn(TH_SUB, "text-center border-b border-[#d4af37]/10", CALL_HEAD, CALL_EDGE)}>
+                <th colSpan={3} className={cn(TH_SUB, "text-center border-b border-[#d4af37]/10", CALL_HEAD, CALL_EDGE)}>
                   Call history
                 </th>
-                <th colSpan={6} className={cn(TH_SUB, "text-center border-b border-amber-500/20", CALL_REC_HEAD, CALL_REC_EDGE)}>
-                  Model best call to sell
+                <th colSpan={3} className={cn(TH_SUB, "text-center border-b border-amber-500/20", CALL_REC_HEAD, CALL_REC_EDGE)}>
+                  Ranked call
                 </th>
               </tr>
               <tr className="border-b border-[#d4af37]/20">
                 <th className={cn(TH_SUB, "text-right", PUT_HEAD, PUT_EDGE)} title="Wins-Losses on graded sell-put recs">W-L</th>
                 <th className={cn(TH_SUB, "text-right", PUT_HEAD)} title="Average P&L % on graded puts">P&L</th>
-                <th className={cn(TH_SUB, "text-right", PUT_HEAD)} title={`mean(P&L) ÷ stdev(P&L) — shown only when n≥${SHARPE_MIN_N}`}>Shrp</th>
-                <th className={cn(TH_SUB, "text-right", PUT_HEAD)} title="Avg path MAE% / OTM cushion used% — how hard the stock ran against the short">Adv</th>
-                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD, PUT_REC_EDGE)} title="Date the model made this recommendation">Init</th>
-                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)} title="Underlying price at initiation">Spot@</th>
-                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)} title="Stock % change since Init — NOT option Greek delta">StkΔ</th>
-                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)} title="Path MAE% / cushion% since Init from daily highs/lows">MAE</th>
-                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)}>Strike</th>
+                <th className={cn(TH_SUB, "text-right", PUT_HEAD)} title={`mean(P&L) ÷ stdev(P&L) — n≥${SHARPE_MIN_N}`}>Shrp</th>
+                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD, PUT_REC_EDGE)} title="Strike from Options Rankings">Strike</th>
                 <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)}>Exp</th>
+                <th className={cn(TH_SUB, "text-right", PUT_REC_HEAD)} title="Option score + board rank">Scr</th>
                 <th className={cn(TH_SUB, "text-right", CALL_HEAD, CALL_EDGE)}>W-L</th>
                 <th className={cn(TH_SUB, "text-right", CALL_HEAD)}>P&L</th>
                 <th className={cn(TH_SUB, "text-right", CALL_HEAD)} title={`mean(P&L) ÷ stdev(P&L) — n≥${SHARPE_MIN_N}`}>Shrp</th>
-                <th className={cn(TH_SUB, "text-right", CALL_HEAD)} title="Avg path MAE% / cushion used%">Adv</th>
-                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD, CALL_REC_EDGE)}>Init</th>
-                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)}>Spot@</th>
-                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)} title="Stock % change since Init">StkΔ</th>
-                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)} title="Path MAE% / cushion% since Init">MAE</th>
-                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)}>Strike</th>
+                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD, CALL_REC_EDGE)}>Strike</th>
                 <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)}>Exp</th>
+                <th className={cn(TH_SUB, "text-right", CALL_REC_HEAD)} title="Option score + board rank">Scr</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/80">
@@ -881,20 +740,22 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
                           : "bg-zinc-900/70 even:bg-zinc-800/50 hover:bg-amber-500/10",
                     )}
                   >
-                    <td className={cn(TD, "text-left font-semibold text-white")}>
+                    <td className={cn(TD, "text-left font-semibold text-white truncate")}>
                       {r.ticker}
                       {isBest && (
-                        <span className="ml-1 text-[8px] font-bold uppercase tracking-wide text-[#d4af37]">edge</span>
-                      )}
-                      {isOpen && (
-                        <span className="ml-1 text-[8px] font-bold uppercase tracking-wide text-sky-300">open</span>
+                        <span
+                          className="ml-1 text-[8px] font-bold uppercase tracking-wide text-[#d4af37]"
+                          title={`Top ${sortMode === "call-shrpe" ? "call" : "put"} Sharpe in this sort`}
+                        >
+                          top
+                        </span>
                       )}
                     </td>
                     <PriceCell price={r.currentPrice} changePct={r.priceChangePct} />
                     <SideAggCells agg={r.put} edge={PUT_EDGE} side="put" />
-                    <RecCells pick={r.currentPut} currentPrice={r.currentPrice} side="put" edge={PUT_REC_EDGE} bodyClass={PUT_REC_BODY} />
+                    <RankCells pick={r.rankPut} edge={PUT_REC_EDGE} bodyClass={PUT_REC_BODY} />
                     <SideAggCells agg={r.call} edge={CALL_EDGE} side="call" />
-                    <RecCells pick={r.currentCall} currentPrice={r.currentPrice} side="call" edge={CALL_REC_EDGE} bodyClass={CALL_REC_BODY} />
+                    <RankCells pick={r.rankCall} edge={CALL_REC_EDGE} bodyClass={CALL_REC_BODY} />
                   </tr>
                 );
               })}
@@ -939,16 +800,16 @@ export default function TrackRecord() {
     enabled: activeTab === "model",
   });
 
-  // Defer heavy by-ticker table until summary chrome is up (or immediately if summary cached).
+  // Fetch in parallel with summary — don't wait on chrome.
   const { data: tickerSummary, isLoading: tickerSummaryLoading } = useQuery({
-    queryKey: ["track-record", "ticker-summary", "v7"],
+    queryKey: ["track-record", "ticker-summary", "v8"],
     queryFn: async (): Promise<TickerSummaryRow[]> => {
       const res = await fetch("/api/track-record/ticker-summary");
       if (!res.ok) throw new Error("track-record ticker-summary fetch failed");
       return res.json();
     },
     staleTime: 5 * 60_000,
-    enabled: activeTab === "model" && (!!summary || !summaryLoading),
+    enabled: activeTab === "model",
   });
 
   return (
@@ -979,7 +840,7 @@ export default function TrackRecord() {
         {activeTab === "strategies" && isAdmin ? (
           <StrategiesTab />
         ) : summaryLoading || !summary ? (
-          <div className="text-xs text-zinc-400 py-10 text-center">Loading…</div>
+          <div className="text-xs text-amber-200/70 py-10 text-center">Loading…</div>
         ) : (
           <>
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto">
@@ -1031,7 +892,7 @@ export default function TrackRecord() {
             })()}
 
             {tickerSummaryLoading && !tickerSummary ? (
-              <p className="text-xs text-zinc-400 py-6 text-center">Loading by-ticker table…</p>
+              <p className="text-xs text-amber-200/70 py-6 text-center">Loading by-ticker table…</p>
             ) : (
               <TickerSummaryTable rows={tickerSummary ?? []} />
             )}

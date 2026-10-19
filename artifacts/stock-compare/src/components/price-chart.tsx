@@ -6,7 +6,7 @@ import { STOCK_COLORS } from "./stock-cards";
 import {
   createChart, createSeriesMarkers, LineSeries, CandlestickSeries, HistogramSeries,
   ColorType, LineStyle, CrosshairMode,
-  type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type IPriceLine, type UTCTimestamp, type Time,
+  type AutoscaleInfo, type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type IPriceLine, type UTCTimestamp, type Time,
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import { computeChartZones, pfNum, type DbTechnicalLevels } from "@/lib/chart-levels";
@@ -40,7 +40,7 @@ interface PriceChartProps {
   onPeriodChange: (period: Period) => void;
   showTechnicalZones?: boolean;
   tickerForTechnicals?: string;
-  /** Compact black/gold styling with no legend and full-text chart labels — used in the stock breakdown view. */
+  /** Compact black/gold styling with no legend and short chart labels — used in the stock breakdown view. */
   compact?: boolean;
 }
 
@@ -78,11 +78,69 @@ function computeEMA(values: number[], period: number): (number | null)[] {
   let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
   result[period - 1] = ema;
   for (let i = period; i < values.length; i++) {
-    ema = values[i] * k + ema * (1 - k);
+    ema = values[i]! * k + ema * (1 - k);
     result[i] = ema;
   }
   return result;
 }
+
+function computeRSI(closes: number[], period = 14): (number | null)[] {
+  const out: (number | null)[] = new Array(closes.length).fill(null);
+  if (closes.length <= period) return out;
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i]! - closes[i - 1]!;
+    if (d >= 0) gain += d;
+    else loss -= d;
+  }
+  let avgGain = gain / period;
+  let avgLoss = loss / period;
+  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i]! - closes[i - 1]!;
+    const g = d > 0 ? d : 0;
+    const l = d < 0 ? -d : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return out;
+}
+
+function computeMACD(closes: number[]): {
+  macd: (number | null)[];
+  signal: (number | null)[];
+  hist: (number | null)[];
+} {
+  const ema12 = computeEMA(closes, 12);
+  const ema26 = computeEMA(closes, 26);
+  const macd: (number | null)[] = closes.map((_, i) =>
+    ema12[i] != null && ema26[i] != null ? ema12[i]! - ema26[i]! : null,
+  );
+  const macdVals = macd.map((v) => v ?? 0);
+  // Seed signal EMA only once MACD is defined — approximate with full-series EMA9 on macd vals.
+  const signalRaw = computeEMA(
+    macd.map((v, i) => (v != null ? v : macdVals[i]!)),
+    9,
+  );
+  const signal: (number | null)[] = macd.map((v, i) => (v != null && signalRaw[i] != null ? signalRaw[i] : null));
+  const hist: (number | null)[] = macd.map((v, i) =>
+    v != null && signal[i] != null ? v - signal[i]! : null,
+  );
+  return { macd, signal, hist };
+}
+
+type IndicatorId = "em" | "ema" | "rsi" | "macd" | "session" | "ict";
+
+const INDICATOR_META: { id: IndicatorId; label: string; title: string; on: string }[] = [
+  { id: "em", label: "EM", title: "±1σ expected-move bands from ATM IV (follow price)", on: "border-sky-400/50 bg-sky-400/15 text-sky-200" },
+  { id: "ema", label: "EMA", title: "EMA 50 / 200 on price", on: "border-yellow-400/50 bg-yellow-400/15 text-yellow-200" },
+  { id: "rsi", label: "RSI", title: "RSI(14) sub-pane", on: "border-violet-400/50 bg-violet-400/15 text-violet-200" },
+  { id: "macd", label: "MACD", title: "MACD(12,26,9) sub-pane", on: "border-emerald-400/50 bg-emerald-400/15 text-emerald-200" },
+  { id: "session", label: "Session", title: "Yahoo 5m session VWAP + POC/VAH/VAL", on: "border-pink-400/50 bg-pink-400/15 text-pink-200" },
+  { id: "ict", label: "ICT", title: "FVG, sweeps, BOS, S&D (display only)", on: "border-cyan-400/50 bg-cyan-400/15 text-cyan-200" },
+];
 
 async function fetchTechnicals(ticker: string): Promise<DbTechnicalLevels | null> {
   const res = await fetch(`/api/technicals/${encodeURIComponent(ticker)}`, { credentials: "include" });
@@ -112,6 +170,8 @@ interface LWPriceLine {
   color: string;
   title: string;
   dashed?: boolean;
+  /** Default true. False = TradingView-style bare line (no axis chip). */
+  axisLabelVisible?: boolean;
 }
 
 interface LightweightPriceChartProps {
@@ -121,19 +181,22 @@ interface LightweightPriceChartProps {
   emaSeries?: { ema50: LWPoint[]; ema200: LWPoint[] } | null;
   markers?: LWMarker[];
   priceLines?: LWPriceLine[];
-  /** Extra line overlays (IV expected-move band into future whitespace — A93). */
+  /** Extra line overlays (IV expected-move bands following price — A93). */
   overlays?: LWSeriesSpec[];
   /** A93/A126 — single-ticker candles + volume (+ optional session VWAP). */
   candles?: LWCandle[] | null;
   volumes?: LWVolume[] | null;
   vwap?: LWPoint[] | null;
+  rsi?: LWPoint[] | null;
+  macd?: { macd: LWPoint[]; signal: LWPoint[]; hist: LWVolume[] } | null;
 }
 
 function formatTickTime(time: Time, period: Period): string {
   const ms = (time as number) * 1000;
   const d = new Date(ms);
   if (period === "1D") return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (period === "1W") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  // 1W/1M use hourly bars — day label is enough on the axis
+  if (period === "1W" || period === "1M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yy = String(d.getFullYear()).slice(2);
   return `${mm}/${yy}`;
@@ -142,12 +205,14 @@ function formatTickTime(time: Time, period: Period): string {
 function formatTooltipTime(time: Time, period: Period): string {
   const ms = (time as number) * 1000;
   const d = new Date(ms);
-  if (period === "1D") return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  if (period === "1D" || period === "1W" || period === "1M") {
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
 /** Imperative lightweight-charts canvas — created once and updated in place, rather than re-mounted on every render. */
-function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap }: LightweightPriceChartProps) {
+function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap, rsi, macd }: LightweightPriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -157,8 +222,18 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const vwapRef = useRef<ISeriesApi<"Line"> | null>(null);
   const emaSeriesRef = useRef<{ ema50: ISeriesApi<"Line"> | null; ema200: ISeriesApi<"Line"> | null }>({ ema50: null, ema200: null });
+  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdRefs = useRef<{
+    line: ISeriesApi<"Line"> | null;
+    signal: ISeriesApi<"Line"> | null;
+    hist: ISeriesApi<"Histogram"> | null;
+    paneIndex: number | null;
+  }>({ line: null, signal: null, hist: null, paneIndex: null });
+  const rsiPaneIndexRef = useRef<number | null>(null);
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLineHandlesRef = useRef<IPriceLine[]>([]);
+  const candlesRef = useRef<LWCandle[] | null>(null);
+  candlesRef.current = candles ?? null;
   /** Fit zoom only when tickers or period change — refetches must not wipe the user's pan/zoom (A93). */
   const viewKeyRef = useRef<string>("");
   const primarySeries = (): ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null =>
@@ -220,6 +295,9 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       volumeRef.current = null;
       vwapRef.current = null;
       emaSeriesRef.current = { ema50: null, ema200: null };
+      rsiRef.current = null;
+      rsiPaneIndexRef.current = null;
+      macdRefs.current = { line: null, signal: null, hist: null, paneIndex: null };
       markersApiRef.current = null;
       priceLineHandlesRef.current = [];
     };
@@ -256,10 +334,31 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
           wickDownColor: "#ef4444",
           lastValueVisible: true,
           priceLineVisible: true,
+          // Scale to candle OHLC only — overlays / EM bands must not squash the range.
+          autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+            const res = original();
+            const bars = candlesRef.current;
+            if (!res?.priceRange || !bars?.length) return res;
+            let min = Infinity;
+            let max = -Infinity;
+            for (const c of bars) {
+              if (c.low < min) min = c.low;
+              if (c.high > max) max = c.high;
+            }
+            if (!Number.isFinite(min) || !Number.isFinite(max)) return res;
+            const pad = Math.max((max - min) * 0.06, max * 0.002);
+            return {
+              priceRange: { minValue: min - pad, maxValue: max + pad },
+              margins: res.margins,
+            };
+          },
         });
       }
       candleRef.current.setData(candles!);
-      chart.priceScale("left").applyOptions({ scaleMargins: { top: 0.05, bottom: volumes?.length ? 0.22 : 0.05 } });
+      chart.priceScale("left").applyOptions({
+        autoScale: true,
+        scaleMargins: { top: 0.05, bottom: volumes?.length ? 0.22 : 0.05 },
+      });
     } else {
       if (candleRef.current) {
         chart.removeSeries(candleRef.current);
@@ -328,6 +427,8 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
 
     if (viewChanged || savedRange == null) {
       ts.fitContent();
+      // Re-enable Y auto-scale after period change (user drag locks the scale otherwise).
+      chart.priceScale("left").applyOptions({ autoScale: true });
     } else {
       ts.setVisibleLogicalRange(savedRange);
     }
@@ -387,7 +488,7 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       color: pl.color,
       lineWidth: 1,
       lineStyle: pl.dashed ? LineStyle.Dashed : LineStyle.Solid,
-      axisLabelVisible: true,
+      axisLabelVisible: pl.axisLabelVisible !== false,
       title: pl.title,
     }));
   }, [priceLines, series, candles]);
@@ -413,12 +514,101 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
           priceLineVisible: false,
           crosshairMarkerVisible: false,
           priceScaleId: "left",
+          // Don't let EM bands expand the Y scale.
+          autoscaleInfoProvider: () => ({ priceRange: null }),
         });
         overlayMapRef.current.set(spec.ticker, s);
       }
       s.setData(spec.data);
     }
   }, [overlays]);
+
+  // RSI + MACD sub-panes — rebuild together so pane indexes stay consistent.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const clearRsi = () => {
+      if (rsiRef.current) {
+        chart.removeSeries(rsiRef.current);
+        rsiRef.current = null;
+      }
+      if (rsiPaneIndexRef.current != null) {
+        try { chart.removePane(rsiPaneIndexRef.current); } catch { /* gone */ }
+        rsiPaneIndexRef.current = null;
+      }
+    };
+    const clearMacd = () => {
+      const m = macdRefs.current;
+      if (m.line) { chart.removeSeries(m.line); m.line = null; }
+      if (m.signal) { chart.removeSeries(m.signal); m.signal = null; }
+      if (m.hist) { chart.removeSeries(m.hist); m.hist = null; }
+      if (m.paneIndex != null) {
+        try { chart.removePane(m.paneIndex); } catch { /* gone */ }
+        m.paneIndex = null;
+      }
+    };
+
+    // Tear down then rebuild in order (RSI pane, then MACD pane).
+    clearMacd();
+    clearRsi();
+
+    if (rsi && rsi.length > 0) {
+      const pane = chart.addPane(true);
+      rsiPaneIndexRef.current = pane.paneIndex();
+      pane.setHeight(72);
+      rsiRef.current = chart.addSeries(LineSeries, {
+        color: "#a78bfa",
+        lineWidth: 1,
+        lastValueVisible: true,
+        priceLineVisible: false,
+        priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+      }, rsiPaneIndexRef.current);
+      try {
+        chart.priceScale("right", rsiPaneIndexRef.current).applyOptions({
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+          borderVisible: false,
+        });
+      } catch { /* scale id varies by pane */ }
+      rsiRef.current.setData(rsi);
+    }
+
+    if (macd && macd.macd.length > 0) {
+      const pane = chart.addPane(true);
+      const idx = pane.paneIndex();
+      pane.setHeight(80);
+      macdRefs.current.paneIndex = idx;
+      macdRefs.current.hist = chart.addSeries(HistogramSeries, {
+        priceScaleId: "macd",
+        lastValueVisible: false,
+        priceLineVisible: false,
+        priceFormat: { type: "price", precision: 3, minMove: 0.001 },
+      }, idx);
+      macdRefs.current.line = chart.addSeries(LineSeries, {
+        color: "#38bdf8",
+        lineWidth: 1,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        priceScaleId: "macd",
+      }, idx);
+      macdRefs.current.signal = chart.addSeries(LineSeries, {
+        color: "#fbbf24",
+        lineWidth: 1,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        priceScaleId: "macd",
+      }, idx);
+      try {
+        chart.priceScale("macd", idx).applyOptions({
+          scaleMargins: { top: 0.1, bottom: 0.05 },
+          borderVisible: false,
+        });
+      } catch { /* ok */ }
+      macdRefs.current.hist!.setData(macd.hist);
+      macdRefs.current.line!.setData(macd.macd);
+      macdRefs.current.signal!.setData(macd.signal);
+    }
+  }, [rsi, macd]);
 
   return (
     <div className="relative w-full h-full" data-lenis-prevent>
@@ -444,10 +634,24 @@ export function PriceChart({
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  /** A126 Phase 1a — Yahoo 5m session VWAP / volume profile levels. */
-  const [showSessionFlow, setShowSessionFlow] = useState(false);
-  /** A139 — ICT FVG + liquidity sweep overlays (display only). */
-  const [showIct, setShowIct] = useState(false);
+  /** Clickable indicator tags — EM/EMA on by default for technical chart. */
+  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorId>>(
+    () => new Set<IndicatorId>(["em", "ema"]),
+  );
+  const toggleIndicator = useCallback((id: IndicatorId) => {
+    setActiveIndicators((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const showSessionFlow = activeIndicators.has("session");
+  const showIct = activeIndicators.has("ict");
+  const showEm = activeIndicators.has("em");
+  const showEma = activeIndicators.has("ema");
+  const showRsi = activeIndicators.has("rsi");
+  const showMacd = activeIndicators.has("macd");
   const techTicker = showTechnicalZones ? tickerForTechnicals?.toUpperCase() : undefined;
 
   const queries = useQueries({
@@ -543,19 +747,27 @@ export function PriceChart({
       if ((b.high ?? b.close) > (highBar.high ?? highBar.close)) highBar = b;
     }
     return [
-      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: compact ? "Period Low" : "L" },
-      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: compact ? "Period High" : "H" },
+      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: compact ? "L" : "Period Low" },
+      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: compact ? "H" : "Period High" },
     ];
   }, [tickers, historyByTicker, compact]);
 
   const zoneMarkers = useMemo((): LWMarker[] => zones
     .filter(z => z.renderAs === "marker" && z.date)
-    .map(z => ({
-      time: toUnixTime(z.date!),
-      price: z.price,
-      color: z.kind === "support" ? "#f59e0b" : "#a78bfa",
-      text: z.kind === "support" ? (compact ? "Swing Low" : "SL") : (compact ? "Swing High" : "SH"),
-    })), [zones, compact]);
+    .map(z => {
+      let text: string;
+      if (z.label.startsWith("Pivot")) {
+        text = compact ? (z.label.includes("S1") ? "S1" : z.label.includes("R1") ? "R1" : "P") : z.label;
+      } else if (z.kind === "support") {
+        text = compact ? "SL" : "Swing Low";
+      } else {
+        text = compact ? "SH" : "Swing High";
+      }
+      const color = z.label.startsWith("Pivot")
+        ? (z.kind === "support" ? "#22c55e" : "#ef4444")
+        : (z.kind === "support" ? "#f59e0b" : "#a78bfa");
+      return { time: toUnixTime(z.date!), price: z.price, color, text };
+    }), [zones, compact]);
 
   const zonePriceLines = useMemo((): LWPriceLine[] => zones
     .filter(z => z.renderAs === "line")
@@ -566,13 +778,12 @@ export function PriceChart({
       dashed: z.label.startsWith("MA") || z.label.startsWith("BB"),
     })), [zones]);
 
-  /** A93 — ±1σ expected-move levels from ATM IV (weekly + ~30d). */
+  /** A93 — ±1σ expected-move bands from ATM IV, tracked along each bar (wavy, not flat). */
   const ivBand = useMemo(() => {
     if (!showTechnicalZones || tickers.length !== 1) return null;
     const bars = historyByTicker[tickers[0]] ?? [];
     if (bars.length === 0) return null;
     const spot = bars[bars.length - 1]!.close;
-    const lastT = toUnixTime(bars[bars.length - 1]!.date);
     const tech = technicalsQuery.data;
     const ivPct = pfNum(tech?.atmPutIv);
     const weekFrac = pfNum(tech?.impliedMoveWeekly);
@@ -585,35 +796,23 @@ export function PriceChart({
       ? spot * (ivPct / 100) * Math.sqrt(30 / 365)
       : null;
     if (emWeek == null && em30 == null) return null;
-    const tWeek = (lastT + 7 * 86400) as UTCTimestamp;
-    const t30 = (lastT + 30 * 86400) as UTCTimestamp;
     const overlays: LWSeriesSpec[] = [];
-    const lines: LWPriceLine[] = [];
-    if (emWeek != null) {
-      const up = spot + emWeek;
-      const dn = spot - emWeek;
+    const band = (half: number, id: string, color: string) => {
+      const up: LWPoint[] = [];
+      const dn: LWPoint[] = [];
+      for (const b of bars) {
+        const t = toUnixTime(b.date);
+        up.push({ time: t, value: b.close + half });
+        dn.push({ time: t, value: b.close - half });
+      }
       overlays.push(
-        { ticker: "_em_w+", color: "rgba(56,189,248,0.7)", scaleId: "left", data: [{ time: lastT, value: up }, { time: tWeek, value: up }] },
-        { ticker: "_em_w-", color: "rgba(56,189,248,0.7)", scaleId: "left", data: [{ time: lastT, value: dn }, { time: tWeek, value: dn }] },
+        { ticker: `${id}+`, color, scaleId: "left", data: up },
+        { ticker: `${id}-`, color, scaleId: "left", data: dn },
       );
-      lines.push(
-        { price: up, color: "#38bdf8", title: "EM 1w +", dashed: true },
-        { price: dn, color: "#38bdf8", title: "EM 1w −", dashed: true },
-      );
-    }
-    if (em30 != null) {
-      const up = spot + em30;
-      const dn = spot - em30;
-      overlays.push(
-        { ticker: "_em_30+", color: "rgba(167,139,250,0.55)", scaleId: "left", data: [{ time: lastT, value: up }, { time: t30, value: up }] },
-        { ticker: "_em_30-", color: "rgba(167,139,250,0.55)", scaleId: "left", data: [{ time: lastT, value: dn }, { time: t30, value: dn }] },
-      );
-      lines.push(
-        { price: up, color: "#a78bfa", title: "EM 30d +", dashed: true },
-        { price: dn, color: "#a78bfa", title: "EM 30d −", dashed: true },
-      );
-    }
-    return { overlays, lines, emWeek, em30 };
+    };
+    if (emWeek != null) band(emWeek, "_em_w", "rgba(56,189,248,0.65)");
+    if (em30 != null) band(em30, "_em_30", "rgba(167,139,250,0.5)");
+    return { overlays, emWeek, em30 };
   }, [showTechnicalZones, tickers, historyByTicker, technicalsQuery.data]);
 
   const shortStrikeLines = useMemo((): LWPriceLine[] => {
@@ -689,10 +888,11 @@ export function PriceChart({
     console.info("[ict-fire-count]", { ticker: tickers[0], fvg, sweeps, bos, supplyDemand: sd, bars: bars.length });
   }, [showIct, showTechnicalZones, tickers, historyByTicker]);
 
-const allPriceLines = useMemo((): LWPriceLine[] => {
+  const allPriceLines = useMemo((): LWPriceLine[] => {
     if (!showTechnicalZones || tickers.length !== 1) return [];
-    return [...zonePriceLines, ...(ivBand?.lines ?? []), ...shortStrikeLines, ...sessionFlowLines, ...ictPriceLines];
-  }, [showTechnicalZones, tickers.length, zonePriceLines, ivBand, shortStrikeLines, sessionFlowLines, ictPriceLines]);
+    // EM is wavy overlays only — never priceLines (those expand Y and flatten candles).
+    return [...zonePriceLines, ...shortStrikeLines, ...sessionFlowLines, ...ictPriceLines];
+  }, [showTechnicalZones, tickers.length, zonePriceLines, shortStrikeLines, sessionFlowLines, ictPriceLines]);
 
   const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
   const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
@@ -703,19 +903,55 @@ const allPriceLines = useMemo((): LWPriceLine[] => {
   );
 
   const emaSeries = useMemo(() => {
-    if (!showTechnicalZones || tickers.length !== 1) return null;
+    if (!showTechnicalZones || !showEma || tickers.length !== 1) return null;
     const bars = historyByTicker[tickers[0]] ?? [];
     const closes = bars.map(b => b.close);
     const ema50 = computeEMA(closes, 50);
     const ema200 = computeEMA(closes, 200);
     const toPoints = (values: (number | null)[]): LWPoint[] => values
-      .map((v, i) => (v != null ? { time: toUnixTime(bars[i].date), value: v } : null))
+      .map((v, i) => (v != null ? { time: toUnixTime(bars[i]!.date), value: v } : null))
       .filter((p): p is LWPoint => p !== null);
     const e50 = toPoints(ema50);
     const e200 = toPoints(ema200);
     if (e50.length === 0 && e200.length === 0) return null;
     return { ema50: e50, ema200: e200 };
-  }, [showTechnicalZones, tickers, historyByTicker]);
+  }, [showTechnicalZones, showEma, tickers, historyByTicker]);
+
+  const rsiSeries = useMemo((): LWPoint[] | null => {
+    if (!showTechnicalZones || !showRsi || tickers.length !== 1) return null;
+    const bars = historyByTicker[tickers[0]] ?? [];
+    if (bars.length < 16) return null;
+    const vals = computeRSI(bars.map((b) => b.close), 14);
+    const pts: LWPoint[] = [];
+    for (let i = 0; i < vals.length; i++) {
+      if (vals[i] != null) pts.push({ time: toUnixTime(bars[i]!.date), value: vals[i]! });
+    }
+    return pts.length > 0 ? pts : null;
+  }, [showTechnicalZones, showRsi, tickers, historyByTicker]);
+
+  const macdSeries = useMemo(() => {
+    if (!showTechnicalZones || !showMacd || tickers.length !== 1) return null;
+    const bars = historyByTicker[tickers[0]] ?? [];
+    if (bars.length < 35) return null;
+    const { macd, signal, hist } = computeMACD(bars.map((b) => b.close));
+    const macdPts: LWPoint[] = [];
+    const signalPts: LWPoint[] = [];
+    const histPts: LWVolume[] = [];
+    for (let i = 0; i < bars.length; i++) {
+      const t = toUnixTime(bars[i]!.date);
+      if (macd[i] != null) macdPts.push({ time: t, value: macd[i]! });
+      if (signal[i] != null) signalPts.push({ time: t, value: signal[i]! });
+      if (hist[i] != null) {
+        histPts.push({
+          time: t,
+          value: hist[i]!,
+          color: hist[i]! >= 0 ? "rgba(34,197,94,0.55)" : "rgba(239,68,68,0.55)",
+        });
+      }
+    }
+    if (macdPts.length === 0) return null;
+    return { macd: macdPts, signal: signalPts, hist: histPts };
+  }, [showTechnicalZones, showMacd, tickers, historyByTicker]);
 
   const chartSeries = useMemo((): LWSeriesSpec[] => tickers.map((ticker, i) => ({
     ticker,
@@ -811,34 +1047,26 @@ const allPriceLines = useMemo((): LWPriceLine[] => {
         </div>
         <div className="flex items-center gap-2">
           {showTechnicalZones && techTicker && tickers.length === 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowSessionFlow((v) => !v)}
-                className={cn(
-                  "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
-                  showSessionFlow
-                    ? "border-pink-400/50 bg-pink-400/15 text-pink-200"
-                    : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
-                )}
-                title="Yahoo 5m session VWAP + volume profile (POC/VAH/VAL). Estimated delta in API; Polygon 1m backfill still open (A126)."
-              >
-                Session flow{sessionFlowQuery.isFetching ? "…" : ""}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowIct((v) => !v)}
-                className={cn(
-                  "text-[10px] font-semibold px-2 py-1 rounded border transition-colors",
-                  showIct
-                    ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200"
-                    : "border-[#d4af37]/25 text-amber-200/60 hover:text-amber-100",
-                )}
-                title="A139 ICT overlays: FVG, sweeps, BOS, S&D. Display only — no score use until S036."
-              >
-                ICT
-              </button>
-            </>
+            <div className="flex flex-wrap items-center gap-1">
+              {INDICATOR_META.map((ind) => {
+                const on = activeIndicators.has(ind.id);
+                const busy = ind.id === "session" && sessionFlowQuery.isFetching;
+                return (
+                  <button
+                    key={ind.id}
+                    type="button"
+                    onClick={() => toggleIndicator(ind.id)}
+                    className={cn(
+                      "text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors",
+                      on ? ind.on : "border-[#d4af37]/25 text-amber-200/70 hover:text-amber-100",
+                    )}
+                    title={ind.title}
+                  >
+                    {ind.label}{busy ? "…" : ""}
+                  </button>
+                );
+              })}
+            </div>
           )}
           {isAdmin && showTechnicalZones && techTicker && (
             <button
@@ -876,6 +1104,23 @@ const allPriceLines = useMemo((): LWPriceLine[] => {
           </div>
         </div>
       </div>
+
+      {compact && showEm && ivBand && (
+        <div className="mb-1.5 flex items-center gap-3 text-[9px] font-medium text-amber-200/70">
+          {ivBand.emWeek != null && (
+            <span className="inline-flex items-center gap-1">
+              <span className="h-px w-3 border-t border-dashed border-sky-400" />
+              1w EM
+            </span>
+          )}
+          {ivBand.em30 != null && (
+            <span className="inline-flex items-center gap-1">
+              <span className="h-px w-3 border-t border-dashed border-violet-400" />
+              30d EM
+            </span>
+          )}
+        </div>
+      )}
 
       {!compact && <div className="flex items-center gap-4 mb-3 flex-wrap">
         {tickers.length > 1 ? (
@@ -990,7 +1235,12 @@ const allPriceLines = useMemo((): LWPriceLine[] => {
         )}
       </div>}
 
-      <div className={compact ? "flex-1 min-h-[220px] w-full relative" : "h-[320px] w-full relative"}>
+      <div className={cn(
+        "w-full relative",
+        compact
+          ? (showRsi || showMacd ? "flex-1 min-h-[320px]" : "flex-1 min-h-[220px]")
+          : (showRsi || showMacd ? "h-[420px]" : "h-[320px]"),
+      )}>
         {isLoading && !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center bg-card/50 backdrop-blur-sm z-10 rounded-lg border border-border/50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1007,10 +1257,12 @@ const allPriceLines = useMemo((): LWPriceLine[] => {
             emaSeries={emaSeries}
             markers={tickers.length === 1 ? allMarkers : undefined}
             priceLines={tickers.length === 1 && showTechnicalZones ? allPriceLines : undefined}
-            overlays={tickers.length === 1 && showTechnicalZones ? ivBand?.overlays : undefined}
+            overlays={tickers.length === 1 && showTechnicalZones && showEm ? ivBand?.overlays : undefined}
             candles={ohlcv.candles}
             volumes={ohlcv.volumes}
             vwap={ohlcv.vwap}
+            rsi={rsiSeries}
+            macd={macdSeries}
           />
         )}
       </div>
