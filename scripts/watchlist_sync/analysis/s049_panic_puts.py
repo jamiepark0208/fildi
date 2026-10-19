@@ -29,8 +29,11 @@ from build_plan import connect  # noqa: E402
 
 LSEG = HERE.parents[2] / "research" / "lseg"
 sys.path.insert(0, str(LSEG))
-import option_prices as OP  # noqa: E402
-from _session import lseg_session  # noqa: E402
+try:  # LSEG venv only; strategy_signals.py imports events()/put_delta() from the app venv
+    import option_prices as OP  # noqa: E402
+    from _session import lseg_session  # noqa: E402
+except ImportError:
+    OP = lseg_session = None
 
 START, HOLDOUT = date(2026, 1, 2), date(2026, 7, 1)
 END = date(2099, 1, 1)
@@ -91,14 +94,14 @@ def third_friday(y, m):
     return d + timedelta((4 - d.weekday()) % 7)
 
 
-def trade(ld, conn, t, rows, i):
-    """Sell the ~0.20Δ monthly put the day after rows[i]; None if LSEG has no usable mid."""
-    d, S, iv = rows[i + 1]
+def pick_contract(ld, conn, t, d, S, iv, live=False):
+    """Monthly put nearest 0.20Δ (BS at iv30), expiry nearest 30 DTE in 15–45 → (expiry, strike, LSEG history) or None.
+    Shared with strategy_signals.py (live=True allows unexpired contracts)."""
     if not iv:
         return None
     exps = [third_friday(y, m) for y, m in ((d.year, d.month), (d.year + d.month // 12, d.month % 12 + 1),
                                             (d.year + (d.month + 1) // 12, (d.month + 1) % 12 + 1))]
-    exps = [e for e in exps if 15 <= (e - d).days <= 45 and e < date.today() - timedelta(days=1)]
+    exps = [e for e in exps if 15 <= (e - d).days <= 45 and (live or e < date.today() - timedelta(days=1))]
     if not exps:
         return None
     e = min(exps, key=lambda x: abs((x - d).days - 30))
@@ -109,10 +112,25 @@ def trade(ld, conn, t, rows, i):
         lo, hi = (k, hi) if put_delta(S, k, v, T) > -0.20 else (lo, k)
     for K in OP.strike_ladder((lo + hi) / 2):
         hist = OP.history(ld, conn, t, e, "P", K)
-        if not hist:
-            continue
-        day = next((r for r in hist if r[0] == d), None)
-        mid = (day[3] or ((day[1] + day[2]) / 2 if day[1] is not None and day[2] is not None else None)) if day else None
+        if hist:
+            return e, K, hist
+    return None
+
+
+def mid_on(hist, d):
+    day = next((r for r in hist if r[0] == d), None)
+    if not day:
+        return None
+    return day[3] or ((day[1] + day[2]) / 2 if day[1] is not None and day[2] is not None else None)
+
+
+def trade(ld, conn, t, rows, i):
+    """Sell the ~0.20Δ monthly put the day after rows[i]; None if LSEG has no usable mid."""
+    d, S, iv = rows[i + 1]
+    got = pick_contract(ld, conn, t, d, S, iv)
+    if got:
+        e, K, hist = got
+        mid = mid_on(hist, d)
         if not mid or mid <= 0:
             return None
         last = [r for r in hist if r[0] <= e and r[3] is not None]

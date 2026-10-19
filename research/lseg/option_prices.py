@@ -41,8 +41,9 @@ def rics(root: str, expiry: date, cp: str, strike: float) -> list[str]:
 def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> list[tuple] | None:
     """[(date, bid, ask, mid, last, oi, iv)] for the contract, from cache or LSEG; None if no such contract."""
     for ric in rics(root, expiry, cp, strike):
-        got = conn.execute("SELECT n FROM optlab.lseg_opt_fetched WHERE ric = %s", (ric,)).fetchone()
-        if got is None:
+        got = conn.execute("SELECT n, fetched_at::date < current_date FROM optlab.lseg_opt_fetched WHERE ric = %s",
+                           (ric,)).fetchone()
+        if got is None or (got[1] and expiry >= date.today()):  # live contracts: refresh once a day
             try:
                 h = ld.get_history(universe=ric, fields=FIELDS, interval="daily",
                                    start=str(expiry - timedelta(days=400)), end=str(expiry))
@@ -59,7 +60,7 @@ def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> l
                 cur.execute("INSERT INTO optlab.lseg_opt_fetched (ric, n) VALUES (%s,%s) ON CONFLICT (ric) DO UPDATE SET "
                             "n = excluded.n, fetched_at = now()", (ric, len(rows)))
             conn.commit()
-            got = (len(rows),)
+            got = (len(rows), False)
         if got[0]:
             return conn.execute("SELECT date, bid, ask, mid, last, oi, iv FROM optlab.lseg_opt_daily WHERE ric = %s "
                                 "ORDER BY date", (ric,)).fetchall()
