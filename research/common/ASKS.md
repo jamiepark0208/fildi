@@ -141,3 +141,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A160](asks/A160.md) | 2026-10-18 | Claude → Cursor | [quant] Peer groups: merge waste→industrials, large+regional banks; GICS cross-check | done (merges Cursor; GICS cross-check + override fix Claude 10-18) |
 | [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | planned — hold out taught items (Claude 10-18) |
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | open |
+| [A167](asks/A167.md) | 2026-10-18 | Claude → Cursor | [quant] Put-tuned tech score in stockQuality (S045: trend − volumeConfirm, +15.7 bp/wk OOS) | needs Jamie (rule 7) |

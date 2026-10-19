@@ -5,6 +5,10 @@
 1. **Never grade put/call factors on raw return.** An unexpired option returns premium ÷ strike, so high-IV names "win" by construction
    (fake ICs of 0.4–0.7 in S005; StarMine looked t −15 in S003). Use premium kept (P&L ÷ premium), stock vs strike after assignment,
    or return vs sector peers.
+1b. **Grade a feature on the decision it feeds, not on stock direction** (Jamie 10-18, S045). Before a FAIL, test it on every
+   use it could have: put selection (weekly 1σ-IV put pnl + breach, `analysis/s045_put_retest.py`), strike placement, sizing
+   (pnl variance, not mean), avoid list (left tail). S042 graded the tech score on 21d return → "≈ 0"; on puts it sorted
+   +15.7 bp/wk. A FAIL row must list which uses were tested.
 2. **Hold IV fixed** (partial IC or IV-neutral buckets) for any option factor; then run a placebo (shuffled factor IC ≈ 0). S004.
 3. **Volatility mechanics:** raw % drops and trailing-vol scaling both produce fake signals; normalize drawdowns by implied σ. S004.
 4. **Redundancy:** test a new factor with trend held fixed; many "signals" are price momentum again (PT revisions ρ 0.77, S009).
