@@ -661,6 +661,36 @@ def bullets(book: dict, sims: dict) -> list[dict]:
     return sorted(out, key=lambda x: (-LEVEL[x["level"]], x["key"]))
 
 
+def holdings_on_avoid(conn, allongs: list[dict]) -> list[dict]:
+    """A174 (S044): stock holdings that the latest published Model List puts in Avoid. Display only — the trade is Jamie's call."""
+    held = sorted({x["t"] for x in allongs if (x.get("mv") or 0) > 0})
+    if not held:
+        return []
+    latest = rows(conn, """SELECT i.ticker FROM watchlist_sync.model_items i
+                           WHERE i.run_id = (SELECT MAX(id) FROM watchlist_sync.model_runs) AND i.folder_key = 'avoid'
+                             AND UPPER(i.ticker) = ANY(%s)""", (held,))
+    names = sorted({r["ticker"].upper() for r in latest})
+    if not names:
+        return []
+    out = []
+    for t in names:
+        # first day of the current Avoid streak (runs in the last 60 days), and the move since then vs SPY
+        first = rows(conn, """SELECT MIN(r.created_at)::date AS d FROM watchlist_sync.model_runs r
+                              JOIN watchlist_sync.model_items i ON i.run_id = r.id
+                              WHERE UPPER(i.ticker) = %s AND i.folder_key = 'avoid' AND r.created_at > now() - interval '60 days'""", (t,))[0]["d"]
+        px = rows(conn, """SELECT ticker, (array_agg(close ORDER BY date) FILTER (WHERE date >= %s))[1]::float8 AS p0,
+                                  (array_agg(close ORDER BY date DESC))[1]::float8 AS p1
+                           FROM prices_historical WHERE ticker IN (%s, 'SPY') AND date >= %s GROUP BY 1""", (first, t, first))
+        p = {r["ticker"]: r for r in px}
+        rel = None
+        if t in p and "SPY" in p and p[t]["p0"] and p["SPY"]["p0"]:
+            rel = (p[t]["p1"] / p[t]["p0"] - 1) - (p["SPY"]["p1"] / p["SPY"]["p0"] - 1)
+        out.append(f"{t} (since {str(first)[5:]}{f', {rel:+.0%} vs SPY' if rel is not None else ''})")
+    return [{"key": "avoid:holdings", "level": "amber", "value": len(names),
+             "text": f"You hold {len(names)} name(s) the Model List rates Avoid: {', '.join(out)}. Your call — Avoid names lagged "
+                     f"SPY by ~9 pp in week 1 (S044, one week, mostly high-vol names)."}]
+
+
 def main() -> None:
     now = datetime.now(PT)
     conn = connect()
@@ -698,6 +728,10 @@ def main() -> None:
     prev = conn.execute("SELECT payload FROM watchlist_sync.pm_alerts ORDER BY id DESC LIMIT 1").fetchone()
     prev = {x["key"]: x for x in (prev[0]["bullets"] if prev else [])}
     bl = bullets(book, sims)
+    try:
+        bl += holdings_on_avoid(conn, allongs)
+    except Exception as e:  # display-only context must never break the risk alerts
+        print(f"holdings_on_avoid skipped ({e})", file=sys.stderr)
     for x in bl:
         p = prev.get(x["key"])
         x["change"] = "new" if not p else "worse" if (LEVEL[x["level"]], x["value"]) > (LEVEL[p["level"]], p["value"] * 1.1) else \
