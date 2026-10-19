@@ -10,6 +10,7 @@ import { logger } from "./logger.js";
 
 const FED_SPEECHES_RSS = "https://www.federalreserve.gov/feeds/speeches.xml";
 const FED_PRESS_RSS = "https://www.federalreserve.gov/feeds/press_all.xml";
+const FED_TESTIMONY_RSS = "https://www.federalreserve.gov/feeds/Testimony.xml";
 
 /** Last-name / slug → figure_id (only registry Fed officials). */
 const FED_SPEAKER_MAP: Record<string, string> = {
@@ -29,7 +30,7 @@ export function mapFedSpeaker(title: string): string | null {
 }
 
 export function mapFedSpeakerFromUrl(url: string): string | null {
-  const m = /\/speech\/([a-z]+)20\d{6}/i.exec(url);
+  const m = /\/(?:speech|testimony)\/([a-z]+)20\d{6}/i.exec(url);
   if (!m) return null;
   return FED_SPEAKER_MAP[m[1]!.toLowerCase()] ?? null;
 }
@@ -215,6 +216,59 @@ export async function ingestFedMonetaryPress(opts?: {
   return result;
 }
 
+/** Fed congressional testimony RSS → registry Fed figures. */
+export async function ingestFedTestimony(opts?: {
+  limit?: number;
+  dryRun?: boolean;
+}): Promise<VoicesIngestResult> {
+  const limit = opts?.limit ?? 20;
+  const result: VoicesIngestResult = {
+    fetched: 0, inserted: 0, skipped: 0, unknownSpeaker: 0, errors: 0,
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  let xml: string;
+  try {
+    const res = await fetch(FED_TESTIMONY_RSS, {
+      signal: controller.signal,
+      headers: { "User-Agent": "TradeDash/1.0 (A85 voices ingest)" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Fed testimony RSS HTTP ${res.status}`);
+    xml = await res.text();
+  } catch (err) {
+    clearTimeout(timer);
+    logger.warn({ err: String(err) }, "figure-views-ingest: Fed testimony RSS failed");
+    result.errors++;
+    return result;
+  }
+  const items = parseFedSpeechesRss(xml).slice(0, limit);
+  result.fetched = items.length;
+  for (const item of items) {
+    try {
+      const figureId = mapFedSpeaker(item.title) ?? mapFedSpeakerFromUrl(item.link);
+      if (!figureId) { result.unknownSpeaker++; continue; }
+      if (await sourceExists(item.link)) { result.skipped++; continue; }
+      if (opts?.dryRun) { result.inserted++; continue; }
+      await insertView({
+        figureId,
+        asOf: asOfFromPub(item.pubDate),
+        claim: item.title.slice(0, 500),
+        asset: "rates",
+        direction: null,
+        horizon: null,
+        confidence: null,
+        sourceUrl: item.link,
+      });
+      result.inserted++;
+    } catch (err) {
+      result.errors++;
+      logger.warn({ err: String(err), link: item.link }, "figure-views-ingest: testimony insert failed");
+    }
+  }
+  return result;
+}
+
 function mergeResults(a: VoicesIngestResult, b: VoicesIngestResult): VoicesIngestResult {
   return {
     fetched: a.fetched + b.fetched,
@@ -225,13 +279,14 @@ function mergeResults(a: VoicesIngestResult, b: VoicesIngestResult): VoicesInges
   };
 }
 
-/** Speeches + FOMC/monetary press. */
+/** Speeches + FOMC/monetary press + testimony. */
 export async function ingestFedSpeeches(opts?: {
   limit?: number;
   dryRun?: boolean;
 }): Promise<VoicesIngestResult> {
   const a = await ingestFedSpeechesOnly(opts);
   const b = await ingestFedMonetaryPress(opts);
-  return mergeResults(a, b);
+  const c = await ingestFedTestimony(opts);
+  return mergeResults(mergeResults(a, b), c);
 }
 

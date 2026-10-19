@@ -8,7 +8,6 @@ import { recordOptionsChainSource } from "./options-chain-source-stats.js";
 import { bsGreeks } from "./options-greeks.js";
 export { bsGreeks, normCDF } from "./options-greeks.js";
 import { daysUntilCeil, exactDaysUntil, settlementOffsetDays } from "./date-util.js";
-import { mapWithConcurrency } from "./http-client.js";
 
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -47,7 +46,7 @@ export interface OptionsChainResult {
 }
 
 // Raw shape we read from yf2 (validateResult: false)
-interface RawContract {
+export interface RawContract {
   strike?: number;
   bid?: number;
   ask?: number;
@@ -57,7 +56,7 @@ interface RawContract {
   openInterest?: number;
 }
 
-interface RawOptionsResponse {
+export interface RawOptionsResponse {
   expirationDates?: unknown[];
   quote?: { regularMarketPrice?: number };
   options?: Array<{
@@ -157,7 +156,7 @@ export async function getOptionPositionQuote(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function toDateStr(d: unknown): string {
+export function toDateStr(d: unknown): string {
   if (d instanceof Date) return d.toISOString().slice(0, 10);
   if (typeof d === "string") return d.slice(0, 10);
   return "";
@@ -258,7 +257,7 @@ function pickNearestExpiry(dates: Date[], targetDte: number, maxDiffRatio: numbe
   return best;
 }
 
-async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsResponse> {
+export async function fetchChain(ticker: string, date?: Date): Promise<RawOptionsResponse> {
   const opts = date ? { date } : {};
   return yahooFinance.options(
     ticker,
@@ -377,99 +376,4 @@ async function getOptionsChainYahoo(key: string): Promise<OptionsChainResult[]> 
   return results.map((c) => ({ ...c, source: "yahoo" as const }));
 }
 
-// ── IV term structure (ATM implied vol across the expiry calendar) ────────────
-// Ticker-level, not tied to any one strike — the whole point is showing how ATM IV
-// changes across time buckets (1W/1M/2M/3M/6M/1Y), e.g. backwardation before earnings.
-
-export interface IvTermPoint {
-  label:  string; // "1W" | "1M" | "2M" | "3M" | "6M" | "1Y"
-  expiry: string;
-  dte:    number;
-  iv:     number; // decimal, e.g. 0.32
-}
-
-const IV_TERM_BUCKETS: Array<{ label: string; targetDte: number }> = [
-  { label: "1W", targetDte: 7 },
-  { label: "1M", targetDte: 30 },
-  { label: "2M", targetDte: 60 },
-  { label: "3M", targetDte: 90 },
-  { label: "6M", targetDte: 180 },
-  { label: "1Y", targetDte: 365 },
-];
-
-export async function getIvTermStructure(ticker: string): Promise<IvTermPoint[]> {
-  const key = ticker.toUpperCase();
-
-  const cachedDates = expiryCache.get(key);
-  let raw0: RawOptionsResponse | null = null;
-  let allDates: Date[];
-
-  if (cachedDates) {
-    allDates = cachedDates;
-  } else {
-    raw0 = await fetchChain(key);
-    allDates = (raw0.expirationDates ?? []).filter((d): d is Date => d instanceof Date);
-    expiryCache.set(key, allDates);
-  }
-
-  const future = allDates.filter(d => exactDaysUntil(d) > 0).sort((a, b) => a.getTime() - b.getTime());
-  if (future.length === 0) return [];
-
-  // Nearest available expiry per target bucket; skip a bucket if the closest match is
-  // way off target (short-dated chains shouldn't fabricate a fake "1Y" point), and
-  // de-dupe expiries picked by more than one bucket (short chains often collapse buckets).
-  const picked = new Map<string, { label: string; date: Date }>();
-  for (const { label, targetDte } of IV_TERM_BUCKETS) {
-    let best: Date | null = null;
-    let bestDiff = Infinity;
-    for (const d of future) {
-      const diff = Math.abs(exactDaysUntil(d) - targetDte);
-      if (diff < bestDiff) { bestDiff = diff; best = d; }
-    }
-    if (!best || bestDiff > targetDte * 0.6) continue;
-    const dateKey = toDateStr(best);
-    if (!picked.has(dateKey)) picked.set(dateKey, { label, date: best });
-  }
-  if (picked.size === 0) return [];
-
-  if (!raw0) raw0 = await fetchChain(key, [...picked.values()][0].date);
-  const spot = raw0.quote?.regularMarketPrice;
-  if (!spot) return [];
-
-  const firstRawDte = daysUntil(raw0.options?.[0]?.expirationDate);
-  const pickedList = [...picked.values()];
-
-  const results = (
-    await mapWithConcurrency(pickedList, 3, async ({ label, date }) => {
-      const canReuse =
-        Math.abs(daysUntil(date) - firstRawDte) <= 1 && (raw0!.options?.[0]?.puts?.length ?? 0) > 0;
-      const raw = canReuse ? raw0! : await fetchChain(key, date);
-      const contracts = [...(raw.options?.[0]?.puts ?? []), ...(raw.options?.[0]?.calls ?? [])].filter(
-        (c): c is RawContract & { strike: number; impliedVolatility: number } =>
-          typeof c.strike === "number" &&
-          typeof c.impliedVolatility === "number" &&
-          c.impliedVolatility > 0,
-      );
-      if (contracts.length === 0) return null;
-
-      let atm = contracts[0]!;
-      let bestDiff = Math.abs(atm.strike - (spot as number));
-      for (const c of contracts) {
-        const diff = Math.abs(c.strike - (spot as number));
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          atm = c;
-        }
-      }
-
-      return {
-        label,
-        expiry: toDateStr(date),
-        dte: Math.round(exactDaysUntil(date)),
-        iv: atm.impliedVolatility,
-      } satisfies IvTermPoint;
-    })
-  ).filter((r): r is IvTermPoint => r != null);
-
-  return results.sort((a, b) => a.dte - b.dte);
-}
+export { getIvTermStructure, type IvTermPoint } from "./options-iv-term.js";
