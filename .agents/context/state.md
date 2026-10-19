@@ -6,7 +6,7 @@
 **build** — last updated 2026-10-19
 
 ## Active work
-- Working: S041-reclassified-fail, S044-roi-review, S045-put-retest, options-1.1.0-live, schwab-auth-watchdog, transcripts-timeout-fix, ASKS-A170-A174
+- Working: options-1.2.0-calls-live, scoreboard-four-numbers, avoid-holdings-alert, backtest-playbook
 - In progress: none
 - Blocked: none
 
