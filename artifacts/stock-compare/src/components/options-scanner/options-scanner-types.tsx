@@ -105,10 +105,10 @@ export function SortableHeader({ label, sortKey, active, className, width, onCli
       type="button"
       onClick={() => onClick(sortKey)}
       className={cn(
-        "text-left font-normal transition-colors min-w-0",
+        "text-left font-semibold transition-colors min-w-0",
         width,
         className,
-        active ? "text-[#d4af37]" : "text-amber-200/55 hover:text-[#d4af37]",
+        active ? "text-[#d4af37]" : "text-[#d4af37]/85 hover:text-[#d4af37]",
       )}
     >
       <span className="inline-flex items-center gap-0.5 whitespace-nowrap leading-none">

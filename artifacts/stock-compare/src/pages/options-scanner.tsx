@@ -990,15 +990,15 @@ export function OptionsScannerContent({
             <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black/40">
             {/* Column headers — track matches ScannerRow; only #/Ticker/Price stay bold */}
             <div
-              className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] tracking-wide uppercase text-[#d4af37]")}
+              className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] tracking-wide uppercase text-[#d4af37] font-semibold")}
               style={{ borderLeft: "3px solid transparent" }}
             >
               <div className="text-center font-semibold">#</div>
               <div className="font-semibold">Ticker</div>
               <div className="font-semibold" title="Live equity quote (Schwab→Yahoo cache); % under price = vs nightly options snapshot">Price</div>
-              <div className="font-normal text-amber-200/55">Sig</div>
-              <div className="font-normal text-amber-200/55" title="Graded sell-put/sell-call win-loss (Sharpe / StkΔ in row tooltip)">Rec</div>
-              <div className="font-normal text-amber-200/55" title="Hover a row's RSI value for full reasoning">RSI</div>
+              <div className="font-semibold" title="Entry gate: puts = oversold V2 · calls = overbought V2 (hover badge for detail)">Sig</div>
+              <div className="font-semibold" title="Graded live model recs only (not backtests). Empty = never snapshot-scored or not yet expired/graded.">Rec</div>
+              <div className="font-semibold" title="Hover a row's RSI value for full reasoning">RSI</div>
               <SortableHeader label="Opt" sortKey="optionScore" active={sort === "optionScore"} onClick={setSort} />
               <SortableHeader label="Stock" sortKey="score" active={sort === "score"} onClick={setSort} />
               <SortableHeader label="IV" sortKey="iv" active={sort === "iv"} onClick={setSort} />

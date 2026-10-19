@@ -19,13 +19,13 @@ import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
 import { ExpirySection } from "./options-expiry-section";
 import { IvTermStructureChart } from "./options-iv-chart";
 
-function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
+function SignalBadge({ signal, title }: { signal: "GO" | "WATCH" | "NO"; title?: string }) {
   const cls =
     signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
     signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
                          "bg-muted text-white border-border";
   return (
-    <Badge variant="outline" className={cn("text-[8px] px-1 py-0 h-3.5 font-bold leading-none", cls)}>
+    <Badge variant="outline" title={title} className={cn("text-[8px] px-1 py-0 h-3.5 font-bold leading-none", cls)}>
       {signal}
     </Badge>
   );
@@ -132,10 +132,22 @@ export function ScannerRow({
 }: ScannerRowProps) {
   const { data: tickerRecords } = useTickerTrackRecord();
 
-  // Put mode: legacy per-ticker RSI/MFI threshold signal (server scorecard).
-  // Call mode: V2 call-side gate (overbought + fading momentum) from `score` —
-  // the legacy indicator signal is oversold-based and would be backwards here.
-  const signal    = isCall ? (score?.gateStatus ?? "NO") : (indicator?.signal ?? "NO");
+  // SIG = technical entry gate V2 (both sides). Puts: oversold+momentum. Calls: overbought+fade.
+  // Prefer lane rankings gateStatus; fall back to legacy scorecard RSI/MFI for puts only.
+  const signal: "GO" | "WATCH" | "NO" =
+    score?.gateStatus ?? (isCall ? "NO" : (indicator?.signal ?? "NO"));
+  const signalTitle = [
+    score?.reason,
+    !isCall && indicator && !score?.reason ? buildReasoning(indicator, null, macroRegime) : null,
+    isOversold && !isCall ? "Live oversold hotlist (OS)" : null,
+    isOverbought && isCall ? "Live overbought hotlist (OB)" : null,
+    streetEventRisk ? "WRDS street-event risk" : null,
+    techRow?.earningsDaysOut != null && techRow.earningsDaysOut >= 0 && techRow.earningsDaysOut <= 7
+      ? `Earnings in ${techRow.earningsDaysOut}d`
+      : null,
+    bestOptionScore != null ? `Opt score ${bestOptionScore.toFixed(1)}` : null,
+    "SIG = technical entry gate (not the option scorer)",
+  ].filter(Boolean).join(" · ");
   // Price: golden-source live (Schwab→Yahoo 60s cache) first — not nightly snap, not
   // options-chain spot on expand. Fallback: scorecard → snap → chain.
   const fallbackSpot = (indicator?.price != null && indicator.price > 0)
@@ -361,21 +373,38 @@ export function ScannerRow({
         </div>
 
         <div className="flex items-center gap-0.5 min-w-0">
-          <SignalBadge signal={signal} />
+          <SignalBadge signal={signal} title={signalTitle} />
           {callWarnings.length > 0 && (
             <span className="text-amber-400 text-[9px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
           )}
         </div>
 
-        {/* Win/loss — compact W-L; Sharpe/StkΔ in tooltip */}
+        {/* Win/loss — compact W-L; Sharpe/StkΔ in tooltip. Empty = no graded model_recs yet. */}
         <div className="min-w-0 overflow-hidden">
-          <TickerRecordBadge
-            record={tickerRecords?.[ticker]?.[isCall ? "call" : "put"]}
-            livePrice={price}
-            side={isCall ? "call" : "put"}
-            className=""
-            compact
-          />
+          {(() => {
+            const rec = tickerRecords?.[ticker]?.[isCall ? "call" : "put"];
+            const graded = (rec?.wins ?? 0) + (rec?.losses ?? 0) > 0;
+            const hasOpen = rec?.openSpot != null && rec.openSpot > 0;
+            if (!graded && !hasOpen) {
+              return (
+                <span
+                  className="text-[9px] font-mono text-zinc-500"
+                  title="No graded live model recs for this ticker/side yet. Rec is accountability on real snapshots (model_recs), not a historical backtest. Expand Track Record or wait for Friday/nightly snapshots to grade."
+                >
+                  —
+                </span>
+              );
+            }
+            return (
+              <TickerRecordBadge
+                record={rec}
+                livePrice={price}
+                side={isCall ? "call" : "put"}
+                className=""
+                compact
+              />
+            );
+          })()}
         </div>
 
         {/* RSI */}
