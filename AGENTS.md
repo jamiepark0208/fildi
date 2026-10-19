@@ -5,7 +5,7 @@
 1. **[`.agents/context/INDEX.md`](.agents/context/INDEX.md)** — topic → file map  
 2. **[`.agents/context/agentic-floors.md`](.agents/context/agentic-floors.md)** — R1–R10 + do-not-build  
 3. **[`.agents/AGENTS.md`](.agents/AGENTS.md)** — subagent routing (verifier / data-agent / ui-agent)
-4. **[`research/studies/INDEX.md`](research/studies/INDEX.md)** — every study / backtest and its answer. Check it before any analysis; add a row after
+4. **[`research/studies/INDEX.md`](research/studies/INDEX.md)** — every study / backtest and its answer. Check it before any analysis; add a row after. How to run one: [`PLAYBOOK.md`](research/studies/PLAYBOOK.md)
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).

@@ -23,7 +23,7 @@
 | LSEG ↔ WRDS research split (shared plan) | `research/LSEG_WRDS_SYNC.md` | **§11 mutual impact** + **§13 ops** before editing |
 | Research ops health (WRDS/LSEG cache + desktop) | `GET /api/research/ops` · `research/common/health.py` · Scheduled Tasks **Research Ops Health** | Probe only — never auto-sync vendors |
 | LSEG research | `research/lseg/PLAYBOOK.md` | Soft UI only — never fund_score |
-| **Research studies / backtests (what we already know)** | `research/studies/INDEX.md` → `METHODS.md` | Re-deriving a study; `out/**` data files |
+| **Research studies / backtests (what we already know)** | `research/studies/INDEX.md` → `METHODS.md` → **`PLAYBOOK.md` (how to run a backtest: tables, s045 harness, checks)** | Re-deriving a study; `out/**` data files |
 | Watchlist recommendations / Model List | `scripts/watchlist_sync/PLAN.md` → `NEXT_SESSION.md` | Model tags never write `watchlist.color_tag`; no Robinhood writes |
 | Shared research universe (≤50 tickers) | `research/common/universe_book.txt` | Do not duplicate it |
 | WRDS → fund growth (IBES breadth/SUE) | `fund-score-engine` + `wrds_research` | Soft UI: Breakdown Street panel; options ER haircut |

@@ -3,6 +3,8 @@
 One catalog (`INDEX.md`), one set of method rules (`METHODS.md`), one report per study. Goal: never redo a study, always find the answer
 in under a minute.
 
+**Hands-on how-to (data tables, harness, checks, result → product): [`PLAYBOOK.md`](PLAYBOOK.md).**
+
 ## Before
 1. Search `INDEX.md` (catalog + topic lookup) and `scripts/watchlist_sync/FACTOR_MAP.md`. If it's answered, cite it; if a re-test is
    due, re-run its script instead of writing a new one.

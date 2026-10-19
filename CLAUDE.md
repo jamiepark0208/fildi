@@ -34,6 +34,7 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Trader strategy/scoring | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | Feature planning | .claude/skills/feature-planner.md |
+| Backtest / "does X help trades?" (put/call/avoid re-tests) | research/studies/PLAYBOOK.md |
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session — user-triggered only, at ~90-95% context, never automatic | .claude/skills/session-wrap.md |
