@@ -512,10 +512,37 @@ router.get("/revision-breadth", async (req: Request, res: Response) => {
         medianDrift: row.mediandrift != null ? Number(row.mediandrift) : null,
       });
     }
+    const ev = await pool.query(
+      `SELECT a.event_date::text AS date,
+              a.ticker,
+              a.firm,
+              lower(a.action) AS action,
+              a.from_grade,
+              a.to_grade,
+              COALESCE(NULLIF(TRIM(reg.sector), ''), 'Unknown') AS sector
+       FROM analyst_events a
+       LEFT JOIN ticker_registry reg ON reg.ticker = a.ticker
+       WHERE a.event_date >= (CURRENT_DATE - $1::int)
+         AND lower(a.action) IN ('upgrade', 'downgrade')
+       ORDER BY a.event_date DESC
+       LIMIT 400`,
+      [days],
+    );
+    const events = ev.rows.map((row) => ({
+      date: row.date as string,
+      ticker: row.ticker as string,
+      firm: row.firm as string | null,
+      action: row.action as "upgrade" | "downgrade",
+      fromGrade: row.from_grade as string | null,
+      toGrade: row.to_grade as string | null,
+      sector: row.sector as string,
+    }));
+
     res.json({
       days,
       bySector,
-      note: "LSEG eps_drift_30d_pct breadth — display only, not a Model List input (A95). History from signals_daily start (~2026-10-04). Unknown = no ticker_registry.sector.",
+      events,
+      note: "LSEG eps_drift_30d_pct breadth + rating up/down dots (maintain/reiterate/initiate excluded). Display only (A95).",
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

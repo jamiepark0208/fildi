@@ -1,4 +1,4 @@
-/** A95 — LSEG sector EPS-revision breadth (Macro › Heatmap). Display only. */
+/** A95 — LSEG sector EPS-revision breadth + rating up/down events (Macro › Heatmap). */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,14 +16,25 @@ type Point = {
   medianDrift: number | null;
 };
 
+type Event = {
+  date: string;
+  ticker: string;
+  firm: string | null;
+  action: "upgrade" | "downgrade";
+  fromGrade: string | null;
+  toGrade: string | null;
+  sector: string;
+};
+
 type Api = {
   bySector: Record<string, Point[]>;
+  events?: Event[];
   note?: string;
 };
 
 export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
   const { data, isLoading, isError } = useQuery<Api>({
-    queryKey: ["macro-revision-breadth", 60],
+    queryKey: ["macro-revision-breadth", 60, "v2"],
     queryFn: () => fetch("/api/macro/revision-breadth?days=60").then((r) => {
       if (!r.ok) throw new Error(`revision-breadth ${r.status}`);
       return r.json();
@@ -43,6 +54,10 @@ export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
   const [sector, setSector] = useState<string>("");
   const active = sector && data?.bySector[sector] ? sector : sectors[0] ?? "";
   const series = active ? (data?.bySector[active] ?? []) : [];
+  const events = useMemo(
+    () => (data?.events ?? []).filter((e) => e.sector === active).slice(0, 24),
+    [data, active],
+  );
 
   if (isLoading || (!data && enabled)) {
     return (
@@ -94,8 +109,26 @@ export function SectorRevisionBreadth({ enabled }: { enabled: boolean }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {events.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-2 pb-1.5 max-h-[72px] overflow-y-auto">
+          {events.map((e, i) => (
+            <span
+              key={`${e.date}-${e.ticker}-${e.firm}-${i}`}
+              title={`${e.firm ?? "?"} · ${e.fromGrade ?? "?"} → ${e.toGrade ?? "?"} · ${e.date}`}
+              className={cn(
+                "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                e.action === "upgrade"
+                  ? "text-emerald-300 border-emerald-600/40 bg-emerald-950/40"
+                  : "text-rose-300 border-rose-600/40 bg-rose-950/40",
+              )}
+            >
+              {e.date.slice(5)} {e.ticker} {e.action === "upgrade" ? "↑" : "↓"}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="text-[10px] text-amber-200/35 px-3 pb-2">
-        LSEG FY1 EPS 30d drift — (# &gt; +1%) − (# &lt; −1%). Display only; not a signal. History from ~2026-10-04.
+        Line = LSEG FY1 EPS 30d drift breadth. Chips = rating up/down only (no maintain/reiterate). Display only.
       </p>
     </div>
   );
