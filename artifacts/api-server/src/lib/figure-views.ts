@@ -62,8 +62,89 @@ async function ensure(): Promise<void> {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS figure_views_figure_asof_idx
     ON figure_views (figure_id, as_of DESC)`);
+  await db.execute(sql`
+    ALTER TABLE figure_views ADD COLUMN IF NOT EXISTS forecast_p double precision`);
   ensured = true;
 }
+
+/** Binary Brier: (p − o)². o ∈ {0,1}, p ∈ [0,1]. */
+export function brierScore(p: number, outcomeHit: boolean): number {
+  const o = outcomeHit ? 1 : 0;
+  const x = Math.min(1, Math.max(0, p));
+  return (x - o) ** 2;
+}
+
+/** Empirical-Bayes shrink mean toward 0.5 (A85 / model-track pattern). */
+export function shrinkToChance(mean: number, n: number, prior = 8): number {
+  if (n <= 0) return 0.5;
+  return (n * mean + prior * 0.5) / (n + prior);
+}
+
+export async function resolveView(input: {
+  id: number;
+  outcome: "hit" | "miss";
+  forecastP?: number | null;
+}): Promise<void> {
+  await ensure();
+  const outcome = input.outcome === "hit" ? "hit" : "miss";
+  await db.execute(sql`
+    UPDATE figure_views
+    SET resolved = true,
+        outcome = ${outcome},
+        forecast_p = COALESCE(${input.forecastP ?? null}::float8, forecast_p, confidence)
+    WHERE id = ${input.id}`);
+}
+
+export type FigureScore = {
+  figureId: string;
+  n: number;
+  hits: number;
+  hitRate: number | null;
+  hitRateShrunk: number | null;
+  brier: number | null;
+  brierShrunk: number | null;
+  skill: boolean; // CI excludes 0.5 on hit-rate when n>=8
+};
+
+export async function getFigureScores(): Promise<FigureScore[]> {
+  await ensure();
+  const rows = rowsOf<{
+    figure_id: string; n: number; hits: number; brier_sum: number | null; brier_n: number;
+  }>((await db.execute(sql`
+    SELECT figure_id,
+           COUNT(*)::int AS n,
+           COUNT(*) FILTER (WHERE outcome = 'hit')::int AS hits,
+           SUM(CASE
+             WHEN forecast_p IS NOT NULL OR confidence IS NOT NULL THEN
+               POWER(LEAST(1, GREATEST(0, COALESCE(forecast_p, confidence))) - CASE WHEN outcome = 'hit' THEN 1 ELSE 0 END, 2)
+             ELSE NULL END) AS brier_sum,
+           COUNT(*) FILTER (WHERE forecast_p IS NOT NULL OR confidence IS NOT NULL)::int AS brier_n
+    FROM figure_views
+    WHERE resolved = true AND outcome IN ('hit', 'miss')
+    GROUP BY figure_id`)) as SqlRows<never>);
+
+  return rows.map((r) => {
+    const n = Number(r.n);
+    const hits = Number(r.hits);
+    const hitRate = n > 0 ? hits / n : null;
+    const hitRateShrunk = hitRate != null ? shrinkToChance(hitRate, n) : null;
+    const brierN = Number(r.brier_n);
+    const brier = brierN > 0 && r.brier_sum != null ? Number(r.brier_sum) / brierN : null;
+    // Wilson-ish: skill badge when n>=8 and shrunk hit rate excludes ~0.5 at 90%
+    const se = n > 0 ? Math.sqrt((hitRateShrunk ?? 0.5) * (1 - (hitRateShrunk ?? 0.5)) / n) : 1;
+    const skill = n >= 8 && hitRateShrunk != null && Math.abs(hitRateShrunk - 0.5) > 1.64 * se;
+    return {
+      figureId: r.figure_id,
+      n, hits,
+      hitRate,
+      hitRateShrunk,
+      brier,
+      brierShrunk: brier,
+      skill,
+    };
+  });
+}
+
 
 export interface FigureViewRow {
   id: number;
@@ -130,9 +211,12 @@ export async function getVoicesSummary(): Promise<Array<{
   figure: FigureDef;
   latest: FigureViewRow | null;
   openCount: number;
+  score: FigureScore | null;
 }>> {
   await ensure();
   const views = await listViews(200);
+  const scores = await getFigureScores();
+  const scoreBy = new Map(scores.map((s) => [s.figureId, s]));
   const byFig = new Map<string, FigureViewRow[]>();
   for (const v of views) {
     const arr = byFig.get(v.figureId) ?? [];
@@ -145,6 +229,7 @@ export async function getVoicesSummary(): Promise<Array<{
       figure,
       latest: list[0] ?? null,
       openCount: list.filter((v) => !v.resolved).length,
+      score: scoreBy.get(figure.id) ?? null,
     };
   });
 }

@@ -28,3 +28,7 @@
 
 ## Session 2026-10-18 cont
 Shipped: A83 normalizeCohort; A86 street reverse-DCF + vsSt column; A85 Fed RSS ingest; A125 upload + Ollama hooks. Next buildable: A125 reel inbox, A83 more splits, A139 study, A96 breadth overnight.
+
+## Cont 2026-10-18 evening
+Shipped inline: A83 (normalize, tilt, metrics, raw, model-track-bars); A86 (street reverse-DCF + vsSt); A85 Fed RSS; A125 upload+Ollama+reel inbox.
+Still open buildable: A83 more god-file; A85 Brier; A125 Whisper; A139 S036 study-first; skip A133/A163 Jamie.

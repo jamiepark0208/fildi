@@ -414,10 +414,31 @@ router.get("/voices", async (_req: Request, res: Response) => {
     const voices = await getVoicesSummary();
     res.json({
       voices,
-      note: "Phase 1 registry + views. Accuracy badges after ≥ resolvable calls (Claude plan).",
+      note: "A85 — registry + Fed ingest + Brier when views resolved (skill badge n≥8).",
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+/** A85 — resolve a view for Brier (admin). Body: id, outcome hit|miss, forecastP? */
+router.post("/voices/resolve", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { resolveView } = await import("../lib/figure-views.js");
+    const id = Number(req.body?.id);
+    const outcome = String(req.body?.outcome ?? "");
+    if (!Number.isFinite(id) || (outcome !== "hit" && outcome !== "miss")) {
+      res.status(400).json({ error: "id + outcome hit|miss required" });
+      return;
+    }
+    await resolveView({
+      id,
+      outcome: outcome as "hit" | "miss",
+      forecastP: req.body?.forecastP != null ? Number(req.body.forecastP) : null,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
   }
 });
 

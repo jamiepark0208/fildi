@@ -28,6 +28,12 @@ interface VoiceRow {
   figure: FigureDef;
   latest: FigureView | null;
   openCount: number;
+  score?: {
+    n: number;
+    hitRateShrunk: number | null;
+    brier: number | null;
+    skill: boolean;
+  } | null;
 }
 
 function dirClass(d: string | null): string {
@@ -56,13 +62,13 @@ export function VoicesPanel() {
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#d4af37]/20 bg-black">
         <h3 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Voices</h3>
-        <span className="text-[9px] text-amber-200/40">A85 · no Brier badges yet</span>
+        <span className="text-[9px] text-amber-200/40">A85 · Brier after resolve</span>
       </div>
       {isLoading ? (
         <p className="text-[11px] text-amber-200/40 px-3 py-3">Loading registry…</p>
       ) : (
         <div className="divide-y divide-zinc-800/80">
-          {[...scored, ...rest].map(({ figure, latest, openCount }) => (
+          {[...scored, ...rest].map(({ figure, latest, openCount, score }) => (
             <div key={figure.id} className="px-3 py-1.5 flex items-start gap-2 hover:bg-amber-500/5">
               <div className="w-16 shrink-0">
                 <p className="text-[11px] font-semibold text-white/90 leading-tight truncate" title={figure.name}>
@@ -72,6 +78,15 @@ export function VoicesPanel() {
                   {figure.org}
                   {figure.scored ? " · score" : ""}
                 </p>
+                {score && score.n > 0 ? (
+                  <p className={cn("text-[9px] mt-0.5", score.skill ? "text-emerald-400" : "text-amber-200/45")}
+                    title="Hit rate EB-shrunk to 50%; Brier = mean (p−o)² (lower better). Skill only when n≥8 and CI excludes 50%.">
+                    n={score.n}
+                    {score.hitRateShrunk != null ? ` · ${(score.hitRateShrunk * 100).toFixed(0)}%` : ""}
+                    {score.brier != null ? ` · B ${score.brier.toFixed(2)}` : ""}
+                    {score.skill ? " · skill" : ""}
+                  </p>
+                ) : null}
               </div>
               <div className="min-w-0 flex-1">
                 {latest ? (
