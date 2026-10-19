@@ -221,7 +221,15 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
   const items: { label: string; value: ReactNode; color: string; dim: boolean }[] = [
     {
       label: "Win Rate",
-      value: stats.winRate != null ? `${Math.round(stats.winRate * 100)}% (${stats.wins}-${stats.losses})` : "—",
+      value:
+        stats.winRate == null ? (
+          "—"
+        ) : (
+          <span>
+            <AnimatedNumber value={stats.winRate * 100} format={(n) => `${Math.round(n)}%`} />
+            <span className="text-white/50"> ({stats.wins}-{stats.losses})</span>
+          </span>
+        ),
       color: winRateColor,
       dim: lowSample,
     },
@@ -241,7 +249,15 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
     },
     {
       label: "Avg",
-      value: avgPnl != null ? (avgPnl >= 0 ? `+$${avgPnl.toFixed(0)}` : `-$${Math.abs(avgPnl).toFixed(0)}`) : "—",
+      value:
+        avgPnl == null ? (
+          "—"
+        ) : (
+          <AnimatedNumber
+            value={avgPnl}
+            format={(n) => (n >= 0 ? `+$${n.toFixed(0)}` : `-$${Math.abs(n).toFixed(0)}`)}
+          />
+        ),
       color: avgPnl == null ? "text-white/70" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
       dim: lowSample,
     },
@@ -255,7 +271,12 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
     ...(stats.unrealizedPnl !== 0
       ? [{
           label: "Unrealized",
-          value: `${stats.unrealizedPnl >= 0 ? "+" : "-"}$${Math.abs(stats.unrealizedPnl).toFixed(0)}`,
+          value: (
+            <AnimatedNumber
+              value={stats.unrealizedPnl}
+              format={(n) => (n >= 0 ? `+$${n.toFixed(0)}` : `-$${Math.abs(n).toFixed(0)}`)}
+            />
+          ),
           color: stats.unrealizedPnl >= 0 ? "text-green-400" : "text-red-400",
           dim: false,
         }]
