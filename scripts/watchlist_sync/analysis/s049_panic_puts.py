@@ -37,8 +37,9 @@ except ImportError:
 
 START, HOLDOUT = date(2026, 1, 2), date(2026, 7, 1)
 END = date(2099, 1, 1)
-if "--year2025" in sys.argv:  # A178 confirmation period (S054 rule), never published
-    START, HOLDOUT, END = date(2025, 1, 2), date(2025, 1, 2), date(2025, 12, 31)
+_yr = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--year=")), 2025 if "--year2025" in sys.argv else None)
+if _yr:  # confirmation years (S054 rule): 2025, then 2019–2024 via LSEG expired-option history; never published
+    START, HOLDOUT, END = date(_yr, 1, 2), date(_yr, 1, 2), date(_yr, 12, 31)
 OUT = HERE.parent / "out" / "opt" / "S049.md"
 rng = random.Random(49)
 
@@ -62,7 +63,7 @@ def load(conn):
                                     (START - timedelta(days=120),)).fetchall():
         if t not in FUNDS:
             h[t].append((d, c, iv))
-    spy = conn.execute("SELECT date, close::float FROM prices_historical WHERE ticker = 'SPY' AND date >= %s ORDER BY date",
+    spy = conn.execute("SELECT date, close::float FROM lseg_research.daily_history WHERE ticker = 'SPY' AND close > 0 AND date >= %s ORDER BY date",
                        (START - timedelta(days=400),)).fetchall()
     sma = {}
     for i in range(199, len(spy)):
@@ -87,6 +88,24 @@ def events(h):
                 ev[t].append((i, z))
                 last = d
     return ev
+
+
+_SPLITS = None
+
+
+def split_factor(conn, t, d):
+    """LSEG closes are on today's share basis → multiply by this to get the price actually traded on day d
+    (product of split_to/split_from for splits executed after d; optlab.splits from Polygon, 2019→)."""
+    global _SPLITS
+    if _SPLITS is None:
+        _SPLITS = defaultdict(list)
+        for tk, ed, fr, to in conn.execute("SELECT ticker, exec_date, split_from, split_to FROM optlab.splits").fetchall():
+            _SPLITS[tk].append((ed, to / fr))
+    f = 1.0
+    for ed, r in _SPLITS.get(t, ()):
+        if ed > d:
+            f *= r
+    return f
 
 
 def third_friday(y, m):
@@ -127,14 +146,18 @@ def mid_on(hist, d):
 def trade(ld, conn, t, rows, i):
     """Sell the ~0.20Δ monthly put the day after rows[i]; None if LSEG has no usable mid."""
     d, S, iv = rows[i + 1]
+    fd = split_factor(conn, t, d)
+    S = S * fd  # price actually traded that day (smoke check 10-19: TSLA 2022-05 showed adjusted $242 vs real ~$728)
     got = pick_contract(ld, conn, t, d, S, iv)
+    if got and split_factor(conn, t, got[0]) != fd:
+        return None  # split between entry and expiry → contract terms changed
     if got:
         e, K, hist = got
         mid = mid_on(hist, d)
         if not mid or mid <= 0:
             return None
         last = [r for r in hist if r[0] <= e and r[3] is not None]
-        settle = next((c for dd, c, _ in reversed(rows) if dd <= e), None)
+        settle = next((c * fd for dd, c, _ in reversed(rows) if dd <= e), None)
         # Exit = intrinsic at the expiry close (smoke check 10-19: early-dated mids left time value — LVS 2.09 vs 0 — and
         # expiry-day mids keep half the spread on OTM puts — OWL 0.10 vs 0). Expiry-day mid only if no close.
         if settle is not None and 0.5 < K / S < 1.5:

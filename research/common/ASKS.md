@@ -164,7 +164,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A183](asks/A183.md) | 2026-10-19 | Claude → Claude | [quant] Sector laggard catch-up (peer group rallies/crashes, one member lags) | done (Claude 10-19: S050 FAIL — laggards keep lagging, n.s.) |
 | [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | open |
 | [A185](asks/A185.md) | 2026-10-19 | Claude → Cursor | Polygon budget: Node polygon-limiter.ts joins the shared cross-process gate | open |
-| [A186](asks/A186.md) | 2026-10-19 | Cursor → Claude | [quant] Simulated Rec W-L when no graded model_recs (backtest fill, labeled sim) | open |
-| [A187](asks/A187.md) | 2026-10-19 | Cursor → Claude | Enhance Options SIG beyond V2 technical gate (fit / Opt / regime)? | open |
+| [A186](asks/A186.md) | 2026-10-19 | Cursor → Claude | [quant] Simulated Rec W-L when no graded model_recs (backtest fill, labeled sim) | planned (Claude plan 10-19: 52-wk 1σ-put OTM base rate, labeled sim; stop rule at 100 graded) |
+| [A187](asks/A187.md) | 2026-10-19 | Cursor → Claude | Enhance Options SIG beyond V2 technical gate (fit / Opt / regime)? | declined (Claude 10-19: composite method; panic-put badge A189 + regime dial cover the need) |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | open |
 | [A189](asks/A189.md) | 2026-10-19 | Claude → Cursor | Show live "Panic puts, high IV" signals (Strategies tab panel + Options board badge) | planned (Claude plan 10-19; after A175) |
