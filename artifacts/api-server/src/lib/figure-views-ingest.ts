@@ -279,7 +279,95 @@ function mergeResults(a: VoicesIngestResult, b: VoicesIngestResult): VoicesInges
   };
 }
 
-/** Speeches + FOMC/monetary press + testimony. */
+/** Match registry figure when full name (or distinctive last name) appears in text. */
+export function matchFigureFromText(text: string): string | null {
+  const t = text.toLowerCase();
+  // Longer / more specific names first
+  const ordered = [...FIGURE_REGISTRY].sort((a, b) => b.name.length - a.name.length);
+  for (const fig of ordered) {
+    if (t.includes(fig.name.toLowerCase())) return fig.id;
+  }
+  // Distinctive last-name fallback (avoid short/ambiguous: Lee, Wu, Ives)
+  const lastOnly: Array<[string, string]> = [
+    ["tudor jones", "ptj"],
+    ["yardeni", "yardeni"],
+    ["cabana", "cabana"],
+    ["el-erian", "el-erian"],
+    ["el erian", "el-erian"],
+    ["jeremy siegel", "siegel"],
+    ["gundlach", "gundlach"],
+    ["druckenmiller", "druckenmiller"],
+    ["powell", "fed-powell"],
+    ["waller", "fed-waller"],
+    ["bowman", "fed-bowman"],
+  ];
+  for (const [needle, id] of lastOnly) {
+    if (t.includes(needle)) return id;
+  }
+  return null;
+}
+
+const NEWS_FEEDS: Array<{ url: string; asset: string }> = [
+  { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", asset: "equity" },
+  { url: "https://seekingalpha.com/feed.xml", asset: "equity" },
+];
+
+/** Free news RSS → figure_views when title/description names a registry figure. */
+export async function ingestKeywordNewsFeeds(opts?: {
+  limit?: number;
+  dryRun?: boolean;
+}): Promise<VoicesIngestResult> {
+  const perFeed = opts?.limit ?? 30;
+  const result: VoicesIngestResult = {
+    fetched: 0, inserted: 0, skipped: 0, unknownSpeaker: 0, errors: 0,
+  };
+  for (const feed of NEWS_FEEDS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    let xml: string;
+    try {
+      const res = await fetch(feed.url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "TradeDash/1.0 (A85 voices ingest)" },
+      });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`news RSS HTTP ${res.status}`);
+      xml = await res.text();
+    } catch (err) {
+      clearTimeout(timer);
+      logger.warn({ err: String(err), url: feed.url }, "figure-views-ingest: news RSS failed");
+      result.errors++;
+      continue;
+    }
+    const items = parseFedSpeechesRss(xml).slice(0, perFeed);
+    result.fetched += items.length;
+    for (const item of items) {
+      try {
+        const figureId = matchFigureFromText(`${item.title} ${item.description}`);
+        if (!figureId) { result.unknownSpeaker++; continue; }
+        if (await sourceExists(item.link)) { result.skipped++; continue; }
+        if (opts?.dryRun) { result.inserted++; continue; }
+        await insertView({
+          figureId,
+          asOf: asOfFromPub(item.pubDate),
+          claim: item.title.slice(0, 500),
+          asset: feed.asset,
+          direction: null,
+          horizon: null,
+          confidence: null,
+          sourceUrl: item.link,
+        });
+        result.inserted++;
+      } catch (err) {
+        result.errors++;
+        logger.warn({ err: String(err), link: item.link }, "figure-views-ingest: news insert failed");
+      }
+    }
+  }
+  return result;
+}
+
+/** Speeches + FOMC/monetary press + testimony + keyword news. */
 export async function ingestFedSpeeches(opts?: {
   limit?: number;
   dryRun?: boolean;
@@ -287,6 +375,7 @@ export async function ingestFedSpeeches(opts?: {
   const a = await ingestFedSpeechesOnly(opts);
   const b = await ingestFedMonetaryPress(opts);
   const c = await ingestFedTestimony(opts);
-  return mergeResults(mergeResults(a, b), c);
+  const d = await ingestKeywordNewsFeeds(opts);
+  return mergeResults(mergeResults(mergeResults(a, b), c), d);
 }
 
