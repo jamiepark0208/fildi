@@ -11,7 +11,6 @@ import {
   type SeedContext,
 } from "./indicator-compute.js";
 export type { IndicatorResult, OHLCVRow, SeedContext } from "./indicator-compute.js";
-import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
 import { getSchwabDailyBars } from "./schwab-client.js";
 import { schwabSymbol, yahooSymbol } from "./vendor-ticker.js";
@@ -448,46 +447,6 @@ export async function getAllCachedIndicators(): Promise<IndicatorResult[]> {
   }
 }
 
-/**
- * Display-only, in-memory recompute of RSI/MFI/Stoch/MACD/signal with the live price
- * substituted as today's bar (close = live price; high/low widened to include it;
- * volume proxied from the prior day since no live volume source is wired). Never
- * writes indicatorCache — the official daily-batch record stays untouched. This lets
- * Live Monitor show signals that move during the day using the exact same scoring
- * logic as the daily pipeline (Technical Scorecard), instead of a second, separate
- * signals engine that could drift from it.
- */
-export async function getLiveIndicatorOverlay(
-  tickers: string[],
-): Promise<Map<string, Pick<IndicatorResult, "rsi" | "mfi" | "stoch" | "macdCross" | "signal">>> {
-  const result = new Map<string, Pick<IndicatorResult, "rsi" | "mfi" | "stoch" | "macdCross" | "signal">>();
-  const keys = [...new Set(tickers.map(t => t.toUpperCase()))];
-  if (keys.length === 0) return result;
+// ── Live overlay → indicator-live-overlay.ts (A83) ───────────────────────────
+export { getLiveIndicatorOverlay } from "./indicator-live-overlay.js";
 
-  const live = await getLivePrices(keys);
-
-  await Promise.all(keys.map(async key => {
-    const livePrice = live.get(key)?.price;
-    if (livePrice == null) return;
-
-    const rows = await readOHLCVFromDB(key);
-    if (rows.length < 15) return;
-
-    const last = rows[rows.length - 1];
-    const liveRows: OHLCVRow[] = [...rows, {
-      close: livePrice,
-      high: Math.max(last.high, livePrice),
-      low: Math.min(last.low, livePrice),
-      volume: last.volume,
-    }];
-
-    try {
-      const r = computeIndicators(key, liveRows);
-      result.set(key, { rsi: r.rsi, mfi: r.mfi, stoch: r.stoch, macdCross: r.macdCross, signal: r.signal });
-    } catch {
-      // Not enough data for some sub-indicator on this ticker — skip overlay, caller falls back to daily value.
-    }
-  }));
-
-  return result;
-}
