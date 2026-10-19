@@ -13,7 +13,7 @@ import {
   blendPeerHist,
   num,
 } from "./fund-derived-metrics.js";
-import { shrinkToNeutral, TOTAL_MIN_COVERAGE, winsorizeValues } from "./fundamentals-scoring-math.js";
+import { shrinkToNeutral, TOTAL_MIN_COVERAGE } from "./fundamentals-scoring-math.js";
 import { normalizeCohort } from "./fund-score-normalize.js";
 import {
   clampGrowth,
@@ -183,7 +183,6 @@ export const MEGACAP_BLEND_FAMILY_WEIGHTS: Record<FamilyName, number> = {
   value: 15, growth: 20, quality: 40, safety: 25,
 };
 
-const MIN_Z_N = 8;
 const MIN_PEERS_CONFIDENT = 5;
 
 function approxWacc(beta: number | null): number | null {
