@@ -35,24 +35,11 @@ OTM = 0.01
 TARGET = 10.0
 BANKROLL = 10_000.0  # page curve: $ pnl ÷ a fixed $10k lotto bankroll
 OUT = HERE.parent / "out" / "opt" / "S048.md"
-_last = [0.0]
 
 
 def poly(path: str) -> dict:
-    key = os.environ.get("POLYGON_API_KEY") or os.environ["MASSIVE_API_KEY"]
-    for _ in range(6):
-        wait = 12.5 - (time.time() - _last[0])  # 5 calls / minute
-        if wait > 0:
-            time.sleep(wait)
-        _last[0] = time.time()
-        try:
-            sep = "&" if "?" in path else "?"
-            return json.load(urllib.request.urlopen(f"https://api.polygon.io{path}{sep}apiKey={key}", timeout=60))
-        except urllib.error.HTTPError as e:
-            if e.code != 429:
-                raise
-            time.sleep(30)
-    raise RuntimeError("polygon: rate limited 6×")
+    import option_history as OH  # shared Polygon gate + api_usage count
+    return OH.get(path)
 
 
 def minute_bars(conn, ticker: str, d0: date, d1: date):
@@ -107,11 +94,12 @@ def main(write: bool = False) -> None:
         bars = spy[d]
         op, close = bars[0][1], bars[-1][4]
         for k in KS:
-            hit = next((i for i, b in enumerate(bars) if abs(b[2] / op - 1) >= k * sig or abs(b[3] / op - 1) >= k * sig), None)
+            # minute closes, not h/l: Polygon h/l carry bad ticks (S052: 06-26 15:59 low 716.58 vs close 729.09)
+            hit = next((i for i, b in enumerate(bars) if abs(b[4] / op - 1) >= k * sig), None)
             if hit is None or hit >= len(bars) - 6:
                 continue
             b = bars[hit]
-            down = (b[3] / op - 1) <= -k * sig
+            down = b[4] < op
             px = b[4]
             cp = "P" if down else "C"
             strike = round(px * (1 - OTM)) if down else round(px * (1 + OTM))
@@ -133,6 +121,8 @@ def main(write: bool = False) -> None:
             rec.update(entry=entry, exit=exit_px, why=why, exit_ts=exit_ts, entry_ts=win[-1][0],
                        pnl=(exit_px - entry) * 100, risk=entry * 100)
             trades[k].append(rec)
+    import option_history as OH
+    OH.flush_usage(conn)
     report(trades, end)
     if write:
         publish(conn, trades, end)

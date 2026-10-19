@@ -163,3 +163,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A182](asks/A182.md) | 2026-10-19 | Cursor → Claude | LazyMount Breakdown PriceChart (defer history fetch) | done (Cursor 10-19) |
 | [A183](asks/A183.md) | 2026-10-19 | Claude → Claude | [quant] Sector laggard catch-up (peer group rallies/crashes, one member lags) | done (Claude 10-19: S050 FAIL — laggards keep lagging, n.s.) |
 | [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | open |
+| [A185](asks/A185.md) | 2026-10-19 | Claude → Cursor | Polygon budget: Node polygon-limiter.ts joins the shared cross-process gate | open |

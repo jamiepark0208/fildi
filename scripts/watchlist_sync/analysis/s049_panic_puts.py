@@ -164,6 +164,7 @@ def main(write=False):
                     bt.update(below=below.get(rows[j][0]))
                     base.append(bt)
         print(f"{t}: {len(lst)} events · running {len(ev)} ev / {len(base)} base", flush=True)
+    OH.flush_usage(conn)
     report(ev, base)
     if write:
         publish(conn, ev)

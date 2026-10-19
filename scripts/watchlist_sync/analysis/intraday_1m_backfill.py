@@ -23,6 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
+import polygon_gate  # noqa: E402
 from build_plan import connect, rows  # noqa: E402
 
 API = "https://api.polygon.io"
@@ -88,10 +89,7 @@ def get(path: str) -> dict:
     sep = "&" if "?" in path else "?"
     url = f"{API}{path}{sep}apiKey={key()}"
     for attempt in range(5):
-        wait = _last + GAP_S - time.time()
-        if wait > 0:
-            time.sleep(wait)
-        _last = time.time()
+        polygon_gate.wait()  # shared 5/min budget across processes
         _calls += 1
         try:
             with urllib.request.urlopen(url, timeout=90) as r:
