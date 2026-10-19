@@ -130,4 +130,22 @@ router.post("/fair-value/assumptions/:id", requireAdmin, async (req, res, next) 
   }
 });
 
+/** A86 — FV vs street consensus PT series (display / disagreement lab). */
+router.get("/fair-value/:ticker/vs-street", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  try {
+    const { getFvVsStreet } = await import("../lib/street-pt.js");
+    const days = Math.min(800, Math.max(30, Number(req.query.days) || 400));
+    const points = await getFvVsStreet(t, days);
+    return res.json({
+      ticker: t,
+      points,
+      note: "Street = median analyst price_target on event days, forward-filled. Display only (A86).",
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 export default router;

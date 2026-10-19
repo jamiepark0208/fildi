@@ -9,6 +9,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { History, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { FvVsStreetChart } from "./fv-vs-street-chart";
 
 type Unit = "usd" | "pct" | "usd_total" | "count" | "x";
 type Input = { field: string; label: string; unit: Unit; source: string; value: number | null; lastChanged: string | null; overridable: boolean; versions: number };
@@ -136,6 +137,7 @@ export function AssumptionsTab({ ticker }: { ticker: string }) {
         <span className="text-amber-200/50">price {L?.price != null ? `$${L.price.toFixed(2)}` : "—"}</span>
         <span className="ml-auto text-[10px] text-amber-200/40">{L?.as_of}</span>
       </div>
+      <FvVsStreetChart ticker={ticker} />
       {L && L.fair_value == null && (
         <p className="text-[10px] text-amber-200/50">No model value: the {data.cohort?.name ?? L.mode} cohort ({L.mode}) gets no model fair value by design (pre-revenue / speculative); the analyst target is shown separately.</p>
       )}
