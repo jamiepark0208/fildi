@@ -61,10 +61,25 @@ export function SectorRevisionBreadth({
 
   const [sector, setSector] = useState<string>("");
   const [wlOnly, setWlOnly] = useState(false);
+  const [bookOnly, setBookOnly] = useState(false);
   const [metric, setMetric] = useState<"eps" | "pt">("eps");
   const wlSet = useMemo(
     () => new Set(watchlistTickers.map((t) => t.toUpperCase())),
     [watchlistTickers],
+  );
+  const { data: bookOdds } = useQuery<{ positions?: { ticker: string }[] }>({
+    queryKey: ["pm-odds", "a95-book-filter"],
+    queryFn: async () => {
+      const r = await fetch("/api/pm/odds", { credentials: "include" });
+      if (!r.ok) return { positions: [] };
+      return r.json();
+    },
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+  const bookSet = useMemo(
+    () => new Set((bookOdds?.positions ?? []).map((p) => p.ticker.toUpperCase())),
+    [bookOdds],
   );
 
   const active = sector && data?.bySector[sector] ? sector : sectors[0] ?? "";
@@ -76,8 +91,9 @@ export function SectorRevisionBreadth({
   const events = useMemo(() => {
     let list = (data?.events ?? []).filter((e) => e.sector === active);
     if (wlOnly && wlSet.size > 0) list = list.filter((e) => wlSet.has(e.ticker));
+    if (bookOnly && bookSet.size > 0) list = list.filter((e) => bookSet.has(e.ticker));
     return list.slice(0, 24);
-  }, [data, active, wlOnly, wlSet]);
+  }, [data, active, wlOnly, wlSet, bookOnly, bookSet]);
 
   if (isLoading || (!data && enabled)) {
     return (
@@ -113,6 +129,19 @@ export function SectorRevisionBreadth({
               title="Filter rating chips to your watchlist tickers"
             >
               Watchlist
+            </button>
+          )}
+          {bookSet.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setBookOnly((v) => !v)}
+              className={cn(
+                "text-[10px] font-semibold px-2 py-0.5 rounded border border-[#d4af37]/20",
+                bookOnly ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
+              )}
+              title="Filter rating chips to open pm_book tickers"
+            >
+              Book
             </button>
           )}
           <div className="flex rounded border border-[#d4af37]/20 overflow-hidden">
