@@ -75,7 +75,137 @@ def assign_odds(conn) -> tuple:
             {"pred": pred, "real": real})
 
 
-CHECKS = [model_list, fair_value, assign_odds]
+def own_vs_avoid(conn) -> tuple:
+    """A171 (S044 #1): Own − Avoid 5-day return vs SPY, volatility-matched (60d realized-vol terciles across both folders)."""
+    g = conn.execute("""
+        WITH g AS (SELECT gr.folder_key f, gr.ticker t, gr.vs_spy::float v, r.created_at::date d
+                   FROM watchlist_sync.grades gr JOIN watchlist_sync.model_runs r ON r.id = gr.run_id
+                   WHERE gr.horizon = '5d' AND gr.folder_key IN ('own', 'avoid') AND gr.bucket <> 'data' AND gr.vs_spy IS NOT NULL),
+             vol AS (SELECT g.t, g.d, stddev(ln(h.close / h.prev)) sd FROM g
+                     JOIN LATERAL (SELECT close::float, lag(close::float) OVER (ORDER BY date) prev FROM prices_historical
+                                   WHERE ticker = g.t AND date < g.d AND date >= g.d - 90) h ON h.prev > 0
+                     GROUP BY 1, 2)
+        SELECT g.f, g.v, g.d, vol.sd FROM g JOIN vol USING (t, d) WHERE vol.sd IS NOT NULL""").fetchall()
+    item, promised = "Own − Avoid, vol-matched (fit-1.4)", "Own beats Avoid on 5d return vs SPY within the same volatility tercile"
+    if not g:
+        return (item, "S044", promised, "no 5d grades yet", "0", "no live check", {})
+    sds = sorted(x[3] for x in g)
+    cut = [sds[len(sds) // 3], sds[2 * len(sds) // 3]]
+    terc = lambda s: 0 if s <= cut[0] else 1 if s <= cut[1] else 2
+    diffs = []
+    for k in range(3):
+        o = [v for f, v, _, s in g if f == "own" and terc(s) == k]
+        a = [v for f, v, _, s in g if f == "avoid" and terc(s) == k]
+        if o and a:
+            diffs.append(sum(o) / len(o) - sum(a) / len(a))
+    weeks = len({d.isocalendar()[:2] for _, _, d, _ in g})
+    raw_o = [v for f, v, _, _ in g if f == "own"]
+    raw_a = [v for f, v, _, _ in g if f == "avoid"]
+    raw = (sum(raw_o) / len(raw_o) if raw_o else 0) - (sum(raw_a) / len(raw_a) if raw_a else 0)
+    spread = sum(diffs) / len(diffs) if diffs else None
+    live = f"raw {raw * 100:+.1f} pp · vol-matched {spread * 100:+.1f} pp" if spread is not None else f"raw {raw * 100:+.1f} pp"
+    verdict = "too early" if weeks < MIN_EXPIRIES else "holding" if (spread or 0) > 0 else "drifting"
+    return (item, "S044", promised, live, f"{len(raw_o)} own · {len(raw_a)} avoid · {weeks} weeks", verdict,
+            {"raw": raw, "vol_matched": spread, "terciles": diffs})
+
+
+def fv_spread(conn) -> tuple:
+    """A171 (S044 #2): fair value cheapest − richest quintile, forward ~1 month (21 trading days ≈ 30 calendar days)."""
+    rows_ = conn.execute("""
+        WITH s AS (SELECT ticker, as_of, price::float p, price_to_fair::float ptf FROM fair_value_snapshots
+                   WHERE fair_value IS NOT NULL AND price > 0 AND as_of <= current_date - 30),
+             f AS (SELECT s.*, (SELECT price::float FROM fair_value_snapshots x WHERE x.ticker = s.ticker AND x.price > 0
+                                AND x.as_of BETWEEN s.as_of + 28 AND s.as_of + 35 ORDER BY x.as_of LIMIT 1) p1 FROM s)
+        SELECT as_of, ptf, p1 / p - 1 FROM f WHERE p1 IS NOT NULL""").fetchall()
+    item, promised = "Fair value cheap − rich (fv-1.1.0)", "Cheapest quintile beats richest over ~1 month (S009 says it won't — testing)"
+    if not rows_:
+        first = conn.execute("SELECT min(as_of) FROM fair_value_snapshots WHERE fair_value IS NOT NULL").fetchone()[0]
+        return (item, "S044", promised, f"first 1-month read ~{first + __import__('datetime').timedelta(days=31)} "
+                f"(12-day read 10-18: +6.8 pp, partial IC −0.15 after vol/mom)", "0 months", "too early", {})
+    by = {}
+    for d, ptf, r in rows_:
+        by.setdefault(d, []).append((ptf, r))
+    spreads = []
+    for d, xs in sorted(by.items()):
+        if len(xs) < 50:
+            continue
+        xs.sort()
+        q = len(xs) // 5
+        spreads.append(sum(r for _, r in xs[:q]) / q - sum(r for _, r in xs[-q:]) / q)
+    months = len({(d.year, d.month) for d in by})
+    m = sum(spreads) / len(spreads) if spreads else 0
+    verdict = "too early" if months < 3 else "holding" if m > 0 else "drifting"
+    return (item, "S044", promised, f"cheap − rich {m * 100:+.1f} pp / month (mean of {len(spreads)} dates)",
+            f"{months} month(s)", verdict, {"spreads": spreads[-20:]})
+
+
+def ira_vs_benchmark(conn) -> tuple:
+    """A171 (S044 #4, the ROI number): Jamie's IRA short puts held to expiry, pnl per $ collateral per expiry week, vs a naive
+    1σ-IV put on SPY and QQQ over the same open→expiry dates (BS at LSEG iv30_put, no skew — understates the benchmark's
+    real premium ~25 %, S021). Selection skill, not exit timing (most trades close early; S017: holding ≥ closing)."""
+    import math
+    tr = conn.execute("""
+        SELECT t.d0, t.expiry, t.strike::float, t.premium::float, t.qty::float,
+               (SELECT close::float FROM prices_historical h WHERE h.ticker = t.ticker AND h.date <= t.expiry ORDER BY h.date DESC LIMIT 1)
+        FROM optlab.trades t WHERE t.account = 'IRA' AND t.expiry < current_date""").fetchall()
+    tr = [x for x in tr if x[5] is not None and x[2] > 0]
+    item, promised = "IRA puts vs naive SPY/QQQ 1σ puts", "Jamie's app-guided put picks earn more per $ collateral than index puts"
+    if not tr:
+        return (item, "S044", promised, "no closed IRA trades with prices", "0", "no live check", {})
+    lh = {}
+    for t in ("SPY", "QQQ"):
+        lh[t] = {d: (float(c), float(iv) if iv else None) for d, c, iv in conn.execute(
+            "SELECT date, close, iv30_put FROM lseg_research.daily_history WHERE ticker = %s AND date >= '2026-01-01'", (t,)).fetchall()}
+
+    def ncdf(x):
+        return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+
+    def bench(d0, e):
+        out = []
+        for t in ("SPY", "QQQ"):
+            h = lh[t]
+            d0s = [d for d in h if d <= d0]
+            es = [d for d in h if d <= e]
+            if not d0s or not es:
+                continue
+            (S, iv), (ST, _) = h[max(d0s)], h[max(es)]
+            if not iv:
+                continue
+            v, tt = iv / 100, max(1, (e - d0).days) / 365
+            K = S * math.exp(-v * math.sqrt(tt))
+            sd = v * math.sqrt(tt)
+            d1 = (math.log(S / K) + 0.5 * sd * sd) / sd
+            prem = K * ncdf(-(d1 - sd)) - S * ncdf(-d1)
+            out.append((prem - max(0.0, K - ST)) / K)
+        return sum(out) / len(out) if out else None
+
+    # Model List went live 2026-10-05: earlier trades are Jamie's own selection; later ones are app-guided → split them.
+    import datetime as _dt
+    app_start = _dt.date(2026, 10, 5)
+    n_app = sum(1 for x in tr if x[0] >= app_start)
+    weeks = {}
+    for d0, e, k, prem, q, close in tr:
+        wk = e.isocalendar()[:2]
+        w = weeks.setdefault(wk, {"pnl": 0.0, "coll": 0.0, "bench": bench(d0, e)})
+        w["pnl"] += (prem - max(0.0, k - close)) * q  # same open→expiry window as the benchmark → no time scaling
+        w["coll"] += k * q
+    j = [w["pnl"] / w["coll"] for w in weeks.values() if w["coll"] > 0]
+    b = [w["bench"] for w in weeks.values() if w["bench"] is not None]
+    jm, bm = sum(j) / len(j), (sum(b) / len(b) if b else 0)
+    sd = lambda x, m: (sum((v - m) ** 2 for v in x) / max(1, len(x) - 1)) ** 0.5
+    js, bs = sd(j, jm), (sd(b, bm) if b else 0)
+    jr, br = (jm / js if js else 0), (bm / bs if bs else 0)  # per-week return ÷ per-week risk: index puts carry far less risk
+    worst = min(j)
+    # Verdict on risk-adjusted return — raw bp alone flatters high-IV names (more premium AND more risk than an index put).
+    verdict = "too early" if len(j) < MIN_EXPIRIES else "holding" if jr > br else "drifting"
+    return (item, "S044", promised,
+            f"IRA {jm * 1e4:+.1f} bp (sd {js * 1e4:.0f}, return/risk {jr:.2f}, worst week {worst * 1e4:+.0f}) vs SPY/QQQ "
+            f"{bm * 1e4:+.1f} bp (sd {bs * 1e4:.0f}, return/risk {br:.2f}) per trade on collateral, same dates, held to expiry",
+            f"{len(tr)} puts · {len(j)} expiry weeks · {n_app} since Model List (10-05; before = Jamie's own picks)", verdict,
+            {"ira_bp": jm * 1e4, "bench_bp": bm * 1e4, "ira_sd_bp": js * 1e4, "bench_sd_bp": bs * 1e4, "ira_rr": jr, "bench_rr": br})
+
+
+CHECKS = [model_list, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark]
 
 
 def main() -> None:
