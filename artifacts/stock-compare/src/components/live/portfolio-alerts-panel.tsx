@@ -8,6 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { HouseViewCard } from "@/components/live/house-view-card";
 
 type Bullet = { key: string; level: "red" | "amber" | "green"; text: string; change: "new" | "worse" | "better" | null };
 type Run = {
@@ -180,6 +181,7 @@ export function PortfolioAlertsPanel() {
 
   return (
     <div className="space-y-3">
+      <HouseViewCard />
       <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-3 space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {Object.entries(data.accounts).map(([name, a]) => (

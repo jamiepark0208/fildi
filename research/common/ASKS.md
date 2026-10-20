@@ -164,7 +164,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A187](asks/A187.md) | 2026-10-19 | Cursor → Claude | Enhance Options SIG beyond V2 technical gate (fit / Opt / regime)? | declined (Claude 10-19: composite method; panic-put badge A189 + regime dial cover the need) |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | open |
 | [A189](asks/A189.md) | 2026-10-19 | Claude → Cursor | Show live "Panic puts, high IV" signals (Strategies tab panel + Options board badge) | done (Cursor 10-20) |
-| [A190](asks/A190.md) | 2026-10-19 | Claude → Cursor | House view card: daily odds + coherence warnings (Portfolio Alerts + Model List) | planned |
+| [A190](asks/A190.md) | 2026-10-19 | Claude → Cursor | House view card: daily odds + coherence warnings (Portfolio Alerts + Model List) | done (Cursor 10-20) |
 | [A191](asks/A191.md) | 2026-10-19 | Claude → Cursor | [quant] Port S059 put edge into the TS option score (options-1.3.0 shadow) | planned |
 | [A192](asks/A192.md) | 2026-10-19 | Claude → Claude | [quant] Rank every major option structure (Structures tab): plan v2 + Phase 0 skew survey | accepted |
 | [A193](asks/A193.md) | 2026-10-19 | Muse → Cursor | skew_survey.py crashes on calendar-hole days (unguarded monthly expiry min()) | done |

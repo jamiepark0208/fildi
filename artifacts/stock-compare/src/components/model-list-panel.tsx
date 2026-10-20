@@ -11,6 +11,7 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ModelThesis } from "@/components/model-thesis-report";
+import { HouseViewWarnings } from "@/components/live/house-view-card";
 
 /** Shared Model/My value cols — ch widths so numbers don't ellipsis. */
 export const WATCHLIST_ROW =
@@ -494,6 +495,7 @@ export function ModelListPanel({
           <HealthStrip h={data.health} listUpdatedAt={data.run?.createdAt} />
         </div>
       ) : null}
+      <HouseViewWarnings className="px-2 py-1.5 border-b border-red-500/20 space-y-1 shrink-0" />
       {byKind.map(({ kind, folders }) => (
         <div key={kind}>
           <div className="px-2 py-0.5 text-[8px] uppercase tracking-[0.12em] text-zinc-600 bg-zinc-900/80 border-b border-zinc-800/60 sticky top-0 z-[11]">

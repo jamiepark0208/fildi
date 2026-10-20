@@ -2,6 +2,7 @@
  * GET /api/pm/alerts → latest Portfolio Alerts run (Live › Portfolio Alerts).
  * GET /api/pm/names  → "Your names": short interest (LSEG), next earnings, latest earnings-call summary (transcripts.py).
  * GET /api/pm/book   → watchlist_sync.pm_book_latest (written each pm_alerts run); book-latest.json fallback (A76 Book card / Expiry desk).
+ * GET /api/pm/house-view → latest watchlist_sync.house_view (A190; written by house_view.py).
  * Written by scripts/watchlist_sync/pm_alerts.py + pm_book.py (Claude, PM role); this route only reads.
  */
 import { Router } from "express";
@@ -97,6 +98,45 @@ router.get("/pm/odds", requireAdmin, async (_req, res, next) => {
     }
     res.json({ pricedAt: row?.book?.live_priced_at ?? row?.book?.snapshot_at ?? null, positions: out, regime: await spyRegime() });
   } catch (e) { next(e); }
+});
+
+/** A190 — daily house view (memo + warnings + S057 odds). Display only. */
+router.get("/pm/house-view", requireAdmin, async (_req, res, next) => {
+  try {
+    const ok = rowsOf<{ ok: boolean }>(await db.execute(sql`
+      SELECT to_regclass('watchlist_sync.house_view') IS NOT NULL AS ok`) as SqlRows<{ ok: boolean }>)[0]?.ok;
+    if (!ok) return res.json({ view: null });
+    const row = rowsOf<{
+      viewDate: string;
+      view: unknown;
+      memo: string;
+      warnings: unknown;
+      createdAt: string | null;
+    }>(await db.execute(sql`
+      SELECT view_date::text AS "viewDate", view, memo, warnings,
+             created_at::text AS "createdAt"
+      FROM watchlist_sync.house_view
+      ORDER BY view_date DESC
+      LIMIT 1`) as SqlRows<never>)[0];
+    if (!row) return res.json({ view: null });
+    const memo = row.memo ?? "";
+    const stanceMatch = memo.match(/\*\*Stance[^*]*\*\*\.\s*([^\n]+)/);
+    const warnings = Array.isArray(row.warnings)
+      ? row.warnings.map(String)
+      : [];
+    return res.json({
+      view: {
+        viewDate: row.viewDate,
+        createdAt: row.createdAt,
+        memo,
+        stance: stanceMatch?.[1]?.trim() ?? null,
+        warnings,
+        payload: row.view,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
