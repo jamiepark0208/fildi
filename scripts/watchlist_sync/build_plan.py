@@ -55,7 +55,23 @@ def load_context(conn) -> dict:
         SELECT ticker, side, expiry, strike::float8, spot::float8, premium::float8, bid_is_live, weekly_income_pct::float8,
                delta::float8, strike_iv::float8, dte::float8, option_score::float8, macro_regime, vol_regime
         FROM model_recs WHERE snapshot_date = %s""", (snap,))
+    # Pool = the fresher of the weekly Friday picks (model_recs, API job; no catch-up → 10-16 never ran) and the daily universe-wide
+    # option rankings (Mon–Thu). Jamie 10-20: a crash week ran on 10-09's 47 pre-crash picks, so crashed names could never enter.
+    os_day = conn.execute("SELECT MAX(as_of) FROM option_score_snapshots").fetchone()[0]
+    if os_day and (snap is None or os_day > snap):
+        ctx["recs"] = rows(conn, """
+            SELECT DISTINCT ON (ticker, side) ticker, side, expiry, strike::float8, spot::float8, premium::float8, bid_is_live,
+                   weekly_income_pct::float8, delta::float8, strike_iv::float8, dte::float8, option_score::float8,
+                   NULL::text AS macro_regime, NULL::text AS vol_regime
+            FROM option_score_snapshots WHERE as_of = %s AND option_score IS NOT NULL ORDER BY ticker, side, computed_at DESC""", (os_day,))
+        snap = os_day
+        ctx["snapshot_date"] = snap
     ctx["model_date"] = snap
+    # Verdict cross-check at L1 too (10-20): the 15-slot cap used to fill with high-IV names the publish step then held back as
+    # not ownable, so few real puts survived. Same rule as publish (one home: publish_model_list.held_back_reason).
+    import publish_model_list as PL   # lazy: PL imports build_plan
+    ctx["fit"], _, ctx["fit_params"] = PL.champion_scores(conn)
+    ctx["held_back_reason"] = PL.held_back_reason
     reprice_from_chains(conn, ctx)
     ctx["recs"] = [r for r in ctx["recs"] if r["expiry"] > date.today()]
     ctx["close"] = {r["ticker"]: r for r in rows(conn, """
@@ -275,15 +291,22 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk net of fills, breach {100 * e['breach']:.0f} % (S059, Q1–Q3 lose after fills)"
                          if e else "no put-edge inputs (or demoted by drift check)", "block" if e else "warn"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
+        hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
+        c.append(chk("verdict_ok", hb is None, hb or "ownable, put risk below the hold line"))
+        # warn, not block (S063, 10-20): low-credit puts earned +13 bp/wk more (t 4.2, 312 wks) at the same breach rate, but the worst
+        # 1 % week loses ~25 % more → show the trade, flag the tail, size smaller
         c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,
-                     f"StarMine credit {cr}/100" if cr is not None else "no LSEG credit rank", "block" if cr is not None else "warn"))
+                     f"StarMine credit {cr}/100: distress tail — worst 1 % weeks lose ~25 % more than other puts (S063); size smaller"
+                     if cr is not None else "no LSEG credit rank", "warn"))
         tech = ctx["tech"].get(t)
         # warn, not block: Step 4 found falling knives don't hurt put sellers; the champion's severity-weighted risk decides
         c.append(chk("not_falling_knife", not (tech and tech["falling_knife"] == 1), "falling-knife chart" if tech and tech["falling_knife"] == 1 else "ok", "warn"))
         need = rec["strike"] * 100
         fits = [a for a in ctx["accounts"] if (a["bp"] or 0) >= need]
         best = max(ctx["accounts"], key=lambda a: a["bp"] or 0)
-        c.append(chk("collateral_fits", bool(fits), f"needs ${need:,.0f}; largest put capacity {best['nickname']} ${best['bp']:,.0f} (free + posted)"))
+        # warn, not block (Jamie 10-19): cash decides whether you can take a trade, not whether it is a good one → the idea goes on and
+        # publish shows it in Sell Puts as "unfunded" with what it needs
+        c.append(chk("collateral_fits", bool(fits), f"needs ${need:,.0f}; largest put capacity {best['nickname']} ${best['bp']:,.0f} (free + posted)", "warn"))
         account = (max(fits, key=lambda a: a["bp"])["nickname"] if fits else None)
     else:
         free = [

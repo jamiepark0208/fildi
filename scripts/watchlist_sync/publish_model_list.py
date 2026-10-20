@@ -81,10 +81,18 @@ def held_back_reason(list_key: str, f: dict | None, P: dict, spy20: float | None
     pause_at = P["regime"]["pause_puts_spy20"]  # Step 4 #8: no dip-buying puts while the whole market sells off
     if spy20 is not None and spy20 < pause_at:
         return f"regime pause: SPY {100 * spy20:+.1f}% over 20 days (pause below {100 * pause_at:.0f}%)"
-    if f["verdict"] == "red":
-        return "verdict is red (avoid)"
-    if (f["risk"] or 0) >= P["thresholds"]["put_block_risk"]:
-        return f"risk {f['risk']:.1f} ≥ {P['thresholds']['put_block_risk']}: " + "; ".join(f["flags"])
+    # Put risk ≠ ownership risk (10-20): weak credit (S063: +13 bp/wk, same breach, fatter tail → warned + sized in L1) and
+    # falling-knife charts (S045 step 4, S058) don't hurt put sellers, so they can't hold a put back or make it "red" for puts.
+    # Analyst cuts / predicted misses (S060 KEEP) and the rest still count.
+    SV = P["severity"]
+    not_put = {"distress-level balance sheet": SV["credit_distress"], "fragile balance sheet": SV["credit_fragile"],
+               "falling-knife chart": SV["falling_knife"]}
+    kept = [x for x in f["flags"] if not any(x.startswith(k) for k in not_put)]
+    put_risk = max(0.0, (f["risk"] or 0) - sum(w for k, w in not_put.items() if any(x.startswith(k) for x in f["flags"])))
+    if f["verdict"] == "red" and put_risk >= P["thresholds"]["red_risk"]:
+        return "verdict is red (avoid): " + "; ".join(kept)
+    if put_risk >= P["thresholds"]["put_block_risk"]:
+        return f"put risk {put_risk:.1f} ≥ {P['thresholds']['put_block_risk']}: " + "; ".join(kept)
     if f["own"] is None or f["own"] < P["thresholds"]["yellow_own"]:
         return f"not ownable enough to risk assignment (OWN {f['own'] or 0:.1f} < {P['thresholds']['yellow_own']})"
     return None
