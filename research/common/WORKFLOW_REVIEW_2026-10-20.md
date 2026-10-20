@@ -24,7 +24,7 @@ Jamie's complaint, verbatim in substance: "I have so many agents, but I keep run
 - Review-push rule + Grok non-quant pilot: working. Outcome ledger: seeded, first real audit due November (Muse owns) — that's when "which agent earns its tokens" stops being opinion.
 - A210 (Claude's workflow learning loop) is the right vehicle for fixes 2.2–2.4 below; adopt it instead of inventing parallel process.
 ### Processes
-- Schwab 7-day re-auth: still manual; the watchdog package exists (~/workspace/schwab-reauth/) but is not installed on the Mac. Token-file check (Muse, via device) is the current safety net.
+- Schwab 7-day re-auth: the login itself cannot be automated (Schwab ToS, MFA/bot detection) — the watchdog script is the ceiling and it IS installed on the Mac (com.fildi.schwab-auth-watch.plist, verified 2026-10-20): it watches the 7-day clock and auto-launches the auth window in the signed-in Chrome profile; Jamie only completes the login. (This corrects the first draft of this review, which wrongly said 'not installed.') Token-file check (Muse, via device) remains the backup safety net.
 - CI trailer guard trips on md-only pushes (A197 open) — the guard should be fixed, not worked around forever.
 - Pre-push working-tree check exists as a lesson, not a mechanism.
 ### Scheduled tasks (Muse's side)
