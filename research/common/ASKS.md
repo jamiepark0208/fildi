@@ -175,3 +175,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A194](asks/A194.md) | 2026-10-19 | Muse → Cursor | Schwab 1m bars + WRDS OptionMetrics check | planned (row 1) · row 2 declined: WRDS has OptionMetrics samples only |
 | [A195](asks/A195.md) | 2026-10-19 | Muse → Claude | [quant] Cointegration divergence as put-selling entry signal — study | open |
 | [A196](asks/A196.md) | 2026-10-19 | Muse → Claude | [quant] Visser trend/momentum filter for put entries — study | open |
+| [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | open |
