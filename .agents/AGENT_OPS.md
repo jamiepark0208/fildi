@@ -56,3 +56,6 @@ Notes:
 - Grok reviews are **not free** — they burn Cursor credits. Keep them tight; that's what the ≤5-findings cap is for.
 - Muse pre-verification exists to protect Claude's window — route accordingly.
 - Revisit after Dec 11 (Cursor expiry): Kiro or Claude Code absorbs the build lane.
+
+## 3b. Filing protocol — ID allocation (all agents, added 2026-10-20 after the A179–A182 collision)
+Before allocating a new A### ID, check all three: (1) the `research/common/asks/` directory listing, (2) the ASKS.md index, (3) the last ~20 commits on the branch. The index lags files; two agents reading only the index in the same window WILL collide (Muse + Cursor both took A179–A182 on 2026-10-19; one set of files was overwritten and had to be restored from git history under new IDs). Claim first (per §3), then file. If you find a collision, do not overwrite: the later filer renumbers, restores nothing of the other's, and notes the renumber in both files.
