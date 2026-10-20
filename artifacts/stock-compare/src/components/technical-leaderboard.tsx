@@ -73,7 +73,7 @@ export function TechnicalLeaderboard({
 
   const maxScore = scores[0].totalScore;
   const filtered = query.trim()
-    ? scores.filter(s => s.ticker.toLowerCase().includes(query.trim().toLowerCase()))
+    ? scores.filter(s => (s.ticker ?? "").toLowerCase().includes(query.trim().toLowerCase()))
     : scores;
 
   const scoredLabel = (() => {

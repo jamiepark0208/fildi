@@ -557,6 +557,8 @@ function TopTickers({ posts, tickerPnl }: { posts: TradePost[]; tickerPnl: Ticke
     for (const p of posts) counts.set(p.ticker.toUpperCase(), (counts.get(p.ticker.toUpperCase()) ?? 0) + 1)
     return tickerPnl
       .map(t => ({ ticker: t.ticker, count: counts.get(t.ticker) ?? 0, pnl: t.totalPnl, unrealizedPnl: t.unrealizedPnl }))
+      // Hide zero-dollar ghosts after Reset Stats (closed lots / MTM holdings with ~$0 P&L).
+      .filter(t => t.count > 0 || Math.abs(t.pnl) >= 1)
       .sort((a, b) => b.pnl - a.pnl)
       .slice(0, 6)
   }, [posts, tickerPnl])
@@ -641,7 +643,7 @@ export default function Profile() {
 
   const [resetting, setResetting] = useState(false)
   async function handleReset() {
-    if (!confirm("Reset paper-trading stats to a clean slate? Clears trade ideas, win rate, streak, and P&L. Stock holdings stay (cost basis marked to market so unrealized = 0). Cash unchanged."))
+    if (!confirm("Reset paper-trading stats to a clean slate? Clears trade ideas, win rate, streak, P&L charts, and closed lots. Open stock holdings stay (cost marked to market → unrealized ≈ 0). Cash and buying power go to $0."))
       return
     setResetting(true)
     try {

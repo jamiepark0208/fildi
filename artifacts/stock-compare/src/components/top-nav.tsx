@@ -78,7 +78,7 @@ function FindUserSearch() {
   });
 
   const filteredUsers = userSearch.trim()
-    ? allUsers.filter(u => u.username.toLowerCase().includes(userSearch.toLowerCase()))
+    ? allUsers.filter(u => (u.username ?? "").toLowerCase().includes(userSearch.toLowerCase()))
     : allUsers;
 
   function goToUser(uname: string) {

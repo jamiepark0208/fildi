@@ -370,9 +370,7 @@ export function StockBreakdown({
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              {m.exchange && (
-                <TagBadge type="exchange" value={m.exchange} matches={tagMatchesFor("exchange", m.exchange)} onSelectTicker={commitTicker} />
-              )}
+              {/* Exchange (NasdaqGM etc.) hidden — not useful for peers; venue is noise on US names. */}
               {m.sector && (
                 <TagBadge type="sector" value={m.sector} matches={tagMatchesFor("sector", m.sector)} onSelectTicker={commitTicker} />
               )}

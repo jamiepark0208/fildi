@@ -89,9 +89,9 @@ function Scoreboard() {
 
 type Study = { id: string; date: string; question: string; answer: string; status: string; report: string };
 
-const md = (s: string) => s.replace(/\*\*/g, "").replace(/`/g, "");
-function tone(status: string): string {
-  const s = status.toLowerCase();
+const md = (s: string | null | undefined) => (s ?? "").replace(/\*\*/g, "").replace(/`/g, "");
+function tone(status: string | null | undefined): string {
+  const s = (status ?? "").toLowerCase();
   if (s.startsWith("adopted")) return "border-emerald-500/40 text-emerald-300";
   if (s.startsWith("display")) return "border-sky-500/40 text-sky-300";
   if (s.startsWith("rejected") || s.startsWith("superseded")) return "border-zinc-600 text-zinc-400";
@@ -225,7 +225,7 @@ export function ResearchTab() {
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const all = [...(data ?? [])].reverse();
-    return needle ? all.filter((s) => `${s.id} ${s.question} ${s.answer} ${s.status}`.toLowerCase().includes(needle)) : all;
+    return needle ? all.filter((s) => `${s.id} ${s.question ?? ""} ${s.answer ?? ""} ${s.status ?? ""}`.toLowerCase().includes(needle)) : all;
   }, [data, q]);
   if (isLoading) return <p className="text-xs text-white">Loading…</p>;
   return (
@@ -267,7 +267,7 @@ export function ResearchTab() {
                   </Tooltip>
                 </td>
                 <td className={SUI.td}>
-                  <span className={cn("inline-block rounded border px-1 py-px text-[10px]", tone(s.status))}>{md(s.status)}</span>
+                  <span className={cn("inline-block rounded border px-1 py-px text-[10px]", tone(s.status))}>{md(s.status ?? "—")}</span>
                 </td>
               </tr>
             ))}

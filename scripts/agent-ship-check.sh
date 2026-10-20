@@ -60,6 +60,15 @@ fi
 
 [ "$fail" -eq 0 ] || exit 1
 
+# Optional warn only — ui-crash-guards are brittle string checks (false positives block A94 ships).
+# Run explicitly: node scripts/ui-crash-guards.mjs  ·  or when INDEX / Agents / Research / feed reset paths change.
+if echo "$files" | grep -qE '^(research/studies/INDEX\.md|artifacts/stock-compare/src/components/settings/(AgentsTab|ResearchTab)\.tsx|artifacts/api-server/src/(routes/feed|lib/ticker-pnl)\.ts)$'; then
+  echo "agent-ship-check: ui-crash-guards (advisory)…"
+  if ! node "$ROOT/scripts/ui-crash-guards.mjs"; then
+    echo "agent-ship-check: WARN ui-crash-guards failed — fix or re-run; not blocking push" >&2
+  fi
+fi
+
 if [ "$need_api" -eq 1 ]; then
   if curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/api/healthz 2>/dev/null; then
     echo "agent-ship-check: healthz ok on :8080"

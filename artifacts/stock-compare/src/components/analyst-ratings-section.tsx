@@ -61,7 +61,7 @@ export interface PriceTargetRange {
 }
 
 function classifyGrade(toGrade: string): "bull" | "bear" | "neutral" {
-  const grade = toGrade.toLowerCase();
+  const grade = (toGrade ?? "").toLowerCase();
   if (["buy", "strong buy", "outperform", "overweight", "positive"].some(g => grade.includes(g))) return "bull";
   if (["sell", "strong sell", "underperform", "underweight", "negative"].some(g => grade.includes(g))) return "bear";
   return "neutral";

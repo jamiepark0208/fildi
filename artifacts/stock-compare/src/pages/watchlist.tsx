@@ -198,7 +198,10 @@ function WatchlistView() {
   // DB-only name/sector/industry for breakdown tag popups (no Yahoo).
   const { data: watchlistMeta } = useQuery({
     queryKey: ["watchlist-meta", tickerKey],
-    queryFn: async (): Promise<Record<string, { companyName?: string | null; sector?: string | null; industry?: string | null; streetGapPct?: number | null }>> => {
+    queryFn: async (): Promise<Record<string, {
+      companyName?: string | null; sector?: string | null; industry?: string | null;
+      stockType?: string | null; streetGapPct?: number | null;
+    }>> => {
       const res = await fetch("/api/watchlist/meta", { credentials: "include" });
       if (!res.ok) throw new Error("watchlist meta failed");
       return res.json();

@@ -172,13 +172,13 @@ export function TagBadge({
           <span className={cn("text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border shrink-0", TAG_STYLES[type])}>
             {value}
           </span>
-          <span className="text-zinc-400 text-[11px]">
+          <span className="text-amber-200/70 text-[11px]">
             {matches.length} ticker{matches.length !== 1 ? "s" : ""} in your watchlist
           </span>
         </div>
         <div className="p-2 flex flex-col gap-0.5 max-h-72 overflow-y-auto">
           {matches.length === 0 ? (
-            <span className="text-zinc-500 italic px-1.5 py-1">No other watchlist tickers share this tag.</span>
+            <span className="text-amber-200/60 italic px-1.5 py-1">No watchlist tickers share this tag (meta may still be filling).</span>
           ) : (
             matches.map(({ ticker: t, companyName }) => (
               <button

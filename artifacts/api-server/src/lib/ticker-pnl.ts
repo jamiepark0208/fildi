@@ -30,10 +30,13 @@ export function computeTickerPnlRollup(posts: PostLike[], holdings: HoldingLike[
     if (h.status === 'OPEN' && h.unrealizedPnl != null) bump(h.ticker, 0, h.unrealizedPnl)
   }
 
-  return [...map.entries()].map(([ticker, v]) => ({
-    ticker,
-    realizedPnl:   v.realized,
-    unrealizedPnl: v.unrealized,
-    totalPnl:      v.realized + v.unrealized,
-  }))
+  return [...map.entries()]
+    .map(([ticker, v]) => ({
+      ticker,
+      realizedPnl:   v.realized,
+      unrealizedPnl: v.unrealized,
+      totalPnl:      v.realized + v.unrealized,
+    }))
+    // Drop pure-zero rows so Top Tickers empties after a stats reset.
+    .filter((r) => Math.abs(r.totalPnl) >= 0.005)
 }

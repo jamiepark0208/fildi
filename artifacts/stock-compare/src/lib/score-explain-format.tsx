@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 // bordered container, dense uppercase header row, zebra rows, hover highlight, tabular numerals.
 // bg-black/30 gives the table its own visibly darker surface vs. the translucent row it sits in
 // (rows use bg-*/5, near-identical to the card background — without this the table edges vanish).
-export const GRID_WRAP   = "border border-[#d4af37]/20 rounded-lg overflow-hidden bg-black/40";
+/** Scroll both axes when content overflows — never clip wide agent/rank tables. */
+export const GRID_WRAP   = "border border-[#d4af37]/20 rounded-lg overflow-auto bg-black/40";
 export const GRID_HEADER = "border-b border-[#d4af37]/20 bg-black";
 export const GRID_TH     = "py-1 px-2.5 font-medium text-[11px] uppercase tracking-widest text-[#d4af37] whitespace-nowrap";
 export const GRID_TD     = "py-1 px-2.5 text-[13px] tabular-nums";

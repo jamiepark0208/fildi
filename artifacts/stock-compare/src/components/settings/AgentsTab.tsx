@@ -5,7 +5,7 @@
  * Beams and spinning rings only for actions in the last 2 min. Tables use the shared Rankings grid look.
  * Data: GET /api/agents/overview.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { Info } from "lucide-react";
@@ -20,8 +20,11 @@ type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: 
 type Live = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; git?: string[]; gitMsg?: string };
 type Jobs = { running: { name: string; mins: number }[]; ran: { name: string; at: string; ok: boolean }[]; recentRun?: boolean;
   sources: { source: string; calls: number; at: string }[]; activeSources: string[]; links: { api: boolean; db: boolean } };
+type ErrRow = { t: string; tool: string | null; detail: string | null; kind: string | null };
 type Status = {
-  working: boolean; waiting?: boolean; looping?: boolean; errors1h?: number; doing?: string | null; workingMin?: number; waitingMin?: number;
+  working: boolean; waiting?: boolean; looping?: boolean; loopCount?: number; loopTool?: string | null; loopDetail?: string | null;
+  errors1h?: number; errors?: number; recentErrors?: ErrRow[];
+  doing?: string | null; workingMin?: number; waitingMin?: number;
   lastKind?: string | null; lastEvent: Live | null; sessions10m: number; tools24h: number;
 };
 type Proc = { pid: number; name: string; script: string; owner: "claude" | "cursor" | "jobs"; secs: number; startedAt: string;
@@ -34,7 +37,7 @@ const NICE: Record<string, string> = { s021_pricing: "S021 price check", option_
 const nice = (n: string) => NICE[n] ?? (/^s0\d\d/.test(n) ? `${n.slice(0, 4).toUpperCase()} study` : n.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase()));
 type Sub = { id: string; agent: string; session: string | null; type: string | null; task: string; startedAt: string; lastAt: string; actions: number; running: boolean };
 /** Agent needs a look: waiting on you (yellow), or looping / failing (red). */
-const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
+const attention = (st?: Status) => (st?.waiting ? "#fde047" : st?.looping || (st?.errors ?? st?.errors1h ?? 0) > 0 ? "#f87171" : undefined);
 type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
   type Idea = {
@@ -135,13 +138,19 @@ const ago = (t: string | null | undefined) => {
   const m = (Date.now() - Date.parse(t)) / 6e4;
   return m < 1 ? "now" : m < 60 ? `${Math.round(m)}m` : m < 2880 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
 };
+/** Local clock for Activity (PT wall time). */
+const clock = (t: string) => {
+  try {
+    return new Date(t).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
+  } catch { return "—"; }
+};
 const TIP = "max-w-[340px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug";
 const SUB_TABS = ["Stage", "Ideas", "Usage", "Rules", "Skills"] as const;
 
 function InfoTip({ children }: { children: React.ReactNode }) {
   return (
     <Tooltip delayDuration={150}>
-      <TooltipTrigger asChild><button type="button" className="text-white/40 hover:text-white"><Info className="w-3.5 h-3.5" /></button></TooltipTrigger>
+      <TooltipTrigger asChild><button type="button" className="text-[#d4af37]/70 hover:text-[#d4af37]"><Info className="w-3.5 h-3.5" /></button></TooltipTrigger>
       <TooltipContent side="bottom" className={TIP}>{children}</TooltipContent>
     </Tooltip>
   );
@@ -176,7 +185,7 @@ function agentNames(d: Data): (key: string, agent?: string) => string {
 const evName = (nm: ReturnType<typeof agentNames>, e: Live) => (e.sub ? nm(`b:${e.sub}`, e.agent) : e.session ? nm(`s:${e.session}`, e.agent) : META[e.agent as Id]?.label ?? e.agent);
 
 function humanAction(e: Live): string {
-  const tool = (e.tool ?? e.event ?? "action").replace(/^(PreToolUse|PostToolUse|Tool)/i, "").trim() || "action";
+  const tool = (e.tool ?? e.event ?? "action").replace(/^(PreToolUse|PostToolUse|Tool|beforeSubmitPrompt|afterFileEdit)/i, "").trim() || "action";
   const d = (e.detail ?? "").trim();
   const looksShell = !!d && (/^(cd |ls |git |npm |pnpm |node |python|curl |rg |grep |cat |head |tail |psql |wc |chmod |mkdir |echo |export |source |\.\/)/i.test(d)
     || /&&|\|\||\n|; sudo/.test(d) || (d.length > 72 && /[|<>]/.test(d)));
@@ -184,6 +193,69 @@ function humanAction(e: Live): string {
   if (!d) return tool;
   if (d.includes("/")) return `${tool} · ${d.split("/").filter(Boolean).slice(-2).join("/").slice(0, 72)}`;
   return `${tool} · ${d.slice(0, 80)}`;
+}
+
+type ActStep = { t: string; event: string; tool: string; kind: string; what: string; fail: boolean };
+type ActRow = {
+  id: string; t: string; start: string; agent: string; name: string; what: string;
+  acts: number; fails: number; edits: number; fail: boolean; done: boolean; bus: boolean; steps: ActStep[];
+};
+
+/** One Activity row per user prompt (tools nested); ASKS/commits stay as bus rows. */
+function buildActivity(d: Data): ActRow[] {
+  const nm = agentNames(d);
+  const by = new Map<string, Live[]>();
+  for (const e of d.live) {
+    if (e.event === "session-start" || e.event === "session-end") continue;
+    const key = `${e.agent}|${e.session ?? "_"}`;
+    (by.get(key) ?? (by.set(key, []), by.get(key)!)).push(e);
+  }
+  const turns: ActRow[] = [];
+  for (const [, raw] of by) {
+    const evs = [...raw].sort((a, b) => a.t.localeCompare(b.t));
+    let bucket: Live[] = [];
+    const flush = () => {
+      if (!bucket.length) return;
+      const prompt = bucket.find((e) => e.event === "prompt" && !e.sub);
+      const steps: ActStep[] = bucket.map((e) => ({
+        t: e.t, event: e.event,
+        tool: (e.tool ?? e.event).replace(/^mcp__/, ""),
+        kind: e.event === "fail" ? "fail" : (e.kind ?? e.event),
+        what: e.event === "prompt" ? (e.detail ?? "prompt").slice(0, 160) : humanAction(e),
+        fail: e.event === "fail",
+      }));
+      const tools = bucket.filter((e) => e.event === "tool" || e.event === "edit" || e.event === "fail").length;
+      const edits = bucket.filter((e) => e.event === "edit").length;
+      const fails = bucket.filter((e) => e.event === "fail").length;
+      const done = bucket.some((e) => e.event === "stop" || e.event === "waiting");
+      const start = bucket[0].t;
+      const end = bucket[bucket.length - 1].t;
+      const promptText = (prompt?.detail ?? "").replace(/\s+/g, " ").trim();
+      const what = promptText
+        ? promptText.slice(0, 110)
+        : `work · ${tools} tool${tools === 1 ? "" : "s"}${edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : ""}`;
+      turns.push({
+        id: `${bucket[0].agent}-${start}`,
+        t: end, start, agent: bucket[0].agent,
+        name: prompt ? evName(nm, prompt) : evName(nm, bucket[0]),
+        what, acts: tools, fails, edits, fail: fails > 0, done, bus: false, steps,
+      });
+      bucket = [];
+    };
+    for (const e of evs) {
+      if (e.event === "prompt" && !e.sub) { flush(); bucket = [e]; }
+      else { if (!bucket.length) bucket = [e]; else bucket.push(e); }
+    }
+    flush();
+  }
+  const bus: ActRow[] = d.events.map((e, i) => ({
+    id: `bus-${e.t}-${i}`, t: e.t, start: e.t, agent: e.from,
+    name: META[e.from as Id]?.label ?? e.from,
+    what: e.kind === "ask" ? `→ ${META[e.to as Id]?.label ?? e.to}: ${e.text}` : `commit · ${e.text}`,
+    acts: 0, fails: 0, edits: 0, fail: false, done: true, bus: true,
+    steps: [{ t: e.t, event: e.kind, tool: e.kind, kind: e.kind, what: e.text, fail: false }],
+  }));
+  return [...turns, ...bus].sort((a, b) => b.t.localeCompare(a.t));
 }
 
 // ── canvas primitives ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -812,7 +884,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       return <Lines color={m.color} a="Grok · red team (not auto)" b={`${q} · ${last}`} c={`${a?.commits24h ?? 0} commits today · Agent: grokbot · GROK.md`} />;
     }
     const ml = id === "muse" ? d.muse?.live : undefined;
-    const state = st ? (st.waiting ? "waiting for you" : st.looping ? "repeating itself?" : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
+    const state = st ? (st.waiting ? "waiting for you" : st.looping ? `same ${st.loopTool ?? "tool"} ×${st.loopCount ?? "5+"}` : st.working ? "working" : `idle ${ago(st.lastEvent?.t)}`)
       : id === "muse"
         ? (ml?.working ? `working${ml.detail ? ` · ${ml.detail.slice(0, 36)}` : ""}` : d.muse?.running ? "app open" : "app closed")
         : `last commit ${ago(a?.lastActive)}`;
@@ -825,13 +897,17 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   };
   return (
     <div className="space-y-1">
-      <ZoomCanvas height={380} grid={false} fit={{ x0: NX - NR - 30, x1: CX + R + 21 + 70, y0: -2 * NGAP - NR - 22, y1: 2 * NGAP + NR + 22 }} draw={draw} hit={hit} tip={tip} onPick={(id) => { if (!id || id.startsWith("s:") || id.startsWith("n:") || id.startsWith("b:")) { if (!id) onSel("all"); return; } onSel(id as Id); }} />
+      <ZoomCanvas height={380} grid={false} fit={{ x0: NX - NR - 30, x1: CX + R + 21 + 70, y0: -2 * NGAP - NR - 22, y1: 2 * NGAP + NR + 22 }} draw={draw} hit={hit} tip={tip} onPick={(id) => {
+        if (!id) { onSel("all"); return; }
+        // Only agent orbs change table focus — jobs/OpenJev/nodes/links stay tooltip-only (META[focus] crash).
+        if (id in META) onSel(id as Id);
+      }} />
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
         {(["web", "database", "api", "code", "reading"] as const).map((k) => (
           <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: KIND[k].color }} />{KIND[k].label}</span>
         ))}
         <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: WAIT }} />waiting for you</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "#f87171" }} />looping / errors</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "#f87171" }} />same-tool loop / errors</span>
       </div>
     </div>
   );
@@ -950,110 +1026,46 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
   );
 }
 
-function OpenJevRegistryStrip({ reg }: { reg?: OjRegistry }) {
-  if (!reg) return null;
-  const c = reg.counts;
-  return (
-    <div className="rounded border border-violet-400/25 bg-violet-500/5 px-2.5 py-1.5 text-[11px] space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-bold uppercase tracking-wider text-violet-300">OpenJev</span>
-        <span className="text-white/40">A150 token triage · local $0</span>
-        {reg.updated && <span className="text-white/35">registry {reg.updated}</span>}
-        <span className="ml-auto font-mono tabular-nums text-white/80">
-          <span className="text-emerald-300">A {c.A}</span>
-          <span className="text-white/30"> · </span>
-          <span className="text-cyan-300">B {c.B}</span>
-          <span className="text-white/30"> · </span>
-          <span className="text-amber-200/80">C {c.C}</span>
-          <span className="text-white/30"> · </span>
-          <span className="text-zinc-400">X {c.X}</span>
-        </span>
-      </div>
-      <p className="text-[10px] text-white/45 leading-snug">{reg.note}</p>
-      {reg.samples.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {reg.samples.map((s) => (
-            <span key={s.id} title={s.ask}
-              className={cn(
-                "text-[9px] font-mono px-1 py-0.5 rounded border",
-                s.tier === "A" ? "border-emerald-400/40 text-emerald-200" : "border-cyan-400/30 text-cyan-200/90",
-              )}
-            >
-              {s.tier}:{s.id}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NextBuildStrip({
-  next, ideas, onPick,
-}: {
-  next?: NextBuild;
-  ideas: Idea[];
-  onPick?: (id: string) => void;
-}) {
-  const items = next?.items?.length
-    ? next.items
-    : ideas.filter((i) => i.phase === "reviewed").slice(0, 3).map((i) => ({ id: i.id, title: i.title }));
-  if (!items.length) return null;
-  const [head, ...rest] = items;
-  return (
-    <div className="rounded border border-[#d4af37]/30 bg-[#d4af37]/8 px-2.5 py-1.5 text-[11px]">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="font-bold uppercase tracking-wider text-[#d4af37]">Next</span>
-        <button type="button" onClick={() => onPick?.(head.id)}
-          className="font-mono font-bold text-white hover:text-[#d4af37]">
-          {head.id}
-        </button>
-        <span className="text-white/70 truncate max-w-[28rem]">{head.title}</span>
-      </div>
-      {rest.length > 0 && (
-        <div className="mt-0.5 text-[10px] text-white/45 font-mono">
-          then {rest.map((r, i) => (
-            <span key={r.id}>
-              {i > 0 ? " · " : ""}
-              <button type="button" className="hover:text-[#d4af37]" onClick={() => onPick?.(r.id)}>{r.id}</button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TeamPanel({ d }: { d: Data }) {
   const [focus, setFocus] = useState<Id | "all">("all");
+  const [actFilter, setActFilter] = useState<"all" | "fail">("all");
+  const [openTurn, setOpenTurn] = useState<string | null>(null);
   const rows = useMemo(() => {
-    const nm = agentNames(d);
-    const live = d.live.map((e) => ({ t: e.t, agent: e.agent, name: evName(nm, e), what: humanAction(e) }));
-    const ev = d.events.map((e) => ({ t: e.t, agent: e.from, name: META[e.from as Id]?.label ?? e.from, what: e.kind === "ask" ? `→ ${META[e.to as Id]?.label ?? e.to}: ${e.text}` : `commit · ${e.text}` }));
-    return [...live, ...ev].filter((r) => focus === "all" || r.agent === focus).sort((a, b) => b.t.localeCompare(a.t)).slice(0, 150);
-  }, [d, focus]);
+    return buildActivity(d)
+      .filter((r) => (focus === "all" || r.agent === focus) && (actFilter === "all" || r.fail))
+      .slice(0, 80);
+  }, [d, focus, actFilter]);
   return (
     <div className="space-y-3">
-      <NextBuildStrip next={d.nextBuild} ideas={d.ideas ?? []} />
-      <OpenJevRegistryStrip reg={d.openjevRegistry} />
-      <TeamMap d={d} sel={focus} onSel={setFocus} />
-      <div className={GRID_WRAP}>
-        <table className="w-full border-collapse">
+      <TeamMap d={d} sel={focus} onSel={(id) => { setFocus(id); setActFilter("all"); }} />
+      <div className={cn(GRID_WRAP, "min-w-0")}>
+        <table className="w-full min-w-[920px] border-collapse">
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
-            <th className={cn(GRID_TH, "text-right")}>Errors 1h</th>
-            <th className={cn(GRID_TH, "text-right")}>Tokens used</th><th className={cn(GRID_TH, "text-right")}>Available</th>
-            <th className={cn(GRID_TH, "text-right")}>Commits 24h / 7d</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
-            <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
+            <th className={cn(GRID_TH, "text-right")}>Errors</th>
+            <th className={cn(GRID_TH, "text-right")}>Tokens</th><th className={cn(GRID_TH, "text-right")}>Avail</th>
+            <th className={cn(GRID_TH, "text-right")}>Commits</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
+            <th className={cn(GRID_TH, "text-right")}>Acts</th><th className={cn(GRID_TH, "text-left")}>Last</th>
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
             const st = a.id === "claude" || a.id === "cursor" || a.id === "grok" || a.id === "codex" ? d.status[a.id] : undefined;
             const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
+            const errN = st?.errors ?? st?.errors1h ?? 0;
             return (
-              <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
+              <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => { setFocus(focus === a.id ? "all" : a.id); setActFilter("all"); }}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
                 <td className={cn(GRID_TD, "whitespace-nowrap", st?.waiting ? "text-yellow-300" : st?.looping ? "text-red-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
-                  {st ? (st.waiting ? "● waiting for you" : st.looping ? "● looping?" : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
+                  {st ? (st.waiting ? "● waiting for you" : st.looping ? (
+                    <Tooltip delayDuration={150}>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">● same {st.loopTool?.replace(/^mcp__/, "").slice(0, 18) || "tool"} ×{st.loopCount ?? "5+"}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className={TIP}>
+                        Same tool + same inputs ≥5× in 10 minutes (hook signature). Often a stuck retry or tight poll.
+                        {st.loopDetail ? ` Last: ${st.loopDetail}` : ""}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : st.working ? `● ${KIND[st.lastKind ?? "other"]?.label ?? "working"}` : `idle ${ago(st.lastEvent?.t)}`)
                     : a.id === "muse"
                       ? (d.muse?.live?.working
                         ? `● working${d.muse.live.detail ? ` · ${d.muse.live.detail.slice(0, 28)}` : ""}`
@@ -1064,7 +1076,36 @@ function TeamPanel({ d }: { d: Data }) {
                           : (a.queue > 0 ? `● ${a.queue} to review` : "red team · idle"))
                         : `last commit ${ago(a.lastActive)}`}
                 </td>
-                <td className={cn(GRID_TD, "text-right", (st?.errors1h ?? 0) > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{st ? st.errors1h ?? 0 : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", errN > 0 ? "text-red-300 font-semibold" : "text-white/50")}
+                  onClick={(e) => {
+                    if (!st || errN <= 0) return;
+                    e.stopPropagation();
+                    setFocus(a.id);
+                    setActFilter("fail");
+                  }}>
+                  {st ? (
+                    <Tooltip delayDuration={150}>
+                      <TooltipTrigger asChild>
+                        <span className={cn("cursor-default", errN > 0 && "underline decoration-red-300/40 underline-offset-2")}>{errN}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className={cn(TIP, "max-w-[380px]")}>
+                        {errN === 0 ? "No tool failures in the last 24h." : (
+                          <>
+                            <div className="mb-1 text-[#d4af37]">{errN} fail{errN === 1 ? "" : "s"} / 24h{(st.errors1h ?? 0) > 0 ? ` · ${st.errors1h} in last hour` : ""}. Click to filter Activity.</div>
+                            <ul className="space-y-1 max-h-48 overflow-y-auto">
+                              {(st.recentErrors ?? []).slice(0, 10).map((er, j) => (
+                                <li key={`${er.t}-${j}`} className="text-white/90">
+                                  <span className="text-white/55">{clock(er.t)}</span>
+                                  {" · "}{er.tool ?? "tool"}{er.detail ? ` — ${er.detail.slice(0, 90)}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : "—"}
+                </td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? (
                     <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
@@ -1084,10 +1125,10 @@ function TeamPanel({ d }: { d: Data }) {
                         return (
                           <Tooltip delayDuration={150}>
                             <TooltipTrigger asChild>
-                              <span className="cursor-default">{used}% <span className="text-white/50">used</span> · {left}% <span className="text-white/50">left</span></span>
+                              <span className="cursor-default">{used}%</span>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className={TIP}>
-                              Shared Cursor plan pool (Cursor + Grok).
+                              Shared Cursor plan pool (Cursor + Grok). {used}% used · {left}% left.
                               {l.spendUsd != null ? ` $${l.spendUsd.toFixed(0)}${l.limitUsd != null ? `/$${l.limitUsd.toFixed(0)}` : ""} included.` : ""}
                               {` Cu ${cst?.tools24h ?? 0} + G ${gst?.tools24h ?? 0} actions / 24h.`}
                             </TooltipContent>
@@ -1153,25 +1194,66 @@ function TeamPanel({ d }: { d: Data }) {
           </tbody>
         </table>
       </div>
-      {focus !== "all" && <Timeline d={d} agent={focus} />}
-      <div className="flex items-center gap-2 text-[12px] text-white/60">
-        Activity {focus === "all" ? "· all agents" : `· ${META[focus].label}`}
-        {focus !== "all" && <button type="button" onClick={() => setFocus("all")} className="text-[#d4af37] hover:underline">show all</button>}
+      {focus !== "all" && focus in META && <Timeline d={d} agent={focus} />}
+      <div className="flex items-center gap-2 flex-wrap text-[12px] text-white/80">
+        <span>Activity {focus === "all" ? "· all agents" : `· ${META[focus]?.label ?? focus}`} · one row per prompt{actFilter === "fail" ? " · fails only" : ""}</span>
+        {focus !== "all" && <button type="button" onClick={() => { setFocus("all"); setActFilter("all"); }} className="text-[#d4af37] hover:underline">show all</button>}
+        {actFilter === "fail" && <button type="button" onClick={() => setActFilter("all")} className="text-[#d4af37] hover:underline">clear fail filter</button>}
       </div>
-      <div className={cn(GRID_WRAP, "max-h-[420px] overflow-y-auto")}>
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0"><tr className={GRID_HEADER}>
-            <th className={cn(GRID_TH, "text-left w-16")}>When</th><th className={cn(GRID_TH, "text-left w-20")}>Agent</th><th className={cn(GRID_TH, "text-left")}>What</th>
+      <div className={cn(GRID_WRAP, "max-h-[480px]")}>
+        <table className="w-full min-w-[780px] border-collapse">
+          <thead className="sticky top-0 z-10"><tr className={GRID_HEADER}>
+            <th className={cn(GRID_TH, "text-left")}>Time</th>
+            <th className={cn(GRID_TH, "text-left")}>Ago</th>
+            <th className={cn(GRID_TH, "text-left")}>Agent</th>
+            <th className={cn(GRID_TH, "text-left")}>Prompt / work</th>
+            <th className={cn(GRID_TH, "text-right")}>Acts</th>
+            <th className={cn(GRID_TH, "text-right")}>Fails</th>
+            <th className={cn(GRID_TH, "text-left")}>State</th>
           </tr></thead>
           <tbody>{rows.length === 0 ? (
-            <tr><td colSpan={3} className={cn(GRID_TD, "text-white/50")}>No recent activity.</td></tr>
-          ) : rows.map((r, i) => (
-            <tr key={`${r.t}-${i}`} className={gridRow(i)}>
-              <td className={cn(GRID_TD, "text-white/55")}>{ago(r.t)}</td>
-              <td className={cn(GRID_TD, "font-medium")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{r.name}</td>
-              <td className={cn(GRID_TD, "text-white/85 truncate max-w-0 w-full")} title={r.what}>{r.what}</td>
-            </tr>
-          ))}</tbody>
+            <tr><td colSpan={7} className={cn(GRID_TD, "text-white/70")}>{actFilter === "fail" ? "No turns with fails." : "No recent activity."}</td></tr>
+          ) : rows.map((r, i) => {
+            const open = openTurn === r.id;
+            return (
+              <Fragment key={r.id}>
+                <tr className={cn(gridRow(i), "cursor-pointer", open && "bg-white/[0.05]")}
+                  onClick={() => setOpenTurn(open ? null : r.id)}>
+                  <td className={cn(GRID_TD, "text-white/80 whitespace-nowrap")}>{clock(r.start)}</td>
+                  <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap")}>{ago(r.t)}</td>
+                  <td className={cn(GRID_TD, "font-medium whitespace-nowrap")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{r.name}</td>
+                  <td className={cn(GRID_TD, r.fail ? "text-red-200" : "text-white/90", "truncate max-w-[420px]")} title={r.what}>
+                    <span className="text-[#d4af37]/80 mr-1">{open ? "▾" : "▸"}</span>{r.what}
+                    {r.edits > 0 ? <span className="text-white/50"> · {r.edits} edit{r.edits === 1 ? "" : "s"}</span> : null}
+                  </td>
+                  <td className={cn(GRID_TD, "text-right text-white/80")}>{r.bus ? "—" : r.acts}</td>
+                  <td className={cn(GRID_TD, "text-right", r.fails > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{r.bus ? "—" : r.fails}</td>
+                  <td className={cn(GRID_TD, "whitespace-nowrap", r.bus ? "text-white/60" : r.done ? "text-white/70" : "text-emerald-300")}>
+                    {r.bus ? (r.steps[0]?.kind === "ask" ? "ask" : "commit") : r.done ? "done" : "working"}
+                  </td>
+                </tr>
+                {open && (
+                  <tr className={gridRow(i)}>
+                    <td colSpan={7} className={cn(GRID_TD, "bg-black/50 !py-2")}>
+                      <ul className="space-y-1 max-h-56 overflow-y-auto pl-2 border-l border-[#d4af37]/25">
+                        {r.steps.filter((s) => s.event !== "prompt").length === 0 && r.steps[0]?.event === "prompt" ? (
+                          <li className="text-white/60 text-[12px]">No tools yet for this prompt.</li>
+                        ) : null}
+                        {r.steps.filter((s) => s.event !== "prompt").map((s, j) => (
+                          <li key={`${s.t}-${j}`} className={cn("text-[12px] flex gap-2", s.fail ? "text-red-300" : "text-white/85")}>
+                            <span className="text-white/50 w-14 shrink-0 tabular-nums">{clock(s.t)}</span>
+                            <span className="text-white/55 w-16 shrink-0 truncate">{s.kind}</span>
+                            <span className="text-white/65 w-28 shrink-0 truncate" title={s.tool}>{s.tool.slice(0, 24)}</span>
+                            <span className="truncate" title={s.what}>{s.what}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}</tbody>
         </table>
       </div>
     </div>
@@ -1185,11 +1267,10 @@ function askSortKey(id: string): number {
 }
 
 function IdeasPanel({
-  ideas, unread = {}, nextBuild,
+  ideas, unread = {},
 }: {
   ideas: Idea[];
   unread?: Record<string, number>;
-  nextBuild?: NextBuild;
 }) {
   const [sel, setSel] = useState<string | null>(null);
   const [showParked, setShowParked] = useState(false);
@@ -1212,9 +1293,9 @@ function IdeasPanel({
   const qn = query.trim().toLowerCase();
   const matches = (i: Idea) => {
     if (!qn) return true;
-    return i.id.toLowerCase().includes(qn)
-      || i.title.toLowerCase().includes(qn)
-      || i.status.toLowerCase().includes(qn)
+    return (i.id ?? "").toLowerCase().includes(qn)
+      || (i.title ?? "").toLowerCase().includes(qn)
+      || (i.status ?? "").toLowerCase().includes(qn)
       || `${i.from}→${i.to}`.includes(qn);
   };
   // Open stages + done ≤ 7d + this-wave / in-progress. Stale "Building" debt hidden unless toggled.
@@ -1235,7 +1316,7 @@ function IdeasPanel({
   // Exact id like A148 → select it
   useEffect(() => {
     if (!qn) return;
-    const exact = ideas.find((i) => i.id.toLowerCase() === qn || i.id.toLowerCase() === `a${qn}`);
+    const exact = ideas.find((i) => (i.id ?? "").toLowerCase() === qn || (i.id ?? "").toLowerCase() === `a${qn}`);
     if (exact) setSel(exact.id);
   }, [qn, ideas]);
   const dismiss = async (id: string) => {
@@ -1316,28 +1397,35 @@ function IdeasPanel({
     );
   };
   const hit = (x: number, y: number) => layout.find((p) => Math.abs(p.x - x) < S + 2 && y > p.y - S && y < p.y + S * 1.4)?.idea.id ?? null;
+  const ownerLegend = ([
+    ["cursor", "builds Ready / In progress"],
+    ["claude", "plans Inbox → Cursor rows"],
+    ["codex", "assesses, builds and verifies claimed work"],
+    ["grok", "review queue"],
+    ["muse", "filed to someone"],
+    ["jamie", "Needs you (you act)"],
+  ] as const);
   return (
-    <div className="space-y-3">
-      <NextBuildStrip next={nextBuild} ideas={ideas} onPick={setSel} />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-white/50 font-mono">
-        <span className="text-white/35 uppercase tracking-wider">Owner</span>
-        {([
-          ["cursor", "builds Ready / In progress"],
-          ["codex", "assesses, builds and verifies claimed work"],
-          ["claude", "plans Inbox → Cursor rows"],
-          ["grok", "review queue"],
-          ["muse", "filed to someone"],
-          ["jamie", "Needs you (you act)"],
-        ] as const).map(([id, why]) => (
-          <span key={id} className="inline-flex items-center gap-1">
-            <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-black px-0.5"
-              style={{ background: META[id].color }}>{WHO_LETTER[id]}</span>
-            <span>{why}</span>
-          </span>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 text-[12px] text-white">
-        <span>Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-amber-100">
+        <div className="inline-flex items-center gap-1 mr-1" title="Cube letter = owner">
+          {ownerLegend.map(([id, why]) => (
+            <Tooltip key={id} delayDuration={120}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full text-[8px] font-bold text-black px-0.5 hover:brightness-110"
+                  style={{ background: META[id].color }}
+                  aria-label={`${WHO_LETTER[id]}: ${why}`}
+                >
+                  {WHO_LETTER[id]}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className={TIP}>{why}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+        <span className="font-semibold text-white">Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
         <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
           Needs you cubes show the agent Owner (from needs-jamie.md); you still act — Owner replies first (A153).
           Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you — not every ASKS row (e.g. done/parked stay off).
@@ -1349,34 +1437,34 @@ function IdeasPanel({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); }}
           placeholder="Find A148…"
-          className="w-[9.5rem] rounded-md border border-white/15 bg-black/40 px-2 py-1 text-[12px] text-white placeholder:text-white/40 focus:border-[#d4af37]/60 focus:outline-none"
+          className="w-[9.5rem] rounded-md border border-[#d4af37]/55 bg-zinc-950 px-2 py-1 text-[12px] text-[#d4af37] placeholder:text-[#d4af37]/70 focus:border-[#d4af37] focus:outline-none"
           aria-label="Search ideas by id or title"
         />
         {qn && (
           <button type="button" onClick={() => setQuery("")}
-            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#d4af37]/50">
+            className="text-[11px] border border-[#d4af37]/40 rounded-md px-2 py-1 text-[#d4af37] hover:bg-[#d4af37]/10">
             Clear search
           </button>
         )}
         {(hotCount > 0 || progCount > 0) && (
-          <span className="inline-flex items-center gap-2 text-[11px] text-white/80">
+          <span className="inline-flex items-center gap-2 text-[11px] text-amber-100">
             {hotCount > 0 && <span style={{ color: HOT_GLOW }}>● {hotCount} this wave{wave ? ` · ${wave.slice(5)}` : ""}</span>}
             {progCount > 0 && <span style={{ color: PROG_GLOW }}>● {progCount} in progress</span>}
           </span>
         )}
         {waveActive && hotCount > 0 && (
           <button type="button" onClick={clearWave}
-            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#ff4d8d]/50 hover:text-[#ff4d8d]">
+            className="text-[11px] border border-[#d4af37]/35 rounded-md px-2 py-1 text-amber-100 hover:border-[#ff4d8d]/50 hover:text-[#ff4d8d]">
             Clear highlights
           </button>
         )}
         {debtCount > 0 && (
           <button type="button" onClick={() => setShowDebt((v) => !v)}
-            className="text-[11px] border border-white/15 rounded-md px-2 py-1 text-amber-200/80 hover:border-amber-400/40">
+            className="text-[11px] border border-amber-400/40 rounded-md px-2 py-1 text-amber-200 hover:border-amber-400/60">
             {showDebt ? "Hide debt" : `Show debt (${debtCount})`}
           </button>
         )}
-        <button type="button" onClick={() => setShowParked((v) => !v)} className="ml-auto text-[11px] border border-white/15 rounded-md px-2 py-1 text-white/80 hover:border-[#d4af37]/50">
+        <button type="button" onClick={() => setShowParked((v) => !v)} className="ml-auto text-[11px] border border-[#d4af37]/40 rounded-md px-2 py-1 text-[#d4af37] hover:bg-[#d4af37]/10">
           {showParked ? "Hide done / parked" : "Show done / parked"}
         </button>
       </div>
@@ -1402,7 +1490,7 @@ function IdeasPanel({
             </span>
             <span className="text-white/40"> · {META[active.from]?.label} → {META[active.to]?.label}</span>
             {active.touchedBy && (
-              <span className="text-white/45"> · last touch {META[active.touchedBy].label}{active.touchedAt ? ` ${active.touchedAt}` : ""}</span>
+              <span className="text-white/45"> · last touch {META[active.touchedBy]?.label ?? active.touchedBy}{active.touchedAt ? ` ${active.touchedAt}` : ""}</span>
             )}
           </p>
           <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
@@ -1552,59 +1640,104 @@ function NeedsThread({ item }: { item: string }) {
   );
 }
 
-// ── Usage / Rules / Skills ───────────────────────────────────────────────────────────────────────────────────────────
+// ── Usage / Rules / Skills — shared GRID_* look (score-explain-format = ag-grid SoT) ─────────────────────────────────
+/** YYYY-MM-DD or ISO → m/d/yy */
+function mdY(day: string): string {
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T12:00:00` : day);
+  if (Number.isNaN(d.getTime())) return day;
+  return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+}
+
 function Usage({ d }: { d: Data }) {
   const { current, peak, hours } = d.windows;
   const pct = peak.out ? Math.round((current.out / peak.out) * 100) : 0;
   const claude = d.agents.find((a) => a.id === "claude")?.tokens ?? [];
+  const tick = { fontSize: 11, fill: "#e8d5a3" };
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div>
-          <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">Claude · this 5-hour window</div>
-          <div className="text-2xl font-semibold text-white tabular-nums">{fmt(current.out)} <span className="text-sm font-normal text-white/60">tokens out · {current.req} calls</span></div>
+          <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">Claude · 5h window</div>
+          <div className="text-2xl font-semibold text-white tabular-nums">
+            {fmt(current.out)}{" "}
+            <span className="text-sm font-normal text-amber-100">out · {current.req} calls</span>
+          </div>
         </div>
-        <div className="flex-1">
-          <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="flex-1 min-w-[12rem]">
+          <div className="h-2.5 rounded-full bg-black/50 border border-[#d4af37]/20 overflow-hidden">
             <div className={cn("h-full rounded-full", pct > 80 ? "bg-red-400" : pct > 50 ? "bg-amber-300" : "bg-cyan-300")} style={{ width: `${Math.min(100, pct)}%` }} />
           </div>
-          <div className="text-[12px] text-white/60 mt-1">{pct}% of your busiest 5-hour window this week ({fmt(peak.out)})</div>
+          <div className="text-[12px] text-amber-100 mt-1 tabular-nums">
+            {pct}% of week peak ({fmt(peak.out)})
+          </div>
         </div>
-        <InfoTip>Claude plans cap usage per 5-hour window, but the cap isn't exposed to apps, so this compares to your own busiest window in
-          7 days. Output tokens shown; input is mostly cached. Source: Claude Code session logs. Cursor and Muse don't log tokens locally.</InfoTip>
+        <InfoTip>
+          Vs your busiest 5h window in 7d (Claude doesn’t expose the plan cap). Output tokens; Cursor/Muse not in this table.
+        </InfoTip>
       </div>
       <div className={cn(GRID_WRAP, "p-2")}>
-        <div className="text-[11px] uppercase tracking-widest text-[#d4af37] mb-1 px-1">Claude tokens out per hour · 48 h</div>
+        <div className="text-[11px] uppercase tracking-widest text-[#d4af37] mb-1 px-1">Out / hour · 48h</div>
         <ResponsiveContainer width="100%" height={130}>
           <BarChart data={hours}>
-            <XAxis dataKey="t" tickFormatter={(t: string) => new Date(t).getHours().toString()} tick={{ fontSize: 11, fill: "#a1a1aa" }} interval={5} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={(v: number) => fmt(v)} tick={{ fontSize: 11, fill: "#a1a1aa" }} width={36} axisLine={false} tickLine={false} />
-            <RTooltip contentStyle={{ background: "#09090b", border: "1px solid #38e1ff55", fontSize: 12 }} labelFormatter={(t: string) => new Date(t).toLocaleString()} formatter={(v: number) => [fmt(v), "output"]} />
+            <XAxis dataKey="t" tickFormatter={(t: string) => new Date(t).getHours().toString()} tick={tick} interval={5} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(v: number) => fmt(v)} tick={tick} width={36} axisLine={false} tickLine={false} />
+            <RTooltip
+              contentStyle={{ background: "#09090b", border: "1px solid #d4af3755", fontSize: 12, color: "#fff" }}
+              labelFormatter={(t: string) => mdY(t) + " " + new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              formatter={(v: number) => [fmt(v), "out"]}
+            />
             <Bar dataKey="out" fill="#38e1ff" radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className={GRID_WRAP}>
         <table className="w-full border-collapse">
-          <thead><tr className={GRID_HEADER}>
-            <th className={cn(GRID_TH, "text-left")}>Day</th><th className={cn(GRID_TH, "text-right")}>Output</th>
-            <th className={cn(GRID_TH, "text-right")}>Input (incl. cache)</th><th className={cn(GRID_TH, "text-right")}>Calls</th>
-          </tr></thead>
-          <tbody>{[...claude].reverse().map((t, i) => (
-            <tr key={t.day} className={gridRow(i)}>
-              <td className={cn(GRID_TD, "text-white/80")}>{t.day}</td>
-              <td className={cn(GRID_TD, "text-right text-white font-semibold")}>{fmt(t.output)}</td>
-              <td className={cn(GRID_TD, "text-right text-white/70")}>{fmt(t.input + t.cacheRead + t.cacheWrite)}</td>
-              <td className={cn(GRID_TD, "text-right text-white/70")}>{t.requests}</td>
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-left")}>Day</th>
+              <th className={cn(GRID_TH, "text-right")}>Output</th>
+              <th className={cn(GRID_TH, "text-right")}>Input</th>
+              <th className={cn(GRID_TH, "text-right")}>Calls</th>
             </tr>
-          ))}</tbody>
+          </thead>
+          <tbody>
+            {[...claude].reverse().map((t, i) => (
+              <tr key={t.day} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "text-white font-mono")}>{mdY(t.day)}</td>
+                <td className={cn(GRID_TD, "text-right text-white font-semibold")}>{fmt(t.output)}</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100")}>{fmt(t.input + t.cacheRead + t.cacheWrite)}</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100")}>{t.requests}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
-      <p className="text-[12px] text-white/60">
-        Cursor: {d.limits?.cursor?.totalPct != null ? `${Math.round(100 - d.limits.cursor.totalPct)}% left` : "usage snap pending"}
-        {" · "}{d.status.cursor.tools24h} actions / 24h
-        {" · "}Muse: {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits · heartbeat {d.muse?.live?.working ? "working" : "idle"}
-      </p>
+      <div className={GRID_WRAP}>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-left")}>Agent</th>
+              <th className={cn(GRID_TH, "text-left")}>Snap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className={gridRow(0)}>
+              <td className={cn(GRID_TD, "text-[#d4af37] whitespace-nowrap")}>Cursor</td>
+              <td className={cn(GRID_TD, "text-white")}>
+                {d.limits?.cursor?.totalPct != null ? `${Math.round(100 - d.limits.cursor.totalPct)}% left` : "snap pending"}
+                {" · "}{d.status.cursor.tools24h} actions / 24h
+              </td>
+            </tr>
+            <tr className={gridRow(1)}>
+              <td className={cn(GRID_TD, "text-[#d4af37] whitespace-nowrap")}>Muse</td>
+              <td className={cn(GRID_TD, "text-white")}>
+                {d.agents.find((a) => a.id === "muse")?.commits24h ?? 0} commits / 24h
+                {" · "}{d.muse?.live?.working ? "working" : "idle"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1613,13 +1746,22 @@ function Rules({ d }: { d: Data }) {
   return (
     <div className={GRID_WRAP}>
       <table className="w-full border-collapse">
-        <thead><tr className={GRID_HEADER}><th className={cn(GRID_TH, "text-left w-48")}>Who</th><th className={cn(GRID_TH, "text-left")}>Rule</th></tr></thead>
-        <tbody>{d.rules.map((r, i) => (
-          <tr key={`${r.group}-${r.title}`} className={gridRow(i)}>
-            <td className={cn(GRID_TD, "text-[#d4af37]/90 whitespace-nowrap")}>{i === 0 || d.rules[i - 1].group !== r.group ? r.group : ""}</td>
-            <td className={cn(GRID_TD, "text-white/90")}>{r.title}</td>
+        <thead>
+          <tr className={GRID_HEADER}>
+            <th className={cn(GRID_TH, "text-left w-36")}>Who</th>
+            <th className={cn(GRID_TH, "text-left")}>Rule</th>
           </tr>
-        ))}</tbody>
+        </thead>
+        <tbody>
+          {d.rules.map((r, i) => (
+            <tr key={`${r.group}-${r.title}`} className={gridRow(i)}>
+              <td className={cn(GRID_TD, "text-[#d4af37] whitespace-nowrap font-medium")}>
+                {i === 0 || d.rules[i - 1].group !== r.group ? r.group : ""}
+              </td>
+              <td className={cn(GRID_TD, "text-white")}>{r.title}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
   );
@@ -1627,25 +1769,32 @@ function Rules({ d }: { d: Data }) {
 
 function Skills({ d }: { d: Data }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[12px] text-white/70">
-        Skills load only when a task needs them (saves tokens). Unused for 7 days → merge or drop.
-        <InfoTip>Counts come from Claude Code session logs (Skill / Read of .claude/skills/*.md). Cursor's own rules live in .cursor/rules.</InfoTip>
-      </div>
-      <div className={GRID_WRAP}>
-        <table className="w-full border-collapse">
-          <thead><tr className={GRID_HEADER}>
-            <th className={cn(GRID_TH, "text-left")}>Skill</th><th className={cn(GRID_TH, "text-right")}>Loads 7d</th><th className={cn(GRID_TH, "text-left")}>What it's for</th>
-          </tr></thead>
-          <tbody>{d.skills.map((s, i) => (
+    <div className={GRID_WRAP}>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className={GRID_HEADER}>
+            <th className={cn(GRID_TH, "text-left")}>
+              <span className="inline-flex items-center gap-1.5">
+                Skill
+                <InfoTip>Claude session loads of .claude/skills/*.md. Unused 7d → merge/drop. Cursor rules = .cursor/rules.</InfoTip>
+              </span>
+            </th>
+            <th className={cn(GRID_TH, "text-right")}>7d</th>
+            <th className={cn(GRID_TH, "text-left")}>About</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.skills.map((s, i) => (
             <tr key={s.name} className={gridRow(i)}>
               <td className={cn(GRID_TD, "text-white font-medium whitespace-nowrap")}>{s.name}</td>
-              <td className={cn(GRID_TD, "text-right", s.uses7d ? "text-cyan-200 font-semibold" : "text-white/35")}>{s.uses7d || "unused"}</td>
-              <td className={cn(GRID_TD, "text-white/70")}>{s.about}</td>
+              <td className={cn(GRID_TD, "text-right font-semibold tabular-nums", s.uses7d ? "text-cyan-200" : "text-amber-200")}>
+                {s.uses7d || "—"}
+              </td>
+              <td className={cn(GRID_TD, "text-amber-50")}>{s.about}</td>
             </tr>
-          ))}</tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1691,7 +1840,7 @@ export function AgentsTab() {
         </div>
       </div>
       {activeTab === "Stage" && <TeamPanel d={data} />}
-      {activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} nextBuild={data.nextBuild} />}
+      {activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
       {activeTab === "Usage" && <Usage d={data} />}
       {activeTab === "Rules" && <Rules d={data} />}
       {activeTab === "Skills" && <Skills d={data} />}

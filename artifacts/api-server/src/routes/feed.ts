@@ -752,8 +752,9 @@ router.post('/feed/portfolio/reset', async (req, res) => {
 
 // ── POST /api/feed/portfolio/reset-stats ─────────────────────────────────────
 // Clean-slate track record: delete all trade_posts (win rate / streak / idea P&L).
-// Keep stock_holdings (stock views) but mark cost basis to latest close so
-// unrealized P&L reads 0. Cash unchanged. Likes/comments cascade with posts.
+// Keep OPEN stock_holdings but mark cost basis to latest close so unrealized ≈ 0.
+// Delete CLOSED/CALLED_AWAY lots (their $0 realized rows still cluttered Top Tickers).
+// Cash + buying power → 0 (no reserved collateral once posts are gone).
 router.post('/feed/portfolio/reset-stats', async (req, res) => {
   const userId = req.session.userId!
 
@@ -787,12 +788,21 @@ router.post('/feed/portfolio/reset-stats', async (req, res) => {
     }
   }
 
-  // Closed lots' realized P&L also feeds ticker charts — zero those out too.
-  await db.update(stockHoldings)
-    .set({ realizedPnl: '0' })
-    .where(and(eq(stockHoldings.userId, userId), eq(stockHoldings.status, 'CLOSED')))
+  const removedLots = await db.delete(stockHoldings)
+    .where(and(
+      eq(stockHoldings.userId, userId),
+      inArray(stockHoldings.status, ['CLOSED', 'CALLED_AWAY']),
+    ))
+    .returning({ id: stockHoldings.id })
 
-  return res.json({ deletedPosts: deleted.length, holdingsMarkedToMarket: rebated })
+  await db.update(users).set({ cashBalance: '0' }).where(eq(users.id, userId))
+
+  return res.json({
+    deletedPosts: deleted.length,
+    holdingsMarkedToMarket: rebated,
+    closedLotsRemoved: removedLots.length,
+    cashBalance: 0,
+  })
 })
 
 // ── GET /api/feed/buckets — all users' picks (public within the app) ──────────
