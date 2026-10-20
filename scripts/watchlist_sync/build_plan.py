@@ -300,15 +300,15 @@ def trim_checks(ticker: str, ctx: dict) -> tuple[list[dict], list[str]]:
     ls = ctx["lseg"].get(ticker) or {}
     flags: list[str] = []
     if (ls.get("credit_combined_rank") or 100) <= 10:
-        flags.append(f"high distress risk (StarMine credit {ls['credit_combined_rank']}/100)")
+        flags.append(f"high distress risk (StarMine credit {ls['credit_combined_rank']}/100; untested: no credit history)")
     if (ls.get("arm_rank") or 100) <= 20:
-        flags.append(f"analysts cutting estimates (ARM {ls['arm_rank']}/100)")
+        flags.append(f"analysts cutting estimates (ARM {ls['arm_rank']}/100; S060: down-revisions −0.9 %/month vs peers)")
     if (ls.get("combined_alpha_rank") or 100) <= 10:
         flags.append(f"weak overall LSEG score ({ls['combined_alpha_rank']}/100; S058: ~−1 %/month vs peers, borderline)")
     er = ctx["earnings"].get(ticker)
     ps = ls.get("pred_surprise_pct_fq1")
     if ps is not None and ps <= -2 and er and (er - date.today()).days <= 30:
-        flags.append(f"StarMine predicts a {ps:.1f}% miss on {er}")
+        flags.append(f"StarMine predicts a {ps:.1f}% miss on {er} (S060: −1.7 %/month vs peers)")
     # S058 (10-19): a falling-knife chart is not a trim reason: +0.15 % next-month excess overall, and inside weak-alpha names
     # it is +1.46 pp BETTER (they bounce). Counting it made the model sell lows (RKLB, RGTI). Shown as context only.
     n = len(flags)
