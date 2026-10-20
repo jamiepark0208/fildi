@@ -67,3 +67,4 @@ Weekly agent skill: `.cursor/skills/weekly-data-ops-check.md` — prefer digest 
 | Claude | `CLAUDE.md` |
 | Cursor | `CURSOR.md` + `.cursor/rules/` |
 | Skills | `.claude/skills/` (one at a time) |
+| Agent workflow / token efficiency (W-registry, audit, startup digest) | `.agents/context/workflow-learning.md` · `scripts/workflow_audit.py` · `scripts/agent_start.py` |

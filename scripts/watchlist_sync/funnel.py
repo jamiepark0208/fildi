@@ -6,7 +6,11 @@ Replaces ~12 ad-hoc queries per "why so few puts?" question. Latest plan + lates
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
 
 from build_plan import connect, rows
 
@@ -51,5 +55,16 @@ def main():
         print(f"  held {t}: {w}")
 
 
+def log_use() -> None:
+    """W05: usage line for scripts/workflow_audit.py (did this tool get used / save queries?)."""
+    try:
+        with (Path.home() / ".fildi/workflow-usage.jsonl").open("a") as f:
+            f.write(json.dumps({"t": datetime.now(timezone.utc).isoformat(timespec="seconds"), "tool": "funnel",
+                                "agent": os.environ.get("FILDI_AGENT", "claude")}) + "\n")
+    except OSError:
+        pass
+
+
 if __name__ == "__main__":
+    log_use()
     main()

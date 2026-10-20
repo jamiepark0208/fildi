@@ -184,3 +184,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Codex | Bounded autonomous development and access visibility | open |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | open (fixture-first plan; review pending) |
 | [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | accepted (Jamie chat; P0–P3 in file) |
+| [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |

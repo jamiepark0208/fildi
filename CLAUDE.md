@@ -8,8 +8,10 @@ Caveman style (AGENTS.md rule 9). Be concise. Never echo back code just written 
 
 ## STARTUP (every session)
 No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
-Run once per session: `node .claude/scripts/validate-workflow.js` · `python3 scripts/oj.py audit` (OpenJev live accuracy; owner of the registry)
-Then sync: `scripts/agent-git-sync.sh` (safe pull/push; never stash/rebase/pull by hand — AGENTS.md rule 2) →
+**Run `python3 scripts/agent_start.py` once** (W01, 10-20): it runs every step below (validate-workflow, `oj.py audit` + `pending`, `agent-git-sync.sh`,
+dismissal/inbox/ASKS/Muse/commit-review checks, `state_rotate.py`, `workflow_audit.py`) and prints a ≤ 15-line digest; full output → `~/.fildi/logs/`.
+Read the log only for a step that failed. Then act on the digest — the rules per step are unchanged:
+sync = `scripts/agent-git-sync.sh` only (never stash/rebase/pull by hand — AGENTS.md rule 2) →
 sync Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark those ASKS rows `declined (Jamie dismissed <date>)` and commit →
 triage `research/inbox.md` (user's raw thoughts → numbered items, dedupe vs ASKS/INDEX, priority P1–P3, file rows, clear the inbox; user 2026-10-15) →
 read open `research/common/ASKS.md` rows addressed **to Claude**, plus any status with `needs Claude` / `sign-off still open` (e.g. A131 quant gate) →
@@ -42,6 +44,9 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Market-data fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
 | Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
 | OpenJev miss→teach→eval (don't quit on miss) | .claude/skills/openjev-train.md |
+| Grep patterns for hot macro/schema/pipeline files | .claude/skills/hot-files.md |
+| Model List "why is X (not) listed" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` (quiet) |
+| Agent workflow changes (tokens, steps) | `.agents/context/workflow-learning.md` (W-registry) + `scripts/workflow_audit.py` |
 
 
 ---
@@ -96,24 +101,8 @@ When summarizing this conversation, keep verbatim: every user message, the user'
 - Full API catalog: `.agents/context/api-endpoints.md`
 - DB canonical universe: `fmp_fundamentals` table — **never hardcode a ticker count**; query the table for the live count
 
-## HOT FILE INDEX — grep before Read, never load whole file
-These files are edited frequently. Always `grep -n "<pattern>" <file>` to get line numbers, then `Read offset+limit`.
-
-| File (path relative to artifacts/) | Find what | Grep pattern |
-|---|---|---|
-| `api-server/src/lib/macro-data.ts` | MacroCharts interface | `grep -n "MacroCharts\|interface Macro"` |
-| `api-server/src/lib/macro-data.ts` | fetchMacroCharts body | `grep -n "fetchMacroCharts\|Promise.allSettled"` |
-| `api-server/src/lib/macro-data.ts` | loadChartsCache guard | `grep -n "loadChartsCache\|in data"` |
-| `api-server/src/lib/macro-data.ts` | fetchMacroData body | `grep -n "fetchMacroData\|ismManufacturing"` |
-| `api-server/src/lib/macro-static.ts` | INDICATOR_SERIES entries | `grep -n "INDICATOR_SERIES\|ismManufacturing"` |
-| `stock-compare/src/pages/macro.tsx` | regime tab charts section | `grep -n "HY Credit\|IG/HY\|NFCI\|DXY\|Economic Indicators"` |
-| `stock-compare/src/pages/macro.tsx` | macro component imports | `grep -n "DualLine\|RateHistory\|import {"` |
-| `stock-compare/src/components/macro/macro-history-charts.tsx` | DualLineHistoryChart / RateHistoryChart | `grep -n "DualLine\|RateHistoryChart\|referenceLines"` |
-| `stock-compare/src/components/macro/macro-page-types.ts` | MacroCharts / MacroData types | `grep -n "MacroCharts\|MacroData\|igSpread\|nfci"` |
-| `lib/db/src/schema/index.ts` (repo root, NOT under artifacts/) | any table definition | `grep -n "pgTable\|market_regime"` |
-| `api-server/src/scripts/merge-trusted.ts` | FIELD_DEFS priority table | `grep -n "FIELD_DEFS\|tfCol\|priority"` |
-| `api-server/src/scripts/nightly-enrichment.ts` | per-source fetchX() write bodies — check for dropped fields vs the source's *-client.ts interface before trusting coverage numbers | `grep -n "^async function fetch"` |
-| `api-server/src/lib/cache-registry.ts` | registered cache names | `grep -n "DISPLAY_NAMES\|getAllCaches"` |
+## HOT FILE INDEX
+Frequently edited files (macro-data, macro.tsx, schema, merge-trusted, nightly-enrichment, cache-registry): grep patterns in `.claude/skills/hot-files.md` — grep before Read, never load the whole file.
 
 ## HOOKS
 Defined in .claude/settings.local.json — never in .claude/hooks/hooks.json (not read).

@@ -1,5 +1,7 @@
 # Efficiency playbook — tokens, RPM, drift, compute
 
+> Agents' own token/workflow efficiency (startup digest, state rotation, measured W-registry): `.agents/context/workflow-learning.md`.
+
 > Ops SoT for cost/latency hygiene. Lazy-load + cache are tools; this lists **where money and CPU actually burn**.
 
 Updated: 2026-10-06 (API/LLM optimization pass — shared building blocks below; ASKS A30).
