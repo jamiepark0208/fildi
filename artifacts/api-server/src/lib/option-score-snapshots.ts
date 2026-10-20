@@ -146,7 +146,8 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
 }
 
 /** Puts: S059 put edge (≤ 7 days old) → `edge`; focus = Q4–Q5 by quintile then option score. Calls: S061 found covered calls lose vs
- *  holding in a rising tape, so focus = names you hold only. Never throws: missing tables → board unchanged, focus = top N by score. */
+ *  holding in a rising tape, so focus = names you hold only. Missing edge coverage uses non-trim score order;
+ *  failed eligibility queries leave the board visible with no Focus picks. */
 async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Promise<void> {
   try {
     if (side === "put") {
@@ -170,7 +171,10 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
       }
       const pick = rows.filter((r) => (r.edge?.quintile ?? 0) >= 4 && !trim.has(r.ticker))
         .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || (b.optionScore - a.optionScore)).slice(0, FOCUS_PUTS);
-      const set = new Set((pick.length ? pick : rows.slice(0, FOCUS_PUTS)).map((r) => r.ticker));
+      // Missing coverage may use plain scores; observed ineligibility must stay empty.
+      const hasCoverage = rows.some((r) => r.edge !== null);
+      const fallback = rows.filter((r) => !trim.has(r.ticker)).slice(0, FOCUS_PUTS);
+      const set = new Set((hasCoverage ? pick : fallback).map((r) => r.ticker));
       for (const r of rows) r.focus = set.has(r.ticker);
     } else {
       const { rows: held } = await db.execute(sql`SELECT UPPER(symbol) AS t FROM portfolio_positions
@@ -181,7 +185,8 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
     }
   } catch (err) {
     logger.warn({ err: String(err) }, "option rankings: focus/edge unavailable");
-    rows.forEach((r, i) => { r.focus = i < (side === "put" ? FOCUS_PUTS : FOCUS_CALLS); });
+    // Unknown trim/ownership eligibility must never become a recommendation.
+    rows.forEach((r) => { r.focus = false; r.edge = null; });
   }
 }
 

@@ -1,28 +1,26 @@
 """Put edge (S059, Claude 10-19): one home for the literature-backed short-put ranking used by the Model List.
 
-Three factors, each passing on 79k simulated weekly puts (S045 harness) and together beating the live put tech score on the
-2024-07 → holdout (+8.5 bp/wk top quintile, t 2.4; breach −1.2 pp):
-  iv_rv       LSEG IV30 put ÷ 20-day realized vol             Goyal & Saretto 2009 (t +12)
-  vol_of_vol  σ of daily Δln(IV30 put), 60 days              Cao, Vasquez, Xiao & Zhan (t +5.0 after IV controls)
-  put_tech    trendContext − volumeConfirm (lab_tech v2)       S045 / A167 (t +6.1)
-Composite = rank of the summed within-universe ranks (same as the study) → quintile → simulated pnl/breach from
-put_edge_calibration.json (holdout only). Same definitions as analysis/lab_outcomes.py and s059_option_factors.py.
+Three factors: IV/RV, vol-of-vol and put-tech. Existing calibration is the prior
+fixed-four-session, net-of-fill S059 run; its profit advantage was not significant.
+A206 corrects holiday dates to first→last NYSE session of the same week. That new
+horizon has NOT been backtested or recalibrated; legacy probabilities remain tagged
+as unvalidated for this horizon. No new economic performance claim is implied.
 """
 from __future__ import annotations
 
 import json
 import math
-from datetime import date, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from statistics import pstdev
 
 import numpy as np
+from weekly_put_calendar import HORIZON_VERSION, weekly_sessions
 
 HERE = Path(__file__).resolve().parent
 CAL = HERE / "put_edge_calibration.json"   # written by analysis/s059_option_factors.py (holdout only)
 MAX_TECH_AGE_DAYS = 10
 MIN_QUINTILE = 4   # A196 net-of-fill holdout: Q1–Q3 lose −3…−7 bp/wk after fills, Q4 ≈ 0, Q5 +22 → weekly lane sells Q4–Q5 only
-HOLD_SESSIONS = 4   # A196: a weekly put sold Monday's close expires Friday's close (S045 held 5 → next Monday)
 FILL_SHARE = 0.23   # RH fill = bid + 23 % of the spread (state.md) → cost vs mid = (0.5 − 0.23) × spread
 # in-session relative spread (ask − bid) / mid of 2–9 DTE, 0.10–0.25Δ puts by premium ÷ strike (option_chain_history 7–12 PT, n 1,508, 10-19)
 SPREAD_BY_PREM = [(0.001, 1.12), (0.003, 0.67), (0.006, 0.39), (0.012, 0.25), (0.03, 0.20)]
@@ -42,6 +40,13 @@ def _rank(x: list[float]) -> np.ndarray:
     r = np.empty(len(x))
     r[o] = np.arange(len(x))
     return r / max(len(x) - 1, 1)
+
+
+def calibration_status(cal: dict | None = None) -> dict:
+    """A version match identifies regenerated data, not an independent financial approval."""
+    source = cal if cal is not None else json.loads(CAL.read_text())
+    version = source.get("horizon_version", "legacy-fixed-4-session")
+    return {"calibration_horizon": version, "horizon_revalidated": version == HORIZON_VERSION}
 
 
 def scores(conn, as_of: date | None = None) -> dict[str, dict]:
@@ -80,44 +85,54 @@ def scores(conn, as_of: date | None = None) -> dict[str, dict]:
         rows.append((t, b[-1][2] / rv20, float(np.std(np.diff(np.log(ivs)))), tech[t]))
     if len(rows) < 30:
         return {}
-    cal = json.loads(CAL.read_text())["quintiles"]
+    calibration = json.loads(CAL.read_text())
+    cal = calibration["quintiles"]
+    horizon_status = calibration_status(calibration)
     comp = _rank(sum(_rank([r[k] for r in rows]) for k in (1, 2, 3)))
     out = {}
     for r, p in zip(rows, comp):
         q = min(5, int(p * 5) + 1)
         out[r[0]] = {"iv_rv": round(r[1], 2), "vol_of_vol": round(r[2], 4), "put_tech": round(r[3], 3), "pct": round(float(p), 3),
-                     "quintile": q, "pnl_bp": cal[str(q)]["pnl_bp"], "breach": cal[str(q)]["breach"], "tech_asof": str(tech_asof)}
+                     "quintile": q, "pnl_bp": cal[str(q)]["pnl_bp"], "breach": cal[str(q)]["breach"], "tech_asof": str(tech_asof),
+                     **horizon_status}
     return out
 
 
-def log_sim(conn, edge: dict[str, dict]) -> int:
-    """Weekly simulated puts for every scored name (Jamie 10-19: "simulate similar trades" — ~236 graded/week instead of ~6 live).
-    Monday (first session of the week) only, same trade as the S045/S059 simulator: K = S·exp(−IV·√(5/252)), expiry Friday.
-    Forecasters on 'stays OTM': put_edge (1 − quintile breach, holdout-calibrated) vs market (BS N(d2) at the same IV).
-    Resolved by forecast_ledger (qtype sim_put_otm → close ≥ strike), so put_edge is graded by Brier every week."""
-    from datetime import datetime
+def log_sim(conn, edge: dict[str, dict], now: datetime | None = None) -> int:
+    """Log after the first NYSE session's close, settling at this week's last session.
+    Exact entry-date close/IV only; horizon is elapsed sessions (normally four).
+    Legacy S059 breach calibration is retained but explicitly not revalidated.
+    This is a simulation, not an order; forecast_ledger grades close ≥ strike."""
     from statistics import NormalDist
     from forecast_ledger import UPSERT
     import rules as R
-    today = date.today()
-    if today.weekday() != 0 and not (today.weekday() == 1 and not R.is_trading_day(today - timedelta(days=1))):
+    current = (now or datetime.now(R.ET)).astimezone(R.ET)
+    today = current.date()
+    sessions = weekly_sessions(today)
+    # Conservative 16:00 ET check also waits until 16:00 on early-close days.
+    if len(sessions) < 2 or today != sessions[0] or current.hour < 16:
         return 0
-    fri = today + timedelta(days=4 - today.weekday())
+    expiry, hold = sessions[-1], len(sessions) - 1
     N, n = NormalDist(), 0
+    horizon_status = calibration_status()
     for t, e in edge.items():
-        r = conn.execute("""SELECT close::float8, iv30_put::float8 FROM lseg_research.daily_history WHERE ticker = %s AND iv30_put > 0
-                            ORDER BY date DESC LIMIT 1""", (t,)).fetchone()
-        if not r:
+        r = conn.execute("""SELECT date, close::float8, iv30_put::float8 FROM lseg_research.daily_history
+                            WHERE ticker = %s AND date = %s AND close > 0 AND iv30_put > 0""", (t, today)).fetchone()
+        if not r or r[0] != today or not all(math.isfinite(x) and x > 0 for x in r[1:]):
             continue
-        S, iv = r[0], r[1] / 100
-        tt = HOLD_SESSIONS / 252   # A196: Monday close → Friday close, same as the calibration
+        S, iv = r[1], r[2] / 100
+        tt = hold / 252
         K = round(S * math.exp(-iv * math.sqrt(tt)), 2)
+        if K <= 0:
+            continue
         d2 = (math.log(S / K) - 0.5 * iv * iv * tt) / (iv * math.sqrt(tt))
-        meta = json.dumps({"strike": K, "spot": S, "iv": r[1], "quintile": e["quintile"], "study": "S059"})
-        qid = f"simput:{t}:{fri}"
+        meta = json.dumps({"strike": K, "spot": S, "iv": r[2], "quintile": e["quintile"], "study": "S059",
+                           "entry_date": str(today), "expiry_date": str(expiry), "hold_sessions": hold,
+                           "horizon_version": HORIZON_VERSION, **horizon_status})
+        qid = f"simput:{t}:{expiry}"
         for fc, prob in (("put_edge", 1 - e["breach"]), ("market_iv", N.cdf(d2))):
-            conn.execute(UPSERT, (qid, f"Will {t} close ≥ {K} on {fri}? (simulated 1σ weekly put)", "sim_put_otm", t, fc, round(prob, 4),
-                                  datetime.now(), today, fri, meta))
+            conn.execute(UPSERT, (qid, f"Will {t} close ≥ {K} on {expiry}? (simulated 1σ weekly put)", "sim_put_otm", t, fc, round(prob, 4),
+                                  current, today, expiry, meta))
             n += 1
     return n
 

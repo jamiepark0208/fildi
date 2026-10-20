@@ -113,7 +113,7 @@ def load(conn):
     return rows, tech, fund, px
 
 
-def build(rows, tech, fund, px):
+def build(rows, tech, fund, px, weekly_window=None):
     idx = {}
     for t, bars in px.items():
         idx[t] = ({d: i for i, (d, *_rest) in enumerate(bars)}, bars)
@@ -123,14 +123,22 @@ def build(rows, tech, fund, px):
             continue
         pos, bars = idx[t]
         i = pos.get(d)
-        if i is None or i < LOOKBACK + 22 or i + HOLD >= len(bars):
+        if i is None or i < LOOKBACK + 22:
+            continue
+        hold, expiry_i = HOLD, i + HOLD
+        if weekly_window is not None:
+            sessions = weekly_window(d)
+            if len(sessions) < 2 or d != sessions[0] or any(day not in pos for day in sessions):
+                continue
+            hold, expiry_i = len(sessions) - 1, pos[sessions[-1]]
+        if expiry_i >= len(bars):
             continue
         c = [b[3] for b in bars]
-        S, ST = c[i], c[i + HOLD]
+        S, ST = c[i], c[expiry_i]
         iv = float(f["iv30"]) / 100.0
         if not (0.05 < iv < 3.0):
             continue
-        tt = HOLD / 252
+        tt = hold / 252
         K = S * math.exp(-Z * iv * math.sqrt(tt))
         prem = bs_put(S, K, iv, tt)
         loss = max(0.0, K - ST)
@@ -154,7 +162,7 @@ def build(rows, tech, fund, px):
         comps = (tv.get("comps") or {}) if isinstance(tv, dict) else {}
         fd = fund.get((t, d)) or {}
         ev.append({
-            "t": t, "d": d, "breach": 1.0 if ST < K else 0.0, "pnl": (prem - loss) / K,
+            "t": t, "d": d, "expiry": bars[expiry_i][0], "hold_sessions": hold, "breach": 1.0 if ST < K else 0.0, "pnl": (prem - loss) / K,
             "iv_rv": f.get("iv_rv"), "iv30": iv, "earn": f.get("earnings_21") or 0.0,
             "tech_total": tv.get("total") if isinstance(tv, dict) else None,
             **{f"tech_{k}": v for k, v in comps.items() if k != "optionsFlow"},

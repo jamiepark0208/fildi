@@ -1,8 +1,11 @@
 """S059 — literature option-return factors on simulated short puts (Claude 10-19; Jamie: "find other factors / methods and make
-sense of the options scores"). Pre-registered in research/studies/INDEX.md. Reuses the S045 trade simulator unchanged.
+sense of the options scores"). Pre-registered in research/studies/INDEX.md.
 
-Simulated trade (S045): each Monday in lab_outcomes, sell a 5-trading-day put at K = S·exp(−1·IV30·√(5/252)) priced with BS at the
-stock's own LSEG IV30; pnl = (premium − intrinsic at expiry) / K. ~79k trades, 2020→2026.
+A206 simulator correction: enter the first NYSE session of each week, expire the
+last session of that same week, using exact dated bars and session-count pricing.
+Net fills remain bid + 23% of spread. Existing fixed-four-session calibration has
+NOT been rerun or validated for this corrected horizon; historical results below
+must not be presented as validation of this version.
 New features (known at the as_of close; lseg_research.daily_history):
   vol_of_vol   std of daily Δln(IV30 put) over 60 days         Cao, Vasquez, Xiao, Zhan — higher → options overpriced
   term_slope   IV30 put − IV60 put                              Vasquez 2017 — inverted (> 0 here) → short-dated rich
@@ -32,6 +35,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import s045_put_retest as S  # noqa: E402
 from build_plan import connect  # noqa: E402
+from weekly_put_calendar import HORIZON_VERSION, weekly_sessions
 
 SPLIT = date(2024, 7, 1)
 NEW = ["vol_of_vol", "term_slope", "skew", "idio_vol", "mom_12_1", "rev_1m"]
@@ -108,15 +112,12 @@ def composite_holdout(ev, feats, signs):
 
 
 def aligned_events(conn):
-    """A196 (Codex critique): live puts are sold Monday close and expire Friday close, filled at bid + 23 % of the spread.
-    S045 held 5 sessions (→ next Monday) at BS mid. Here: Monday as_of only, HOLD = 4 sessions, pnl net of put_edge.fill_cost."""
+    """Use exact same-week entry/expiry bars; no holiday spill into the next week."""
     import put_edge as PE
-    S.HOLD = PE.HOLD_SESSIONS
     rows, tech, fund, px = S.load(conn)
-    rows = [r for r in rows if r[1].weekday() == 0]
-    ev = S.build(rows, tech, fund, px)
+    ev = S.build(rows, tech, fund, px, weekly_window=weekly_sessions)
     for e in ev:
-        tt = PE.HOLD_SESSIONS / 252
+        tt = e["hold_sessions"] / 252
         K_over_S = math.exp(-S.Z * e["iv30"] * math.sqrt(tt))
         prem_k = S.bs_put(1.0, K_over_S, e["iv30"], tt) / K_over_S
         e["pnl_mid"] = e["pnl"]
@@ -130,6 +131,7 @@ def main():
         ev = aligned_events(conn)
     print(f"S059 · {len(ev)} simulated puts, {len({e['d'] for e in ev})} weeks, {len({e['t'] for e in ev})} names")
     lines = ["# S059 — literature option factors on simulated short puts", "",
+             f"Horizon: {HORIZON_VERSION}; exact first/last NYSE sessions of each week.", "",
              "| feature | target | controls | IC | t | half A | half B | verdict |", "|---|---|---|---|---|---|---|---|"]
     passing, signs = [], []
     for f in ["iv_rv"] + NEW + ["put_tech"]:
@@ -173,7 +175,7 @@ def main():
         dd.append(1e4 * (b[0] - a[0])); db.append(b[1] - a[1])
     dd, db = np.array(dd), np.array(db); h = len(dd) // 2
     tt = lambda v: v.mean() / (v.std(ddof=1) / math.sqrt(len(v)))
-    lines += ["", f"## Paired holdout vs live put tech (net of fills, Mon→Fri): top quintile {dd.mean():+.1f} bp/wk (t {tt(dd):+.2f}, "
+    lines += ["", f"## Paired holdout vs live put tech (net of fills, same-week sessions): top quintile {dd.mean():+.1f} bp/wk (t {tt(dd):+.2f}, "
               f"halves {dd[:h].mean():+.1f} / {dd[h:].mean():+.1f}, weeks better {np.mean(dd > 0):.0%}); breach {100 * db.mean():+.2f} pp (t {tt(db):+.2f})"]
     # calibration for put_edge.py: composite quintile → simulated pnl / breach on the holdout (never the fit period)
     import json
@@ -191,7 +193,7 @@ def main():
     cal = {str(q + 1): {"pnl_bp": round(1e4 * float(np.mean([e["pnl"] for e in v])), 1),
                         "pnl_mid_bp": round(1e4 * float(np.mean([e["pnl_mid"] for e in v])), 1),
                         "breach": round(float(np.mean([e["breach"] for e in v])), 4), "n": len(v)} for q, v in sorted(qs.items())}
-    (HERE.parent / "put_edge_calibration.json").write_text(json.dumps({"holdout_from": str(SPLIT), "basis": "Monday close → Friday close (4 sessions), pnl net of fills (bid + 23 % of spread); A196", "quintiles": cal}, indent=1))
+    (HERE.parent / "put_edge_calibration.json").write_text(json.dumps({"holdout_from": str(SPLIT), "horizon_version": HORIZON_VERSION, "basis": "First → last NYSE session of same week, exact dated bars; pnl net of fills (bid + 23 % of spread); A206", "quintiles": cal}, indent=1))
     lines += ["", "## Composite quintile calibration (holdout)"] + [f"- Q{q}: {v['pnl_bp']:+.1f} bp/wk net (mid {v['pnl_mid_bp']:+.1f}) · breach {100 * v['breach']:.1f} % (n {v['n']})" for q, v in cal.items()]
     OUT.write_text("\n".join(lines) + "\n")
     print("\n".join(lines[-12:]))
