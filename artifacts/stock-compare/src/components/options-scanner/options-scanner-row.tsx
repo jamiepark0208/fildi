@@ -7,6 +7,7 @@ import { pickBestStrike, type StockContext, type OptionScoreResult } from "@/lib
 import type { TechnicalRow, TechnicalScore } from "@/lib/technical-rankings";
 import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
+import { useActivePanicPutBadges } from "@/hooks/use-strategy-signals";
 import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
 import { RecConflictChip } from "@/components/live/rec-conflict-chip";
 import { RiskWhatIfBadge } from "@/components/live/risk-what-if-badge";
@@ -178,6 +179,8 @@ export function ScannerRow({
   // Put vs. call is decided one level up (scanMode) — this row just renders whichever
   // side it's told to via `isCall`.
   const [subTab, setSubTab] = useState<"strikes" | "term">("strikes");
+  const { byTicker: panicByTicker } = useActivePanicPutBadges(3);
+  const panicSig = panicByTicker.get(ticker.toUpperCase()) ?? null;
 
   const { data: ivTerm, isLoading: ivTermLoading } = useQuery({
     queryKey: ["iv-term-structure", ticker],
@@ -355,6 +358,14 @@ export function ScannerRow({
               title="Monthly-only options calendar — no weeklies; Opt/strikes use the standard monthly expiry"
             >
               Mo
+            </span>
+          )}
+          {panicSig && (
+            <span
+              className="ml-0.5 px-0.5 py-px rounded border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[8px] font-bold leading-none shrink-0"
+              title={panicSig.trigger || "Panic put (S054)"}
+            >
+              Panic put (S054)
             </span>
           )}
         </div>

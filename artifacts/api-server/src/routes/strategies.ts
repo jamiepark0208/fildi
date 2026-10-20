@@ -274,6 +274,76 @@ router.get("/strategies", requireAdmin, async (req, res, next) => {
   }
 });
 
+/**
+ * A189 — live strategy_signals for a Strategy Library id (e.g. panic-puts-hiv).
+ * GET /api/strategies/:id/signals?days=30
+ */
+router.get("/strategies/:id/signals", requireAdmin, async (req, res, next) => {
+  try {
+    const id = String(req.params.id ?? "");
+    if (!ID_RE.test(id)) {
+      res.status(400).json({ error: "bad strategy id" });
+      return;
+    }
+    const daysRaw = Number(req.query.days);
+    const days = Number.isFinite(daysRaw) ? Math.min(90, Math.max(1, Math.floor(daysRaw))) : 30;
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - days);
+    const cutoffYmd = cutoff.toISOString().slice(0, 10);
+
+    interface SignalRow {
+      strategyId: string;
+      asOf: string;
+      ticker: string;
+      trigger: string;
+      details: Record<string, unknown> | null;
+      occ: string | null;
+      expiry: string | null;
+      strike: number | null;
+      entryMid: number | null;
+      entryDate: string | null;
+      status: string;
+      settle: number | null;
+      ret: number | null;
+      itm: boolean | null;
+      gradedAt: string | null;
+    }
+
+    const signals = await safe<SignalRow>(sql`
+      SELECT strategy_id AS "strategyId", as_of::text AS "asOf", ticker, trigger,
+             details, occ, expiry::text AS expiry, strike::float8 AS strike,
+             entry_mid::float8 AS "entryMid", entry_date::text AS "entryDate",
+             status, settle::float8 AS settle, ret::float8 AS ret, itm,
+             graded_at::text AS "gradedAt"
+      FROM watchlist_sync.strategy_signals
+      WHERE strategy_id = ${id}
+        AND as_of >= ${cutoffYmd}::date
+      ORDER BY as_of DESC, ticker`);
+
+    const graded = signals.filter((s) => s.status === "graded" && s.ret != null);
+    const wins = graded.filter((s) => (s.ret ?? 0) > 0);
+    const meanRet = graded.length
+      ? graded.reduce((a, s) => a + (s.ret ?? 0), 0) / graded.length
+      : null;
+
+    res.json({
+      strategyId: id,
+      days,
+      count: signals.length,
+      signals,
+      live: {
+        since: "2026-10-13",
+        graded: graded.length,
+        hitRate: graded.length ? wins.length / graded.length : null,
+        meanRet,
+        backtestMeanRet: 0.0315,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/strategies/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = String(req.params.id ?? "");

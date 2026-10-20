@@ -8,6 +8,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { useStrategySignals, type StrategySignal } from "@/hooks/use-strategy-signals";
 
 interface ListStats {
   totalReturn: number | null;
@@ -135,6 +136,108 @@ function Kpi({ label, value, title }: { label: string; value: string; title?: st
 
 type TradeSort = "entryTs" | "ticker" | "pnl" | "retPct";
 
+function signalNum(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** A189 — Today's signals + live strip for panic-puts-hiv (and any strategy with signals). */
+function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
+  const { data, isLoading, error } = useStrategySignals(strategyId, 30);
+  if (isLoading) {
+    return <p className="text-[11px] text-zinc-500 py-2">Loading signals…</p>;
+  }
+  if (error || !data) return null;
+  if (data.count === 0) {
+    return (
+      <div className="rounded border border-[#d4af37]/15 bg-zinc-950 px-2 py-1.5 text-[11px] text-zinc-500">
+        No live signals in the last 30d
+      </div>
+    );
+  }
+
+  const live = data.live;
+  const byGroup = new Map<string, StrategySignal[]>();
+  for (const s of data.signals) {
+    const g = (s.details?.peer_group as string | null | undefined) ?? "ungrouped";
+    const arr = byGroup.get(g) ?? [];
+    arr.push(s);
+    byGroup.set(g, arr);
+  }
+  for (const [, arr] of byGroup) {
+    arr.sort((a, b) => (signalNum(b.details?.iv_jump_5d) ?? -1) - (signalNum(a.details?.iv_jump_5d) ?? -1));
+  }
+  const groups = [...byGroup.entries()].sort((a, b) => b[1].length - a[1].length);
+
+  const hit = live.hitRate == null ? "—" : `${(live.hitRate * 100).toFixed(0)}%`;
+  const mean = live.meanRet == null ? "—" : `${(live.meanRet * 100).toFixed(2)}%`;
+  const bt = `${(live.backtestMeanRet * 100).toFixed(2)}%`;
+
+  return (
+    <div className="rounded border border-[#d4af37]/20 bg-zinc-950 space-y-1.5 p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold text-[#d4af37]">Today&apos;s signals</span>
+        <span className="text-[10px] text-zinc-400 font-mono">
+          live since {live.since} · graded {live.graded} · hit {hit} · mean {mean}
+          <span className="text-zinc-600"> (backtest {bt})</span>
+        </span>
+      </div>
+      {groups.map(([group, rows]) => {
+        const cluster = signalNum(rows[0]?.details?.same_group_today) ?? rows.length;
+        return (
+          <div key={group} className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-500">{group}</span>
+              <span className="text-[9px] text-zinc-600">{rows.length}</span>
+              {cluster >= 4 && (
+                <span className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0.5">
+                  {cluster} signals in one group = one correlated bet; consider the top 2–3
+                </span>
+              )}
+            </div>
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="text-[9px] uppercase tracking-wider text-zinc-500">
+                  <th className="text-left font-semibold px-1 py-0.5">Ticker</th>
+                  <th className="text-left font-semibold px-1 py-0.5">Contract</th>
+                  <th className="text-right font-semibold px-1 py-0.5">Entry mid</th>
+                  <th className="text-right font-semibold px-1 py-0.5">IV</th>
+                  <th className="text-right font-semibold px-1 py-0.5">Drop (z)</th>
+                  <th className="text-left font-semibold px-1 py-0.5">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s) => {
+                  const iv = signalNum(s.details?.iv30);
+                  const z = signalNum(s.details?.z);
+                  return (
+                    <tr key={`${s.asOf}-${s.ticker}`} className="border-t border-white/5">
+                      <td className="px-1 py-0.5 font-mono text-sky-100">{s.ticker}</td>
+                      <td className="px-1 py-0.5 font-mono text-zinc-300 whitespace-nowrap">
+                        {s.occ ?? "—"}
+                        <span className="text-zinc-600 ml-1 text-[9px]">{s.asOf.slice(5)}</span>
+                      </td>
+                      <td className="px-1 py-0.5 font-mono text-right tabular-nums text-zinc-300">
+                        {s.entryMid == null ? "—" : s.entryMid.toFixed(2)}
+                      </td>
+                      <td className="px-1 py-0.5 font-mono text-right tabular-nums text-zinc-300">
+                        {iv == null ? "—" : iv.toFixed(1)}
+                      </td>
+                      <td className="px-1 py-0.5 font-mono text-right tabular-nums text-zinc-300">
+                        {z == null ? "—" : z.toFixed(2)}
+                      </td>
+                      <td className="px-1 py-0.5 text-zinc-500">{s.status}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function StrategyDetail({ id, version }: { id: string; version: string }) {
   const [from, setFrom] = useState("2026-01-01");
   const [to, setTo] = useState("");
@@ -247,6 +350,8 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
           <Kpi label="Holdout" value={signedPct(stats.holdoutReturn)} title="Return in holdout window only (not tuned on)" />
         )}
       </div>
+
+      <StrategySignalsPanel strategyId={id} />
 
       <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-2">
         <div className="flex items-center justify-between mb-1">
