@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-19
+**build** — last updated 2026-10-20
 
 ## Active work
-- Working: A176 strategy runner + 8 strategies, panic-puts-hiv live (2025 p0.004 · 2022 p0.08), nightly strategy_signals in daily.py, LSEG option history 2019+ helper, conditions grid, Polygon shared gate + splits table
-- S053 vol-day 0DTE: FAIL (all regimes negative; A188 #3 covered)
-- Blocked: LSEG daily budget used today (~9.5k/10k)
+- Working: S069 gate audit applied, risky puts re-struck farther OTM, morning live option scan in daily.py, setup tag market-wide, S070/S072 closed no rule
+- In progress: S071 real-quote delta study (1590 puts; rerun daily to set PUT_DELTA cap)
+- Blocked: CIQ keydev permission denied on WRDS
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
