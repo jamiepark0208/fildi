@@ -131,3 +131,18 @@ def drift(conn) -> list[str]:
     if bb.get("put_edge") and bb.get("market_iv") and bb["put_edge"] > 1.05 * bb["market_iv"]:
         out.append(f"DRIFT: put edge Brier {bb['put_edge']:.4f} worse than market IV {bb['market_iv']:.4f} on live simulated puts")
     return out
+
+
+def persist(conn, edge: dict[str, dict]) -> int:
+    """watchlist_sync.put_edge_daily (one row per name per day) → GET /api/options/rankings attaches `edge` + `focus` (Options board)."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_edge_daily (
+      as_of date NOT NULL, ticker text NOT NULL, quintile int NOT NULL, pnl_bp double precision, breach double precision,
+      iv_rv double precision, vol_of_vol double precision, put_tech double precision, pct double precision,
+      PRIMARY KEY (as_of, ticker))""")
+    with conn.cursor() as cur:
+        cur.executemany("""INSERT INTO watchlist_sync.put_edge_daily VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (as_of, ticker) DO UPDATE SET quintile = EXCLUDED.quintile, pnl_bp = EXCLUDED.pnl_bp,
+                           breach = EXCLUDED.breach, iv_rv = EXCLUDED.iv_rv, vol_of_vol = EXCLUDED.vol_of_vol,
+                           put_tech = EXCLUDED.put_tech, pct = EXCLUDED.pct""",
+                        [(t, e["quintile"], e["pnl_bp"], e["breach"], e["iv_rv"], e["vol_of_vol"], e["put_tech"], e["pct"]) for t, e in edge.items()])
+    return len(edge)

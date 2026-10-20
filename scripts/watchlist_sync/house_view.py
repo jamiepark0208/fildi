@@ -129,6 +129,7 @@ def memo(today, odds, ctx, warn, lists):
              f"**Credit (S028).** " + (f"Baa−10y {ctx['credit']['baa10y']:.2f} vs 1-y 80th pct {ctx['credit']['p80_1y']:.2f} → "
                                       f"{'WIDE: drawdown warning, size down' if ctx['credit']['wide'] else 'normal'}" if "baa10y" in ctx["credit"] else "n/a"),
              f"**Catalysts on your book (14 days).** " + (", ".join(ctx["earnings_14d"]) or "none"),
+             f"**Options board check (Focus = put edge Q4–Q5).** {ctx.get('board_check', 'n/a')}",
              "**Richest put premium (S059 put edge Q5: simulated +29 bp/wk, breach 11 %).** " +
              (", ".join(f"{t} (IV/RV {e['iv_rv']:.1f})" for t, e in ctx.get("edge_top", [])) or "n/a"),
              "",
@@ -153,6 +154,7 @@ def main():
         warn, lists = coherence(conn, ctx)
         import put_edge
         edge = put_edge.scores(conn)
+        put_edge.persist(conn, edge)
         n_sim = 0 if "--no-log" in sys.argv else put_edge.log_sim(conn, edge)
         warn += put_edge.drift(conn)
         # panic-puts-hiv live grades vs S049/S054 (+2.1 %/trade holdout): demote once ≥ 20 graded and the mean is negative
@@ -162,6 +164,13 @@ def main():
             warn.append(f"DRIFT: panic-puts-hiv live mean {100 * g[1]:+.2f} %/trade on {g[0]} graded (backtest +2.1 %) → demote")
         ctx["edge_top"] = sorted(((t, e) for t, e in edge.items() if e["quintile"] == 5), key=lambda x: -x[1]["pct"])[:8]
         ctx["sim_logged"] = n_sim
+        # board verification (Options › Focus = put edge Q4–Q5): last resolved sim week, focus vs rest breach
+        v = conn.execute("""SELECT resolves_on, AVG(CASE WHEN outcome THEN 0 ELSE 1 END) FILTER (WHERE (meta->>'quintile')::int >= 4),
+                                   AVG(CASE WHEN outcome THEN 0 ELSE 1 END) FILTER (WHERE (meta->>'quintile')::int < 4), COUNT(*)
+                            FROM watchlist_sync.forecast_ledger WHERE qtype = 'sim_put_otm' AND forecaster = 'put_edge' AND outcome IS NOT NULL
+                            GROUP BY 1 ORDER BY 1 DESC LIMIT 1""").fetchone()
+        ctx["board_check"] = (f"week to {v[0]}: focus breach {100 * v[1]:.0f} % vs rest {100 * v[2]:.0f} % ({v[3]} sim puts)"
+                              if v and v[1] is not None and v[2] is not None else "first grade Fri (no resolved week yet)")
         text = memo(today, odds, ctx, warn, lists)
         conn.execute("""INSERT INTO watchlist_sync.house_view (view_date, view, memo, warnings) VALUES (%s, %s, %s, %s)
                         ON CONFLICT (view_date) DO UPDATE SET view = excluded.view, memo = excluded.memo, warnings = excluded.warnings, created_at = now()""",

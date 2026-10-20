@@ -69,7 +69,14 @@ export interface OptionRankingRow {
   ivVsRealized: number | null;
   computedAt: string;
   rank: number;
+  /** S059 put edge (puts only): simulated weekly pnl/breach quintile from watchlist_sync.put_edge_daily. */
+  edge?: { quintile: number; pnlBp: number | null; breach: number | null; ivRv: number | null } | null;
+  /** Focus view (Jamie 10-19 "too many tickers"): puts = put-edge Q4–Q5, top FOCUS_PUTS; calls = shares you hold, top FOCUS_CALLS. */
+  focus?: boolean;
 }
+
+const FOCUS_PUTS = 15;
+const FOCUS_CALLS = 10;
 
 export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
   rows: OptionRankingRow[];
@@ -130,11 +137,45 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
     rank: i + 1,
   }));
 
+  await attachFocus(rows, side);
   return {
     rows,
     asOf: String(latest.asOf),
     computedAt: rows[0]?.computedAt ?? null,
   };
+}
+
+/** Puts: S059 put edge (≤ 7 days old) → `edge`; focus = Q4–Q5 by quintile then option score. Calls: S061 found covered calls lose vs
+ *  holding in a rising tape, so focus = names you hold only. Never throws: missing tables → board unchanged, focus = top N by score. */
+async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Promise<void> {
+  try {
+    if (side === "put") {
+      const { rows: er } = await db.execute(sql`SELECT ticker, quintile, pnl_bp, breach, iv_rv FROM watchlist_sync.put_edge_daily
+        WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily WHERE as_of >= CURRENT_DATE - 7)`);
+      const em = new Map((er as Array<Record<string, unknown>>).map((r) => [String(r.ticker), r]));
+      for (const r of rows) {
+        const e = em.get(r.ticker);
+        r.edge = e ? { quintile: Number(e.quintile), pnlBp: num(e.pnl_bp as number | null), breach: num(e.breach as number | null), ivRv: num(e.iv_rv as number | null) } : null;
+      }
+      // never focus a put on a name the Model List says to trim (same rule as build_plan not_on_trim, 10-19 ONDS)
+      const { rows: tr } = await db.execute(sql`SELECT ticker FROM watchlist_sync.plan_items
+        WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND list_key = 'trim_risk' AND l1_pass`);
+      const trim = new Set((tr as Array<Record<string, unknown>>).map((r) => String(r.ticker)));
+      const pick = rows.filter((r) => (r.edge?.quintile ?? 0) >= 4 && !trim.has(r.ticker))
+        .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || (b.optionScore - a.optionScore)).slice(0, FOCUS_PUTS);
+      const set = new Set((pick.length ? pick : rows.slice(0, FOCUS_PUTS)).map((r) => r.ticker));
+      for (const r of rows) r.focus = set.has(r.ticker);
+    } else {
+      const { rows: held } = await db.execute(sql`SELECT DISTINCT UPPER(symbol) AS t FROM portfolio_positions
+        WHERE snapshot_id = (SELECT MAX(id) FROM portfolio_snapshots) AND quantity >= 100`);
+      const hs = new Set((held as Array<Record<string, unknown>>).map((r) => String(r.t)));
+      const set = new Set(rows.filter((r) => hs.has(r.ticker)).slice(0, FOCUS_CALLS).map((r) => r.ticker));
+      for (const r of rows) r.focus = set.has(r.ticker);
+    }
+  } catch (err) {
+    logger.warn({ err: String(err) }, "option rankings: focus/edge unavailable");
+    rows.forEach((r, i) => { r.focus = i < (side === "put" ? FOCUS_PUTS : FOCUS_CALLS); });
+  }
 }
 
 export async function computeAndPersistOptionScores(opts?: {

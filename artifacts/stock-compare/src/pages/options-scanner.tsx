@@ -107,6 +107,8 @@ export function OptionsScannerContent({
   const [minIncome,     setMinIncome]     = useState(() => getTraderPrefs(user?.id).minWeeklyIncome);
   const [minIncomeInput, setMinIncomeInput] = useState(() => String(getTraderPrefs(user?.id).minWeeklyIncome));
   const [tickerQuery,   setTickerQuery]   = useState("");
+  // Jamie 10-19: 100+ names per side was confusing → Overall opens on the focus set (S059 put edge / held calls).
+  const [focusOnly,     setFocusOnly]     = useState(true);
   const [refreshedAt,   setRefreshedAt]   = useState(() => new Date());
   const [hiddenTickers, setHiddenTickers] = useState<Set<string>>(() => {
     try { const s = localStorage.getItem(scannerHiddenKey(user?.id)); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
@@ -190,6 +192,10 @@ export function OptionsScannerContent({
         expiry: string;
         premium: number;
         bidIsLive: boolean;
+        /** S059 put edge (puts) — simulated weekly pnl / breach quintile. */
+        edge?: { quintile: number; pnlBp: number | null; breach: number | null; ivRv: number | null } | null;
+        /** Focus set: puts = put-edge Q4–Q5 (≤ 15); calls = names you hold (≤ 10). */
+        focus?: boolean;
       }>;
       asOf: string | null;
       computedAt: string | null;
@@ -660,10 +666,13 @@ export function OptionsScannerContent({
     fundScoreMap, colorMap, weights.optionStock, isCallMode,
   ]);
 
+  const hasFocus = useMemo(() => (optionRankings?.rankings ?? []).some((r) => r.focus), [optionRankings]);
   const filteredTickers = useMemo(() => {
     const q = tickerQuery.trim().toLowerCase();
-    return q ? sortedTickers.filter(t => t.toLowerCase().includes(q)) : sortedTickers;
-  }, [sortedTickers, tickerQuery]);
+    if (q) return sortedTickers.filter(t => t.toLowerCase().includes(q));
+    if (universe === "overall" && focusOnly && hasFocus) return sortedTickers.filter(t => rankingByTicker.get(t)?.focus);
+    return sortedTickers;
+  }, [sortedTickers, tickerQuery, universe, focusOnly, hasFocus, rankingByTicker]);
 
   // Overall DOM cap — full ranked list can be 100–200 rows; show top 75 unless filtering.
   const OVERALL_VISIBLE = 75;
@@ -886,6 +895,21 @@ export function OptionsScannerContent({
           />
         </div>
       </div>
+      {universe === "overall" && hasFocus && (
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">Show</label>
+          <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 w-fit">
+            {([true, false] as const).map((f) => (
+              <button key={String(f)} type="button" onClick={() => setFocusOnly(f)}
+                title={f ? (isCallMode ? "Calls on shares you hold (S061: covered calls lose vs holding in a rising tape)"
+                             : "Put edge Q4–Q5: simulated +7…+29 bp/wk, breach 11–13 % (S059 holdout)") : "Every scored name"}
+                className={cn("px-2.5 rounded-full h-5", focusOnly === f ? "bg-[#d4af37]/20 text-[#d4af37]" : "text-muted-foreground")}>
+                {f ? `Focus (${(optionRankings?.rankings ?? []).filter((r) => r.focus).length})` : `All (${optionRankings?.rankings?.length ?? 0})`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <p className="text-[10px] text-amber-200/40 leading-snug">
         Unvalidated ranking · Model List decides. Blends income/buffer with v4 technical total (lab: no edge).
         Names without a nightly score show N/A until a live chain scores them (or stay N/A if the chain is thin).
