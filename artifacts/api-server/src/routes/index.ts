@@ -107,8 +107,8 @@ router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);
 router.use(indicatorsRouter);
+router.use(moverFactsRouter); // before optionsRouter: its /options/:ticker 400'd "mover-facts" as a bad ticker
 router.use(optionsRouter);
-router.use(moverFactsRouter);
 // /technicals is not covered by the /technical prefix. No Python job calls these
 // routes (loopback callers use /schwab/option-quotes and /schwab/equity-prices).
 // Frontend fetches send the session cookie.
