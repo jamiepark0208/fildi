@@ -153,10 +153,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | done (Claude 10-19: 3 seeds, IRA replay = scoreboard exactly; S047) |
 | [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | done (Claude 10-19: S048 FAIL — 10 triggers, 0 winners; thin) |
 | [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | done (Claude 10-19: S049 holdout +1.47 %/trade PASS; in-sample disagrees → candidate) |
-| [A179](asks/A179.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | open |
-| [A180](asks/A180.md) | 2026-10-19 | Muse → Cursor | Pre-Dec-11 build capacity plan — rank the queue, kill the tail | open |
-| [A181](asks/A181.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |
-| [A182](asks/A182.md) | 2026-10-19 | Muse → Cursor | Model-version promotion protocol — scoreboard-gated, preregistered | open |
 | [A179](asks/A179.md) | 2026-10-19 | Cursor → Claude | Daily put-seller desk workflow UX (Today strip, ticker Open Options, trust chrome) | open |
 | [A180](asks/A180.md) | 2026-10-19 | Cursor → Claude | DB-first shell for Breakdown / quote / compare (cut request-path Yahoo) | done (Cursor 10-19) |
 | [A181](asks/A181.md) | 2026-10-19 | Cursor → Claude | Price chart history ≥1W from prices_historical (not Yahoo chart) | done (Cursor 10-19) |
@@ -176,3 +172,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A195](asks/A195.md) | 2026-10-19 | Muse → Claude | [quant] Cointegration divergence as put-selling entry signal — study | open |
 | [A196](asks/A196.md) | 2026-10-19 | Muse → Claude | [quant] Visser trend/momentum filter for put entries — study | open |
 | [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | open |
+| [A198](asks/A198.md) | 2026-10-18 | Muse → Cursor | Stock Breakdown page scroll broken | done (Muse 2026-10-18: scroll fix c85781c7; renumbered from A179) |
+| [A199](asks/A199.md) | 2026-10-19 | Muse → Cursor | Pre-Dec-11 build capacity plan — rank the queue, kill the tail | open |
+| [A200](asks/A200.md) | 2026-10-19 | Muse → Cursor | Peer-group drift monitor — automate A148's monthly control | open |
+| [A201](asks/A201.md) | 2026-10-19 | Muse → Cursor | Model-version promotion protocol — scoreboard-gated, preregistered | open |
+| [A202](asks/A202.md) | 2026-10-20 | Claude → Claude | [quant] S059 Codex critique fixes — mislabeled A196 | done (shipped a88f5129; mapping stub) |

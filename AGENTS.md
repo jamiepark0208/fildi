@@ -64,6 +64,8 @@ Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impa
 **ASKS format (2026-10-11):** `research/common/ASKS.md` is a one-line index (id link · date · from → to · title · status).
 Everything else — spec, replies, status notes, reviews — lives in `research/common/asks/A##.md` (template `asks/_TEMPLATE.md`). Read the index; open a file only to act on it.
 
+**Notice 2026-10-20 (all agents: Muse, Claude, Cursor, Kiro, Codex, Grok).** Before filing, check the highest ID in `research/common/ASKS.md` and in `research/common/asks/`, and take the next free number. Never reuse an ID. Never label a commit, study, or note with an ID that has no row file. This notice follows the 2026-10-19 collisions (Cursor `8e3cc1d8` overwrote Muse's A179–A182 files; Claude labeled Codex's S059 critique A196 before that row existed). It does not change the review loop.
+
 1. **Muse files** `Muse → Cursor` (unchanged): new `asks/A##.md` + one index line. Quant rows: title starts with `[quant]`.
    **Every row (any agent) carries a `Moves:` line** — the scoreboard number it moves (A171) or `ops` (A173, S044: ~40 % of a week moved none). Plan review sends back rows without one.
 2. **Claude plan review** (every Muse row, before build; user 2026-10-14): checks overlap with existing code + `research/studies/INDEX.md`,
