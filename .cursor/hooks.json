@@ -11,12 +11,26 @@
     ],
     "afterFileEdit": [
       {
+        "command": "node .agents/hooks/shield.mjs check"
+      },
+      {
+        "command": "node .agents/hooks/shield.mjs snap"
+      },
+      {
         "command": "node .agents/hooks/agent-event.mjs cursor edit"
       }
     ],
     "stop": [
       {
+        "command": "node .agents/hooks/shield.mjs check"
+      },
+      {
         "command": "node .agents/hooks/agent-event.mjs cursor stop"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node .agents/hooks/shield.mjs snap"
       }
     ]
   }

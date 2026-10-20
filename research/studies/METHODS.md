@@ -12,6 +12,11 @@
 2. **Hold IV fixed** (partial IC or IV-neutral buckets) for any option factor; then run a placebo (shuffled factor IC ≈ 0). S004.
 3. **Volatility mechanics:** raw % drops and trailing-vol scaling both produce fake signals; normalize drawdowns by implied σ. S004.
 4. **Redundancy:** test a new factor with trend held fixed; many "signals" are price momentum again (PT revisions ρ 0.77, S009).
+5a. **Same-risk comparator + every cash flow** (S064, 10-20): when an alternative carries different risk, also compare against it scaled to
+   equal volatility ("is this just a smaller position?"), and count T-bill interest on idle collateral (FRED DTB3). Short puts looked
+   like "half the tail" of buying; a same-risk stock position had a smaller tail. Overlapping holds → block bootstrap.
+5b. **Say the benefit apart from the bar** (Jamie 10-20): report size, consistency across periods and t in plain words ("+0.10 Sharpe vs a
+   limit order, positive in all 3 periods, t 1.8"), then the pre-registered verdict. "Not significant → FAIL" alone is a wording error.
 5. **Baseline by construction:** compare against the same strike distance / delta on random days for the same ticker (S011), or a
    one-feature baseline (S004 criterion 5), not against zero.
 
@@ -33,6 +38,10 @@
 ## Tooling
 15. Python 3.14 pandas datetime ops segfault in `research/wrds/.venv` → use csv/gzip (S010).
 16. psycopg: escape `%` as `%%` in LIKE patterns.
+16b. **Shared files:** never `open(p, 'w')` in an expression that also reads `p` — Python truncates before the read (10-20: INDEX.md emptied,
+   another agent's uncommitted row lost). Use Edit, `scripts/md_rows.py`, or read → temp file → `os.replace`.
+16c. **Vendor budgets inside the run:** LSEG's guard only checks at start; long research loops set `REQ_CAP` and shuffle tickers so a capped
+   run is a random sample (S064/S066). Expensive quotes: smoke on real fills → calibrate a model → confirm only the deciding slice.
 17. Outputs: markdown → `out/<study>/report.md` (versioned); caches/data (`.csv.gz`, `.npz`, `.pkl`, `.json`) stay local.
 
 ## Decisions

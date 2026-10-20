@@ -12,6 +12,10 @@ in −0.40…−0.10 (v2.1 smoke amendment: a 1σ strike sits at ~0.14Δ), else 
 Outcome per $ collateral K, day 63 (sessions after entry): premium/K, plus (S63 − K)/K if S_expiry < K (assigned, hold).
 Comparators on the same entries: buy now (S63/S − 1); limit order at K until expiry (filled if any low ≤ K → S63/K − 1,
 else 0). Cash earns 0 everywhere.
+v2.2 (10-20, before Codex review): cash earns the 3-month T-bill (FRED DTB3, out/opt/dtb3.csv) while it waits — put collateral
+until expiry (or day 63 if not assigned), limit-order cash until filled; Sharpe = mean/sd of EXCESS return (total − T-bill over 63 d).
+v2.0 counted cash at 0 %, which understated puts and limit orders vs buy-now by ~1 % per trade in 2023+. Bootstrap resamples
+blocks of 3 consecutive entry months (63-day holds overlap the next two entries).
 Pass (holdout ≥ 2024-07): best anchor's Sharpe-like (mean/sd) beats buy-now, month-cluster bootstrap t ≥ 2 and same
 sign in both in-sample halves, Holm over 4 anchors; worst decile not worse than buy-now's.
 
@@ -80,7 +84,12 @@ def load(conn, only):
         if (d.year, d.month) not in seen:
             seen.add((d.year, d.month))
             firsts.append(d)
-    return bars, fund, sm, peer, firsts
+    rf = []
+    for line in (HERE.parent / "out" / "opt" / "dtb3.csv").read_text().splitlines()[1:]:  # FRED DTB3, % annual
+        d, v = line.split(",")
+        if v not in ("", "."):
+            rf.append((date.fromisoformat(d), float(v) / 100))
+    return bars, fund, sm, peer, firsts, rf
 
 
 def gate_table(fund, peer, sm, firsts):
@@ -159,7 +168,7 @@ def sell_put(ld, conn, t, d, S_tr, iv, target_tr, e):
     return None
 
 
-def trade(ld, conn, t, rows, i, gate, sm):
+def trade(ld, conn, t, rows, i, gate, sm, rf=None):
     d, S, _, _, _, iv = rows[i]
     e = pick_expiry(d)
     if not e or not iv or i + 63 >= len(rows):
@@ -170,6 +179,8 @@ def trade(ld, conn, t, rows, i, gate, sm):
     iE = max(j for j in range(i, i + 64) if rows[j][0] <= e)
     S63 = rows[i + 63][1]
     buy_now = S63 / S - 1
+    r_d = (asof(rf, d) or 0.0) / 252 if rf else 0.0  # T-bill per session
+    rf63 = 63 * r_d
     out = []
     for name, tgt in anchors(rows, i, sm, t, d, (e - d).days / 365).items():
         if tgt >= S:
@@ -181,10 +192,12 @@ def trade(ld, conn, t, rows, i, gate, sm):
         K = K_tr / fd  # adjusted basis
         assigned = rows[iE][1] < K
         put = fill / K_tr + ((S63 - K) / K if assigned else 0.0)
-        hit = any(r[3] <= K for r in rows[i + 1:iE + 1])
-        out.append(dict(t=t, d=d, e=e, anchor=name, gate=gate[0], why=gate[1], S=S * fd, tgt=tgt * fd, K=K_tr, iv=iv,
+        hit = next((j for j in range(i + 1, iE + 1) if rows[j][3] <= K), None)
+        put_tot = put + r_d * ((iE - i) if assigned else 63)  # collateral earns T-bill until it becomes stock
+        lim_tot = ((S63 / K - 1) + r_d * (hit - i)) if hit else rf63
+        out.append(dict(put_x=put_tot - rf63, now_x=buy_now - rf63, limit_x=lim_tot - rf63, rf63=rf63, t=t, d=d, e=e, anchor=name, gate=gate[0], why=gate[1], S=S * fd, tgt=tgt * fd, K=K_tr, iv=iv,
                         prem=fill, prem_pct=fill / K_tr, bs=bs_put(S * fd, K_tr, iv / 100, (e - d).days / 365), assigned=assigned, put=put, buy_now=buy_now,
-                        limit=(S63 / K - 1) if hit else 0.0, S63=S63 * fd, Se=rows[iE][1] * fd))
+                        limit=(S63 / K - 1) if hit is not None else 0.0, S63=S63 * fd, Se=rows[iE][1] * fd))
     return out
 
 
@@ -198,21 +211,44 @@ def stats(xs, key):
     return dict(n=len(r), mean=m, sd=sd, sh=m / sd if sd else float("nan"), worst=sum(w) / len(w))
 
 
-def boot_t(xs, a="put", b="buy_now", n=2000):
-    """Sharpe(a) − Sharpe(b), t from resampling entry months (puts on one date share the market move)."""
+def boot_t(xs, a="put_x", b="now_x", n=2000, block=3):
+    """Sharpe(a) − Sharpe(b), t from resampling blocks of `block` consecutive entry months (one date shares the market move;
+    63-day holds overlap the next two monthly entries)."""
     by = defaultdict(list)
     for x in xs:
         by[x["d"]].append(x)
-    keys = list(by)
+    keys = sorted(by)
     if len(keys) < 3:
         return float("nan"), float("nan")
     obs = stats(xs, a)["sh"] - stats(xs, b)["sh"]
+    starts = list(range(max(1, len(keys) - block + 1)))
     bs = []
     for _ in range(n):
-        s = [x for k in (rng.choice(keys) for _ in keys) for x in by[k]]
+        picks = [rng.choice(starts) for _ in range(-(-len(keys) // block))]
+        s = [x for st in picks for k in keys[st:st + block] for x in by[k]]
         bs.append(stats(s, a)["sh"] - stats(s, b)["sh"])
     m = sum(bs) / n
     sd = (sum((y - m) ** 2 for y in bs) / (n - 1)) ** 0.5
+    return obs, obs / sd if sd else float("nan")
+
+
+def boot_groups(g, u, key, n=1000, block=3):
+    """Sharpe(g) − Sharpe(u) on one key, same 3-month block bootstrap over the union of entry months."""
+    by = defaultdict(lambda: ([], []))
+    for x in g:
+        by[x["d"]][0].append(x[key])
+    for x in u:
+        by[x["d"]][1].append(x[key])
+    keys = sorted(by)
+    sh = lambda v: (sum(v) / len(v)) / ((sum((y - sum(v) / len(v)) ** 2 for y in v) / (len(v) - 1)) ** 0.5) if len(v) > 2 else float("nan")
+    obs = sh([r for k in keys for r in by[k][0]]) - sh([r for k in keys for r in by[k][1]])
+    starts, bs = list(range(max(1, len(keys) - block + 1))), []
+    for _ in range(n):
+        ks = [k for st in (rng.choice(starts) for _ in range(-(-len(keys) // block))) for k in keys[st:st + block]]
+        bs.append(sh([r for k in ks for r in by[k][0]]) - sh([r for k in ks for r in by[k][1]]))
+    bs = [b for b in bs if b == b]
+    m = sum(bs) / len(bs)
+    sd = (sum((y - m) ** 2 for y in bs) / (len(bs) - 1)) ** 0.5
     return obs, obs / sd if sd else float("nan")
 
 
@@ -220,7 +256,7 @@ def main():
     only = next((a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--tickers=")), None)
     conn = connect()
     OP.ensure(conn)
-    bars, fund, sm, peer, firsts = load(conn, only)
+    bars, fund, sm, peer, firsts, rf = load(conn, only)
     gate = gate_table(fund, peer, sm, firsts)
     fset = set(firsts)
     tr = []
@@ -232,7 +268,7 @@ def main():
             rows = bars[t]
             for i, r in enumerate(rows):
                 if r[0] in fset and i >= 60:
-                    tr += trade(ld, conn, t, rows, i, gate.get((t, r[0]), (False, "no_fwd_growth")), sm)
+                    tr += trade(ld, conn, t, rows, i, gate.get((t, r[0]), (False, "no_fwd_growth")), sm, rf)
             print(f"{t}: running {len(tr)} trades", flush=True)
     import json  # every simulated trade, for follow-ups (winners vs losers, BS calibration) without re-fetching LSEG
     OUT.with_name(OUT.stem + ("_smoke" if only else "") + ".json").write_text(json.dumps(tr, default=str))
@@ -246,23 +282,38 @@ def main():
 
 def report(tr, smoke):
     L = ["# S064 — buy-zone puts vs buy-now vs limit order (63-day total return per $)", "",
-         f"{'SMOKE ' if smoke else ''}{len(tr)} trades. Fill = bid + 23 % of spread; cash 0 %. Sharpe = mean/sd per trade.", "",
-         "| arm | anchor | slice | n | assigned | put mean | put Sharpe | now mean | now Sharpe | limit mean | worst10 put / now | ΔSharpe t |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         f"{'SMOKE ' if smoke else ''}{len(tr)} trades. Fill = bid + 23 % of spread. Means are total return incl. T-bill on idle cash; "
+         "Sharpe = mean/sd of excess return over T-bill. 'same-risk stock' = buy-now scaled to the put's volatility "
+         "(its mean and worst decile) — the fair 'is it just a smaller position?' comparison. t = 3-month block bootstrap.", "",
+         "| arm | anchor | slice | n | assigned | put mean | put Sharpe | now mean | now Sharpe | same-risk stock mean / worst10 | put worst10 "
+         "| limit mean | limit Sharpe | ΔSharpe vs now (t) | ΔSharpe vs limit (t) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     sl = [("H1", lambda x: x["d"] < MID), ("H2", lambda x: MID <= x["d"] < HOLDOUT), ("holdout", lambda x: x["d"] >= HOLDOUT)]
     res = {}
     for arm, af in (("gated", lambda x: x["gate"]), ("all", lambda x: True)):
         for a in ANCHORS:
             for s, f in sl:
                 xs = [x for x in tr if x["anchor"] == a and af(x) and f(x)]
-                if not xs:
+                if len(xs) < 3:
                     continue
-                p, b, lm = stats(xs, "put"), stats(xs, "buy_now"), stats(xs, "limit")
+                p, b, lm = stats(xs, "put_x"), stats(xs, "now_x"), stats(xs, "limit_x")
+                rf = sum(x["rf63"] for x in xs) / len(xs)
+                k = p["sd"] / b["sd"] if b["sd"] else float("nan")  # stock weight with the put's volatility
                 diff, t = boot_t(xs)
-                res[(arm, a, s)] = (diff, t, p["worst"] >= b["worst"])
-                L.append(f"| {arm} | {a} | {s} | {p['n']} | {sum(x['assigned'] for x in xs) / len(xs):.0%} | {p['mean']:+.2%} | "
-                         f"{p['sh']:.2f} | {b['mean']:+.2%} | {b['sh']:.2f} | {lm['mean']:+.2%} | {p['worst']:+.1%} / {b['worst']:+.1%} | "
-                         f"{diff:+.2f} ({t:.1f}) |")
+                dl, tl = boot_t(xs, "put_x", "limit_x")
+                res[(arm, a, s)] = (diff, t, p["worst"] >= k * b["worst"])
+                L.append(f"| {arm} | {a} | {s} | {p['n']} | {sum(x['assigned'] for x in xs) / len(xs):.0%} | {p['mean'] + rf:+.2%} | "
+                         f"{p['sh']:.2f} | {b['mean'] + rf:+.2%} | {b['sh']:.2f} | {k * b['mean'] + rf:+.2%} / {k * b['worst']:+.1%} | "
+                         f"{p['worst']:+.1%} | {lm['mean'] + rf:+.2%} | {lm['sh']:.2f} | {diff:+.2f} ({t:.1f}) | {dl:+.2f} ({tl:.1f}) |")
+    L += ["", "## Is the gate a put edge or a stock picker? Sharpe(gated) − Sharpe(not gated), excess returns (t)", "",
+          "| anchor | slice | puts | buy-now, same entries |", "|---|---|---|---|"]
+    for a in ANCHORS:
+        for s, f in sl:
+            g = [x for x in tr if x["anchor"] == a and x["gate"] and f(x)]
+            u = [x for x in tr if x["anchor"] == a and not x["gate"] and f(x)]
+            if len(g) >= 3 and len(u) >= 3:
+                (dp, tp), (dn, tn) = boot_groups(g, u, "put_x"), boot_groups(g, u, "now_x")
+                L.append(f"| {a} | {s} | {dp:+.2f} ({tp:.1f}) | {dn:+.2f} ({tn:.1f}) |")
     if not smoke:  # Holm over the 4 gated anchors on the holdout t (one-sided normal p)
         ps = sorted((0.5 * (1 - math.erf(res[k][1] / math.sqrt(2))), k[1]) for k in res
                     if k[0] == "gated" and k[2] == "holdout" and not math.isnan(res[k][1]))
@@ -273,7 +324,7 @@ def report(tr, smoke):
             if all(res.get(("gated", a, h), (0, 0, 0))[0] > 0 for h in ("H1", "H2")) and res[("gated", a, "holdout")][2]:
                 passed.append(a)
         L += ["", f"**Verdict: {'PASS — ' + ', '.join(passed) if passed else 'FAIL'}** (Holm over {len(ps)} anchors, "
-                  f"both halves same sign, worst decile ≤ buy-now's)"]
+                  f"both halves same sign, worst decile no worse than the same-risk stock position)"]
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L))
     print("\n".join(L[2:]))

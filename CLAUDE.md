@@ -37,6 +37,10 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Backtest / "does X help trades?" (put/call/avoid re-tests) | research/studies/PLAYBOOK.md |
+| Study judgment (same-risk comparators, cash flows, verdict wording, review packet) — shared with all agents | .agents/skills/fildi-quant-research/SKILL.md |
+| Which data source (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
+| Is a score / rec working? (scoreboard, grades, calibration) | .agents/skills/fildi-grade-quality/SKILL.md |
+| Reviewing a study | research/studies/REVIEW.md |
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session — user-triggered only, at ~90-95% context, never automatic | .claude/skills/session-wrap.md |

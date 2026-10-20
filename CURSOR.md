@@ -68,6 +68,9 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | Weekly data-ops audit | `data-ops-auditor.md` (+ `.cursor/skills/weekly-data-ops-check.md`) |
 | Dev tools (codegraph/madge) | `startup.md` |
 | OpenJev miss→teach→eval | `openjev-train.md` |
+| Studies / backtests / scenario analysis (judgment) | `.agents/skills/fildi-quant-research/SKILL.md` |
+| Data source choice + vendor budgets | `.agents/skills/fildi-market-data/SKILL.md` |
+| Score / recommendation quality | `.agents/skills/fildi-grade-quality/SKILL.md` |
 | Replit-only setup | `replit-setup.md` (skip on Mac unless needed) |
 | Claude session wrap | `session-wrap.md` — Claude only |
 
