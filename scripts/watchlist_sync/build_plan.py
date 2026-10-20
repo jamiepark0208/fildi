@@ -73,7 +73,6 @@ def load_context(conn) -> dict:
     ctx["fit"], _, ctx["fit_params"] = PL.champion_scores(conn)
     ctx["held_back_reason"] = PL.held_back_reason
     reprice_from_chains(conn, ctx)
-    restrike_puts(conn, ctx)
     ctx["recs"] = [r for r in ctx["recs"] if r["expiry"] > date.today()]
     ctx["close"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker) AS ticker, date, close::float8
@@ -84,6 +83,7 @@ def load_context(conn) -> dict:
           UNION ALL
           SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE
         ) x GROUP BY ticker""")}
+    restrike_puts(conn, ctx)   # needs earnings dates: earnings-spanning puts get the farther target
     ctx["lseg"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
                short_interest, free_float
@@ -242,8 +242,10 @@ def reprice_from_chains(conn, ctx: dict) -> None:
 def restrike_puts(conn, ctx: dict) -> None:
     """Puts above the Δ cap move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same expiry (latest saved chain, no API
     calls; premium = bid, as everywhere in L1). No chain strike in the band → the pick keeps its Δ and delta_band blocks it."""
-    cap = -R.PUT_DELTA[0]
-    hot = [r for r in ctx["recs"] if r["side"] == "put" and r["delta"] is not None and -r["delta"] > cap]
+    def caps(r):  # (cap, target): earnings before expiry → farther strike instead of a block (rules.PUT_EARNINGS_ABS_DELTA)
+        er = ctx.get("earnings", {}).get(r["ticker"])
+        return R.PUT_EARNINGS_ABS_DELTA if er and er <= r["expiry"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
+    hot = [r for r in ctx["recs"] if r["side"] == "put" and r["delta"] is not None and -r["delta"] > caps(r)[0]]
     if not hot:
         return
     as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history WHERE as_of <= %s", (ctx["snapshot_date"],)).fetchone()[0]
@@ -253,11 +255,13 @@ def restrike_puts(conn, ctx: dict) -> None:
                        FROM option_chain_history WHERE as_of = %s AND side = 'put' AND ticker = ANY(%s) AND bid > 0 AND delta < 0""",
               (as_of, sorted({r["ticker"] for r in hot})))
     for r in hot:
-        band = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
-        pick = min(band, key=lambda c: abs(-c["delta"] - R.PUT_TARGET_ABS_DELTA), default=None)
+        cap, target = caps(r)
+        band = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and 0.04 <= -c["delta"] <= cap]
+        pick = min(band, key=lambda c: abs(-c["delta"] - target), default=None)
         if not pick:
             continue
-        note = f"re-struck {r['delta']:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, rules.PUT_DELTA)"
+        why = "earnings before expiry" if cap == R.PUT_EARNINGS_ABS_DELTA[0] else "rules.PUT_DELTA"
+        note = f"re-struck {r['delta']:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
         r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
                  dte=pick["dte"], weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
                  repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
@@ -302,8 +306,11 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         c.append(chk("spot_is_current", False,
                      f"model spot {rec['spot']:.2f} ≠ {snap} close {c_today:.2f}" + (" (= an earlier close: stale)" if stale else ""), "warn"))
     er = ctx["earnings"].get(t)
-    c.append(chk("no_earnings_before_expiry", not (er and er <= rec["expiry"]),
-                 f"next earnings {er} vs expiry {rec['expiry']}" if er else "no earnings date known", "block" if er else "warn"))
+    inside = bool(er and er <= rec["expiry"])
+    far = side == "put" and rec["delta"] is not None and -rec["delta"] <= R.PUT_EARNINGS_ABS_DELTA[0]
+    c.append(chk("no_earnings_before_expiry", not inside or far,   # puts: allowed at ≤ 0.12Δ (S066/S069; Jamie 10-20), calls unchanged
+                 (f"next earnings {er} vs expiry {rec['expiry']}" + (f": put struck at {-rec['delta']:.2f}Δ for the event" if inside and far else ""))
+                 if er else "no earnings date known", "warn" if not er or (inside and far) else "block"))
     if t in ctx["short_opts"]:
         c.append(chk("existing_exposure", True, "you already have a short option on this ticker", "warn"))
 
@@ -321,7 +328,9 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          "block" if e or not ctx.get("edge_demoted") else "warn"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
-        c.append(chk("verdict_ok", hb is None, hb or "ownable, put risk below the hold line"))
+        c.append(chk("verdict_ok", hb is None, hb or "scored, not red"))
+        sn = __import__("publish_model_list").put_size_note(ctx["fit"].get(t), ctx["fit_params"]) if "fit" in ctx else None
+        c.append(chk("size_ok", sn is None, sn or "full size", "warn"))   # S069: was a block, now a size warning
         # warn, not block (S063, 10-20): low-credit puts earned +13 bp/wk more (t 4.2, 312 wks) at the same breach rate, but the worst
         # 1 % week loses ~25 % more → show the trade, flag the tail, size smaller
         c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,

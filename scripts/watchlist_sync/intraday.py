@@ -89,8 +89,8 @@ def find_triggers(conn, live: dict[str, float], state: dict) -> tuple[list[str],
         paused = s_live < pause_at
         if paused != (s_close < pause_at) and state.get("regime_paused") != paused:
             state["regime_paused"] = paused
-            fired.append(f"regime: SPY 20-session {100 * s_live:+.1f}% live → new puts {'paused' if paused else 'resumed'} "
-                         f"(pause below {100 * pause_at:.0f}%)")
+            fired.append(f"regime: SPY 20-session {100 * s_live:+.1f}% live → {'market selloff' if paused else 'selloff over'} "
+                         f"(below {100 * pause_at:.0f}%; info only — puts are no longer paused, S069: selloff-week puts earned more)")
     return fired, plan_id
 
 

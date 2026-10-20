@@ -78,23 +78,35 @@ def held_back_reason(list_key: str, f: dict | None, P: dict, spy20: float | None
         return "not scored by the fit model"
     if list_key != "sell_puts":
         return None
-    pause_at = P["regime"]["pause_puts_spy20"]  # Step 4 #8: no dip-buying puts while the whole market sells off
-    if spy20 is not None and spy20 < pause_at:
-        return f"regime pause: SPY {100 * spy20:+.1f}% over 20 days (pause below {100 * pause_at:.0f}%)"
+    # Regime pause removed for puts (S069, Jamie 10-20): puts entered when SPY 20d < −5 % earned +16.8 bp/wk vs +0.8 otherwise.
     # Put risk ≠ ownership risk (10-20): weak credit (S063: +13 bp/wk, same breach, fatter tail → warned + sized in L1) and
     # falling-knife charts (S045 step 4, S058) don't hurt put sellers, so they can't hold a put back or make it "red" for puts.
-    # Analyst cuts / predicted misses (S060 KEEP) and the rest still count.
+    kept, put_risk = _put_risk(f, P)
+    if f["verdict"] == "red" and put_risk >= P["thresholds"]["red_risk"]:
+        return "verdict is red (avoid): " + "; ".join(kept)
+    return None
+
+
+def _put_risk(f: dict, P: dict) -> tuple[list[str], float]:
     SV = P["severity"]
     not_put = {"distress-level balance sheet": SV["credit_distress"], "fragile balance sheet": SV["credit_fragile"],
                "falling-knife chart": SV["falling_knife"]}
     kept = [x for x in f["flags"] if not any(x.startswith(k) for k in not_put)]
-    put_risk = max(0.0, (f["risk"] or 0) - sum(w for k, w in not_put.items() if any(x.startswith(k) for x in f["flags"])))
-    if f["verdict"] == "red" and put_risk >= P["thresholds"]["red_risk"]:
-        return "verdict is red (avoid): " + "; ".join(kept)
+    return kept, max(0.0, (f["risk"] or 0) - sum(w for k, w in not_put.items() if any(x.startswith(k) for x in f["flags"])))
+
+
+PUT_SIZE_CUT = 0.5  # S069: low-OWN / high-put-risk puts earn as much or more (+4.5 vs −3.1 bp/wk) but their worst 1 % is −962 vs −724 bp
+
+
+def put_size_note(f: dict | None, P: dict) -> str | None:
+    """Was a hold-back until 10-20; S069 shows it trims the tail, not the pnl → warning + half size (portfolio sizing reads size_hint)."""
+    if not f:
+        return None
+    kept, put_risk = _put_risk(f, P)
     if put_risk >= P["thresholds"]["put_block_risk"]:
-        return f"put risk {put_risk:.1f} ≥ {P['thresholds']['put_block_risk']}: " + "; ".join(kept)
+        return f"put risk {put_risk:.1f} ≥ {P['thresholds']['put_block_risk']} ({'; '.join(kept)}): half size, fatter tail (S069)"
     if f["own"] is None or f["own"] < P["thresholds"]["yellow_own"]:
-        return f"not ownable enough to risk assignment (OWN {f['own'] or 0:.1f} < {P['thresholds']['yellow_own']})"
+        return f"less ownable (OWN {f['own'] or 0:.1f} < {P['thresholds']['yellow_own']}): half size — assignment is the risk (S069)"
     return None
 
 
@@ -312,6 +324,10 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         else:
             if status == "provisional":
                 reasons.append("PROVISIONAL: verified on after-hours quotes; re-verify on live quotes before trading")
+            size_note = put_size_note(f, P) if p["list_key"] == "sell_puts" else None
+            if size_note:
+                contract["size_hint"] = PUT_SIZE_CUT
+                reasons.append(size_note)
             candidates.append({"list_key": p["list_key"], "ticker": p["ticker"], "verdict": (f or {}).get("verdict") or "", "f": f,
                                "score": p["score"], "status": status, "contract": contract, "live": p["live"],
                                "why": reasons + ((f or {}).get("why") or [])})

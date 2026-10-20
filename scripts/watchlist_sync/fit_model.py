@@ -195,7 +195,10 @@ def compute(conn, tickers: list[str] | None = None) -> list[dict]:
     bp = {"cash": max(a["cash"] or 0 for a in acct), "margin": max(a["margin"] or 0 for a in acct)}
     cov = {r["ticker"] for r in rows(conn, "SELECT ticker FROM lseg_research.coverage WHERE label <> 'benchmark'")}
     planned = {r["ticker"] for r in rows(conn, "SELECT DISTINCT ticker FROM watchlist_sync.plan_items WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans)")}
-    universe = sorted(set(tickers) if tickers else set(rh_member) | set(current) | held | cov | planned)
+    # 10-20: every name the option scanner can put on the Model List must be scored, else build_plan holds it back as
+    # "not scored by the fit model" (29 of 133 put candidates were, e.g. TXN, ADI, DHR, UNP)
+    scanned = {r["ticker"].upper() for r in rows(conn, "SELECT DISTINCT ticker FROM option_score_snapshots WHERE as_of >= CURRENT_DATE - 7")}
+    universe = sorted(set(tickers) if tickers else set(rh_member) | set(current) | held | cov | planned | scanned)
     universe = [t for t in universe if t not in {"BRK.A", "NTDOY"}]
     now = datetime.now(timezone.utc)
     out = []

@@ -27,8 +27,9 @@ import { loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-in
 import { logger } from "./logger.js";
 
 const CHAIN_CONCURRENCY = 3;
-/** Cap Yahoo chain fetches per nightly run — wide IV filter, not GO/WATCH. */
-const CANDIDATE_LIMIT = 200;
+/** Cap chain fetches per run — wide IV filter, not GO/WATCH. 200 → 450 (Jamie 10-20): 558 names have IV, the cap left the
+ *  Model List ~130 put candidates. Chains go through the shared 100-rpm Schwab token bucket (~5 min at the noon run). */
+const CANDIDATE_LIMIT = 450;
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
