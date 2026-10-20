@@ -25,7 +25,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import rules as R
@@ -34,6 +34,8 @@ HERE = Path(__file__).resolve().parent
 LSEG = HERE.parents[1] / "research" / "lseg"
 PY = HERE / ".venv" / "bin" / "python"
 LPY = LSEG / ".venv" / "bin" / "python"
+API = HERE.parents[1] / "artifacts" / "api-server"
+SH = Path("/bin/sh")   # launchd PATH lacks /opt/homebrew/bin; a failed replay must not abort the plan
 
 STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "lseg": [
@@ -47,6 +49,10 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("fit model", PY, HERE, ["fit_model_v14.py", "--write"]),   # champion + challengers (fit-1.3 is only its input builder)
         # before the plan: build_plan reads today's panic-puts-hiv signals (was after publish → plans used yesterday's, 10-19)
         ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades
+        # S059 put_edge needs this week's put tech components (was monthly only); idempotent per engine digest
+        ("tech components", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/lab-replay-technicals.ts --freq=week "
+                                      f"--from={(date.today() - timedelta(days=7)).isoformat()} 2>&1 | grep lab_tech "
+                                      "|| echo 'tech components skipped (put_edge keeps last week, ≤ 10 d)'"]),
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
     ],
     "verify": [("evaluate quotes (L2)", PY, HERE, ["verify_plan.py", "evaluate"])],  # quotes come from the export session (Step 13)
