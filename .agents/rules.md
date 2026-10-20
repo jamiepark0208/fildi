@@ -31,3 +31,9 @@
 ## Approvals (Jamie)
 - Score, weight, threshold or Model List changes need before/after + Jamie's yes
 - Unattended agents need Jamie's go
+
+## Codex (assess · build · verify)
+- Claim one authorized task; use existing ASKS/Ideas; preserve concurrent work
+- Targeted checks and independent review before verified status
+- Metadata-only activity; permissions enforced by host, not Stage animations
+- Usage unknown unless measured; no unbounded unattended dispatch

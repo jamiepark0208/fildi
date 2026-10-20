@@ -1,0 +1,20 @@
+# Codex Stage and OpenJev usage — 2026-10-19
+
+## Delivered and observed
+Native Codex hook log had zero records from this desktop chat. Added a read-only desktop-session adapter to the existing admin-protected overview, returning fixed event descriptions, timestamps, categories and hashed IDs. No prompts, arguments, results, portfolio contents or paths exposed. No fake hook records appended; hook trust unchanged. Shared bounded session reader serves activity and usage. It discovers old resumed chats by file modification time; reads at most 40 files, 256 KiB header/tail each, cached five seconds. Unknown/oversized metadata and internal guardian/subagent sessions are excluded. Desktop-only helper activity is not yet represented as separate helper nodes; native helper events remain supported.
+
+Signed-in FILDI Stage inspected inside Cursor: Codex “last observed now,” active row, recent actual events. OpenJev then showed “codex: typed question” and 616 tokens in / 0 out from real local requests. Chrome's separate profile was signed out; no credentials copied. Actual stop after this turn remains naturally observable next turn; fixtures cover stop/wait/overlap behavior.
+
+Independent reviewer caught and fixed native/desktop merge suppression and old-session discovery. Latest targeted review passes. Twelve TS tests and two Python tests pass. Package gate caught one test-only generic-inference error, fixed before final rerun. No claim that fixture tests establish long-running reliability. Changes remain in the shared working tree, uncommitted.
+
+## OpenJev limits and useful scope
+Installed upstream README and scripts/oj_server.py distinguish per-request limits from subscription quotas. FILDI's MLX launcher sets OPENJEV_MLX_MAX_PROMPT=8192. Local OpenJev has no hosted-plan allowance; RAM, latency, queue and context size still bound work. Upstream also documents hosted service allowances and an output-generation cap, which are different quantities: https://github.com/razorback16/openjev/blob/main/README.md . No configuration limits increased.
+
+Registry checked through actual tier function: P11 log triage A; P10 file shortlist B (hint only); P13 dedupe C; P14 study search X (keyword fallback beats model); P15 skill routing C. Use P11 for long output, preserve deterministic failure matching and raw-log access. P10 may shortlist, never discard candidates as proven irrelevant. Keep keyword study retrieval. Do not use rejected price/return predictions or displayed-number judgments.
+
+Six invented log snippets, four problems and two healthy cases; local smoke test only, no registry promotion. Model classified 6/6; existing failure regex caught two of the four problems. Two added catches: empty export despite expected records; old-date results returned normally. 616 actual input tokens, zero generated tokens, 5.331 seconds total request time (including first-call warmup effects; model loading not in that total). This small selected sample does NOT establish general accuracy, throughput, hosted-token savings or net time savings. Numeric evidence: 2026-10-19-openjev-smoke.json.
+
+Added numeric-only successful-request telemetry to oj.py.post: input/output token counts and elapsed time. Existing helper-use records remain separate; keyword calls must not count as model tokens. Stage labels metered coverage and per-request cap. Failed calls, old unmetered calls and batch paths outside oj.py are not included; missing counts stay unknown. No raw requests/results added to this new telemetry.
+
+## Next bounded development
+Use the measured P11 path on the next genuinely long non-sensitive test/build output; avoid model calls for already-short output. Record missed failures with existing outcome/eval workflow, compare against regex and complete raw output, retain existing tier gates. Only expand batch telemetry at its shared call boundary after identifying duplication with agent requests. Spend hosted capacity on A206 correctness and A208 product prototype, not redundant reviews or model busywork. One owner/claim per task; reviewer gets evidence rather than rerunning broad discovery.

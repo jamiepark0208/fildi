@@ -25,15 +25,19 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 
+import { openjevUsage } from "../lib/openjev-usage.js";
+import { codexActivity, mergeCodexActivity } from "../lib/codex-activity.js";
+import { codexUsage } from "../lib/codex-usage.js";
+
 const router = Router();
 const run = promisify(execFile);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const LOGS = join(homedir(), ".claude/projects", ROOT.replace(/[/.]/g, "-"));
-type AgentId = "muse" | "claude" | "cursor" | "jamie" | "grok";
+type AgentId = "muse" | "claude" | "cursor" | "jamie" | "grok" | "codex";
 type Ev = { t: string; from: AgentId; to: AgentId | "repo"; kind: "commit" | "ask"; text: string; ref?: string; askRef?: string; sha?: string };
 
 const NAMES: Record<string, AgentId> = {
-  muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie",
+  codex: "codex", muse: "muse", claude: "claude", cursor: "cursor", jamie: "jamie", user: "jamie",
   grok: "grok", grokbot: "grok", // cloud Bot trailers use Agent: grokbot (Jamie 10-17)
 };
 const who = (s: string): AgentId | null => NAMES[s.trim().toLowerCase()] ?? null;
@@ -87,6 +91,7 @@ function ideaAssignee(from: AgentId, to: AgentId, phase: string, status = ""): A
   if (/needs claude|\bclaude \[quant\] sign-off|sign-off still open/i.test(status)) return "claude";
   if (phase === "needs you") return "jamie";
   if (phase === "reviewed") return to;
+  if (phase === "building" && to === "codex") return "codex";
   if (phase === "building") return to === "cursor" || from === "muse" || from === "claude" ? "cursor" : to;
   if (phase === "filed") {
     // Review loop: open Muse→Cursor / Claude→Cursor waits on Claude plan, not Cursor build.
@@ -153,13 +158,13 @@ function ideaTouch(id: string, status: string, filed: string): { at: string | nu
     if (!at || !by) return;
     if (!bestAt || at > bestAt) { bestAt = at; bestBy = by; }
   };
-  for (const m of status.matchAll(/\b(Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b/gi)) {
+  for (const m of status.matchAll(/\b(Codex|Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b/gi)) {
     consider(m[2]!, m[1]!.replace(/\s*Bot$/i, ""));
   }
   try {
     const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
     // **Cursor 2026-10-16:** / **Claude plan …** / **Grok Bot plan …** / **Muse review abc:**
-    for (const m of txt.matchAll(/\*\*(Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\b[^*]{0,40}?\b(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b[^*]*\*\*/gi)) {
+    for (const m of txt.matchAll(/\*\*(Codex|Cursor|Claude|Muse|Jamie|Grok(?:\s*Bot)?)\b[^*]{0,40}?\b(\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2})\b[^*]*\*\*/gi)) {
       consider(m[2]!, m[1]!.replace(/\s*Bot$/i, ""));
     }
   } catch { /* missing file */ }
@@ -168,7 +173,7 @@ function ideaTouch(id: string, status: string, filed: string): { at: string | nu
 
 /** ASKS index → hand-offs (7d) + Muse idea board (all open/active rows). */
 function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
-  const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0, grok: 0 };
+  const queue: Record<AgentId, number> = { muse: 0, claude: 0, cursor: 0, jamie: 0, grok: 0, codex: 0 };
   const ev: Ev[] = [];
   const ideas: Idea[] = [];
   const since = Date.now() - 7 * 864e5;
@@ -190,7 +195,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     // Cursor→Claude was missing → A24 invisible on Ideas (Jamie 10-18).
     const onBoard = (from === "muse" && dest === "cursor")
       || (from === "claude" && dest === "cursor")
-      || dest === "claude"
+      || dest === "claude" || dest === "codex" || from === "codex"
       || from === "grok" || dest === "grok"
       || dest === "jamie"
       || /needs jamie|needs claude|user call|sign-off still open/i.test(st);
@@ -234,7 +239,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       const m = head.match(/^## (J\d+) (.+)$/);
       if (!m) continue;
       const body = bodyLines.join("\n").trim();
-      const own = body.match(/^\s*Owner:\s*(claude|cursor|muse|grok)\b/im)?.[1]?.toLowerCase() as AgentId | undefined;
+      const own = body.match(/^\s*Owner:\s*(claude|cursor|muse|grok|codex)\b/im)?.[1]?.toLowerCase() as AgentId | undefined;
       const agentOwner: AgentId = own && own !== "jamie" ? own : "muse"; // Muse = default first responder (A153)
       ideas.push({
         id: m[1]!, date: "", from: agentOwner, to: "jamie", title: m[2]!.trim(), status: "needs you",
@@ -433,6 +438,7 @@ function kindOf(e: LiveEv): string | undefined {
 }
 /** Hook events (Claude Code + Cursor hooks → ~/.fildi/agent-events.jsonl), last 24 h. Read fresh each call (small). */
 function liveEvents(): LiveEv[] {
+  const desktop = codexActivity(ROOT);
   try {
     const txt = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8");
     const since = new Date(Date.now() - 864e5).toISOString();
@@ -441,8 +447,9 @@ function liveEvents(): LiveEv[] {
       .filter((e) => e.t >= since);
     // Cursor also fires .claude hooks (logged as "claude"); any session that ever logs as cursor is Cursor's.
     const cursorSessions = new Set(evs.filter((e) => e.agent === "cursor" && e.session).map((e) => e.session));
-    return evs.map((e) => ({ ...(e.session && cursorSessions.has(e.session) ? { ...e, agent: "cursor" } : e), kind: kindOf(e) }));
-  } catch { return []; }
+    const combined = mergeCodexActivity<LiveEv>(evs, desktop);
+    return combined.map((e) => ({ ...(e.agent === "claude" && e.session && cursorSessions.has(e.session) ? { ...e, agent: "cursor" } : e), kind: kindOf(e) }));
+  } catch { return desktop; }
 }
 
 /** 5-hour windows (Claude plan limits reset on 5 h windows): current window vs the busiest window in 7 d. */
@@ -516,12 +523,12 @@ let commentsDdl = false;
 async function ensureComments() {
   if (commentsDdl) return;
   await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.needs_comments (id serial PRIMARY KEY, item text NOT NULL,
-    author text NOT NULL CHECK (author IN ('jamie','claude','cursor','muse','grok')), body text NOT NULL CHECK (length(body) <= 2000),
+    author text NOT NULL CHECK (author IN ('jamie','claude','cursor','muse','grok','codex')), body text NOT NULL CHECK (length(body) <= 2000),
     created_at timestamptz NOT NULL DEFAULT now(), read_by_claude boolean NOT NULL DEFAULT false)`);
   try {
     await db.execute(sql`ALTER TABLE watchlist_sync.needs_comments DROP CONSTRAINT IF EXISTS needs_comments_author_check`);
     await db.execute(sql`ALTER TABLE watchlist_sync.needs_comments ADD CONSTRAINT needs_comments_author_check
-      CHECK (author IN ('jamie','claude','cursor','muse','grok'))`);
+      CHECK (author IN ('jamie','claude','cursor','muse','grok','codex'))`);
   } catch { /* already migrated / race */ }
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_needs_comments_item ON watchlist_sync.needs_comments (item, created_at)`);
   commentsDdl = true;
@@ -709,23 +716,9 @@ async function openjevStatus(live: LiveEv[], nowMs: number) {
   const callers = new Map<string, { who: string; at: string; what: string | null }>();
   for (const e of evs) if (e.caller && nowMs - Date.parse(e.t) < 30_000) callers.set(e.caller, { who: e.caller, at: e.t, what: e.detail ?? null });
   // Local $0 meter: asks + state chars from ~/.fildi/openjev-usage.jsonl (all agents share one model).
-  let usage24h: { asks: number; stateChars: number; byAgent: Record<string, number> } = { asks: 0, stateChars: 0, byAgent: {} };
-  try {
-    const since = Date.now() - 864e5;
-    const lines = readFileSync(join(homedir(), ".fildi/openjev-usage.jsonl"), "utf8").split("\n");
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const r = JSON.parse(line) as { id?: string; at?: string; agent?: string; state_chars?: number; outcome_for?: string };
-        if (r.outcome_for || !r.id || !r.at) continue;
-        if (Date.parse(r.at) < since) continue;
-        usage24h.asks += 1;
-        usage24h.stateChars += r.state_chars ?? 0;
-        const a = r.agent || "?";
-        usage24h.byAgent[a] = (usage24h.byAgent[a] ?? 0) + 1;
-      } catch { /* skip */ }
-    }
-  } catch { /* no usage file yet */ }
+  let usageText: string | null = null;
+  try { usageText = readFileSync(join(homedir(), ".fildi/openjev-usage.jsonl"), "utf8"); } catch { /* unknown */ }
+  const usage24h = openjevUsage(usageText, nowMs);
   const body = {
     running: proc || evLive, proc, doing: evLive ? lastEv?.detail ?? lastEv?.event ?? null : null,
     pingAt: ping?.t ?? null, pingWhat: ping?.detail ?? ping?.event ?? null, last, callers: [...callers.values()],
@@ -871,6 +864,15 @@ async function jobs(nowMs: number, ps: Proc[]) {
   };
 }
 
+function sessionActivity(mine: LiveEv[], nowMs: number) {
+  const latest = new Map<string, LiveEv>();
+  for (const e of mine) if (!e.sub) latest.set(e.session ?? "legacy", e);
+  const waiting = [...latest.values()].some((e) => e.event === "waiting" && nowMs - Date.parse(e.t) < 60 * 60_000);
+  const working = [...latest.values()].some((e) => nowMs - Date.parse(e.t) < 2 * 60_000
+    && !["stop", "waiting", "session-end"].includes(e.event));
+  return { waiting, working };
+}
+
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const gone = await dismissed();
   const live = liveEvents();
@@ -882,20 +884,29 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     const recent = mine.filter((e) => nowMs - Date.parse(e.t) < 10 * 60_000 && !(e.session && ended.has(e.session)));
     // Waiting is per main session: background agents (events with sub = agent_id) share the session id but must not clear it;
     // only the user's next prompt or a main-session event does. Any open session still waiting (≤ 60 min) → agent waiting.
-    const lastMain = new Map<string, LiveEv>();
-    for (const e of mine) if (!e.sub && e.session && !ended.has(e.session)) lastMain.set(e.session, e);
-    const waiting = [...lastMain.values()].some((e) => e.event === "waiting" && nowMs - Date.parse(e.t) < 60 * 60_000);
-    const working = !waiting && !!last && nowMs - Date.parse(last.t) < 2 * 60_000 && !["stop", "waiting", "session-end"].includes(last.event);
+    const { waiting, working: mainWorking } = sessionActivity(mine, nowMs);
     const lastKind = [...mine].reverse().find((e) => e.kind)?.kind ?? null;
-    const errors1h = mine.filter((e) => e.event === "fail" && nowMs - Date.parse(e.t) < 36e5).length;
+    const fails = mine.filter((e) => e.event === "fail");
+    const errors1h = fails.filter((e) => nowMs - Date.parse(e.t) < 36e5).length;
+    const errors = fails.length; // retained log window = 24h
+    const recentErrors = fails.slice(-16).reverse().map((e) => ({
+      t: e.t, tool: e.tool ?? null, detail: e.detail ?? null, kind: e.kind ?? null,
+    }));
     // loop: same tool + same full input ≥ 5× within 10 min (signature hashed by the hook)
     const sigs = new Map<string, number>();
     for (const e of mine) if (e.sig && nowMs - Date.parse(e.t) < 10 * 60_000) sigs.set(e.sig, (sigs.get(e.sig) ?? 0) + 1);
-    const looping = [...sigs.values()].some((n) => n >= 5);
+    let loopCount = 0, loopSig: string | null = null;
+    for (const [sig, n] of sigs) if (n > loopCount) { loopCount = n; loopSig = sig; }
+    const looping = loopCount >= 5;
+    const loopSample = looping && loopSig ? [...mine].reverse().find((e) => e.sig === loopSig) : undefined;
+    const loopTool = loopSample?.tool ?? null;
+    const loopDetail = loopSample?.detail ?? null;
     const subs = subagents(mine, nowMs).filter((s) => s.running);
+    const working = mainWorking || subs.length > 0;
     const prompt = [...mine].reverse().find((e) => e.event === "prompt" && !e.sub && nowMs - Date.parse(e.t) < 12 * 36e5);
     const doing = subs[0]?.task ? `background: ${subs[0].task}` : prompt?.detail ? prompt.detail.slice(0, 60) : last?.detail ?? null;
-    return { working, waiting, looping, errors1h, doing, lastKind, lastEvent: last ?? null, ...timeSplit(mine, nowMs),
+    return { working, waiting, looping, loopCount: looping ? loopCount : 0, loopTool, loopDetail,
+      errors1h, errors, recentErrors, doing, lastKind, lastEvent: last ?? null, ...timeSplit(mine, nowMs),
       sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
       tools24h: mine.filter((e) => e.event === "tool" || e.event === "edit").length };
   };
@@ -910,9 +921,9 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     endedSessions: [...ended],
     subagents: subagents(live, nowMs),
     // Grok has no local hooks → status.working stays false; commit attribution (Agent: grokbot) drives lastActive.
-    status: { claude: status("claude"), cursor: status("cursor"), grok: status("grok") },
+    status: { codex: status("codex"), claude: status("claude"), cursor: status("cursor"), grok: status("grok") },
     activity1h, kinds: KINDS,
-    limits: (() => { maybeRefreshCursorLimits(); return { claude: claudeLimits(), cursor: cursorLimits(), muse: museUsage() }; })(),
+    limits: (() => { maybeRefreshCursorLimits(); return { claude: claudeLimits(), cursor: cursorLimits(), muse: museUsage(), codex: codexUsage() }; })(),
     needsUnread: await needsUnread(),
     jamieUnread: await jamieUnread(),
     muse: { running: await museRunning(), live: museLiveStatus(live, nowMs) },
@@ -940,7 +951,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   attachIdeaCommits(ideas, cm);
   const nextBuild = nextBuildFromState(ideas);
   const day = Date.now() - 864e5;
-  const agents = (["muse", "claude", "cursor", "grok", "jamie"] as AgentId[]).map((id) => {
+  const agents = (["muse", "claude", "cursor", "grok", "codex", "jamie"] as AgentId[]).map((id) => {
     const mine = cm.filter((c) => c.from === id);
     return {
       id,

@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 
-type Id = "muse" | "claude" | "cursor" | "jamie" | "grok";
+type Id = "muse" | "claude" | "cursor" | "jamie" | "grok" | "codex";
 type Tok = { day: string; input: number; cacheRead: number; cacheWrite: number; output: number; requests: number };
 type Agent = { id: Id; commits24h: number; commits7d: number; lastActive: string | null; queue: number; sent7d: number; received7d: number; tokens: Tok[] | null };
 type Ev = { t: string; from: Id; to: Id | "repo"; kind: "commit" | "ask"; text: string; ref?: string };
@@ -56,18 +56,19 @@ const IDEA_WAVE_ACK_KEY = "fildi_ideas_wave_ack";
 /** Hot-wave glow (status just changed this batch). Distinct from phase colours. */
 const HOT_GLOW = "#ff4d8d";
 const PROG_GLOW = "#5eead4";
-const WHO_LETTER: Record<Id, string> = { jamie: "Y", muse: "M", claude: "Cl", cursor: "Cu", grok: "G" };
+const WHO_LETTER: Record<Id, string> = { jamie: "Y", muse: "M", claude: "Cl", cursor: "Cu", grok: "G", codex: "Cx" };
 type Data = {
   needsUnread?: Record<string, number>;
   jamieUnread?: Record<string, number>; // Jamie's NEEDS YOU comments Claude hasn't read yet
   agents: Agent[]; events: Ev[]; live: Live[]; ideas?: Idea[];
   nextBuild?: NextBuild;
   openjevRegistry?: OjRegistry;
-  status: Record<"claude" | "cursor" | "grok", Status>;
+  status: Record<"claude" | "cursor" | "grok" | "codex", Status>;
   windows: { current: Win; peak: Win; hours: { t: string; out: number; req: number }[] };
   rules: { group: string; title: string }[]; skills: { name: string; about: string; uses7d: number }[];
   activity1h?: Record<string, Record<string, number>>; endedSessions?: string[];
   limits?: {
+    codex?: { at: string; stale: boolean; windows: { minutes: number; used: number; resetsAt: string }[] } | null;
     claude: { at: string; fiveHour: Limit; sevenDay: Limit } | null;
     cursor?: {
       at: string; plan: string | null;
@@ -100,17 +101,18 @@ const GITHUB = "#a5b4fc", JOBS = "#f59e0b", OJ_COLOR = "#fb7185";
 /** OpenJev = local calibrated-probability model (A129): runs a daily batch (load → answer → unload), writes the forecast ledger. */
 type OpenJev = { running: boolean; proc: boolean; doing: string | null; pingAt: string | null; pingWhat: string | null;
   callers?: { who: string; at: string; what: string | null }[];
-  usage24h?: { asks: number; stateChars: number; byAgent: Record<string, number> };
+  usage24h?: { asks: number; stateChars: number; byAgent: Record<string, number>; available: boolean; modelRequests: number; measuredRequests: number; inputTokens: number; outputTokens: number; elapsedMs: number };
   last: { at: string; ok: boolean; detail: string | null; answered: number | null; questions: number | null; peakGb: number | null; totalS: number | null } | null };
 const WAIT = "#fde047";
 type View = { z: number; x: number; y: number };
 
 const META: Record<Id, { label: string; role: string; color: string; ang: number }> = {
   jamie: { label: "You", role: "decide", color: "#fde047", ang: 0 },
-  muse: { label: "Muse", role: "ideas", color: "#e879f9", ang: -140 },
-  claude: { label: "Claude", role: "review · research", color: "#38e1ff", ang: -40 },
-  cursor: { label: "Cursor", role: "build", color: "#4ade80", ang: 50 },
-  grok: { label: "Grok", role: "red team", color: "#fb923c", ang: 140 },
+  muse: { label: "Muse", role: "ideas", color: "#e879f9", ang: -126 },
+  claude: { label: "Claude", role: "review · research", color: "#38e1ff", ang: -54 },
+  cursor: { label: "Cursor", role: "build", color: "#4ade80", ang: 18 },
+  codex: { label: "Codex", role: "assess · build · verify", color: "#c4b5fd", ang: 90 },
+  grok: { label: "Grok", role: "red team", color: "#fb923c", ang: 162 },
 };
 const PHASES = ["needs you", "filed", "reviewed", "building", "done", "parked"] as const;
 /** Human labels — "reviewed" means Claude planned / Cursor can build (not "waiting on Claude"). */
@@ -151,7 +153,7 @@ function InfoTip({ children }: { children: React.ReactNode }) {
 function agentNames(d: Data): (key: string, agent?: string) => string {
   const out = new Map<string, string>();
   const ended = new Set(d.endedSessions ?? []);
-  for (const agent of ["claude", "cursor"]) {
+  for (const agent of ["claude", "cursor", "codex"]) {
     const first = new Map<string, number>(), last = new Map<string, number>();
     for (const e of d.live) {
       if (e.agent !== agent || !e.session || e.sub) continue;
@@ -516,7 +518,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       // database / API / web / code work is drawn as persistent live links below, not one-shot beams
     }
     beams.current = beams.current.filter((b) => now - b.t0 < 1100).slice(-40);
-    for (const id of ["muse", "claude", "cursor", "grok"] as Id[]) {
+    for (const id of ["muse", "claude", "cursor", "grok", "codex"] as Id[]) {
       const p = pos(id), j = pos("jamie");
       ctx.strokeStyle = META[id].color + "30"; ctx.lineWidth = 1.2 / v.z;
       ctx.beginPath(); ctx.moveTo(j.x, j.y); ctx.lineTo(p.x, p.y); ctx.stroke();
@@ -537,7 +539,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
     }
     // Waiting for you: one slow signal agent → You every ~3 s until you reply
-    if (!reduce) for (const id of ["claude", "cursor"] as const) {
+    if (!reduce) for (const id of ["claude", "cursor", "codex"] as const) {
       if (!d.status[id]?.waiting) continue;
       const k = (now % 3000) / 2000;
       if (k > 1) continue;
@@ -552,22 +554,23 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
     }
     // Live links: an agent (or background agent) whose latest event of a kind is < 2 min old and not followed by a stop keeps a
     // line to that node with pulses travelling along it; when the activity ends the link fades out over ~1 s.
-    const lastKind = new Map<string, { t: number; node: string; c: string; src: string }>();
+    const lastKind = new Map<string, { t: number; node: string; c: string; src: string; sessionKey: string }>();
     const stopAt = new Map<string, number>();
     const running = new Set((d.subagents ?? []).filter((k) => k.running).map((k) => k.id));
     for (const e of d.live) {
       const t = Date.parse(e.t), src = e.sub ? `b:${e.sub}` : e.agent;
-      if (e.event === "stop" || e.event === "session-end" || e.event === "waiting") { stopAt.set(e.agent, t); continue; }
+      const sessionKey = `${e.agent}|${e.session ?? "legacy"}`;
+      if (!e.sub && (e.event === "stop" || e.event === "session-end" || e.event === "waiting")) { stopAt.set(sessionKey, t); continue; }
       const node = e.kind ? KIND[e.kind]?.node : undefined;
       if (!node || !(e.agent in META)) continue;
-      const key = `${src}|${node}`, prev = lastKind.get(key);
-      if (!prev || t > prev.t) lastKind.set(key, { t, node, c: KIND[e.kind!].color, src });
+      const key = `${src}|${sessionKey}|${node}`, prev = lastKind.get(key);
+      if (!prev || t > prev.t) lastKind.set(key, { t, node, c: KIND[e.kind!].color, src, sessionKey });
     }
     const nowMs = Date.now();
     for (const l of links.current.values()) l.on = false;
     for (const [key, v] of lastKind) {
       const agent = v.src.startsWith("b:") ? null : v.src;
-      const active = nowMs - v.t < LIVE_MS && (agent ? (stopAt.get(agent) ?? 0) < v.t : running.has(v.src.slice(2)));
+      const active = nowMs - v.t < LIVE_MS && (agent ? (stopAt.get(v.sessionKey) ?? 0) < v.t : running.has(v.src.slice(2)));
       if (!active) continue;
       const l = links.current.get(key) ?? { node: v.node, c: v.c, src: v.src, on: true, off: 0 };
       l.on = true; l.c = v.c; l.off = 0; links.current.set(key, l);
@@ -704,7 +707,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       });
     }
     for (const id of Object.keys(META) as Id[]) {
-      const p = pos(id), st = id === "claude" || id === "cursor" ? d.status[id] : null;
+      const p = pos(id), st = id === "claude" || id === "cursor" || id === "codex" ? d.status[id] : null;
       const r = id === "jamie" ? 25 : 21;
       const museOff = id === "muse" && d.muse && !d.muse.running;
       const museWorking = id === "muse" && !!d.muse?.live?.working;
@@ -801,7 +804,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       return <Lines color={META[sp.s.agent as Id]?.color} a={prompt?.detail ? `${who} · ${prompt.detail.slice(0, 40)}` : who} b={`${humanAction(sp.s.last)} · ${ago(sp.s.last.t)} ago`} />;
     }
     const m = META[id as Id], a = d.agents.find((x) => x.id === id);
-    const st = id === "claude" || id === "cursor" ? d.status[id] : null;
+    const st = id === "claude" || id === "cursor" || id === "codex" ? d.status[id] : null;
     if (id === "jamie") return <Lines color={m.color} a="You" b="approve scores, trades, agents" />;
     if (id === "grok") {
       const q = a?.queue ? `${a.queue} in Ideas (G)` : "devil’s advocate";
@@ -846,6 +849,16 @@ function Available({ id, d }: { id: Id; d: Data }) {
   );
   const leftCls = (left: number) =>
     left < 20 ? "text-red-300 font-semibold" : left < 50 ? "text-amber-200" : "text-emerald-300";
+  if (id === "codex") {
+    const l = d.limits?.codex;
+    if (!l || l.stale) return cell(l ? "stale" : "unknown", "Waiting for fresh Codex account telemetry. No token allowance is inferred. Open Codex to refresh.");
+    const left = Math.max(0, 100 - Math.max(...l.windows.map(w => w.used)));
+    return cell(`${Math.round(left)}%`, <>
+      <div>Account-wide plan allowance · observed {ago(l.at)}</div>
+      {l.windows.map(w => <div key={w.minutes}>{w.minutes >= 1440 ? `${w.minutes / 1440}d` : `${w.minutes / 60}h`}: {Math.round(w.used)}% used · resets {day(w.resetsAt)} {hm(w.resetsAt)}</div>)}
+      <div>Plan percentage, not a raw token balance. Extra credits are separate.</div>
+    </>, leftCls(left));
+  }
   if (id === "claude") {
     const l = d.limits?.claude;
     if (!l || l.fiveHour.pct == null) return cell("see /usage", "Claude Code shares plan limits with its status line; the number appears here after the next status-line refresh in a Claude session. Until then type /usage in Claude.");
@@ -1034,7 +1047,7 @@ function TeamPanel({ d }: { d: Data }) {
             <th className={cn(GRID_TH, "text-right")}>Actions 24h</th><th className={cn(GRID_TH, "text-left")}>Last action</th>
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
-            const st = a.id === "claude" || a.id === "cursor" || a.id === "grok" ? d.status[a.id] : undefined;
+            const st = a.id === "claude" || a.id === "cursor" || a.id === "grok" || a.id === "codex" ? d.status[a.id] : undefined;
             const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => setFocus(focus === a.id ? "all" : a.id)}>
@@ -1055,6 +1068,10 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? (
                     <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
+                  ) : a.id === "codex" ? (
+                    d.limits?.codex && !d.limits.codex.stale
+                      ? <>{d.limits.codex.windows.map(w => `${Math.round(w.used)}% / ${w.minutes >= 1440 ? `${w.minutes / 1440}d` : `${w.minutes / 60}h`}`).join(" · ")}</>
+                      : <span className="text-white/50">{d.limits?.codex ? "stale" : "unknown"}</span>
                   ) : a.id === "cursor" || a.id === "grok" ? (
                     (() => {
                       const l = d.limits?.cursor;
@@ -1093,7 +1110,7 @@ function TeamPanel({ d }: { d: Data }) {
             const oj = d.openjev;
             const u = oj.usage24h;
             const asks = u?.asks ?? 0;
-            const tokEst = u ? Math.round(u.stateChars / 4) : 0;
+            const chars = u?.stateChars ?? 0;
             return (
               <tr className={cn(gridRow(d.agents.length), "opacity-95")}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: OJ_COLOR }}>OpenJev</td>
@@ -1104,12 +1121,13 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
-                      <span className="cursor-default">{asks} <span className="text-white/50">asks/24h</span>
-                        {tokEst > 0 ? <> · ~{fmt(tokEst)} <span className="text-white/50">tok in</span></> : null}
+                      <span className="cursor-default">{u?.available ? `${u.modelRequests}/24h` : "?"}
+                        {u && u.measuredRequests > 0 ? <> · {fmt(u.inputTokens)}→{fmt(u.outputTokens)}</> : chars > 0 ? <> · {fmt(chars)} ch</> : null}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className={TIP}>
-                      Shared local 26B (port 8091) — $0 API. Agents offload long text here to save their plan tokens.
+                      Logged uses include helper lookups and keyword fallbacks. Measured tokens cover successful agent requests since metering began; batch runs, failed and older unmetered calls are excluded. These are local tokens processed, not hosted tokens saved.
+                      {u ? ` ${asks} helper uses logged. ${u.measuredRequests}/${u.modelRequests} successful requests have token counts; ${(u.elapsedMs / 1000).toFixed(1)} seconds total request time.` : ""}
                       {u?.byAgent ? ` ${Object.entries(u.byAgent).map(([k, n]) => `${k}:${n}`).join(" · ")}` : ""}
                     </TooltipContent>
                   </Tooltip>
@@ -1117,17 +1135,17 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-right")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
-                      <span className="cursor-default text-emerald-300">$0</span>
+                      <span className="cursor-default text-white/60">no plan cap</span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className={TIP}>
-                      Local Mac — no plan pool. Needs ~26 GB free RAM to load; one instance for all agents.
+                      Local Mac — no subscription allowance. FILDI configures an 8,192-token prompt limit per request. Needs ~26 GB free RAM to load; one shared instance for all agents.
                       {oj.last?.peakGb != null ? ` Last peak ${oj.last.peakGb} GB.` : ""}
                     </TooltipContent>
                   </Tooltip>
                 </td>
                 <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/80")}>{asks || "—"}</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{u?.available ? u.modelRequests : "—"}</td>
                 <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{oj.doing || oj.last?.detail || "—"}</td>
               </tr>
             );
@@ -1305,6 +1323,7 @@ function IdeasPanel({
         <span className="text-white/35 uppercase tracking-wider">Owner</span>
         {([
           ["cursor", "builds Ready / In progress"],
+          ["codex", "assesses, builds and verifies claimed work"],
           ["claude", "plans Inbox → Cursor rows"],
           ["grok", "review queue"],
           ["muse", "filed to someone"],
@@ -1426,7 +1445,7 @@ function IdeasPanel({
 }
 
 type Comment = { id: number; item: string; author: string; body: string; created_at: string };
-const AUTHOR_COLOR: Record<string, string> = { claude: META.claude.color, cursor: META.cursor.color, muse: META.muse.color };
+const AUTHOR_COLOR: Record<string, string> = { claude: META.claude.color, cursor: META.cursor.color, muse: META.muse.color, codex: META.codex.color };
 
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
@@ -1643,7 +1662,7 @@ export function AgentsTab() {
   });
   const [tab, setTab] = useState<(typeof SUB_TABS)[number] | null>(null);
   if (isLoading || !data) return <p className="text-xs text-white/50">Loading…</p>;
-  const looks = (["claude", "cursor"] as const).map((x) => attention(data.status[x])).filter(Boolean);
+  const looks = (["claude", "cursor", "codex"] as const).map((x) => attention(data.status[x])).filter(Boolean);
   const needLook = looks.length;
   const stageNeedsRed = looks.includes("#f87171");
   const ideas = data.ideas ?? [];

@@ -14,11 +14,13 @@
 | Tool | File |
 |---|---|
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
-| Codex / ChatGPT coding | [`CODEX.md`](CODEX.md) — compact context and existing tool reuse |
+| Codex / ChatGPT coding | [`CODEX.md`](CODEX.md) — session startup and compact context |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
 | Kiro (WIP) | `.kiro/steering/` — pointers to this file only |
 | Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins. |
+
+**Codex/Astra session start:** read `CODEX.md` and `.agents/context/codex-state.md` once. Restore the saved goal/constraints; follow the current user request. “Continue” means resume the checkpoint's next action. No pasted kickoff prompt required. Do not adopt other agents' duties or start work merely because a terminal opened.
 
 ## One team (user decision 2026-10-05; Muse via git 2026-10-07)
 Claude Code, Cursor, and **Muse** share the repo (subject to scoring-approval rules).
@@ -77,7 +79,7 @@ Everything else — spec, replies, status notes, reviews — lives in `research/
 5. **Cursor fixes** findings → status `done`. When both reviews (or Muse only, for non-quant) pass on the fix SHA → `verified` → archive.
 
 Statuses: `open → planned → accepted → done → verified | declined` (say why).
-**Agent trailer (user 2026-10-15):** every commit carries `Agent: claude|cursor|muse|grokbot` as a trailer → exact attribution in Settings › Agents (commits, queue, tokens).
+**Agent trailer (user 2026-10-15):** every commit carries `Agent: claude|cursor|muse|grokbot|codex` as a trailer → exact attribution in Settings › Agents (commits, queue, tokens).
 **Decline check (user 2026-10-15)** — guards against declining a misread ask. Every decline/park states: (1) **Need** — the
 underlying want in Jamie's words (from the ask's Context), separate from the proposed method; (2) **Met by / fails because** —
 the existing feature, row, or study that covers the need, or the probe/study number showing the need itself doesn't hold;
@@ -95,3 +97,6 @@ Local model on the Mac, $0: it reads long text, you read only a probability → 
 
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`
+
+## Codex integration (Jamie 2026-10-19; A205)
+Codex assesses, plans, implements and verifies claimed work using existing ASKS/Ideas and expiring claims. See CODEX.md. Independent review remains required for verified status; Codex does not acquire Claude’s or Cursor’s queues. Activity hooks report metadata only. UI presence does not grant runtime permissions or authorize trading/spend.

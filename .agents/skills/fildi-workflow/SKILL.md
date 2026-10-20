@@ -1,22 +1,17 @@
 ---
 name: fildi-workflow
-description: Investigate, modify, debug, or research FILDI using its existing CodeGraph, Crawl4AI, OpenJev, and shared context rules. Use for FILDI repository tasks, not unrelated coding or general finance questions.
+description: Navigate and assess FILDI using its existing code index, domain evidence, and workflow rules. Use for FILDI repository work.
 ---
 
-# FILDI workflow
-Repository: `/Users/jamiepark/Cursor/fildi`. Run repository tools there. Read root `AGENTS.md` and `CODEX.md` if not already loaded; keep policy there.
+# FILDI retrieval
+Clone: `/Users/jamiepark/Cursor/fildi`. Apply root `AGENTS.md` and `CODEX.md` once; revisit only changed/relevant guidance.
 
-## Find code cheaply
-1. Define the concrete task and acceptance check. Load only relevant domain context.
-2. Check `codegraph status`. Prefer connected MCP search/node/callers with actual schemas and small limits. Installed 1.0.0 has no `codegraph_context` tool.
-3. CLI fallback: `codegraph query "symbol"`, `codegraph node "symbol"`, `codegraph callers "symbol"`, `codegraph impact "symbol"`. File map without bodies: `codegraph node "relative/path" --file --symbols-only`. Broader `explore` includes source: bound `--max-files` and output.
-4. For missing/stale index results, use targeted `rg`, then narrow source ranges. Confirm current lines before editing. Current reference packs can go straight to targeted checks.
-5. Check impact/callers for shared changes. Sync after source edits; actual behavior/tests decide success.
+- Start from the decision/question and success check. Topic router: `.agents/context/INDEX.md`. Assessment and selected entrypoints: `codex-assessment.md` and `codex-context-map.md` alongside it. Read linked detail only when useful.
+- CodeGraph CLI: `codegraph status`; `codegraph query "symbol" --limit 5`; `codegraph node "symbol"`; callers/impact for shared logic. File map: `codegraph node "basename" --file "relative/path" --symbols-only`. Installed 1.0.0 lacks the older `codegraph_context` command/tool. No MCP required.
+- Confirm critical paths, timestamps, callers, and lines with targeted `rg` and source ranges; graph coverage is partial. Avoid whole-file reads, archives, dependency trees, and raw data dumps. Sync only when relevant indexing drift/source edits warrant it.
+- Financial evidence: `research/studies/INDEX.md` routes prior studies; `METHODS.md` and `PLAYBOOK.md` define local evidence standards. Judge each factor on its intended decision. Treat recorded claims as claims until checked against the report/method/code.
+- Existing task skills: find the matching row in `CLAUDE.md`'s skill table; load only that skill. Do not execute its tool-specific startup duties.
+- Existing Crawl4AI and OpenJev may help when available within authorized access. Do not start models or expand permissions to use them. Below-tier-A helper answers are shortlists, not exclusion gates.
+- Run only relevant checks with understood side effects. Report evidence, checks actually performed, and unknowns. Keep Codex notes separate; no assumed authority to update queues or other agents' state.
 
-## Research and local helpers
-- Full-page research: existing `scripts/fetch-page.sh <url>` prints the temporary Markdown path. Search before reading it. See `CODEX.md` for sandbox/cache behavior. Prefer primary technical sources.
-- Existing `scripts/oj.py` helpers shortlist files, summarize diagnostics, find studies/duplicates, or select skills. Read the relevant pattern's tier in `.agents/openjev/REGISTRY.md` first. Unproven classification cannot exclude potentially relevant evidence.
-- Existing task skills: consult the skill table in `CLAUDE.md`, then open only the matching file. Do not copy all skills into the discovery catalog.
-
-## Finish
-Run checks relevant to changed behavior, including root ship gates when applicable. Record actual results and failures. Use only Codex session notes. Follow root Git sync and ownership rules; no assumed authority over another agent's queue.
+- Compact checks and shared handoffs: `.agents/context/efficiency-playbook.md` → “Explicit development checks”. Use existing `oj.py run --local` for deterministic output/receipts; existing ASKS template for packets. Read that section only when running or handing off checks. No automatic test skipping or new hooks.

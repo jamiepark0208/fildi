@@ -8,6 +8,16 @@
 ## Detail
 <spec, files, test cases / acceptance check, approval gates>
 
+### Build / review packet
+<!-- Keep short; link existing evidence rather than copy transcripts. -->
+- Owner / claimed paths:
+- Relevant source + configuration/dependency files:
+- Pass/fail check + package working directory:
+- Latest evidence / receipt + tested revision (include dirty-file fingerprints):
+- Known risks / unresolved findings / next action:
+<!-- Receipts cover declared files only. Recheck changes, dependencies, environment and live data;
+     required ship gates and independent review still apply. Never paste secrets or raw portfolio logs. -->
+
 ## Status notes
 <dated notes from whoever acts>
 

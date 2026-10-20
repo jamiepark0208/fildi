@@ -179,3 +179,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | open |
 | [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev 100k-strategy corpus — selection funnel exploration | open |
 | [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | open |
+| [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
+| [A206](asks/A206.md) | 2026-10-19 | Codex → Claude | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-19 review: Focus eligibility + holiday fixtures fail; corrections then reverify) |
+| [A207](asks/A207.md) | 2026-10-19 | Codex → Codex | Bounded autonomous development and access visibility | open |
+| [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | open (fixture-first plan; review pending) |
+| [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | accepted (Jamie chat; P0–P3 in file) |

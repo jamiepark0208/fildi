@@ -1,0 +1,253 @@
+{
+  "total": {
+    "input": 29609173,
+    "cached_input": 28898304,
+    "output": 85672,
+    "requests": 229,
+    "uncached_input": 710869,
+    "cached_percent": 97.6
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "first_at": "2026-10-20T02:48:35.202Z",
+      "requests": 3,
+      "input": 121859,
+      "cached_input": 106880,
+      "output": 410,
+      "median_context": 40124,
+      "uncached_input": 14979
+    },
+    {
+      "turn": 2,
+      "first_at": "2026-10-20T02:51:00.843Z",
+      "requests": 13,
+      "input": 774363,
+      "cached_input": 701312,
+      "output": 5946,
+      "median_context": 63326,
+      "uncached_input": 73051
+    },
+    {
+      "turn": 3,
+      "first_at": "2026-10-20T03:57:58.915Z",
+      "requests": 33,
+      "input": 3632330,
+      "cached_input": 3563008,
+      "output": 11761,
+      "median_context": 112189,
+      "uncached_input": 69322
+    },
+    {
+      "turn": 4,
+      "first_at": "2026-10-20T04:19:19.788Z",
+      "requests": 4,
+      "input": 560514,
+      "cached_input": 550272,
+      "output": 354,
+      "median_context": 138761.0,
+      "uncached_input": 10242
+    },
+    {
+      "turn": 5,
+      "first_at": "2026-10-20T04:20:27.735Z",
+      "requests": 1,
+      "input": 146256,
+      "cached_input": 145920,
+      "output": 163,
+      "median_context": 146256,
+      "uncached_input": 336
+    },
+    {
+      "turn": 6,
+      "first_at": "2026-10-20T04:40:05.621Z",
+      "requests": 11,
+      "input": 1794511,
+      "cached_input": 1651456,
+      "output": 4722,
+      "median_context": 164638,
+      "uncached_input": 143055
+    },
+    {
+      "turn": 7,
+      "first_at": "2026-10-20T04:43:25.584Z",
+      "requests": 5,
+      "input": 854780,
+      "cached_input": 852736,
+      "output": 825,
+      "median_context": 170829,
+      "uncached_input": 2044
+    },
+    {
+      "turn": 8,
+      "first_at": "2026-10-20T04:46:18.553Z",
+      "requests": 14,
+      "input": 2594424,
+      "cached_input": 2567424,
+      "output": 7150,
+      "median_context": 185809.0,
+      "uncached_input": 27000
+    },
+    {
+      "turn": 9,
+      "first_at": "2026-10-20T04:51:14.036Z",
+      "requests": 5,
+      "input": 1010958,
+      "cached_input": 1000832,
+      "output": 3711,
+      "median_context": 202813,
+      "uncached_input": 10126
+    },
+    {
+      "turn": 10,
+      "first_at": "2026-10-20T04:55:14.582Z",
+      "requests": 26,
+      "input": 2850500,
+      "cached_input": 2802304,
+      "output": 10325,
+      "median_context": 58825.0,
+      "uncached_input": 48196
+    },
+    {
+      "turn": 11,
+      "first_at": "2026-10-20T05:02:28.667Z",
+      "requests": 13,
+      "input": 938032,
+      "cached_input": 916480,
+      "output": 5574,
+      "median_context": 74012,
+      "uncached_input": 21552
+    },
+    {
+      "turn": 12,
+      "first_at": "2026-10-20T05:05:47.788Z",
+      "requests": 3,
+      "input": 252985,
+      "cached_input": 242944,
+      "output": 365,
+      "median_context": 85291,
+      "uncached_input": 10041
+    },
+    {
+      "turn": 13,
+      "first_at": "2026-10-20T05:08:05.538Z",
+      "requests": 1,
+      "input": 88625,
+      "cached_input": 88320,
+      "output": 110,
+      "median_context": 88625,
+      "uncached_input": 305
+    },
+    {
+      "turn": 14,
+      "first_at": "2026-10-20T05:08:48.853Z",
+      "requests": 2,
+      "input": 177747,
+      "cached_input": 177024,
+      "output": 252,
+      "median_context": 88873.5,
+      "uncached_input": 723
+    },
+    {
+      "turn": 15,
+      "first_at": "2026-10-20T05:10:31.788Z",
+      "requests": 3,
+      "input": 269143,
+      "cached_input": 267392,
+      "output": 779,
+      "median_context": 89830,
+      "uncached_input": 1751
+    },
+    {
+      "turn": 16,
+      "first_at": "2026-10-20T05:12:56.545Z",
+      "requests": 27,
+      "input": 2920170,
+      "cached_input": 2887936,
+      "output": 9177,
+      "median_context": 107843,
+      "uncached_input": 32234
+    },
+    {
+      "turn": 17,
+      "first_at": "2026-10-20T05:19:49.718Z",
+      "requests": 54,
+      "input": 8487263,
+      "cached_input": 8417536,
+      "output": 20060,
+      "median_context": 158144.0,
+      "uncached_input": 69727
+    },
+    {
+      "turn": 18,
+      "first_at": "2026-10-20T15:53:47.645Z",
+      "requests": 8,
+      "input": 1530892,
+      "cached_input": 1359616,
+      "output": 620,
+      "median_context": 191747.0,
+      "uncached_input": 171276
+    },
+    {
+      "turn": 19,
+      "first_at": "2026-10-20T15:55:52.399Z",
+      "requests": 3,
+      "input": 603821,
+      "cached_input": 598912,
+      "output": 3368,
+      "median_context": 201455,
+      "uncached_input": 4909
+    }
+  ],
+  "tool_outputs": [
+    {
+      "category": "exec_command",
+      "responses": 141,
+      "characters": 612695,
+      "largest_characters": 12191
+    },
+    {
+      "category": "run",
+      "responses": 14,
+      "characters": 197620,
+      "largest_characters": 17305
+    },
+    {
+      "category": "js",
+      "responses": 15,
+      "characters": 96804,
+      "largest_characters": 18893
+    },
+    {
+      "category": "exec",
+      "responses": 6,
+      "characters": 12886,
+      "largest_characters": 4347
+    },
+    {
+      "category": "get_usage_limits",
+      "responses": 4,
+      "characters": 4665,
+      "largest_characters": 1169
+    },
+    {
+      "category": "apply_patch",
+      "responses": 7,
+      "characters": 1348,
+      "largest_characters": 312
+    },
+    {
+      "category": "write_stdin",
+      "responses": 5,
+      "characters": 510,
+      "largest_characters": 102
+    },
+    {
+      "category": "other",
+      "responses": 12,
+      "characters": 371,
+      "largest_characters": 266
+    }
+  ],
+  "scope": "Selected rollout only; excludes other agents/chats. Characters are not token counts. No plan-cost conversion."
+}

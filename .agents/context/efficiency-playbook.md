@@ -148,3 +148,15 @@ rg -n "new YahooFinance" artifacts/api-server/src/lib artifacts/api-server/src/r
 rg -n "^function sleep|async function fetchWithRetry" artifacts/api-server/src          # expect none (use http-client)
 rg -n "Cache\.get\(" artifacts/api-server/src/routes                                   # prefer getOrCompute
 ```
+
+
+## Explicit development checks — all agents (A197, 2026-10-20)
+Use `python3 scripts/oj.py run --local --input <source> --input <test> -- <command> <args>` from the correct package directory (use an absolute oj.py path outside repo root). Repeat `--input` for relevant configuration and dependency manifests. Default timeout 120 seconds; set `--timeout` before `--` for longer checks.
+
+This mode runs the command directly, without shell interpretation or OpenJev. It prints the exit code, first failure matches and tail, and retains the full combined log plus a JSON receipt in a private temporary directory. Receipt records command/cwd, time, exit status and declared-file hashes before/after. No environment values collected. Commands/logs may contain private material: keep them local, never put secrets in arguments, and do not commit raw receipts/logs. Temporary evidence is not durable; record the result and source revision in the ASKS row.
+
+A receipt is evidence of one run, not permission to skip tests. It covers only declared files: recheck dependency/configuration changes, environment, live data and unresolved findings before relying on it. Required ship gates and independent reviews still run. No automatic reuse, retries, dispatch, model startup or hook changes. Existing model-assisted `oj.py run` remains available when appropriate; short deterministic checks use `--local`.
+
+Use the Build / review packet in `research/common/asks/_TEMPLATE.md` for existing and new work: owner/paths, source, acceptance command/cwd, evidence/revision, remaining uncertainty. Link previous evidence instead of copying chat history. One builder; bounded independent review where required. Never replace another agent's session memory.
+
+Measure compact versus full output characters separately from actual model tokens. Report task completion, regressions and interventions alongside tokens; no claimed quota savings from log compression alone.

@@ -9,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const INBOX_BUDGET = 1500;
-const AGENTS = new Set(["claude", "cursor", "muse", "grok"]);
+const AGENTS = new Set(["claude", "cursor", "muse", "grok", "codex"]);
 
 /** Rows are already claimed. Only lines that fit the stdout budget count as delivered. */
 export function splitInboxDelivery(rows, budget = INBOX_BUDGET) {
@@ -106,7 +106,7 @@ function main() {
            AND NOT EXISTS (
              SELECT 1 FROM watchlist_sync.needs_comments r
              WHERE r.item = c.item
-               AND r.author IN ('claude','cursor','muse','grok')
+               AND r.author IN ('claude','cursor','muse','grok','codex')
                AND r.created_at > c.created_at
            )
          ORDER BY c.created_at LIMIT 10`;

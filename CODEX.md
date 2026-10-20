@@ -1,29 +1,22 @@
-# FILDI — Codex adapter
-Read root `AGENTS.md` first. Shared policy stays there.
+# FILDI — Astra/Codex adapter
+Shared policy: root `AGENTS.md`. Jamie assigned Codex assessment, planning, implementation and verification on 2026-10-19 (A205). Three goals: reliable technology, evidence-backed financial decisions, budget-conscious autonomous development.
 
-## Prompt intake
-- Caveman replies: answer first, short plain bullets; no code unless asked.
-- Silently extract goal, ALL tasks, constraints, exceptions, approvals, and done-when checks from messy prompts. Preserve intent; never another model just to summarize. Respect one-step-at-a-time requests.
-- Load only the relevant topic from `.agents/context/INDEX.md` and one matching existing task skill from `CLAUDE.md`'s skill table. Do not load that entire adapter for routine work.
+- Session continuity: read `.agents/context/codex-state.md` once at session start. A resumed chat also has its saved history; a fresh chat uses this compact checkpoint. Recheck branch/SHA and relevant changed files before acting. Load the linked assessment brief only when continuing that task. New user requests take priority; no automatic assessment on launch.
+- Replies: short, plain, answer first. Silently extract every ask, constraint, exception, and success check from messy prompts; no separate prompt-rewriting model.
+- Work in `~/Cursor/fildi`. Claim one task in `.agents/claims/` before edits; use existing ASKS/Ideas for plans and coordination. Continue authorized work end-to-end with targeted verification. Preserve other agents’ changes. Follow ship/sync gates; trailer `Agent: codex`. No autonomous trading, portfolio mutation, credential disclosure, new paid services or unbounded recurring runs. Host sandbox/approval settings enforce access; these instructions and UI indicators do not grant permissions.
+- Read context by need: `.agents/context/INDEX.md` for domain topics; `codex-context-map.md` for selected code/workflow entrypoints; `codex-assessment.md` for Jamie's technology-and-financial-judgment review. Do not reload these before every edit.
+- Use `fildi-workflow` for retrieval. CodeGraph CLI works; MCP is optional. Verify critical graph matches against current source. Existing Crawl4AI/OpenJev are optional, not prerequisites; skip unavailable access instead of widening permissions or starting models.
+- Inbox identity must be explicit: `node .agents/hooks/needs-inbox.mjs --agent=codex`; never use its Claude default. Replies use explicit `codex`. Do not claim Claude’s unread markers. Respect live claims and task ownership.
+- Activity: repo `.codex/hooks.json` calls `scripts/codex-agent-event.mjs`. Trust/reload is host-controlled; never bypass it. Logs retain lifecycle/category/timing and hashed session only. No prompt/command/output or portfolio contents. No event means unobserved, not proof of inactivity. Subscription usage is unknown until measured; never report free/unlimited.
+- Autonomous work means completing claimed authorized tasks, not an always-running agent. New recurring dispatch needs a bounded schedule, budget and stop rule. No loops or extra agents merely to stay busy.
+- Start Astra at Light/Low; use Medium or higher when the task warrants deeper reasoning. Keep Jamie's chosen model/effort. Configuration is not proof that the current chat switched.
+- Work inline by default. Delegate only when requested/required, with a small self-contained task. Keep output bounded; retain full diagnostics locally. No agent fan-out for discovery or prompt cleanup.
+- Checkpoints: `.agents/context/codex-state.md` only; update after meaningful progress or a direction change, not just at session end (a terminal can close abruptly). Record goal, source snapshot, decisions, evidence, uncertainty, next action. Recheck moving files before reporting. No unmeasured savings claims.
 
-## Code and tools
-- Use `.agents/skills/fildi-workflow/SKILL.md` for FILDI code investigation, implementation, debugging, and research.
-- CodeGraph 1.0.0 works at `/usr/local/bin/codegraph`. Actual MCP tools: `codegraph_search`, `codegraph_callers`, `codegraph_node`, `codegraph_explore`. Older docs mention `codegraph_context`; it is absent. Use actual schemas.
-- Check graph status; sync after relevant source edits or suspected drift. Confirm important matches against current source. CLI works immediately; new MCP connections may require a session reload.
-- Research: `scripts/fetch-page.sh` uses existing Crawl4AI, no extra MCP. Read its cached Markdown selectively. Deep crawl only for a concrete need; save sources only when cited by a study/ASKS row. Sandbox cache override: `CRAWL4_AI_BASE_DIRECTORY=/tmp/fildi-codex-crawl`. Chromium launch may still be blocked: report it, use available browser/web tools, never claim a successful crawl.
-- OpenJev: `FILDI_AGENT=codex python3 scripts/oj.py ...`; follow `.agents/openjev/README.md` and registry tiers. Session start: `pending`; verify if work exists. Before broad file reads, large diagnostics, studies, duplicate checks, or skill selection, use the existing helper. Below A = shortlist to check, not an exclusion gate. Exit 3 = proceed directly. Reuse the shared server; never launch a second model instance.
-- GitHub: authenticated `gh`; local Git for code/history. Root sync-script rules apply. Setup does not authorize unrelated commits, pushes, queue work, or messages.
+- Review efficiency (A207 pilot): use one small evidence packet per feature (decision, source paths, tests, result, uncertainty, owner, next falsification). Preflight imports/side effects; use fixture-only configuration for pure tests. Distinguish behavioral tests from economic and authenticated runtime validation. Re-run unchanged passing tests only when new evidence warrants it. Record per-run results under `research/common/reviews/`; reuse existing ASKS rows.
 
-## Effort recommendations
-Keep the user's selected model. These are workload recommendations, not automatic switching or proven cost rankings. Project default is medium for future sessions; chat settings may override it.
-- Low: exact lookups, docs/config changes, mechanical edits with a clear check.
-- Medium: routine features, bounded debugging, multi-file implementation.
-- High: architecture, subtle concurrency/data correctness, scorer/backtest reviews, persistent unexplained failures.
-Raise effort when evidence warrants it. Do not claim an effort/model switch unless a supported control actually changed it.
+- Product judgment (Jamie feedback, A207): reviews must assess both reliability and opportunities to materially improve the user’s decisions/workflow. For a justified opportunity, identify existing overlap, smallest useful change, benefit hypothesis, cost, owner, falsification and stop rule. No feature quota; no duplicate machinery. See research/common/reviews/2026-10-19-codex-improvement-agenda.md.
 
-## Context and coordination
-- Targeted symbols and source ranges; bounded output. Retain full diagnostics in temporary files when necessary. Never blanket-read archives, lockfiles, or generated code.
-- Codex notes only: `.agents/context/codex-state.md`. Keep goal, constraints, path ownership, branch/SHA/date, decisions, checks, blockers, next action. No raw logs or copied source. Recheck live status/source before trusting old notes or index lines.
-- Same task: keep continuity. Unrelated task: fresh context. No invented context thresholds or token-saving percentages.
-- Work inline by default. Delegate only on explicit request or applicable instruction, using a short self-contained task and bounded return. No full-history exploration fan-out or prompt-cleanup agent.
-- Respect shared dirty-tree ownership and existing roles. No competing orchestrator, memory, research, or sync system. Follow the root ship checks.
+- Measured efficiency (A207, 2026-10-20): do not reread unchanged context every turn. Verify file paths and package working directory before commands. Return compact counts/failures, not broad logs or browser inventories. Batch independent inspections; rerun checks when relevant source changed or evidence failed. Keep checkpoint current rather than append-only. Token audit: scripts/codex-token-audit.py (numeric local records; no quota conversion). Preserve required review/ship gates; no model downgrade or new chat without user authorization.
+
+- Executable efficiency: shared `.agents/context/efficiency-playbook.md`, “Explicit development checks”. Use `oj.py run --local` for compact deterministic checks with local receipts, and the existing ASKS Build / review packet. Complete authorized work before ending the turn; describe proposals as proposals, never as delivered work.

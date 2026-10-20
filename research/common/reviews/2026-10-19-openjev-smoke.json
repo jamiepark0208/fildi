@@ -1,0 +1,71 @@
+{
+  "synthetic_smoke_only": true,
+  "rows": [
+    {
+      "expected_failure": false,
+      "model_keep": false,
+      "regex_keep": false,
+      "probability": 0.0003501723870430597,
+      "elapsed_ms": 3039,
+      "usage": {
+        "input_tokens": 101,
+        "output_tokens": 0
+      }
+    },
+    {
+      "expected_failure": true,
+      "model_keep": true,
+      "regex_keep": true,
+      "probability": 0.9966054534386884,
+      "elapsed_ms": 461,
+      "usage": {
+        "input_tokens": 99,
+        "output_tokens": 0
+      }
+    },
+    {
+      "expected_failure": true,
+      "model_keep": true,
+      "regex_keep": false,
+      "probability": 0.9972210031670075,
+      "elapsed_ms": 465,
+      "usage": {
+        "input_tokens": 108,
+        "output_tokens": 0
+      }
+    },
+    {
+      "expected_failure": true,
+      "model_keep": true,
+      "regex_keep": false,
+      "probability": 0.6285590402473382,
+      "elapsed_ms": 480,
+      "usage": {
+        "input_tokens": 105,
+        "output_tokens": 0
+      }
+    },
+    {
+      "expected_failure": false,
+      "model_keep": false,
+      "regex_keep": false,
+      "probability": 0.0003819640058099283,
+      "elapsed_ms": 429,
+      "usage": {
+        "input_tokens": 103,
+        "output_tokens": 0
+      }
+    },
+    {
+      "expected_failure": true,
+      "model_keep": true,
+      "regex_keep": true,
+      "probability": 0.9888188006716288,
+      "elapsed_ms": 457,
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 0
+      }
+    }
+  ]
+}

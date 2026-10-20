@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {createRequire} from 'node:module';
+const require=createRequire(process.cwd()+'/package.json');const ts=require('typescript');
+const src=fs.readFileSync('artifacts/api-server/src/lib/option-score-snapshots.ts','utf8');
+const ast=ts.createSourceFile('x.ts',src,ts.ScriptTarget.Latest,true);
+const fn=ast.statements.find(n=>n.name?.text==='attachFocus').getText(ast);
+const ctx=vm.createContext({db:{execute:async q=>({rows:String(q).includes('plan_items')?[{ticker:'TRIM'}]:String(q).includes('put_edge_status')?[{demoted:false}]:[{ticker:'TRIM',quintile:5},{ticker:'LOW',quintile:1}]})},sql:(s)=>s.join(''),num:x=>x??null,FOCUS_PUTS:10,FOCUS_CALLS:5,logger:{warn(){}}});
+vm.runInContext(ts.transpile(fn,{target:ts.ScriptTarget.ES2022}),ctx);
+const rows=[{ticker:'TRIM',optionScore:99},{ticker:'LOW',optionScore:80}];
+await ctx.attachFocus(rows,'put');
+console.log(JSON.stringify({case:'No eligible Q4/Q5 non-trim names',rows}));

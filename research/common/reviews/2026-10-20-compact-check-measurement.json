@@ -1,0 +1,9 @@
+{
+  "fixture": "synthetic noisy failure; not production task savings",
+  "exit": 7,
+  "full_log_characters": 140022,
+  "compact_output_characters": 442,
+  "reduction_percent": 99.68,
+  "error_visible": true,
+  "receipt": "/var/folders/9y/xg048s755bg0mdvwkxccdss80000gn/T/fildi-check-13ftnecg/receipt.json"
+}

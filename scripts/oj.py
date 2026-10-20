@@ -99,6 +99,27 @@ _last_ev = [0.0]
 WHAT = ["typed question"]   # set by each command: shown on the AI-tab beam
 
 
+def log_request_usage(response: dict, elapsed_ms: int) -> None:
+    """Successful agent requests only; no question, state, answer or model text."""
+    usage = response.get("usage", {})
+    if not isinstance(usage, dict):
+        usage = {}
+    def count(key):
+        value = usage.get(key)
+        return value if type(value) is int and value >= 0 else None
+    caller = me()
+    row = {"kind": "model_request", "at": dt.datetime.now(dt.timezone.utc).isoformat(),
+           "agent": caller if caller in ("claude", "cursor", "codex", "muse", "kiro", "grok") else "?",
+           "input_tokens": count("input_tokens"), "output_tokens": count("output_tokens"),
+           "elapsed_ms": max(0, elapsed_ms)}
+    try:
+        USAGE.parent.mkdir(exist_ok=True)
+        with USAGE.open("a") as f:
+            f.write(json.dumps(row) + "\n")
+    except OSError:
+        pass  # Metering must never fail the actual request.
+
+
 def post(port: int, state: str, questions: dict, **extra) -> dict:
     """One typed request to the shared server; it queues concurrent callers itself. 529 (queue full) / restart → retry."""
     oj_server.touch()
@@ -106,11 +127,14 @@ def post(port: int, state: str, questions: dict, **extra) -> dict:
         _last_ev[0] = time.time()
         ev("batch", f"{me()}: {WHAT[0]}", me())
     body = json.dumps({"model": MODEL, "state": state, "questions": questions, **extra}).encode()
+    started = time.monotonic()
     for attempt in range(6):
         req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/systemone", data=body, method="POST", headers={"content-type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=600) as r:
-                return json.loads(r.read())
+                response = json.loads(r.read())
+                log_request_usage(response, round((time.monotonic() - started) * 1000))
+                return response
         except urllib.error.HTTPError as e:
             if e.code != 529 or attempt == 5:
                 raise
@@ -794,6 +818,9 @@ def main() -> int:
     p.add_argument("--top", type=int, default=8)
     p.add_argument("paths", nargs="*")
     p = sp.add_parser("run")
+    p.add_argument("--local", action="store_true", help="No model: compact output, full local log and check receipt")
+    p.add_argument("--input", action="append", default=[], help="Relevant file to fingerprint (repeatable; local mode)")
+    p.add_argument("--timeout", type=float, default=120, help="Local-mode timeout in seconds")
     p.add_argument("argv", nargs=argparse.REMAINDER)
     for name in ("studies", "dupes"):
         p = sp.add_parser(name)
@@ -847,6 +874,10 @@ def main() -> int:
     if a.cmd == "files":
         return cmd_files(a.task, a.paths, a.grep, a.top)
     if a.cmd == "run":
+        if a.local:
+            from agent_check import run
+            argv = a.argv[1:] if a.argv[:1] == ["--"] else a.argv
+            return run(argv, a.input, a.timeout)
         return cmd_run([x for x in a.argv if x != "--"])
     if a.cmd == "studies":
         return cmd_studies(a.text, a.top)
