@@ -7,7 +7,7 @@
 
 ## Active work
 - Working: A176 strategy runner + 8 strategies, panic-puts-hiv live (2025 p0.004 · 2022 p0.08), nightly strategy_signals in daily.py, LSEG option history 2019+ helper, conditions grid, Polygon shared gate + splits table
-- In progress: S053 vol-day 0DTE dollar test (2026 leg running)
+- S053 vol-day 0DTE: FAIL (all regimes negative; A188 #3 covered)
 - Blocked: LSEG daily budget used today (~9.5k/10k)
 
 ## Next tasks (priority order)
@@ -67,3 +67,4 @@ Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical di
   Next (Claude, in order): record 2022 → run 2020 (+2019/21/23/24 as budget allows; ~2.7k LSEG req/yr, 10k/day) → conditions_grid across all years → vol-regime put-book dial study → S053 verdict → strike-list fix (cut ~60 % wasted LSEG requests) → A186 sim_rec job → A188 #1/#3/#4 (option day/night, 0DTE regime, opex pinning w/ LSEG OI) → A184 backlog.
   Cursor queue: A175 page, A189 signals UI, A185 Node Polygon gate, A186 UI.
 - 2026-10-19 late: S049 2022 done (rule same sign, p 0.077). A186 sim_rec data done (nightly). Vol-regime dial = covered by S027 (no redo). Remaining needs LSEG budget (resets daily): S049 2020/2019/21/23/24 → grid all years; strike-list fix; A188 #1 (LSEG OPEN_PRC) / #4 pinning (LSEG OI). S053 2026 leg still running (s053.log).
+- 2026-10-19 end: S053 FAIL recorded (A177, INDEX); A188 #3 0DTE-by-regime answered by its split. Next: LSEG-gated list above (S049 2020 smoke → years → grid; strike-list fix; A188 #1/#4).
