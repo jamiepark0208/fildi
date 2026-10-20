@@ -23,15 +23,33 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.sim_rec (
 METHOD = "1σ weekly puts, 52 wk (lab panel, BS-priced strikes)"
 
 
+def load_events(conn) -> list[tuple]:
+    """Same events + breach rule as S045 build() (K = S·exp(−Z·IV30·√(HOLD/252)), bar index ≥ LOOKBACK + 22, HOLD bars ahead),
+    but only the last ~13 months and only IV30 + closes. 10-19 audit: the full lab panel (features, tech, fund, every OHLC bar
+    since 2020, per-event list rebuilds) peaked at 793 MB / 17.5 s for a 52-week win count."""
+    return conn.execute(
+        """WITH o AS (SELECT ticker, as_of, (features->>'iv30')::float8 / 100 iv FROM watchlist_sync.lab_outcomes
+                      WHERE as_of >= (SELECT MAX(as_of) FROM watchlist_sync.lab_outcomes) - 400
+                        AND (features->>'iv30')::float8 <> 0),
+                b AS (SELECT ticker, date, close::float8 c, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date) - 1 i
+                      FROM lseg_research.daily_history
+                      WHERE ticker IN (SELECT ticker FROM o) AND close > 0 AND high > 0 AND low > 0)
+           SELECT o.ticker, o.as_of, b.c * exp(-%s * o.iv * sqrt(%s / 252.0)) > f.c AS breach
+           FROM o JOIN b ON b.ticker = o.ticker AND b.date = o.as_of
+           JOIN b f ON f.ticker = o.ticker AND f.i = b.i + %s
+           WHERE o.iv > 0.05 AND o.iv < 3.0 AND b.i >= %s""",
+        (M.Z, M.HOLD, M.HOLD, M.LOOKBACK + 22)).fetchall()
+
+
 def main():
     conn = M.connect()
-    ev = M.build(*M.load(conn))
-    end = max(e["d"] for e in ev)
+    ev = load_events(conn)
+    end = max(d for _, d, _ in ev)
     start = end - timedelta(days=364)
     wl = defaultdict(lambda: [0, 0])
-    for e in ev:
-        if e["d"] >= start:
-            wl[e["t"]][1 if e["breach"] else 0] += 1
+    for t, d, breach in ev:
+        if d >= start:
+            wl[t][1 if breach else 0] += 1
     conn.execute(DDL)
     conn.execute("DELETE FROM watchlist_sync.sim_rec")
     with conn.cursor() as cur:
