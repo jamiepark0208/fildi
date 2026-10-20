@@ -50,6 +50,8 @@ if [ "$need_api" -eq 1 ]; then
 fi
 if [ "$need_ui" -eq 1 ]; then
   echo "agent-ship-check: typecheck stock-compare…"
+  # Temp worktrees often lack lib/*/dist — rebuild before UI tsc (same flake as api-server TS6305).
+  (cd artifacts/stock-compare && pnpm exec tsc -b ../../lib/option-scoring ../../lib/api-client-react ../../lib/api-zod >/dev/null 2>&1) || true
   if ! (cd artifacts/stock-compare && pnpm exec tsc -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL stock-compare typecheck — fix before push (A94)" >&2
     fail=1
