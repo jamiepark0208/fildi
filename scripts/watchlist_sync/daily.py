@@ -59,6 +59,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "verify": [("evaluate quotes (L2)", PY, HERE, ["verify_plan.py", "evaluate"])],  # quotes come from the export session (Step 13)
     "publish": [
         ("publish Model List", PY, HERE, ["publish_model_list.py"]),
+        ("pick odds", PY, HERE, ["pick_odds.py"]),  # A213: per-pick probabilities → watchlist_sync.pick_odds
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("house view", PY, HERE, ["house_view.py"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
