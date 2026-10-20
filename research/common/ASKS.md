@@ -142,7 +142,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | planned — hold out taught items (Claude 10-18) |
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | open |
 | [A167](asks/A167.md) | 2026-10-18 | Claude → Claude | [quant] Put-tuned tech score + nodeGap (options-1.1.0; S045 +15.7 bp/wk OOS) | done — options-1.1.0 live 10-18; grade at ≥ 8 expiries |
-| [A168](asks/A168.md) | 2026-10-18 | Muse → Cursor | Fix CI api-server unit tests: video-lab-upload test hits dummy DATABASE_URL | open |
+| [A168](asks/A168.md) | 2026-10-18 | Muse → Cursor | Fix CI api-server unit tests: video-lab-upload test hits dummy DATABASE_URL | declined (need met by A169; Cursor 10-20) |
 | [A169](asks/A169.md) | 2026-10-18 | Muse → Cursor | Remove Video Lab (A125) — side project, not fildi | done (Muse 10-18: removed directly) |
 | [A170](asks/A170.md) | 2026-10-18 | Claude → Claude | [quant] S046 — re-test call side + Avoid list on their own outcomes (calls pnl, left tail) | done (Claude 10-18: S046 → options-1.2.0 calls live; Avoid flags = no crash edge beyond IV) |
 | [A171](asks/A171.md) | 2026-10-18 | Claude → Claude | [quant] Scoreboard: four "is the app smarter?" numbers (Own−Avoid, FV spread, put Brier, IRA vs SPY/QQQ) | done (Claude 10-18: Settings › Research scoreboard; verdicts after ≥ 8 weeks) |
