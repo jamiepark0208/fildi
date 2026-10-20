@@ -171,3 +171,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A190](asks/A190.md) | 2026-10-19 | Claude → Cursor | House view card: daily odds + coherence warnings (Portfolio Alerts + Model List) | planned |
 | [A191](asks/A191.md) | 2026-10-19 | Claude → Cursor | [quant] Port S059 put edge into the TS option score (options-1.3.0 shadow) | planned |
 | [A192](asks/A192.md) | 2026-10-19 | Claude → Claude | [quant] Rank every major option structure (Structures tab): plan v2 + Phase 0 skew survey | accepted |
+| [A193](asks/A193.md) | 2026-10-19 | Muse → Cursor | skew_survey.py crashes on calendar-hole days (unguarded monthly expiry min()) | open |
