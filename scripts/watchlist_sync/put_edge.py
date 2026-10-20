@@ -21,6 +21,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 CAL = HERE / "put_edge_calibration.json"   # written by analysis/s059_option_factors.py (holdout only)
 MAX_TECH_AGE_DAYS = 10
+MIN_WEEKS = 6   # drift check waits for six resolved weeks (~1,400 sim puts) before it can demote
 
 
 def _rank(x: list[float]) -> np.ndarray:
@@ -31,15 +32,17 @@ def _rank(x: list[float]) -> np.ndarray:
     return r / max(len(x) - 1, 1)
 
 
-def scores(conn) -> dict[str, dict]:
-    """{ticker: {iv_rv, vol_of_vol, put_tech, pct, quintile, pnl_bp, breach}} for every name with all three factors today."""
+def scores(conn, as_of: date | None = None) -> dict[str, dict]:
+    """{ticker: {iv_rv, vol_of_vol, put_tech, pct, quintile, pnl_bp, breach}} for every name with all three factors.
+    as_of = point-in-time replay (verification); default today."""
+    today = as_of or date.today()
     hist: dict[str, list] = {}
     for t, d, c, iv in conn.execute("""SELECT ticker, date, close::float8, iv30_put::float8 FROM lseg_research.daily_history
-                                       WHERE date >= CURRENT_DATE - 120 AND close > 0 ORDER BY ticker, date""").fetchall():
+                                       WHERE date BETWEEN %s::date - 120 AND %s AND close > 0 ORDER BY ticker, date""", (today, today)).fetchall():
         hist.setdefault(t, []).append((d, c, iv))
-    tech_asof = conn.execute("SELECT MAX(as_of) FROM watchlist_sync.lab_tech").fetchone()[0]
+    tech_asof = conn.execute("SELECT MAX(as_of) FROM watchlist_sync.lab_tech WHERE as_of <= %s", (today,)).fetchone()[0]
     tech = {}
-    if tech_asof and (date.today() - tech_asof).days <= MAX_TECH_AGE_DAYS:
+    if tech_asof and (today - tech_asof).days <= MAX_TECH_AGE_DAYS:
         for t, v2 in conn.execute("SELECT ticker, v2 FROM watchlist_sync.lab_tech WHERE as_of = %s", (tech_asof,)).fetchall():
             comps = (v2 or {}).get("comps") or {}
             if comps.get("trendContext") is not None and comps.get("volumeConfirm") is not None:
@@ -52,7 +55,7 @@ def scores(conn) -> dict[str, dict]:
             continue
         while b and not b[-1][2]:   # today's OHLC bar can land before its IV: score as of the latest bar with IV
             b = b[:-1]
-        if t not in tech or len(b) < 61 or (date.today() - b[-1][0]).days > 7:
+        if t not in tech or len(b) < 61 or (today - b[-1][0]).days > 7:
             continue
         cl = [x[1] for x in b]
         lr = [math.log(cl[k] / cl[k - 1]) for k in range(len(cl) - 20, len(cl))]
@@ -108,21 +111,23 @@ def log_sim(conn, edge: dict[str, dict]) -> int:
 
 
 def drift(conn) -> list[str]:
-    """Auto-demotion check: live resolved simulated puts vs the backtest calibration. Fires once ≥ 200 are resolved."""
-    rows = conn.execute("""SELECT (meta->>'quintile')::int q, outcome FROM watchlist_sync.forecast_ledger
+    """Auto-demotion check: live resolved simulated puts vs the backtest. Weeks are one correlated draw each (10-19 replay: one crash
+    week breached 40 % of names and alone tripped a pooled check), so it needs ≥ MIN_WEEKS resolved weeks and judges week by week."""
+    rows = conn.execute("""SELECT resolves_on, (meta->>'quintile')::int q, outcome FROM watchlist_sync.forecast_ledger
                            WHERE qtype = 'sim_put_otm' AND forecaster = 'put_edge' AND outcome IS NOT NULL""").fetchall()
-    if len(rows) < 200:
+    wk: dict = {}
+    for d, q, y in rows:
+        wk.setdefault(d, {}).setdefault(q, []).append(0 if y else 1)
+    weeks = [w for w in wk.values() if len(w.get(5, [])) >= 10 and len(w.get(1, [])) >= 10]
+    if len(weeks) < MIN_WEEKS:
         return []
-    by: dict[int, list] = {}
-    for q, y in rows:
-        by.setdefault(q, []).append(0 if y else 1)
-    br = {q: sum(v) / len(v) for q, v in by.items() if len(v) >= 30}
+    worse = sum(1 for w in weeks if sum(w[5]) / len(w[5]) >= sum(w[1]) / len(w[1]))
     out = []
-    if 5 in br and 1 in br and br[5] >= br[1]:
-        out.append(f"DRIFT: put edge Q5 breach {br[5]:.0%} ≥ Q1 {br[1]:.0%} on {len(rows)} live simulated puts → demote put_edge (rank by option_score)")
+    if worse / len(weeks) > 0.6:
+        out.append(f"DRIFT: put edge Q5 breached ≥ Q1 in {worse}/{len(weeks)} live weeks → demote put_edge (rank by option_score)")
     b = conn.execute("""SELECT forecaster, AVG(POWER(prob - outcome::int, 2)) FROM watchlist_sync.forecast_ledger
                         WHERE qtype = 'sim_put_otm' AND outcome IS NOT NULL GROUP BY 1""").fetchall()
     bb = dict(b)
-    if bb.get("put_edge") and bb.get("market_iv") and bb["put_edge"] > bb["market_iv"]:
+    if bb.get("put_edge") and bb.get("market_iv") and bb["put_edge"] > 1.05 * bb["market_iv"]:
         out.append(f"DRIFT: put edge Brier {bb['put_edge']:.4f} worse than market IV {bb['market_iv']:.4f} on live simulated puts")
     return out
