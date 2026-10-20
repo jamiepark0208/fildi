@@ -21,6 +21,18 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 CAL = HERE / "put_edge_calibration.json"   # written by analysis/s059_option_factors.py (holdout only)
 MAX_TECH_AGE_DAYS = 10
+MIN_QUINTILE = 4   # A196 net-of-fill holdout: Q1–Q3 lose −3…−7 bp/wk after fills, Q4 ≈ 0, Q5 +22 → weekly lane sells Q4–Q5 only
+HOLD_SESSIONS = 4   # A196: a weekly put sold Monday's close expires Friday's close (S045 held 5 → next Monday)
+FILL_SHARE = 0.23   # RH fill = bid + 23 % of the spread (state.md) → cost vs mid = (0.5 − 0.23) × spread
+# in-session relative spread (ask − bid) / mid of 2–9 DTE, 0.10–0.25Δ puts by premium ÷ strike (option_chain_history 7–12 PT, n 1,508, 10-19)
+SPREAD_BY_PREM = [(0.001, 1.12), (0.003, 0.67), (0.006, 0.39), (0.012, 0.25), (0.03, 0.20)]
+
+
+def fill_cost(prem_over_k: float) -> float:
+    """Expected fill cost per $ of strike when selling at bid + 23 % of the spread instead of mid (log-interpolated spread)."""
+    xs, ys = [math.log(x) for x, _ in SPREAD_BY_PREM], [y for _, y in SPREAD_BY_PREM]
+    rel = float(np.interp(math.log(max(prem_over_k, 1e-5)), xs, ys))
+    return (0.5 - FILL_SHARE) * rel * prem_over_k
 MIN_WEEKS = 6   # drift check waits for six resolved weeks (~1,400 sim puts) before it can demote
 
 
@@ -98,7 +110,7 @@ def log_sim(conn, edge: dict[str, dict]) -> int:
         if not r:
             continue
         S, iv = r[0], r[1] / 100
-        tt = 5 / 252
+        tt = HOLD_SESSIONS / 252   # A196: Monday close → Friday close, same as the calibration
         K = round(S * math.exp(-iv * math.sqrt(tt)), 2)
         d2 = (math.log(S / K) - 0.5 * iv * iv * tt) / (iv * math.sqrt(tt))
         meta = json.dumps({"strike": K, "spot": S, "iv": r[1], "quintile": e["quintile"], "study": "S059"})
@@ -146,3 +158,24 @@ def persist(conn, edge: dict[str, dict]) -> int:
                            put_tech = EXCLUDED.put_tech, pct = EXCLUDED.pct""",
                         [(t, e["quintile"], e["pnl_bp"], e["breach"], e["iv_rv"], e["vol_of_vol"], e["put_tech"], e["pct"]) for t, e in edge.items()])
     return len(edge)
+
+
+STATUS_DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.put_edge_status (
+  as_of date PRIMARY KEY, demoted boolean NOT NULL, reasons jsonb NOT NULL DEFAULT '[]', updated_at timestamptz DEFAULT now())"""
+
+
+def set_status(conn, warnings: list[str]) -> bool:
+    """Enforce the drift check (A196: it only warned). Any DRIFT warning → put edge demoted today: build_plan ranks weekly puts by
+    option_score and stops the quintile block; the Options Focus view falls back to top option score. Clears when the check passes."""
+    conn.execute(STATUS_DDL)
+    demoted = any(w.startswith("DRIFT: put edge") for w in warnings)
+    conn.execute("""INSERT INTO watchlist_sync.put_edge_status (as_of, demoted, reasons) VALUES (CURRENT_DATE, %s, %s)
+                    ON CONFLICT (as_of) DO UPDATE SET demoted = EXCLUDED.demoted, reasons = EXCLUDED.reasons, updated_at = now()""",
+                 (demoted, json.dumps([w for w in warnings if w.startswith("DRIFT: put edge")])))
+    return demoted
+
+
+def is_demoted(conn) -> bool:
+    conn.execute(STATUS_DDL)
+    r = conn.execute("SELECT demoted FROM watchlist_sync.put_edge_status ORDER BY as_of DESC LIMIT 1").fetchone()
+    return bool(r and r[0])

@@ -150,6 +150,17 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
 async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Promise<void> {
   try {
     if (side === "put") {
+      // never focus a put on a name the Model List says to trim (same rule as build_plan not_on_trim, 10-19 ONDS)
+      const { rows: tr } = await db.execute(sql`SELECT ticker FROM watchlist_sync.plan_items
+        WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND list_key = 'trim_risk' AND l1_pass`);
+      const trim = new Set((tr as Array<Record<string, unknown>>).map((r) => String(r.ticker)));
+      // A196: drift check demoted put edge → plain option-score order, still never trim names (missing table = not demoted)
+      const { rows: st } = await db.execute(sql`SELECT demoted FROM watchlist_sync.put_edge_status ORDER BY as_of DESC LIMIT 1`).catch(() => ({ rows: [] }));
+      if ((st[0] as Record<string, unknown> | undefined)?.demoted === true) {
+        const keep = new Set(rows.filter((r) => !trim.has(r.ticker)).slice(0, FOCUS_PUTS).map((r) => r.ticker));
+        rows.forEach((r) => { r.focus = keep.has(r.ticker); r.edge = null; });
+        return;
+      }
       const { rows: er } = await db.execute(sql`SELECT ticker, quintile, pnl_bp, breach, iv_rv FROM watchlist_sync.put_edge_daily
         WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily WHERE as_of >= CURRENT_DATE - 7)`);
       const em = new Map((er as Array<Record<string, unknown>>).map((r) => [String(r.ticker), r]));
@@ -157,10 +168,6 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
         const e = em.get(r.ticker);
         r.edge = e ? { quintile: Number(e.quintile), pnlBp: num(e.pnl_bp as number | null), breach: num(e.breach as number | null), ivRv: num(e.iv_rv as number | null) } : null;
       }
-      // never focus a put on a name the Model List says to trim (same rule as build_plan not_on_trim, 10-19 ONDS)
-      const { rows: tr } = await db.execute(sql`SELECT ticker FROM watchlist_sync.plan_items
-        WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND list_key = 'trim_risk' AND l1_pass`);
-      const trim = new Set((tr as Array<Record<string, unknown>>).map((r) => String(r.ticker)));
       const pick = rows.filter((r) => (r.edge?.quintile ?? 0) >= 4 && !trim.has(r.ticker))
         .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || (b.optionScore - a.optionScore)).slice(0, FOCUS_PUTS);
       const set = new Set((pick.length ? pick : rows.slice(0, FOCUS_PUTS)).map((r) => r.ticker));

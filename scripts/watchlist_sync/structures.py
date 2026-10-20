@@ -37,7 +37,7 @@ W = np.exp(-GRID ** 2 / 2); W /= W.sum()
 CATALOG = {
     "csp": ("Cash-secured put", "short_premium", "Sell a ~0.20Δ put with cash set aside to buy 100 shares at the strike.",
             "You'd own the stock at the strike; IV rich vs realized; no earnings before expiry.", "pass",
-            "S059: IV/RV + vol-of-vol + put tech rank weekly puts (holdout +8.5 bp/wk vs live); S049 panic puts."),
+            "S059 (Mon→Fri, net of fills): Q5 +22 bp/wk, breach 10.7 % vs ~14 %; Q1–Q3 lose after fills. S049 panic puts."),
     "covered_call": ("Covered call", "short_premium", "Sell a ~0.20Δ call against 100 shares you hold.",
                      "Flat-to-down tape on a holding you'd sell at the strike.", "fail",
                      "S061/S005: lost vs just holding in every 2024-07→ quintile (calls cap upside in a rising tape)."),
@@ -326,7 +326,7 @@ def regime_fit(c, rv20, tech, q):
     ivrv = c["iv_rv"]
     up = tech and tech["m50"] is not None and tech["m50"] > 0
     if fam == "short_premium":
-        ok = ivrv >= 1.15 and (q is None or q >= 3)
+        ok = ivrv >= 1.15 and (q is None or q >= 4)   # A196: Q1–Q3 lose after fills
         return ok, f"IV/RV {ivrv:.2f}" + (f", put edge Q{q}" if q else "")
     if fam == "long_premium":
         ok = ivrv <= 0.95

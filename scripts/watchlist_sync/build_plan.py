@@ -98,7 +98,9 @@ def load_context(conn) -> dict:
         SELECT UPPER(ticker) AS ticker, date, close::float8 FROM prices_historical WHERE date >= CURRENT_DATE - 10""")}
     ctx["recs"] += panic_recs(conn)
     import put_edge
-    ctx["edge"] = put_edge.scores(conn)   # S059: IV/RV + vol-of-vol + put tech → simulated pnl/breach quintile
+    # S059: IV/RV + vol-of-vol + put tech → simulated pnl/breach quintile; empty when the drift check demoted it (A196: enforced)
+    ctx["edge"] = {} if put_edge.is_demoted(conn) else put_edge.scores(conn)
+    ctx["edge_min_q"] = put_edge.MIN_QUINTILE
     return ctx
 
 
@@ -269,9 +271,9 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         cr = ls and ls["credit_combined_rank"]
         e = ctx.get("edge", {}).get(t)
         if not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
-            c.append(chk("put_edge", e is None or e["quintile"] > 1,
-                         f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk, breach {100 * e['breach']:.0f} % (S059)" if e else "no put-edge inputs",
-                         "block" if e else "warn"))
+            c.append(chk("put_edge", e is None or e["quintile"] >= ctx.get("edge_min_q", 4),
+                         f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk net of fills, breach {100 * e['breach']:.0f} % (S059, Q1–Q3 lose after fills)"
+                         if e else "no put-edge inputs (or demoted by drift check)", "block" if e else "warn"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,
                      f"StarMine credit {cr}/100" if cr is not None else "no LSEG credit rank", "block" if cr is not None else "warn"))

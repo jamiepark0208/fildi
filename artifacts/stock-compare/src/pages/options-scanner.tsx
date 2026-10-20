@@ -902,7 +902,7 @@ export function OptionsScannerContent({
             {([true, false] as const).map((f) => (
               <button key={String(f)} type="button" onClick={() => setFocusOnly(f)}
                 title={f ? (isCallMode ? "Calls on shares you hold (S061: covered calls lose vs holding in a rising tape)"
-                             : "Put edge Q4–Q5: simulated +7…+29 bp/wk, breach 11–13 % (S059 holdout)") : "Every scored name"}
+                             : "Put edge Q4–Q5: simulated ≈0…+22 bp/wk net of fills, breach 11–13 % (S059 holdout; Q1–Q3 lose after fills)") : "Every scored name"}
                 className={cn("px-2.5 rounded-full h-5", focusOnly === f ? "bg-[#d4af37]/20 text-[#d4af37]" : "text-muted-foreground")}>
                 {f ? `Focus (${(optionRankings?.rankings ?? []).filter((r) => r.focus).length})` : `All (${optionRankings?.rankings?.length ?? 0})`}
               </button>

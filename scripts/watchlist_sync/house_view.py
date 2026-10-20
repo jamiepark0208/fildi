@@ -133,7 +133,7 @@ def memo(today, odds, ctx, warn, lists):
                                       f"{'WIDE: drawdown warning, size down' if ctx['credit']['wide'] else 'normal'}" if "baa10y" in ctx["credit"] else "n/a"),
              f"**Catalysts on your book (14 days).** " + (", ".join(ctx["earnings_14d"]) or "none"),
              f"**Options board check (Focus = put edge Q4–Q5).** {ctx.get('board_check', 'n/a')}",
-             "**Richest put premium (S059 put edge Q5: simulated +29 bp/wk, breach 11 %).** " +
+             "**Richest put premium (S059 put edge Q5: simulated +22 bp/wk net of fills, breach 11 %).** " +
              (", ".join(f"{t} (IV/RV {e['iv_rv']:.1f})" for t, e in ctx.get("edge_top", [])) or "n/a"),
              "",
              "**Stance (rules, not vibes).** " +
@@ -160,6 +160,8 @@ def main():
         put_edge.persist(conn, edge)
         n_sim = 0 if "--no-log" in sys.argv else put_edge.log_sim(conn, edge)
         warn += put_edge.drift(conn)
+        if put_edge.set_status(conn, warn):
+            warn.append("ENFORCED: put edge demoted — Model List and Options Focus rank by option_score until drift clears")
         # panic-puts-hiv live grades vs S049/S054 (+2.1 %/trade holdout): demote once ≥ 20 graded and the mean is negative
         g = conn.execute("""SELECT COUNT(*), AVG(ret) FROM watchlist_sync.strategy_signals
                             WHERE strategy_id = 'panic-puts-hiv' AND status = 'graded'""").fetchone()

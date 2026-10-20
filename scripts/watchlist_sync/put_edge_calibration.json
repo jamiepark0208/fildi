@@ -1,30 +1,36 @@
 {
  "holdout_from": "2024-07-01",
+ "basis": "Monday close \u2192 Friday close (4 sessions), pnl net of fills (bid + 23 % of spread); A196",
  "quintiles": {
   "1": {
-   "pnl_bp": -1.4,
-   "breach": 0.1453,
-   "n": 5864
+   "pnl_bp": -6.9,
+   "pnl_mid_bp": -0.5,
+   "breach": 0.1477,
+   "n": 4788
   },
   "2": {
-   "pnl_bp": 1.2,
-   "breach": 0.1355,
-   "n": 5806
+   "pnl_bp": -2.8,
+   "pnl_mid_bp": 3.5,
+   "breach": 0.1342,
+   "n": 4738
   },
   "3": {
-   "pnl_bp": 0.3,
-   "breach": 0.1343,
-   "n": 5802
+   "pnl_bp": -7.5,
+   "pnl_mid_bp": -1.2,
+   "breach": 0.1411,
+   "n": 4733
   },
   "4": {
-   "pnl_bp": 7.2,
-   "breach": 0.1307,
-   "n": 5805
+   "pnl_bp": 0.6,
+   "pnl_mid_bp": 6.9,
+   "breach": 0.1331,
+   "n": 4741
   },
   "5": {
-   "pnl_bp": 29.4,
-   "breach": 0.1079,
-   "n": 5886
+   "pnl_bp": 22.3,
+   "pnl_mid_bp": 29.1,
+   "breach": 0.1073,
+   "n": 4808
   }
  }
 }
