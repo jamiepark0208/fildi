@@ -1,41 +1,44 @@
-Banner — S&P 7,659.44 −1.09% | Dow 52,002.41 −0.34% | Nasdaq 26,140.03 −2.14% | 10Y 5.10% (+1bp) | Brent ~$106 (little changed) | VIX 17.02【2242995519476928630†L123-L128】【2242995519476928630†L135-L137】【2242995519476928630†L28-L31】
+# Evening Recap — Monday, October 19, 2026 (post-close)
 
-What moved today:
-- AI credit stress came back: CoreWeave −12% Friday, down >50% from highs, on fears AI profits won't cover debt costs【2242995519476928630†L128-L131】
-- Semis extended the rout: SOXX heading for its 9th straight decline, the longest streak since May 2006; MU slid ~3.8% intraday【3174864477961430835†L67-L70】【131181894766435563†L206-L207】
-- Rotation held the floor: Dow finished nearly flat while Nasdaq got hit −2.14%; defensive/financials absorbed the damage again【2242995519476928630†L123-L128】
-- Inflation side won the data tape: import prices +1.1% vs +0.8% consensus; industrial production +0.7% vs +0.4% consensus【131181894766435563†L178-L179】【131181894766435563†L104-L104】
-- Warsh gave nothing: speaking in Bangkok, no rate signal ahead of Oct 27–28; markets price ~85% hold【2242995519476928630†L133-L134】【131181894766435563†L105-L107】
+**Banner:** S&P 7,690.73 +0.41% | Dow 51,966.03 −0.07% | Nasdaq 26,430.89 +1.11% | 10Y 5.15% (+6bp) | Brent ~$108 | VIX 18.44 (−7.8%)
 
-Breadth and leadership:
-- Headline vs average-stock split: midday breadth ran ~4-to-1 positive with 10 of 11 sectors green, but the cap-weighted index fell because the biggest tech weights fell【131181894766435563†L200-L201】【3174864477961430835†L61-L63】
-- Weekly: Nasdaq −3.6%, worst in months; S&P −1.4%; Dow +0.9%; Russell −2.4%【2242995519476928630†L28-L33】
-- Rates and vol: 10Y eased 13bp on the week to 5.11% even as it ticked up 2bp Friday; VIX climbed to 17.02, VXN to 22.89【2242995519476928630†L84-L85】【2242995519476928630†L28-L31】
-- Commodities: WTI +4.2% on the week to $97.65 on the big EIA draw; gold slipped 0.1% to $4,186.50/oz; BTC ~$81.6k【2242995519476928630†L84-L85】【131181894766435563†L19-L25】
+## What moved today
+- **AI-led rebound, but narrow.** Nasdaq +1.11% and Nasdaq 100 +1.17% snapped five straight declines; the semiconductor fund jumped 3.22%. Only 4 of 11 S&P sectors rose, and the equal-weight S&P slipped midday — a bounce in the biggest growth names, not broad-market conviction.
+- **Yields rose into the rally.** 10Y +6bp to 5.15%, 30Y +5bp to 5.48%, 2Y +3bp to 4.77%; the 2s/10s spread widened to 38bp. Stocks and yields rising together reads as growth optimism, not rate relief. TLT −0.74%.
+- **France unrest hit Europe.** Weekend riots → curfews in Paris and other cities; CAC −1.4% led Europe lower (UK −1%, Germany −1.3%), and French yields and spreads leapt.
+- **Oil mixed, still bid.** Brent ~$108 (−0.5%), WTI +2% midday — a Gulf tanker mine hit and a Trump delay on new Russia sanctions (up to 60 days to assess) pulled both ways.
+- **Canada CPI came in a touch cool.** 3.1% y/y vs 3.2% consensus (prior 3.0%), back above the BoC's band; ex-gasoline cooled to 2.2%. BoC holds Oct 28; money markets price a December hike instead.
 
-What changed vs the morning thesis:
-- Right: rotation into defensives/financials — Dow −0.34% vs Nasdaq −2.14% was the exact split the morning brief described【2242995519476928630†L123-L128】
-- Wrong: "AI selloff eases" — it didn't. CoreWeave's −12% and the semi streak extended; S&P −1.09% beat the flat-futures setup to the downside
-- Data: the +1.1% import-price surprise and +0.7% IP both landed on the hot side of consensus — inflation risk, not growth risk, drove the tape【131181894766435563†L178-L179】【131181894766435563†L104-L104】
-- Fed: Warsh stayed mum as expected; hike odds hold ~15%, blackout starts Saturday — the October FOMC is now a waiting game【131181894766435563†L105-L107】
-- Single names: TRV −4.6% (cat losses), TFC −2.1% (NII miss) underwhelmed; TSLA held the Roadster pop; FOXA +3.9% on BofA's double upgrade【3174864477961430835†L21-L24】【3174864477961430835†L12-L15】
+## Breadth and leadership
+- S&P sectors: consumer discretionary +2.7% and tech +1.2% led; utilities −2.0%, real estate −1.2%, financials −0.8%. Russell 2000 +0.25% to 2,728.30.
+- Singles: Amazon +5%, Western Digital +6%, JPMorgan −2%. Goldman upgraded CoreWeave to Buy; NVDA and AMD edged higher.
+- Asia: Nikkei −0.6% (tech catch-down after Friday's US rout), Kospi +0.6% on semi strength (EWY +4.08%), Shanghai +0.2% after China Q3 GDP beat (4.5% vs 4.4% est), Indonesia −3.5%; Hong Kong closed for the holiday.
+- Rates/currencies/commodities: dollar firmed (~101.8), yuan hit a 4-year high vs the dollar; gold ~$4,165 (−0.6%), silver +1.3% near $57.7, bitcoin ~$82k flat.
 
-Book impact (put-selling):
-- VIX 17.02 / VXN 22.89 means short premium is richer into the weekend — but the bid is stress-driven in AI/tech; sell selectively, keep strikes wide on AI-credit names【2242995519476928630†L28-L31】
-- No fresh premium in data-center/semiconductor names: CRWV −12% and SOXX's 9-day streak is momentum plus credit fear — gap risk against assignment【2242995519476928630†L128-L131】
-- S&P closed back under its 50-day EMA area (~7,682): short puts struck near that zone want a weekend margin check; plan rolls before the effective Thursday deadline【2242995519476928630†L34-L36】
-- Event windows: Fed blackout from Saturday, FOMC Oct 27–28 — don't load new shorts under 30–45 DTE into the window; no new single-name premium into next week's Big Tech prints without width
+## What changed vs the morning thesis
+- **Got right:** the AI bounce held (Nasdaq +1.1%, semis +3.2%); it was a premium-decay day (VIX −7.8% to 18.44) after Friday's record-ish put volume; France unrest weighed on Europe; the rally stayed narrow.
+- **Shifted:** the 10Y didn't ease — it rose to 5.15% as stocks rallied, so no rate relief for duration. Brent barely faded (−0.5%; WTI actually +2%), keeping the energy-shock frame intact. NAHB was softer than expected (29, lowest since June 2012).
+- **Unchanged:** Wednesday AMC (Meta + Tesla) is the week's hard event window. Fed Chair Warsh gave no clear guidance; blackout through the Oct 27–28 FOMC with ~84% priced no-change. The Ukraine-summit headline (Trump delayed Russia sanctions) stays live.
 
-Risk/events for tomorrow:
-- Weekend: Asia opens Sunday night; Strait of Hormuz headlines stay live; no Fed voices (blackout from Saturday)
-- Mon Oct 19: quiet — no noteworthy earnings on the calendar【4653548972185572796†L38-L40】
-- Tue Oct 20: NFLX AMC, ISRG AMC; GM, GE, 3M, PM before open【4653548972185572796†L40-L42】
-- Wed Oct 21: TSLA AMC, META AMC, IBM, LRCX【4653548972185572796†L43-L45】
-- Ahead: FOMC Oct 27–28, Treasury refunding Nov 4, midterms Nov 3
+## Book impact
+- **The only open short: 3× RGTI Oct 23 $11 puts, 4 DTE, mark −$39** (post-close Robinhood export, 1:45p PT). Friday's OpEx assigned 100 RGTI sh @ $12.35 — so RGTI is now 400-share-equivalent long exposure paired with the only live short premium. Today's semi bounce (SOX +3.22%) is a tailwind, but RGTI's own close is unverified — check tomorrow.
+- **Robinhood clock:** 4 DTE to Friday expiry — any ITM short must be closed or rolled by Thursday's close, not Friday's expiry. Watch $11 vs RGTI spot.
+- **Account is running hot:** FILDI margin account net liq $24.4k, cash −$31.7k (margin debit), buying power $7.7k ($3.9k unlevered). Keep Thursday's roll sized; no new margin-heavy shorts this week.
+- **Post-OpEx inventory week:** Friday's assignments (RGTI, ONDS, USAR, POET) turned the book into working-off-equity week, not a fresh-premium week. None of the book names report into Wednesday's Meta/Tesla window — the event risk is Friday's expiry, not the mega-cap prints.
 
-Context:
-- 1D: S&P −1.09% to 7,659.44; 10Y +1bp to 5.097%; Brent ~$106 (approx, little changed)【2242995519476928630†L123-L128】【2242995519476928630†L135-L137】
-- 1W: S&P −1.4%, Nasdaq −3.6%, Dow +0.9%; 10Y −13bp; WTI +4.2% to $97.65; gold −0.1% to $4,186.50/oz【2242995519476928630†L28-L33】【2242995519476928630†L84-L85】
-- 1M: not verified this session — omitted
+## Risk/events for tomorrow (ET)
+- Overnight: 20-yr JGB auction; Asia digests the France headlines.
+- 8:30a ET — US housing starts + building permits (Sep; cons 1.40m permits vs 1.403m prior); UK unemployment.
+- BMO earnings: GE, RTX, GM, 3M, NOC. AMC: Netflix (~$0.82 EPS, ~$13.1B rev) — the week's first mega-cap print.
+- Wednesday: Tesla + Meta AMC. Fed blackout continues through Oct 27–28.
 
-Systems: Mac online (Cursor running); fildi API/scheduler state unverifiable via available device commands — no HTTP/shell probe
+## Context
+- S&P 7,690.73: 1d +0.4% | 1w ≈ −1.5% | 1m ≈ +0.5%; +12.3% YTD, 1.6% below the Oct 6 high.
+- 10Y 5.15% (+6bp) vs 5.087% Friday; touched 5.33% last Wednesday post-hot-CPI.
+- Brent ~$108 vs $109.86 Friday settlement; five-month high ~$110 last week.
+- VIX 18.44 (−7.8%); Friday's 19.99 close was the biggest 1-day jump since June 5.
+
+*Systems: Mac online, agent events + Robinhood exports fresh this afternoon (1:45p PT); fildi API server and price freshness unverified via file probe.*
+
+---
+Sources: [Pulsafi market close](https://www.pulsafi.com/market-today) · [Dimsum Daily](https://www.dimsumdaily.hk/dow-dips-as-nasdaq-and-sp-500-advance-on-ai%e2%80%91led-rebound/) · [Edge Consultancy wrap](https://edgeconsultancykw.com/us-market-wrap-19-october-2026/) · [Reuters trading-day graphic](https://www.reuters.com/commentary/reuters-open-interest/global-markets-trading-day-graphic-2026-10-19/) · [Strategitz global close](https://strategitz.substack.com/p/global-markets-close-october-19-2026) · [Reuters Canada CPI](https://www.reuters.com/world/americas/canadas-annual-inflation-rate-rose-31-september-2026-10-19/) · [Newsquawk Europe open](https://www.newsquawk.com/headlines/newsquawk-daily-european-equity-opening-news---19th-october-2026) · [CAMS midday](https://www.curveaheadmarketstrategies.com/cams-midday-market-check-october-19-2026/) · [Seeking Alpha France](https://seekingalpha.com/article/4955136-shockwaves-in-europe-as-protests-ignite-across-france) · [TechFlowPost week wrap](https://www.techflowpost.com/en-US/article/34669) · [Samuel & Co morning brief](https://www.samuelandcotrading.com/morning-market-brief-19-october-2026-softer-oil-opens-a-bounce/)
