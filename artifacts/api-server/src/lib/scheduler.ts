@@ -37,6 +37,15 @@ import {
   lastResearchOpsRun as researchOpsModuleRun,
 } from "./research-ops.js";
 import {
+  startSchwab1mPoller,
+  runSchwab1mPoll,
+  runSchwab1mBackfill,
+  schwab1mPollRunning,
+  lastSchwab1mPollRun,
+} from "./schwab-1m-poll.js";
+
+export { runSchwab1mPoll, runSchwab1mBackfill, schwab1mPollRunning, lastSchwab1mPollRun };
+import {
   shouldRunRegimeCheckpointsAt,
   shouldRunEnrichmentAt,
   shouldRunRetentionAt,
@@ -713,6 +722,9 @@ export async function startScheduler(): Promise<void> {
     // RTH + after-close catch-up when the host missed the session (see shouldRunRegimeCheckpointsAt).
     if (shouldRunRegimeCheckpointsNow()) runRegimeCheckpoints();
   }, 60 * 1000);
+
+  // A194: Schwab 1m → intraday_bars_1m (own 60s heartbeat + 5m gate inside poller).
+  startSchwab1mPoller();
 
   logger.info(
     {

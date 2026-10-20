@@ -156,6 +156,13 @@ const INVENTORY_SPEC: Record<
     cadence: "every ~6h",
     primary: true,
   },
+  "schwab-1m": {
+    owner: "api-scheduler",
+    writes: ["watchlist_sync.intraday_bars_1m (source=schwab)"],
+    mutex: "schwab1mPollRunning",
+    cadence: "every 5m RTH after 07:05 PT (~20 symbols)",
+    primary: true,
+  },
   "research-ops-health": {
     owner: "api-scheduler",
     writes: ["research ops probe report (memory)"],
@@ -781,7 +788,7 @@ export function buildNucleus(opts: {
     },
   };
 
-  const vendorTasks = ["schwab-health", "maintain"].filter((id) => byId(id));
+  const vendorTasks = ["schwab-health", "schwab-1m", "maintain"].filter((id) => byId(id));
   const vendorStatus = worstStatus([
     taskToNucleusStatus(schwab),
     alerts.some((a) => a.id === "dup-enrichment") ? "critical" : "ok",
@@ -813,6 +820,7 @@ export function buildNucleus(opts: {
       actions: [
         { label: "API Monitor", href: "settings:api-monitor" },
         { label: "Schwab health", taskId: "schwab-health" },
+        { label: "Schwab 1m bars", taskId: "schwab-1m" },
       ],
     }),
     nodeFromTask("research", "Research", ["research-ops-health"], tasks, inventory, {

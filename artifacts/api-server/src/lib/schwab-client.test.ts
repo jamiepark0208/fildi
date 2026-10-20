@@ -5,6 +5,8 @@ import {
   normalizeSchwabIv,
   parseExpKey,
   isStandardMonthlyExpiry,
+  clampSchwabMinuteWindow,
+  SCHWAB_1M_MAX_MS,
   type SchwabChainResponse,
 } from "./schwab-client.js";
 
@@ -154,5 +156,22 @@ describe("mapChainResponse edge cases", () => {
     assert.ok(mapped);
     const calls = mapped![0]!.calls.filter((c) => c.strike === 210);
     assert.equal(calls.length, 1);
+  });
+});
+
+describe("clampSchwabMinuteWindow (A194)", () => {
+  it("passes through windows under 10d", () => {
+    const end = Date.parse("2026-10-20T20:00:00Z");
+    const start = end - 2 * 24 * 60 * 60 * 1000;
+    const w = clampSchwabMinuteWindow(start, end);
+    assert.equal(w.startMs, start);
+    assert.equal(w.endMs, end);
+  });
+  it("end-anchors when start is older than 10d", () => {
+    const end = Date.parse("2026-10-20T20:00:00Z");
+    const start = end - 30 * 24 * 60 * 60 * 1000;
+    const w = clampSchwabMinuteWindow(start, end);
+    assert.equal(w.endMs, end);
+    assert.equal(w.startMs, end - SCHWAB_1M_MAX_MS);
   });
 });

@@ -20,6 +20,7 @@ import {
   lastFmpAnalystFeedRun, fmpAnalystFeedRunning,
   lastDeskIngestRun, deskIngestRunning,
   lastSchwabHealthRun, schwabHealthRunning,
+  lastSchwab1mPollRun, schwab1mPollRunning,
   lastResearchOpsRun, researchOpsRunning,
   runModelSnapshotJob,
   runTradeExpiry,
@@ -31,6 +32,7 @@ import {
   runFmpAnalystFeedJob,
   runDeskIngestJob,
   runSchwabHealthJob,
+  runSchwab1mPoll,
   runResearchOpsJob,
 } from "../lib/scheduler.js";
 import { getSchwabAuthStatus } from "../lib/schwab-auth.js";
@@ -886,6 +888,38 @@ function buildTasks(
         ],
       }, pt);
     })(),
+    withToday({
+      id: "schwab-1m",
+      name: "Schwab 1m Bars",
+      summary: "RTH 1m → intraday_bars_1m (source=schwab)",
+      purpose:
+        "A194: every ~5 min in RTH after 07:05 PT, pull 1m OHLCV for ~20 symbols via Schwab /pricehistory and upsert watchlist_sync.intraday_bars_1m. Soft-skips if shared Schwab RPM ≥ 60. Manual Run forces one cycle (2h lookback). Backfill ≤10d: POST with force via admin or runSchwab1mBackfill.",
+      schedule: "Every ~5 min RTH after 07:05 PT (api-scheduler)",
+      frequencyRank: 28,
+      frequency: "every 5m RTH",
+      lastRun: lastSchwab1mPollRun?.toISOString() ?? null,
+      running: schwab1mPollRunning,
+      runner: "api-scheduler",
+      status: apiStatus(schwab1mPollRunning, lastSchwab1mPollRun?.toISOString() ?? null),
+      canRun: true,
+      canToggle: false,
+      enabled: getSchwabAuthStatus().configured,
+      logFiles: [join(LOG_DIR, "api.log")],
+      dueToday: true,
+      dueTimeLabel: "RTH 5m",
+      dueMinutesPt: null,
+      outcome:
+        lastSchwab1mPollRun != null
+          ? `1m ${ageLabel(lastSchwab1mPollRun.toISOString())}`
+          : null,
+      verifyChecks: [
+        vcheck(
+          lastSchwab1mPollRun != null && Date.now() - lastSchwab1mPollRun.getTime() < 30 * 60 * 1000,
+          "Schwab 1m poll stamped within 30m (during RTH)",
+          "Run now (market hours)",
+        ),
+      ],
+    }, pt),
     (() => {
       const r = researchReport;
       const deskDown = r != null && !r.lseg.desktopProxy.reachable;
@@ -1860,6 +1894,7 @@ router.post("/admin/scheduled-tasks/:id/run", requireAdmin, async (req, res) => 
       "fmp-analyst-feed": runFmpAnalystFeedJob,
       "desk-ingest": runDeskIngestJob,
       "schwab-health": runSchwabHealthJob,
+      "schwab-1m": () => runSchwab1mPoll({ force: true }).then(() => undefined),
       "research-ops-health": runResearchOpsJob,
     };
     const start = starters[id];

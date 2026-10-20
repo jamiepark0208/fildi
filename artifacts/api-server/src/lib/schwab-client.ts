@@ -241,6 +241,65 @@ export async function getSchwabDailyBars(symbol: string, startYmd: string): Prom
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export interface SchwabMinuteBar {
+  /** Candle open time (epoch ms). */
+  ts: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** Schwab 1m `/pricehistory` max window — `periodType=day` + `period` ≤ 10. */
+export const SCHWAB_1M_MAX_MS = 10 * 24 * 60 * 60 * 1000;
+
+/** Clamp a minute-bar request to the API's 10-day window (end-anchored). */
+export function clampSchwabMinuteWindow(startMs: number, endMs: number): { startMs: number; endMs: number } {
+  const end = Number.isFinite(endMs) ? endMs : Date.now();
+  const startRaw = Number.isFinite(startMs) ? startMs : end - SCHWAB_1M_MAX_MS;
+  const endClamped = Math.max(startRaw, end);
+  const startClamped = Math.max(startRaw, endClamped - SCHWAB_1M_MAX_MS);
+  return { startMs: startClamped, endMs: endClamped };
+}
+
+/**
+ * 1-minute OHLCV from Schwab `/pricehistory` (regular session). One call per symbol.
+ * Window is clamped to ≤10 calendar days. Null when Schwab is unavailable.
+ */
+export async function getSchwabMinuteBars(
+  symbol: string,
+  startMs: number,
+  endMs: number = Date.now(),
+): Promise<SchwabMinuteBar[] | null> {
+  if (!schwabCredentialsConfigured()) return null;
+  const w = clampSchwabMinuteWindow(startMs, endMs);
+  const data = await schwabGet<{ candles?: SchwabCandle[]; empty?: boolean }>("/pricehistory", {
+    symbol: symbol.toUpperCase(),
+    periodType: "day",
+    frequencyType: "minute",
+    frequency: "1",
+    startDate: String(w.startMs),
+    endDate: String(w.endMs),
+    needExtendedHoursData: "false",
+  });
+  if (!data || data.empty || !data.candles?.length) return null;
+  const out: SchwabMinuteBar[] = [];
+  for (const c of data.candles) {
+    const close = num(c.close);
+    if (close == null || close <= 0 || c.datetime == null) continue;
+    out.push({
+      ts: c.datetime,
+      open: num(c.open) ?? close,
+      high: num(c.high) ?? close,
+      low: num(c.low) ?? close,
+      close,
+      volume: num(c.volume) ?? 0,
+    });
+  }
+  return out.sort((a, b) => a.ts - b.ts);
+}
+
 interface SchwabCandle {
   open?: number; high?: number; low?: number; close?: number; volume?: number; datetime?: number;
 }
