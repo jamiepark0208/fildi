@@ -32,7 +32,8 @@ def expiries(d: date) -> list[date]:
     fri = d + timedelta(days=(4 - d.weekday()) % 7)
     wk = fri if (fri - d).days >= 5 else fri + timedelta(days=7)
     ms = [third_friday(d.year + (d.month + k - 1) // 12, (d.month + k - 1) % 12 + 1) for k in range(3)]
-    mo = min((m for m in ms if 15 <= (m - d).days <= 45), key=lambda m: abs((m - d).days - 30))
+    # A193: third Fridays sit 28 or 35 days apart, so a 15–45 DTE window has holes (e.g. 2027-01-01); ≤ 52 always holds one
+    mo = min((m for m in ms if 15 <= (m - d).days <= 52), key=lambda m: abs((m - d).days - 30))
     return sorted({wk, mo})
 
 

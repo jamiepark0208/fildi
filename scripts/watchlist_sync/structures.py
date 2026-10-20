@@ -220,7 +220,7 @@ def _leg(r, qty, front):
 
 def build_all(t, exps, chains, today, held):
     wk = next((e for e in exps if 5 <= (e - today).days <= 14), None)
-    mo = next((e for e in exps if 15 <= (e - today).days <= 45), None)
+    mo = next((e for e in exps if 15 <= (e - today).days <= 52), None)  # A193: 45 left calendar holes
     out = []
 
     def add(sid, legs, extra=None):
