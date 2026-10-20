@@ -129,6 +129,32 @@ def main():
         ok = [m for m, _ in best["< 2024-07"] if all(any(mm == m and s["sh"] >= top[lab] - 0.03 for mm, s in r) for lab, r in best.items())]
         L += ["", f"Buckets within 0.03 Sharpe of the best in both halves: {', '.join(f'{m:.2f}' for m in ok) or 'none'} → "
                   f"cap = {max(ok):.2f}Δ, target = {min(ok):.2f}Δ" if ok else "", ""]
+    # paired check (10-20 review): same name-week, each bucket minus the 0.175–0.225 bucket; week-cluster bootstrap t
+    L += ["## Paired: bucket − 0.20Δ bucket, same name-week (bp of collateral/wk, week-cluster t)", "",
+          "| slice | Δ bucket | pairs | diff bp | t |", "|---|---|---|---|---|"]
+    bk = lambda dl: next((b for b in BUCKETS if b[0] <= dl < b[1]), None)
+    nw = defaultdict(dict)
+    for x in allx:
+        b = bk(x["dl"])
+        if b:
+            nw[(x["t"], x["d"])][b] = x
+    ref = BUCKETS[2]
+    for lab, f in (("< 2024-07", lambda d: d < HOLDOUT), ("≥ 2024-07", lambda d: d >= HOLDOUT)):
+        for b in BUCKETS:
+            if b == ref:
+                continue
+            wk = defaultdict(list)
+            for (t, d), m in nw.items():
+                if f(d) and b in m and ref in m:
+                    wk[m[ref]["e"]].append(m[b]["pnl"] - m[ref]["pnl"])
+            ks = list(wk)
+            n = sum(len(v) for v in wk.values())
+            if n < 30:
+                continue
+            mean = lambda s: statistics.mean([v for k in s for v in wk[k]])
+            obs = mean(ks)
+            bs = [mean([rng.choice(ks) for _ in ks]) for _ in range(1000)]
+            L.append(f"| {lab} | {b[0]:.3f}–{b[1]:.3f} | {n} | {obs * 1e4:+.1f} | {obs / statistics.stdev(bs):.1f} |")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
