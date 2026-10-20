@@ -76,3 +76,11 @@ Target = the chosen anchor, capped at A4. Shown per stock on Breakdown + Model L
 5. *Look-ahead*: OWN/fit history is live-only → S064 rebuilds the gate from point-in-time lab features (IBES growth/revisions, StarMine alpha where history exists, trend), not today's OWN.
 6. *Multiple testing*: 5 anchors → Holm; one pre-registered metric.
 **Grok** may red-team v2 (standing A141) before Phase 2.
+
+**v2.1 smoke amendments (Claude 10-20, before the full run):** Δ band −0.40…−0.10 (a 1σ strike sits at ~0.14Δ, so A1 never traded); TMO has no LSEG history (4/5 smoke names). Full run on BS × skew ratio fitted to the 152 real smoke fills (real quotes ≈ 80 LSEG requests/name → 22k, over 2 days of budget); in-run request cap 3k added (the start-only guard let 10-19 backfills starve the 07:00 sync).
+
+## 9. Phase 1 results (10-20)
+- **S064 FAIL**: buy-zone puts ≈ buy-now on Sharpe, half the tail, a third of the mean. Not an edge → no third lane (§6 fail branch). Winners pattern: the gate (ownable names) lifts puts AND buying equally → it is the S005 ownership effect, already live via OWN.
+- **S049-crash**: §1.1 was wrong — broad crashes (SPY 20d < −5 %) were the *best* panic-put case; sector clusters keep the mean, fatten the tail → ≤ 2 per peer group stays as a sizing rule.
+- **S066**: running (real LSEG weekly quotes, ~3 days at the 3k/day cap). Smoke (3 names, 50 earnings puts): FAIL first half, PASS holdout.
+- **Phase 2 now** = display-only 'buyer at $X' (support anchor) on Breakdown/Model List + test the 4-part gate as a put-lane name filter vs the live OWN filter (new study row), not a new lane.
