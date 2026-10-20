@@ -149,7 +149,7 @@ def score(r: dict, bp: dict, etfs: set[str]) -> dict:
         color = "yellow"
         if provisional:
             why.append("PROVISIONAL: IV captured outside market hours (both LSEG and Yahoo IV drift off-hours); re-check in session before tagging")
-        why.append(f"wheel target: premium {premium:.0f} (IV {r['iv']:.0f}%, {r['iv_rv']:.2f}× realized), ownable ({own:.0f}), {fit_why}")
+        why.append(f"wheel target: premium {premium:.0f} (IV {r['iv']:.0f}%, {f"{r['iv_rv']:.2f}× realized" if r['iv_rv'] is not None else 'no realized vol'}), ownable ({own:.0f}), {fit_why}")
     else:
         color = ""
         miss = []

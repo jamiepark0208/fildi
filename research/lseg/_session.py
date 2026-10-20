@@ -26,6 +26,9 @@ from db import connect_local, load_env  # noqa: E402,F401
 # 10,000 requests/day, 5 requests/sec across all apps on this Workspace, 50 MB/min, 5 GB/day.
 LSEG_DAILY_REQUESTS = 10_000
 LSEG_BUDGET_FRACTION = 0.8  # refuse to start a run once 80% of today's requests are used
+# 2026-10-19: research backfills burned 9.5k/10k and blocked the 07:00 Model List sync (~40 requests).
+# Production jobs (daily.py sets LSEG_PRIORITY=1) keep the last 20% for themselves.
+LSEG_PRIORITY_FRACTION = 0.98
 LSEG_MONTHLY_DATAPOINTS = 10_000_000  # Datastream-style monthly allowance (self-imposed guard; history pulls are the big users)
 LSEG_MIN_INTERVAL_S = 0.25  # ≤4 req/s, leaves headroom for Workspace's own Excel/UI calls
 RETRYABLE = ("429", "timeout", "timed out", "temporarily", "503", "502", "connection reset", "too many")
@@ -125,10 +128,11 @@ def lseg_session() -> Iterator[Any]:
         raise RuntimeError(
             f"LSEG budget guard: ~{month_pts:,} datapoints used this month (stop at {int(LSEG_BUDGET_FRACTION * 100)}% of "
             f"{LSEG_MONTHLY_DATAPOINTS:,}). Narrow the pull or wait for next month.")
-    if used >= LSEG_DAILY_REQUESTS * LSEG_BUDGET_FRACTION:
+    frac = LSEG_PRIORITY_FRACTION if os.environ.get("LSEG_PRIORITY") == "1" else LSEG_BUDGET_FRACTION
+    if used >= LSEG_DAILY_REQUESTS * frac:
         raise RuntimeError(
             f"LSEG budget guard: {used}/{LSEG_DAILY_REQUESTS} requests already used today "
-            f"(stop at {int(LSEG_BUDGET_FRACTION * 100)}%). Try again tomorrow."
+            f"(stop at {int(frac * 100)}%). Try again tomorrow."
         )
     try:
         ld.open_session(name="desktop.workspace", app_key=key)

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -81,7 +82,8 @@ def plan_built_on(d) -> bool:
 
 def run(name, py, cwd, args) -> dict:
     t0 = time.time()
-    p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=1800)
+    p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=1800,
+                       env={**os.environ, "LSEG_PRIORITY": "1"})  # production: LSEG reserve over research pulls
     out = "\n".join(l for l in (p.stdout + p.stderr).splitlines() if "Warning" not in l)
     tail = "\n".join(out.splitlines()[-4:])
     return {"step": name, "ok": p.returncode == 0, "code": p.returncode, "seconds": round(time.time() - t0, 1), "tail": tail}

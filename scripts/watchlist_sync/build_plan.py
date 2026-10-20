@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -94,7 +95,86 @@ def load_context(conn) -> dict:
         GROUP BY 1, 2""", (snap_id,))}
     ctx["closes_by_date"] = {(r["ticker"], r["date"]): r["close"] for r in rows(conn, """
         SELECT UPPER(ticker) AS ticker, date, close::float8 FROM prices_historical WHERE date >= CURRENT_DATE - 10""")}
+    ctx["recs"] += panic_recs(conn)
     return ctx
+
+
+PANIC_STRATEGY = "panic-puts-hiv"
+PANIC_MAX_PER_GROUP = 2   # one-factor ρ≈0.6 (pm_alerts): 8 semis firing the same day are one bet, not eight
+
+
+def _schwab_quotes(contracts: list[dict]) -> dict[tuple, dict]:
+    import urllib.request
+    out: dict[tuple, dict] = {}
+    for i in range(0, len(contracts), 200):
+        req = urllib.request.Request("http://127.0.0.1:8080/api/schwab/option-quotes", data=json.dumps({"contracts": contracts[i:i + 200]}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            d = json.load(urllib.request.urlopen(req, timeout=120))
+        except Exception as e:  # noqa: BLE001 — Schwab down → no panic picks today, the rest of the plan still builds
+            print(f"  panic puts: Schwab quotes unavailable ({str(e)[:80]})")
+            return {}
+        for k, occ in d["symbols"].items():
+            if d["quotes"].get(occ):
+                t, e, s, _ = k.split("|")
+                out[(t, e, float(s))] = d["quotes"][occ]
+    return out
+
+
+def panic_recs(conn) -> list[dict]:
+    """Live panic-puts-hiv signals (S049/S054: ≥ 2σ 5-day drop + IV30 > 48.7 → sell the ~0.20Δ monthly put next session;
+    holdout +1.47 %/trade vs normal days, 2025 confirmed) as Model List put candidates. Before 2026-10-19 they lived only on
+    the Strategies tab, so the Model List showed 0 puts in the selloff the strategy was built for. Same S049 contract rule
+    (monthly expiry nearest 30 DTE in 15–45, strike nearest 0.20Δ), priced live from Schwab; then the normal L1/L2 checks."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "analysis"))
+    from s049_panic_puts import put_delta, third_friday  # lazy: s049 imports build_plan
+    last = conn.execute("SELECT MAX(as_of) FROM watchlist_sync.strategy_signals WHERE strategy_id = %s", (PANIC_STRATEGY,)).fetchone()[0]
+    if not last or R.trading_days_between(last, R.last_close_date()) > 1:
+        return []   # S049 enters the session after the drop; older signals are not the tested trade
+    sig = rows(conn, """SELECT ticker, details FROM watchlist_sync.strategy_signals WHERE strategy_id = %s AND as_of = %s
+                        ORDER BY (details->>'z')::float8""", (PANIC_STRATEGY, last))
+    d = date.today()
+    exps = [third_friday(d.year + (d.month + k - 1) // 12, (d.month + k - 1) % 12 + 1) for k in range(3)]
+    exps = [e for e in exps if 15 <= (e - d).days <= 45]
+    if not exps:
+        return []
+    exp = min(exps, key=lambda e: abs((e - d).days - 30))
+    dte = (exp - d).days
+    want: list[dict] = []
+    for s in sig:
+        spot, iv = float(s["details"]["close"]), float(s["details"]["iv30"]) / 100
+        lo, hi = spot * 0.5, spot
+        for _ in range(40):
+            k = (lo + hi) / 2
+            lo, hi = (k, hi) if put_delta(spot, k, iv, dte / 365) > -0.20 else (lo, k)
+        step = 0.5 if spot < 25 else 1 if spot < 100 else 2.5 if spot < 250 else 5 if spot < 1000 else 10
+        base = round(k / step) * step
+        want += [{"ticker": s["ticker"], "expiry": str(exp), "strike": round(base + j * step, 2), "type": "put"} for j in range(-5, 6)]
+    q = _schwab_quotes(want)
+    out, per_group = [], {}
+    for s in sig:
+        g = s["details"].get("peer_group") or s["ticker"]
+        cands = []
+        for (t, e, k), v in q.items():
+            if t != s["ticker"] or not v.get("bid"):
+                continue
+            dl = v.get("delta")
+            if dl is None or abs(dl) > 1:
+                dl = put_delta(v.get("underlying") or s["details"]["close"], k, v.get("iv") or s["details"]["iv30"] / 100, dte / 365)
+            cands.append((abs(dl + 0.20), k, dl, v))
+        if not cands or per_group.get(g, 0) >= PANIC_MAX_PER_GROUP:
+            continue
+        per_group[g] = per_group.get(g, 0) + 1
+        _, k, dl, v = min(cands, key=lambda c: c[0])
+        spot = v.get("underlying") or float(s["details"]["close"])
+        out.append({"ticker": s["ticker"], "side": "put", "expiry": exp, "strike": k, "spot": spot, "premium": v["bid"], "bid_is_live": True,
+                    "weekly_income_pct": 100 * v["bid"] / k * 7 / (dte + _settle_offset(exp)), "delta": dl,
+                    "strike_iv": v.get("iv") or s["details"]["iv30"] / 100, "dte": float(dte), "option_score": None,
+                    "macro_regime": None, "vol_regime": None, "strategy": PANIC_STRATEGY,
+                    "repriced": f"{PANIC_STRATEGY}: fell {s['details']['z']:.1f}σ in 5 days, IV {s['details']['iv30']:.0f} % (S049/S054: "
+                                f"+1.5 %/trade vs normal days; in a broad Feb selloff it lost −0.15 %)"})
+    print(f"  panic puts: {len(sig)} signals on {last} → {len(out)} priced (≤ {PANIC_MAX_PER_GROUP} per peer group, {exp})")
+    return out
 
 
 def _settle_offset(expiry: date) -> int:
@@ -156,7 +236,8 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     cl = ctx["close"].get(t)
     if cl:
         drift = 100 * (cl["close"] / rec["spot"] - 1)
-        c.append(chk("spot_drift", abs(drift) <= R.MAX_SPOT_DRIFT_PCT, f"latest close {cl['close']:.2f} ({cl['date']}) vs model spot {rec['spot']:.2f}: {drift:+.1f}%"))
+        c.append(chk("spot_drift", abs(drift) <= R.MAX_SPOT_DRIFT_PCT, f"latest close {cl['close']:.2f} ({cl['date']}) vs model spot {rec['spot']:.2f}: {drift:+.1f}%",
+                     "warn" if rec.get("strategy") else "block"))   # strategy picks are priced live; L2 re-checks OTM at the live price
     else:
         c.append(chk("spot_drift", True, "no close in prices_historical", "warn"))
     # Stale-spot bug (found 2026-10-04): 64/97 model_recs on 10/02 used the 10/01 close as spot.
@@ -178,6 +259,7 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     if side == "put":
         ls = ctx["lseg"].get(t)
         cr = ls and ls["credit_combined_rank"]
+        c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,
                      f"StarMine credit {cr}/100" if cr is not None else "no LSEG credit rank", "block" if cr is not None else "warn"))
         tech = ctx["tech"].get(t)
@@ -236,16 +318,21 @@ def build(show_rejected: bool) -> int:
                            (close, json.dumps(inputs))).fetchone()[0]
 
         items: list[tuple] = []
+        held = sorted({s["ticker"] for s in ctx["shares"]})
+        trims = {t: trim_checks(t, ctx) for t in held}
+        # 2026-10-19 (Jamie): RKLB was on trim AND sell-puts in one list. Never tell him to sell shares and to buy more via puts.
+        ctx["trim"] = {t for t, (c, _) in trims.items() if c[0]["pass"]}
         for side, key in (("put", "sell_puts"), ("call", "sell_calls")):
             best: dict[str, dict] = {}
-            for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: -(r["option_score"] or 0)):
+            # Evidence-backed panic puts (S049/S054) first; option_score alone has ~0 skill over IV (S014).
+            for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: (not r.get("strategy"), -(r["option_score"] or 0))):
                 checks, account = option_checks(rec, ctx)
                 ok = all(c["pass"] or c["severity"] == "warn" for c in checks)
                 prev = best.get(rec["ticker"])
                 # One contract per ticker: the best-scoring one that passes; else keep the best failure for explanation.
                 if prev is None or (ok and not prev["ok"]):
                     best[rec["ticker"]] = {"rec": rec, "checks": checks, "ok": ok, "account": account}
-            ranked = sorted(best.values(), key=lambda b: (not b["ok"], -(b["rec"]["option_score"] or 0)))
+            ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"), -(b["rec"]["option_score"] or 0)))
             rank = 0
             for b in ranked:
                 r = b["rec"]
@@ -254,17 +341,16 @@ def build(show_rejected: bool) -> int:
                     if rank > R.MAX_ITEMS:
                         b["ok"] = False
                         b["checks"].append(chk("list_cap", False, f"beyond top {R.MAX_ITEMS}"))
-                reasons = [f"Fildi option score {r['option_score']:.0f}", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
+                reasons = [f"Fildi option score {r['option_score']:.0f}" if r["option_score"] is not None else "strategy pick (no option score)", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
                 if r.get("repriced"):
                     reasons.append(r["repriced"])
                 items.append((pid, key, r["ticker"], rank if b["ok"] else None, r["option_score"], "option", side, r["strike"], r["expiry"],
                               b["account"], r["premium"], r["spot"], r["delta"], r["strike_iv"], b["ok"], json.dumps(b["checks"], default=str),
                               json.dumps(reasons), "pending" if b["ok"] else "not_required"))
 
-        held = sorted({s["ticker"] for s in ctx["shares"]})
         rank = 0
         for t in held:
-            checks, flags = trim_checks(t, ctx)
+            checks, flags = trims[t]
             ok = checks[0]["pass"]
             if ok:
                 rank += 1

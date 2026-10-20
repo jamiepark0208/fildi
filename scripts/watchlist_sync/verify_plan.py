@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
+from statistics import NormalDist
 
 import rules as R
 from build_plan import chk, connect, rows
@@ -67,6 +69,18 @@ def _f(x):
         return float(x)
     except (TypeError, ValueError):
         return None
+
+
+def _bs_delta(kind: str, spot: float, strike: float, iv: float, days: int) -> float | None:
+    """Black-Scholes delta (r = 0) from the quote's own IV. Schwab sends delta −999 when it has no greeks (2026-10-16:
+    every put that reached L2 failed live_delta_band on that sentinel)."""
+    if not (spot and strike and iv and days):
+        return None
+    sig = iv / 100 if iv > 5 else iv
+    t = days / 365
+    d1 = (math.log(spot / strike) + 0.5 * sig * sig * t) / (sig * math.sqrt(t))
+    n = NormalDist().cdf(d1)
+    return n - 1 if kind == "put" else n
 
 
 def load_raw(conn, pid: int):
@@ -283,7 +297,11 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     else:
         c.append(chk("still_otm", False, "no live stock price"))
     lo, hi = R.PUT_DELTA if it["option_type"] == "put" else R.CALL_DELTA
-    c.append(chk("live_delta_band", delta is not None and lo <= delta <= hi, f"{src} delta {delta}"))
+    dsrc = src
+    if delta is None or abs(delta) > 1:   # −999 = vendor had no greeks → derive from its IV
+        delta, dsrc = _bs_delta(it["option_type"], spot, strike, iv, days), f"BS from {src} IV"
+        delta = round(delta, 3) if delta is not None else None
+    c.append(chk("live_delta_band", delta is not None and lo <= delta <= hi, f"{dsrc} delta {delta}"))
     if iv and it["model_iv"]:
         dis = abs(iv / float(it["model_iv"]) - 1)
         c.append(chk("iv_agrees", dis <= R.MAX_IV_DISAGREEMENT, f"{src} IV {iv:.2f} vs Fildi {float(it['model_iv']):.2f}", "warn"))
