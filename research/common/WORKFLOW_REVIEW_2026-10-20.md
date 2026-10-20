@@ -29,7 +29,7 @@ Jamie's complaint, verbatim in substance: "I have so many agents, but I keep run
 - Pre-push working-tree check exists as a lesson, not a mechanism.
 ### Scheduled tasks (Muse's side)
 - 10 goal jobs: 2 briefs, repo watch, dev loop, event prep, weekend dive, AI radar, Schwab reminder, automation audit — all firing.
-- **db-quality-audit is permanently blocked** (fildi DB is Mac-local; the job can never succeed from Muse's VM). It produces a blocked report every Monday forever. Kill it or re-scope it to a Mac-side check.
+- **db-quality-audit was permanently blocked** (fildi DB is Mac-local; the job could never succeed from Muse's VM). It reported BLOCKED into Muse's daily log every Monday and was misclassified as a 'known limitation, stays quiet' — the no-noise rule buried a design flaw instead of escalating it. **Disabled 2026-10-20 (Jamie's question).** If the checks are wanted, they must run on the Mac where the DB lives.
 ### UI components
 - AgentsTab: phases/colors fixed Oct 18; it shows state but not AGING (a row sitting 3 days looks the same as one filed an hour ago).
 - Recent ships: Book card VaR line, panic-puts panel (A189), House view card (A190). Desk workflow UX (Cursor's A179) still open.
