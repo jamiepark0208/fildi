@@ -150,7 +150,7 @@ rg -n "Cache\.get\(" artifacts/api-server/src/routes                            
 ```
 
 
-## Explicit development checks — all agents (A197, 2026-10-20)
+## Explicit development checks — all agents (A207, 2026-10-20)
 Use `python3 scripts/oj.py run --local --input <source> --input <test> -- <command> <args>` from the correct package directory (use an absolute oj.py path outside repo root). Repeat `--input` for relevant configuration and dependency manifests. Default timeout 120 seconds; set `--timeout` before `--` for longer checks.
 
 This mode runs the command directly, without shell interpretation or OpenJev. It prints the exit code, first failure matches and tail, and retains the full combined log plus a JSON receipt in a private temporary directory. Receipt records command/cwd, time, exit status and declared-file hashes before/after. No environment values collected. Commands/logs may contain private material: keep them local, never put secrets in arguments, and do not commit raw receipts/logs. Temporary evidence is not durable; record the result and source revision in the ASKS row.
