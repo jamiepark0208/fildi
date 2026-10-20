@@ -474,3 +474,37 @@ export async function computeAndPersistOptionScores(opts?: {
     top,
   };
 }
+
+
+/** A192 Structures board: catalog (description / regime / evidence) + today's ≤ 5 names per structure (scripts/watchlist_sync/structures.py)
+ *  + the house-view stance line. Table reads only. */
+export async function readStructuresBoard(): Promise<{
+  asOf: string | null;
+  stance: string | null;
+  structures: Array<{ id: string; name: string; family: string; description: string; regime: string; evidence: string;
+    evidenceNote: string; rows: Array<Record<string, unknown>> }>;
+}> {
+  try {
+    const { rows: cat } = await db.execute(sql`SELECT id, name, family, description, regime, evidence, evidence_note FROM watchlist_sync.structure_catalog`);
+    const { rows: rk } = await db.execute(sql`SELECT as_of::text AS as_of, structure, rank, payload FROM watchlist_sync.structure_rank_daily
+      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) ORDER BY structure, rank`);
+    const { rows: hv } = await db.execute(sql`SELECT memo FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`);
+    const memo = String((hv[0] as Record<string, unknown> | undefined)?.memo ?? "");
+    const stance = memo.split("\n").find((l) => l.startsWith("**Stance"))?.replace(/\*\*/g, "") ?? null;
+    const by = new Map<string, Array<Record<string, unknown>>>();
+    for (const r of rk as Array<Record<string, unknown>>) {
+      const k = String(r.structure);
+      if (!by.has(k)) by.set(k, []);
+      by.get(k)!.push(r.payload as Record<string, unknown>);
+    }
+    const order = ["pass", "untested", "fail"];
+    const structures = (cat as Array<Record<string, unknown>>).map((c) => ({
+      id: String(c.id), name: String(c.name), family: String(c.family), description: String(c.description), regime: String(c.regime),
+      evidence: String(c.evidence), evidenceNote: String(c.evidence_note), rows: by.get(String(c.id)) ?? [],
+    })).sort((a, b) => (b.rows.length > 0 ? 1 : 0) - (a.rows.length > 0 ? 1 : 0) || order.indexOf(a.evidence) - order.indexOf(b.evidence));
+    return { asOf: (rk[0] as Record<string, unknown> | undefined)?.as_of as string ?? null, stance, structures };
+  } catch (err) {
+    logger.warn({ err: String(err) }, "structures board unavailable");
+    return { asOf: null, stance: null, structures: [] };
+  }
+}

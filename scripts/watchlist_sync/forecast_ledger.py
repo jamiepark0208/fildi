@@ -313,7 +313,22 @@ def _r_index21(conn, t, d, m):
     return (w[-1][1] > s, {"close": w[-1][1]})
 
 
-EXTRA_RESOLVERS = {"index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
+def _r_structure(conn, t, d, m):
+    """structures.py (A192): pnl at the front expiry close = net credit + Σ qty × intrinsic (+ share move for collars) > 0."""
+    c = _close_on_or_before(conn, t, d)
+    if not c:
+        return None
+    S = c[0]
+    pnl = float(m["credit"])
+    for lg in m["legs"]:
+        k = float(lg["strike"])
+        pnl += lg["qty"] * (max(S - k, 0) if lg["side"] == "call" else max(k - S, 0))
+    if m.get("stock"):
+        pnl += S - float(m["spot"])
+    return (pnl > 0, {"close": S, "pnl_per_share": round(pnl, 3)})
+
+
+EXTRA_RESOLVERS = {"sim_structure": _r_structure, "index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
                    "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings,
                    "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed}
 

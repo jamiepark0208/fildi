@@ -12,17 +12,19 @@ import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
+import { StructuresBoard } from "@/components/options-structures/StructuresBoard";
 
-const RANKINGS_TABS: { id: "fundamental" | "technical" | "options"; label: string }[] = [
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies"; label: string }[] = [
   { id: "fundamental", label: "Fundamentals" },
   { id: "technical",   label: "Technicals" },
   { id: "options",     label: "Options" },
+  { id: "strategies",  label: "Strategies" },   // A192: every option structure, ≤ 5 names each
 ];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
-  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options">("fildi_rankings_tab", "fundamental");
+  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options" | "strategies">("fildi_rankings_tab", "fundamental");
   // Technical tab lens: oversold (sell puts) vs overbought (sell calls) — mirrors the
   // Options tab's page-level Sell Puts/Sell Calls toggle, persisted independently.
   const [techSide, setTechSide] = useSessionState<"puts" | "calls">("fildi_technical_side", "puts");
@@ -250,6 +252,8 @@ export default function Rankings() {
               <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
             )
           )}
+
+          {tab === "strategies" && <StructuresBoard />}
 
           {tab === "options" && (
             <OptionsScannerContent

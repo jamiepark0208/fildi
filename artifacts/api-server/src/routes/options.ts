@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getOptionsChain, getOptionPositionQuote, getIvTermStructure, withFreshDte, type OptionsChainResult, type IvTermPoint } from "../lib/options.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { readLatestOptionRankings, computeAndPersistOptionScores } from "../lib/option-score-snapshots.js";
+import { readLatestOptionRankings, computeAndPersistOptionScores, readStructuresBoard } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
 import { getLivePrices } from "../lib/live-quote.js";
@@ -86,6 +86,11 @@ router.get("/options/rankings", async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
+});
+
+// GET /api/options/structures — A192 Strategies board (nightly table; ≤ 5 names per structure, each ticker once).
+router.get("/options/structures", async (_req, res) => {
+  return res.json(await readStructuresBoard());
 });
 
 // POST /api/options/rankings/refresh — admin: recompute Overall snapshots now
