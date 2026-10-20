@@ -13,9 +13,9 @@ ET = ZoneInfo("America/New_York")
 
 # ── L1 (Fildi data) ─────────────────────────────────────────────────────────────
 MAX_SNAPSHOT_AGE_TRADING_DAYS = 1      # model_recs must be from the latest (or previous) trading close
-PUT_DELTA = (-0.22, -0.08)             # 0.00 deltas = broken greeks (seen 2026-10-01) → blocked. Max 0.22 (10-20, Jamie OK): Jamie's 957
-                                       # real puts by entry Δ — Sharpe per expiry 0.35 (<0.12) · 0.16 (0.12–0.18) · 0.02 (0.18–0.24) · −0.14
-                                       # (0.24–0.32); S059 put edge was tested at ~1σ ≈ 0.16Δ. Picks above it are re-struck (build_plan.restrike_puts).
+PUT_DELTA = (-0.22, -0.08)             # 0.00 deltas = broken greeks (seen 2026-10-01) → blocked. Max 0.22 (10-20) — INTERIM: was set from
+                                       # Jamie's own trades, which may not drive Model List rules (Jamie 10-20) → S071 (market-wide real LSEG
+                                       # quotes by entry Δ) sets cap + target. S059 put edge was tested at ~1σ ≈ 0.16Δ. Picks above it are re-struck.
 PUT_TARGET_ABS_DELTA = 0.18            # re-strike target: listed strike nearest this |Δ| on the same expiry
 PUT_EARNINGS_ABS_DELTA = (0.12, 0.10)  # earnings before expiry: cap, target. Was a block; S066/S069: earnings puts pay more with a fatter
                                        # tail (Jamie 10-20: go further OTM instead). Chain Δ already prices the event, so this is a

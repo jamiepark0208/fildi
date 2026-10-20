@@ -117,7 +117,8 @@ export function shouldRunDailyPrecomputeAt(lastSuccess: Date | null, now: Date, 
   return onSchedule || morningCatchup || missedWindow;
 }
 
-// Mon–Thu 19:00 UTC. Friday stays with the model snapshot. Catch-up after 2 days.
+// Fallback: Mon–Thu 19:00 UTC, skipped when the 7 AM PT Model List run already scanned today (snapshot-option-scores.ts stamps it).
+// Friday stays with the model snapshot. Catch-up after 2 days.
 const OPTION_SCORE_HOUR = 19;
 const OPTION_SCORE_CATCHUP_DAYS = 2;
 const FRIDAY = 5;

@@ -1,9 +1,9 @@
-"""Entry setup tag (warn only; user YES 2026-10-06): is this the setup the trader's own record says works?
+"""Entry setup tag (warn only; user YES 2026-10-06): does the stock just dipped? Market-wide evidence, not the trader's own record
+(Jamie 10-20: personal trades are sporadic → never a Model List rule; S011 was 1,513 own trades).
 
-Evidence (research/studies/S011-rh-entry-timing.md, analysis/timing_rh_trades.py, 1,513 own trades 2026):
-  puts sold after a 5-day drop of ≥3% or within 3% of the 20-day low ended in the money ~17% of the time, vs 26.5% without a dip;
-  calls sold after a 5-day rally of ≥3% got run over ~10%, vs ~20% without. Same sign in both halves of 2026; P&L difference not yet
-  significant. Display only: never filters or re-ranks. Promote to scoring only after the live ledger confirms it (S011 stop rule).
+Evidence (S070 follow-up, 10-20): 70k weekly ~1σ puts 2020→ net of fills (S059 harness): after a 5-day drop ≥ 3 % +8.7 bp/wk
+(t 2.4) before 2024-07 and +7.8 (t 2.2) after, vs +0.4 / −0.5 without a dip; breach the same (~13 %), worst 1 % ~15 % deeper.
+Calls: no market-wide test of "after a rally" (S046: calls on stretched names lose) → no call tag. Display only: never filters.
 """
 from __future__ import annotations
 
@@ -36,13 +36,10 @@ def why_line(side: str, c: dict | None) -> str | None:
     if not c:
         return None
     r5, lo = c["ret5"], c["above_low20"]
-    if side == "put":
-        if r5 <= DIP_5D or lo <= NEAR_LOW_20D:
-            return (f"✓ setup: {r5:+.0%} over 5 days, {lo:.0%} above the 20-day low. Your puts after a dip ended ITM ~17% "
-                    "vs 26% without (not yet proven)")
-        return (f"⚠ setup: no dip ({r5:+.0%} over 5 days, {lo:.0%} above the 20-day low). Your no-dip puts ended ITM 26% vs ~17% "
-                "after a dip: consider waiting for a pullback")
-    if r5 >= RALLY_5D:
-        return f"✓ setup: rallied {r5:+.0%} over 5 days. Your calls after a rally got run over ~10% vs ~20% without (not yet proven)"
-    return (f"⚠ setup: no rally ({r5:+.0%} over 5 days). Your calls without a rally got run over ~20% vs ~10% after one: "
-            "consider waiting for a pop")
+    if side != "put":
+        return None
+    if r5 <= DIP_5D or lo <= NEAR_LOW_20D:
+        return (f"✓ setup: {r5:+.0%} over 5 days, {lo:.0%} above the 20-day low. Market-wide, puts sold after a ≥3% 5-day dip "
+                "earned ~0.08%/wk more, same ITM rate, slightly deeper worst case (2020→)")
+    return (f"setup: no dip ({r5:+.0%} over 5 days). Market-wide, no-dip puts earned ~0 after fills vs ~0.08%/wk after a dip "
+            "(2020→): a pullback entry is better")

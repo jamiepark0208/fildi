@@ -244,7 +244,7 @@ const INVENTORY_SPEC: Record<
     owner: "api-scheduler",
     writes: ["option_score_snapshots"],
     mutex: "optionScoreRunning · skip Fri (model-snapshot dual-writes)",
-    cadence: "Mon–Thu ~12:00 PM PT",
+    cadence: "weekdays ~7:00 AM PT (Model List run) · noon Mon–Thu fallback",
     primary: true,
   },
   "model-snapshot": {

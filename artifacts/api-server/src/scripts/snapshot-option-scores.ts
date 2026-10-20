@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Nightly Overall options rankings snapshot.
+ * Overall options rankings snapshot — run by the Model List each morning (daily.py) with live quotes.
  *   cd artifacts/api-server && npx tsx src/scripts/snapshot-option-scores.ts
  *   npx tsx src/scripts/snapshot-option-scores.ts --dry-run --limit=20
  */
@@ -49,6 +49,12 @@ async function main() {
 
   const result = await computeAndPersistOptionScores({ dryRun, limit });
   console.log(JSON.stringify(result, null, 2));
+  // Morning run from the Model List (daily.py, 10-20) counts as the day's scan → the scheduler's noon run becomes a fallback.
+  if (!dryRun && !limit) {
+    const at = JSON.stringify(new Date().toISOString());
+    await db.execute(sql`INSERT INTO app_config (key, value) VALUES ('last_option_score_snapshot_run', ${at}::jsonb)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`);
+  }
 }
 
 main()

@@ -95,18 +95,16 @@ def _put_risk(f: dict, P: dict) -> tuple[list[str], float]:
     return kept, max(0.0, (f["risk"] or 0) - sum(w for k, w in not_put.items() if any(x.startswith(k) for x in f["flags"])))
 
 
-PUT_SIZE_CUT = 0.5  # S069: low-OWN / high-put-risk puts earn as much or more (+4.5 vs −3.1 bp/wk) but their worst 1 % is −962 vs −724 bp
-
-
 def put_size_note(f: dict | None, P: dict) -> str | None:
-    """Was a hold-back until 10-20; S069 shows it trims the tail, not the pnl → warning + half size (portfolio sizing reads size_hint)."""
+    """Was a hold-back until 10-20; S069: low-OWN / high-put-risk puts earn as much or more (+4.5 vs −3.1 bp/wk) but their worst 1 % is
+    −962 vs −724 bp → build_plan.restrike_puts moves them to a farther strike (Jamie 10-20: farther OTM, not half size)."""
     if not f:
         return None
     kept, put_risk = _put_risk(f, P)
     if put_risk >= P["thresholds"]["put_block_risk"]:
-        return f"put risk {put_risk:.1f} ≥ {P['thresholds']['put_block_risk']} ({'; '.join(kept)}): half size, fatter tail (S069)"
+        return f"put risk {put_risk:.1f} ≥ {P['thresholds']['put_block_risk']} ({'; '.join(kept)}): farther strike, fatter tail (S069)"
     if f["own"] is None or f["own"] < P["thresholds"]["yellow_own"]:
-        return f"less ownable (OWN {f['own'] or 0:.1f} < {P['thresholds']['yellow_own']}): half size — assignment is the risk (S069)"
+        return f"less ownable (OWN {f['own'] or 0:.1f} < {P['thresholds']['yellow_own']}): farther strike — assignment is the risk (S069)"
     return None
 
 
@@ -326,7 +324,6 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
                 reasons.append("PROVISIONAL: verified on after-hours quotes; re-verify on live quotes before trading")
             size_note = put_size_note(f, P) if p["list_key"] == "sell_puts" else None
             if size_note:
-                contract["size_hint"] = PUT_SIZE_CUT
                 reasons.append(size_note)
             candidates.append({"list_key": p["list_key"], "ticker": p["ticker"], "verdict": (f or {}).get("verdict") or "", "f": f,
                                "score": p["score"], "status": status, "contract": contract, "live": p["live"],

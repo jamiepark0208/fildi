@@ -83,12 +83,12 @@ def load_context(conn) -> dict:
           UNION ALL
           SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE
         ) x GROUP BY ticker""")}
-    restrike_puts(conn, ctx)   # needs earnings dates: earnings-spanning puts get the farther target
     ctx["lseg"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
                short_interest, free_float
         FROM lseg_research.signals_daily WHERE combined_alpha_rank IS NOT NULL OR as_of < CURRENT_DATE - 7
         ORDER BY ticker, as_of DESC""")}   # skip a day LSEG served empty ranks (10-19)
+    restrike_puts(conn, ctx)   # needs earnings dates, fit (put risk / OWN) and LSEG credit: risky puts get the farther target
     ctx["tech"] = {r["ticker"].upper(): r for r in rows(conn, "SELECT ticker, falling_knife, rsi14::float8 AS rsi FROM ticker_technicals")}
     snap_id = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
     ctx["portfolio_snapshot"] = rows(conn, "SELECT id, imported_at FROM portfolio_snapshots WHERE id = %s", (snap_id,))[0]
@@ -242,9 +242,19 @@ def reprice_from_chains(conn, ctx: dict) -> None:
 def restrike_puts(conn, ctx: dict) -> None:
     """Puts above the Δ cap move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same expiry (latest saved chain, no API
     calls; premium = bid, as everywhere in L1). No chain strike in the band → the pick keeps its Δ and delta_band blocks it."""
-    def caps(r):  # (cap, target): earnings before expiry → farther strike instead of a block (rules.PUT_EARNINGS_ABS_DELTA)
-        er = ctx.get("earnings", {}).get(r["ticker"])
-        return R.PUT_EARNINGS_ABS_DELTA if er and er <= r["expiry"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
+    def why_far(r):  # Jamie 10-20: a riskier put gets a farther strike, not a smaller size
+        t = r["ticker"]
+        er = ctx.get("earnings", {}).get(t)
+        if er and er <= r["expiry"]:
+            return "earnings before expiry"
+        cr = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
+        if cr is not None and cr < R.MIN_CREDIT_RANK_PUTS:
+            return f"StarMine credit {cr} < {R.MIN_CREDIT_RANK_PUTS}"
+        return __import__("publish_model_list").put_size_note(ctx["fit"].get(t), ctx["fit_params"]) if "fit" in ctx else None
+
+    def caps(r):  # (cap, target): risky → farther strike instead of a block / half size (rules.PUT_EARNINGS_ABS_DELTA)
+        r["far_why"] = why_far(r)
+        return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
     hot = [r for r in ctx["recs"] if r["side"] == "put" and r["delta"] is not None and -r["delta"] > caps(r)[0]]
     if not hot:
         return
@@ -260,7 +270,7 @@ def restrike_puts(conn, ctx: dict) -> None:
         pick = min(band, key=lambda c: abs(-c["delta"] - target), default=None)
         if not pick:
             continue
-        why = "earnings before expiry" if cap == R.PUT_EARNINGS_ABS_DELTA[0] else "rules.PUT_DELTA"
+        why = r["far_why"] or "rules.PUT_DELTA"
         note = f"re-struck {r['delta']:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
         r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
                  dte=pick["dte"], weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
@@ -329,13 +339,16 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
         c.append(chk("verdict_ok", hb is None, hb or "scored, not red"))
+        # S069/S063 (Jamie 10-20): high put risk, low OWN or low credit earn as much or more but with a fatter tail → the strike moves
+        # farther OTM (restrike_puts, ≤ PUT_EARNINGS_ABS_DELTA cap); warn only if no listed strike got it there
         sn = __import__("publish_model_list").put_size_note(ctx["fit"].get(t), ctx["fit_params"]) if "fit" in ctx else None
-        c.append(chk("size_ok", sn is None, sn or "full size", "warn"))   # S069: was a block, now a size warning
-        # warn, not block (S063, 10-20): low-credit puts earned +13 bp/wk more (t 4.2, 312 wks) at the same breach rate, but the worst
-        # 1 % week loses ~25 % more → show the trade, flag the tail, size smaller
-        c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,
-                     f"StarMine credit {cr}/100: distress tail — worst 1 % weeks lose ~25 % more than other puts (S063); size smaller"
-                     if cr is not None else "no LSEG credit rank", "warn"))
+        far = rec["delta"] is not None and -rec["delta"] <= R.PUT_EARNINGS_ABS_DELTA[0]
+        c.append(chk("risk_strike", sn is None or far, (sn + (f": struck at {-rec['delta']:.2f}Δ" if far else ": no listed strike ≤ "
+                     f"{R.PUT_EARNINGS_ABS_DELTA[0]}Δ")) if sn else "normal strike", "warn"))
+        c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS or far,
+                     f"StarMine credit {cr}/100: distress tail — worst 1 % weeks lose ~25 % more (S063)"
+                     + (f"; struck at {-rec['delta']:.2f}Δ" if far else "; no farther strike listed") if cr is not None else "no LSEG credit rank",
+                     "warn"))
         tech = ctx["tech"].get(t)
         # warn, not block: Step 4 found falling knives don't hurt put sellers; the champion's severity-weighted risk decides
         c.append(chk("not_falling_knife", not (tech and tech["falling_knife"] == 1), "falling-knife chart" if tech and tech["falling_knife"] == 1 else "ok", "warn"))
