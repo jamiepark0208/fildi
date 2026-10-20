@@ -68,3 +68,4 @@ Last reviewed SHA: e7c97c3 (10-18 late: S041 reclassified FAIL — mechanical di
   Cursor queue: A175 page, A189 signals UI, A185 Node Polygon gate, A186 UI.
 - 2026-10-19 late: S049 2022 done (rule same sign, p 0.077). A186 sim_rec data done (nightly). Vol-regime dial = covered by S027 (no redo). Remaining needs LSEG budget (resets daily): S049 2020/2019/21/23/24 → grid all years; strike-list fix; A188 #1 (LSEG OPEN_PRC) / #4 pinning (LSEG OI). S053 2026 leg still running (s053.log).
 - 2026-10-19 end: S053 FAIL recorded (A177, INDEX); A188 #3 0DTE-by-regime answered by its split. Next: LSEG-gated list above (S049 2020 smoke → years → grid; strike-list fix; A188 #1/#4).
+- 2026-10-19: S056 ORB on SPY FAIL (A184 #1). LSEG at 9,457/10k today, month datapoints 5.86M of 8M guard → S049 years may hit the monthly guard; check before each year.
