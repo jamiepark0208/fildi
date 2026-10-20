@@ -176,3 +176,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A199](asks/A199.md) | 2026-10-20 | Muse → Cursor | Pre-Dec-11 build capacity plan (restored from A180 after ID collision) | open |
 | [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | Peer-group drift monitor (restored from A181 after ID collision) | open |
 | [A201](asks/A201.md) | 2026-10-20 | Muse → Cursor | Model-version promotion protocol (restored from A182 after ID collision) | open |
+| [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | open |
+| [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev 100k-strategy corpus — selection funnel exploration | open |
+| [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | open |
