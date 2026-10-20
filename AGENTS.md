@@ -14,6 +14,7 @@
 | Tool | File |
 |---|---|
 | Claude Code | [`CLAUDE.md`](CLAUDE.md) |
+| Codex / ChatGPT coding | [`CODEX.md`](CODEX.md) — compact context and existing tool reuse |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
 | Kiro (WIP) | `.kiro/steering/` — pointers to this file only |
