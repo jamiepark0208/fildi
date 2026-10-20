@@ -64,6 +64,35 @@ def bounce_base(conn, t: str) -> float | None:
     return sum(w) / len(w) if len(w) > 100 else None
 
 
+POS_DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.position_odds (snapshot_id int NOT NULL, account text NOT NULL, ticker text NOT NULL,
+  strike numeric NOT NULL, expiry date NOT NULL, odds jsonb NOT NULL, computed_at timestamptz DEFAULT now(),
+  PRIMARY KEY (snapshot_id, account, ticker, strike, expiry))"""
+
+
+def put_odds(conn, t, K, e, prem, S, iv, edge, asg) -> dict:
+    T = max(1, (e - date.today()).days) / 365
+    q = (edge.get(t) or {}).get("quintile")
+    f_edge = CAL[str(q)]["breach"] / MEAN_BREACH if q else 1.0
+    p_itm = min(0.99, p_below(S, K, iv, T) * S016_RATIO * f_edge)
+    p_loss = min(0.99, p_below(S, K - (prem or 0), iv, T) * S016_RATIO * f_edge)
+    sd = iv * math.sqrt(T)
+    return {
+        "strike": K, "expiry": str(e), "spot": S, "iv": iv,
+        "p_otm": {"value": 1 - p_itm, "evidence": "calibrated: market odds × 1.14 (S016)" + (f" × put-edge Q{q} {f_edge:.2f} (S059)" if q else "")},
+        "p_profit": {"value": 1 - p_loss, "evidence": "calibrated, breakeven = strike − premium"},
+        "p_touch": {"value": min(1.0, 2 * p_itm), "evidence": "model: 2 × P(ITM), reflection principle"},
+        "range_68": [S * math.exp(-sd), S * math.exp(sd)], "range_95": [S * math.exp(-2 * sd), S * math.exp(2 * sd)],
+        "if_assigned": asg,
+        "bounce_5d": {"value": bounce_base(conn, t), "evidence": "base rate (3 y); S025: no reversal edge after big drops"},
+    }
+
+
+def row(t, K, e, odds) -> str:
+    b, a = odds["bounce_5d"]["value"], odds["if_assigned"].get("back_above_strike_63d")
+    return (f"| {t} | ${K:g} {e:%m-%d} | {odds['p_otm']['value']:.0%} | {odds['p_profit']['value']:.0%} | {odds['p_touch']['value']:.0%} | "
+            f"${odds['range_68'][0]:.2f}–{odds['range_68'][1]:.2f} | {'—' if a is None else f'{a:.0%}'} | {'—' if b is None else f'{b:.0%}'} |")
+
+
 def main() -> None:
     import put_edge as PE
     conn = connect()
@@ -77,27 +106,26 @@ def main() -> None:
     L = [f"# Pick odds — plan {pid}", "", "| ticker | strike / expiry | P(expire OTM) | P(profit) | P(touch strike) | 68 % range | if assigned: back above strike in 63 d | 5-day up base rate |",
          "|---|---|---|---|---|---|---|---|"]
     for t, K, e, prem, S, iv in picks:
-        T = max(1, (e - date.today()).days) / 365
-        q = (edge.get(t) or {}).get("quintile")
-        f_edge = CAL[str(q)]["breach"] / MEAN_BREACH if q else 1.0
-        p_itm = min(0.99, p_below(S, K, iv, T) * S016_RATIO * f_edge)
-        p_loss = min(0.99, p_below(S, K - (prem or 0), iv, T) * S016_RATIO * f_edge)
-        sd = iv * math.sqrt(T)
-        odds = {
-            "strike": K, "expiry": str(e), "spot": S, "iv": iv,
-            "p_otm": {"value": 1 - p_itm, "evidence": "calibrated: market odds × 1.14 (S016)" + (f" × put-edge Q{q} {f_edge:.2f} (S059)" if q else "")},
-            "p_profit": {"value": 1 - p_loss, "evidence": "calibrated, breakeven = strike − premium"},
-            "p_touch": {"value": min(1.0, 2 * p_itm), "evidence": "model: 2 × P(ITM), reflection principle"},
-            "range_68": [S * math.exp(-sd), S * math.exp(sd)], "range_95": [S * math.exp(-2 * sd), S * math.exp(2 * sd)],
-            "if_assigned": asg,
-            "bounce_5d": {"value": bounce_base(conn, t), "evidence": "base rate (3 y); S025: no reversal edge after big drops"},
-        }
+        odds = put_odds(conn, t, K, e, prem, S, iv, edge, asg)
         conn.execute("INSERT INTO watchlist_sync.pick_odds (plan_id, ticker, odds) VALUES (%s, %s, %s) ON CONFLICT (plan_id, ticker) "
                      "DO UPDATE SET odds = EXCLUDED.odds, computed_at = now()", (pid, t, json.dumps(odds)))
-        b = odds["bounce_5d"]["value"]
-        L.append(f"| {t} | ${K:g} {e:%m-%d} | {odds['p_otm']['value']:.0%} | {odds['p_profit']['value']:.0%} | {odds['p_touch']['value']:.0%} | "
-                 f"${odds['range_68'][0]:.0f}–{odds['range_68'][1]:.0f} | {asg.get('back_above_strike_63d', float('nan')):.0%} | "
-                 f"{'—' if b is None else f'{b:.0%}'} |")
+        L.append(row(t, K, e, odds))
+    # Open short puts you already hold (latest Robinhood snapshot): same odds, live strike/expiry → watchlist_sync.position_odds
+    conn.execute(POS_DDL)
+    snap = conn.execute("SELECT max(id) FROM portfolio_snapshots").fetchone()[0]
+    pos = conn.execute("""SELECT o.account, UPPER(o.symbol), o.strike::float, o.expiration, o.avg_premium::float / 100, o.iv::float,  -- $/contract → $/share
+                                 (SELECT close::float FROM prices_historical p WHERE UPPER(p.ticker) = UPPER(o.symbol) ORDER BY date DESC LIMIT 1)
+                          FROM portfolio_options o WHERE o.snapshot_id = %s AND o.direction = 'short' AND o.option_type = 'put'
+                          AND o.expiration >= CURRENT_DATE""", (snap,)).fetchall()
+    L += ["", f"## Open short puts (snapshot {snap})", "", L[2], L[3]]
+    for acct, t, K, e, prem, iv, S in pos:
+        if not (S and iv):
+            continue
+        odds = put_odds(conn, t, K, e, prem, S, iv if iv < 5 else iv / 100, edge, asg)
+        conn.execute("INSERT INTO watchlist_sync.position_odds (snapshot_id, account, ticker, strike, expiry, odds) VALUES (%s,%s,%s,%s,%s,%s) "
+                     "ON CONFLICT (snapshot_id, account, ticker, strike, expiry) DO UPDATE SET odds = EXCLUDED.odds, computed_at = now()",
+                     (snap, acct, t, K, e, json.dumps(odds)))
+        L.append(row(t, K, e, odds))
     conn.commit()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L) + "\n")

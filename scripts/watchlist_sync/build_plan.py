@@ -73,6 +73,7 @@ def load_context(conn) -> dict:
     ctx["fit"], _, ctx["fit_params"] = PL.champion_scores(conn)
     ctx["held_back_reason"] = PL.held_back_reason
     reprice_from_chains(conn, ctx)
+    restrike_puts(conn, ctx)
     ctx["recs"] = [r for r in ctx["recs"] if r["expiry"] > date.today()]
     ctx["close"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker) AS ticker, date, close::float8
@@ -115,7 +116,8 @@ def load_context(conn) -> dict:
     ctx["recs"] += panic_recs(conn)
     import put_edge
     # S059: IV/RV + vol-of-vol + put tech → simulated pnl/breach quintile; empty when the drift check demoted it (A196: enforced)
-    ctx["edge"] = {} if put_edge.is_demoted(conn) else put_edge.scores(conn)
+    ctx["edge_demoted"] = put_edge.is_demoted(conn)
+    ctx["edge"] = {} if ctx["edge_demoted"] else put_edge.scores(conn)
     ctx["edge_min_q"] = put_edge.MIN_QUINTILE
     return ctx
 
@@ -237,6 +239,30 @@ def reprice_from_chains(conn, ctx: dict) -> None:
     ctx["snapshot_date"] = as_of
 
 
+def restrike_puts(conn, ctx: dict) -> None:
+    """Puts above the Δ cap move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same expiry (latest saved chain, no API
+    calls; premium = bid, as everywhere in L1). No chain strike in the band → the pick keeps its Δ and delta_band blocks it."""
+    cap = -R.PUT_DELTA[0]
+    hot = [r for r in ctx["recs"] if r["side"] == "put" and r["delta"] is not None and -r["delta"] > cap]
+    if not hot:
+        return
+    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history WHERE as_of <= %s", (ctx["snapshot_date"],)).fetchone()[0]
+    if not as_of:
+        return
+    cs = rows(conn, """SELECT ticker, expiry, strike::float8, dte::float8, spot::float8, bid::float8, iv::float8, delta::float8
+                       FROM option_chain_history WHERE as_of = %s AND side = 'put' AND ticker = ANY(%s) AND bid > 0 AND delta < 0""",
+              (as_of, sorted({r["ticker"] for r in hot})))
+    for r in hot:
+        band = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
+        pick = min(band, key=lambda c: abs(-c["delta"] - R.PUT_TARGET_ABS_DELTA), default=None)
+        if not pick:
+            continue
+        note = f"re-struck {r['delta']:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, rules.PUT_DELTA)"
+        r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
+                 dte=pick["dte"], weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
+                 repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
+
+
 def _edge_q(ctx: dict, rec: dict) -> int:
     e = ctx.get("edge", {}).get(rec["ticker"]) if rec["side"] == "put" else None
     return e["quintile"] if e else 0
@@ -287,9 +313,12 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         cr = ls and ls["credit_combined_rank"]
         e = ctx.get("edge", {}).get(t)
         if not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
-            c.append(chk("put_edge", e is None or e["quintile"] >= ctx.get("edge_min_q", 4),
+            c.append(chk("put_edge", e["quintile"] >= ctx.get("edge_min_q", 4) if e else bool(ctx.get("edge_demoted")),
                          f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk net of fills, breach {100 * e['breach']:.0f} % (S059, Q1–Q3 lose after fills)"
-                         if e else "no put-edge inputs (or demoted by drift check)", "block" if e else "warn"))
+                         if e else "no put-edge inputs (or demoted by drift check)",
+                         # 10-20 (Jamie OK): no inputs = unknown edge, and S059 says most weekly puts lose after fills → block;
+                         # the old warn fallback applies only when the drift check has demoted put edge for everyone
+                         "block" if e or not ctx.get("edge_demoted") else "warn"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
         c.append(chk("verdict_ok", hb is None, hb or "ownable, put risk below the hold line"))
