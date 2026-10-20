@@ -170,7 +170,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A193](asks/A193.md) | 2026-10-19 | Muse → Cursor | skew_survey.py crashes on calendar-hole days (unguarded monthly expiry min()) | done |
 | [A194](asks/A194.md) | 2026-10-19 | Muse → Cursor | Schwab 1m bars + WRDS OptionMetrics check | done (Cursor 10-20 row 1) · row 2 declined |
 | [A195](asks/A195.md) | 2026-10-19 | Muse → Claude | [quant] Cointegration divergence as put-selling entry signal — study | planned |
-| [A196](asks/A196.md) | 2026-10-19 | Muse → Claude | [quant] Visser trend/momentum filter for put entries — study | planned |
+| [A196](asks/A196.md) | 2026-10-19 | Muse → Claude | [quant] Visser trend/momentum filter for put entries — study | done (S073 FAIL) |
 | [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | planned |
 | [A198](asks/A198.md) | 2026-10-20 | Muse → Cursor | Stock Breakdown scroll fix — DONE (restored from A179 after ID collision) | done |
 | [A199](asks/A199.md) | 2026-10-20 | Muse → Cursor | Pre-Dec-11 build capacity plan (restored from A180 after ID collision) | planned |
@@ -178,7 +178,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A201](asks/A201.md) | 2026-10-20 | Muse → Cursor | Model-version promotion protocol (restored from A182 after ID collision) | planned |
 | [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | open |
 | [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev corpus check — done by Muse: no corpus exists; fildi already runs the pattern (OpenJev) | done (killed at step 1) |
-| [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | planned |
+| [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | done (S073 FAIL) |
 | [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-20: Focus/calendar fixes tested; financial recalibration pending) |
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Codex | Bounded autonomous development and access visibility | open |
