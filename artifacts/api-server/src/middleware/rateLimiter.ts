@@ -6,9 +6,14 @@ import type { Response } from "express";
 // instance gets its own counter, so the effective limit becomes max*N per window. Move
 // to a shared store (Redis, enh/29) before horizontally scaling past one instance.
 
-/** Auth + health must never consume the general API budget (login shares same 200/15m cap otherwise). */
-function skipGeneralLimit(req: { path: string; originalUrl: string }): boolean {
+/** Localhost-only machine routes (schwab.ts schwabMachineRouter rejects any non-local caller). 2026-10-19: the Python pipeline
+ *  (verify, panic puts, skew survey) shares 127.0.0.1 with the browser via the Vite proxy, so its calls 429'd and could starve the UI. */
+const MACHINE_PATHS = new Set(["/api/schwab/option-quotes", "/api/schwab/chain-ladder", "/api/schwab/equity-prices"]);
+
+/** Auth + health + local machine routes must never consume the general API budget (login shares same 200/15m cap otherwise). */
+function skipGeneralLimit(req: { path: string; originalUrl: string; socket?: { remoteAddress?: string } }): boolean {
   const path = req.originalUrl.split("?")[0] ?? req.path;
+  if (MACHINE_PATHS.has(path) && ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket?.remoteAddress ?? "")) return true;
   return path.startsWith("/api/auth") || path === "/api/healthz";
 }
 

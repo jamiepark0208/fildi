@@ -116,8 +116,11 @@ def outcome(S0, legs, credit, sigma, t_front, back_left):
 def main():
     today = date.today()
     with connect() as conn:
+        last = conn.execute("SELECT MAX(as_of) FROM optlab.skew_survey").fetchone()[0]
+        if last != today:   # Schwab down / survey skipped: keep yesterday's board (API shows its date) rather than re-stamp old quotes
+            print(f"structures: skipped — latest skew survey is {last}, not today"); return
         q = rows(conn, """SELECT ticker, expiry, side, strike, spot, bid, ask, iv, delta FROM optlab.skew_survey
-                          WHERE as_of = (SELECT MAX(as_of) FROM optlab.skew_survey) AND bid IS NOT NULL AND ask > 0""")
+                          WHERE as_of = %s AND bid IS NOT NULL AND ask > 0""", (today,))
         rv, hist = {}, {}
         for t, cl in rows_closes(conn):
             if len(cl) >= 260:
@@ -360,6 +363,8 @@ def public(c):
 
 def log_ledger(conn, board, today):
     from forecast_ledger import UPSERT
+    # a re-run replaces today's picks: drop today's unresolved rows first so only what the board shows gets graded
+    conn.execute("DELETE FROM watchlist_sync.forecast_ledger WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL", (today,))
     n = 0
     for sid, lst in board.items():
         for c in lst:

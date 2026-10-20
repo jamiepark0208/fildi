@@ -524,3 +524,35 @@ export async function getSchwabOptionChains(ticker: string): Promise<OptionsChai
 export function schwabAvailable(): boolean {
   return schwabCredentialsConfigured();
 }
+
+
+/**
+ * Full strike ladder for one ticker between two dates (A192 skew survey): ONE /chains call → flat rows, every strike (ATM included).
+ * The scanner's chain fetch keeps only 3–25 % OTM, so wings/ATM for spreads & condors need this. Shares the 100-rpm throttle.
+ */
+export async function getSchwabChainLadder(ticker: string, fromDate: string, toDate: string, strikeCount = 80): Promise<{
+  spot: number | null;
+  rows: Array<{ expiry: string; side: "put" | "call"; strike: number; bid: number | null; ask: number | null; mark: number | null;
+    iv: number | null; delta: number | null; oi: number | null; volume: number | null }>;
+} | null> {
+  const raw = await schwabGet<SchwabChainResponse>("/chains", {
+    symbol: ticker.toUpperCase(), contractType: "ALL", includeUnderlyingQuote: "true", fromDate, toDate, strikeCount: String(strikeCount),
+  });
+  if (!raw) return null;
+  const rows: Array<{ expiry: string; side: "put" | "call"; strike: number; bid: number | null; ask: number | null; mark: number | null;
+    iv: number | null; delta: number | null; oi: number | null; volume: number | null }> = [];
+  for (const [side, map] of [["put", raw.putExpDateMap], ["call", raw.callExpDateMap]] as const) {
+    for (const [expKey, strikes] of Object.entries(map ?? {})) {
+      const expiry = expKey.split(":")[0];
+      for (const list of Object.values(strikes)) {
+        const c = list?.[0];
+        if (!c || !(num(c.strikePrice) ?? 0)) continue;
+        const iv = normalizeSchwabIv(c.volatility);
+        const d = num(c.delta);
+        rows.push({ expiry, side, strike: num(c.strikePrice)!, bid: num(c.bid), ask: num(c.ask), mark: num(c.mark),
+          iv: iv > 0 ? iv : null, delta: d != null && Math.abs(d) <= 1 ? d : null, oi: num(c.openInterest), volume: num(c.totalVolume) });
+      }
+    }
+  }
+  return { spot: num(raw.underlyingPrice) ?? num(raw.underlying?.quote?.lastPrice) ?? null, rows };
+}

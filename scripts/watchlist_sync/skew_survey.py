@@ -3,8 +3,8 @@ around picks, so wings can't be priced for spreads / condors / strangles. This s
 skew(moneyness, DTE, IV level) and the per-leg fill cost by moneyness.
 
 Universe: ~120 names with the most open interest in option_chain_history (last 5 days). Per name: next weekly expiry ≥ 5 DTE and the
-monthly (3rd Friday) nearest 30 DTE; puts + calls; strikes spot × (0.75 … 1.25) on the name's increment ladder (Schwab returns only
-real strikes). Quotes via the API's localhost Schwab endpoint (≤ 200 contracts per call). → optlab.skew_survey.
+monthly (3rd Friday) nearest 30 DTE; puts + calls; every real strike within ±12 % (weekly) / ±25 % (monthly). One Schwab /chains call
+per ticker via the API's localhost /schwab/chain-ladder (shares the app's 100-rpm throttle). → optlab.skew_survey.
 
     .venv/bin/python skew_survey.py [--n 120]
 """
@@ -36,16 +36,6 @@ def expiries(d: date) -> list[date]:
     return sorted({wk, mo})
 
 
-def ladder(spot: float) -> list[float]:
-    step = 0.5 if spot < 25 else 1 if spot < 75 else 2.5 if spot < 200 else 5 if spot < 600 else 10
-    lo, hi = spot * 0.75, spot * 1.25
-    k = (int(lo / step) + 1) * step
-    out = []
-    while k <= hi and len(out) < 40:
-        out.append(round(k, 2)); k += step
-    return out
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=120)
@@ -53,36 +43,48 @@ def main():
     today = date.today()
     with connect() as conn:
         conn.execute(DDL)
+        # ~10k rows/day (~3 MB): keep 400 days — enough for the skew/fill fit and a year of board history
+        conn.execute("DELETE FROM optlab.skew_survey WHERE as_of < CURRENT_DATE - 400")
         names = rows(conn, """SELECT ticker, MAX(spot)::float8 spot FROM option_chain_history WHERE as_of >= CURRENT_DATE - 5
                               GROUP BY 1 ORDER BY SUM(COALESCE(open_interest, 0)) DESC LIMIT %s""", (a.n,))
         exps = expiries(today)
-        want = [{"ticker": n["ticker"], "expiry": str(e), "strike": k, "type": s}
-                for n in names for e in exps for s in ("put", "call") for k in ladder(n["spot"])]
-        got = 0
-        for i in range(0, len(want), 200):
-            req = urllib.request.Request("http://127.0.0.1:8080/api/schwab/option-quotes", data=json.dumps({"contracts": want[i:i + 200]}).encode(),
+        # one /chains call per ticker (10-19 audit: per-contract quotes = 224 calls / 138 s and ~12 % guessed strikes that don't exist)
+        from concurrent.futures import ThreadPoolExecutor
+
+        def fetch(job):
+            t, sc = job
+            req = urllib.request.Request("http://127.0.0.1:8080/api/schwab/chain-ladder",
+                                         data=json.dumps({"ticker": t, "fromDate": str(exps[0]), "toDate": str(exps[-1]), "strikeCount": sc}).encode(),
                                          headers={"Content-Type": "application/json"})
             try:
-                d = json.load(urllib.request.urlopen(req, timeout=120))
-            except Exception as e:  # noqa: BLE001
-                print(f"skew_survey: Schwab unavailable ({str(e)[:80]}) after {got} rows"); break
-            batch = []
-            for key, occ in d["symbols"].items():
-                q = d["quotes"].get(occ)
-                if not q or q.get("bid") is None:
+                return job, json.load(urllib.request.urlopen(req, timeout=60))
+            except Exception:  # noqa: BLE001
+                return job, None
+
+        # one /chains call per ticker for both expiries (10-19 audit: per-contract quotes 224 calls / 138 s; per-expiry 240 calls / 158 s —
+        # the API's shared 100-rpm Schwab throttle is the floor, so fewer calls is the only lever). 4 in flight hides response latency;
+        # the throttle still caps the rate, so the app's own calls keep their turn.
+        jobs = [(n["ticker"], 50) for n in names]
+        spots = {n["ticker"]: n["spot"] for n in names}
+        got, fails = 0, 0
+        with ThreadPoolExecutor(4) as pool:
+            width = {str(e): 0.12 if (e - today).days <= 14 else 0.25 for e in exps}
+            for (t, _), d in pool.map(fetch, jobs):
+                if d is None:
+                    fails += 1
                     continue
-                t, e, k, s = key.split("|")
-                dl = q.get("delta")
-                batch.append((today, t, e, s, float(k), q.get("underlying"), q.get("bid"), q.get("ask"), q.get("mark"), q.get("iv"),
-                              dl if dl is not None and abs(dl) <= 1 else None, q.get("openInterest"), q.get("volume"), q.get("quoteTime")))
-            with conn.cursor() as cur:
-                cur.executemany("""INSERT INTO optlab.skew_survey VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                                   ON CONFLICT (as_of, ticker, expiry, side, strike) DO UPDATE SET bid = EXCLUDED.bid, ask = EXCLUDED.ask,
-                                   mark = EXCLUDED.mark, iv = EXCLUDED.iv, delta = EXCLUDED.delta, oi = EXCLUDED.oi, volume = EXCLUDED.volume,
-                                   spot = EXCLUDED.spot, quote_time = EXCLUDED.quote_time""", batch)
-            conn.commit()
-            got += len(batch)
-    print(f"skew_survey: {got} quotes · {len(names)} names · expiries {', '.join(map(str, exps))} · requested {len(want)}")
+                spot = d.get("spot") or spots[t]
+                batch = [(today, t, r["expiry"], r["side"], r["strike"], spot, r["bid"], r["ask"], r["mark"], r["iv"], r["delta"],
+                          r["oi"], r["volume"], None)
+                         for r in d["rows"] if r["expiry"] in width and r["bid"] is not None and abs(r["strike"] / spot - 1) <= width[r["expiry"]]]
+                with conn.cursor() as cur:
+                    cur.executemany("""INSERT INTO optlab.skew_survey VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                       ON CONFLICT (as_of, ticker, expiry, side, strike) DO UPDATE SET bid = EXCLUDED.bid, ask = EXCLUDED.ask,
+                                       mark = EXCLUDED.mark, iv = EXCLUDED.iv, delta = EXCLUDED.delta, oi = EXCLUDED.oi,
+                                       volume = EXCLUDED.volume, spot = EXCLUDED.spot""", batch)
+                conn.commit()
+                got += len(batch)
+    print(f"skew_survey: {got} quotes · {len(names)} names ({fails} failed) · expiries {', '.join(map(str, exps))}")
 
 
 if __name__ == "__main__":

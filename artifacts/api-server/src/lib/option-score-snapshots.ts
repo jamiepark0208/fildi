@@ -166,8 +166,8 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
       const set = new Set((pick.length ? pick : rows.slice(0, FOCUS_PUTS)).map((r) => r.ticker));
       for (const r of rows) r.focus = set.has(r.ticker);
     } else {
-      const { rows: held } = await db.execute(sql`SELECT DISTINCT UPPER(symbol) AS t FROM portfolio_positions
-        WHERE snapshot_id = (SELECT MAX(id) FROM portfolio_snapshots) AND quantity >= 100`);
+      const { rows: held } = await db.execute(sql`SELECT UPPER(symbol) AS t FROM portfolio_positions
+        WHERE snapshot_id = (SELECT MAX(id) FROM portfolio_snapshots) GROUP BY 1 HAVING SUM(quantity) >= 100`);
       const hs = new Set((held as Array<Record<string, unknown>>).map((r) => String(r.t)));
       const set = new Set(rows.filter((r) => hs.has(r.ticker)).slice(0, FOCUS_CALLS).map((r) => r.ticker));
       for (const r of rows) r.focus = set.has(r.ticker);

@@ -6,7 +6,7 @@
  */
 import { Router } from "express";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js";
-import { getSchwabUsageStats, schwabAvailable } from "../lib/schwab-client.js";
+import { getSchwabUsageStats, schwabAvailable, getSchwabChainLadder } from "../lib/schwab-client.js";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 import { getSchwabOptionQuotes, occSymbol, type OptionContractRef } from "../lib/schwab-option-quotes.js";
 import { getLivePrices } from "../lib/live-quote.js";
@@ -122,6 +122,20 @@ schwabMachineRouter.post("/schwab/option-quotes", async (req, res) => {
   const quotes = await getSchwabOptionQuotes(contracts);
   if (!quotes) return res.status(503).json({ error: "schwab unavailable" });
   return res.json({ quotes, symbols: Object.fromEntries(contracts.map((c) => [`${c.ticker}|${c.expiry}|${c.strike}|${c.type}`, occSymbol(c)])) });
+});
+
+/**
+ * POST /api/schwab/chain-ladder {ticker, fromDate, toDate} → {spot, rows} (one /chains call; localhost only, A192 skew survey).
+ */
+schwabMachineRouter.post("/schwab/chain-ladder", async (req, res) => {
+  if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
+  const { ticker, fromDate, toDate, strikeCount } = req.body ?? {};
+  if (typeof ticker !== "string" || !/^[A-Z.]{1,10}$/i.test(ticker) || !/^\d{4}-\d{2}-\d{2}$/.test(String(fromDate)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(toDate))) {
+    return res.status(400).json({ error: "ticker, fromDate, toDate required" });
+  }
+  const out = await getSchwabChainLadder(ticker, String(fromDate), String(toDate), Math.min(Math.max(Number(strikeCount) || 80, 10), 200));
+  if (!out) return res.status(503).json({ error: "schwab unavailable" });
+  return res.json(out);
 });
 
 /**

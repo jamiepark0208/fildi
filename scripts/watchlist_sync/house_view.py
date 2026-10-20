@@ -107,7 +107,10 @@ def coherence(conn, ctx, plan_id=None):
     if trim & puts:
         warn.append(f"CONTRADICTION: trim and sell-puts on {sorted(trim & puts)}")
     live = [i for i in items if i["list_key"] == "sell_puts" and i["verify_status"] in ("pass", "pass_after_hours")]
-    if ctx["panic"]["n"] >= 5 and not live:
+    pending = [i for i in items if i["list_key"] == "sell_puts" and i["verify_status"] == "pending"]
+    if pending and not live:
+        warn.append(f"UNVERIFIED: plan #{run['id']} has {len(pending)} puts awaiting the live quote check (verify step not run)")
+    elif ctx["panic"]["n"] >= 5 and not live:
         warn.append(f"ANOMALY: {ctx['panic']['n']} panic-put signals but 0 puts pass live checks — read the plan's blockers")
     return warn, {"plan": run["id"], "puts_live": len(live), "trim": sorted(trim)}
 
