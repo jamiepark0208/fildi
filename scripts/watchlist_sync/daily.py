@@ -45,13 +45,15 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "integrity": [("split repair", PY, HERE, ["split_repair.py", "--apply"])],
     "model": [
         ("fit model", PY, HERE, ["fit_model_v14.py", "--write"]),   # champion + challengers (fit-1.3 is only its input builder)
+        # before the plan: build_plan reads today's panic-puts-hiv signals (was after publish → plans used yesterday's, 10-19)
+        ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
     ],
     "verify": [("evaluate quotes (L2)", PY, HERE, ["verify_plan.py", "evaluate"])],  # quotes come from the export session (Step 13)
     "publish": [
         ("publish Model List", PY, HERE, ["publish_model_list.py"]),
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
-        ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades
+        ("house view", PY, HERE, ["house_view.py"]),   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
@@ -140,6 +142,9 @@ def main() -> None:
                 break
         if status != "ok":
             break
+    if status.startswith("failed"):   # 10-19: a crash left Jamie on Friday's list silently → the gate records it as STALE
+        r = run("house view", PY, HERE, ["house_view.py", "--no-log"])
+        log["steps"].append(r)
     log["status"] = status
     out = HERE / "out" / "runs"
     out.mkdir(parents=True, exist_ok=True)

@@ -300,7 +300,20 @@ def _r_recmed(conn, t, d, m):
     return (rets[t] > med, {"ret": round(rets[t], 4), "median": round(med, 4)})
 
 
-EXTRA_RESOLVERS = {"strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
+def _r_index21(conn, t, d, m):
+    """house_view.py (S057): index_up_21d = close at resolves_on > start close; index_tail_21d = any close in the window ≤ 0.95 × start."""
+    if not _has_bar(conn, t, d):
+        return None
+    w = _window(conn, t, dt.date.fromisoformat(m["from"]), d)
+    if not w:
+        return None
+    s = float(m["start_close"])
+    if m.get("kind") == "tail":
+        return (min(x[1] for x in w) <= 0.95 * s, {"min_close": min(x[1] for x in w)})
+    return (w[-1][1] > s, {"close": w[-1][1]})
+
+
+EXTRA_RESOLVERS = {"index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
                    "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings,
                    "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed}
 

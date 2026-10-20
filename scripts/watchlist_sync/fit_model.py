@@ -46,6 +46,9 @@ def wavg(parts):
 
 SQL = """
 WITH s AS (SELECT DISTINCT ON (ticker) * FROM lseg_research.signals_daily ORDER BY ticker, as_of DESC),
+-- 10-19: LSEG served empty StarMine ranks pre-open → every rank null → crash. Carry the last real ranks forward ≤ 7 days.
+sm AS (SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, combined_alpha_rank, arm_rank FROM lseg_research.signals_daily
+       WHERE combined_alpha_rank IS NOT NULL AND as_of >= CURRENT_DATE - 7 ORDER BY ticker, as_of DESC),
 er AS (SELECT ticker, MIN(d) d FROM (
         SELECT ticker, event_date d FROM lseg_research.events WHERE event_type = 'EarningsReleases' AND event_date >= CURRENT_DATE
         UNION ALL SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE) x GROUP BY 1),
@@ -60,7 +63,8 @@ pg AS (SELECT t2.ticker, g.name FROM (
          SELECT DISTINCT ON (ticker) ticker, group_id FROM peer_group_members m
          WHERE removed_at IS NULL AND NOT EXISTS (SELECT 1 FROM peer_group_overrides o WHERE o.ticker = m.ticker)
        ) t2 JOIN peer_groups g ON g.id = t2.group_id)
-SELECT t.ticker, tf.fund_total_score::float8 fund, s.credit_combined_rank credit, s.combined_alpha_rank cam, s.arm_rank arm,
+SELECT t.ticker, tf.fund_total_score::float8 fund, COALESCE(s.credit_combined_rank, sm.credit_combined_rank) credit,
+       COALESCE(s.combined_alpha_rank, sm.combined_alpha_rank) cam, COALESCE(s.arm_rank, sm.arm_rank) arm,
        s.eps_drift_30d_pct drift, s.pred_surprise_pct_fq1 ps, s.pt_upside_pct pt_up, s.eps_num_est_fy1 n_est,
        CASE WHEN s.free_float > 0 THEN 100 * s.short_interest / s.free_float END short_float,
        CASE WHEN tt.atm_put_iv >= 5 THEN tt.atm_put_iv::float8 END fildi_iv,
@@ -72,6 +76,7 @@ SELECT t.ticker, tf.fund_total_score::float8 fund, s.credit_combined_rank credit
 FROM unnest(%s::text[]) t(ticker)
 LEFT JOIN ticker_fundamentals tf ON UPPER(tf.ticker) = t.ticker
 LEFT JOIN s ON s.ticker = t.ticker
+LEFT JOIN sm ON sm.ticker = t.ticker
 LEFT JOIN ticker_technicals tt ON UPPER(tt.ticker) = t.ticker
 LEFT JOIN px ON px.ticker = t.ticker
 LEFT JOIN er ON er.ticker = t.ticker

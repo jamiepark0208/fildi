@@ -70,7 +70,8 @@ def load_context(conn) -> dict:
     ctx["lseg"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
                short_interest, free_float
-        FROM lseg_research.signals_daily ORDER BY ticker, as_of DESC""")}
+        FROM lseg_research.signals_daily WHERE combined_alpha_rank IS NOT NULL OR as_of < CURRENT_DATE - 7
+        ORDER BY ticker, as_of DESC""")}   # skip a day LSEG served empty ranks (10-19)
     ctx["tech"] = {r["ticker"].upper(): r for r in rows(conn, "SELECT ticker, falling_knife, rsi14::float8 AS rsi FROM ticker_technicals")}
     snap_id = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
     ctx["portfolio_snapshot"] = rows(conn, "SELECT id, imported_at FROM portfolio_snapshots WHERE id = %s", (snap_id,))[0]
@@ -291,15 +292,18 @@ def trim_checks(ticker: str, ctx: dict) -> tuple[list[dict], list[str]]:
     if (ls.get("arm_rank") or 100) <= 20:
         flags.append(f"analysts cutting estimates (ARM {ls['arm_rank']}/100)")
     if (ls.get("combined_alpha_rank") or 100) <= 10:
-        flags.append(f"weak overall LSEG score ({ls['combined_alpha_rank']}/100)")
+        flags.append(f"weak overall LSEG score ({ls['combined_alpha_rank']}/100; S058: ~−1 %/month vs peers, borderline)")
     er = ctx["earnings"].get(ticker)
     ps = ls.get("pred_surprise_pct_fq1")
     if ps is not None and ps <= -2 and er and (er - date.today()).days <= 30:
         flags.append(f"StarMine predicts a {ps:.1f}% miss on {er}")
+    # S058 (10-19): a falling-knife chart is not a trim reason: +0.15 % next-month excess overall, and inside weak-alpha names
+    # it is +1.46 pp BETTER (they bounce). Counting it made the model sell lows (RKLB, RGTI). Shown as context only.
+    n = len(flags)
     tech = ctx["tech"].get(ticker)
     if tech and tech["falling_knife"] == 1:
-        flags.append("falling-knife chart")
-    return [chk("two_independent_flags", len(flags) >= 2, f"{len(flags)} flag(s)")], flags
+        flags.append("falling-knife chart (context only, not counted: S058)")
+    return [chk("two_independent_flags", n >= 2, f"{n} flag(s)")], flags
 
 
 def build(show_rejected: bool) -> int:
