@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { WhyCallout, WhyMetric } from "@/components/research-why";
 import { RiskWhatIfBadge, modelAccountToPm } from "@/components/live/risk-what-if-badge";
-import { VERDICT_COLORS, VERDICT_LABELS, type ModelListItem } from "@/hooks/use-model-list";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { VERDICT_LABELS, type ModelListItem } from "@/hooks/use-model-list";
 import { cn } from "@/lib/utils";
 
 export type ModelThesis = {
@@ -55,22 +56,114 @@ function pillarTone(key: string, v: number | null | undefined, isTrim: boolean):
   return "neutral";
 }
 
-/** Rank why lines: knife / credit / LSEG first; drop dupes already in flags. */
+/** Drop funding/cash fluff and flag dupes; keep economics + risk that change the decision. */
+function isNoiseWhy(w: string): boolean {
+  const s = w.replace(/^⚠\s*/, "").toLowerCase();
+  if (s.startsWith("not funded") || s.includes("can't fund") || s.includes("cannot fund")) return true;
+  if (s.includes("free up cash") || s.includes("$0 free")) return true;
+  if (s.includes("closing open puts early would earn less")) return true;
+  if (s.includes("all ") && s.includes("put ideas fit inside")) return true;
+  return false;
+}
+
+function isUsefulWhy(w: string): boolean {
+  const s = w.toLowerCase();
+  if (isNoiseWhy(w)) return false;
+  return (
+    s.includes("option score")
+    || s.includes("%/week")
+    || s.includes("% / week")
+    || /δ|delta|Δ/.test(s)
+    || /\bdte\b/.test(s)
+    || s.includes("put edge")
+    || s.includes("falling-knife")
+    || s.includes("falling knife")
+    || s.includes("fragile")
+    || s.includes("earnings")
+    || s.includes("iv/rv")
+    || s.includes("breach")
+  );
+}
+
+/** Rank why lines: economics + real risk first; drop funding fluff and flag dupes. */
 function rankedWhy(why: string[], flags: string[]): string[] {
   const flagNorm = new Set(flags.map((f) => f.toLowerCase()));
   const uniq = why.filter((w) => {
+    if (isNoiseWhy(w)) return false;
     const n = w.replace(/^⚠\s*/, "").toLowerCase();
     return ![...flagNorm].some((f) => n.includes(f) || f.includes(n.slice(0, 24)));
   });
+  const prefer = uniq.filter(isUsefulWhy);
+  const pool = prefer.length ? prefer : uniq;
   const score = (w: string) => {
     const s = w.toLowerCase();
     if (s.includes("falling-knife") || s.includes("falling knife")) return 0;
-    if (s.includes("fragile") || s.includes("credit") || s.includes("balance")) return 1;
-    if (s.includes("lseg") || s.includes("weak overall")) return 2;
-    if (s.includes("wheel") || s.includes("p&l")) return 4;
-    return 3;
+    if (s.includes("option score") || s.includes("%/week")) return 1;
+    if (s.includes("put edge") || s.includes("breach")) return 2;
+    if (s.includes("fragile") || s.includes("credit") || s.includes("earnings")) return 3;
+    return 4;
   };
-  return uniq.slice().sort((a, b) => score(a) - score(b)).slice(0, 4);
+  return pool.slice().sort((a, b) => score(a) - score(b)).slice(0, 4);
+}
+
+function dteDays(expiry: string): number | null {
+  const t = Date.parse(`${expiry}T16:00:00`);
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.ceil((t - Date.now()) / 86_400_000));
+}
+
+/** Collateral-based weekly income for short premium (premium / strike × 100 / weeks). */
+function incomeLine(c: NonNullable<ModelListItem["contract"]>): string | null {
+  if (c.premium == null || !(c.premium > 0) || !(c.strike > 0)) return null;
+  const dte = dteDays(c.expiry);
+  const weekPct = dte != null && dte > 0
+    ? (c.premium / c.strike) * 100 * (7 / dte)
+    : null;
+  const bits = [`~$${c.premium.toFixed(2)}`];
+  if (weekPct != null) bits.push(`${weekPct.toFixed(2)}%/wk`);
+  if (dte != null) bits.push(`${dte}d`);
+  return bits.join(" · ");
+}
+
+function pillarTip(
+  key: "own" | "street" | "premium" | "fit" | "edge",
+  v: number | null | undefined,
+  isTrim: boolean,
+): string {
+  if (key === "own") {
+    if (v == null) return "Own score missing — fit model did not score this ticker.";
+    if (v < 35) return `Own ${Math.round(v)}: weak hold-worthiness (would not want assignment).`;
+    if (v >= 70) return `Own ${Math.round(v)}: happy to hold if assigned.`;
+    return `Own ${Math.round(v)}: mid — assignment is acceptable, not a goal.`;
+  }
+  if (key === "street") {
+    if (v == null) return "Street score missing.";
+    return `Street ${Math.round(v)}: analyst/estimate quality vs peers (higher = cleaner street picture).`;
+  }
+  if (key === "premium") {
+    if (v == null) return "Premium score missing — no option IV edge scored.";
+    return `Prem ${Math.round(v)}: how rich option premium looks vs realized vol / peers.`;
+  }
+  if (key === "fit") {
+    if (v == null) return "Fit not scored for this ticker.";
+    if (v === 0) {
+      return isTrim
+        ? "Fit 0 on a trim: book-fit not the point — this is a risk cut, not a new put."
+        : "Fit 0: this idea does not fit the book right now (cash/collateral or soft limits). The contract can still be good — Size stays empty until you free capacity.";
+    }
+    if (v < 40) return `Fit ${Math.round(v)}: tight vs your book limits — size carefully or skip.`;
+    if (v >= 70) return `Fit ${Math.round(v)}: clears book/capacity checks.`;
+    return `Fit ${Math.round(v)}: partial book fit.`;
+  }
+  // edge
+  if (v == null) {
+    return isTrim
+      ? "Edge blank on trim rows — put-edge (S059) ranks new short puts, not exits."
+      : "Edge blank: no S059 put-edge inputs for this name (or edge lane demoted). Not a score of zero — missing.";
+  }
+  if (v < 20) return `Edge ${Math.round(v)}: weak simulated put edge (S059).`;
+  if (v >= 60) return `Edge ${Math.round(v)}: strong simulated put edge quintile (S059).`;
+  return `Edge ${Math.round(v)}: mid simulated put edge (S059).`;
 }
 
 function urgencyFor(item: ModelListItem, isTrim: boolean): "HIGH" | "MED" | "LOW" {
@@ -139,6 +232,15 @@ function ActionTicket({
   const close = item.close;
   const mv = shares != null && close != null ? shares * close : null;
   const why = rankedWhy(item.why, item.flags);
+  const income = c && !isTrim ? incomeLine(c) : null;
+  const deltaHint = why.find((w) => /δ|delta|Δ/i.test(w));
+  const scoreWhy = why.find((w) => w.toLowerCase().includes("option score"));
+  const weekWhy = why.find((w) => w.toLowerCase().includes("%/week") || w.toLowerCase().includes("% / week"));
+  const edgeWhy = why.find((w) => w.toLowerCase().includes("put edge"));
+  const riskWhy = why.filter((w) =>
+    /falling.?knife|fragile|earnings|credit/i.test(w)
+    && w !== scoreWhy && w !== weekWhy && w !== edgeWhy && w !== deltaHint,
+  );
 
   return (
     <div
@@ -149,85 +251,109 @@ function ActionTicket({
             : "border-[#d4af37]/25 bg-zinc-950",
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className={cn(
           "text-[10px] font-bold uppercase tracking-wide",
           urgency === "HIGH" ? "text-red-300" : urgency === "MED" ? "text-amber-200" : "text-[#d4af37]",
         )}>
           {isTrim ? "Trim" : folderName}
         </span>
-        <span className="text-[12px] font-bold text-white font-mono">{item.ticker}</span>
+        <span className="text-[13px] font-bold text-white font-mono tracking-wide">{item.ticker}</span>
+        {close != null && (
+          <span className="font-mono text-[12px] font-semibold text-sky-200/90">${close.toFixed(2)}</span>
+        )}
         <span className={cn(
           "text-[9px] font-bold uppercase px-1 py-0.5 rounded border",
-          urgency === "HIGH" ? "border-red-400/50 text-red-300" : urgency === "MED" ? "border-amber-400/50 text-amber-200" : "border-zinc-600 text-amber-200/70",
+          urgency === "HIGH" ? "border-red-400/50 text-red-300" : urgency === "MED" ? "border-amber-400/50 text-amber-200" : "border-zinc-600 text-zinc-400",
         )}>
           {urgency}
         </span>
         {item.score != null && (
-          <span className="font-mono text-[10px] text-amber-100/80">score {Math.round(item.score)}</span>
+          <span
+            className={cn(
+              "font-mono text-[11px] font-semibold",
+              item.score >= 70 ? "text-emerald-400" : item.score >= 50 ? "text-sky-300" : "text-amber-200/80",
+            )}
+            title="Fildi option score for this contract"
+          >
+            {Math.round(item.score)}
+          </span>
         )}
         {item.role === "held" && (
           <span className="text-[9px] px-1 rounded bg-[#3b82f6]/25 text-[#93c5fd]">held</span>
         )}
       </div>
 
-      {/* What / size / when */}
-      <div className="grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-0.5 text-[11px] font-mono leading-snug">
-        <span className="text-amber-200/70">What</span>
-        <span className="text-white">
+      <div className="grid grid-cols-[3.75rem_1fr] gap-x-2 gap-y-0.5 text-[11px] font-mono leading-snug">
+        <span className="text-zinc-500">What</span>
+        <span className="text-white font-semibold">
           {isTrim
             ? `Reduce ${item.ticker} equity`
             : c
               ? `Sell ${c.strike}${c.type === "put" ? "P" : "C"} ${fmtExpiry(c.expiry)}${c.contracts ? ` ×${c.contracts}` : ""}`
               : folderName}
         </span>
-        <span className="text-amber-200/70">Size</span>
-        <span className="text-white">
-          {isTrim ? (
-            shares != null ? (
-              <>
-                {shares.toLocaleString()} sh
-                {mv != null && <span className="text-amber-200/70"> · ~${Math.round(mv).toLocaleString()}</span>}
-                <span className="text-amber-200/60"> · full exit unless you size down</span>
-              </>
-            ) : (
-              <span className="text-amber-200/70">held size unknown (RH book) — check Open Positions</span>
-            )
-          ) : c?.contracts != null ? (
-            <>{c.contracts} contract{c.contracts === 1 ? "" : "s"}{c.collateral != null ? ` · collat $${Math.round(c.collateral).toLocaleString()}` : ""}</>
-          ) : (
-            <span className="text-amber-200/70">—</span>
+        {(isTrim || c?.contracts != null) && (
+          <>
+            <span className="text-zinc-500">Size</span>
+            <span className="text-amber-100/90">
+              {isTrim ? (
+                shares != null ? (
+                  <>
+                    {shares.toLocaleString()} sh
+                    {mv != null && <span className="text-zinc-500"> · ~${Math.round(mv).toLocaleString()}</span>}
+                  </>
+                ) : (
+                  <span className="text-zinc-500">unknown (RH book)</span>
+                )
+              ) : (
+                <>{c!.contracts} ct{c!.contracts === 1 ? "" : "s"}{c!.collateral != null ? ` · $${Math.round(c!.collateral).toLocaleString()} collat` : ""}</>
+              )}
+            </span>
+          </>
+        )}
+        {!isTrim && (
+          <>
+            <span className="text-zinc-500">Income</span>
+            <span className={cn("font-semibold", income ? "text-emerald-400" : "text-zinc-500")}>
+              {isTrim ? "—" : income ?? (c?.premium != null ? `~$${c.premium.toFixed(2)}` : "—")}
+            </span>
+          </>
+        )}
+        {isTrim && (
+          <>
+            <span className="text-zinc-500">When</span>
+            <span className="text-amber-100/90">Next RTH</span>
+          </>
+        )}
+        <span className="text-zinc-500">Why</span>
+        <span className="text-amber-50/95 space-x-1">
+          {scoreWhy && <span className="text-sky-300">{scoreWhy.replace(/^Fildi\s+/i, "")}</span>}
+          {weekWhy && <span className="text-emerald-400/90">· {weekWhy}</span>}
+          {deltaHint && !weekWhy?.includes("Δ") && !weekWhy?.toLowerCase().includes("delta") && (
+            <span className="text-zinc-300">· {deltaHint}</span>
+          )}
+          {edgeWhy && <span className="text-violet-300/90">· {edgeWhy}</span>}
+          {riskWhy.slice(0, 2).map((w) => (
+            <span key={w} className="text-orange-300">· {w}</span>
+          ))}
+          {!scoreWhy && !weekWhy && !edgeWhy && riskWhy.length === 0 && (
+            <span className="text-zinc-500">{why[0] ?? item.flags[0] ?? "—"}</span>
           )}
         </span>
-        <span className="text-amber-200/70">When</span>
-        <span className="text-white">
-          {isTrim
-            ? "Next RTH — market (knife) or limit near last"
-            : c
-              ? `Before ${fmtExpiry(c.expiry)} · fill ~$${c.premium?.toFixed(2) ?? "—"}`
-              : "—"}
-          {close != null && <span className="text-amber-200/60"> · spot ${close.toFixed(2)}</span>}
-        </span>
-        <span className="text-amber-200/70">Why</span>
-        <span className="text-amber-100/90">
-          {why.length === 0 ? (item.flags[0] ?? "Model folder rule") : why.slice(0, 3).join(" · ")}
-        </span>
-        <span className="text-amber-200/70">→ Into</span>
-        <span className={isTrim ? "text-sky-300 font-semibold" : "text-amber-100/90"}>
-          {isTrim
-            ? "CASH (no replace pick on this run) — park BP until next Sell Put / capacity"
-            : c?.account
-              ? `${c.account === "Traditional IRA" ? "IRA" : c.account} book`
-              : "Sized book"}
-        </span>
+        {isTrim && (
+          <>
+            <span className="text-zinc-500">→ Into</span>
+            <span className="text-sky-300 font-semibold">Cash</span>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
-  const { item, folderName, folderDescription, folderKey } = thesis;
-  const color = VERDICT_COLORS[item.verdict] ?? "";
+  const { item, folderName, folderKey } = thesis;
   const tone = toneForVerdict(item.verdict);
   const c = item.contract;
   const pillars = item.pillars;
@@ -242,6 +368,13 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
   });
 
   const whyLines = rankedWhy(item.why, item.flags);
+  // Extra risk not already in the ticket Why economics line.
+  const driverOnly = whyLines.filter((w) => {
+    const s = w.toLowerCase();
+    if (s.includes("option score")) return false;
+    if (s.includes("%/week") || s.includes("% / week")) return false;
+    return /falling.?knife|fragile|earnings|credit|put edge|breach|iv\/rv/i.test(w);
+  });
   const flagOnly = item.flags.filter((f) => {
     const fl = f.toLowerCase();
     return !whyLines.some((w) => w.toLowerCase().includes(fl.slice(0, 18)));
@@ -250,19 +383,18 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
   return (
     <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-2.5 py-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className="text-[9px] uppercase tracking-[0.12em] text-amber-200/70">Model thesis</span>
+        <span className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">Model thesis</span>
         <span
           className={cn(
             "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
             tone === "good" && "border-green-500/40 text-green-300",
             tone === "bad" && "border-red-500/40 text-red-300",
             tone === "warn" && "border-amber-400/40 text-amber-200",
-            tone === "neutral" && "border-zinc-600 text-amber-200/70",
+            tone === "neutral" && "border-zinc-600 text-zinc-400",
           )}
         >
           {VERDICT_LABELS[item.verdict] || item.verdict || "Watch"}
         </span>
-        <span className="text-[10px] text-amber-200/60 truncate" title={folderDescription}>{folderDescription}</span>
       </div>
 
       <ActionTicket thesis={thesis} shares={shares} isTrim={isTrim} />
@@ -284,21 +416,23 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
         />
       )}
 
-      {whyLines.length > 0 && (
+      {driverOnly.length > 0 && (
         <WhyCallout
           tone={tone}
-          title={
-            <span className="flex items-center gap-2 text-[11px]">
-              {color ? <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} /> : null}
-              Drivers
-            </span>
-          }
+          title={<span className="text-[11px] text-zinc-300">Also</span>}
         >
-          <ol className="list-decimal pl-3.5 space-y-0.5 text-[11px] text-amber-100/85">
-            {whyLines.map((w, i) => (
-              <li key={i} className={cn(w.startsWith("⚠") && "text-orange-300")}>{w}</li>
+          <ul className="space-y-0.5 text-[11px]">
+            {driverOnly.map((w, i) => (
+              <li
+                key={i}
+                className={cn(
+                  w.startsWith("⚠") || /falling.?knife|fragile/i.test(w) ? "text-orange-300" : "text-violet-200/90",
+                )}
+              >
+                {w}
+              </li>
             ))}
-          </ol>
+          </ul>
         </WhyCallout>
       )}
 
@@ -313,13 +447,25 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
           ] as const).map(([k, label]) => {
             const v = pillars[k];
             const pt = pillarTone(k, v, isTrim);
+            const tip = pillarTip(k, v, isTrim);
             return (
-              <WhyMetric
-                key={k}
-                label={label}
-                value={v != null ? Math.round(v) : "—"}
-                tone={pt}
-              />
+              <Tooltip key={k} delayDuration={120}>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-left w-full rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40">
+                    <WhyMetric
+                      label={label}
+                      value={v != null ? Math.round(v) : "—"}
+                      tone={pt}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-[260px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug"
+                >
+                  {tip}
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </div>
