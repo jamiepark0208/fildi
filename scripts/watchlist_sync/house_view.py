@@ -129,6 +129,8 @@ def memo(today, odds, ctx, warn, lists):
              f"**Credit (S028).** " + (f"Baa−10y {ctx['credit']['baa10y']:.2f} vs 1-y 80th pct {ctx['credit']['p80_1y']:.2f} → "
                                       f"{'WIDE: drawdown warning, size down' if ctx['credit']['wide'] else 'normal'}" if "baa10y" in ctx["credit"] else "n/a"),
              f"**Catalysts on your book (14 days).** " + (", ".join(ctx["earnings_14d"]) or "none"),
+             "**Richest put premium (S059 put edge Q5: simulated +29 bp/wk, breach 11 %).** " +
+             (", ".join(f"{t} (IV/RV {e['iv_rv']:.1f})" for t, e in ctx.get("edge_top", [])) or "n/a"),
              "",
              "**Stance (rules, not vibes).** " +
              ("Credit wide → cut new put size; " if ctx["credit"].get("wide") else "") +
@@ -149,6 +151,17 @@ def main():
         n = 0 if "--no-log" in sys.argv else log_forecasts(conn, odds, today)
         ctx = context(conn)
         warn, lists = coherence(conn, ctx)
+        import put_edge
+        edge = put_edge.scores(conn)
+        n_sim = 0 if "--no-log" in sys.argv else put_edge.log_sim(conn, edge)
+        warn += put_edge.drift(conn)
+        # panic-puts-hiv live grades vs S049/S054 (+2.1 %/trade holdout): demote once ≥ 20 graded and the mean is negative
+        g = conn.execute("""SELECT COUNT(*), AVG(ret) FROM watchlist_sync.strategy_signals
+                            WHERE strategy_id = 'panic-puts-hiv' AND status = 'graded'""").fetchone()
+        if g[0] >= 20 and (g[1] or 0) < 0:
+            warn.append(f"DRIFT: panic-puts-hiv live mean {100 * g[1]:+.2f} %/trade on {g[0]} graded (backtest +2.1 %) → demote")
+        ctx["edge_top"] = sorted(((t, e) for t, e in edge.items() if e["quintile"] == 5), key=lambda x: -x[1]["pct"])[:8]
+        ctx["sim_logged"] = n_sim
         text = memo(today, odds, ctx, warn, lists)
         conn.execute("""INSERT INTO watchlist_sync.house_view (view_date, view, memo, warnings) VALUES (%s, %s, %s, %s)
                         ON CONFLICT (view_date) DO UPDATE SET view = excluded.view, memo = excluded.memo, warnings = excluded.warnings, created_at = now()""",
@@ -158,7 +171,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{today}.md").write_text(text + "\n")
     print(text)
-    print(f"\nhouse view: {n} forecasts logged · {len(warn)} coherence warning(s)")
+    print(f"\nhouse view: {n} forecasts + {ctx.get('sim_logged', 0)} simulated puts logged · {len(warn)} warning(s)")
 
 
 if __name__ == "__main__":

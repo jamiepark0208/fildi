@@ -97,6 +97,8 @@ def load_context(conn) -> dict:
     ctx["closes_by_date"] = {(r["ticker"], r["date"]): r["close"] for r in rows(conn, """
         SELECT UPPER(ticker) AS ticker, date, close::float8 FROM prices_historical WHERE date >= CURRENT_DATE - 10""")}
     ctx["recs"] += panic_recs(conn)
+    import put_edge
+    ctx["edge"] = put_edge.scores(conn)   # S059: IV/RV + vol-of-vol + put tech → simulated pnl/breach quintile
     return ctx
 
 
@@ -217,6 +219,11 @@ def reprice_from_chains(conn, ctx: dict) -> None:
     ctx["snapshot_date"] = as_of
 
 
+def _edge_q(ctx: dict, rec: dict) -> int:
+    e = ctx.get("edge", {}).get(rec["ticker"]) if rec["side"] == "put" else None
+    return e["quintile"] if e else 0
+
+
 def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     t, side = rec["ticker"], rec["side"]
     c: list[dict] = []
@@ -260,6 +267,11 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     if side == "put":
         ls = ctx["lseg"].get(t)
         cr = ls and ls["credit_combined_rank"]
+        e = ctx.get("edge", {}).get(t)
+        if not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
+            c.append(chk("put_edge", e is None or e["quintile"] > 1,
+                         f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk, breach {100 * e['breach']:.0f} % (S059)" if e else "no put-edge inputs",
+                         "block" if e else "warn"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         c.append(chk("credit_ok", cr is None or cr >= R.MIN_CREDIT_RANK_PUTS,
                      f"StarMine credit {cr}/100" if cr is not None else "no LSEG credit rank", "block" if cr is not None else "warn"))
@@ -329,14 +341,16 @@ def build(show_rejected: bool) -> int:
         for side, key in (("put", "sell_puts"), ("call", "sell_calls")):
             best: dict[str, dict] = {}
             # Evidence-backed panic puts (S049/S054) first; option_score alone has ~0 skill over IV (S014).
-            for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: (not r.get("strategy"), -(r["option_score"] or 0))):
+            for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: (not r.get("strategy"), -_edge_q(ctx, r), -(r["option_score"] or 0))):
                 checks, account = option_checks(rec, ctx)
                 ok = all(c["pass"] or c["severity"] == "warn" for c in checks)
                 prev = best.get(rec["ticker"])
                 # One contract per ticker: the best-scoring one that passes; else keep the best failure for explanation.
                 if prev is None or (ok and not prev["ok"]):
                     best[rec["ticker"]] = {"rec": rec, "checks": checks, "ok": ok, "account": account}
-            ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"), -(b["rec"]["option_score"] or 0)))
+            # S059: rank weekly puts by simulated edge quintile first (option_score alone ≈ IV, S014), then option_score
+            ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"), -_edge_q(ctx, b["rec"]),
+                                                          -(b["rec"]["option_score"] or 0)))
             rank = 0
             for b in ranked:
                 r = b["rec"]
@@ -346,6 +360,10 @@ def build(show_rejected: bool) -> int:
                         b["ok"] = False
                         b["checks"].append(chk("list_cap", False, f"beyond top {R.MAX_ITEMS}"))
                 reasons = [f"Fildi option score {r['option_score']:.0f}" if r["option_score"] is not None else "strategy pick (no option score)", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
+                e = ctx.get("edge", {}).get(r["ticker"]) if side == "put" else None
+                if e:
+                    reasons.append(f"put edge Q{e['quintile']}/5: simulated {e['pnl_bp']:+.0f} bp/wk, breach {100 * e['breach']:.0f} % "
+                                   f"(IV/RV {e['iv_rv']:.2f}, S059 holdout)")
                 if r.get("repriced"):
                     reasons.append(r["repriced"])
                 items.append((pid, key, r["ticker"], rank if b["ok"] else None, r["option_score"], "option", side, r["strike"], r["expiry"],

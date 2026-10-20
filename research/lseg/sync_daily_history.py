@@ -25,7 +25,9 @@ BATCH = 20
 OVERLAP = 5
 ACTION_TOL = 0.01
 IV_FETCH = {"30D_A_IM_P": "iv30_put", "30D_A_IM_C": "iv30_call", "60D_A_IM_P": "iv60_put"}
-COLS = ["close", "iv30_put", "iv30_call", "iv60_put", "iv60_call", "iv90_put", "iv90_call"]
+COLS = ["close", "iv30_put", "iv30_call", "iv60_put", "iv60_call", "iv90_put", "iv90_call", "high", "low", "volume"]
+# 10-19: high/low/volume came only from the one-off backfill_ohlc.py → every bar after 10-05 had none (ATR / volume engines blind).
+OHLC = {"HIGH_1": "high", "LOW_1": "low", "ACVOL_UNS": "volume"}
 UPSERT = f"""
 INSERT INTO lseg_research.daily_history (ticker, date, {", ".join(COLS)}, fetched_at)
 VALUES (%s, %s, {", ".join(["%s"] * len(COLS))}, now())
@@ -124,7 +126,7 @@ def main() -> None:
             for start, ts in sorted(groups.items()):
                 for i in range(0, len(ts), BATCH):
                     batch = ts[i:i + BATCH]
-                    px = fetch(ld, [ric_map[t] for t in batch if t in ric_map], ["TRDPRC_1"], start, end)
+                    px = fetch(ld, [ric_map[t] for t in batch if t in ric_map], ["TRDPRC_1", *OHLC], start, end)
                     missing = [ric_map[t] for t in batch if t in ric_map and not series_of(px.get(ric_map[t]), ric_map[t], "TRDPRC_1")]
                     fb = fallback_closes(ld, missing, start, end)
                     ivs = fetch(ld, [atmiv_ric(t) for t in batch], list(IV_FETCH), start, end)
@@ -140,6 +142,10 @@ def main() -> None:
                                 refetch.append(t)
                                 actions.append((t, ratio, len(common)))
                         day: dict[date, dict] = {d: {"close": v} for d, v in closes.items()}
+                        for src, col in OHLC.items():
+                            for d, v in (series_of(px.get(ric), ric, src) if ric else []):
+                                if d in day:
+                                    day[d][col] = v
                         got = False
                         for src, col in IV_FETCH.items():
                             for d, v in series_of(ivs.get(atmiv_ric(t)), atmiv_ric(t), src):
@@ -153,12 +159,14 @@ def main() -> None:
                     if refetch:  # history changed share basis (split / reverse split): replace closes wholesale
                         for t in refetch:  # each from its own first stored date, so deeper history isn't lost
                             since = min(first.get(t, date.fromisoformat(args.start)), date.fromisoformat(args.start)).isoformat()
-                            full = fetch(ld, [ric_map[t]], ["TRDPRC_1"], since, end) if t in ric_map else {}
+                            full = fetch(ld, [ric_map[t]], ["TRDPRC_1", *OHLC], since, end) if t in ric_map else {}
                             ser = series_of(full.get(ric_map.get(t)), ric_map.get(t), "TRDPRC_1")
                             if not ser:
                                 continue
-                            conn.execute("UPDATE lseg_research.daily_history SET close = NULL WHERE ticker = %s", (t,))
-                            rows += [(t, d, v, None, None, None, None, None, None) for d, v in ser]
+                            ohlc = {col: dict(series_of(full.get(ric_map[t]), ric_map[t], src)) for src, col in OHLC.items()}
+                            conn.execute("UPDATE lseg_research.daily_history SET close = NULL, high = NULL, low = NULL, volume = NULL WHERE ticker = %s", (t,))
+                            rows += [(t, d, v, None, None, None, None, None, None, ohlc["high"].get(d), ohlc["low"].get(d), ohlc["volume"].get(d))
+                                     for d, v in ser]
                             r = next(a for a in actions if a[0] == t)
                             conn.execute("INSERT INTO lseg_research.corporate_action_log (ticker, ratio, overlap_days, action) VALUES (%s, %s, %s, %s)",
                                          (t, r[1], r[2], f"close history re-fetched from {since}"))

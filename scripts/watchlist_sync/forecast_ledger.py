@@ -195,7 +195,7 @@ def resolve(conn, now: dt.datetime | None = None) -> int:
         c = _close_on_or_before(conn, t, d)
         if not c:
             continue
-        if qtype in ("put_otm", "model_pick_otm"):
+        if qtype in ("put_otm", "model_pick_otm", "sim_put_otm"):
             y = put_otm(c[0], float(meta["strike"]))
             info = {"close": c[0], "close_src": c[1], "close_date": str(c[2])}
         else:  # index_up_week: last close of the week vs last close before its Monday
