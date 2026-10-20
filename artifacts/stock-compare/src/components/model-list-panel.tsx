@@ -99,6 +99,9 @@ function ItemRow({
         {item.status === "provisional" && (
           <span className="text-[8px] px-0.5 rounded bg-amber-500/20 text-amber-300">p</span>
         )}
+        {item.status === "unfunded" && (
+          <span className="text-[8px] px-0.5 rounded bg-sky-500/20 text-sky-300" title="Passed every check; blocked only by cash. See why for what it needs.">$</span>
+        )}
         {item.status === "review" && (
           <span className="text-[8px] px-0.5 rounded bg-red-500/20 text-red-300">r</span>
         )}

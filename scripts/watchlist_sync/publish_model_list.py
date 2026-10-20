@@ -333,6 +333,12 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
                         [f"✓ within your limits: take {first} in this order"] if n <= k else
                         [f"⚠ over your limits if taken after {first}: optional, size down or skip"]) + o["why"]
     for c in held:
+        # Jamie 10-19: a put that passed every check and is blocked only by cash is still the trade the model wants → show it in
+        # Sell Puts with its funding cost (status "unfunded") instead of hiding it in Needs Review; other portfolio holds stay there
+        if c["list_key"] == "sell_puts" and c["why_held"].startswith("can't fund"):
+            out.append(item("sell_puts", c["f"], ticker=c["ticker"], score=c["score"], status="unfunded", contract=c["contract"],
+                            why=[f"NOT FUNDED: {c['why_held']}. Free up cash (or trim) to take it"] + c["why"]))
+            continue
         out.append(item("review", c["f"], ticker=c["ticker"], score=c["score"], status="review", contract=c["contract"],
                         why=[f"{c['list_key'].replace('_', ' ')} idea held back by the portfolio: {c['why_held']}"] + c["why"]))
     for i, m in enumerate(PF.manage(snap, PP, closures=budget["closures"]), 1):
