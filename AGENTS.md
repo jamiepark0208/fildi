@@ -20,7 +20,7 @@
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
 | Kiro (WIP) | `.kiro/steering/` — pointers to this file only |
-| Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins. |
+| Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md). Rules: [Grok Bot plan review](#grok-bot-plan-review-jamie-2026-10-17). |
 
 **Codex/Astra session start:** read `CODEX.md` and `.agents/context/codex-state.md` once. Restore the saved goal/constraints; follow the current user request. “Continue” means resume the checkpoint's next action. No pasted kickoff prompt required. Do not adopt other agents' duties or start work merely because a terminal opened.
 
@@ -54,13 +54,11 @@ Practical rules:
    built-in web fetch tools summarize/cap pages → use them only for quick lookups. `--save` (→ `research/sources/`) only when a study/ASKS row cites it.
    Muse has Mac file-system access (Jamie 10-16) → runs it itself, same rules.
 
-## Review loop (user decision 2026-10-11; Grok on plans 2026-10-17)
-Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → **Grok may red-team the plan** (subjective / high-bias rows; standing **A141**) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
+## Review loop (user decision 2026-10-11)
+Muse plans → Claude plan-reviews (**every** Muse row, user 2026-10-14; quant rows get the eval) → Cursor builds → Muse + Claude review the commit independently → Cursor fixes → verified.
 Muse also runs a skeptical verification pass on non-quant plans, **including its own** (user 2026-10-18): skeptical = find ways to improve and fix, not just kill. Must clear the plan quality bar (use cases + expected results + pass/fail verification) or it doesn't ship.
-**Reviewer-pushes-phase (user 2026-10-18):** when Muse or Grok reviews **another** agent's non-quant plan (never its own), the review pushes the plan to the next phase. Self-review never advances a plan alone.
-**Grok non-quant pilot (user 2026-10-18):** Grok is the primary reviewer for non-quant plans (esp. Muse-authored — diversifies away from self-review). Fix-oriented rubric: every kill carries a specific fix proposal. Claude keeps [quant]; Claude's non-quant review load drops to spot-checks.
-
-**Grok is on the team (Jamie 2026-10-17):** review-only skeptic — helps Claude stress-test plans; may change multi-agent workflow docs (`GROK.md`, ASKS routing, adapter notes). **Not an implementer.** Cursor/Claude treat Grok findings as hypotheses: cite evidence, accept or rebut — **skeptic ≠ correct.** Do not block a build on vibes alone; do not ignore a finding that cites path/study/SHA.
+**Reviewer-pushes-phase (user 2026-10-18):** when Muse reviews **another** agent's non-quant plan (never its own), the review pushes the plan to the next phase. Self-review never advances a plan alone.
+Grok review-loop rules: [Grok Bot plan review](#grok-bot-plan-review-jamie-2026-10-17).
 
 **Quant row** = touches scores, what the Model List / trades show, option pricing, backtests, or market-data pipelines.
 Non-quant rows still get a Claude plan review (user 2026-10-14: overlap, PM impact, simpler/cheaper path); commit review stays quant-only.
@@ -90,6 +88,16 @@ once with a need Claude missed → Claude re-reviews. When a study a decline cit
 Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewed SHA:`) and reviews `git log <sha>..HEAD` at session start.
 
 ## Grok Bot plan review (Jamie 2026-10-17)
+Devil’s advocate. [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins.
+
+**Grok is on the team (Jamie 2026-10-17):** review-only skeptic — helps Claude stress-test plans; may change multi-agent workflow docs (`GROK.md`, ASKS routing, adapter notes). **Not an implementer.** Cursor/Claude treat Grok findings as hypotheses: cite evidence, accept or rebut — **skeptic ≠ correct.** Do not block a build on vibes alone; do not ignore a finding that cites path/study/SHA.
+
+**Red-team step (Grok on plans 2026-10-17):** after Claude plan-review and before Cursor builds, **Grok may red-team the plan** (subjective / high-bias rows; standing **A141**).
+
+**Reviewer-pushes-phase (user 2026-10-18):** when Grok reviews **another** agent's non-quant plan (never its own), the review pushes the plan to the next phase. Self-review never advances a plan alone.
+
+**Grok non-quant pilot (user 2026-10-18):** Grok is the primary reviewer for non-quant plans (esp. Muse-authored — diversifies away from self-review). Fix-oriented rubric: every kill carries a specific fix proposal. Claude keeps [quant]; Claude's non-quant review load drops to spot-checks.
+
 Grok Bot is joining as plan reviewer and skeptic at Jamie's direction. Its reviews are advisory until the role is approved via ASKS row A142. Claude stays final on all rows for now. No rule change from this section until Claude plan-reviews A142, Muse comments, and Jamie says yes.
 
 ## OpenJev — cheap typed answers for every agent (Jamie 2026-10-17)
