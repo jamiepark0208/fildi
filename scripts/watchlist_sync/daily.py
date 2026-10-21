@@ -129,6 +129,11 @@ def main() -> None:
         if full_run_on(today):
             print(f"skip: a full run already finished on {today} (ET)")
             return
+        if not R.market_open():
+            # launchd fires a missed 7 AM job on wake; after the close that would publish on after-hours quotes (10-20:
+            # 5 of 6 puts failed L2 on spreads). Keep yesterday's in-session list; data_freshness flags the missed day.
+            print(f"skip: market closed — the scheduled run needs in-session quotes; next session builds the list")
+            return
     stages = [a.only] if a.only else ORDER[ORDER.index(a.start):(ORDER.index(a.until) + 1 if a.until else None)]
     if a.no_lseg:
         stages = [s for s in stages if s != "lseg"]

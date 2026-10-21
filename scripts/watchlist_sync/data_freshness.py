@@ -43,6 +43,7 @@ CHECKS = [
     ("lseg_research.signals_daily", "as_of", 1, "live StarMine alpha/ARM, PT, short interest → fit model · daily.py lseg signals"),
     ("lseg_research.starmine_history", "fetched_at", 20, "research history (monthly frequency, 28-day TTL by design)"),
 ]
+PER_NAME = [("optlab.underlying", "date", "ticker"), ("lseg_research.daily_history", "date", "ticker")]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]
 
 
@@ -92,6 +93,17 @@ def main() -> None:
             stale.append(table)
         if bad or show_all:
             lines.append(f"{'✗' if bad else '✓'} {table}: newest {last} · {lag} trading day(s) behind {ref} (max {max_lag}) — {what}")
+    # per-name staleness: MAX over all names hid optlab.underlying freezing name by name (10-20)
+    for table, col, key in PER_NAME:
+        try:
+            n_all, n_old = conn.execute(f"SELECT COUNT(*), COUNT(*) FILTER (WHERE m < %s) FROM (SELECT {key}, MAX({col}) m "
+                                        f"FROM {table} GROUP BY {key}) x", (ref - timedelta(days=4),)).fetchone()
+        except Exception:
+            conn.rollback()
+            continue
+        if n_all and n_old / n_all > 0.10:
+            stale.append(table)
+            lines.append(f"✗ {table}: {n_old}/{n_all} names have no bar in the 4 days before {ref} (per-name freeze?)")
     for table, col in FUTURE:
         try:
             n = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} > %s", (now.date(),)).fetchone()[0]
