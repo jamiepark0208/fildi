@@ -75,7 +75,8 @@ function readJson(p) {
 function takeLock() {
   try {
     const pid = Number(readFileSync(LOCK, "utf8"));
-    if (pid && pid !== process.pid) { try { process.kill(pid, 0); return false; } catch { /* stale */ } }
+    // Alive AND still a maintain run (lock lives in /tmp across reboots; a reused PID must not block the day).
+    if (pid && pid !== process.pid && /maintain\.mjs/.test(sh(`ps -p ${pid} -o command=`))) return false;
   } catch { /* no lock */ }
   writeFileSync(LOCK, String(process.pid));
   process.on("exit", () => { try { if (Number(readFileSync(LOCK, "utf8")) === process.pid) unlinkSync(LOCK); } catch {} });
@@ -590,13 +591,19 @@ async function main() {
 
   // 10-21 run-on-wake queue: launchd fires every 30 min while the Mac is awake; the chain runs until it completes once per
   // ET day (max 3 attempts), never two at a time. Jamie is on battery at school → the 07:00 slot alone is unreliable.
+  // 10-21 drill: the ET day starts at 21:00 PT → an evening wake ran tomorrow's chain on tonight's data and burned all
+  // 3 attempts waiting for the open. Day starts 08:00 ET (05:00 PT); a pre-open wait refunds its attempt; once the data
+  // steps pass (dataDone) later fires run only the Model List.
+  let dataDoneToday = false;
   if (args.has("--once-per-day")) {
     const day = etDay();
     const st = readJson(DAY_STATE) || {};
+    if (etHour() < 8) { console.log(`[maintain] ${day}: before 08:00 ET — the day's chain starts at 05:00 PT`); return; }
     if (st.day === day && st.done) { console.log(`[maintain] ${day}: chain already complete — skip`); return; }
     if (st.day === day && (st.attempts || 0) >= 3) { console.log(`[maintain] ${day}: 3 attempts used — skip until tomorrow`); return; }
     if (!takeLock()) { console.log("[maintain] another run holds the lock — skip"); return; }
-    writeFileSync(DAY_STATE, JSON.stringify({ day, attempts: (st.day === day ? st.attempts || 0 : 0) + 1, done: false }));
+    dataDoneToday = st.day === day && !!st.dataDone;
+    writeFileSync(DAY_STATE, JSON.stringify({ day, attempts: (st.day === day ? st.attempts || 0 : 0) + 1, done: false, dataDone: dataDoneToday }));
   }
 
   const started = Date.now();
@@ -668,7 +675,7 @@ async function main() {
   // Field-fill snapshot before any enrich writes — used for Pipeline Health before→after.
   const fieldFillPctBefore = enrichIfDue ? (budgetSnapshot().fieldFillPct ?? null) : null;
 
-  if (enrichIfDue) {
+  if (enrichIfDue && !dataDoneToday) {
     // (a) New watchlist / registry adds — don't wait for 4d full run.
     enrichMissing = runApiTsx("src/scripts/enrich-missing-fundamentals.ts", ["--max=30"]);
     actions.push(`enrich_missing_exit_${enrichMissing.status}`);
@@ -701,7 +708,7 @@ async function main() {
 
   let drain = null;
   let drainMerged = false;
-  if (drainNr > 0) {
+  if (drainNr > 0 && !dataDoneToday) {
     const rem = factsetRemaining();
     if (rem >= drainNr + 20) {
       drain = runDrainNr(drainNr);
@@ -713,36 +720,38 @@ async function main() {
   }
 
   if (enrichIfDue) {
-    // (d) Peer roster heal (ETF quarantine, primary membership, null primary classify).
-    peerHealth = runApiTsx("src/scripts/peer-health-check.ts");
-    actions.push(`peer_health_exit_${peerHealth.status}`);
+    if (!dataDoneToday) {   // data steps passed on an earlier fire today → straight to the Model List
+      // (d) Peer roster heal (ETF quarantine, primary membership, null primary classify).
+      peerHealth = runApiTsx("src/scripts/peer-health-check.ts");
+      actions.push(`peer_health_exit_${peerHealth.status}`);
 
-    // (e) Avoid double merge: enrichAndMergeTickers + drain + nightly already merge.
-    //     - If any of those wrote → --scores-only
-    //     - If nothing wrote → --scores-only anyway (peer primary may have changed; skip full merge)
-    //     - Full merge only if we have no upstream merge but still need gold rebuild (shouldn't happen daily)
-    const upstreamMerged =
-      drainMerged ||
-      ranEnrichMerge(enrichMissing) ||
-      ranEnrichMerge(enrichUnscored) ||
-      ranEnrichMerge(enrichEarnings) ||
-      (enrich != null && enrich.status === 0);
-    const scoreArgs = ["--scores-only"];
-    postMerge = runApiTsx("src/scripts/post-merge-scores.ts", scoreArgs);
-    actions.push(
-      `post_merge_scores_exit_${postMerge.status}_scores_only` +
-        (upstreamMerged ? "" : "_no_upstream_write"),
-    );
+      // (e) Avoid double merge: enrichAndMergeTickers + drain + nightly already merge.
+      //     - If any of those wrote → --scores-only
+      //     - If nothing wrote → --scores-only anyway (peer primary may have changed; skip full merge)
+      //     - Full merge only if we have no upstream merge but still need gold rebuild (shouldn't happen daily)
+      const upstreamMerged =
+        drainMerged ||
+        ranEnrichMerge(enrichMissing) ||
+        ranEnrichMerge(enrichUnscored) ||
+        ranEnrichMerge(enrichEarnings) ||
+        (enrich != null && enrich.status === 0);
+      const scoreArgs = ["--scores-only"];
+      postMerge = runApiTsx("src/scripts/post-merge-scores.ts", scoreArgs);
+      actions.push(
+        `post_merge_scores_exit_${postMerge.status}_scores_only` +
+          (upstreamMerged ? "" : "_no_upstream_write"),
+      );
 
-    // (e2) Morning precompute: event bullets + earnings history (→ earnings_calendar, read by the Model List's earnings
-    //      re-strike) + FMP analyst feed (→ street PT). BEFORE the Model List (10-20: ran after it). Jobs already stamped
-    //      today (API fallback window) are skipped inside the script, so nothing runs twice.
-    if (finalFlags.processOk) {
-      const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
-      timings.morningPrecompute = pre.ms;
-      actions.push(`morning_precompute_exit_${pre.status}`);
-    } else {
-      actions.push("morning_precompute_skipped_process_down");
+      // (e2) Morning precompute: event bullets + earnings history (→ earnings_calendar, read by the Model List's earnings
+      //      re-strike) + FMP analyst feed (→ street PT). BEFORE the Model List (10-20: ran after it). Jobs already stamped
+      //      today (API fallback window) are skipped inside the script, so nothing runs twice.
+      if (finalFlags.processOk) {
+        const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
+        timings.morningPrecompute = pre.ms;
+        actions.push(`morning_precompute_exit_${pre.status}`);
+      } else {
+        actions.push("morning_precompute_skipped_process_down");
+      }
     }
 
     // (f) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
@@ -750,7 +759,10 @@ async function main() {
     //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
     //      Runs AFTER earnings refresh + score rebuild (10-20: was before them → plans used yesterday's earnings dates,
     //      which drive the earnings re-strike, and yesterday's tech/fund scores).
-    modelList = runModelListDaily();
+    //      Not before 10:00 ET (the old 07:00 PT slot): opening-half-hour spreads fail L2. Data above refreshes from 05:00 PT;
+    //      the "market closed" skip text marks this fire as waiting, so the attempt is refunded.
+    modelList = etHour() >= 10 ? runModelListDaily()
+      : { status: 0, stdoutTail: "skip: market closed — the list builds at 10:00 ET (opening spreads)", ms: 0 };
     timings.modelList = modelList.ms;
     actions.push(`model_list_exit_${modelList.status}`);
     if (modelList.status !== 0) {
@@ -774,7 +786,8 @@ async function main() {
 
     // (i) Research backfill queue — last, resumable, time-capped; each job keeps its own budget guards (LSEG research 80 %
     //     of the day/month, Polygon shared 5/min gate), so production above always ran first and keeps its reserve.
-    if (args.has("--research") && modelList?.status === 0) {
+    //     Only after today's list is final: a pre-open skip also exits 0 and must not hold the lock past 06:30 PT.
+    if (args.has("--research") && modelListDoneToday(modelList)) {
       for (const [name, rel, extra, needsLseg] of RESEARCH_QUEUE) {
         if (needsLseg && !portOpen(9000)) { actions.push(`research_${name}_skipped_no_lseg`); continue; }
         const t0 = Date.now();
@@ -924,9 +937,22 @@ async function main() {
     restart,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
-  if (args.has("--once-per-day") && enrichIfDue && modelListDoneToday(modelList)) {
+  if (args.has("--once-per-day") && enrichIfDue) {
+    // Data steps the Model List reads; a failed one (killed in a dark wake, exit 1/2) is retried next fire, not "done".
+    const dataFailed = actions.filter((a) =>
+      /^(backfill_stale_prices|backfill_market_breadth|enrich_earnings|post_merge_scores|morning_precompute)_exit_(?!0(_|$))/.test(a));
     const st = readJson(DAY_STATE) || {};
-    writeFileSync(DAY_STATE, JSON.stringify({ ...st, day: etDay(), done: true, finishedAt: new Date().toISOString() }));
+    const dataDone = dataDoneToday || dataFailed.length === 0;
+    const waitingForOpen = modelList?.status === 0 && !modelListDoneToday(modelList);
+    writeFileSync(DAY_STATE, JSON.stringify({
+      ...st,
+      day: etDay(),
+      dataDone,
+      dataFailed,
+      done: dataDone && modelListDoneToday(modelList),
+      attempts: waitingForOpen && dataDone ? Math.max(0, (st.attempts || 1) - 1) : st.attempts,   // waiting ≠ failing
+      finishedAt: new Date().toISOString(),
+    }));
   }
 
   // Heal-cadence proof sibling (Nucleus / Ops) — same vocabulary as data-ops value log.
