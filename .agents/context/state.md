@@ -3,12 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-20
+**build** — last updated 2026-10-21
 
 ## Active work
-- Working: S069 gate audit applied, risky puts re-struck farther OTM, morning live option scan in daily.py, setup tag market-wide, S070/S072 closed no rule
-- In progress: S071 real-quote delta study (1590 puts; rerun daily to set PUT_DELTA cap)
-- Blocked: CIQ keydev permission denied on WRDS
+- Working: maintain-day-start-08ET, pre-open-attempt-refund, dataDone-retry, openjev-freeze-after-chain, transcripts-0800, fmp-402-skip, A229-changelog
+- In progress: cache-audit
+- Blocked: finnhub-limit-db-write-approved-next-session
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
@@ -20,6 +20,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **NEXT SESSION (Jamie 10-21 approvals — do, don't re-ask):** (1) `UPDATE data_sources SET daily_limit=9999 WHERE name='finnhub'` (false ≥ 90 % anomaly; approved); (2) verify the first 05:00 PT maintain run 10-22 (`/tmp/fildi-logs/maintain-day.json` dataDone/attempts, maintain-last.json timings, list built ≥ 07:00 PT, OpenJev froze after the chain, transcripts 08:00); (3) rest of cache/wasted-request audit (API TTL caches, other vendor counters, FMP 485/220 on 10-20 — who called); (4) lid-closed: Jamie approved; steps given in chat 10-21 (pmset disablesleep on AC) → confirm a run fired with the lid shut via maintain-launchd.out; (5) log every change in A229. All other suggested fixes approved.
 - **10-21 pipeline drill (Claude) — items 1+2 DONE:** maintain.mjs fixes: (1) ET day starts 21:00 PT → an evening wake ran tomorrow's chain early and burned all 3 attempts pre-open (list would never build) → day starts 08:00 ET; (2) pre-open wait refunds its attempt; `dataDone` → later fires run only the Model List (tested: 8 s); (3) done ignored failed data steps (today: stale prices killed + breadth exit 1, still 'done') → retried; (4) research queue ran on a pre-open exit-0 skip → only after the final list; (5) lock PID reuse check. LaunchAgent 07:00 → 05:00 PT; Model List still builds ≥ 10:00 ET (opening spreads). Lid-closed-at-home: not tested (pmset/external display, Jamie). Items 3+4 partly DONE (A229 = change log for all agents): OpenJev freeze waits for chain, transcripts 08:00 PT, inventory fixed, FMP 402 skip fixed. **Next:** Jamie OK → `data_sources.daily_limit` finnhub 60 → 9999 (false anomaly); verify 10-22 first 05:00 run (maintain-day.json, timings); rest of cache audit (API TTL caches, other vendor counters). Orphaned WIP (not mine, untouched since 10-20 13:04 PT, A114 Finnhub period-EPS): earnings-history.ts, finnhub-client.ts, scheduler.ts.
 - **blocked (10-21):** S077 implied-tail fetch needs LSEG Workspace logged in (port 9000) → run `research/lseg/.venv/bin/python analysis/s077_implied_tail.py --fetch --names=50` from the S077 dir. Background wait loop killed (Jamie).
 - **10-20 night (Claude, Jamie: "Structures tab not helpful"):** S075 skew calibration + S076 backtest of all 17 structures (781k trades) → catalog 4 pass/12 fail/1 untested; failed structures unranked; strangle/straddle pass but UNRANKED (below CSP return÷risk, margin). New Backtest lab panel (StructureLab.tsx under the board, /api/options/structures/backtest). **Open:** browser check not done (Playwright login expired; Jamie must log in once: run old scratchpad login.py → new state.json, then screenshot desktop + 390px). Cursor has an uncommitted StructuresBoard.tsx redesign — untouched.
