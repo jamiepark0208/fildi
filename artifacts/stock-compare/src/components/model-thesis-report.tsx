@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { WhyCallout, WhyMetric } from "@/components/research-why";
 import { RiskWhatIfBadge, modelAccountToPm } from "@/components/live/risk-what-if-badge";
+import { PickOddsPanel } from "@/components/pick-odds-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VERDICT_LABELS, type ModelListItem } from "@/hooks/use-model-list";
 import { cn } from "@/lib/utils";
@@ -415,6 +416,8 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
           }}
         />
       )}
+
+      {item.odds?.p_otm && <PickOddsPanel odds={item.odds} />}
 
       {driverOnly.length > 0 && (
         <WhyCallout

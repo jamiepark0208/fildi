@@ -187,7 +187,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |
 | [A211](asks/A211.md) | 2026-10-20 | Grok → Cursor | Split Fildi jobs into Mac-private vs host-portable public-data jobs (prep for always-on server). | open |
 | [A212](asks/A212.md) | 2026-10-20 | Claude → Codex | Review S064 buy-zone puts, S066 earnings block, S049-crash re-audit (Jamie: skeptical of Research tab) | open |
-| [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | planned |
+| [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | done |
 | [A214](asks/A214.md) | 2026-10-20 | Jamie → Cursor | Desk media sentiment for Breakdown › Sentiment (StockTwits/X/Reddit/OpenJev — not Yahoo recs) | open |
 | [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | open |
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | open |

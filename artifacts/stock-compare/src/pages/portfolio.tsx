@@ -23,6 +23,7 @@ import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { PmBookCard } from "@/components/portfolio/pm-book-card";
 import { PutOdds } from "@/components/portfolio/put-odds";
+import { PositionPickOdds } from "@/components/portfolio/position-pick-odds";
 import { LazyMount } from "@/components/lazy-mount";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
@@ -861,11 +862,6 @@ export default function Portfolio() {
                           </button>
                         ))}
                       </div>
-                      <p className="text-[10px] text-white/70 normal-case pt-1 leading-snug">
-                        {researchTab === "radar"
-                          ? "CSP ideas + held risk flags (LSEG · IV)"
-                          : "Short-put stress · what-if closes are calculator only"}
-                      </p>
                     </CardHeader>
                     <CardContent className="px-4 pb-4 pt-2">
                       {researchTab === "radar" ? (
@@ -888,7 +884,7 @@ export default function Portfolio() {
                           </Suspense>
                         </LazyMount>
                       ) : (
-                        <div className="space-y-3"><PmBookCard embedded /><PutOdds /></div>
+                        <div className="space-y-3"><PmBookCard embedded /><PutOdds /><PositionPickOdds /></div>
                       )}
                     </CardContent>
                   </Card>

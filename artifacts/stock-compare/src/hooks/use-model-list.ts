@@ -61,6 +61,16 @@ export type ModelListItem = {
   } | null;
   /** every adjustment applied to this item: what changed, from → to, and why (watchlist_sync.model_items.adjustments) */
   adjustments?: { what: string; from: number | string; to: number | string; why: string }[];
+  /** A213: calibrated put odds from watchlist_sync.pick_odds (same plan_id) */
+  odds?: {
+    strike?: number; expiry?: string; spot?: number; iv?: number;
+    p_otm?: { value: number | null; evidence?: string };
+    p_profit?: { value: number | null; evidence?: string };
+    p_touch?: { value: number | null; evidence?: string };
+    range_68?: [number, number]; range_95?: [number, number];
+    if_assigned?: { n?: number; back_above_strike_63d?: number; net_positive_63d?: number; evidence?: string };
+    bounce_5d?: { value: number | null; evidence?: string };
+  } | null;
   isNew: boolean;
   close: number | null;
   prevClose: number | null;

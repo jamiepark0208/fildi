@@ -57,10 +57,15 @@ function ItemRow({
   const color = VERDICT_COLORS[item.verdict] ?? "";
   const chgPct = item.close != null && item.prevClose ? (item.close / item.prevClose - 1) * 100 : null;
   const stale = item.closeDate != null && Date.now() - new Date(item.closeDate).getTime() > STALE_CLOSE_MS;
+  const repriceNote = (item.adjustments ?? [])
+    .map((a) => (typeof a.why === "string" && /re-struck|repriced|Δ/i.test(a.why) ? a.why : null))
+    .find(Boolean)
+    ?? (item.why ?? []).find((w) => /re-struck|repriced/i.test(w));
+  const otmTip = item.odds?.p_otm?.value != null ? `P(OTM) ${Math.round(item.odds.p_otm.value * 100)}%` : null;
   return (
     <div
       onClick={onSelect}
-      title={[VERDICT_LABELS[item.verdict], item.contract ? contractShort(item.contract) : "", ...(item.why.slice(0, 2))].filter(Boolean).join(" · ")}
+      title={[VERDICT_LABELS[item.verdict], item.contract ? contractShort(item.contract) : "", otmTip, repriceNote, ...(item.why.slice(0, 2))].filter(Boolean).join(" · ")}
       className={cn(
         WATCHLIST_ROW,
         "cursor-pointer relative group",

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
-import { db, pool, watchlist, tickerRegistry, peerGroupMembers, users } from "@workspace/db";
+import { db, pool, watchlist, tickerRegistry, tickerFundamentals, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
 import { isExcludedEtf } from "../lib/etf-exclusions.js";
@@ -26,51 +26,90 @@ router.get("/watchlist", async (req, res) => {
   return res.json(rows);
 });
 
-// GET /watchlist/meta — registry name/sector/industry for the caller's list (DB-only, no Yahoo).
-// Powers breakdown tag-match popups without the fat /stocks/quotes fan-out.
+const STYLE_LABEL: Record<string, string> = {
+  value: "Value", growth: "Growth", garp: "GARP", blend: "Blend",
+  pre_revenue: "Pre-rev", quality_defensive: "Quality", financial: "Financial",
+};
+
+// GET /watchlist/meta — registry name/sector/industry + fund style for tag popups (DB-only, no Yahoo).
+// ?lite=1 skips street-gap SQL (heatmap sector grouping only needs name/sector).
 router.get("/watchlist/meta", async (req, res) => {
+  const lite = req.query["lite"] === "1" || req.query["lite"] === "true";
   const rows = await db
     .select({
       ticker: watchlist.ticker,
       companyName: tickerRegistry.name,
       sector: tickerRegistry.sector,
       industry: tickerRegistry.industryGroup,
+      styleBucket: tickerFundamentals.styleBucket,
     })
     .from(watchlist)
     .leftJoin(tickerRegistry, eq(watchlist.ticker, tickerRegistry.ticker))
+    .leftJoin(tickerFundamentals, eq(watchlist.ticker, tickerFundamentals.ticker))
     .where(eq(watchlist.userId, req.session.userId!));
   const out: Record<string, {
-    companyName: string | null; sector: string | null; industry: string | null; streetGapPct: number | null;
+    companyName: string | null; sector: string | null; industry: string | null;
+    /** Fund-score style label (Value/Growth/…) — matches breakdown stockType tag. */
+    stockType: string | null;
+    streetGapPct: number | null;
+    /** fv = Fildi FV vs street; price = last price vs street when FV null (speculative modes). */
+    streetGapBasis: "fv" | "price" | null;
   }> = {};
   for (const r of rows) {
+    const bucket = r.styleBucket ?? null;
     out[r.ticker] = {
       companyName: r.companyName ?? null,
       sector: r.sector ?? null,
       industry: r.industry ?? null,
+      stockType: bucket ? (STYLE_LABEL[bucket] ?? null) : null,
       streetGapPct: null,
+      streetGapBasis: null,
     };
   }
   // A86 — Fildi FV vs street PT gap % for watchlist tickers (review column; not a signal).
+  // Street series: LSEG pt_mean (+ events/fundamentals). Price fallback when FV is null.
   const tickers = Object.keys(out);
-  if (tickers.length > 0) {
+  if (!lite && tickers.length > 0) {
     try {
-      const gaps = await pool.query<{ ticker: string; gap_pct: number }>(`
+      const gaps = await pool.query<{ ticker: string; gap_pct: number; gap_basis: "fv" | "price" }>(`
         WITH latest AS (
-          SELECT DISTINCT ON (ticker) ticker, as_of, fair_value::float8 AS fair_value
+          SELECT DISTINCT ON (ticker) ticker, as_of,
+                 fair_value::float8 AS fair_value, price::float8 AS price
           FROM fair_value_snapshots
-          WHERE fair_value IS NOT NULL AND ticker = ANY($1::text[])
+          WHERE ticker = ANY($1::text[])
           ORDER BY ticker, as_of DESC
+        ),
+        with_street AS (
+          SELECT l.ticker, l.fair_value, l.price,
+            COALESCE(
+              (SELECT s.median_pt FROM street_pt_daily s
+               WHERE s.ticker = l.ticker AND s.as_of <= l.as_of AND s.median_pt > 0
+               ORDER BY s.as_of DESC LIMIT 1),
+              (SELECT s.median_pt FROM street_pt_daily s
+               WHERE s.ticker = l.ticker AND s.median_pt > 0
+               ORDER BY s.as_of DESC LIMIT 1)
+            ) AS median_pt
+          FROM latest l
         )
-        SELECT l.ticker,
-               ((l.fair_value - s.median_pt) / s.median_pt * 100)::float8 AS gap_pct
-        FROM latest l
-        JOIN LATERAL (
-          SELECT median_pt FROM street_pt_daily s
-          WHERE s.ticker = l.ticker AND s.as_of <= l.as_of
-          ORDER BY s.as_of DESC LIMIT 1
-        ) s ON s.median_pt IS NOT NULL AND s.median_pt > 0`, [tickers]);
+        SELECT ticker,
+               CASE
+                 WHEN fair_value IS NOT NULL AND median_pt > 0
+                   THEN ((fair_value - median_pt) / median_pt * 100)::float8
+                 WHEN price IS NOT NULL AND median_pt > 0
+                   THEN ((price - median_pt) / median_pt * 100)::float8
+               END AS gap_pct,
+               CASE
+                 WHEN fair_value IS NOT NULL AND median_pt > 0 THEN 'fv'
+                 WHEN price IS NOT NULL AND median_pt > 0 THEN 'price'
+               END AS gap_basis
+        FROM with_street
+        WHERE median_pt IS NOT NULL AND median_pt > 0
+          AND (fair_value IS NOT NULL OR price IS NOT NULL)`, [tickers]);
       for (const g of gaps.rows) {
-        if (out[g.ticker]) out[g.ticker]!.streetGapPct = Number(g.gap_pct);
+        if (out[g.ticker] && g.gap_pct != null) {
+          out[g.ticker]!.streetGapPct = Number(g.gap_pct);
+          out[g.ticker]!.streetGapBasis = g.gap_basis;
+        }
       }
     } catch {
       /* table may be empty — leave nulls */
@@ -151,6 +190,23 @@ router.get("/watchlist/model", async (req, res) => {
       });
     }
     for (const r of removed) folders.get(r.folder_key)?.removed.push(r.ticker);
+
+    // A213: attach pick_odds (same plan_id) — one query, map by ticker.
+    const planId = run0PlanId(runs);
+    const oddsByTicker = new Map<string, unknown>();
+    if (planId != null) {
+      try {
+        const oddsRows = rowsOf(await db.execute(sql`
+          SELECT ticker, odds FROM watchlist_sync.pick_odds WHERE plan_id = ${planId}::int`) as SqlRows<{ ticker: string; odds: unknown }>);
+        for (const o of oddsRows) oddsByTicker.set(String(o.ticker).toUpperCase(), o.odds);
+        for (const f of folders.values()) {
+          for (const it of f.items as Array<{ ticker: string; odds?: unknown }>) {
+            const odds = oddsByTicker.get(String(it.ticker).toUpperCase());
+            if (odds) it.odds = odds;
+          }
+        }
+      } catch { /* pick_odds table may not exist yet */ }
+    }
 
     // Pipeline health strip: is everything behind this list fresh and working? (one round trip; each part is optional)
     const healthRows = rowsOf(await db.execute(sql`
@@ -343,6 +399,32 @@ router.delete("/watchlist/:ticker", async (req, res) => {
   await db.delete(watchlist)
     .where(and(eq(watchlist.userId, req.session.userId!), eq(watchlist.ticker, ticker)));
   return res.json({ ok: true });
+});
+
+/** A213: open short-put odds from watchlist_sync.position_odds (latest snapshot). */
+router.get("/watchlist/position-odds", async (req, res) => {
+  if (req.session.userId !== MODEL_LIST_USER_ID) return res.json({ snapshotId: null, positions: [] });
+  try {
+    const rows = rowsOf(await db.execute(sql`
+      SELECT p.snapshot_id, p.account, p.ticker, p.strike::float8 AS strike, p.expiry::text AS expiry, p.odds
+      FROM watchlist_sync.position_odds p
+      WHERE p.snapshot_id = (SELECT MAX(snapshot_id) FROM watchlist_sync.position_odds)
+      ORDER BY p.expiry, p.ticker`) as SqlRows<{
+      snapshot_id: number; account: string; ticker: string; strike: number; expiry: string; odds: unknown;
+    }>);
+    return res.json({
+      snapshotId: rows[0]?.snapshot_id ?? null,
+      positions: rows.map((r) => ({
+        account: r.account,
+        ticker: r.ticker,
+        strike: Number(r.strike),
+        expiry: r.expiry,
+        odds: r.odds,
+      })),
+    });
+  } catch {
+    return res.json({ snapshotId: null, positions: [] });
+  }
 });
 
 export default router;
