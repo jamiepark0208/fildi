@@ -1,36 +1,37 @@
 {
  "holdout_from": "2024-07-01",
- "basis": "Monday close \u2192 Friday close (4 sessions), pnl net of fills (bid + 23 % of spread); A196",
+ "horizon_version": "same-week-nyse-v1",
+ "basis": "First \u2192 last NYSE session of same week, exact dated bars; pnl net of fills (bid + 23 % of spread); A206",
  "quintiles": {
   "1": {
-   "pnl_bp": -6.9,
+   "pnl_bp": -6.8,
    "pnl_mid_bp": -0.5,
-   "breach": 0.1477,
-   "n": 4788
+   "breach": 0.1451,
+   "n": 5191
   },
   "2": {
-   "pnl_bp": -2.8,
-   "pnl_mid_bp": 3.5,
-   "breach": 0.1342,
-   "n": 4738
+   "pnl_bp": -3.3,
+   "pnl_mid_bp": 2.9,
+   "breach": 0.1363,
+   "n": 5142
   },
   "3": {
-   "pnl_bp": -7.5,
-   "pnl_mid_bp": -1.2,
-   "breach": 0.1411,
-   "n": 4733
+   "pnl_bp": -7.1,
+   "pnl_mid_bp": -0.9,
+   "breach": 0.1415,
+   "n": 5131
   },
   "4": {
-   "pnl_bp": 0.6,
-   "pnl_mid_bp": 6.9,
-   "breach": 0.1331,
-   "n": 4741
+   "pnl_bp": 0.2,
+   "pnl_mid_bp": 6.4,
+   "breach": 0.1351,
+   "n": 5143
   },
   "5": {
-   "pnl_bp": 22.3,
-   "pnl_mid_bp": 29.1,
-   "breach": 0.1073,
-   "n": 4808
+   "pnl_bp": 23.0,
+   "pnl_mid_bp": 29.8,
+   "breach": 0.105,
+   "n": 5211
   }
  }
 }
