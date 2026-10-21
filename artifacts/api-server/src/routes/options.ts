@@ -3,6 +3,7 @@ import { getOptionsChain, getOptionPositionQuote, getIvTermStructure, withFreshD
 import { TTLCache } from "../lib/ttl-cache.js";
 import { readLatestOptionRankings, computeAndPersistOptionScores, readStructuresBoard } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { readStructureBacktest } from "../lib/structure-backtest.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
 import { getLivePrices } from "../lib/live-quote.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
@@ -91,6 +92,11 @@ router.get("/options/rankings", async (req, res) => {
 // GET /api/options/structures — A192 Strategies board (nightly table; ≤ 5 names per structure, each ticker once).
 router.get("/options/structures", async (_req, res) => {
   return res.json(await readStructuresBoard());
+});
+
+// GET /api/options/structures/backtest — S076: every structure backtested (summary, eras, regimes, equity, histogram, payoff template).
+router.get("/options/structures/backtest", async (_req, res) => {
+  return res.json(await readStructureBacktest());
 });
 
 // POST /api/options/rankings/refresh — admin: recompute Overall snapshots now

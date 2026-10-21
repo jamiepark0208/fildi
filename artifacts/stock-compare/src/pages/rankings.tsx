@@ -13,6 +13,7 @@ import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
 import { StructuresBoard } from "@/components/options-structures/StructuresBoard";
+import { StructureLab } from "@/components/options-structures/StructureLab";
 
 const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies"; label: string }[] = [
   { id: "fundamental", label: "Fundamentals" },
@@ -253,7 +254,7 @@ export default function Rankings() {
             )
           )}
 
-          {tab === "strategies" && <StructuresBoard />}
+          {tab === "strategies" && (<><StructuresBoard /><StructureLab /></>)}
 
           {tab === "options" && (
             <OptionsScannerContent
