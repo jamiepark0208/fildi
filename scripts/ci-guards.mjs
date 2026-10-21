@@ -26,6 +26,15 @@ export function isMergeCommit(parents) {
   return parents.filter(Boolean).length > 1;
 }
 
+/**
+ * Muse AM/PM briefs land as commentary-only commits (often without a local Agent hook).
+ * A197: skip the trailer rule when every path in that commit is under commentary/.
+ */
+export function isCommentaryOnly(files) {
+  const paths = files.map(normalizePath).filter(Boolean);
+  return paths.length > 0 && paths.every((f) => f.startsWith("commentary/"));
+}
+
 function isTrailerLine(line) {
   return /^[A-Za-z0-9][A-Za-z0-9-]*: \S/.test(line.trim());
 }
@@ -74,13 +83,18 @@ function rangeFiles(base, head) {
   return out ? out.split("\n").filter(Boolean) : [];
 }
 
+function commitFiles(hash) {
+  const out = git(["diff-tree", "--no-commit-id", "--name-only", "-r", hash]);
+  return out ? out.split("\n").filter(Boolean) : [];
+}
+
 function rangeCommits(base, head) {
   const out = git(["rev-list", "--reverse", `${base}..${head}`]);
   if (!out) return [];
   return out.split("\n").filter(Boolean).map((hash) => {
     const parents = git(["rev-list", "--parents", "-n", "1", hash]).split(/\s+/).slice(1);
     const message = execFileSync("git", ["log", "-1", "--format=%B", hash], { encoding: "utf8" });
-    return { hash, parents, message };
+    return { hash, parents, message, files: commitFiles(hash) };
   });
 }
 
@@ -88,7 +102,12 @@ export function guardRange({ files, commits }) {
   const errors = [];
   const prot = protectedHits(files);
   if (prot.length) errors.push(`protected files changed: ${prot.join(", ")}`);
-  const missingAgent = commits.filter((c) => !isMergeCommit(c.parents) && !hasAgentTrailer(c.message));
+  const missingAgent = commits.filter((c) => {
+    if (isMergeCommit(c.parents) || hasAgentTrailer(c.message)) return false;
+    // Prefer per-commit file list; fall back to range files only when omitted (unit tests).
+    const touched = Array.isArray(c.files) ? c.files : files;
+    return !isCommentaryOnly(touched);
+  });
   if (missingAgent.length) {
     errors.push(`commits missing Agent: <name> trailer: ${missingAgent.map((c) => c.hash.slice(0, 7)).join(", ")}`);
   }

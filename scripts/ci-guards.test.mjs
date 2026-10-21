@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   guardRange,
   hasAgentTrailer,
+  isCommentaryOnly,
   isMergeCommit,
   protectedHits,
   schemaWithoutMigration,
@@ -35,11 +36,27 @@ test("merge commits are skipped", () => {
 
 test("non-merge commit without Agent fails", () => {
   const errors = guardRange({
-    files: [],
-    commits: [{ hash: "abc1234dead", parents: ["a"], message: "fix a bug\n" }],
+    files: ["scripts/ci-guards.mjs"],
+    commits: [{ hash: "abc1234dead", parents: ["a"], message: "fix a bug\n", files: ["scripts/ci-guards.mjs"] }],
   });
   assert.equal(errors.length, 1);
   assert.match(errors[0], /Agent/);
+});
+
+test("A197: commentary-only commits skip Agent trailer", () => {
+  assert.equal(isCommentaryOnly(["commentary/latest-am.md", "commentary/2026-10-20-am.md"]), true);
+  assert.equal(isCommentaryOnly(["commentary/latest-am.md", "scripts/ci-guards.mjs"]), false);
+  assert.equal(isCommentaryOnly([]), false);
+  const errors = guardRange({
+    files: ["commentary/latest-am.md"],
+    commits: [{
+      hash: "abc1234dead",
+      parents: ["a"],
+      message: "commentary: morning brief\n",
+      files: ["commentary/latest-am.md", "commentary/2026-10-20-am.md"],
+    }],
+  });
+  assert.deepEqual(errors, []);
 });
 
 test("schema change needs a drizzle sql file in the same range", () => {
