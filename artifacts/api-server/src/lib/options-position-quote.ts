@@ -27,7 +27,8 @@ export async function getOptionPositionQuote(
   strike: number,
   optionType: "call" | "put",
 ): Promise<OptionPositionQuoteResult> {
-  const date = new Date(expiry + "T16:00:00");
+  // Yahoo keys expirations at 00:00 UTC; local "T16:00:00" (23:00Z / 00:00Z next day) matched nothing → 0 contracts (10-21)
+  const date = new Date(expiry + "T00:00:00Z");
   const raw = await fetchChain(ticker.toUpperCase(), date);
   const spot = raw.quote?.regularMarketPrice ?? 0;
 

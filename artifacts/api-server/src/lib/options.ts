@@ -119,7 +119,7 @@ function isWeeklyExpiry(d: unknown): boolean {
 // a fresh fetch) so they're never more than a few ms old, no matter the cache TTL.
 export function withFreshDte(chains: OptionsChainResult[]): OptionsChainResult[] {
   return chains.map(c => {
-    const expiryDate = new Date(c.expiry + "T16:00:00");
+    const expiryDate = new Date(c.expiry + "T20:00:00Z");   // ≈ 16:00 ET close; local T16 was 19:00 ET on a PT Mac
     const exactDte    = Math.max(0.5, exactDaysUntil(expiryDate));
     return {
       ...c,
