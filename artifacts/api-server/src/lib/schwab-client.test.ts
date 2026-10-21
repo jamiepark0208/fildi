@@ -52,10 +52,9 @@ describe("parseExpKey", () => {
     const p = parseExpKey("2026-12-18:75");
     assert.ok(p);
     assert.equal(p!.dteHint, 75);
-    // Local calendar date (T16:00 without Z = exchange close local)
-    assert.equal(p!.date.getFullYear(), 2026);
-    assert.equal(p!.date.getMonth(), 11);
-    assert.equal(p!.date.getDate(), 18);
+    // UTC calendar date must equal the key in both DST regimes (winter local T16:00 printed as the next day)
+    assert.equal(p!.date.toISOString().slice(0, 10), "2026-12-18");
+    assert.equal(parseExpKey("2026-07-17:5")!.date.toISOString().slice(0, 10), "2026-07-17");
   });
   it("rejects garbage", () => {
     assert.equal(parseExpKey("not-a-date"), null);

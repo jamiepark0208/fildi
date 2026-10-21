@@ -381,7 +381,9 @@ function toDateStr(d: Date): string {
 export function parseExpKey(key: string): { date: Date; dteHint: number } | null {
   const m = key.match(/^(\d{4}-\d{2}-\d{2}):(\d+)/);
   if (!m) return null;
-  const date = new Date(`${m[1]}T16:00:00`);
+  // 20:00Z = 16:00 EDT / 15:00 EST. Was local "T16:00:00": after DST ends, 16:00 PST = 00:00Z next day → toDateStr
+  // printed every Nov+ expiry as Saturday (10-21: 157 of 462 option score rows).
+  const date = new Date(`${m[1]}T20:00:00Z`);
   if (Number.isNaN(date.getTime())) return null;
   return { date, dteHint: Number(m[2]) };
 }
