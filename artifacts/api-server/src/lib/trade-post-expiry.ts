@@ -2,11 +2,12 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm'
 import { db, tradePosts, pricesHistorical, stockHoldings, users } from '@workspace/db'
 import { fetchAndStoreOHLCV } from './indicators.js'
 import { logger } from './logger.js'
+import { etDateKey } from './market-hours.js'
 
 const OPTION_TYPES = new Set(['SELL_PUT', 'BUY_PUT', 'SELL_CALL', 'BUY_CALL'])
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  return etDateKey() // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 // Put-side (SELL_PUT/BUY_PUT) is ITM below strike; call-side is ITM above strike.

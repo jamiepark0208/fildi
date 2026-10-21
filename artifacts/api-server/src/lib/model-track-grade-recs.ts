@@ -13,12 +13,13 @@ import {
   type AssignmentSide,
 } from "./assignment-settle.js";
 import { pathRiskForRec, closesAfterExpiry } from "./model-track-bars.js";
+import { etDateKey } from "./market-hours.js";
 
 const NO_DATA_GRACE_DAYS = 14;
 const SPLIT_GUARD_MOVE = 0.6;
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 // ── Grading: option recs ──────────────────────────────────────────────────────

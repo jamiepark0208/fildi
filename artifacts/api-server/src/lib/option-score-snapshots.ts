@@ -25,6 +25,7 @@ import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
 import { logger } from "./logger.js";
+import { etDateKey } from "./market-hours.js";
 
 const CHAIN_CONCURRENCY = 3;
 /** Cap chain fetches per run — wide IV filter, not GO/WATCH. 200 → 450 (Jamie 10-20): 558 names have IV, the cap left the
@@ -32,7 +33,7 @@ const CHAIN_CONCURRENCY = 3;
 const CANDIDATE_LIMIT = 450;
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 function num(v: number | string | null | undefined): number | null {

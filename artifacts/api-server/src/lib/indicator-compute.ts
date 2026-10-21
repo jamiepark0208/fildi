@@ -3,6 +3,7 @@
  */
 import { RSI, MFI, ATR, MACD, Stochastic } from "technicalindicators";
 import { RSI_THRESHOLDS, MFI_THRESHOLD, getTier } from "./constants.js";
+import { etDateKey } from "./market-hours.js";
 
 export interface IndicatorResult {
   ticker: string;
@@ -39,7 +40,7 @@ export interface SeedContext {
 }
 
 export function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 function round2(n: number): number {

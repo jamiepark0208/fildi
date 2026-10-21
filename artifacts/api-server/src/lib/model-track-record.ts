@@ -66,7 +66,7 @@ export {
 const CHAIN_CONCURRENCY = 3;       // Yahoo courtesy — optionsCache dedupes repeats
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 function num(v: number | string | null | undefined): number | null {
@@ -348,6 +348,7 @@ import { gradeModelRecs } from "./model-track-grade-recs.js";
 // ── Hotlist grading → model-track-hotlist.ts (A83) ────────────────────────────
 export { gradeHotlistSnapshots } from "./model-track-hotlist.js";
 import { gradeHotlistSnapshots } from "./model-track-hotlist.js";
+import { etDateKey } from "./market-hours.js";
 
 // ── Combined grading entry point (Saturday resolver add-on) ──────────────────
 

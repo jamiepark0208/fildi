@@ -5,10 +5,11 @@ import { WATCHLIST, RSI_THRESHOLDS, getTier } from "./constants.js";
 import { getIndicators, fetchAndStoreOHLCV, readOHLCVFromDB, type OHLCVRow } from "./indicators.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
+import { etDateKey } from "./market-hours.js";
 
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 // Seed ticker_config from constants if the table is empty.

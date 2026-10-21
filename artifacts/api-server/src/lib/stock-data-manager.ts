@@ -19,6 +19,7 @@ import { enrichAndMergeTickers, loadGoldFundamentals } from "./enrich-and-merge.
 import { normalizeUsageSource } from "./api-usage.js";
 import { usageCalendarDate } from "./usage-date.js";
 import { logger } from "./logger.js";
+import { etDateKey } from "./market-hours.js";
 
 export interface FundamentalsResult {
   data: TickerFundamentalsRow;
@@ -41,7 +42,7 @@ export interface HistoryCSVRow {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return etDateKey(); // ET market date (was UTC: rolled to tomorrow after 5 PM PT, 10-20)
 }
 
 function isFresh(row: TickerFundamentalsRow): boolean {
