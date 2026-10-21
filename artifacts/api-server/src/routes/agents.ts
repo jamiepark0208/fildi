@@ -28,6 +28,7 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { openjevUsage } from "../lib/openjev-usage.js";
 import { codexActivity, mergeCodexActivity } from "../lib/codex-activity.js";
 import { codexUsage } from "../lib/codex-usage.js";
+import { flushTurnsFromLive, readTurns, rollups24h, wasteTop } from "../lib/agent-learn.js";
 
 const router = Router();
 const run = promisify(execFile);
@@ -876,6 +877,8 @@ function sessionActivity(mine: LiveEv[], nowMs: number) {
 router.get("/agents/overview", requireAdmin, async (_req, res) => {
   const gone = await dismissed();
   const live = liveEvents();
+  // A209 P0: flush turn summaries from live events (idempotent upsert by turn id).
+  try { flushTurnsFromLive(live); } catch { /* learn log best-effort */ }
   const nowMs = Date.now();
   const ended = new Set(live.filter((e) => e.event === "session-end" && e.session).map((e) => e.session));
   const status = (agent: string) => {
@@ -975,6 +978,26 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     ...withoutDismissed(cache.body as object, gone), ...fresh,
     ideas, nextBuild, windows: windows(),
   });
+});
+
+/** A209: shared learn feed — turn metrics + 24h rollups (admin). */
+router.get("/agents/learn", requireAdmin, async (req, res) => {
+  const since = typeof req.query.since === "string" ? req.query.since : undefined;
+  const agent = typeof req.query.agent === "string" ? req.query.agent : undefined;
+  try {
+    // Refresh from live hooks before serving.
+    flushTurnsFromLive(liveEvents());
+    const turns = readTurns(since, agent);
+    return res.json({
+      turns: turns.slice(0, 200),
+      rollups24h: rollups24h(turns),
+      wasteTop: wasteTop(turns, 15),
+      asOf: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn("[agents/learn]", err);
+    return res.json({ turns: [], rollups24h: [], wasteTop: [], asOf: new Date().toISOString() });
+  }
 });
 
 export default router;
