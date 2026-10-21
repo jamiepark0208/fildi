@@ -105,6 +105,13 @@ def plan(conn, hist, keys, tickers):
 
 
 def fetch(conn, todo):
+    import fcntl
+    lock = open("/tmp/fildi-logs/s077-fetch.lock", "w")
+    try:   # one fetch at a time (maintain's research queue + manual runs)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("another fetch holds the lock; exiting")
+        return
     with lseg_session() as ld:
         done, got_any = 0, False
         for t, exp, ks in todo:
