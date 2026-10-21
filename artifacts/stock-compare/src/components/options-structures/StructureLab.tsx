@@ -411,7 +411,7 @@ export function StructureLab() {
         {sum ? (
           <>
             <div className="flex flex-wrap gap-1.5 items-stretch">
-              <Tile label="Avg / trade" tip="Excess return per trade on capital (minus T-bill; covered call / collar: vs holding the shares).">
+              <Tile label="Avg / trade" tip="Average past trade result as % of the capital it tied up, after realistic fills and minus what the cash would have earned in T-bills. Covered call / collar: compared with just holding the shares.">
                 <span className={tone(sum.mean)}>{spct(sum.mean)}</span>
               </Tile>
               <Tile label="Per $100 stock" tip="Average result per trade per $100 of the stock's price — comparable across structures.">
@@ -420,12 +420,12 @@ export function StructureLab() {
               <Tile label="Return ÷ risk" tip="Mean ÷ standard deviation of trade results. Higher = steadier. CSP is the benchmark.">
                 {fin(sum.sharpe) ? sum.sharpe.toFixed(2) : "—"}
               </Tile>
-              <Tile label="Win rate">{upct(sum.win)}</Tile>
-              <Tile label="Median"><span className={tone(sum.median)}>{spct(sum.median)}</span></Tile>
-              <Tile label="Worst 5 %"><span className="text-red-300">{spct(sum.worst5)}</span></Tile>
-              <Tile label="Trades">{sum.n}</Tile>
+              <Tile label="Win rate" tip="Share of past trades that made money (any amount).">{upct(sum.win)}</Tile>
+              <Tile label="Median" tip="The middle trade: half did better, half worse. Far below the average = a few big wins carry it."><span className={tone(sum.median)}>{spct(sum.median)}</span></Tile>
+              <Tile label="Worst 5 %" tip="The bad-case trade: 1 in 20 past trades lost this much of the capital or more."><span className="text-red-300">{spct(sum.worst5)}</span></Tile>
+              <Tile label="Trades" tip="Past trades in the backtest (2021 →, every Monday, ~260 names), only those the board would have shown.">{sum.n}</Tile>
               <Tile label="Confidence" tip="t-stat of the mean. 2 or more ≈ unlikely to be luck.">t {fin(sum.t) ? sum.t.toFixed(1) : "—"}</Tile>
-              <Tile label="Avg hold">{fin(sum.days) ? `${Math.round(sum.days)}d` : "—"}</Tile>
+              <Tile label="Avg hold" tip="Days from entry to expiry (held to expiry, no early exit).">{fin(sum.days) ? `${Math.round(sum.days)}d` : "—"}</Tile>
               {allEntries ? <span className="self-end text-[10px] text-amber-100/50">(all entries)</span> : null}
             </div>
             {sum.scen ? (
