@@ -190,3 +190,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | planned |
 | [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | open |
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | open |
+| [A217](asks/A217.md) | 2026-10-20 | Muse → Claude | [quant] Breeden–Litzenberger implied density from Schwab chains — study (Q vs empirical P gap; A213 implied column) | open |
+| [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | open |
