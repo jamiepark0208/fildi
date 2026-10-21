@@ -628,15 +628,6 @@ async function main() {
     const breadth = runApiTsx("src/scripts/backfill-market-breadth.ts", ["--days=5"]);
     actions.push(`backfill_market_breadth_exit_${breadth.status}`);
 
-    // (a4) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
-    //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
-    //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
-    modelList = runModelListDaily();
-    actions.push(`model_list_exit_${modelList.status}`);
-    if (modelList.status !== 0) {
-      notifyMac("Fildi Model List not updated", (modelList.stdoutTail || modelList.stderrTail || "see maintain-last.json").slice(-180));
-    }
-
     // (b) Earnings-window stale refresh (bounded) — every weekday when due.
     enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
     actions.push(`enrich_earnings_exit_${enrichEarnings.status}`);
@@ -685,6 +676,17 @@ async function main() {
       `post_merge_scores_exit_${postMerge.status}_scores_only` +
         (upstreamMerged ? "" : "_no_upstream_write"),
     );
+
+    // (f) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
+    //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
+    //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
+    //      Runs AFTER earnings refresh + score rebuild (10-20: was before them → plans used yesterday's earnings dates,
+    //      which drive the earnings re-strike, and yesterday's tech/fund scores).
+    modelList = runModelListDaily();
+    actions.push(`model_list_exit_${modelList.status}`);
+    if (modelList.status !== 0) {
+      notifyMac("Fildi Model List not updated", (modelList.stdoutTail || modelList.stderrTail || "see maintain-last.json").slice(-180));
+    }
 
     // Retention prune lives here too so it runs when API was down all day.
     // Covers api_usage / ai_usage_log / old intraday app_config + filesystem logs.
