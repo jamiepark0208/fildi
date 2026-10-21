@@ -41,6 +41,10 @@ _yr = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--year=")), 
 if _yr:  # confirmation years (S054 rule): 2025, then 2019–2024 via LSEG expired-option history; never published
     START, HOLDOUT, END = date(_yr, 1, 2), date(_yr, 1, 2), date(_yr, 12, 31)
 OUT = HERE.parent / "out" / "opt" / "S049.md"
+# Polygon listed chains (free, cached in optlab.contracts) so LSEG is only asked for strikes that exist (10-20: 55 % of
+# requests were misses). --no-chain = use only chains already cached.
+CHAIN = None if "--no-chain" in sys.argv else __import__("option_history").chain
+
 rng = random.Random(49)
 
 
@@ -129,7 +133,7 @@ def pick_contract(ld, conn, t, d, S, iv, live=False):
     for _ in range(40):  # strike with BS put delta −0.20
         k = (lo + hi) / 2
         lo, hi = (k, hi) if put_delta(S, k, v, T) > -0.20 else (lo, k)
-    for K in OP.strike_ladder((lo + hi) / 2):
+    for K in OP.candidates(conn, t, e, "P", (lo + hi) / 2, CHAIN):
         hist = OP.history(ld, conn, t, e, "P", K)
         if hist:
             return e, K, hist

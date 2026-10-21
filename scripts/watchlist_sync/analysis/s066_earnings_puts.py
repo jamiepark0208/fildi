@@ -34,6 +34,10 @@ from _session import lseg_session  # noqa: E402
 START, HOLDOUT = date(2021, 1, 4), date(2024, 7, 1)
 OUT = HERE.parent / "out" / "opt" / "S066.md"
 REQ_CAP = 3000  # ≤ 30 % of LSEG's 10k/day (S064 note)
+# Polygon listed chains (free, cached in optlab.contracts) so LSEG is only asked for strikes that exist (10-20: 55 % of
+# requests were misses). --no-chain = use only chains already cached.
+CHAIN = None if "--no-chain" in sys.argv else __import__("option_history").chain
+
 rng = random.Random(66)
 
 
@@ -71,7 +75,7 @@ def trade(ld, conn, t, rows, i, j, m):
     for _ in range(40):
         k = (lo + hi) / 2
         lo, hi = (k, hi) if put_delta(S, k, v, T) > -0.20 else (lo, k)
-    for K in OP.strike_ladder((lo + hi) / 2)[:3]:
+    for K in OP.candidates(conn, t, e, "P", (lo + hi) / 2, CHAIN)[:3]:
         hist = OP.history(ld, conn, t, e, "P", K)
         if not hist:
             continue

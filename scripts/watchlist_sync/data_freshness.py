@@ -40,7 +40,8 @@ CHECKS = [
     ("optlab.underlying", "date", 1, "Breakdown › Options history · option_history.py 03:00"),
     ("optlab.iv30", "date", 1, "IV rank · option_history.py → option_derive"),
     ("public.model_recs", "created_at", 5, "model track record (weekly) · API model snapshot"),
-    ("lseg_research.starmine_history", "fetched_at", 20, "OWN / fit inputs · daily.py (28-day TTL by design)"),
+    ("lseg_research.signals_daily", "as_of", 1, "live StarMine alpha/ARM, PT, short interest → fit model · daily.py lseg signals"),
+    ("lseg_research.starmine_history", "fetched_at", 20, "research history (monthly frequency, 28-day TTL by design)"),
 ]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]
 

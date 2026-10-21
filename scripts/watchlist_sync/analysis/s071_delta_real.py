@@ -36,6 +36,10 @@ TARGETS = (0.10, 0.15, 0.20, 0.25, 0.30)
 BUCKETS = ((0.05, 0.125), (0.125, 0.175), (0.175, 0.225), (0.225, 0.275), (0.275, 0.35))
 NWEEK = 5
 REQ_CAP = 2500
+# Polygon listed chains (free, cached in optlab.contracts) so LSEG is only asked for strikes that exist (10-20: 55 % of
+# requests were misses). --no-chain = use only chains already cached.
+CHAIN = None if "--no-chain" in sys.argv else __import__("option_history").chain
+
 rng = random.Random(71)
 
 
@@ -57,7 +61,7 @@ def week_trades(ld, conn, t, rows, i, j):
     T = max(1, (e - d).days) / 365
     out, seen = [], set()
     for tg in TARGETS:
-        for K in OP.strike_ladder(strike_at(S, iv / 100, T, tg))[:2]:
+        for K in OP.candidates(conn, t, e, "P", strike_at(S, iv / 100, T, tg), CHAIN)[:2]:
             if K in seen:
                 break
             hist = OP.history(ld, conn, t, e, "P", K)

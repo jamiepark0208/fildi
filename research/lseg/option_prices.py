@@ -67,6 +67,42 @@ def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> l
     return None
 
 
+CHAIN_FETCH_CAP = 150  # Polygon reference is 5/min (12 s per chain) → ≤ ~30 min per run; beyond it, plain ladder
+_chain_fetches = 0
+
+
+def candidates(conn, root: str, expiry: date, cp: str, target: float, fetch_chain: Any = None) -> list[float]:
+    """strike_ladder(target), minus strikes the listed chain says don't exist (10-20: 55 % of fetched RICs were misses —
+    10,912 of 19,870 — each a wasted LSEG request). Listed chain = optlab.contracts (Polygon reference, free, cached); pass
+    fetch_chain=option_history.chain to fetch it when missing. Order unchanged and cached hits always kept, so the chosen
+    contract is the same as before; only the would-be misses are skipped. Unknown chain → plain ladder."""
+    ladder = strike_ladder(target)
+    lo, hi = min(ladder) * 0.8, max(ladder) * 1.2
+    have = conn.execute("SELECT n, lo, hi FROM optlab.chains_fetched WHERE underlying = %s AND expiry = %s",
+                        (root, expiry)).fetchone()
+    covered = have is not None and have[0] and (have[1] is None or (have[1] <= lo and have[2] >= hi))
+    global _chain_fetches
+    if not covered and fetch_chain is not None and _chain_fetches < CHAIN_FETCH_CAP:
+        _chain_fetches += 1
+        try:
+            fetch_chain(conn, root, expiry, target)
+        except Exception:  # Polygon down / budget: fall back to the plain ladder
+            return ladder
+        have = conn.execute("SELECT n, lo, hi FROM optlab.chains_fetched WHERE underlying = %s AND expiry = %s",
+                            (root, expiry)).fetchone()
+        covered = have is not None and have[0] and (have[1] is None or (have[1] <= lo and have[2] >= hi))
+    if not covered:
+        return ladder
+    kind = "put" if cp == "P" else "call"
+    listed = {round(float(k), 2) for (k,) in conn.execute(
+        "SELECT strike FROM optlab.contracts WHERE underlying = %s AND expiry = %s AND type = %s", (root, expiry, kind))}
+    if not listed:
+        return ladder
+    hits = {r for (r,) in conn.execute("SELECT ric FROM optlab.lseg_opt_fetched WHERE ric = ANY(%s) AND n > 0",
+                                       ([x for k in ladder for x in rics(root, expiry, cp, k)],))}
+    return [k for k in ladder if round(k, 2) in listed or any(x in hits for x in rics(root, expiry, cp, k))]
+
+
 def strike_ladder(target: float) -> list[float]:
     """Plausible listed strikes nearest the target first (increments vary by price and by name)."""
     steps = [0.5, 1.0] if target < 25 else [1.0, 2.5, 5.0] if target < 200 else [5.0, 2.5, 10.0]
