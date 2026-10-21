@@ -329,6 +329,7 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/options/candidates | options.ts |
 | GET | /api/options/rankings | options.ts |
 | GET | /api/options/structures | options.ts |
+| GET | /api/options/structures/backtest | options.ts |
 | POST | /api/options/rankings/refresh | options.ts |
 | GET | /api/options/batch | options.ts |
 | GET | /api/options/quote-dq | options.ts |
