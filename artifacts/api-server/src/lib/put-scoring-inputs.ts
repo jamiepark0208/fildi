@@ -10,7 +10,11 @@ import {
   computeVolumeNodes, computeTechnicalRankingsV2, matchDistribution,
   type DailyBar, type TechnicalRow,
 } from "@workspace/option-scoring";
-import { getChampionScorecardParams, getScorecardParamsByVersion } from "./scorecard-params.js";
+import {
+  getChampionScorecardParams,
+  getChallengerScorecardParams,
+  getScorecardParamsByVersion,
+} from "./scorecard-params.js";
 import { logger } from "./logger.js";
 
 type SqlRows<T> = T[] | { rows?: T[] };
@@ -46,10 +50,12 @@ export async function loadPutScoringInputs(): Promise<PutScoringInputs> {
 }
 
 /**
- * A172: prior champion (scorecard_params.parent) — record-only re-score of the same strike.
- * Null when champion has no parent or parent row is missing.
+ * A172/A191: record-only re-score of the same strike.
+ * Prefer an active options challenger (A191 shadow-first); else champion.parent (A172).
  */
 export async function loadShadowInputs(): Promise<PutScoringInputs | null> {
+  const challenger = await getChallengerScorecardParams("options");
+  if (challenger) return inputsFromParams(challenger.version, challenger.params);
   const champ = await getChampionScorecardParams("options");
   if (!champ.parent) return null;
   const parent = await getScorecardParamsByVersion(champ.parent);

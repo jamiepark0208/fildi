@@ -64,6 +64,13 @@ export interface StockContext {
   streetEventRisk?: boolean | null;
   /** S045: top daily volume-profile nodes (60 sessions). Feeds the put nodeGap component. */
   volumeNodes?: number[] | null;
+  /**
+   * A191 / S059: within-universe percentile of IV30/RV20 [0,1].
+   * When set, ivRelative uses this instead of ivRank / IV>RV bonus.
+   */
+  ivRvUniversePct?: number | null;
+  /** A191 / S059: within-universe percentile of σ(Δln IV30) over ~60d [0,1]. */
+  volOfVolPct?: number | null;
 }
 
 export interface LiquidityResult {
@@ -178,7 +185,12 @@ export function scoreIvRelative(
   ivVsRealizedVol: number | null,
   basicSkew: number | null,
   isCall: boolean = false,
+  /** A191: precomputed universe percentile of IV/RV — continuous, replaces rank+bonus path. */
+  ivRvUniversePct: number | null = null,
 ): number | null {
+  const edgePct = pf(ivRvUniversePct);
+  if (edgePct !== null) return c01(edgePct);
+
   const rank = pf(ivRank);
   const pct  = pf(ivPercentile);
 
@@ -199,6 +211,12 @@ export function scoreIvRelative(
   if (sk !== null && (isCall ? sk < 0 : sk > 0)) base = Math.min(1, base + IV_SKEW_BONUS);
 
   return c01(base);
+}
+
+/** A191 / S059: vol-of-vol universe percentile [0,1] → component score. */
+export function scoreVolOfVol(volOfVolPct: number | null | undefined): number | null {
+  const p = pf(volOfVolPct);
+  return p === null ? null : c01(p);
 }
 
 // ── Component: IV absolute (cross-watchlist normalization) ─────────────────────
@@ -359,8 +377,9 @@ export function computeOptionScore(
   const components: Array<{ key: string; weight: number; score: number | null }> = [
     { key: "income",      weight: w("income", W_INCOME),        score: scoreIncomeAdequacy(candidate.weeklyIncome, floor, target) },
     { key: "buffer",      weight: w("buffer", W_BUFFER),        score: bufferScore },
-    { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew, isCall) },
+    { key: "ivRelative",  weight: w("ivRelative", W_IV_RELATIVE),   score: scoreIvRelative(stock.ivRank, stock.ivPercentile, stock.ivVsRealizedVol, stock.basicSkew, isCall, stock.ivRvUniversePct ?? null) },
     { key: "ivAbsolute",  weight: w("ivAbsolute", W_IV_ABSOLUTE),   score: scoreIvAbsolute(candidate.strikeIV, allWatchlistIVs) },
+    { key: "volOfVol",    weight: isCall ? 0 : w("volOfVol", 0),    score: isCall ? null : scoreVolOfVol(stock.volOfVolPct) },
     { key: "stockQuality",weight: w("stockQuality", W_STOCK_QUALITY), score: scoreStockQuality(stock.techTotalScore, stock.fundTotalScore) },
     { key: "support",     weight: w("support", W_SUPPORT),
       score: isCall

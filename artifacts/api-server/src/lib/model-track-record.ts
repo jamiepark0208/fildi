@@ -35,6 +35,7 @@ import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { loadPutScoringInputs, loadShadowInputs, loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadPutEdgeFactors } from "./put-edge-factors.js";
 import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { deriveHotList } from "./live-hotlist.js";
@@ -173,6 +174,9 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const shadowPutRankings = shadowInputs
     ? putTechScores(rows, shadowInputs.putTechWeights)
     : null;
+  const putEdgeFactors = shadowInputs
+    ? await loadPutEdgeFactors(tickers)
+    : new Map();
 
   // Fetch chains (bounded concurrency; per-ticker failures don't kill the run).
   const { chainsByTicker, failures } = await fetchChainsForTickers(tickers, {
@@ -259,10 +263,16 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         const shadowPolicy = applyPolicy(
           tiltState.put, shadowInputs.strikeWeights, { regime: macroRegimeName, ticker },
         );
+        const edge = putEdgeFactors.get(ticker);
         const sh = scoreShadowOnChosenStrike({
           opt,
           chain,
-          stockCtx: { ...stockCtx, techTotalScore: shadowPutRankings.get(ticker) ?? null },
+          stockCtx: {
+            ...stockCtx,
+            techTotalScore: shadowPutRankings.get(ticker) ?? null,
+            ivRvUniversePct: edge?.ivRvPct ?? null,
+            volOfVolPct: edge?.volOfVolPct ?? null,
+          },
           regime: volRegime,
           allWatchlistIVs,
           strikeWeights: shadowPolicy.weights,

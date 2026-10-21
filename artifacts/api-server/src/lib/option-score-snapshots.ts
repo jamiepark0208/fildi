@@ -24,6 +24,7 @@ import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { loadVolumeNodes, loadShadowInputs, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadPutEdgeFactors } from "./put-edge-factors.js";
 import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { logger } from "./logger.js";
 import { etDateKey } from "./market-hours.js";
@@ -288,7 +289,7 @@ export async function computeAndPersistOptionScores(opts?: {
   const callRankings = laneTechScores(rows, callTechWeights, "call");
   const techRowMap = new Map(rows.map((r) => [r.ticker, r]));
 
-  // A172: parent champion — re-score the same put strike only (picks unchanged).
+  // A172/A191: challenger or parent — re-score the same put strike only (picks unchanged).
   const shadowInputs = await loadShadowInputs();
   const shadowPutRankings = shadowInputs
     ? putTechScores(rows, shadowInputs.putTechWeights)
@@ -296,6 +297,9 @@ export async function computeAndPersistOptionScores(opts?: {
   const shadowPutPolicy = shadowInputs
     ? applyPolicy(tiltState.put, shadowInputs.strikeWeights, { regime: macroRegimeName })
     : null;
+  const putEdgeFactors = shadowInputs
+    ? await loadPutEdgeFactors(candidates)
+    : new Map();
 
   let chainsByTicker: Map<string, OptionsChainResult[]>;
   let failures: number;
@@ -408,9 +412,12 @@ export async function computeAndPersistOptionScores(opts?: {
       let shadowScore: string | null = null;
       let shadowVersion: string | null = null;
       if (!isCall && shadowInputs && shadowPutRankings && shadowPutPolicy) {
+        const edge = putEdgeFactors.get(ticker);
         const shadowCtx: StockContext = {
           ...stockCtx,
           techTotalScore: shadowPutRankings.get(ticker) ?? null,
+          ivRvUniversePct: edge?.ivRvPct ?? null,
+          volOfVolPct: edge?.volOfVolPct ?? null,
         };
         const sh = scoreShadowOnChosenStrike({
           opt,

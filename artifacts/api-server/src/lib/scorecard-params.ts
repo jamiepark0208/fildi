@@ -173,6 +173,28 @@ export async function getScorecardParamsByVersion(
   }
 }
 
+/** A191: active challenger for a lane (shadow-first; champion unchanged). */
+export async function getChallengerScorecardParams(
+  lane: ScorecardLane,
+): Promise<{ version: string; params: Record<string, unknown> } | null> {
+  await ensureScorecardParamsTables();
+  try {
+    const [row] = await db
+      .select({ version: scorecardParams.version, params: scorecardParams.params })
+      .from(scorecardParams)
+      .where(and(eq(scorecardParams.lane, lane), eq(scorecardParams.status, "challenger")))
+      .limit(1);
+    if (!row?.params || typeof row.params !== "object") return null;
+    const seed = SCORECARD_SEEDS[lane]!.params;
+    return {
+      version: row.version,
+      params: deepMerge(seed, row.params as Record<string, unknown>),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function deepMerge(base: Record<string, unknown>, over: Record<string, unknown>): Record<string, unknown> {
   const out = { ...base };
   for (const [k, v] of Object.entries(over)) {
