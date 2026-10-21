@@ -9,7 +9,7 @@ Budget: AV calls are counted in api_usage (source 'av', shared with any other AV
 Summary: Claude Haiku → JSON (guidance, tone, demand, margins, financing/dilution, risks, catalysts, 5 bullets) + AV's own per-segment
 sentiment averaged (deterministic cross-check). Shown in Live › Portfolio Alerts › Your names (GET /api/pm/names).
 
-    .venv/bin/python transcripts.py            # daily run (LaunchAgent com.fildi.transcripts, 05:30 PT)
+    .venv/bin/python transcripts.py            # daily run (LaunchAgent com.fildi.transcripts, 08:00 PT, after the Model List)
     .venv/bin/python transcripts.py --dry      # print the queue, fetch nothing
 """
 from __future__ import annotations

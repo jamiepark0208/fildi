@@ -77,7 +77,7 @@ export const EXPECTED_LAUNCH_AGENTS = [
   "com.fildi.rbh-export-prompt",
   "com.fildi.pm-alerts",
   "com.fildi.transcripts",
-  "com.fildi.option-history",
+  "com.fildi.schwab-auth-watch",
   "com.fildi.openjev",
 ] as const;
 
@@ -104,7 +104,7 @@ const INVENTORY_SPEC: Record<
       "Sunday Mac resource audit (watchlist_sync.resource_snapshots, ~/.fildi/resource-latest.json; trims fildi logs)",
     ],
     mutex: "enrichmentRunning / maintain lock",
-    cadence: "7:00 AM full · 12:00/2:45 heal · Sun digest",
+    cadence: "every 30 min while awake, chain once per ET day from 5:00 AM PT (≤ 3 attempts; Model List ≥ 7:00 AM PT) · 12:00/2:45 heal · Sun digest",
     primary: true,
   },
   "ops-digest": {
@@ -125,21 +125,21 @@ const INVENTORY_SPEC: Record<
     owner: "api-scheduler (+ Maintain morning)",
     writes: ["event_bullets / watchlist bullets"],
     mutex: "eventBulletsRunning",
-    cadence: "once daily ~7 AM PT",
+    cadence: "once daily ~5 AM PT (Maintain precompute)",
     primary: true,
   },
   "earnings-backfill": {
     owner: "api-scheduler (+ Maintain morning)",
     writes: ["earnings history (≤60 stale/day)"],
     mutex: "earningsBackfillRunning",
-    cadence: "once daily ~7 AM PT",
+    cadence: "once daily ~5 AM PT (Maintain precompute)",
     primary: true,
   },
   "fmp-analyst-feed": {
     owner: "api-scheduler (+ Maintain morning)",
     writes: ["fmp analyst grades/PT archive"],
     mutex: "fmpAnalystFeedRunning",
-    cadence: "once daily ~7 AM PT",
+    cadence: "once daily ~5 AM PT (Maintain precompute)",
     primary: true,
   },
   "desk-ingest": {
@@ -216,14 +216,14 @@ const INVENTORY_SPEC: Record<
     owner: "launchd · com.fildi.transcripts → transcripts.py",
     writes: ["watchlist_sync.earnings_transcripts", "watchlist_sync.transcript_checks", "api_usage (av/finnhub/anthropic)"],
     mutex: "AV budget 25/day (reserve 5)",
-    cadence: "daily 5:30 AM PT",
+    cadence: "daily 8:00 AM PT (after the Model List → tier 2 = today's plan)",
     primary: true,
   },
   "option-history": {
-    owner: "launchd · com.fildi.option-history → analysis/option_history.py",
+    owner: "Maintain (after the Model List) → analysis/option_history.py",
     writes: ["optlab.* (contracts, bars, legs, earnings_moves, iv30, trades, findings)", "api_usage (polygon)"],
     mutex: "file lock /tmp/fildi-logs/option-history.lock; Polygon 5 calls/min",
-    cadence: "nightly 3:00 AM PT (resumable; minutes once backfilled)",
+    cadence: "once daily after the Model List (resumable; minutes once backfilled)",
     primary: false,
   },
   "rbh-export": {
@@ -402,8 +402,8 @@ export function detectOpsAlerts(opts: {
                   ? "scripts/install-transcripts-launchd.sh"
                 : label === "com.fildi.openjev"
                   ? "scripts/install-openjev-launchd.sh"
-                : label === "com.fildi.option-history"
-                  ? "scripts/install-option-history-launchd.sh"
+                : label === "com.fildi.schwab-auth-watch"
+                  ? "cp scripts/launchd-com.fildi.schwab-auth-watch.plist ~/Library/LaunchAgents/ && launchctl load it"
               : "Reinstall from ~/rbh_scripts / install scripts",
       });
     }

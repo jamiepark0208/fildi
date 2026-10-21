@@ -43,6 +43,7 @@
 
 ## Daily maintain (code SoT)
 `scripts/maintain.mjs` → missing / earnings / drain / peer-health / post-merge-scores / retention / morning precompute · LaunchAgent `com.fildi.maintain` · report `/tmp/fildi-logs/maintain-last.json`  
+**Schedule (A229, 10-21):** every 30 min while awake; chain once per ET day from 05:00 PT (≤ 3 attempts, lock, day state `maintain-day.json` with `dataDone`); Model List ≥ 07:00 PT; option history + research queue after the final list; OpenJev freeze waits for the chain; transcripts 08:00 PT. Change any job → log it in A229.  
 **Sunday:** also `weekly-data-ops-check.mjs --digest-only` (audit + value-log; no second FactSet drain).  
 **Fail notify:** macOS `osascript` banner when Maintain hard-fails.  
 **Ops cockpit:** Settings → Scheduled Tasks — **Ops Nucleus** (L0/L1 + 7 workers MetricCards) + Today + alerts + inventory. Phase B/C parked. Research LSEG/WRDS stay supervised (no vendor cron).  

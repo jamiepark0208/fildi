@@ -846,6 +846,16 @@ def _record_run(conn, run_at, ok, detail, tickers, nq, answered, load_s, total, 
     conn.commit()
 
 
+def maintain_running() -> bool:
+    """scripts/maintain.mjs holds /tmp/fildi-logs/maintain.lock (its pid) for the whole chain."""
+    try:
+        pid = int(open("/tmp/fildi-logs/maintain.lock").read().strip())
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def tick(conn, now: dt.datetime | None = None) -> dict:
     """LaunchAgent entry (every 15 min + on load/wake): freeze at ≥ 05:30; answer inside a window (under
     `caffeinate -s` = stay awake only while on AC, only for the run); after the last window, mark the day missed."""
@@ -858,6 +868,10 @@ def tick(conn, now: dt.datetime | None = None) -> dict:
     conn.commit()
     if t < FREEZE_AT:
         return {"idle": "before 05:30"}
+    if maintain_running() and not conn.execute(
+            "SELECT 1 FROM watchlist_sync.openjev_batches WHERE made_on = %s", (today,)).fetchone():
+        # 10-21: maintain's chain starts 05:00 and rewrites scores/earnings until ~06:15 → freeze after it, not mid-write
+        return {"idle": "maintain chain running — freeze after it"}
     fz = freeze(conn, now)
     if fz["status"] != "frozen":
         # A148: after the day's batch, run the peer review when due (monthly, or new tickers); same shared server.

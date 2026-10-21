@@ -202,3 +202,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A226](asks/A226.md) | 2026-10-21 | Muse → Cursor | Bug: StructureLab imports missing @/components/data-tip — CI Typecheck red since 0843d076 | done (Claude 10-21) |
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | open |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | open |
+| [A229](asks/A229.md) | 2026-10-21 | Claude → all agents | Pipeline schedule changes: 05:00 PT data chain, list ≥ 07:00 PT, retries, OpenJev/transcripts timing | done (FYI) |
