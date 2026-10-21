@@ -26,6 +26,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 from build_plan import connect  # noqa: E402
+from s045_put_retest import bs_put  # noqa: E402
 from s049_panic_puts import put_delta, split_factor  # noqa: E402
 from s066_earnings_puts import LSEG, OP, load, lseg_session, week_of  # noqa: E402,F401
 
@@ -69,7 +70,9 @@ def week_trades(ld, conn, t, rows, i, j):
             civ = day[6] / 100 if day[6] and day[6] > 1.5 else day[6]
             dl = abs(put_delta(S, K, civ or iv / 100, T))
             fill = day[1] + 0.23 * (day[2] - day[1])
-            out.append(dict(t=t, d=d, e=e, K=K, dl=dl, pnl=(fill - max(0.0, K - Se)) / K, itm=Se < K))
+            nsess = j - i
+            out.append(dict(t=t, d=d, e=e, K=K, dl=dl, prem=fill / K, iv=iv / 100, mid=(day[1] + day[2]) / 2 / K,
+                            m252=bs_put(S, K, iv / 100, nsess / 252) / K, m365=bs_put(S, K, iv / 100, T) / K, Se=Se, pnl=(fill - max(0.0, K - Se)) / K, itm=Se < K))
             break
     return out
 
@@ -155,6 +158,41 @@ def main():
             obs = mean(ks)
             bs = [mean([rng.choice(ks) for _ in ks]) for _ in range(1000)]
             L.append(f"| {lab} | {b[0]:.3f}–{b[1]:.3f} | {n} | {obs * 1e4:+.1f} | {obs / statistics.stdev(bs):.1f} |")
+    # income floor on real quotes (10-20 eve, Jamie: "target 0.75–1 %/wk?"): premium at the real fill ÷ strike, Mon→Fri
+    L += ["", "## Income floor on real quotes: puts with fill ≥ floor vs below (all Δ buckets)", "",
+          "| floor %/wk | kept n | kept pnl bp | below pnl bp | diff (t) | < 2024-07 | ≥ 2024-07 | kept worst 5 % |", "|---|---|---|---|---|---|---|---|"]
+    def wdiff(k, r):
+        wk = defaultdict(lambda: ([], []))
+        for x in k:
+            wk[x["e"]][0].append(x["pnl"])
+        for x in r:
+            wk[x["e"]][1].append(x["pnl"])
+        ks = [w for w, (a, b) in wk.items() if a and b]
+        if len(ks) < 10:
+            return float("nan"), float("nan")
+        f = lambda s: statistics.mean([v for w in s for v in wk[w][0]]) - statistics.mean([v for w in s for v in wk[w][1]])
+        o = f(ks)
+        return o, o / statistics.stdev([f([rng.choice(ks) for _ in ks]) for _ in range(500)])
+    for fl in (0.003, 0.005, 0.0075, 0.01):
+        k, r = [x for x in allx if x["prem"] >= fl], [x for x in allx if x["prem"] < fl]
+        if len(k) < 30 or len(r) < 30:
+            continue
+        d, t = wdiff(k, r)
+        h = [wdiff([x for x in k if (x["d"] < HOLDOUT) == hh], [x for x in r if (x["d"] < HOLDOUT) == hh])[0] for hh in (True, False)]
+        w5 = sorted(x["pnl"] for x in k)[: max(1, len(k) // 20)]
+        L.append(f"| {fl:.2%} | {len(k)} | {statistics.mean(x['pnl'] for x in k) * 1e4:+.1f} | {statistics.mean(x['pnl'] for x in r) * 1e4:+.1f} | "
+                 f"{d * 1e4:+.1f} ({t:.1f}) | {h[0] * 1e4:+.1f} | {h[1] * 1e4:+.1f} | {statistics.mean(w5):+.2%} |")
+    # harness check (10-20 eve): S059/S069 price the put with Black-Scholes at the stock's iv30 over trading sessions/252, minus a fill
+    # model. Same contracts here: real mid and real fill vs model (sessions/252 = harness, calendar days/365), by iv30 bucket.
+    L += ["", "## Harness check: real premium vs model premium on the same contracts (median ratio)", "",
+          "| iv30 | n | real fill ÷ model 252 (harness) | real mid ÷ model 252 | real mid ÷ model 365 | real fill %/wk | model 252 %/wk |", "|---|---|---|---|---|---|---|"]
+    for lo, hi in ((0, 0.3), (0.3, 0.5), (0.5, 0.8), (0.8, 9)):
+        xs = [x for x in allx if lo <= x["iv"] < hi and x["m252"] > 1e-4]
+        if len(xs) < 30:
+            continue
+        med = lambda f: statistics.median(f(x) for x in xs)
+        L.append(f"| {lo:.0%}–{hi:.0%} | {len(xs)} | {med(lambda x: x['prem'] / x['m252']):.2f} | {med(lambda x: x['mid'] / x['m252']):.2f} | "
+                 f"{med(lambda x: x['mid'] / x['m365']):.2f} | {statistics.mean(x['prem'] for x in xs):.2%} | {statistics.mean(x['m252'] for x in xs):.2%} |")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
