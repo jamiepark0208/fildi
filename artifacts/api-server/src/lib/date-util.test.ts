@@ -35,7 +35,8 @@ describe("calendarDaysUntil", () => {
 
 describe("calendarDaysUntilYmd", () => {
   it("matches midnight-to-midnight rounding", () => {
-    const iso = new Date().toISOString().slice(0, 10);
+    // local date, not UTC: toISOString() is tomorrow after 5 PM PT and made this fail every evening (10-20)
+    const iso = new Date().toLocaleDateString("en-CA");
     assert.equal(calendarDaysUntilYmd(iso), 0);
   });
 });
