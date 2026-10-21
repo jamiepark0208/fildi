@@ -200,7 +200,10 @@ export let lastRetentionPrune: Date | null = null;
 const SCHEDULE_HOUR = 2;
 const TRADE_EXPIRY_DAY = 6; // Saturday (UTC) — the day after Friday's typical option expiry
 const TRADE_EXPIRY_HOUR = 2;
-const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+// 5 min (was 30, and no tick at startup): the dev API runs under `tsx --watch` and restarts on every agent save — 9× between
+// 11:52 and 13:04 PT on 10-20 — so a 30-min first tick never came and the 19:00 UTC option scan was skipped. Checks are cheap.
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const STARTUP_TICK_MS = 60 * 1000; // first check 1 min after boot (lets a burst of restarts settle)
 
 // Sun/Thu 02:00 UTC and the 4-day catch-up live in shouldRunEnrichmentAt.
 function shouldRunEnrichmentNow(): boolean {
@@ -270,18 +273,23 @@ function shouldRunTradeExpiryNow(): boolean {
 // overnight — otherwise a schema/API failure retries every 30 min forever.
 const MODEL_SNAPSHOT_DAY = 5; // Friday (UTC)
 const MODEL_SNAPSHOT_HOUR = 19;
-const MODEL_SNAPSHOT_CATCHUP_DAYS = 8;
+const MODEL_SNAPSHOT_CATCHUP_DAYS = 7;
+
+let lastModelSnapshotFailure: Date | null = null; // in-memory: 5-min ticks must not re-run a failing Yahoo pull every tick
 
 function shouldRunModelSnapshotNow(): boolean {
   const now = new Date();
   if (lastModelSnapshotRun && isSameUtcDay(lastModelSnapshotRun, now)) return false;
+  if (lastModelSnapshotFailure && now.getTime() - lastModelSnapshotFailure.getTime() < 30 * 60 * 1000) return false;
   const onSchedule = now.getUTCDay() === MODEL_SNAPSHOT_DAY && now.getUTCHours() === MODEL_SNAPSHOT_HOUR;
   const fridaySession =
     now.getUTCDay() === MODEL_SNAPSHOT_DAY &&
     now.getUTCHours() >= 16 &&
     now.getUTCHours() <= 21;
+  // Was: missed > 8 days AND Friday → one missed Friday (10-16) meant no snapshot until 10-23+. Now any weekday in session.
+  const weekdaySession = now.getUTCDay() >= 1 && now.getUTCDay() <= 5 && now.getUTCHours() >= 16 && now.getUTCHours() <= 19;
   const missedWindow = daysSince(lastModelSnapshotRun) > MODEL_SNAPSHOT_CATCHUP_DAYS;
-  return onSchedule || (missedWindow && fridaySession);
+  return onSchedule || (missedWindow && (fridaySession || weekdaySession));
 }
 
 async function runEnrichment() {
@@ -365,6 +373,7 @@ export async function runModelSnapshotJob() {
     }
     logger.info(result, "scheduler: model accountability snapshot complete");
   } catch (err) {
+    lastModelSnapshotFailure = new Date();
     logger.error({ err }, "scheduler: model accountability snapshot failed");
   } finally {
     modelSnapshotRunning = false;
@@ -712,11 +721,13 @@ function runDueJobs(): void {
 export async function startScheduler(): Promise<void> {
   await refreshPersistedLastRuns();
 
-  setInterval(() => {
+  const tick = () => {
     void refreshPersistedLastRuns()
       .then(() => runDueJobs())
       .catch((err) => logger.error({ err }, "scheduler: tick failed"));
-  }, CHECK_INTERVAL_MS);
+  };
+  setTimeout(tick, STARTUP_TICK_MS);
+  setInterval(tick, CHECK_INTERVAL_MS);
 
   setInterval(() => {
     // RTH + after-close catch-up when the host missed the session (see shouldRunRegimeCheckpointsAt).
