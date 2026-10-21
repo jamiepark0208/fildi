@@ -50,6 +50,44 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const LOG_DIR = "/tmp/fildi-logs";
 const REPORT = join(LOG_DIR, "maintain-last.json");
+const DAY_STATE = join(LOG_DIR, "maintain-day.json");
+const LOCK = join(LOG_DIR, "maintain.lock");
+
+/** Resumable research fetches run after production: [name, script (from scripts/watchlist_sync), args, needs LSEG Workspace]. */
+const RESEARCH_QUEUE = [
+  ["s078_bars5m", "analysis/s078_orb_in_play.py", ["--fetch"], false],
+  ["s077_implied_tail", "analysis/s077_implied_tail.py", ["--fetch", "--names=50"], true],
+];
+function portOpen(port) {
+  return spawnSync("/usr/bin/nc", ["-z", "-w", "2", "127.0.0.1", String(port)]).status === 0;
+}
+
+function etDay(d = new Date()) {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function etHour(d = new Date()) {
+  return Number(d.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" }));
+}
+function readJson(p) {
+  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+}
+/** Exclusive lock; a lock left by a dead process is taken over. Released on exit. */
+function takeLock() {
+  try {
+    const pid = Number(readFileSync(LOCK, "utf8"));
+    if (pid && pid !== process.pid) { try { process.kill(pid, 0); return false; } catch { /* stale */ } }
+  } catch { /* no lock */ }
+  writeFileSync(LOCK, String(process.pid));
+  process.on("exit", () => { try { if (Number(readFileSync(LOCK, "utf8")) === process.pid) unlinkSync(LOCK); } catch {} });
+  return true;
+}
+/** Model List counts as done for the day only if daily.py built/skipped for a final reason — not "market not open yet". */
+function modelListDoneToday(r) {
+  if (!r || r.status !== 0) return false;
+  const out = r.stdoutTail || "";
+  if (/market closed/.test(out)) return etHour() >= 16;   // before the open → retry next slot; after the close → done
+  return true;
+}
 /** Full 7 AM enrich pass — heal-only midday runs must not erase this. */
 const REPORT_FULL = join(LOG_DIR, "maintain-full-last.json");
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB → gzip + keep .1.gz
@@ -550,6 +588,17 @@ async function main() {
     process.env.DATABASE_URL = "postgresql://jamiepark@127.0.0.1:5432/tradedash";
   }
 
+  // 10-21 run-on-wake queue: launchd fires every 30 min while the Mac is awake; the chain runs until it completes once per
+  // ET day (max 3 attempts), never two at a time. Jamie is on battery at school → the 07:00 slot alone is unreliable.
+  if (args.has("--once-per-day")) {
+    const day = etDay();
+    const st = readJson(DAY_STATE) || {};
+    if (st.day === day && st.done) { console.log(`[maintain] ${day}: chain already complete — skip`); return; }
+    if (st.day === day && (st.attempts || 0) >= 3) { console.log(`[maintain] ${day}: 3 attempts used — skip until tomorrow`); return; }
+    if (!takeLock()) { console.log("[maintain] another run holds the lock — skip"); return; }
+    writeFileSync(DAY_STATE, JSON.stringify({ day, attempts: (st.day === day ? st.attempts || 0 : 0) + 1, done: false }));
+  }
+
   const started = Date.now();
   let health = runHealth();
   const logs = await rotateLogs();
@@ -713,6 +762,30 @@ async function main() {
     const retention = runApiTsx("src/scripts/run-retention-prune.ts");
     actions.push(`retention_prune_exit_${retention.status}`);
 
+    // (h) Option history (was its own 03:00 LaunchAgent; nothing in the Model List reads it → after the list). Own lock + once/day.
+    const oh = readJson(join(LOG_DIR, "option-history-last.json"));
+    if (!(oh?.ok && String(oh.ts || "").slice(0, 10) === new Date().toLocaleDateString("en-CA"))) {
+      const t0 = Date.now();
+      const dir = join(ROOT, "scripts/watchlist_sync");
+      const r = spawnSync(join(dir, ".venv/bin/python"), ["analysis/option_history.py"], { encoding: "utf8", cwd: dir, timeout: 120 * 60 * 1000 });
+      timings.optionHistory = Date.now() - t0;
+      actions.push(`option_history_exit_${r.status ?? r.signal ?? "spawn_error"}`);
+    }
+
+    // (i) Research backfill queue — last, resumable, time-capped; each job keeps its own budget guards (LSEG research 80 %
+    //     of the day/month, Polygon shared 5/min gate), so production above always ran first and keeps its reserve.
+    if (args.has("--research") && modelList?.status === 0) {
+      for (const [name, rel, extra, needsLseg] of RESEARCH_QUEUE) {
+        if (needsLseg && !portOpen(9000)) { actions.push(`research_${name}_skipped_no_lseg`); continue; }
+        const t0 = Date.now();
+        const dir = join(ROOT, "scripts/watchlist_sync");
+        const py = needsLseg ? join(ROOT, "research/lseg/.venv/bin/python") : join(dir, ".venv/bin/python");
+        const r = spawnSync(py, [rel, ...extra], { encoding: "utf8", cwd: dir, timeout: 45 * 60 * 1000 });
+        timings[`research_${name}`] = Date.now() - t0;
+        actions.push(`research_${name}_exit_${r.status ?? r.signal ?? "spawn_error"}`);
+      }
+    }
+
     // Sunday lean digest: scoreboard → value-log only (no second drain/peer).
     if (isPtSunday()) {
       const dig = spawnSync(
@@ -851,6 +924,10 @@ async function main() {
     restart,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
+  if (args.has("--once-per-day") && enrichIfDue && modelListDoneToday(modelList)) {
+    const st = readJson(DAY_STATE) || {};
+    writeFileSync(DAY_STATE, JSON.stringify({ ...st, day: etDay(), done: true, finishedAt: new Date().toISOString() }));
+  }
 
   // Heal-cadence proof sibling (Nucleus / Ops) — same vocabulary as data-ops value log.
   if (!enrichIfDue) {

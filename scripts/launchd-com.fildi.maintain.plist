@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.fildi.maintain</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/jamiepark/Cursor/fildi/scripts/maintain.mjs</string>
+    <string>--enrich-if-due</string>
+    <string>--drain-nr=40</string>
+    <string>--restart-if-unhealthy</string>
+    <string>--restart-stale-days=7</string>
+    <string>--once-per-day</string>
+    <string>--research</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/jamiepark/Cursor/fildi</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>7</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>StandardOutPath</key><string>/tmp/fildi-logs/maintain-launchd.out</string>
+  <key>StandardErrorPath</key><string>/tmp/fildi-logs/maintain-launchd.err</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>

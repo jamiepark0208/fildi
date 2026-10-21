@@ -106,17 +106,21 @@ def plan(conn, hist, keys, tickers):
 
 def fetch(conn, todo):
     with lseg_session() as ld:
-        done = 0
+        done, got_any = 0, False
         for t, exp, ks in todo:
             if ld.remaining < 200 or ld.dp_remaining < 20_000:
                 print(f"stop: LSEG reserve reached after {done} expiries (requests left {ld.remaining}, datapoints left "
                       f"{ld.dp_remaining:,.0f}); the cache keeps progress — re-run resumes")
                 break
             lo, k, hi = ks
+            if done == 10 and not got_any:   # smoke: 10 expiries with no data at all → RIC/strike logic is wrong; stop spending
+                print("stop: smoke check failed — first 10 expiries returned no option history")
+                break
             try:   # middle strike first: if it isn't listed, skip its neighbours (saves 2 requests)
                 if OP.history(ld, conn, t, exp, "P", k) is None:
                     done += 1
                     continue
+                got_any = True
                 for kk in (lo, hi):
                     OP.history(ld, conn, t, exp, "P", kk)
             except RuntimeError as e:

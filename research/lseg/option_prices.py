@@ -41,9 +41,10 @@ def rics(root: str, expiry: date, cp: str, strike: float) -> list[str]:
 def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> list[tuple] | None:
     """[(date, bid, ask, mid, last, oi, iv)] for the contract, from cache or LSEG; None if no such contract."""
     for ric in rics(root, expiry, cp, strike):
-        got = conn.execute("SELECT n, fetched_at::date < current_date FROM optlab.lseg_opt_fetched WHERE ric = %s",
-                           (ric,)).fetchone()
-        if got is None or (got[1] and expiry >= date.today()):  # live contracts: refresh once a day
+        got = conn.execute("SELECT n, fetched_at::date < current_date, fetched_at < now() - interval '7 days' "
+                           "FROM optlab.lseg_opt_fetched WHERE ric = %s", (ric,)).fetchone()
+        # live contracts: hits refresh once a day; a miss (strike not listed) re-checks weekly, not daily (10-21: each is a request)
+        if got is None or (expiry >= date.today() and (got[2] if got[0] == 0 else got[1])):
             try:
                 h = ld.get_history(universe=ric, fields=FIELDS, interval="daily",
                                    start=str(expiry - timedelta(days=400)), end=str(expiry))

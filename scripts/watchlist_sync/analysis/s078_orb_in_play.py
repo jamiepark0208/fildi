@@ -77,6 +77,8 @@ def fetch(conn) -> None:
                      "SET hi = EXCLUDED.hi, n = optlab.bars_5m_fetched.n + EXCLUDED.n, fetched_at = now()",
                      (t, frm, to, n))
         conn.commit()
+        if t in names[:3] and n == 0 and frm < date.today() - timedelta(days=7):   # smoke: SPY, QQQ + first stock must return bars
+            raise SystemExit(f"smoke check failed: {t} returned 0 bars for {frm} → {to}; stopping before the full fetch")
         if i % 25 == 0:
             print(f"  {i + 1}/{len(names)} {t}: {n} bars", flush=True)
     OH.flush_usage(conn)
