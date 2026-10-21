@@ -13,6 +13,7 @@ per step. Steps and their rules are unchanged (CLAUDE.md § STARTUP is the sourc
   8 commit review            git log <Last reviewed SHA>..HEAD with Refs: trailers (Claude: quant diffs)
   9 state rotation           scripts/state_rotate.py (state.md budget, verbatim archive)
  10 workflow audit           scripts/workflow_audit.py --short (W-registry: did each workflow change pay off?)
+ 11 data freshness           scripts/watchlist_sync/data_freshness.py (key tables vs job cadence, future-dated rows, today's daily.py)
 
     python3 scripts/agent_start.py [--agent claude] [--no-sync]
 """
@@ -106,6 +107,9 @@ def main() -> None:
         say(f"9 state: {last(out)}")
         rc, out = sh("python3 scripts/workflow_audit.py --short", log)
         say(f"10 workflow audit: {last(out, 3)}")
+        rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_freshness.py", log)
+        bad = [l for l in out.splitlines() if l.startswith("✗")]
+        say(f"11 data freshness: {last(out, pat='freshness')}" + (f" — STALE: {'; '.join(b[2:90] for b in bad[:4])} → fix the job (not just re-run)" if bad else ""))
     digest = "\n".join(lines)
     print(digest + f"\nfull log: {logp}")
     with USAGE.open("a") as f:
