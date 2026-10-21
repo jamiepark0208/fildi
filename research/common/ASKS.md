@@ -146,7 +146,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A169](asks/A169.md) | 2026-10-18 | Muse → Cursor | Remove Video Lab (A125) — side project, not fildi | done (Muse 10-18: removed directly) |
 | [A170](asks/A170.md) | 2026-10-18 | Claude → Claude | [quant] S046 — re-test call side + Avoid list on their own outcomes (calls pnl, left tail) | done (Claude 10-18: S046 → options-1.2.0 calls live; Avoid flags = no crash edge beyond IV) |
 | [A171](asks/A171.md) | 2026-10-18 | Claude → Claude | [quant] Scoreboard: four "is the app smarter?" numbers (Own−Avoid, FV spread, put Brier, IRA vs SPY/QQQ) | done (Claude 10-18: Settings › Research scoreboard; verdicts after ≥ 8 weeks) |
-| [A172](asks/A172.md) | 2026-10-18 | Claude → Cursor | [quant] Shadow mode: store options-1.0.0 score beside 1.1.0, grade both live | planned (Claude plan 10-18) |
+| [A172](asks/A172.md) | 2026-10-18 | Claude → Cursor | [quant] Shadow mode: store options-1.0.0 score beside 1.1.0, grade both live | done |
 | [A173](asks/A173.md) | 2026-10-18 | Claude → Claude | Every new ASKS row names the scoreboard number it moves | done (Claude 10-18) |
 | [A174](asks/A174.md) | 2026-10-18 | Claude → Claude | Portfolio Alerts: flag holdings on the Avoid list | done (Claude 10-18: amber bullet, live next pm_alerts run) |
 | [A175](asks/A175.md) | 2026-10-18 | Claude → Cursor | [quant] Strategy Library page (Track Record › Strategies): filter, curve vs SPY, stats, trade log | done (Cursor 10-19; needs Muse+Claude commit review) |

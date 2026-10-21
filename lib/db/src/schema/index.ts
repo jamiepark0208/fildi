@@ -488,6 +488,9 @@ export const optionScoreSnapshots = pgTable('option_score_snapshots', {
   confidence:       text('confidence'),
   modelVersion:     text('model_version'),
   inputsDigest:     text('inputs_digest'),
+  /** A172: parent-champion score on the same chosen strike (record-only). */
+  shadowScore:      numeric('shadow_score'),
+  shadowVersion:    text('shadow_version'),
   computedAt:       timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.ticker, t.side, t.asOf] }),
@@ -1765,6 +1768,9 @@ export const modelRecs = pgTable('model_recs', {
   volRegime:       text('vol_regime').notNull(),        // LOW_VOL | BASELINE | ELEVATED | EXTREME
   macroRegime:     text('macro_regime'),                // latest market_regime.regime at rec time
   tiltApplied:     jsonb('tilt_applied'),               // { factor, weights } actually used
+  /** A172: parent-champion score on the same chosen strike (record-only). */
+  shadowScore:     numeric('shadow_score'),
+  shadowVersion:   text('shadow_version'),
   // Grading (filled by the Saturday resolver)
   status:          text('status').notNull().default('PENDING'), // PENDING | ASSIGNED | WIN | LOSS | NO_DATA
   settleClose:     numeric('settle_close'),             // close on/before expiry

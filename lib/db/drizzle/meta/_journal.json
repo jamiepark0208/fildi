@@ -141,6 +141,13 @@
       "when": 1785900000000,
       "tag": "0028_desk_ingest_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786000000000,
+      "tag": "0030_option_shadow_score",
+      "breakpoints": true
     }
   ]
 }

@@ -23,7 +23,8 @@ import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadVolumeNodes, loadShadowInputs, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { logger } from "./logger.js";
 import { etDateKey } from "./market-hours.js";
 
@@ -222,6 +223,8 @@ export async function computeAndPersistOptionScores(opts?: {
     ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS confidence text;
     ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS model_version text;
     ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS inputs_digest text;
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS shadow_score numeric;
+    ALTER TABLE option_score_snapshots ADD COLUMN IF NOT EXISTS shadow_version text;
   `);
 
   const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration, watchlistTickers] = await Promise.all([
@@ -284,6 +287,15 @@ export async function computeAndPersistOptionScores(opts?: {
   const volumeNodes = await loadVolumeNodes(candidates);
   const callRankings = laneTechScores(rows, callTechWeights, "call");
   const techRowMap = new Map(rows.map((r) => [r.ticker, r]));
+
+  // A172: parent champion — re-score the same put strike only (picks unchanged).
+  const shadowInputs = await loadShadowInputs();
+  const shadowPutRankings = shadowInputs
+    ? putTechScores(rows, shadowInputs.putTechWeights)
+    : null;
+  const shadowPutPolicy = shadowInputs
+    ? applyPolicy(tiltState.put, shadowInputs.strikeWeights, { regime: macroRegimeName })
+    : null;
 
   let chainsByTicker: Map<string, OptionsChainResult[]>;
   let failures: number;
@@ -393,6 +405,29 @@ export async function computeAndPersistOptionScores(opts?: {
       const spot = chain.spot;
       const otm = otmCheck;
 
+      let shadowScore: string | null = null;
+      let shadowVersion: string | null = null;
+      if (!isCall && shadowInputs && shadowPutRankings && shadowPutPolicy) {
+        const shadowCtx: StockContext = {
+          ...stockCtx,
+          techTotalScore: shadowPutRankings.get(ticker) ?? null,
+        };
+        const sh = scoreShadowOnChosenStrike({
+          opt,
+          chain,
+          stockCtx: shadowCtx,
+          regime: volRegime,
+          allWatchlistIVs: allIVs,
+          strikeWeights: shadowPutPolicy.weights,
+          earningsHaircut: shadowPutPolicy.earningsHaircut,
+          calibration,
+        });
+        if (sh != null) {
+          shadowScore = String(sh);
+          shadowVersion = shadowInputs.version;
+        }
+      }
+
       inserts.push({
         ticker,
         side,
@@ -418,6 +453,8 @@ export async function computeAndPersistOptionScores(opts?: {
         coverage: String(best.result.dataQuality ?? 1),
         confidence: best.result.bidIsLive && !best.result.quoteStale ? "high" : "low",
         modelVersion: optChamp.version,
+        shadowScore,
+        shadowVersion,
         inputsDigest: createHash("sha1")
           .update(JSON.stringify({ ticker, side, strike: opt.strike, expiry: chain.expiry, spot, premium }))
           .digest("hex")
@@ -456,6 +493,8 @@ export async function computeAndPersistOptionScores(opts?: {
             coverage: sql`excluded.coverage`,
             confidence: sql`excluded.confidence`,
             modelVersion: sql`excluded.model_version`,
+            shadowScore: sql`excluded.shadow_score`,
+            shadowVersion: sql`excluded.shadow_version`,
             inputsDigest: sql`excluded.inputs_digest`,
             computedAt: sql`excluded.computed_at`,
           },
@@ -504,7 +543,14 @@ export async function readStructuresBoard(): Promise<{
       WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) ORDER BY structure, rank`);
     const { rows: hv } = await db.execute(sql`SELECT memo FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`);
     const memo = String((hv[0] as Record<string, unknown> | undefined)?.memo ?? "");
-    const stance = memo.split("\n").find((l) => l.startsWith("**Stance"))?.replace(/\*\*/g, "") ?? null;
+    // Drop the "Stance (rules, not vibes)." label — desk only needs the action clause.
+    const stanceRaw = memo.split("\n").find((l) => /\*\*Stance/i.test(l) || /^Stance\b/i.test(l)) ?? null;
+    const stance = stanceRaw
+      ? stanceRaw
+          .replace(/\*\*/g, "")
+          .replace(/^Stance\s*(\([^)]*\))?\s*[.:–—-]?\s*/i, "")
+          .trim() || null
+      : null;
     const by = new Map<string, Array<Record<string, unknown>>>();
     for (const r of rk as Array<Record<string, unknown>>) {
       const k = String(r.structure);

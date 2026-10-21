@@ -39,6 +39,41 @@ def model_list(conn) -> tuple:
             live, f"{n} puts · {weeks} expiries", verdict, {"terciles": d})
 
 
+def options_shadow(conn) -> tuple:
+    """A172: champion put score vs parent (shadow) score on the same graded strikes — top-tercile P&L."""
+    r = conn.execute("""
+        SELECT count(DISTINCT expiry), count(*) FROM model_recs
+        WHERE graded_at IS NOT NULL AND side = 'put' AND shadow_score IS NOT NULL""").fetchone()
+    weeks, n = r[0] or 0, r[1] or 0
+    item = "Options champion vs shadow (parent)"
+    promised = "Champion top-tercile put P&L ≥ shadow top-tercile on same strikes (A172 / S045)"
+    if n == 0:
+        return (item, "A172", promised, "no graded puts with shadow_score yet", "0", "too early", {})
+
+    def terciles(col: str):
+        return conn.execute(f"""
+            SELECT t, count(*), avg((pnl_per_share >= 0)::int), avg(pnl_pct) FROM (
+              SELECT *, ntile(3) OVER (ORDER BY {col}) t FROM model_recs
+              WHERE graded_at IS NOT NULL AND side = 'put' AND shadow_score IS NOT NULL) x
+            GROUP BY t ORDER BY t""").fetchall()
+
+    champ = terciles("option_score")
+    shadow = terciles("shadow_score")
+    c_top = float(champ[-1][3]) if champ else None
+    s_top = float(shadow[-1][3]) if shadow else None
+    live = (f"champ T3 P&L {c_top:+.2f}% · shadow T3 P&L {s_top:+.2f}% · {n} puts"
+            if c_top is not None and s_top is not None else "incomplete terciles")
+    if weeks < MIN_EXPIRIES or n < 100:
+        verdict = "too early"
+    elif c_top is not None and s_top is not None:
+        verdict = "holding" if c_top >= s_top else "drifting"
+    else:
+        verdict = "no live check"
+    return (item, "A172", promised, live, f"{n} puts · {weeks} expiries", verdict,
+            {"champ_terciles": [{"t": t, "n": k, "win": float(w), "pnl": float(p)} for t, k, w, p in champ],
+             "shadow_terciles": [{"t": t, "n": k, "win": float(w), "pnl": float(p)} for t, k, w, p in shadow]})
+
+
 def fair_value(conn) -> tuple:
     """fv-1.1.0 is display-only (S009: cheapness gaps don't predict) → live check = health, not returns."""
     r = conn.execute("""WITH l AS (SELECT DISTINCT ON (ticker) * FROM fair_value_snapshots ORDER BY ticker, as_of DESC)
@@ -205,7 +240,7 @@ def ira_vs_benchmark(conn) -> tuple:
             {"ira_bp": jm * 1e4, "bench_bp": bm * 1e4, "ira_sd_bp": js * 1e4, "bench_sd_bp": bs * 1e4, "ira_rr": jr, "bench_rr": br})
 
 
-CHECKS = [model_list, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark]
+CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark]
 
 
 def main() -> None:

@@ -10,7 +10,7 @@ import {
   computeVolumeNodes, computeTechnicalRankingsV2, matchDistribution,
   type DailyBar, type TechnicalRow,
 } from "@workspace/option-scoring";
-import { getChampionScorecardParams } from "./scorecard-params.js";
+import { getChampionScorecardParams, getScorecardParamsByVersion } from "./scorecard-params.js";
 import { logger } from "./logger.js";
 
 type SqlRows<T> = T[] | { rows?: T[] };
@@ -26,12 +26,35 @@ export interface PutScoringInputs {
   callTechWeights: Record<string, number> | undefined;
 }
 
+function inputsFromParams(version: string, params: Record<string, unknown>): PutScoringInputs {
+  const p = params as {
+    strikeWeights?: Record<string, number>;
+    putTechWeights?: Record<string, number>;
+    callTechWeights?: Record<string, number>;
+  };
+  return {
+    version,
+    strikeWeights: p.strikeWeights,
+    putTechWeights: p.putTechWeights,
+    callTechWeights: p.callTechWeights,
+  };
+}
+
 export async function loadPutScoringInputs(): Promise<PutScoringInputs> {
   const champ = await getChampionScorecardParams("options");
-  const p = champ.params as {
-    strikeWeights?: Record<string, number>; putTechWeights?: Record<string, number>; callTechWeights?: Record<string, number>;
-  };
-  return { version: champ.version, strikeWeights: p.strikeWeights, putTechWeights: p.putTechWeights, callTechWeights: p.callTechWeights };
+  return inputsFromParams(champ.version, champ.params);
+}
+
+/**
+ * A172: prior champion (scorecard_params.parent) — record-only re-score of the same strike.
+ * Null when champion has no parent or parent row is missing.
+ */
+export async function loadShadowInputs(): Promise<PutScoringInputs | null> {
+  const champ = await getChampionScorecardParams("options");
+  if (!champ.parent) return null;
+  const parent = await getScorecardParamsByVersion(champ.parent);
+  if (!parent || parent.lane !== "options") return null;
+  return inputsFromParams(parent.version, parent.params);
 }
 
 /**

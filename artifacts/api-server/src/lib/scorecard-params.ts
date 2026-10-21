@@ -118,11 +118,15 @@ export async function ensureScorecardParamsTables(): Promise<void> {
 
 export async function getChampionScorecardParams(
   lane: ScorecardLane,
-): Promise<{ version: string; params: Record<string, unknown> }> {
+): Promise<{ version: string; params: Record<string, unknown>; parent: string | null }> {
   await ensureScorecardParamsTables();
   try {
     const [row] = await db
-      .select({ version: scorecardParams.version, params: scorecardParams.params })
+      .select({
+        version: scorecardParams.version,
+        params: scorecardParams.params,
+        parent: scorecardParams.parent,
+      })
       .from(scorecardParams)
       .where(and(eq(scorecardParams.lane, lane), eq(scorecardParams.status, "champion")))
       .limit(1);
@@ -131,13 +135,42 @@ export async function getChampionScorecardParams(
       return {
         version: row.version,
         params: deepMerge(seed, row.params as Record<string, unknown>),
+        parent: row.parent ?? null,
       };
     }
   } catch {
     /* fall through to seed */
   }
   const seed = SCORECARD_SEEDS[lane]!;
-  return { version: seed.version, params: seed.params };
+  return { version: seed.version, params: seed.params, parent: null };
+}
+
+/** Load a specific scorecard version (A172 shadow parent). Merges lane seed when known. */
+export async function getScorecardParamsByVersion(
+  version: string,
+): Promise<{ version: string; params: Record<string, unknown>; lane: ScorecardLane } | null> {
+  await ensureScorecardParamsTables();
+  try {
+    const [row] = await db
+      .select({
+        version: scorecardParams.version,
+        params: scorecardParams.params,
+        lane: scorecardParams.lane,
+      })
+      .from(scorecardParams)
+      .where(eq(scorecardParams.version, version))
+      .limit(1);
+    if (!row?.params || typeof row.params !== "object") return null;
+    const lane = row.lane as ScorecardLane;
+    const seed = SCORECARD_SEEDS[lane]?.params ?? {};
+    return {
+      version: row.version,
+      lane,
+      params: deepMerge(seed, row.params as Record<string, unknown>),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function deepMerge(base: Record<string, unknown>, over: Record<string, unknown>): Record<string, unknown> {

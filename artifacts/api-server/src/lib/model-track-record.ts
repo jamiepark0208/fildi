@@ -34,7 +34,8 @@ import { fetchChainsForTickers } from "./options-chain-batch.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadPutScoringInputs, loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadPutScoringInputs, loadShadowInputs, loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { deriveHotList } from "./live-hotlist.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
@@ -118,6 +119,13 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   recs: number; hotlist: number; regimeStubs: number; tickers: number; failures: number;
   liveBidRecs: number; degraded: boolean;
 }> {
+  // A172 columns (idempotent — drizzle 0030 also applies them).
+  const { pool } = await import("@workspace/db");
+  await pool.query(`
+    ALTER TABLE model_recs ADD COLUMN IF NOT EXISTS shadow_score numeric;
+    ALTER TABLE model_recs ADD COLUMN IF NOT EXISTS shadow_version text;
+  `);
+
   const tickersWatch = await getUnionWatchlistTickers();
   const [techRows, volRegimeResult, macroRegimeName, tiltState, calibration] = await Promise.all([
     getAllTechnicalsRows(),
@@ -161,6 +169,10 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const putRankings  = putTechScores(rows, putInputs.putTechWeights);
   const callRankings = laneTechScores(rows, putInputs.callTechWeights, "call");
   const techRowMap = new Map(rows.map(r => [r.ticker, r]));
+  const shadowInputs = await loadShadowInputs();
+  const shadowPutRankings = shadowInputs
+    ? putTechScores(rows, shadowInputs.putTechWeights)
+    : null;
 
   // Fetch chains (bounded concurrency; per-ticker failures don't kill the run).
   const { chainsByTicker, failures } = await fetchChainsForTickers(tickers, {
@@ -241,6 +253,28 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
         regimeConfidence: regimeConfidence,
       });
 
+      let shadowScore: string | null = null;
+      let shadowVersion: string | null = null;
+      if (!isCall && shadowInputs && shadowPutRankings) {
+        const shadowPolicy = applyPolicy(
+          tiltState.put, shadowInputs.strikeWeights, { regime: macroRegimeName, ticker },
+        );
+        const sh = scoreShadowOnChosenStrike({
+          opt,
+          chain,
+          stockCtx: { ...stockCtx, techTotalScore: shadowPutRankings.get(ticker) ?? null },
+          regime: volRegime,
+          allWatchlistIVs,
+          strikeWeights: shadowPolicy.weights,
+          earningsHaircut: shadowPolicy.earningsHaircut,
+          calibration,
+        });
+        if (sh != null) {
+          shadowScore = String(sh);
+          shadowVersion = shadowInputs.version;
+        }
+      }
+
       recRows.push({
         snapshotDate,
         ticker,
@@ -268,6 +302,8 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
           version: tickerPolicy.version,
           globalFactor: policy.factor,
         },
+        shadowScore,
+        shadowVersion,
       });    }
   }
 
