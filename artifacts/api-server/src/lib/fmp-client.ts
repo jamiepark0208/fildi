@@ -276,6 +276,10 @@ export async function fetchFMPEarningsHistory(
   trigger = "unknown",
 ): Promise<FMPEarningsQuarter[]> {
   const t = ticker.toUpperCase();
+  if (await isFmpRestricted(t, "earnings")) {
+    logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "failure", error: "fmp earnings restricted (cached 30d)", requestedFields: "skip", calls: 0 });
+    return [];   // caller falls back to Finnhub
+  }
   const url = `${FMP_BASE}/earnings?symbol=${t}&apikey=${apiKey}`;
   try {
     const raw = await fetchWithRetry(url);
@@ -299,6 +303,7 @@ export async function fetchFMPEarningsHistory(
     logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
     return rows;
   } catch (err: any) {
+    if (isFmpPremiumError(err)) await markFmpRestricted(t, "earnings");
     logApiCall({ source: "fmp", fn: "fetchFMPEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "earnings" });
     throw err;
   }

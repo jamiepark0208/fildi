@@ -1,6 +1,7 @@
 /**
  * FMP free-tier symbol restriction cache (A84).
  * Non-mega-caps return "Premium Query Parameter" — skip for 30 days.
+ * `scope` keys one endpoint (e.g. "earnings": TMO 402s there but not on fundamentals) — default = whole ticker.
  */
 import { db, appConfig } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -25,8 +26,8 @@ async function save(map: RestrictedMap): Promise<void> {
   }
 }
 
-export async function isFmpRestricted(ticker: string): Promise<boolean> {
-  const t = ticker.toUpperCase();
+export async function isFmpRestricted(ticker: string, scope?: string): Promise<boolean> {
+  const t = scope ? `${scope}:${ticker.toUpperCase()}` : ticker.toUpperCase();
   const map = await load();
   const until = map[t];
   if (!until) return false;
@@ -38,13 +39,14 @@ export async function isFmpRestricted(ticker: string): Promise<boolean> {
   return true;
 }
 
-export async function markFmpRestricted(ticker: string): Promise<void> {
-  const t = ticker.toUpperCase();
+export async function markFmpRestricted(ticker: string, scope?: string): Promise<void> {
+  const t = scope ? `${scope}:${ticker.toUpperCase()}` : ticker.toUpperCase();
   const map = await load();
   map[t] = new Date(Date.now() + TTL_MS).toISOString();
   await save(map);
 }
 
 export function isFmpPremiumError(err: unknown): boolean {
-  return /Premium Query Parameter/i.test(String(err instanceof Error ? err.message : err));
+  // fetchJsonWithRetry throws "FMP HTTP 402 for …" (body text not included) — 10-21: AAOI 402'd 21× in 2 days, never cached.
+  return /Premium Query Parameter|FMP HTTP 402\b/i.test(String(err instanceof Error ? err.message : err));
 }
