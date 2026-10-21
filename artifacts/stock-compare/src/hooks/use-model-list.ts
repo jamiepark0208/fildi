@@ -43,6 +43,9 @@ export type ModelListItem = {
     model_premium?: number | null;
     /** this contract's IV and the 30-day ATM IV vs 20-day realized vol (> 1 = options priced above recent moves) */
     vol?: { contract_iv: number; atm30_iv: number | null; rv20: number; contract_iv_rv: number; atm30_iv_rv: number | null };
+    /** A220 IV wall (display only): strike the market prices at a 5 % one-sided breach by expiry — floor for puts, ceiling
+     *  for calls (spot · e^(∓1.645·σ·√T), σ = 30-day ATM IV); held = share of the past year this stock stayed inside it */
+    wall?: { kind: "floor" | "ceiling"; level: number; strike_sigma: number; beyond_wall: boolean; priced: number; held?: number; held_n?: number };
     earnings?: { date: string; inside: boolean; days_after_expiry: number };
     /** the user's Robinhood realized closes on this ticker + side since 2025 (descriptive, small n) */
     record?: { n: number; wins: number; pnl: number; since: string };

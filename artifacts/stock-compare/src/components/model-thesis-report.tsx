@@ -496,6 +496,35 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
         </div>
       )}
 
+      {c?.wall && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-[10px] text-amber-200/70 cursor-default">
+              IV wall ({c.wall.kind}): <span className="font-mono text-amber-100">${c.wall.level.toFixed(2)}</span> · strike{" "}
+              <span className="font-mono text-amber-100">{c.wall.strike_sigma.toFixed(1)}σ</span>{" "}
+              {c.wall.beyond_wall ? "beyond the wall" : "inside the wall"}
+              {c.wall.held != null && (
+                <>
+                  {" "}· stayed inside{" "}
+                  <span className={c.wall.held >= 0.97 ? "text-green-400" : c.wall.held < 0.93 ? "text-red-400" : "text-amber-100"}>
+                    {Math.round(c.wall.held * 100)}%
+                  </span>{" "}
+                  past yr
+                </>
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[300px] text-[11px] leading-snug">
+            {c.wall.kind === "floor" ? "Put floor" : "Call ceiling"} = the price the options market gives a 5 % chance of finishing
+            {c.wall.kind === "floor" ? " below" : " above"} by expiry: spot × e^({c.wall.kind === "floor" ? "−" : "+"}1.645 × 30-day ATM IV × √(days/365)).
+            Strike σ = how many of those standard moves away the strike sits (live puts sell ~0.9–1.4σ, i.e. inside the wall, by design).
+            Stayed inside = how often this stock actually finished inside its own wall over the past year at this horizon
+            ({c.wall.held_n ?? "—"} start days, LSEG closes): above 95 % its options over-priced the tail; below, under-priced it.
+            Display only — not a filter.
+          </TooltipContent>
+        </Tooltip>
+      )}
+
       {c?.earnings && c.earnings.days_after_expiry <= 14 && (
         <div className={cn("text-[10px]", c.earnings.inside ? "text-orange-300" : "text-amber-200/70")}>
           Earnings {fmtExpiry(c.earnings.date)}:{" "}

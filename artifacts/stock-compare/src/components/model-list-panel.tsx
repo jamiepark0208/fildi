@@ -37,7 +37,8 @@ function fmtExpiry(iso: string) {
 
 function contractShort(c: NonNullable<ModelListItem["contract"]>) {
   const win = c.win ? ` (wins ${c.win.outside || c.win.extrapolated ? "≈" : ""}${Math.round(c.win.rate * 100)}% hist.)` : "";
-  return `${c.strike}${c.type === "put" ? "P" : "C"} ${fmtExpiry(c.expiry)}${win}`;
+  const wall = c.wall ? ` · IV ${c.wall.kind} $${c.wall.level.toFixed(2)}` : "";
+  return `${c.strike}${c.type === "put" ? "P" : "C"} ${fmtExpiry(c.expiry)}${win}${wall}`;
 }
 
 function itemKey(folderKey: string, item: ModelListItem) {

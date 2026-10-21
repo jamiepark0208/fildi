@@ -23,6 +23,7 @@ from collections import defaultdict
 
 from build_plan import connect, rows
 import fit_model as F13
+import iv_wall as IVW
 import fit_model_v14 as FV
 import params as PM
 import portfolio as PF
@@ -293,6 +294,11 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         if civ and r20:
             contract["vol"] = {"contract_iv": round(float(civ), 3), "atm30_iv": round(a30, 3) if a30 else None, "rv20": round(r20, 3),
                                "contract_iv_rv": round(float(civ) / r20, 2), "atm30_iv_rv": round(a30 / r20, 2) if a30 else None}
+        spot_now = lv.get("spot") if lv.get("spot") is not None else p["model_spot"]
+        wl = IVW.wall(conn, p["ticker"], p["option_type"], float(spot_now) if spot_now is not None else None,
+                      a30 or (float(civ) if civ else None), (p["expiry"] - today).days, float(p["strike"]))
+        if wl:   # A220 (Jamie 10-21): display only — put floor / call ceiling the market prices at 5 % breach
+            contract["wall"] = wl
         if next_er.get(p["ticker"]):
             ed = next_er[p["ticker"]]
             contract["earnings"] = {"date": str(ed), "inside": ed <= p["expiry"], "days_after_expiry": (ed - p["expiry"]).days}
@@ -368,6 +374,11 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
                         contract={"type": m["contract"]["type"], "strike": m["contract"]["strike"], "expiry": m["contract"]["expiry"],
                                   "premium": m["contract"]["premium"], "account": m["account"], "verify_status": "open position"},
                         why=m["alerts"] + [f"open: short {m['contract']['qty']:.0f} × {m['account']}"]))
+        mc = out[-1]["contract"]   # A220: wall for open shorts too (defense view), on the last LSEG close
+        wl = IVW.wall(conn, m["ticker"], mc["type"], IVW.last_close(conn, m["ticker"]), atm.get(m["ticker"]),
+                      (date.fromisoformat(str(mc["expiry"])[:10]) - today).days, float(mc["strike"]))
+        if wl:
+            mc["wall"] = wl
 
     for r in RB.items(snap, fit, P):  # FILDI concentration + margin (display only; account line first)
         out.append(item("rebalance", r.get("f") or None, ticker=r["ticker"], score=r["score"], status=r["status"], why=r["why"]))
