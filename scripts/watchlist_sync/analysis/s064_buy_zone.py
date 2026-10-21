@@ -262,7 +262,7 @@ def main():
     tr = []
     with (nullcontext() if BS_MODE else lseg_session()) as ld:
         for t in sorted(bars):
-            if ld is not None and ld.requests > REQ_CAP:
+            if ld is not None and (ld.requests > REQ_CAP or ld.remaining < 200):  # 200 = one name's pulls; stop cleanly before the per-request guard
                 print(f"stopped at {t}: {ld.requests} LSEG requests (cap {REQ_CAP}); re-run tomorrow continues from cache")
                 break
             rows = bars[t]

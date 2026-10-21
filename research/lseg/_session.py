@@ -37,8 +37,9 @@ RETRYABLE = ("429", "timeout", "timed out", "temporarily", "503", "502", "connec
 class MeteredLD:
     """Wraps lseg.data: throttles, retries transient errors, and counts requests + approx datapoints."""
 
-    def __init__(self, ld_mod: Any):
+    def __init__(self, ld_mod: Any, limit: int | None = None):
         self._ld = ld_mod
+        self.limit = limit  # requests this session may still make before the day's guard fraction (None = unmetered)
         self.requests = 0
         self.datapoints = 0
         self.errors = 0
@@ -52,6 +53,10 @@ class MeteredLD:
             if wait > 0:
                 time.sleep(wait)
             self._last = time.monotonic()
+            if self.limit is not None and self.requests >= self.limit:
+                # 10-20: the guard only ran at session start → research sessions started at 79 % ran to 110 % and the
+                # production sync (daily.py, LSEG_PRIORITY=1) found no budget left. Now enforced per request.
+                raise RuntimeError(f"LSEG budget guard: session hit its share of today's requests ({self.limit}); stop and re-run tomorrow")
             self.requests += 1
             try:
                 out = fn(*args, **kwargs)
@@ -64,6 +69,10 @@ class MeteredLD:
                 if attempt == 2 or not any(k in str(e).lower() for k in RETRYABLE):
                     raise
                 time.sleep(2 * (attempt + 1))
+
+    @property
+    def remaining(self) -> float:
+        return float("inf") if self.limit is None else self.limit - self.requests
 
     def get_data(self, *a: Any, **k: Any) -> Any:
         return self._call(self._ld.get_data, *a, **k)
@@ -144,7 +153,7 @@ def lseg_session() -> Iterator[Any]:
     if str(ld.session.get_default().open_state).split(".")[-1] != "Opened":
         ld.close_session()
         raise RuntimeError("LSEG session did not open. Log in to Workspace, then rerun.")
-    metered = MeteredLD(ld)
+    metered = MeteredLD(ld, int(LSEG_DAILY_REQUESTS * frac) - used)
     try:
         yield metered
     finally:

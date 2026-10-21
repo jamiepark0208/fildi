@@ -101,7 +101,7 @@ def main():
         order = sorted(bars)
         rng.shuffle(order)
         for t in order:
-            if ld.requests > REQ_CAP:
+            if ld.requests > REQ_CAP or ld.remaining < 200:  # 200 = one name's pulls; stop cleanly before the per-request guard
                 print(f"stopped: {ld.requests} LSEG requests (cap {REQ_CAP}); re-run tomorrow continues from cache")
                 break
             rows, rd = bars[t], [d for d, _ in rep.get(t, [])]

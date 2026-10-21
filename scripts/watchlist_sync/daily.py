@@ -87,12 +87,20 @@ def quotes_ingested() -> bool:
     return r[0]["n"] > 0
 
 
-def plan_built_on(d) -> bool:
-    sys.path.insert(0, str(HERE))
-    from build_plan import connect, rows
-    with connect() as conn:
-        r = rows(conn, "SELECT COUNT(*) n FROM watchlist_sync.plans WHERE (created_at AT TIME ZONE 'America/New_York')::date = %s", (d,))
-    return r[0]["n"] > 0
+def full_run_on(d) -> bool:
+    """A successful full run (lseg + model stages) that started on ET day d at/after 06:00 ET. Was "any plan built on d (ET)":
+    a manual rebuild at 21:22 PT on 10-19 (= 00:22 ET 10-20) made the 10-20 scheduled run skip → no LSEG sync, no live option
+    scan, no fit (Claude 10-20). Manual rebuild.sh plans (build_plan only) no longer count."""
+    for f in (HERE / "out" / "runs").glob("*.json"):
+        try:
+            log = json.loads(f.read_text())
+            started = datetime.fromisoformat(log["started"]).astimezone(R.ET)   # naive = Mac local time
+        except (ValueError, KeyError, OSError):
+            continue
+        if (started.date() == d and started.hour >= 6 and log.get("status") in ("ok", "awaiting_verification")
+                and {"lseg", "model"} <= set(log.get("stages", []))):
+            return True
+    return False
 
 
 def run(name, py, cwd, args) -> dict:
@@ -118,8 +126,8 @@ def main() -> None:
         if not R.is_trading_day(today):
             print(f"skip: {today} is not a trading day")
             return
-        if plan_built_on(today):
-            print(f"skip: a plan was already built on {today}")
+        if full_run_on(today):
+            print(f"skip: a full run already finished on {today} (ET)")
             return
     stages = [a.only] if a.only else ORDER[ORDER.index(a.start):(ORDER.index(a.until) + 1 if a.until else None)]
     if a.no_lseg:
