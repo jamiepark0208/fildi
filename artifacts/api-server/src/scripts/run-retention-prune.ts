@@ -22,7 +22,7 @@ if (report.ok) {
   await pool.query(
     "INSERT INTO app_config (key, value, updated_at) VALUES ('last_retention_prune', $1, now()) " +
       "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
-    [new Date().toISOString()],
+    [JSON.stringify(new Date().toISOString())],   // value is jsonb
   );
 }
 console.log(JSON.stringify({ ts: new Date().toISOString(), ...report }));

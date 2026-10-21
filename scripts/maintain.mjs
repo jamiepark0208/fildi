@@ -627,11 +627,11 @@ async function main() {
 
     // (a3) Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
     const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
-    actions.push(`backfill_stale_prices_exit_${stalePrices.status}`);
+    actions.push(`backfill_stale_prices_exit_${stalePrices.status ?? stalePrices.signal ?? "spawn_error"}`);   // null exit = killed: name the signal
 
     // (a3b) A96 market breadth — last 5 sessions A/D (Polygon) + MA% (prices_historical). Full 2y = backfill-market-breadth --days=500.
     const breadth = runApiTsx("src/scripts/backfill-market-breadth.ts", ["--days=5"]);
-    actions.push(`backfill_market_breadth_exit_${breadth.status}`);
+    actions.push(`backfill_market_breadth_exit_${breadth.status ?? breadth.signal ?? "spawn_error"}`);
 
     // (b) Earnings-window stale refresh (bounded) — every weekday when due.
     enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);

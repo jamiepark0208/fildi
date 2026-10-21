@@ -164,15 +164,20 @@ def chain(conn, t: str, exp: date, ref: float | None = None) -> list[dict]:
 
 
 def fetch_bars(conn, occ: str, exp: date) -> None:
-    if conn.execute("SELECT 1 FROM optlab.bars_fetched WHERE occ = %s", (occ,)).fetchone():
+    # Incremental (10-21, as fetch_underlying): a contract first fetched before it expired kept its marker forever → the
+    # ivrank monthlies (and optlab.iv30 / IV rank) froze at 10-14. Done = fetched after expiry or already today.
+    f = conn.execute("SELECT fetched_at::date FROM optlab.bars_fetched WHERE occ = %s", (occ,)).fetchone()
+    if f and (f[0] > exp or f[0] >= TODAY):
         return
-    lo = max(START, exp - timedelta(days=120))
-    d = get(f"/v2/aggs/ticker/{occ}/range/1/day/{lo}/{exp}?adjusted=false&sort=asc&limit=50000")
+    last = conn.execute("SELECT MAX(date) FROM optlab.bars WHERE occ = %s", (occ,)).fetchone()[0] if f else None
+    lo = last + timedelta(days=1) if last else max(START, exp - timedelta(days=120))
+    d = get(f"/v2/aggs/ticker/{occ}/range/1/day/{lo}/{min(exp, TODAY)}?adjusted=false&sort=asc&limit=50000")
     res = d.get("results") or []
     with conn.cursor() as cur:
         cur.executemany("INSERT INTO optlab.bars (occ, date, h, c, v) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                         [(occ, day(r["t"]), r.get("h"), r.get("c"), r.get("v")) for r in res])
-        cur.execute("INSERT INTO optlab.bars_fetched (occ, n) VALUES (%s,%s) ON CONFLICT DO NOTHING", (occ, len(res)))
+        cur.execute("INSERT INTO optlab.bars_fetched (occ, n) VALUES (%s,%s) ON CONFLICT (occ) DO UPDATE SET "
+                    "n = optlab.bars_fetched.n + EXCLUDED.n, fetched_at = now()", (occ, len(res)))
     conn.commit()
 
 
