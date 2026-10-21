@@ -79,6 +79,13 @@ describe("daily precompute and retention", () => {
     assert.equal(shouldRunDailyPrecomputeAt(new Date("2026-10-17T14:02:00.000Z"), morning), false);
   });
 
+  it("maintain-owned: API waits for the 17–19 UTC fallback window (no front-running the 7 AM PT chain)", () => {
+    assert.equal(shouldRunDailyPrecomputeAt(null, new Date("2026-10-17T14:10:00.000Z"), undefined, true), false);
+    assert.equal(shouldRunDailyPrecomputeAt(new Date("2026-10-15T14:00:00.000Z"), new Date("2026-10-17T15:00:00.000Z"), undefined, true), false);
+    assert.equal(shouldRunDailyPrecomputeAt(null, new Date("2026-10-17T17:30:00.000Z"), undefined, true), true);
+    assert.equal(shouldRunDailyPrecomputeAt(new Date("2026-10-17T14:20:00.000Z"), new Date("2026-10-17T17:30:00.000Z"), undefined, true), false);
+  });
+
   it("does not retry a failed morning job 30 minutes later", () => {
     const now = new Date("2026-10-17T18:00:00.000Z");
     const old = new Date("2026-10-15T14:00:00.000Z");

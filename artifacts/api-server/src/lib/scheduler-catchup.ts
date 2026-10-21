@@ -107,10 +107,18 @@ export function shouldRunRetentionAt(lastSuccess: Date | null, now: Date, attemp
 const DAILY_PRECOMPUTE_HOUR = 14;
 const DAILY_PRECOMPUTE_CATCHUP_END = 16;
 
-export function shouldRunDailyPrecomputeAt(lastSuccess: Date | null, now: Date, attempt: RunAttempt = NO_ATTEMPT): boolean {
+// When the Mac maintain LaunchAgent owns the morning chain (DISABLE_SCHEDULER_ENRICHMENT=1), the API is only a fallback,
+// 17–19 UTC: at 14 UTC it front-ran maintain and the same jobs ran twice (10-20).
+const DAILY_PRECOMPUTE_FALLBACK_HOUR = 17;
+const DAILY_PRECOMPUTE_FALLBACK_END = 19;
+
+export function shouldRunDailyPrecomputeAt(
+  lastSuccess: Date | null, now: Date, attempt: RunAttempt = NO_ATTEMPT, maintainOwned = false,
+): boolean {
   if (failureBackoffBlocks(lastSuccess, attempt, now)) return false;
   if (lastSuccess && isSameUtcDay(lastSuccess, now)) return false;
   const hour = now.getUTCHours();
+  if (maintainOwned) return hour >= DAILY_PRECOMPUTE_FALLBACK_HOUR && hour <= DAILY_PRECOMPUTE_FALLBACK_END;
   const onSchedule = hour === DAILY_PRECOMPUTE_HOUR;
   const morningCatchup = hour > DAILY_PRECOMPUTE_HOUR && hour <= DAILY_PRECOMPUTE_CATCHUP_END;
   const missedWindow = daysSince(lastSuccess, now) > 1.5;

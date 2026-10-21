@@ -20,7 +20,7 @@ import { rotateApiServerLogIfNeeded } from "./log-rotation.js";
 import { resolveExpiredOptionTrades } from "./trade-post-expiry.js";
 import { runModelSnapshot, runModelGrading } from "./model-track-record.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
-import { getMarketOpenUtc, isMarketOpen, minutesSinceOpen } from "./market-hours.js";
+import { etDateKey, getMarketOpenUtc, isMarketOpen, minutesSinceOpen } from "./market-hours.js";
 import { runCheckpoint, CHECKPOINTS_MIN } from "./intraday-regime.js";
 import { runEntrySignals } from "./intraday-entry-signals.js";
 import { runModelListIntradayCheck } from "./model-list-intraday.js";
@@ -211,21 +211,27 @@ function shouldRunEnrichmentNow(): boolean {
 }
 
 function shouldRunRetentionNow(): boolean {
+  // Maintain prunes at 7 AM PT and stamps last_retention_prune → this only fires if maintain missed the day (after 19 UTC).
+  if (MAINTAIN_OWNED && new Date().getUTCHours() < 20) return false;
   return shouldRunRetentionAt(lastRetentionPrune, new Date(), attempts.retention);
 }
 
 // Daily precompute: 14:00 UTC, catch-up through 16:00, or last success older than 1.5 days.
 // Hours live in shouldRunDailyPrecomputeAt.
+// Mac: com.fildi.maintain owns the morning chain (enrichment, precompute, retention) → the API is a later fallback only.
+const MAINTAIN_OWNED =
+  process.env.DISABLE_SCHEDULER_ENRICHMENT === "1" || process.env.DISABLE_SCHEDULER_ENRICHMENT === "true";
+
 function shouldRunEventBulletsNow(): boolean {
-  return shouldRunDailyPrecomputeAt(lastEventBulletsRun, new Date(), attempts.eventBullets);
+  return shouldRunDailyPrecomputeAt(lastEventBulletsRun, new Date(), attempts.eventBullets, MAINTAIN_OWNED);
 }
 
 function shouldRunEarningsBackfillNow(): boolean {
-  return shouldRunDailyPrecomputeAt(lastEarningsBackfillRun, new Date(), attempts.earnings);
+  return shouldRunDailyPrecomputeAt(lastEarningsBackfillRun, new Date(), attempts.earnings, MAINTAIN_OWNED);
 }
 
 function shouldRunFmpAnalystFeedNow(): boolean {
-  return shouldRunDailyPrecomputeAt(lastFmpAnalystFeedRun, new Date(), attempts.fmp);
+  return shouldRunDailyPrecomputeAt(lastFmpAnalystFeedRun, new Date(), attempts.fmp, MAINTAIN_OWNED);
 }
 
 /** Drive → DB catch-up. Cheap; only files newer than last run. No missed-poll replay. */
@@ -401,6 +407,36 @@ export async function runOptionScoreJob() {
   } finally {
     optionScoreRunning = false;
   }
+}
+
+/** Maintain's morning chain: run each precompute job unless it already ran today (ET day — a 6 PM PT run must not count
+ *  for tomorrow). Returns the jobs that ran. Used by scripts/run-morning-precompute.ts so maintain + the API fallback
+ *  never run the same job twice. */
+export async function runMorningPrecomputeIfDue(force = false): Promise<string[]> {
+  const jobs: [string, () => Promise<void>][] = [
+    [LAST_EVENT_BULLETS_RUN_KEY, runEventBulletsJob],
+    [LAST_EARNINGS_BACKFILL_RUN_KEY, runEarningsBackfillJob],
+    [LAST_FMP_ANALYST_FEED_RUN_KEY, runFmpAnalystFeedJob],
+  ];
+  const ran: string[] = [];
+  for (const [key, job] of jobs) {
+    const last = await loadDate(key);
+    if (!force && last && etDateKey(last) === etDateKey()) {
+      logger.info({ key, last }, "morning-precompute: already ran today (ET) — skip");
+      continue;
+    }
+    await job();
+    ran.push(key);
+  }
+  return ran;
+}
+
+/** Maintain's retention prune: stamps the same key the API uses (Settings shows one last-run), skips if done today (ET). */
+export async function runRetentionPruneIfDue(force = false): Promise<boolean> {
+  const last = await loadDate(LAST_RETENTION_PRUNE_KEY);
+  if (!force && last && etDateKey(last) === etDateKey()) return false;
+  await runRetentionPrune();
+  return true;
 }
 
 /** Manual / admin trigger — daily event-bullet precompute. */

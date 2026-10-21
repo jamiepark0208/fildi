@@ -281,6 +281,7 @@ function daysSinceEnrichment() {
 
 /** scripts/watchlist_sync/daily.py --if-needed (own Python venv; loads .env.local itself). */
 function runModelListDaily() {
+  const t0 = Date.now();
   const dir = join(ROOT, "scripts/watchlist_sync");
   const r = spawnSync(join(dir, ".venv/bin/python"), ["daily.py", "--if-needed"], {
     encoding: "utf8",
@@ -293,10 +294,12 @@ function runModelListDaily() {
     error: r.error ? String(r.error.message || r.error) : null,
     stdoutTail: (r.stdout || "").slice(-800),
     stderrTail: (r.stderr || "").slice(-400),
+    ms: Date.now() - t0,
   };
 }
 
 function runApiTsx(scriptRel, extraArgs = []) {
+  const t0 = Date.now();
   const envFile = "/tmp/fildi-env-export.sh";
   const cmd = `
     set -a
@@ -318,6 +321,7 @@ function runApiTsx(scriptRel, extraArgs = []) {
     error: r.error ? String(r.error.message || r.error) : null,
     stdoutTail: (r.stdout || "").slice(-800),
     stderrTail: (r.stderr || "").slice(-400),
+    ms: Date.now() - t0,
   };
 }
 
@@ -597,6 +601,7 @@ async function main() {
   let enrichUnscored = null;
   let enrichEarnings = null;
   let modelList = null;
+  const timings = {}; // per-step ms (10-20: the chain had no durations, so ordering costs were invisible)
   let peerHealth = null;
   let postMerge = null;
 
@@ -677,12 +682,24 @@ async function main() {
         (upstreamMerged ? "" : "_no_upstream_write"),
     );
 
+    // (e2) Morning precompute: event bullets + earnings history (→ earnings_calendar, read by the Model List's earnings
+    //      re-strike) + FMP analyst feed (→ street PT). BEFORE the Model List (10-20: ran after it). Jobs already stamped
+    //      today (API fallback window) are skipped inside the script, so nothing runs twice.
+    if (finalFlags.processOk) {
+      const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
+      timings.morningPrecompute = pre.ms;
+      actions.push(`morning_precompute_exit_${pre.status}`);
+    } else {
+      actions.push("morning_precompute_skipped_process_down");
+    }
+
     // (f) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
     //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
     //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
     //      Runs AFTER earnings refresh + score rebuild (10-20: was before them → plans used yesterday's earnings dates,
     //      which drive the earnings re-strike, and yesterday's tech/fund scores).
     modelList = runModelListDaily();
+    timings.modelList = modelList.ms;
     actions.push(`model_list_exit_${modelList.status}`);
     if (modelList.status !== 0) {
       notifyMac("Fildi Model List not updated", (modelList.stdoutTail || modelList.stderrTail || "see maintain-last.json").slice(-180));
@@ -692,16 +709,6 @@ async function main() {
     // Covers api_usage / ai_usage_log / old intraday app_config + filesystem logs.
     const retention = runApiTsx("src/scripts/run-retention-prune.ts");
     actions.push(`retention_prune_exit_${retention.status}`);
-
-    // Morning precompute so stock breakdown is warm by ~8 AM open.
-    // Safe to re-run: each job dedupes same-UTC-day via scheduler stamps when
-    // invoked from API; this script always runs once from Maintain.
-    if (finalFlags.processOk) {
-      const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
-      actions.push(`morning_precompute_exit_${pre.status}`);
-    } else {
-      actions.push("morning_precompute_skipped_process_down");
-    }
 
     // Sunday lean digest: scoreboard → value-log only (no second drain/peer).
     if (isPtSunday()) {
@@ -812,6 +819,7 @@ async function main() {
     ts: new Date().toISOString(),
     mode,
     ms: Date.now() - started,
+    timings,
     healthOk: !!health.ok,
     processOk: finalFlags.processOk,
     vendorsOk: finalFlags.vendorFailed.length === 0,

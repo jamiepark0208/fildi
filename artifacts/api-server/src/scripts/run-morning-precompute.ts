@@ -5,20 +5,15 @@
  *
  * Uses scheduler job wrappers so lastRun stamps land in app_config (Settings UI).
  */
-import {
-  runEventBulletsJob,
-  runEarningsBackfillJob,
-  runFmpAnalystFeedJob,
-} from "../lib/scheduler.js";
+import { runMorningPrecomputeIfDue } from "../lib/scheduler.js";
 import { logger } from "../lib/logger.js";
 
 async function main() {
   const started = Date.now();
   logger.info("morning-precompute: start");
-  await runEventBulletsJob();
-  await runEarningsBackfillJob();
-  await runFmpAnalystFeedJob();
-  logger.info({ ms: Date.now() - started }, "morning-precompute: complete");
+  // Skips jobs already stamped today (ET) — e.g. by the API fallback — so nothing runs twice. --force re-runs all.
+  const ran = await runMorningPrecomputeIfDue(process.argv.includes("--force"));
+  logger.info({ ms: Date.now() - started, ran }, "morning-precompute: complete");
 }
 
 main().catch((err) => {
