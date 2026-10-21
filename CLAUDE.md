@@ -1,27 +1,21 @@
 @AGENTS.md
 
-# TradeDash — Claude Code Config
-> Claude Code only. Shared product/ops SoT: `.agents/context/INDEX.md` (also root `AGENTS.md`). Session state lives in `.agents/context/state.md` — read it when resuming work.
+# TradeDash — Claude Code config
+> Claude only. Shared rules: `AGENTS.md`. Topic map: `.agents/context/INDEX.md` (don't load every context file). Session state: `.agents/context/state.md`.
 
-## RESPONSE STYLE
-Caveman style (AGENTS.md rule 9). Be concise. Never echo back code just written or commands just run — the user sees tool output directly. State what was done in plain English, 1-2 sentences per action. No code blocks in prose unless explicitly asked. No repeating file paths/flags verbatim.
+## Style
+Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plain sentences per action. No code blocks or verbatim paths/flags unless asked.
 
-## STARTUP (every session)
-No per-prompt hook (rehydrate was dropped 2026-10-06: ~2 s latency per prompt for a stale one-liner). Only hook: the Read guard (PreToolUse) in `.claude/settings.local.json`.
-**Run `python3 scripts/agent_start.py` once** (W01, 10-20): it runs every step below (validate-workflow, `oj.py audit` + `pending`, `agent-git-sync.sh`,
-dismissal/inbox/ASKS/Muse/commit-review checks, `state_rotate.py`, `workflow_audit.py`) and prints a ≤ 15-line digest; full output → `~/.fildi/logs/`.
-Read the log only for a step that failed. Then act on the digest — the rules per step are unchanged:
-sync = `scripts/agent-git-sync.sh` only (never stash/rebase/pull by hand — AGENTS.md rule 2) →
-sync Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark those ASKS rows `declined (Jamie dismissed <date>)` and commit →
-triage `research/inbox.md` (user's raw thoughts → numbered items, dedupe vs ASKS/INDEX, priority P1–P3, file rows, clear the inbox; user 2026-10-15) →
-read open `research/common/ASKS.md` rows addressed **to Claude**, plus any status with `needs Claude` / `sign-off still open` (e.g. A131 quant gate) →
-review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review **every** open Muse row (user 2026-10-14; `[quant]` ones also get the eval) → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
-(b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` in `asks/A##.md` § Reviews; update the SHA.
-**Never implement** Muse rows — Cursor owns them (user 2026-10-07).
-Mac (default): build/restart → `.claude/skills/local-mac-dev.md`. Replit-only → `replit-setup.md` / `build-and-run.md`.
-Shared retrieval map → `.agents/context/INDEX.md` (do not load all context files)
+## Startup (once per session)
+`python3 scripts/agent_start.py` runs every startup step and prints a digest (full log → `~/.fildi/logs/`; read it only for a failed step). Act on the digest:
+1. Sync: `scripts/agent-git-sync.sh` only (AGENTS.md rule 2).
+2. Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark ASKS rows `declined (Jamie dismissed <date>)`, commit.
+3. Triage `research/inbox.md`: numbered items, dedupe vs ASKS/INDEX, P1–P3, file rows, clear the inbox.
+4. Open ASKS rows **to Claude**, plus statuses `needs Claude` / `sign-off still open`.
+5. Review loop (AGENTS.md § Review loop): (a) plan-review **every** open Muse row (`[quant]` also gets the eval) → `**Claude plan <date>:**` in `asks/A##.md` § Reviews, status `planned`; (b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**`, update the SHA.
+**Never implement Muse rows** (Cursor owns them). Build/restart on the Mac: `.claude/skills/local-mac-dev.md`.
 
-## SKILLS (load one at a time — never all at once)
+## Skills (load one at a time, when the task matches a row)
 | Need | Skill |
 |---|---|
 | Build + restart (Mac) | .claude/skills/local-mac-dev.md |
@@ -37,80 +31,42 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Trader strategy (mental model) | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | Feature planning | .claude/skills/feature-planner.md |
-| Backtest / "does X help trades?" (put/call/avoid re-tests) | research/studies/PLAYBOOK.md |
-| Study judgment (same-risk comparators, cash flows, verdict wording, review packet) — shared with all agents | .agents/skills/fildi-quant-research/SKILL.md |
-| Which data source (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
-| Is a score / rec working? (scoreboard, grades, calibration) | .agents/skills/fildi-grade-quality/SKILL.md |
-| Reviewing a study | research/studies/REVIEW.md |
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
-| End of session — user-triggered only, at ~90-95% context, never automatic | .claude/skills/session-wrap.md |
+| End of session (user-triggered only) | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
-| Market-data fetch scaffolding (data-agent subagent conventions) | .claude/skills/data-agent.md |
-| Dev tool reference (codegraph/markitdown/madge usage) | .claude/skills/startup.md |
-| OpenJev miss→teach→eval (don't quit on miss) | .claude/skills/openjev-train.md |
-| Grep patterns for hot macro/schema/pipeline files | .claude/skills/hot-files.md |
-| Model List "why is X (not) listed" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` (quiet) |
-| Agent workflow changes (tokens, steps) | `.agents/context/workflow-learning.md` (W-registry) + `scripts/workflow_audit.py` |
+| Market-data fetch scaffolding (data-agent) | .claude/skills/data-agent.md |
+| Dev tool reference (codegraph/markitdown/madge) | .claude/skills/startup.md |
+| OpenJev miss→teach→eval | .claude/skills/openjev-train.md |
+| Grep patterns for hot files (macro, schema, merge-trusted, nightly-enrichment, cache-registry) | .claude/skills/hot-files.md |
+| Backtest / "does X help trades?" | research/studies/PLAYBOOK.md |
+| Study judgment (comparators, verdict wording, review packet) | .agents/skills/fildi-quant-research/SKILL.md |
+| Data source choice (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
+| Is a score / rec working? | .agents/skills/fildi-grade-quality/SKILL.md |
+| Reviewing a study | research/studies/REVIEW.md |
+| "Why is X (not) on the Model List" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` |
+| Agent workflow changes | `.agents/context/workflow-learning.md` + `scripts/workflow_audit.py` |
 
-Multi-agent bus / ASKS / ship-check: **AGENTS.md** (not a skill — don’t load a second copy).
+Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React). Catalog: `.agents/AGENTS.md`.
 
+## Reading code
+1. codegraph first (explore / node / search / impact) before any edit. Route map: `node scripts/route-map.mjs`; commit impact: `scripts/commit-impact.sh <sha>`.
+2. Else `grep -n`, then Read with offset+limit. Never whole files; cap output (`| head`).
+3. Never read: `node_modules/**`, `dist/**`, lockfiles, `generated/api.ts`. (Tracked `*.mjs` like `scripts/maintain.mjs` are source.)
+4. OpenJev savers: > 3 candidate files → `scripts/oj.py files --task "…"`; long output → `oj.py run -- <cmd>`; before analysis → `oj.py studies "<q>"`; before filing ASKS → `oj.py dupes "<idea>"`.
 
----
+## Token budget
+- Cost = session length (the whole context is re-sent every turn). One task per session → update state.md → Jamie runs /clear. Prefer `/compact <keep>` at a task boundary; auto-compact fires at 50 %.
+- Write decisions and next steps into state.md when they happen, lessons into memory. Not chat.
+- Batch independent calls. Edit with Edit, not whole-file rewrites.
+- ASKS.md is a one-line index: open `asks/A##.md` only for rows you act on; closed rows → ASKS-archive.md.
+- **Subagents (Jamie 10-16, 7 forks burned the plan):** never `fork`. Default inline. A big build (> ~30 min inline) → ONE fresh agent at a time, `model: sonnet` for mechanical work, short prompt (spec path + acceptance), never parallel.
+- **No background waits on external deps (Jamie 10-21):** dependency down (LSEG port 9000, Schwab auth, a login) → probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. Background only for jobs that finish on their own (build/test/fetch), ≤ 30 min.
 
-## AGENTS
-verifier = tsc + tests (no linter configured) | data-agent = fetch/cache | ui-agent = React components
-Full catalog: .agents/AGENTS.md
+## Compact instructions
+Keep verbatim: every user message, decisions/approvals (and what was NOT approved), exact paths, symbol names, param versions (e.g. fund-1.1.1), unresolved errors, test baselines, uncommitted files and their owners. Drop: tool output already acted on, file contents, superseded plans.
 
-## CODEGRAPH
-Use before touching any source file (call it yourself — no hook runs codegraph automatically; the Read-guard hook only warns on untargeted reads).
-- codegraph context "<task>" — symbols + callers before any edit; use `maxNodes:10` to limit output
-- codegraph impact <symbol> — what breaks before changing a function
-- Route map (UI ↔ api route): `node scripts/route-map.mjs` → `.agents/context/route-map.md`; commit impact: `scripts/commit-impact.sh <sha>` (A128 — scripts, not a 2nd MCP)
-- For a specific symbol body: `codegraph_node` with `includeCode:true`; for broad mapping: `includeCode:false`
-
-**Fallback chain (in order — do NOT skip steps):**
-1. codegraph tools first (codegraph_context, codegraph_node, codegraph_search)
-2. If codegraph unavailable/returns nothing → grep/find for the specific symbol or pattern
-3. If grep is insufficient → use grep/codegraph to find the exact line numbers first, then Read with offset+limit (never load the whole file)
-   Never read at all — no value, always noise:
-   - `node_modules/**`
-   - `dist/**` (compiled output; tracked `*.mjs` files like `scripts/maintain.mjs` are source — read them normally)
-   - `pnpm-lock.yaml`, `package-lock.json`, `generated/api.ts`
-
-## OPENJEV TOKEN SAVERS (A150 — use by default, `.agents/openjev/README.md`)
-- > 3 candidate files → `scripts/oj.py files --task "…"` first; read the kept ones. Long test/build/log output → `scripts/oj.py run -- <cmd>`.
-- Before analysis → `scripts/oj.py studies "<q>"`; before filing ASKS → `scripts/oj.py dupes "<idea>"`. Checked an answer anyway → `oj.py outcome <id> yes|no`.
-
-## CONTEXT MANAGEMENT
-- Load a skill when the task matches a row in the SKILLS table (not by prompt length) — don't derive skill content from memory
-- Auto-compact fires at 50% (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings.local.json; was 25% until 2026-10-11: too many lossy compactions + re-reads) — do not fight it
-- Cost driver is session length (whole context re-sent each turn), not md files. One task per session: update state.md, then the user runs /clear
-- Read code with codegraph or `grep -n` + small ranges; never `cat`/`sed` whole files. Cap command output (`| head`, `tail -20`)
-- Batch independent commands into one turn; edit with Edit, not rewrite heredocs of whole files
-- research/common/ASKS.md is a one-line index: read it, open `asks/A##.md` only for rows you act on; never paste details into the index; move closed index lines to ASKS-archive.md
-- Facts that must survive compaction go in files, not chat: decisions/next steps → state.md, durable lessons → memory. Write them when they happen, not at the end
-- Prefer a deliberate `/compact <what to keep>` or /clear at a task boundary over letting auto-compact fire mid-task
-- **No background waits on external deps (Jamie 2026-10-21):** a wait loop for Workspace, VPN or an app login left running ~1 h, then would have fetched blind and woken the session. If a dependency (LSEG port 9000, Schwab auth, …) is down: probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. Background only for jobs already running that finish on their own (build/test/fetch), ≤ 30 min.
-- **Subagent budget (user 2026-10-16: 7 forks burned the plan in one afternoon, ~200–350k tokens each):** a `fork` copies this whole conversation → never use it for builds.
-  Default = do it inline. Big build → ONE fresh agent at a time (`general-purpose` or `data-agent`/`ui-agent`, `model: sonnet` for mechanical work),
-  short self-contained prompt (spec file path + acceptance), never parallel. Small edits = inline Edit, no agent. Probes = one capped command.
-  State per build: is it worth an agent (> ~30 min inline)? If not, inline.
-
-## COMPACT INSTRUCTIONS
-When summarizing this conversation, keep verbatim: every user message, the user's decisions and approvals (and what they did NOT approve), exact file paths, symbol names, param versions (e.g. fund-1.1.1), error messages still unresolved, test baselines, and uncommitted files and who owns them. Drop: tool output already acted on, file contents (re-read on demand), superseded plans.
-
-## KEY FILES (updated 2026-07-05)
-- Security middleware: `middleware/rateLimiter.ts`, `middleware/errorHandler.ts`, `middleware/validate.ts`
-- Shared cache utility: `lib/ttl-cache.ts` — all caches use this; see `.claude/skills/caching-patterns.md` for TTL table + registry rules
-- Auth validators: `lib/validators/auth.ts` (Zod schemas for register/login)
-- Admin endpoints: `routes/admin-cache.ts`, `routes/auth.ts` (invite CRUD), `routes/fundamentals-provenance.ts` (provenance + overrides)
-- Fundamentals pipeline: `scripts/merge-trusted.ts` (FIELD_DEFS — single source of truth for field priority), `lib/fundamentals-db.ts`
-- Full API catalog: `.agents/context/api-endpoints.md`
-- DB canonical universe: `fmp_fundamentals` table — **never hardcode a ticker count**; query the table for the live count
-
-## HOT FILE INDEX
-Frequently edited files (macro-data, macro.tsx, schema, merge-trusted, nightly-enrichment, cache-registry): grep patterns in `.claude/skills/hot-files.md` — grep before Read, never load the whole file.
-
-## HOOKS
-Defined in .claude/settings.local.json — never in .claude/hooks/hooks.json (not read).
+## Key facts
+- All caches use `lib/ttl-cache.ts` (TTL table + registry: caching-patterns skill). Field priority: `scripts/merge-trusted.ts` FIELD_DEFS. API catalog: `.agents/context/api-endpoints.md`.
+- Universe = `fmp_fundamentals` table. Never hardcode a ticker count.
+- Hooks live in `.claude/settings.local.json` only (just the Read guard). `.claude/hooks/hooks.json` is not read.
