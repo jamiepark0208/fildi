@@ -37,7 +37,7 @@
  * Always-on for local Mac preview should stay at TWO node processes:
  *   API :8080 + Vite :8081  (+ Postgres.app). Nothing else.
  */
-import { spawnSync, execSync } from "node:child_process";
+import { spawn, spawnSync, execSync } from "node:child_process";
 import {
   existsSync, mkdirSync, readdirSync, statSync, renameSync,
   createReadStream, createWriteStream, writeFileSync, readFileSync, unlinkSync,
@@ -531,6 +531,9 @@ function budgetSnapshot() {
 
 async function main() {
   mkdirSync(LOG_DIR, { recursive: true });
+  // 10-21: the 07:00 run spent 75 min in seconds-long dark wakes (lid closed / idle sleep) → killed steps, DNS failures, a
+  // Model List at 08:19. Hold a no-idle-sleep (+ no-sleep on AC) assertion for as long as this process lives.
+  try { spawn("/usr/bin/caffeinate", ["-i", "-s", "-w", String(process.pid)], { detached: true, stdio: "ignore" }).unref(); } catch {}
   // Load .env.local into process for psql DATABASE_URL
   const envLocal = join(ROOT, ".env.local");
   if (existsSync(envLocal) && !process.env.DATABASE_URL) {

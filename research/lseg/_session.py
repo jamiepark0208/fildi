@@ -37,9 +37,10 @@ RETRYABLE = ("429", "timeout", "timed out", "temporarily", "503", "502", "connec
 class MeteredLD:
     """Wraps lseg.data: throttles, retries transient errors, and counts requests + approx datapoints."""
 
-    def __init__(self, ld_mod: Any, limit: int | None = None):
+    def __init__(self, ld_mod: Any, limit: int | None = None, dp_limit: int | None = None):
         self._ld = ld_mod
         self.limit = limit  # requests this session may still make before the day's guard fraction (None = unmetered)
+        self.dp_limit = dp_limit  # datapoints this session may still use before the month's guard fraction
         self.requests = 0
         self.datapoints = 0
         self.errors = 0
@@ -57,6 +58,8 @@ class MeteredLD:
                 # 10-20: the guard only ran at session start → research sessions started at 79 % ran to 110 % and the
                 # production sync (daily.py, LSEG_PRIORITY=1) found no budget left. Now enforced per request.
                 raise RuntimeError(f"LSEG budget guard: session hit its share of today's requests ({self.limit}); stop and re-run tomorrow")
+            if self.dp_limit is not None and self.datapoints >= self.dp_limit:
+                raise RuntimeError(f"LSEG budget guard: session hit its share of this month's datapoints ({self.dp_limit:,}); stop")
             self.requests += 1
             try:
                 out = fn(*args, **kwargs)
@@ -73,6 +76,10 @@ class MeteredLD:
     @property
     def remaining(self) -> float:
         return float("inf") if self.limit is None else self.limit - self.requests
+
+    @property
+    def dp_remaining(self) -> float:
+        return float("inf") if self.dp_limit is None else self.dp_limit - self.datapoints
 
     def get_data(self, *a: Any, **k: Any) -> Any:
         return self._call(self._ld.get_data, *a, **k)
@@ -133,11 +140,13 @@ def lseg_session() -> Iterator[Any]:
         used = _usage_today(conn)
         month_pts = _datapoints_this_month(conn)
         conn.commit()
-    if month_pts >= LSEG_MONTHLY_DATAPOINTS * LSEG_BUDGET_FRACTION:
-        raise RuntimeError(
-            f"LSEG budget guard: ~{month_pts:,} datapoints used this month (stop at {int(LSEG_BUDGET_FRACTION * 100)}% of "
-            f"{LSEG_MONTHLY_DATAPOINTS:,}). Narrow the pull or wait for next month.")
+    # 10-21: the monthly check used the research fraction for every caller → research reaching 80 % of the month would have
+    # blocked the production sync (~40k datapoints/day) for the rest of the month. Production keeps the reserve above 80 %.
     frac = LSEG_PRIORITY_FRACTION if os.environ.get("LSEG_PRIORITY") == "1" else LSEG_BUDGET_FRACTION
+    if month_pts >= LSEG_MONTHLY_DATAPOINTS * frac:
+        raise RuntimeError(
+            f"LSEG budget guard: ~{month_pts:,} datapoints used this month (stop at {int(frac * 100)}% of "
+            f"{LSEG_MONTHLY_DATAPOINTS:,}). Narrow the pull or wait for next month.")
     if used >= LSEG_DAILY_REQUESTS * frac:
         raise RuntimeError(
             f"LSEG budget guard: {used}/{LSEG_DAILY_REQUESTS} requests already used today "
@@ -153,7 +162,7 @@ def lseg_session() -> Iterator[Any]:
     if str(ld.session.get_default().open_state).split(".")[-1] != "Opened":
         ld.close_session()
         raise RuntimeError("LSEG session did not open. Log in to Workspace, then rerun.")
-    metered = MeteredLD(ld, int(LSEG_DAILY_REQUESTS * frac) - used)
+    metered = MeteredLD(ld, int(LSEG_DAILY_REQUESTS * frac) - used, int(LSEG_MONTHLY_DATAPOINTS * frac) - month_pts)
     try:
         yield metered
     finally:

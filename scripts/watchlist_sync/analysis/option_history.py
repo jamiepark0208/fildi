@@ -323,6 +323,11 @@ def main() -> None:
     except BlockingIOError:
         print("another option_history run holds the lock; exiting")
         return
+    try:  # keep the Mac awake while this runs (10-21: jobs ran in seconds-long dark wakes); ends with this process
+        import subprocess
+        subprocess.Popen(["/usr/bin/caffeinate", "-i", "-s", "-w", str(os.getpid())], start_new_session=True)
+    except OSError:
+        pass
     conn = connect()
     for stmt in DDL.split(";"):
         if stmt.strip():

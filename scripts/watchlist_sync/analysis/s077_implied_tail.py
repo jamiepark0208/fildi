@@ -57,7 +57,14 @@ def third_fridays(lo: date, hi: date) -> list[date]:
 
 
 def step_for(s: float) -> float:
-    return 1.0 if s < 25 else 2.5 if s < 100 else 5.0 if s < 250 else 10.0
+    # measured 10-21 on Polygon-listed monthlies (k − g, k, k + g all listed): $0.5 < $5 86 % · $1 $5–100 81–92 %
+    # · $5 $100–200 86 % · $10 > $200 100 % (the $2.5 grid was listed only 36–38 % → wasted requests)
+    return 0.5 if s < 5 else 1.0 if s < 100 else 5.0 if s < 200 else 10.0
+
+
+def listed(conn, t: str, exp: date) -> list[float]:
+    return sorted(k for (k,) in conn.execute("SELECT strike FROM optlab.contracts WHERE underlying = %s AND expiry = %s "
+                                               "AND type = 'put'", (t, exp)))
 
 
 def load_hist(conn):
@@ -85,9 +92,15 @@ def plan(conn, hist, keys, tickers):
             d, c, iv = hist[t][i]
             s = c * split_factor(conn, t, d)
             k = s * math.exp(-iv * math.sqrt((exp - d).days / 365))
+            ls = listed(conn, t, exp)   # Polygon chain already cached → exact listed neighbours, zero misses
+            j = min(range(len(ls)), key=lambda x: abs(ls[x] - k)) if ls else None
+            if j is not None and 0 < j < len(ls) - 1 and abs(ls[j] - k) / s < 0.05:
+                out.append((t, exp, [ls[j - 1], ls[j], ls[j + 1]]))
+                continue
             stp = step_for(s)
             k = round(k / stp) * stp
             out.append((t, exp, [round(k - stp, 2), round(k, 2), round(k + stp, 2)]))
+    random.Random(SEED).shuffle(out)   # a run cut short by the budget is still a random sample
     return out
 
 
@@ -95,14 +108,24 @@ def fetch(conn, todo):
     with lseg_session() as ld:
         done = 0
         for t, exp, ks in todo:
-            if ld.remaining < 200:
-                print(f"stop: LSEG reserve reached after {done} expiries (resume tomorrow, cache keeps progress)")
+            if ld.remaining < 200 or ld.dp_remaining < 20_000:
+                print(f"stop: LSEG reserve reached after {done} expiries (requests left {ld.remaining}, datapoints left "
+                      f"{ld.dp_remaining:,.0f}); the cache keeps progress — re-run resumes")
                 break
-            for k in ks:
-                try:
-                    OP.history(ld, conn, t, exp, "P", k)
-                except Exception as e:   # one bad contract must not end the run
-                    print(f"  {t} {exp} {k}: {str(e)[:80]}")
+            lo, k, hi = ks
+            try:   # middle strike first: if it isn't listed, skip its neighbours (saves 2 requests)
+                if OP.history(ld, conn, t, exp, "P", k) is None:
+                    done += 1
+                    continue
+                for kk in (lo, hi):
+                    OP.history(ld, conn, t, exp, "P", kk)
+            except RuntimeError as e:
+                if "budget guard" in str(e):
+                    print(f"stop: {e}")
+                    break
+                print(f"  {t} {exp}: {str(e)[:80]}")
+            except Exception as e:   # one bad contract must not end the run
+                print(f"  {t} {exp}: {str(e)[:80]}")
             conn.commit()
             done += 1
             if done % 100 == 0:
