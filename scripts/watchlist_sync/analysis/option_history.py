@@ -118,15 +118,20 @@ def flush_usage(conn) -> None:
 # ── fetchers (each idempotent) ────────────────────────────────────────────────────────────────────────────────────────
 
 def fetch_underlying(conn, t: str) -> None:
-    if conn.execute("SELECT 1 FROM optlab.underlying_fetched WHERE ticker = %s", (t,)).fetchone():
+    # Incremental (10-20): the fetched marker used to stop every later fetch → optlab.underlying (and iv30 / IV rank built on
+    # it) froze at each name's first fetch (all ≤ 10-14). Now: append from the day after the last stored bar.
+    last = conn.execute("SELECT MAX(date) FROM optlab.underlying WHERE ticker = %s", (t,)).fetchone()[0]
+    if last is not None and last >= TODAY - timedelta(days=1):
         return
-    d = get(f"/v2/aggs/ticker/{t}/range/1/day/{START}/{TODAY}?adjusted=false&sort=asc&limit=50000")
+    frm = last + timedelta(days=1) if last else START
+    d = get(f"/v2/aggs/ticker/{t}/range/1/day/{frm}/{TODAY}?adjusted=false&sort=asc&limit=50000")
     res = d.get("results") or []
     with conn.cursor() as cur:
         cur.executemany("""INSERT INTO optlab.underlying VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
                         [(t, day(r["t"]), r.get("o"), r.get("h"), r.get("l"),
                           r.get("c"), r.get("v")) for r in res])
-        cur.execute("INSERT INTO optlab.underlying_fetched (ticker, n) VALUES (%s, %s) ON CONFLICT DO NOTHING", (t, len(res)))
+        cur.execute("INSERT INTO optlab.underlying_fetched (ticker, n) VALUES (%s, %s) ON CONFLICT (ticker) DO UPDATE SET "
+                    "n = optlab.underlying_fetched.n + EXCLUDED.n, fetched_at = now()", (t, len(res)))
     conn.commit()
 
 
