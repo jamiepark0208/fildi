@@ -18,22 +18,23 @@ read open `research/common/ASKS.md` rows addressed **to Claude**, plus any statu
 review loop (`AGENTS.md` § Review loop, user 2026-10-11): (a) plan-review **every** open Muse row (user 2026-10-14; `[quant]` ones also get the eval) → append `**Claude plan <date>:**` + eval to `asks/A##.md` § Reviews, index status `planned`;
 (b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**` in `asks/A##.md` § Reviews; update the SHA.
 **Never implement** Muse rows — Cursor owns them (user 2026-10-07).
-First time only: read .claude/skills/replit-setup.md and follow the steps
-Build/restart questions → `.claude/skills/build-and-run.md` (has the correct restart procedure — don't improvise)
+Mac (default): build/restart → `.claude/skills/local-mac-dev.md`. Replit-only → `replit-setup.md` / `build-and-run.md`.
 Shared retrieval map → `.agents/context/INDEX.md` (do not load all context files)
 
 ## SKILLS (load one at a time — never all at once)
 | Need | Skill |
 |---|---|
-| Build + restart server | .claude/skills/build-and-run.md |
+| Build + restart (Mac) | .claude/skills/local-mac-dev.md |
+| Build + restart (Replit only) | .claude/skills/build-and-run.md |
 | Data fetch strategy / tiers / TTL decisions | .claude/skills/data-architecture.md |
 | Any Yahoo Finance / TTLCache work | .claude/skills/caching-patterns.md |
 | New API route or middleware | .claude/skills/api-design-patterns.md |
 | Options chain fetch | .claude/skills/options-pricer.md |
-| RSI/MFI/filter logic | .claude/skills/signal-filters.md |
-| UI components | .claude/skills/ui-components.md |
+| RSI/MFI scanner tiers (not Model List) | .claude/skills/signal-filters.md |
+| Model List / fit / watchlist_sync scoring | .claude/skills/model-list.md |
+| Fildi app UI tables/chrome (GRID_*) | .claude/skills/ui-components.md |
 | DB schema and queries | .claude/skills/db-patterns.md |
-| Trader strategy/scoring | .claude/skills/trader-context.md |
+| Trader strategy (mental model) | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Backtest / "does X help trades?" (put/call/avoid re-tests) | research/studies/PLAYBOOK.md |
@@ -51,6 +52,8 @@ Shared retrieval map → `.agents/context/INDEX.md` (do not load all context fil
 | Grep patterns for hot macro/schema/pipeline files | .claude/skills/hot-files.md |
 | Model List "why is X (not) listed" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` (quiet) |
 | Agent workflow changes (tokens, steps) | `.agents/context/workflow-learning.md` (W-registry) + `scripts/workflow_audit.py` |
+
+Multi-agent bus / ASKS / ship-check: **AGENTS.md** (not a skill — don’t load a second copy).
 
 
 ---
@@ -88,6 +91,7 @@ Use before touching any source file (call it yourself — no hook runs codegraph
 - research/common/ASKS.md is a one-line index: read it, open `asks/A##.md` only for rows you act on; never paste details into the index; move closed index lines to ASKS-archive.md
 - Facts that must survive compaction go in files, not chat: decisions/next steps → state.md, durable lessons → memory. Write them when they happen, not at the end
 - Prefer a deliberate `/compact <what to keep>` or /clear at a task boundary over letting auto-compact fire mid-task
+- **No background waits on external deps (Jamie 2026-10-21):** a wait loop for Workspace, VPN or an app login left running ~1 h, then would have fetched blind and woken the session. If a dependency (LSEG port 9000, Schwab auth, …) is down: probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. Background only for jobs already running that finish on their own (build/test/fetch), ≤ 30 min.
 - **Subagent budget (user 2026-10-16: 7 forks burned the plan in one afternoon, ~200–350k tokens each):** a `fork` copies this whole conversation → never use it for builds.
   Default = do it inline. Big build → ONE fresh agent at a time (`general-purpose` or `data-agent`/`ui-agent`, `model: sonnet` for mechanical work),
   short self-contained prompt (spec file path + acceptance), never parallel. Small edits = inline Edit, no agent. Probes = one capped command.
