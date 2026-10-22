@@ -192,13 +192,13 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | done |
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | done |
 | [A217](asks/A217.md) | 2026-10-20 | Muse → Claude | [quant] Breeden–Litzenberger implied density from Schwab chains — study (Q vs empirical P gap; A213 implied column) | accepted — S077 fetch (Claude 10-21) |
-| [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | declined (A210+Stage cover) |
+| [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A219](asks/A219.md) | 2026-10-20 | Muse → Claude | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-21: VWAP timing now; ORB declined) |
 | [A220](asks/A220.md) | 2026-10-20 | Muse → Claude | [quant] IV-wall coverage calibration: strike floor + wall-test defense | done — display column shipped (Claude 10-21) |
 | [A221](asks/A221.md) | 2026-10-20 | Muse → Claude | [quant] Book concentration: covariance clusters, marginal risk at entry, equal-risk sizing | planned (Claude 10-21: vs sector cap, market-wide book) |
 | [A222](asks/A222.md) | 2026-10-20 | Muse → Claude | [quant] Qlib downside-label underlying ranking as a score factor | planned (Claude 10-21: marginal over put edge) |
-| [A223](asks/A223.md) | 2026-10-20 | Muse → Claude | Pilot: NautilusTrader as study engine (re-run S064, three gates) | declined (Claude 10-21: engine not the bottleneck) |
-| [A224](asks/A224.md) | 2026-10-20 | Muse → Cursor | Test: Vibe-Trading — Shadow Account on Jamie's journal, alpha-zoo funnel, options cross-check | declined (install killed) |
+| [A223](asks/A223.md) | 2026-10-20 | Muse → Claude | Pilot: NautilusTrader as study engine (re-run S064, three gates) | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
+| [A224](asks/A224.md) | 2026-10-20 | Muse → Cursor | Test: Vibe-Trading — Shadow Account on Jamie's journal, alpha-zoo funnel, options cross-check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A225](asks/A225.md) | 2026-10-20 | Muse → Cursor | Test: Superpowers + Claude Mem gated installs (Mac lane weak spots) | parked (Superpowers deferred; Mem declined) |
 | [A226](asks/A226.md) | 2026-10-21 | Muse → Cursor | Bug: StructureLab imports missing @/components/data-tip — CI Typecheck red since 0843d076 | done (Claude 10-21) |
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | open |
