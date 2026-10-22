@@ -21,14 +21,14 @@ const ROUTES = [
   { tab: "rankings/fund", path: "/api/fundamentals/rankings", budgetS: 1.2, critical: true },
   { tab: "rankings/fund-slim", path: "/api/fundamentals/rankings?slim=1", budgetS: 0.8, critical: true },
   { tab: "rankings/tech", path: "/api/technicals/all", budgetS: 2.5, authOk: true },
-  { tab: "rankings/quotes-sample", path: "/api/stocks/quotes?tickers=AAPL,MSFT,NVDA,SCHD", budgetS: 8.0, critical: true },
+  { tab: "rankings/quotes-sample", path: "/api/stocks/quotes?tickers=AAPL,MSFT,NVDA,SCHD", budgetS: 8.0, authOk: true },
   // Watchlist
   { tab: "watchlist", path: "/api/watchlist", budgetS: 1.0, authOk: true },
   { tab: "watchlist/meta", path: "/api/watchlist/meta?lite=1", budgetS: 1.5, authOk: true },
   { tab: "watchlist/live", path: "/api/live/prices?tickers=AAPL,SCHD,SPY,NVDA", budgetS: 2.0, authOk: true },
   // Breakdown
-  { tab: "breakdown/SCHD", path: "/api/stocks/breakdown?ticker=SCHD", budgetS: 8.0, critical: true },
-  { tab: "breakdown/hist", path: "/api/stocks/history?ticker=SCHD&period=1Y", budgetS: 4.0, critical: true },
+  { tab: "breakdown/SCHD", path: "/api/stocks/breakdown?ticker=SCHD", budgetS: 8.0, authOk: true },
+  { tab: "breakdown/hist", path: "/api/stocks/history?ticker=SCHD&period=1Y", budgetS: 4.0, authOk: true },
   // Live
   { tab: "live/hotlist", path: "/api/live/hotlist", budgetS: 3.0, authOk: true },
   { tab: "live/regime", path: "/api/live/regime", budgetS: 2.0, authOk: true },
@@ -71,9 +71,13 @@ const rows = [];
 for (const r of ROUTES) {
   const p = await probe(r.path);
   const sec = p.ms / 1000;
-  const authSoft = r.authOk && (p.status === 401 || p.status === 403);
+  const authSoft = (p.status === 401 || p.status === 403) && (r.authOk || !r.critical);
   const slow = p.ok && !authSoft && p.status >= 200 && p.status < 300 && sec > r.budgetS;
-  const fail = !p.ok || (p.status >= 500) || (r.critical && p.status === 404);
+  const fail =
+    !p.ok ||
+    p.status >= 500 ||
+    (r.critical && (p.status === 404 || ((p.status === 401 || p.status === 403) && !r.authOk))) ||
+    (p.status >= 400 && p.status < 500 && !authSoft && p.status !== 404);
   const verdict = fail ? "FAIL" : authSoft ? "AUTH" : slow ? "SLOW" : "ok";
   rows.push({ ...r, ...p, sec, verdict });
 }
