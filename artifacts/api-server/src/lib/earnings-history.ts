@@ -8,6 +8,7 @@ import {
   mapPeriodEpsToAnnouncementDates,
 } from "./finnhub-client.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
+import { isExcludedEtf } from "./etf-exclusions.js";
 import { logger } from "./logger.js";
 
 const STALE_DAYS = 30; // earnings only report ~4x/year — no need to re-fetch often
@@ -17,7 +18,7 @@ const MAX_QUARTERS = 10; // 8 reported for 2Y view + room for upcoming + 1 spare
 const MAX_PER_RUN_MORNING = 25;
 const A114_REPAIR_DAY_KEY = "a114_earnings_repair_et_day";
 
-function etDayKey(d = new Date()): string {
+export function etDayKey(d = new Date()): string {
   return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
@@ -122,13 +123,65 @@ export async function isEarningsDataFresh(ticker: string): Promise<boolean> {
 export async function getTickersMissingUpcomingDate(allTickers: string[]): Promise<string[]> {
   if (allTickers.length === 0) return [];
   const normalized = [...new Set(allTickers.map(t => t.toUpperCase()))];
-  const today = new Date().toISOString().slice(0, 10);
+  // A240 fix-up (157b21d0 review finding 2): UTC slice flags a today-ET report as
+  // "missing" after ~17:00 PT (UTC already rolled to tomorrow) — wasted fetch.
+  const today = etDayKey();
   const futureRows = await db
     .select({ ticker: earningsCalendar.ticker })
     .from(earningsCalendar)
     .where(and(inArray(earningsCalendar.ticker, normalized), gte(earningsCalendar.reportDate, today)));
   const haveFuture = new Set(futureRows.map(r => r.ticker.toUpperCase()));
   return normalized.filter(t => !haveFuture.has(t));
+}
+
+const MISSING_UPCOMING_EMPTY_KEY = "a240_missing_upcoming_empty_attempts";
+const EMPTY_ATTEMPT_SKIP_DAYS = 7;
+
+/** A240 fix-up (157b21d0 review finding 1) — per-ticker ET-day of the last fetch attempt that
+ *  came back empty, so `missingUpcoming` stops re-trying a name that can't ever resolve (ETF,
+ *  ADR/foreign with no Finnhub calendar coverage) every single morning run. Stored in app_config
+ *  (no schema change) since this is scoped to earnings-history.ts only. */
+async function getEmptyAttemptMap(): Promise<Record<string, string>> {
+  const rows = await db.select().from(appConfig).where(eq(appConfig.key, MISSING_UPCOMING_EMPTY_KEY)).limit(1);
+  const value = rows[0]?.value;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, string>) : {};
+}
+
+async function recordEmptyAttempts(tickers: string[]): Promise<void> {
+  if (tickers.length === 0) return;
+  const day = etDayKey();
+  const existing = await getEmptyAttemptMap();
+  for (const t of tickers) existing[t.toUpperCase()] = day;
+  const rows = await db.select().from(appConfig).where(eq(appConfig.key, MISSING_UPCOMING_EMPTY_KEY)).limit(1);
+  if (rows.length === 0) await db.insert(appConfig).values({ key: MISSING_UPCOMING_EMPTY_KEY, value: existing });
+  else await db.update(appConfig).set({ value: existing, updatedAt: new Date() }).where(eq(appConfig.key, MISSING_UPCOMING_EMPTY_KEY));
+}
+
+/**
+ * A240 fix-up (157b21d0 review finding 1) — pure so it's unit-testable without a DB. Drops
+ * ETFs (never report earnings) and anything whose last empty attempt is < 7 ET-days old, then
+ * orders what's left oldest-attempt-first (never-attempted = oldest) so the cap-25 morning run
+ * rotates through starving names instead of the same front-of-list ones winning every day.
+ */
+export function prioritizeMissingUpcoming(
+  tickers: string[],
+  emptyAttempts: Record<string, string>,
+  today: string = etDayKey(),
+): string[] {
+  const todayMs = Date.parse(today);
+  const lastAttemptMs = (t: string): number => {
+    const last = emptyAttempts[t.toUpperCase()];
+    return last ? Date.parse(last) : -Infinity;
+  };
+  return tickers
+    .filter((t) => {
+      const upper = t.toUpperCase();
+      if (isExcludedEtf(upper)) return false;
+      const lastMs = lastAttemptMs(upper);
+      if (lastMs === -Infinity) return true;
+      return (todayMs - lastMs) / (24 * 60 * 60 * 1000) >= EMPTY_ATTEMPT_SKIP_DAYS;
+    })
+    .sort((a, b) => lastAttemptMs(a) - lastAttemptMs(b));
 }
 
 /**
@@ -357,17 +410,29 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
   const morningish = /^(scheduled|morning|maintain)/i.test(trigger);
   let ordered = stale;
   if (morningish) {
-    const [watch, window] = await Promise.all([getUnionWatchlistTickers(), earningsWindowTickers()]);
-    // A240: tickers with no forward date at all (missingUpcoming) go first — they're the ones
-    // showing as "no earnings date known" on the Model List, highest-value fetch under the cap.
-    const pri = new Set([...missingUpcoming, ...watch, ...window].map((t) => t.toUpperCase()));
-    ordered = [...stale.filter((t) => pri.has(t.toUpperCase())), ...stale.filter((t) => !pri.has(t.toUpperCase()))];
+    const [watch, window, emptyAttempts] = await Promise.all([
+      getUnionWatchlistTickers(),
+      earningsWindowTickers(),
+      getEmptyAttemptMap().catch((err) => {
+        logger.warn({ err }, "A240: getEmptyAttemptMap failed — no empty-attempt skip this run");
+        return {} as Record<string, string>;
+      }),
+    ]);
+    // A240: tickers with no forward date at all go first — they're the ones showing as "no
+    // earnings date known" on the Model List, highest-value fetch under the cap. Fix-up
+    // (157b21d0 finding 1): drop ETFs and names re-fetched empty within 7d from that priority
+    // slot so they stop starving the rest of the queue every morning run.
+    const prioritizedMissing = prioritizeMissingUpcoming(missingUpcoming, emptyAttempts);
+    const pri = new Set([...prioritizedMissing, ...watch, ...window].map((t) => t.toUpperCase()));
+    const priRest = stale.filter((t) => pri.has(t.toUpperCase()) && !prioritizedMissing.includes(t.toUpperCase()));
+    ordered = [...prioritizedMissing, ...priRest, ...stale.filter((t) => !pri.has(t.toUpperCase()))];
   }
   const cap = morningish ? MAX_PER_RUN_MORNING : MAX_PER_RUN;
   const batch = ordered.slice(0, cap);
 
   let written = 0;
   let empty = 0;
+  const emptyTickers: string[] = [];
   for (const ticker of batch) {
     try {
       const rows = await fetchLiveEarningsHistory(ticker, trigger);
@@ -376,11 +441,17 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
         written++;
       } else {
         empty++;
+        emptyTickers.push(ticker);
       }
     } catch (err) {
       logger.warn({ ticker, err }, "runEarningsHistoryBackfill: ticker failed");
     }
     await sleep(GAP_MS);
+  }
+  if (emptyTickers.length > 0) {
+    await recordEmptyAttempts(emptyTickers).catch((err) => {
+      logger.warn({ err }, "A240: recordEmptyAttempts failed");
+    });
   }
 
   logger.info(
