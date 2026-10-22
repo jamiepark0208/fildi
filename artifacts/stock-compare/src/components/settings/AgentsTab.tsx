@@ -196,13 +196,27 @@ function humanAction(e: Live): string {
 }
 
 type ActStep = { t: string; event: string; tool: string; kind: string; what: string; fail: boolean };
+type LearnTurn = {
+  id: string; agent: string; wall_s: number; ask_id: string | null;
+  in_tok: number | null; out_tok: number | null;
+  tools: number; reads: number; writes: number; loop_hits: number; fails: number;
+  outcome: string;
+};
+type LearnRollup = {
+  agent: string; n: number; tok: number | null; acts_per_commit: number | null;
+  loop_pct: number; fail_pct: number; oj_asks: number; ship_ok_rate: number | null;
+};
+type LearnData = { turns: LearnTurn[]; rollups24h: LearnRollup[]; wasteTop: LearnTurn[] };
 type ActRow = {
   id: string; t: string; start: string; agent: string; name: string; what: string;
   acts: number; fails: number; edits: number; fail: boolean; done: boolean; bus: boolean; steps: ActStep[];
+  /** A209 P1 — matched learn turn */
+  tok?: string; wall?: string; rw?: string; loop?: number; askId?: string | null; outcome?: string;
 };
 
 /** One Activity row per user prompt (tools nested); ASKS/commits stay as bus rows. */
-function buildActivity(d: Data): ActRow[] {
+function buildActivity(d: Data, learn?: LearnData | null): ActRow[] {
+  const learnById = new Map((learn?.turns ?? []).map((t) => [t.id, t]));
   const nm = agentNames(d);
   const by = new Map<string, Live[]>();
   for (const e of d.live) {
@@ -234,11 +248,22 @@ function buildActivity(d: Data): ActRow[] {
       const what = promptText
         ? promptText.slice(0, 110)
         : `work · ${tools} tool${tools === 1 ? "" : "s"}${edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : ""}`;
+      const id = `${bucket[0].agent}-${start}`;
+      const lt = learnById.get(id);
+      const tokSum = lt && (lt.in_tok != null || lt.out_tok != null)
+        ? `${lt.in_tok ?? "?"}/${lt.out_tok ?? "?"}`
+        : "—";
       turns.push({
-        id: `${bucket[0].agent}-${start}`,
+        id,
         t: end, start, agent: bucket[0].agent,
         name: prompt ? evName(nm, prompt) : evName(nm, bucket[0]),
         what, acts: tools, fails, edits, fail: fails > 0, done, bus: false, steps,
+        tok: lt ? tokSum : undefined,
+        wall: lt ? (lt.wall_s >= 60 ? `${Math.round(lt.wall_s / 60)}m` : `${lt.wall_s}s`) : undefined,
+        rw: lt ? `${lt.reads}:${lt.writes}` : undefined,
+        loop: lt?.loop_hits,
+        askId: lt?.ask_id,
+        outcome: lt?.outcome,
       });
       bucket = [];
     };
@@ -1026,31 +1051,38 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
   );
 }
 
-function TeamPanel({ d }: { d: Data }) {
+function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
   const [focus, setFocus] = useState<Id | "all">("all");
   const [actFilter, setActFilter] = useState<"all" | "fail">("all");
   const [openTurn, setOpenTurn] = useState<string | null>(null);
+  const rollup = useMemo(() => new Map((learn?.rollups24h ?? []).map((r) => [r.agent, r])), [learn]);
   const rows = useMemo(() => {
-    return buildActivity(d)
+    return buildActivity(d, learn)
       .filter((r) => (focus === "all" || r.agent === focus) && (actFilter === "all" || r.fail))
       .slice(0, 80);
-  }, [d, focus, actFilter]);
+  }, [d, learn, focus, actFilter]);
   return (
     <div className="space-y-3">
       <TeamMap d={d} sel={focus} onSel={(id) => { setFocus(id); setActFilter("all"); }} />
       <div className={cn(GRID_WRAP, "min-w-0")}>
-        <table className="w-full min-w-[920px] border-collapse">
+        <table className="w-full min-w-[1100px] border-collapse">
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
             <th className={cn(GRID_TH, "text-right")}>Errors</th>
+            <th className={cn(GRID_TH, "text-right")}>Tok 24h</th>
             <th className={cn(GRID_TH, "text-right")}>Tokens</th><th className={cn(GRID_TH, "text-right")}>Avail</th>
             <th className={cn(GRID_TH, "text-right")}>Commits</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
+            <th className={cn(GRID_TH, "text-right")} title="Actions per commit (learn)">Acts/cmt</th>
+            <th className={cn(GRID_TH, "text-right")} title="Turns with loop hits">Loop%</th>
+            <th className={cn(GRID_TH, "text-right")} title="Turns with fails">Fail%</th>
+            <th className={cn(GRID_TH, "text-right")} title="OpenJev asks in turns">OJ</th>
             <th className={cn(GRID_TH, "text-right")}>Acts</th><th className={cn(GRID_TH, "text-left")}>Last</th>
           </tr></thead>
           <tbody>{d.agents.filter((a) => a.id !== "jamie").map((a, i) => {
             const st = a.id === "claude" || a.id === "cursor" || a.id === "grok" || a.id === "codex" ? d.status[a.id] : undefined;
             const mu = a.id === "muse" ? d.limits?.muse ?? null : null;
             const errN = st?.errors ?? st?.errors1h ?? 0;
+            const ru = rollup.get(a.id);
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => { setFocus(focus === a.id ? "all" : a.id); setActFilter("all"); }}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
@@ -1106,6 +1138,9 @@ function TeamPanel({ d }: { d: Data }) {
                     </Tooltip>
                   ) : "—"}
                 </td>
+                <td className={cn(GRID_TD, "text-right text-white/70 whitespace-nowrap")} title="Learn feed tokens (unknown until metered)">
+                  {ru?.tok != null ? fmt(ru.tok) : <span className="text-white/40">unk</span>}
+                </td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   {a.id === "claude" ? (
                     <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
@@ -1142,6 +1177,10 @@ function TeamPanel({ d }: { d: Data }) {
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
                 <td className={cn(GRID_TD, "text-right", a.queue > 20 ? "text-red-300" : "text-white")}>{a.queue}</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{ru?.acts_per_commit != null ? ru.acts_per_commit : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", (ru?.loop_pct ?? 0) > 10 ? "text-amber-300" : "text-white/70")}>{ru ? `${ru.loop_pct}%` : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", (ru?.fail_pct ?? 0) > 20 ? "text-red-300" : "text-white/70")}>{ru ? `${ru.fail_pct}%` : "—"}</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{ru?.oj_asks ?? "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{st ? st.tools24h : "—"}</td>
                 <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{st?.lastEvent ? humanAction(st.lastEvent) : "—"}</td>
               </tr>
@@ -1159,6 +1198,7 @@ function TeamPanel({ d }: { d: Data }) {
                   {oj.running ? `● ${oj.doing?.slice(0, 36) || "loaded"}` : "idle · local"}
                 </td>
                 <td className={cn(GRID_TD, "text-right text-white/50")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
@@ -1186,6 +1226,10 @@ function TeamPanel({ d }: { d: Data }) {
                 </td>
                 <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{u?.available ? u.modelRequests : "—"}</td>
                 <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{oj.doing || oj.last?.detail || "—"}</td>
               </tr>
@@ -1201,18 +1245,23 @@ function TeamPanel({ d }: { d: Data }) {
         {actFilter === "fail" && <button type="button" onClick={() => setActFilter("all")} className="text-[#d4af37] hover:underline">clear fail filter</button>}
       </div>
       <div className={cn(GRID_WRAP, "max-h-[480px]")}>
-        <table className="w-full min-w-[780px] border-collapse">
+        <table className="w-full min-w-[980px] border-collapse">
           <thead className="sticky top-0 z-10"><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Time</th>
             <th className={cn(GRID_TH, "text-left")}>Ago</th>
             <th className={cn(GRID_TH, "text-left")}>Agent</th>
             <th className={cn(GRID_TH, "text-left")}>Prompt / work</th>
+            <th className={cn(GRID_TH, "text-right")}>Tok</th>
+            <th className={cn(GRID_TH, "text-right")}>Wall</th>
+            <th className={cn(GRID_TH, "text-right")}>R:W</th>
+            <th className={cn(GRID_TH, "text-right")}>Loop</th>
+            <th className={cn(GRID_TH, "text-left")}>A##</th>
             <th className={cn(GRID_TH, "text-right")}>Acts</th>
             <th className={cn(GRID_TH, "text-right")}>Fails</th>
-            <th className={cn(GRID_TH, "text-left")}>State</th>
+            <th className={cn(GRID_TH, "text-left")}>Outcome</th>
           </tr></thead>
           <tbody>{rows.length === 0 ? (
-            <tr><td colSpan={7} className={cn(GRID_TD, "text-white/70")}>{actFilter === "fail" ? "No turns with fails." : "No recent activity."}</td></tr>
+            <tr><td colSpan={12} className={cn(GRID_TD, "text-white/70")}>{actFilter === "fail" ? "No turns with fails." : "No recent activity."}</td></tr>
           ) : rows.map((r, i) => {
             const open = openTurn === r.id;
             return (
@@ -1222,19 +1271,24 @@ function TeamPanel({ d }: { d: Data }) {
                   <td className={cn(GRID_TD, "text-white/80 whitespace-nowrap")}>{clock(r.start)}</td>
                   <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap")}>{ago(r.t)}</td>
                   <td className={cn(GRID_TD, "font-medium whitespace-nowrap")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{r.name}</td>
-                  <td className={cn(GRID_TD, r.fail ? "text-red-200" : "text-white/90", "truncate max-w-[420px]")} title={r.what}>
+                  <td className={cn(GRID_TD, r.fail ? "text-red-200" : "text-white/90", "truncate max-w-[320px]")} title={r.what}>
                     <span className="text-[#d4af37]/80 mr-1">{open ? "▾" : "▸"}</span>{r.what}
                     {r.edits > 0 ? <span className="text-white/50"> · {r.edits} edit{r.edits === 1 ? "" : "s"}</span> : null}
                   </td>
+                  <td className={cn(GRID_TD, "text-right text-white/60 whitespace-nowrap")}>{r.bus ? "—" : (r.tok ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right text-white/60")}>{r.bus ? "—" : (r.wall ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right text-white/60")}>{r.bus ? "—" : (r.rw ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right", (r.loop ?? 0) > 0 ? "text-amber-300" : "text-white/50")}>{r.bus ? "—" : (r.loop ?? 0)}</td>
+                  <td className={cn(GRID_TD, "text-white/70 whitespace-nowrap")}>{r.bus ? "—" : (r.askId ?? "—")}</td>
                   <td className={cn(GRID_TD, "text-right text-white/80")}>{r.bus ? "—" : r.acts}</td>
                   <td className={cn(GRID_TD, "text-right", r.fails > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{r.bus ? "—" : r.fails}</td>
-                  <td className={cn(GRID_TD, "whitespace-nowrap", r.bus ? "text-white/60" : r.done ? "text-white/70" : "text-emerald-300")}>
-                    {r.bus ? (r.steps[0]?.kind === "ask" ? "ask" : "commit") : r.done ? "done" : "working"}
+                  <td className={cn(GRID_TD, "whitespace-nowrap", r.bus ? "text-white/60" : r.outcome === "fail" ? "text-red-300" : r.done ? "text-white/70" : "text-emerald-300")}>
+                    {r.bus ? (r.steps[0]?.kind === "ask" ? "ask" : "commit") : (r.outcome ?? (r.done ? "done" : "working"))}
                   </td>
                 </tr>
                 {open && (
                   <tr className={gridRow(i)}>
-                    <td colSpan={7} className={cn(GRID_TD, "bg-black/50 !py-2")}>
+                    <td colSpan={12} className={cn(GRID_TD, "bg-black/50 !py-2")}>
                       <ul className="space-y-1 max-h-56 overflow-y-auto pl-2 border-l border-[#d4af37]/25">
                         {r.steps.filter((s) => s.event !== "prompt").length === 0 && r.steps[0]?.event === "prompt" ? (
                           <li className="text-white/60 text-[12px]">No tools yet for this prompt.</li>
@@ -1807,17 +1861,29 @@ export function AgentsTab() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
+    staleTime: 10_000,
     refetchInterval: 15_000, // live events are a cheap file tail; commits/tokens are cached server-side
   });
-  const [tab, setTab] = useState<(typeof SUB_TABS)[number] | null>(null);
-  if (isLoading || !data) return <p className="text-xs text-white/50">Loading…</p>;
-  const looks = (["claude", "cursor", "codex"] as const).map((x) => attention(data.status[x])).filter(Boolean);
+  const { data: learn } = useQuery({
+    queryKey: ["agents-learn"],
+    queryFn: async (): Promise<LearnData> => {
+      const r = await fetch("/api/agents/learn", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  // Default Stage always (Jamie 10-20) — Ideas badge still pulses when needs you.
+  const [tab, setTab] = useState<(typeof SUB_TABS)[number]>("Stage");
+  const activeTab = tab;
+  const looks = data
+    ? (["claude", "cursor", "codex"] as const).map((x) => attention(data.status[x])).filter(Boolean)
+    : [];
   const needLook = looks.length;
   const stageNeedsRed = looks.includes("#f87171");
-  const ideas = data.ideas ?? [];
+  const ideas = data?.ideas ?? [];
   const needsYou = ideas.some((i) => i.phase === "needs you");
-  // Default: Needs you / Next → Ideas; else Stage (Jamie 10-18 value pass).
-  const activeTab = tab ?? (needsYou || (data.nextBuild?.ids?.length ?? 0) > 0 ? "Ideas" : "Stage");
   return (
     <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -1839,11 +1905,12 @@ export function AgentsTab() {
           ))}
         </div>
       </div>
-      {activeTab === "Stage" && <TeamPanel d={data} />}
-      {activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
-      {activeTab === "Usage" && <Usage d={data} />}
-      {activeTab === "Rules" && <Rules d={data} />}
-      {activeTab === "Skills" && <Skills d={data} />}
+      {(isLoading || !data) && <p className="text-xs text-white/50">Loading…</p>}
+      {data && activeTab === "Stage" && <TeamPanel d={data} learn={learn} />}
+      {data && activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
+      {data && activeTab === "Usage" && <Usage d={data} />}
+      {data && activeTab === "Rules" && <Rules d={data} />}
+      {data && activeTab === "Skills" && <Skills d={data} />}
     </div>
   );
 }

@@ -183,13 +183,13 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-20: Focus/calendar fixes tested; financial recalibration pending) |
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Codex | Bounded autonomous development and access visibility | open |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | open (fixture-first plan; review pending) |
-| [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | done (P0 API; P1–P3 open) |
+| [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | done (P0–P1; P2–P3 open) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |
 | [A211](asks/A211.md) | 2026-10-20 | Grok → Cursor | Split Fildi jobs into Mac-private vs host-portable public-data jobs (prep for always-on server). | open |
 | [A212](asks/A212.md) | 2026-10-20 | Claude → Codex | Review S064 buy-zone puts, S066 earnings block, S049-crash re-audit (Jamie: skeptical of Research tab) | open |
 | [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | done |
 | [A214](asks/A214.md) | 2026-10-20 | Jamie → Cursor | Desk media sentiment for Breakdown › Sentiment (StockTwits/X/Reddit/OpenJev — not Yahoo recs) | open |
-| [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | open |
+| [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | done |
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | open |
 | [A217](asks/A217.md) | 2026-10-20 | Muse → Claude | [quant] Breeden–Litzenberger implied density from Schwab chains — study (Q vs empirical P gap; A213 implied column) | accepted — S077 fetch (Claude 10-21) |
 | [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | planned (Claude spot-check 10-21) |
