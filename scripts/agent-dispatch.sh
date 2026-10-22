@@ -72,7 +72,7 @@ fs.appendFileSync(process.env.EVENTS, JSON.stringify(row) + "\n");
 export FILDI_PARENT="${FROM}:${CHILD}"
 
 ARGS=(-p --trust --model "$MODEL")
-[[ "$ASK" == "1" ]] && ARGS+=(--mode ask)
+if [[ "$ASK" == "1" ]]; then ARGS+=(--mode ask); else ARGS+=(--force); fi   # headless -p without --force rejects every shell command
 
 set +e
 "$BIN" "${ARGS[@]}" < "$PROMPT_FILE"
