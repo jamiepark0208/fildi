@@ -99,7 +99,12 @@ def month_blocks(xs, key):
 
 
 def boot(xs, key="base", n=600):
-    """Month-block bootstrap, aggregated per block (identical estimator to S080.boot). Returns (t, 90 % CI)."""
+    """Month-block bootstrap, aggregated per block (identical estimator to S080.boot). Returns (t, 90 % CI).
+
+    The generator is re-seeded per call: with one shared stream the resample draws depend on the order the arms happen
+    to be computed in, so simply adding a descriptive slice moved every t by ~0.2 between runs. Per-call seeding makes
+    the reported numbers reproducible."""
+    rng = random.Random(83)
     by = month_blocks(xs, key)
     ks = list(by)
     if len(ks) < 6:
@@ -335,9 +340,14 @@ def cross_sectional_tercile(trades, key="ret120"):
 # ---------------------------------------------------------------- Part B arms 3 and 4 (own entry rules)
 
 
-def arm_straddle(conn, px, rep, tb, ratios, dte=STRADDLE_DTE):
+def arm_straddle(conn, px, rep, tb, ratios, dte=STRADDLE_DTE, min_ratio=1.2):
     """B3 — earnings underpricing (S018 per name, rolling ≥ 4 priors, median ratio ≥ 1.2): buy the ATM straddle one
-    trading day before the report, sell the day after. Both legs priced and filled; return is per $ debit."""
+    trading day before the report, sell the day after. Both legs priced and filled; return is per $ debit.
+
+    min_ratio = None builds the **unconditional straddle on the same events** (every name with ≥ 4 prior reports,
+    whatever the ratio). Pre-run clarification, disclosed in the report: the pre-registered comparator is "S081
+    unconditional on the same side", and a straddle has no single side, so this is B3's comparator. Decided before the
+    full run, with no results in hand."""
     pricer = Pricer(conn)
     tbd = [d for d, _ in tb]
     out = []
@@ -346,7 +356,7 @@ def arm_straddle(conn, px, rep, tb, ratios, dte=STRADDLE_DTE):
             continue
         dates = [r[0] for r in rows]
         for rd, med, npri in ratios[t]:
-            if med < 1.2:
+            if min_ratio is not None and med < min_ratio:
                 continue
             i = bisect_left(dates, rd) - 1              # last bar strictly before the report
             if i < 252 or i + 1 >= len(dates):
@@ -548,7 +558,13 @@ def main():
                    ("unconditional puts, earnings kept", [x for x in trades if x["side"] == "put"])):
         L.append(f"| {nm} {fmt(stats(xs))}")
     L += ["", "S081 reported +13.7 % unconditional calls / −16.7 % puts on its test window; the earnings-excluded rows "
-          "above are the same construction over the full panel, so they are the number to compare.", ""]
+          "above are the same construction over the full panel, so they are the number to compare. The earnings-excluded "
+          f"subset holds {len(s081_sub):,} trades against S081's 336,270 — the engine is the same one.", "",
+          "**Hypothesis for the next pre-registration, NOT a result of this one:** keeping the entries S081 threw away "
+          "raises unconditional long calls from +11.7 % (t 1.32) to +16.7 % (t 2.44), and `earn_in_window` is a "
+          "significant winner feature on the call side below. S081 excluded any report inside the holding window, so it "
+          "never priced the event long options are usually bought for. This is descriptive and pooled across both eras — "
+          "the stop rule forbids promoting it here. It needs its own pre-registered row with an era split.", ""]
 
     # ---------------- Part A
     L += ["## Part A — reverse-engineering the winners", "",
@@ -594,7 +610,24 @@ def main():
             a_pass[side] = False
             L += [f"**Part A long {side}s: FAIL** — too few trades to fit/score.", ""]
 
-    # restricted-window descriptive family
+    # what the winners look like — the actual Part A deliverable, separate from the pass/fail
+    L += ["### What the winners look like (the separation is real in-sample; the ranking does not generalise)", ""]
+    for side in ("call", "put"):
+        r = A[side]
+        if not r["univ"]:
+            continue
+        top3 = sorted(r["univ"], key=lambda z: -abs(z[3] if z[3] == z[3] else 0))[:3]
+        L.append(f"- **Long {side}s** — strongest separators at entry: "
+                 + "; ".join(f"`{f}` {ma:.3g} vs {mb:.3g} in non-winners (t {t:.1f})" for f, ma, mb, t, _ in top3)
+                 + ".")
+    st_c, st_p = stats(r_top_c := A["call"]["top"] or []), stats(A["put"]["top"] or [])
+    uc_c = stats([x for x in test_all if x["side"] == "call"])
+    L += ["", "Read those two facts together, because they are the finding: the univariate gaps clear Holm by 70+ orders "
+          "of magnitude on 153k fit trades, yet the fitted ranking scores **AUC "
+          f"{A['call']['auc']:.3f} / {A['put']['auc']:.3f}** out of sample — a coin flip. On calls the model's top decile "
+          f"({st_c['mean']:+.1%} per $ debit) actually earns **less** than simply buying every call in the same window "
+          f"({uc_c['mean']:+.1%}), so the ranking is worse than no ranking at all. Entry-day price/IV state separates "
+          "winners from losers after the fact but does not predict which option will win.", ""]
     L += ["### Restricted-window features (descriptive, never in the model)", "",
           "The inventory found that the S018 per-name ratio (`optlab.earnings_moves`, 391 reports / 59 names) starts "
           "**2024-11-14** and the real Polygon option closes behind the call−put IV spread and the put skew "
@@ -658,14 +691,30 @@ def main():
     b_stats = {k: stats(v) for k, v in b_sets.items()}
     b_p = holm([(k, pval(s)) for k, s in b_stats.items()])
 
-    L += ["| arm | n | mean | median | month-block t | 90 % CI | win | payoff |", "|---|---|---|---|---|---|---|---|"]
+    L += ["| arm | n | mean | median | month-block t | 90 % CI | win | payoff | base | rich +25 % | cheap −25 % |",
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
     for k, v in b_sets.items():
-        L.append(f"| {k} {fmt(b_stats[k])}")
-    L.append("")
+        s = b_stats[k]
+        if s:
+            sc = s["scen"]
+            p = lambda x: "—" if x != x else f"{x:+.1%}"  # noqa: E731
+            L.append(f"| {k} {fmt(s)} {p(sc['base'])} | {p(sc['rich'])} | {p(sc['cheap'])} |")
+        else:
+            L.append(f"| {k} {fmt(s)} — | — | — |")
+    L += ["", f"B3 built **{len(tw(stl)):,}** straddle events inside the test window (≤ {TEST_END}) out of "
+              f"{len(stl):,} in the whole panel: the S018 ratio table "
+              f"starts 2024-11-14 and the rule needs ≥ 4 **prior** reports, so the first eligible event per name lands "
+              f"roughly four quarters later — almost all of them in 2026, outside the pre-registered window. That is a "
+              f"data limit found before the run and pre-registered as such, not a result.", ""]
 
     # comparators
     uc = {s: stats([x for x in trades if x["side"] == s and x["d"] <= TEST_END]) for s in ("call", "put")}
+    stl_uncond = stats(tw(arm_straddle(conn, px, rep, tb, rat, min_ratio=None)))
+    uc["straddle"] = stl_uncond
     L += ["### Comparators", "",
+          "B3's comparator is the **unconditional ATM straddle on the same events** (every name with ≥ 4 prior reports, "
+          "whatever its ratio): the pre-registered comparator is \"S081 unconditional on the same side\" and a straddle "
+          "has no single side. Decided before the full run, with no results in hand.", "",
           "| arm | arm mean | S081 unconditional, same side | stock on the same signal, equal $ | stock scaled to the "
           "option's vol | beats uncond | beats stock |", "|---|---|---|---|---|---|---|"]
     b_cmp = {}
@@ -677,7 +726,7 @@ def main():
             continue
         sides = {x["side"] for x in v}
         ref = (statistics.mean([uc[s2]["mean"] for s2 in sides if uc.get(s2)])
-               if sides & {"call", "put"} and all(uc.get(s2) for s2 in sides & {"call", "put"}) else float("nan"))
+               if sides and all(uc.get(s2) for s2 in sides) else float("nan"))
         sm = statistics.mean([x["stock"] for x in v])
         ssd = statistics.pstdev([x["stock"] for x in v])
         sv = sm * (s["sd"] / ssd) if ssd else float("nan")
@@ -703,7 +752,8 @@ def main():
         ok = all(x for _, x in checks)
         b_pass[k] = ok
         raw = pval(s) if s else float("nan")
-        L += [f"**{k}: {'PASS' if ok else 'FAIL'}** — n {s['n'] if s else 0}"
+        L += [f"**{k}: {'PASS' if ok else 'FAIL'}** — n {len(v):,}"
+              + ("" if s else f" (below the {5}-trade floor, so no statistics are computed)")
               + (f", raw p {raw:.4f}, Holm p {b_p[k]:.4f}" if raw == raw else ", p not computable")
               + ("" if ok else " · failed: " + ", ".join(x for x, y in checks if not y))
               + (f"  **(low-powered: n < {MIN_N})**" if s and s["n"] < MIN_N else ""), ""]
