@@ -110,7 +110,8 @@ FULL="$(mktemp -t agent-dispatch-prompt)"
   echo
   cat "$PROMPT_FILE"
 } > "$FULL"
-"$BIN" "${ARGS[@]}" < "$FULL" > "$OUT"
+# Jamie 10-22: stay awake while the run lasts (-i idle, -s system on AC); ends with the run, never longer.
+caffeinate -i -s "$BIN" "${ARGS[@]}" < "$FULL" > "$OUT"
 rm -f "$FULL"
 EC=$?
 set -e
