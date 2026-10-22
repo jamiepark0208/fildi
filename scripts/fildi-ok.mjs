@@ -113,7 +113,11 @@ if (existsSync(MAINTAIN)) {
     if (m.ok && m.healthOk) note("ok", `maintain ${age} · health ${m.healthPass ?? "?"}/${(m.healthPass ?? 0) + (m.healthFail ?? 0)}`);
     else note("WARN", `maintain ${age} · ok=${m.ok} healthOk=${m.healthOk}`);
     const acts = m.actions ?? [];
-    const noisy = acts.filter((a) => /fair_value_jumps|anomaly/i.test(String(a)));
+    // fair_value_jumps_* = day-over-day FV Δ>30% with price Δ<5%. Often a *correction*
+    // (e.g. 2026-10-21 yield-unit bug → 10-22 recovery), not a live data break — info only.
+    const jumps = acts.find((a) => /fair_value_jumps_/i.test(String(a)));
+    const noisy = acts.filter((a) => /anomaly/i.test(String(a)) && !/fair_value_jumps_/i.test(String(a)));
+    if (jumps) note("ok", `maintain ${jumps} (FV MoM check — inspect if unexpected; not auto-bad)`);
     if (noisy.length) note("WARN", `maintain anomalies: ${noisy.slice(0, 3).join("; ")}`);
   } catch {
     note("WARN", "maintain-last.json unreadable");

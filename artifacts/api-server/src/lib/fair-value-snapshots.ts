@@ -72,15 +72,31 @@ export async function loadMarket(p: { aaaYieldFallbackSpread?: number }): Promis
   }).catch(() => ({ aaa: null, dgs10: null }));
   const aaa = { value: y.aaa };
   const dgs10 = { value: y.dgs10 };
-  let rf = dgs10?.value != null ? dgs10.value / 100 : null;
+  // FRED AAA/DGS10 are percent points (e.g. 5.12). Persist decimals (0.0512).
+  // 2026-10-21: admin_recompute wrote aaaYield=4, riskFree=4 (percent left as "decimal") →
+  // grahamForward collapsed (median ~$2, 0 kept). Next day's correct run looked like
+  // 195 "fair_value_jumps" — recovery, not a market break. Normalize + range-check.
+  const toDecimal = (v: number | null | undefined): number | null => {
+    if (v == null || !Number.isFinite(v) || v <= 0) return null;
+    return v >= 0.5 ? v / 100 : v; // ≥0.5 → still percent points; else already decimal
+  };
+  let rf = toDecimal(dgs10?.value ?? null);
   let source = "fred";
   if (rf == null) {
     const cached = loadMacroCache()?.yield10y?.value;
-    rf = cached != null ? cached / 100 : 0.045;
+    rf = toDecimal(cached ?? null) ?? 0.045;
     source = cached != null ? "macro_cache" : "constant";
   }
-  const aaaYield = aaa?.value != null ? aaa.value / 100 : rf + spread;
-  if (aaa?.value == null) source += "+aaa_fallback";
+  let aaaYield = toDecimal(aaa?.value ?? null);
+  if (aaaYield == null) {
+    aaaYield = rf + spread;
+    source += "+aaa_fallback";
+  }
+  if (rf < 0.005 || rf > 0.25 || aaaYield < 0.005 || aaaYield > 0.25) {
+    throw new Error(
+      `loadMarket: yield units out of range rf=${rf} aaa=${aaaYield} (raw dgs10=${dgs10?.value} aaa=${aaa?.value})`,
+    );
+  }
   return { riskFree: rf, aaaYield, source };
 }
 
