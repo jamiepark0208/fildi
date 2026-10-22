@@ -7,6 +7,7 @@
 - **Asking for the task is the approval** — finish end to end incl. promotion; show before/after; don't re-ask (10-18).
 - **"Do what's left" = verify and do it now**, don't relist (10-17). Pick the next step from research + tests; never "confirm X?" (10-19).
 - Show opportunities with their cost; he decides (10-14).
+- **Free cash never filters or flags an opportunity** (repeated; 10-22). He frees cash by selling stock or closing puts. Show the collateral needed as plain info, never as a warn/block/size-down (A243).
 
 ## Research and verdicts
 - Model List rules/tags use **market-wide data only, never Jamie's own trades** (10-20). His trades may be used for diagnostics shown to him.
