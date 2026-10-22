@@ -27,6 +27,7 @@ export async function priceCoverage(expected: string = lastCompletedSessionYmd()
      LEFT JOIN prices_historical p
        ON p.ticker = r.ticker AND p.date >= $1::date - 30
      WHERE COALESCE(r.is_active, true)
+       AND COALESCE(r.fetch_fundamentals, true)  -- 10-22: reference-only rows (peers, funds, foreign) are never priced
      GROUP BY r.ticker`,
     [expected],
   );
