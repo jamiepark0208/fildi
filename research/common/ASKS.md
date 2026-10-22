@@ -209,3 +209,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | open |
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | open |
 | [A234](asks/A234.md) | 2026-10-21 | Muse → Grok + Claude + Codex | Agent framework hardening: dynamic plan/build/verify, agent-to-agent comms, token orchestration, cross-training loop | open |
+| [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | open |
