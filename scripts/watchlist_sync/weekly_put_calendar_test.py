@@ -32,6 +32,27 @@ class Connection:
         return self.quote
 
 
+class PersistCursor:
+    def __init__(self, conn):
+        self.conn = conn
+    def __enter__(self):
+        return self
+    def __exit__(self, *exc):
+        return False
+    def executemany(self, sql, seq):
+        self.conn.sql, self.conn.rows = sql, list(seq)
+
+
+class PersistConnection:
+    """put_edge.persist writes its DDL on the connection and the rows through a cursor."""
+    def __init__(self):
+        self.sql, self.rows = '', []
+    def execute(self, sql, args=None):
+        return self
+    def cursor(self):
+        return PersistCursor(self)
+
+
 def fixture(entry, expiry):
     days = [entry - timedelta(days=n) for n in range(200, 0, -1)]
     days = [d for d in days if d.weekday() < 5]
@@ -108,6 +129,16 @@ class WeeklyPutTests(unittest.TestCase):
             rows, tech, fund, px = fixture(entry, expiry)
             px['TEST'] = [b for b in px['TEST'] if b[0] != missing]
             self.assertEqual(S.build(rows, tech, fund, px, weekly_window=weekly_sessions), [])
+
+    def test_persist_stamps_the_replay_as_of_not_today(self):
+        edge = {'TEST': {'quintile': 5, 'pnl_bp': 22., 'breach': .1, 'iv_rv': 1.2, 'vol_of_vol': .05, 'put_tech': .3, 'pct': .9}}
+        replay = PersistConnection()
+        self.assertEqual(put_edge.persist(replay, edge, date(2026, 10, 20)), 1)
+        self.assertNotIn('CURRENT_DATE', replay.sql)
+        self.assertEqual(replay.rows[0][:2], (date(2026, 10, 20), 'TEST'))
+        live = PersistConnection()
+        put_edge.persist(live, edge)
+        self.assertEqual(live.rows[0][0], date.today())
 
     def test_calibration_version_is_explicit_not_silently_promoted(self):
         self.assertFalse(put_edge.calibration_status({})['horizon_revalidated'])

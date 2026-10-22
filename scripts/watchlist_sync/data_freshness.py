@@ -45,6 +45,7 @@ CHECKS = [
 ]
 PER_NAME = [("optlab.underlying", "date", "ticker"), ("lseg_research.daily_history", "date", "ticker")]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]
+MISSING_INPUT_MAX_SHARE = 0.15   # A243 10-22: 83/180 (46 %) of sell-put candidates blocked for missing inputs, no check caught it
 
 
 def lag_trading_days(last: date, ref: date) -> int:
@@ -66,6 +67,72 @@ def daily_run_today(today: date) -> str:
         if st.date() == today and {"lseg", "model"} <= set(log.get("stages", [])):
             runs.append(f"{st:%H:%M} ET {log.get('status')}")
     return ", ".join(sorted(runs)) or "none"
+
+
+def snapshot_as_of(conn, now: datetime) -> str | None:
+    """option_score_snapshots must carry the session the Model List prices and drift-checks against — exact match, no maxLag
+    slack: on 10-20 and 10-22 the as_of day was missing entirely while MAX(computed_at) with maxLag 1 still read fresh (A243).
+    Expected = today once the morning build has run in an open session (maintain builds the list at 10:00 ET), else last close."""
+    expect = now.date() if (R.market_open(now) and now.hour >= 10) else R.last_close_date(now)
+    v = conn.execute("SELECT MAX(as_of) FROM public.option_score_snapshots").fetchone()[0]
+    if v == expect:
+        return None
+    return (f"✗ public.option_score_snapshots: newest as_of {v or 'none'} ≠ {expect} (session the list is checked against) "
+            f"— drift checks measure our staleness, not the market")
+
+
+def _missing_input_causes(conn, tickers: list[str], as_of: date) -> dict[str, list[str]]:
+    """Which put_edge.scores gate each blocked name fails (put_edge.py:74-82): ≥ 61 LSEG bars in 120 days with the last inside
+    7 days, lab_tech comps, iv30_put on ≥ 40 of the last 61 bars. Cause split tells a vendor gap from a thin-IV name."""
+    bars = {t: (n, last, ivs) for t, n, last, ivs in conn.execute("""
+        WITH b AS (SELECT ticker, date, iv30_put, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) rn
+                   FROM lseg_research.daily_history
+                   WHERE ticker = ANY(%s) AND date BETWEEN %s::date - 120 AND %s AND close > 0)
+        SELECT ticker, COUNT(*), MAX(date), COUNT(iv30_put) FILTER (WHERE rn <= 61) FROM b GROUP BY ticker""",
+        (tickers, as_of, as_of)).fetchall()}
+    tech = {t for (t,) in conn.execute("""SELECT ticker FROM watchlist_sync.lab_tech
+        WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.lab_tech WHERE as_of <= %s)
+          AND v2->'comps'->>'trendContext' IS NOT NULL AND v2->'comps'->>'volumeConfirm' IS NOT NULL""", (as_of,)).fetchall()}
+    out: dict[str, list[str]] = {}
+    for t in tickers:
+        b = bars.get(t)
+        if not b or b[0] < 61 or (as_of - b[1]).days > 7:
+            cause = "no LSEG history"
+        elif t not in tech:
+            cause = "no lab_tech"
+        elif b[2] < 40:
+            cause = "thin iv30_put"
+        else:
+            cause = "other (re-read put_edge gates)"
+        out.setdefault(cause, []).append(t)
+    return out
+
+
+def put_edge_missing_inputs(conn) -> list[str]:
+    """Share of the latest plan's sell-put pool blocked because put-edge inputs are missing (build_plan.py:335), i.e. we don't
+    know the edge — not because the market failed a check. A243: 46 % on 10-22 and nothing flagged it."""
+    p = conn.execute("SELECT id, created_at, close_date FROM watchlist_sync.plans ORDER BY id DESC LIMIT 1").fetchone()
+    if not p:
+        return ["✗ watchlist_sync.plans: no plan to audit"]
+    pid, created, close = p
+    pool = conn.execute("""SELECT ticker, l1_checks FROM watchlist_sync.plan_items
+                           WHERE plan_id = %s AND list_key = 'sell_puts'""", (pid,)).fetchall()
+    if not pool:
+        return [f"✗ plan #{pid}: no sell_puts candidates"]
+    blocked = []
+    for t, checks in pool:
+        cs = json.loads(checks) if isinstance(checks, str) else (checks or [])
+        if any(c["check"] == "put_edge" and not c["pass"] and c["severity"] == "block"
+               and str(c["detail"]).startswith("no put-edge inputs") for c in cs):
+            blocked.append(t)
+    share = len(blocked) / len(pool)
+    if share <= MISSING_INPUT_MAX_SHARE:
+        return []
+    causes = _missing_input_causes(conn, blocked, (created.astimezone(R.ET).date() if created else close))
+    return [f"✗ put_edge inputs: {len(blocked)}/{len(pool)} ({100 * share:.0f} %) of plan #{pid} sell-put candidates blocked for "
+            f"missing inputs (max {100 * MISSING_INPUT_MAX_SHARE:.0f} %) — unknown edge, not a market reason",
+            "  by cause: " + " · ".join(f"{k} {len(v)} ({', '.join(sorted(v)[:6])}{'…' if len(v) > 6 else ''})"
+                                        for k, v in sorted(causes.items(), key=lambda x: -len(x[1])))]
 
 
 def main() -> None:
@@ -113,6 +180,19 @@ def main() -> None:
         if n:
             stale.append(table)
             lines.append(f"✗ {table}: {n} row(s) dated after today ({now.date()}) — UTC-date bug?")
+    snap = snapshot_as_of(conn, now)
+    if snap:
+        stale.append("public.option_score_snapshots")
+        lines.append(snap)
+    try:
+        missing = put_edge_missing_inputs(conn)
+    except Exception as e:
+        conn.rollback()
+        stale.append("put_edge_inputs")
+        missing = [f"✗ put_edge inputs: unreadable ({str(e)[:60]})"]
+    if missing:
+        stale.append("put_edge_inputs")
+        lines.extend(missing)
     run = daily_run_today(now.date())
     if R.is_trading_day(now.date()) and now.hour >= 11 and run == "none":
         stale.append("daily.py")

@@ -801,6 +801,27 @@ async function main() {
       runScoresAndPrecompute(drainMerged);
     }
 
+    // (g) Data freshness (A243): the 9 health checks are liveness/vendor reachability only — none reads a table, so
+    //     10-20 and 10-22 published the list on stale option_score_snapshots with health 9/9 pass. Runs after the list
+    //     (and after the late-open catch-up) so the tables it checks have had their write. Non-zero exit = a stale
+    //     table or too much of the put pool blocked for missing inputs → health fail + banner.
+    if (args.has("--once-per-day")) {
+      const dir = join(ROOT, "scripts/watchlist_sync");
+      const t0 = Date.now();
+      const fresh = spawnSync(join(dir, ".venv/bin/python"), ["data_freshness.py"], { encoding: "utf8", cwd: dir, timeout: 10 * 60 * 1000 });
+      timings.dataFreshness = Date.now() - t0;
+      const freshStatus = fresh.status ?? fresh.signal ?? "spawn_error";
+      actions.push(`data_freshness_exit_${freshStatus}`);
+      if (freshStatus !== 0) {
+        const out = (fresh.stdout || fresh.stderr || "").trim();
+        health.results = [...(health.results || []), { name: "data_freshness", ok: false, detail: out.slice(-600) }];
+        health.fail = (health.fail ?? 0) + 1;
+        health.ok = false;
+        const findings = out.split("\n").filter((l) => l.startsWith("✗"));
+        notifyMac("Fildi data stale", (findings.join(" · ") || `data_freshness exit ${freshStatus}`).slice(0, 180));
+      }
+    }
+
     // Retention prune lives here too so it runs when API was down all day.
     // Covers api_usage / ai_usage_log / old intraday app_config + filesystem logs.
     const retention = runApiTsx("src/scripts/run-retention-prune.ts");
