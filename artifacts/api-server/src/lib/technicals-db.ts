@@ -309,7 +309,9 @@ export type TechnicalsApiRow = TickerTechnicalsRow & {
 };
 
 export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
-  const techRows = await db.select().from(tickerTechnicals);
+  // 10-22: deactivated registry names (delisted/renamed) keep stale technicals rows → never serve them.
+  const techRows = await db.select().from(tickerTechnicals).where(sql`NOT EXISTS (
+    SELECT 1 FROM ticker_registry r WHERE r.ticker = ${tickerTechnicals.ticker} AND r.is_active = false)`);
   if (techRows.length === 0) return [];
 
   const tickers = techRows.map((r) => r.ticker);
