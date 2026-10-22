@@ -27,7 +27,13 @@ async function ensure(): Promise<void> {
   ensured = true;
 }
 
-/** Rebuild daily median PT from analyst_events (one row per ticker × event day). */
+function rowCount(res: unknown): number {
+  return typeof (res as { rowCount?: number }).rowCount === "number"
+    ? (res as { rowCount: number }).rowCount
+    : 0;
+}
+
+/** Event-day median PT. Does not overwrite denser LSEG consensus rows. */
 export async function backfillStreetPtFromEvents(): Promise<number> {
   await ensure();
   const res = await db.execute(sql`
@@ -40,14 +46,59 @@ export async function backfillStreetPtFromEvents(): Promise<number> {
     WHERE price_target IS NOT NULL AND event_date IS NOT NULL
     GROUP BY 1, 2
     ON CONFLICT (ticker, as_of) DO UPDATE SET
-      median_pt = excluded.median_pt,
-      n = excluded.n,
-      fetched_at = now()`);
-  const n = typeof (res as { rowCount?: number }).rowCount === "number"
-    ? (res as { rowCount: number }).rowCount
-    : 0;
+      median_pt = CASE WHEN street_pt_daily.source = 'lseg_signals' THEN street_pt_daily.median_pt ELSE excluded.median_pt END,
+      n = CASE WHEN street_pt_daily.source = 'lseg_signals' THEN street_pt_daily.n ELSE excluded.n END,
+      source = CASE WHEN street_pt_daily.source = 'lseg_signals' THEN street_pt_daily.source ELSE excluded.source END,
+      fetched_at = CASE WHEN street_pt_daily.source = 'lseg_signals' THEN street_pt_daily.fetched_at ELSE now() END`);
+  const n = rowCount(res);
   logger.info({ rows: n }, "street-pt: backfill from analyst_events");
   return n;
+}
+
+/**
+ * A86 Claude plan: LSEG signals_daily.pt_mean is the daily consensus series.
+ * Sparse analyst_events alone left most watchlist vsSt cells blank.
+ */
+/** Daily path: last `days` only (A236 — full-history INSERT every morning was wasteful). */
+export async function backfillStreetPtFromLseg(days = 45): Promise<number> {
+  await ensure();
+  const res = await db.execute(sql`
+    INSERT INTO street_pt_daily (ticker, as_of, median_pt, n, source)
+    SELECT UPPER(ticker), as_of::date, pt_mean::float8, 1, 'lseg_signals'
+    FROM lseg_research.signals_daily
+    WHERE pt_mean IS NOT NULL AND pt_mean > 0 AND as_of IS NOT NULL
+      AND as_of >= (CURRENT_DATE - ${days}::int)
+    ON CONFLICT (ticker, as_of) DO UPDATE SET
+      median_pt = excluded.median_pt,
+      n = excluded.n,
+      source = excluded.source,
+      fetched_at = now()`);
+  const n = rowCount(res);
+  logger.info({ rows: n, days }, "street-pt: backfill from lseg signals_daily");
+  return n;
+}
+
+/** Snapshot vendor consensus PT for tickers still missing any street row. */
+export async function backfillStreetPtFromFundamentals(): Promise<number> {
+  await ensure();
+  const res = await db.execute(sql`
+    INSERT INTO street_pt_daily (ticker, as_of, median_pt, n, source)
+    SELECT UPPER(tf.ticker), CURRENT_DATE, tf.analyst_target_price::float8, 1, 'ticker_fundamentals'
+    FROM ticker_fundamentals tf
+    WHERE tf.analyst_target_price IS NOT NULL AND tf.analyst_target_price::float8 > 0
+      AND NOT EXISTS (SELECT 1 FROM street_pt_daily s WHERE s.ticker = UPPER(tf.ticker))
+    ON CONFLICT (ticker, as_of) DO NOTHING`);
+  const n = rowCount(res);
+  logger.info({ rows: n }, "street-pt: backfill from ticker_fundamentals");
+  return n;
+}
+
+/** Full street PT refresh: LSEG (primary) + events + fundamentals gap-fill. */
+export async function backfillStreetPt(): Promise<{ lseg: number; events: number; fundamentals: number }> {
+  const lseg = await backfillStreetPtFromLseg();
+  const events = await backfillStreetPtFromEvents();
+  const fundamentals = await backfillStreetPtFromFundamentals();
+  return { lseg, events, fundamentals };
 }
 
 /** Largest |Fildi FV − street PT| / street among latest snapshots (review queue, not alert). */

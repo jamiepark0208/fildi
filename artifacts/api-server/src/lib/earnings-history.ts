@@ -1,13 +1,25 @@
 import { sleep } from "./http-client.js";
-import { inArray, sql, eq, and, isNotNull } from "drizzle-orm";
-import { db, earningsCalendar, fmpFundamentals } from "@workspace/db";
+import { inArray, sql, eq, and, isNotNull, gte, lte } from "drizzle-orm";
+import { db, earningsCalendar, fmpFundamentals, appConfig } from "@workspace/db";
 import { fetchFMPEarningsHistory } from "./fmp-client.js";
-import { fetchFinnhubEarningsHistory, fetchFinnhubUpcomingEarnings } from "./finnhub-client.js";
+import {
+  fetchFinnhubPeriodEps,
+  fetchFinnhubUpcomingEarnings,
+  mapPeriodEpsToAnnouncementDates,
+} from "./finnhub-client.js";
+import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
 
 const STALE_DAYS = 30; // earnings only report ~4x/year — no need to re-fetch often
 const UPCOMING_STALE_DAYS = 3; // consensus EPS estimates move more often than reported actuals
-const MAX_QUARTERS = 9; // 8 past + room for 1 upcoming without dropping a reported quarter
+const MAX_QUARTERS = 10; // 8 reported for 2Y view + room for upcoming + 1 spare
+/** Morning/scheduled: watchlist + near-term earnings first (A236 — full-universe was ~29 min). */
+const MAX_PER_RUN_MORNING = 25;
+const A114_REPAIR_DAY_KEY = "a114_earnings_repair_et_day";
+
+function etDayKey(d = new Date()): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
 
 /** A114 — fiscal quarter ends mislabeled as announcement dates (Finnhub `period`, bad FMP rows). */
 export function isFiscalPeriodEndDate(dateStr: string): boolean {
@@ -53,9 +65,21 @@ export async function fetchLiveEarningsHistory(ticker: string, trigger: string):
   }
   if (rows.length === 0 && process.env["FINNHUB_API_KEY"]) {
     try {
-      rows = await fetchFinnhubEarningsHistory(ticker, trigger);
+      // Finnhub calendar often returns dates without EPS; /stock/earnings has actuals but
+      // fiscal period ends (A114). Map EPS onto LSEG/DB announcement dates (+ calendar if any).
+      const periodEps = await fetchFinnhubPeriodEps(ticker, trigger);
+      const dbDates = await db
+        .select({ reportDate: earningsCalendar.reportDate })
+        .from(earningsCalendar)
+        .where(eq(earningsCalendar.ticker, ticker.toUpperCase()));
+      const announceDates = dbDates.map((r) => r.reportDate.slice(0, 10));
+      rows = mapPeriodEpsToAnnouncementDates(periodEps, announceDates);
+      if (rows.length === 0) {
+        logger.warn({ ticker, periodEps: periodEps.length, announceDates: announceDates.length },
+          "Finnhub EPS present but no announcement-date match");
+      }
     } catch (err) {
-      logger.warn({ ticker, err }, "fetchFinnhubEarningsHistory fallback failed");
+      logger.warn({ ticker, err }, "Finnhub period-EPS fallback failed");
     }
   }
 
@@ -162,6 +186,39 @@ export async function repairPastEarningsFromLseg(): Promise<{ deleted: number; i
   return { deleted, inserted };
 }
 
+/** A114 repair once per ET day — re-running the LSEG bulk insert every morning dominated precompute. */
+export async function repairPastEarningsFromLsegIfDue(force = false): Promise<{ skipped: boolean; deleted?: number; inserted?: number }> {
+  const day = etDayKey();
+  if (!force) {
+    const rows = await db.select().from(appConfig).where(eq(appConfig.key, A114_REPAIR_DAY_KEY)).limit(1);
+    if (rows[0]?.value === day) {
+      logger.info({ day }, "A114 repair already ran today (ET) — skip");
+      return { skipped: true };
+    }
+  }
+  const r = await repairPastEarningsFromLseg();
+  const existing = await db.select().from(appConfig).where(eq(appConfig.key, A114_REPAIR_DAY_KEY)).limit(1);
+  if (existing.length === 0) await db.insert(appConfig).values({ key: A114_REPAIR_DAY_KEY, value: day });
+  else await db.update(appConfig).set({ value: day, updatedAt: new Date() }).where(eq(appConfig.key, A114_REPAIR_DAY_KEY));
+  return { skipped: false, ...r };
+}
+
+/** Names with a calendar print in ±14d — Model List earnings re-strike cares about these. */
+async function earningsWindowTickers(): Promise<string[]> {
+  const today = etDayKey();
+  const lo = new Date(`${today}T12:00:00Z`);
+  lo.setUTCDate(lo.getUTCDate() - 1);
+  const hi = new Date(`${today}T12:00:00Z`);
+  hi.setUTCDate(hi.getUTCDate() + 14);
+  const loS = lo.toISOString().slice(0, 10);
+  const hiS = hi.toISOString().slice(0, 10);
+  const rows = await db
+    .select({ ticker: earningsCalendar.ticker })
+    .from(earningsCalendar)
+    .where(and(gte(earningsCalendar.reportDate, loS), lte(earningsCalendar.reportDate, hiS)));
+  return [...new Set(rows.map((r) => r.ticker.toUpperCase()))];
+}
+
 /** Read reported + upcoming quarters for a ticker, most recent/soonest first, capped to MAX_QUARTERS. */
 export async function readEarningsHistoryFromDb(ticker: string): Promise<EarningsQuarter[]> {
   const rows = await db
@@ -241,18 +298,24 @@ export async function getUpcomingEarningsDates(tickers: string[]): Promise<Recor
 const MAX_PER_RUN = 60;
 const GAP_MS = 350;
 
-// Proactively refreshes stale earnings history for the canonical ticker universe so
-// stock-breakdown's Earnings tab is always DB-served — no user click should ever be
-// the first thing that triggers an FMP/Finnhub call. Run nightly from the scheduler.
+// Proactively refreshes stale earnings history so stock-breakdown's Earnings tab is
+// DB-served. Morning/scheduled: watchlist + ±14d earnings window first (A236).
 export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise<{ attempted: number; written: number; empty: number }> {
-  // A114 — once per backfill: purge fiscal period-end past rows + seed LSEG announcement dates.
-  await repairPastEarningsFromLseg().catch((err) => {
+  await repairPastEarningsFromLsegIfDue().catch((err) => {
     logger.warn({ err }, "A114 repair skipped");
   });
 
   const universe = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
-  const stale = await getStaleEarningsTickers(universe.map(r => r.ticker));
-  const batch = stale.slice(0, MAX_PER_RUN);
+  const stale = await getStaleEarningsTickers(universe.map((r) => r.ticker));
+  const morningish = /^(scheduled|morning|maintain)/i.test(trigger);
+  let ordered = stale;
+  if (morningish) {
+    const [watch, window] = await Promise.all([getUnionWatchlistTickers(), earningsWindowTickers()]);
+    const pri = new Set([...watch, ...window].map((t) => t.toUpperCase()));
+    ordered = [...stale.filter((t) => pri.has(t.toUpperCase())), ...stale.filter((t) => !pri.has(t.toUpperCase()))];
+  }
+  const cap = morningish ? MAX_PER_RUN_MORNING : MAX_PER_RUN;
+  const batch = ordered.slice(0, cap);
 
   let written = 0;
   let empty = 0;
@@ -271,6 +334,9 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
     await sleep(GAP_MS);
   }
 
-  logger.info({ trigger, universeSize: universe.length, staleCount: stale.length, attempted: batch.length, written, empty }, "runEarningsHistoryBackfill complete");
+  logger.info(
+    { trigger, universeSize: universe.length, staleCount: stale.length, attempted: batch.length, written, empty, cap },
+    "runEarningsHistoryBackfill complete",
+  );
   return { attempted: batch.length, written, empty };
 }

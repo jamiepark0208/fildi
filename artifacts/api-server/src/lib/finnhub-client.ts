@@ -67,10 +67,74 @@ export interface FinnhubEarningsQuarter {
 // well-known small/mid-caps (e.g. AAOI, GME) despite the ticker having public
 // earnings history. Finnhub's /stock/earnings covers the same actual-vs-estimate
 // data on the free tier.
+/** Fiscal-period EPS from Finnhub (free tier ~4 quarters). `period` is quarter-end, not announce date. */
+export interface FinnhubPeriodEps {
+  period: string;
+  epsEstimate: number | null;
+  epsActual: number | null;
+}
+
 /**
- * Past + recent earnings with *announcement* dates (A114).
- * `/stock/earnings` only has fiscal period ends (`period`) — never use that as reportDate.
- * `/calendar/earnings` carries the real announcement `date` (free tier, dated range).
+ * Past EPS actual/estimate by fiscal period (`/stock/earnings`).
+ * A114: do NOT use `period` as reportDate — map onto announcement dates in earnings-history.
+ */
+export async function fetchFinnhubPeriodEps(ticker: string, trigger = "unknown"): Promise<FinnhubPeriodEps[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) throw new Error("FINNHUB_API_KEY not set");
+
+  const t = ticker.toUpperCase();
+  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+
+  try {
+    const raw = await fetchWithRetry(url);
+    const rows: FinnhubPeriodEps[] = (Array.isArray(raw) ? raw : []).map((r: any) => ({
+      period: String(r.period ?? "").slice(0, 10),
+      epsEstimate: n(r.estimate) ?? null,
+      epsActual: n(r.actual) ?? null,
+    })).filter((r) => !!r.period && (r.epsEstimate != null || r.epsActual != null));
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubPeriodEps", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
+    return rows;
+  } catch (err: any) {
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubPeriodEps", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/earnings" });
+    throw err;
+  }
+}
+
+/** Map fiscal-period EPS onto real announcement dates (earliest announce in (period, period+120d]). */
+export function mapPeriodEpsToAnnouncementDates(
+  periodRows: FinnhubPeriodEps[],
+  announceDates: string[],
+): FinnhubEarningsQuarter[] {
+  const dates = [...new Set(announceDates.map((d) => d.slice(0, 10)))].sort();
+  const out: FinnhubEarningsQuarter[] = [];
+  const used = new Set<string>();
+  for (const row of [...periodRows].sort((a, b) => a.period.localeCompare(b.period))) {
+    const periodEnd = new Date(`${row.period}T12:00:00Z`).getTime();
+    if (!Number.isFinite(periodEnd)) continue;
+    const latest = periodEnd + 180 * 86_400_000; // some names report late vs fiscal end
+    let best: string | null = null;
+    for (const d of dates) {
+      if (used.has(d)) continue;
+      const t = new Date(`${d}T12:00:00Z`).getTime();
+      if (t > periodEnd && t <= latest) {
+        best = d;
+        break;
+      }
+    }
+    if (!best) continue;
+    used.add(best);
+    out.push({
+      reportDate: best,
+      epsEstimate: row.epsEstimate,
+      epsActual: row.epsActual,
+    });
+  }
+  return out;
+}
+
+/**
+ * Past earnings: EPS from `/stock/earnings`, announce dates from `/calendar/earnings` when present.
+ * Prefer `fetchLiveEarningsHistory` which also merges LSEG/DB announce dates (calendar often empty on free tier).
  */
 export async function fetchFinnhubEarningsHistory(ticker: string, trigger = "unknown"): Promise<FinnhubEarningsQuarter[]> {
   const apiKey = process.env.FINNHUB_API_KEY;
@@ -79,19 +143,21 @@ export async function fetchFinnhubEarningsHistory(ticker: string, trigger = "unk
   const t = ticker.toUpperCase();
   const to = new Date().toISOString().slice(0, 10);
   const from = new Date(Date.now() - 800 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${encodeURIComponent(t)}&token=${apiKey}`;
+  const calUrl = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${encodeURIComponent(t)}&token=${apiKey}`;
 
   try {
-    const raw = await fetchWithRetry(url);
-    const rows: FinnhubEarningsQuarter[] = (Array.isArray(raw?.earningsCalendar) ? raw.earningsCalendar : []).map((r: any) => ({
-      reportDate: r.date as string,
-      epsEstimate: n(r.epsEstimate) ?? null,
-      epsActual: n(r.epsActual) ?? null,
-    })).filter((r: FinnhubEarningsQuarter) => !!r.reportDate);
+    const [periodRows, calRaw] = await Promise.all([
+      fetchFinnhubPeriodEps(t, trigger),
+      fetchWithRetry(calUrl).catch(() => null),
+    ]);
+    const announceDates = (Array.isArray(calRaw?.earningsCalendar) ? calRaw.earningsCalendar : [])
+      .map((r: any) => String(r.date ?? "").slice(0, 10))
+      .filter(Boolean);
+    const rows = mapPeriodEpsToAnnouncementDates(periodRows, announceDates);
     logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "success", fieldsReturned: rows.length });
     return rows;
   } catch (err: any) {
-    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "calendar/earnings" });
+    logApiCall({ source: "finnhub", fn: "fetchFinnhubEarningsHistory", trigger, ticker: t, outcome: "failure", error: String(err?.message ?? err), requestedFields: "stock/earnings+calendar" });
     throw err;
   }
 }

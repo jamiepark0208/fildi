@@ -6,6 +6,7 @@
 1. Context is auto-injected by `.cursor/scripts/session-start.js` (runs `agent-git-sync.sh` first, then phase/tasks/git/codegraph banner). Sets `FILDI_AGENT=cursor` for child processes.
 2. If banner missing, run: `node .cursor/scripts/rehydrate-cursor.js` then `scripts/agent-git-sync.sh`
 3. **Team bus is sync'd in step 1** — do not hand `git pull` / stash / rebase (AGENTS.md rule 2). If Sync line says behind/conflict, fix via the script only.
+3b. **Learn ritual (A209):** `bash scripts/agent-learn.sh cursor` — skim top waste turns; prefer oj/codegraph when loop/Acts high.
 4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##` + `Agent: cursor` when the build finishes — do not ask Jamie whether to commit agent-bus work. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
 4b. **Ship gate (Jamie 2026-10-18 / A94):** before any commit that touches `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**`, run `scripts/agent-ship-check.sh` (typecheck; healthz warn). `agent-git-sync.sh` also runs it before push. Wrong middleware imports crash the whole API — never skip. No loops/subagents for ship automation.
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
@@ -49,14 +50,15 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 
 | Need | Skill |
 |---|---|
-| Build + restart | `build-and-run.md` |
-| Local Mac / LaunchAgent | `local-mac-dev.md` |
+| Build + restart (Mac) | `local-mac-dev.md` |
+| Build + restart (Replit only) | `build-and-run.md` |
 | Data fetch / tiers / TTL | `data-architecture.md` |
 | Yahoo / TTLCache | `caching-patterns.md` |
 | API route / middleware | `api-design-patterns.md` |
 | Options chain | `options-pricer.md` |
-| RSI/MFI filters | `signal-filters.md` |
-| UI components | `ui-components.md` |
+| RSI/MFI scanner (not Model List) | `signal-filters.md` |
+| Model List / fit / watchlist_sync | `model-list.md` |
+| Fildi app UI (GRID_*, no grey) | `ui-components.md` |
 | DB schema / queries | `db-patterns.md` |
 | Trader strategy | `trader-context.md` |
 | Technical scorecard | `technical-scorecard.md` |
@@ -71,8 +73,10 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | Studies / backtests / scenario analysis (judgment) | `.agents/skills/fildi-quant-research/SKILL.md` |
 | Data source choice + vendor budgets | `.agents/skills/fildi-market-data/SKILL.md` |
 | Score / recommendation quality | `.agents/skills/fildi-grade-quality/SKILL.md` |
-| Replit-only setup | `replit-setup.md` (skip on Mac unless needed) |
+| Replit-only setup | `replit-setup.md` (skip on Mac) |
 | Claude session wrap | `session-wrap.md` — Claude only |
+
+Multi-agent bus / ASKS / `agent-git-sync` / ship-check: **AGENTS.md** (not a skill).
 
 ## CODEGRAPH
 MCP: prefer `explore` with a tight query. CLI: `codegraph context` · `impact` · `sync`.

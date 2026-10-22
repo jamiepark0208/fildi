@@ -1,12 +1,14 @@
 /**
- * Rankings › Strategies (A192). Every major option structure: what it is, when it fits, what our studies say, and today's ≤ 5 names.
- * Data: GET /api/options/structures (nightly table from scripts/watchlist_sync/structures.py, real Schwab ladders, realistic fills).
- * Structures that failed on Jamie's own trades (S020/S061) are described but never ranked; untested ones are ranked and say so.
+ * Rankings › Structures (A192). Dense pick board — numbers first, prose in tips only.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { DataTip } from "@/components/data-tip";
+import { formatMd, formatMdYy } from "@/lib/format";
+import { TickerLink } from "@/components/ticker-link";
 
 type Leg = { side: "put" | "call"; strike: number; expiry: string; qty: number; px: number; bid: number; ask: number; iv: number };
 type Row = {
@@ -17,15 +19,68 @@ type Row = {
 type Structure = { id: string; name: string; family: string; description: string; regime: string; evidence: string; evidenceNote: string; rows: Row[] };
 type Board = { asOf: string | null; stance: string | null; structures: Structure[] };
 
-const BADGE: Record<string, { label: string; cls: string }> = {
-  pass: { label: "Tested ✓", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
-  untested: { label: "Untested", cls: "bg-amber-500/10 text-amber-200 border-amber-500/30" },
-  fail: { label: "Failed on your trades", cls: "bg-red-500/10 text-red-300 border-red-500/30" },
+// Badge = HISTORICAL verdict for the structure in general (S076 backtest 2021→), not a call on today. Today = the rows.
+const BADGE: Record<string, { label: string; cls: string; tip: string }> = {
+  pass: { label: "Backtest ✓ works", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    tip: "Historically made money after realistic fills (2021 → backtest). This is about the structure in general, not a signal for today — today's candidates are the rows inside." },
+  untested: { label: "Not proven", cls: "bg-amber-500/15 text-amber-200 border-amber-500/30",
+    tip: "Backtest promising but not proven (could be luck), or not testable yet. Treat today's rows as ideas, not edges." },
+  fail: { label: "Backtest ✕ loses", cls: "bg-red-500/15 text-red-300 border-red-500/30",
+    tip: "Historically lost money (or lost to simply selling a cash-secured put) after realistic fills. Shown for reference; never recommended as a pick." },
 };
+
+const HEADS: { label: string; tip: string; right?: boolean }[] = [
+  { label: "Ticker", tip: "Stock and its price at the morning scan." },
+  { label: "Trade (legs)", tip: "Each option in the trade: + = buy, − = sell, strike, P/C = put/call, expiry. Hover a row for bid / ask / your fill." },
+  { label: "Credit", right: true, tip: "Money per contract (×100 shares) you collect now (+) or pay (−), at a realistic fill: bid + 23 % of the spread when selling, ask − 23 % when buying (your Robinhood median)." },
+  { label: "Capital", right: true, tip: "Money tied up per contract. Cash-secured put = strike × 100. Spreads = the most you can lose. Strangle/straddle = broker margin (~20 % of the stock). Covered call/collar = the 100 shares." },
+  { label: "Win odds", right: true, tip: "Chance the trade makes money at expiry, using the option market's own implied volatility. What prices imply, not our forecast." },
+  { label: "Expected", right: true, tip: "Average result ÷ capital if the stock moves like it did over its last 2 years (its own real moves, gaps included). Positive = options look overpriced vs how the stock really moves." },
+  { label: "Bad case", right: true, tip: "The worst 1-in-20 outcome ÷ capital, from the same 2-year history. −12 % = about 1 time in 20 you lose 12 % of the capital or more." },
+  { label: "Why it fits today", tip: "The rule that put this trade on the board today. IV/RV and put-edge rank are explained on hover." },
+];
 
 const usd = (v: number | null | undefined) => (v == null ? "—" : `$${Math.abs(v * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 const pct = (v: number | null | undefined, d = 0) => (v == null ? "—" : `${(v * 100).toFixed(d)}%`);
-const legText = (l: Leg) => `${l.qty > 0 ? "Buy" : "Sell"} ${l.strike}${l.side === "put" ? "P" : "C"} ${l.expiry.slice(5)}`;
+
+function legText(l: Leg): string {
+  const side = l.side === "put" ? "P" : "C";
+  return `${l.qty > 0 ? "+" : "−"}${l.strike}${side} ${formatMd(l.expiry)}`;
+}
+
+/** Emphasize numbers + action verbs in a short stance / why line. */
+function accentLine(text: string): ReactNode {
+  const parts = text.split(/(\d+(?:\.\d+)?×|\d+(?:\.\d+)?%|IV\/RV\s*\d+(?:\.\d+)?|sell puts|smaller puts|cut new put size)/gi);
+  return parts.map((p, i) => {
+    if (!p) return null;
+    if (/^(sell puts|smaller puts|cut new put size)$/i.test(p)) {
+      return <span key={i} className="font-semibold text-[#d4af37]">{p}</span>;
+    }
+    if (/^\d/.test(p) || /^IV\/RV/i.test(p)) {
+      return <span key={i} className="font-mono font-semibold text-white">{p}</span>;
+    }
+    return <span key={i} className="text-amber-100/70">{p}</span>;
+  });
+}
+
+function legsTip(r: Row, asOf: string | null): string {
+  const lines = r.legs.map((l) => `${l.qty > 0 ? "Buy" : "Sell"} ${l.strike}${l.side === "put" ? "P" : "C"} ${formatMd(l.expiry)} · bid $${l.bid.toFixed(2)} / ask $${l.ask.toFixed(2)} → your fill $${l.px.toFixed(2)} · IV ${(l.iv * 100).toFixed(0)} %`);
+  return [...lines, "", `Source: Schwab option chain, morning scan ${asOf ? formatMd(asOf) : ""}. Fill = bid + 23 % of the spread when selling (ask − 23 % when buying).`].join("\n");
+}
+
+function capitalTip(id: string, r: Row): string {
+  if (id === "csp") return `Cash held to buy 100 shares at the ${r.legs[0]?.strike} strike if assigned = ${usd(r.capital)}.`;
+  if (id === "covered_call" || id === "collar") return `The 100 shares you hold ≈ ${usd(r.capital)}.`;
+  if (id === "short_strangle" || id === "short_straddle") return `Broker margin ≈ 20 % of the stock + the credit = ${usd(r.capital)}. Undefined risk: losses can exceed this. Margin account only (not the IRA).`;
+  return `The most you can lose on this trade = ${usd(r.capital)} per contract.`;
+}
+
+function whyTip(r: Row): string {
+  const out = [`${r.dte} days to expiry.`];
+  if (r.iv_rv != null) out.push(`IV/RV ${r.iv_rv.toFixed(2)}: the volatility option prices imply ÷ how much ${r.ticker} actually moved over the last 20 days. Above 1 = options are priced richer than the stock has been moving (good for selling); below 1 = cheap (good for buying).`);
+  if (r.edge_q != null) out.push(`Put edge Q${r.edge_q}: this week's rank on our put-edge score (IV/RV + volatility-of-volatility + put technicals, study S059). Q5 = top 20 % of names (historically the best puts to sell), Q1 = bottom 20 % (lose after fills).`);
+  return out.join("\n\n");
+}
 
 export function StructuresBoard() {
   const { data, isLoading } = useQuery({
@@ -39,67 +94,126 @@ export function StructuresBoard() {
     refetchOnWindowFocus: false,
   });
   const [open, setOpen] = useState<Set<string>>(new Set());
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading strategies…</p>;
-  if (!data?.structures.length) return <p className="text-sm text-muted-foreground">No strategies board yet (runs each morning).</p>;
-  const ranked = data.structures.filter((s) => s.rows.length > 0);
-  const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  if (isLoading) return <p className="text-xs text-amber-100">Loading…</p>;
+  if (!data?.structures.length) return <p className="text-xs text-amber-100">No board yet (morning job).</p>;
+
+  const withPicks = data.structures.filter((s) => s.rows.length > 0);
+  const pickN = withPicks.reduce((n, s) => n + s.rows.length, 0);
+  const toggle = (id: string) => setOpen((o) => {
+    const n = new Set(o);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
+    return n;
+  });
 
   return (
-    <div className="space-y-2 text-xs">
-      <div className="rounded border border-[#d4af37]/25 bg-zinc-950 p-2">
-        <div className="text-[#d4af37] font-semibold">Today {data.asOf ?? ""} · {ranked.length} strategies with picks · each ticker shown once</div>
-        {data.stance && <div className="text-amber-100/80 mt-0.5">{data.stance}</div>}
-        <div className="text-amber-200/40 mt-1" title="Priced from today's real Schwab quotes. Fill = bid + 23 % of the spread when selling, ask − 23 % when buying (your measured Robinhood fills). Win odds at the market's IV; expected value from the stock's own 2-year moves over the same days (keeps jumps/earnings gaps). Names with earnings before expiry are excluded.">
-          Real quotes · realistic fills · EV from each stock's own 2-year moves ⓘ
-        </div>
+    <div className="space-y-1.5 text-xs">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">
+        <span className="text-[#d4af37] font-bold tabular-nums">{formatMdYy(data.asOf)}</span>
+        <span className="text-white font-semibold tabular-nums">{pickN} picks</span>
+        <span className="text-amber-100/50">{withPicks.length} structures</span>
       </div>
+      <p className="text-[11px] leading-snug px-0.5 text-amber-100/70">
+        Each option structure, with <span className="text-white">today's candidate trades</span> inside (real Schwab prices, realistic fills).
+        The badge is the <span className="text-white">historical backtest verdict</span> for the structure in general, not a call on today.
+        Hover any number for what it means; details per structure in the Backtest lab below.
+      </p>
+      {data.stance ? (
+        <p className="text-[11px] leading-snug px-0.5">{accentLine(data.stance)}</p>
+      ) : null}
+
       {data.structures.map((s) => {
         const b = BADGE[s.evidence] ?? BADGE.untested;
-        // strategies with picks start open; a click flips the default either way
         const isOpen = (s.rows.length > 0) !== open.has(s.id);
+        const metaTip = [s.description, s.regime ? `When: ${s.regime}` : null, s.evidenceNote ? `Evidence: ${s.evidenceNote}` : null]
+          .filter(Boolean)
+          .join("\n");
         return (
-          <div key={s.id} className="rounded border border-white/10 bg-zinc-950/60">
-            <button type="button" onClick={() => toggle(s.id)} className="w-full flex items-center gap-2 px-2 py-1.5 text-left">
-              {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-[#d4af37]" /> : <ChevronRight className="w-3.5 h-3.5 text-[#d4af37]" />}
-              <span className="font-semibold text-white">{s.name}</span>
-              <span className={cn("px-1.5 rounded border text-[10px]", b.cls)} title={s.evidenceNote}>{b.label}</span>
-              <span className="text-amber-200/50 ml-auto">{s.rows.length ? `${s.rows.length} pick${s.rows.length > 1 ? "s" : ""}` : s.evidence === "fail" ? "not ranked" : "no fit today"}</span>
+          <div key={s.id} className="rounded border border-[#d4af37]/20 bg-zinc-950">
+            <button type="button" onClick={() => toggle(s.id)} className="w-full flex items-center gap-1.5 px-2 py-1 text-left">
+              {isOpen
+                ? <ChevronDown className="w-3 h-3 text-[#d4af37] shrink-0" />
+                : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
+              <DataTip tip={metaTip}>
+                <span className="font-semibold text-white">{s.name}</span>
+              </DataTip>
+              <DataTip tip={`${b.tip}${s.evidenceNote ? `\n\n${s.evidenceNote}` : ""}`}>
+                <span className={cn("px-1 rounded border text-[9px] font-bold uppercase tracking-wide", b.cls)}>
+                  {b.label}
+                </span>
+              </DataTip>
+              <span className={cn(
+                "ml-auto tabular-nums font-mono text-[11px]",
+                s.rows.length ? "text-white font-bold" : "text-amber-100/40",
+              )}>
+                {s.rows.length || "—"}
+              </span>
             </button>
-            {isOpen && (
-              <div className="px-2 pb-2 space-y-1.5">
-                <div className="text-amber-100/80">{s.description}</div>
-                <div className="text-amber-200/60"><span className="text-amber-200/40">When it fits:</span> {s.regime}</div>
-                <div className="text-amber-200/60"><span className="text-amber-200/40">Our evidence:</span> {s.evidenceNote}</div>
-                {s.rows.length > 0 && (
-                  <table className="w-full mt-1">
-                    <thead className="text-[10px] uppercase text-amber-200/40">
-                      <tr>
-                        <th className="text-left font-normal">Ticker</th><th className="text-left font-normal">Legs</th>
-                        <th className="text-right font-normal" title="Net credit (+) or debit (−) per contract at realistic fills">Credit</th>
-                        <th className="text-right font-normal" title="Cash / margin at risk per contract">Capital</th>
-                        <th className="text-right font-normal" title="Chance of any profit at expiry, at the market's own IV">Win odds</th>
-                        <th className="text-right font-normal" title="Expected pnl ÷ capital using the stock's own 2-year moves over the same number of days">EV / capital</th>
-                        <th className="text-right font-normal" title="Worst 5 % outcome ÷ capital (same history)">Bad case</th>
-                        <th className="text-left font-normal pl-2">Why</th>
+            {isOpen && s.rows.length > 0 && (
+              <div className="px-1.5 pb-1.5">
+                <div className={GRID_WRAP}>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className={GRID_HEADER}>
+                        {HEADS.map((h) => (
+                          <th key={h.label} className={cn(GRID_TH, h.right ? "text-right" : "text-left")}>
+                            <DataTip tip={h.tip}>{h.label}</DataTip>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {s.rows.map((r) => (
-                        <tr key={r.ticker} className="border-t border-white/5">
-                          <td className="py-1 font-mono text-white">{r.ticker}<span className="text-amber-200/40"> ${r.spot.toFixed(2)}</span></td>
-                          <td className="py-1 text-amber-100/80">{r.legs.map(legText).join(" · ")}</td>
-                          <td className={cn("py-1 text-right font-mono", r.credit >= 0 ? "text-emerald-300" : "text-red-300")}>{r.credit >= 0 ? "+" : "−"}{usd(r.credit)}</td>
-                          <td className="py-1 text-right font-mono">{usd(r.capital)}</td>
-                          <td className="py-1 text-right font-mono">{pct(r.p_mkt)}</td>
-                          <td className="py-1 text-right font-mono text-emerald-300">{pct(r.ev_rv_cap, 1)}</td>
-                          <td className="py-1 text-right font-mono text-red-300">{pct(r.worst5, 0)}</td>
-                          <td className="py-1 pl-2 text-amber-200/60">{r.dte}d · {r.fit_why}</td>
+                      {s.rows.map((r, i) => (
+                        <tr key={r.ticker} className={gridRow(i)}>
+                          <td className={cn(GRID_TD, "font-mono")}>
+                            <TickerLink ticker={r.ticker} returnLabel="Structures" />
+                            <span className="text-amber-100/50 ml-1">${r.spot.toFixed(0)}</span>
+                          </td>
+                          <td className={cn(GRID_TD, "text-amber-50 font-mono text-[10px]")}>
+                            <DataTip tip={legsTip(r, data.asOf)}>{r.legs.map(legText).join(" · ")}</DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-right font-mono font-semibold", r.credit >= 0 ? "text-emerald-300" : "text-red-300")}>
+                            <DataTip tip={r.credit >= 0
+                              ? `You collect ${usd(r.credit)} now per contract (all legs at realistic fills). It's yours to keep if the trade ends worthless.`
+                              : `You pay ${usd(r.credit)} now per contract. That's the most a pure option buy can lose.`}>
+                              {r.credit >= 0 ? "+" : "−"}{usd(r.credit)}
+                            </DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-right font-mono text-amber-50")}>
+                            <DataTip tip={capitalTip(s.id, r)}>{usd(r.capital)}</DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-right font-mono text-white")}>
+                            <DataTip tip={`${pct(r.p_mkt)} chance this ends with a profit at expiry (${formatMd(r.expiry)}), using the market's own implied volatility. A pricing-implied probability, not our forecast.`}>
+                              {pct(r.p_mkt)}
+                            </DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-right font-mono font-bold", (r.ev_rv_cap ?? 0) >= 0 ? "text-emerald-300" : "text-red-300")}>
+                            <DataTip tip={`If ${r.ticker} moves like its last 2 years of real ${r.dte}-day moves (earnings gaps included), the average result is ${pct(r.ev_rv_cap, 1)} of the capital ≈ ${(r.ev_rv ?? 0) >= 0 ? "+" : "−"}${usd(r.ev_rv)} per contract.`}>
+                              {pct(r.ev_rv_cap, 1)}
+                            </DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-right font-mono text-red-300")}>
+                            <DataTip tip={r.worst5 == null ? null : `About 1 time in 20 (from the same 2-year history) this trade loses ${pct(Math.abs(r.worst5), 0)} of the ${usd(r.capital)} capital or more ≈ ${usd(Math.abs(r.worst5) * r.capital)} per contract.`}>
+                              {pct(r.worst5, 0)}
+                            </DataTip>
+                          </td>
+                          <td className={cn(GRID_TD, "text-[11px] leading-snug")}>
+                            <DataTip tip={whyTip(r)}>
+                              <span className="text-[#d4af37]/80 font-mono mr-1">{r.dte}d</span>
+                              {accentLine(r.fit_why)}
+                            </DataTip>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                )}
+                </div>
               </div>
+            )}
+            {isOpen && s.rows.length === 0 && (
+              <p className="px-2 pb-1.5 text-[10px] text-amber-100/40">
+                No trade today — today's market doesn't match when this structure fits{s.evidence === "fail" ? ", and it lost in the backtest" : ""}. Hover the name for when it fits.
+              </p>
             )}
           </div>
         );

@@ -485,6 +485,14 @@ export async function runFmpAnalystFeedJob() {
     lastFmpAnalystFeedRun = new Date();
     await setConfigDate(LAST_FMP_ANALYST_FEED_RUN_KEY, lastFmpAnalystFeedRun);
     logger.info(result, "scheduler: fmp analyst feed poll complete");
+    // Keep watchlist vsSt filled: LSEG pt_mean + events (+ fundamentals gaps).
+    try {
+      const { backfillStreetPt } = await import("./street-pt.js");
+      const street = await backfillStreetPt();
+      logger.info(street, "scheduler: street_pt_daily refresh after analyst feed");
+    } catch (err) {
+      logger.warn({ err }, "scheduler: street_pt_daily refresh failed (non-fatal)");
+    }
   } catch (err) {
     logger.error({ err }, "scheduler: fmp analyst feed poll failed");
     await noteFailedAttempt("fmp");

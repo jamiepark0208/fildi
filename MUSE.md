@@ -76,6 +76,7 @@ Startup every cycle:
 1. git fetch origin && git checkout cursor/mac-dev && git pull --ff-only origin cursor/mac-dev
 2. Read the ASKS.md index; open asks/A##.md only for rows to Muse or Cursor commits you're reviewing
 3. git log -5 --oneline
+4. Learn ritual (A209, when Mac API up): `bash scripts/agent-learn.sh muse` — skim waste turns
 
 Rules:
 1. Verify every finding against CURRENT origin/cursor/mac-dev HEAD. Mark STALE if already fixed — do not invent work.

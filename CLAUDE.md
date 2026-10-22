@@ -7,7 +7,7 @@
 Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plain sentences per action. No code blocks or verbatim paths/flags unless asked.
 
 ## Startup (once per session)
-`python3 scripts/agent_start.py` runs every startup step and prints a digest (full log → `~/.fildi/logs/`; read it only for a failed step). Act on the digest:
+`python3 scripts/agent_start.py` runs every startup step and prints a digest (full log → `~/.fildi/logs/`; read it only for a failed step). Also `bash scripts/agent-learn.sh claude` (A209) — note top waste turns. Act on the digest:
 1. Sync: `scripts/agent-git-sync.sh` only (AGENTS.md rule 2).
 2. Agents › Ideas dismissals (`watchlist_sync.agent_idea_dismissals`) → mark ASKS rows `declined (Jamie dismissed <date>)`, commit.
 3. Triage `research/inbox.md`: numbered items, dedupe vs ASKS/INDEX, P1–P3, file rows, clear the inbox.

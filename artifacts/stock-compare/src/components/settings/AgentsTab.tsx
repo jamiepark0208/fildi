@@ -1702,11 +1702,12 @@ function mdY(day: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
 }
 
-function Usage({ d }: { d: Data }) {
+function Usage({ d, learn }: { d: Data; learn?: LearnData | null }) {
   const { current, peak, hours } = d.windows;
   const pct = peak.out ? Math.round((current.out / peak.out) * 100) : 0;
   const claude = d.agents.find((a) => a.id === "claude")?.tokens ?? [];
   const tick = { fontSize: 11, fill: "#e8d5a3" };
+  const waste = learn?.wasteTop ?? [];
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -1789,6 +1790,37 @@ function Usage({ d }: { d: Data }) {
                 {" · "}{d.muse?.live?.working ? "working" : "idle"}
               </td>
             </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className={GRID_WRAP}>
+        <div className="text-[11px] uppercase tracking-widest text-[#d4af37] mb-1 px-1">
+          Waste leaders · turns with 0 commits or ship fail
+        </div>
+        <table className="w-full min-w-[640px] border-collapse">
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-left")}>Agent</th>
+              <th className={cn(GRID_TH, "text-right")}>Tools</th>
+              <th className={cn(GRID_TH, "text-right")}>Tok out</th>
+              <th className={cn(GRID_TH, "text-right")}>Loop</th>
+              <th className={cn(GRID_TH, "text-left")}>A##</th>
+              <th className={cn(GRID_TH, "text-left")}>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            {waste.length === 0 ? (
+              <tr><td colSpan={6} className={cn(GRID_TD, "text-white/50")}>No waste turns yet (learn feed empty or all shipped).</td></tr>
+            ) : waste.map((t, i) => (
+              <tr key={t.id} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "text-white font-medium")}>{t.agent}</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{t.tools}</td>
+                <td className={cn(GRID_TD, "text-right text-white/80")}>{t.out_tok != null ? fmt(t.out_tok) : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", t.loop_hits > 0 ? "text-amber-300" : "text-white/50")}>{t.loop_hits}</td>
+                <td className={cn(GRID_TD, "text-white/70")}>{t.ask_id ?? "—"}</td>
+                <td className={cn(GRID_TD, "text-white/70 truncate max-w-[220px]")} title={t.outcome}>{t.outcome || "—"}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -1908,7 +1940,7 @@ export function AgentsTab() {
       {(isLoading || !data) && <p className="text-xs text-white/50">Loading…</p>}
       {data && activeTab === "Stage" && <TeamPanel d={data} learn={learn} />}
       {data && activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
-      {data && activeTab === "Usage" && <Usage d={data} />}
+      {data && activeTab === "Usage" && <Usage d={data} learn={learn} />}
       {data && activeTab === "Rules" && <Rules d={data} />}
       {data && activeTab === "Skills" && <Skills d={data} />}
     </div>

@@ -137,7 +137,7 @@ const INVENTORY_SPEC: Record<
   },
   "fmp-analyst-feed": {
     owner: "api-scheduler (+ Maintain morning)",
-    writes: ["fmp analyst grades/PT archive"],
+    writes: ["fmp analyst grades/PT archive", "street_pt_daily (LSEG+events+fundamentals)"],
     mutex: "fmpAnalystFeedRunning",
     cadence: "once daily ~5 AM PT (Maintain precompute)",
     primary: true,

@@ -106,6 +106,8 @@ Local model on the Mac, $0: it reads long text, you read only a probability → 
 **Default use points (all agents on the Mac; exit 3 → skip):** before reading > 3 candidate files → `scripts/oj.py files --task "…" [--grep …] [dirs]`; long command/test/build/log → `scripts/oj.py run -- <cmd>`; before any analysis/study → `scripts/oj.py studies "<question>"`; before filing an ASKS row or idea → `scripts/oj.py dupes "<idea>"`; unsure which skill → `scripts/oj.py skill "<task>"`. Results show the pattern tier: below A they are a shortlist to check, not a reason to skip.
 **Session start (every agent on the Mac, Jamie 10-18 — no relaying):** `python3 scripts/oj.py pending` → run one listed `verify` (second key; you can't verify your own). Then `oj.py audit` lifecycle notes go to Claude via ASKS. Numbers enter the registry only via `oj.py eval`; tier A needs a second agent's `oj.py verify`. Full rules: [`.agents/openjev/README.md`](.agents/openjev/README.md).
 
+**Learn ritual (A209):** `bash scripts/agent-learn.sh [agent]` (or `GET /api/agents/learn`) → note top 3 waste turns (0 commits / ship fail). Prefer `oj.py` + codegraph when Acts/cmt or loop hits are high. Measure → other agent can verify → demote bad habits via rules/skills with evidence (same loop as OpenJev).
+
 ## Do not load unless the task needs them
 `.cursor/tasks/**` · `.claude/docs/phase-report*` · `.cursor/plans/archive/**`
 
