@@ -11,6 +11,9 @@ import {
 } from "@/lib/provenance-display";
 import type { ScoreEvidence, TradeOverlay } from "./stock-breakdown-parts";
 
+/** techAsOf may land from API before UI TradeOverlay type catches up. */
+type TradeTip = TradeOverlay & { techAsOf?: string | null };
+
 type QuoteMeta = {
   source?: string | null;
   asOf?: string | null;
@@ -19,7 +22,7 @@ type QuoteMeta = {
 type BreakdownMeta = {
   byField: Map<string, ProvTipField>;
   score: ScoreEvidence | null | undefined;
-  trade: TradeOverlay | null | undefined;
+  trade: TradeTip | null | undefined;
   quote: QuoteMeta | null | undefined;
   tipForField: (fieldKey: string | undefined | null, meaning?: string) => string | undefined;
   tipFundPillar: (pillar: "V" | "G" | "Q" | "S" | "Tot" | "Desk") => string | undefined;
@@ -38,7 +41,7 @@ export function BreakdownMetaProvider({
 }: {
   byField: Map<string, ProvTipField>;
   score?: ScoreEvidence | null;
-  trade?: TradeOverlay | null;
+  trade?: TradeTip | null;
   quote?: QuoteMeta | null;
   children: ReactNode;
 }) {
