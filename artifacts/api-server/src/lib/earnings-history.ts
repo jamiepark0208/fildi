@@ -115,6 +115,43 @@ export async function isEarningsDataFresh(ticker: string): Promise<boolean> {
   return stale.length === 0;
 }
 
+/** Tickers with zero earnings_calendar row dated today-or-later (A240) — stale regardless of
+ *  actual-EPS freshness. Catches a report date rolling into the past before the next-quarter
+ *  row gets fetched (e.g. NFLX reported 10-20, stayed "fresh" under the 30d actual check with
+ *  no forward date). Self-limiting: drops out once any future row exists. */
+export async function getTickersMissingUpcomingDate(allTickers: string[]): Promise<string[]> {
+  if (allTickers.length === 0) return [];
+  const normalized = [...new Set(allTickers.map(t => t.toUpperCase()))];
+  const today = new Date().toISOString().slice(0, 10);
+  const futureRows = await db
+    .select({ ticker: earningsCalendar.ticker })
+    .from(earningsCalendar)
+    .where(and(inArray(earningsCalendar.ticker, normalized), gte(earningsCalendar.reportDate, today)));
+  const haveFuture = new Set(futureRows.map(r => r.ticker.toUpperCase()));
+  return normalized.filter(t => !haveFuture.has(t));
+}
+
+/**
+ * A240 — the Model List candidate pool (model_recs weekly picks ∪ option_score_snapshots daily
+ * universe ranking) is NOT a subset of fmp_fundamentals: 162/317 pool tickers (10-21 audit) have
+ * no fmp_fundamentals row at all (NEM, FCX, UPS, ETN, CMCSA, UAL, BMY, DXCM, IDXX, …), so the old
+ * fmp_fundamentals-only universe below silently never fetched an earnings date for them — root
+ * cause of the ~23 % "no earnings date known" gap on sell_puts candidates. Union both pools'
+ * latest snapshot into the earnings backfill universe. Raw SQL: these tables are written by the
+ * Python watchlist_sync side and have no TS query helper of their own.
+ */
+async function getModelListPoolTickers(): Promise<string[]> {
+  const res = await db.execute(sql`
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM model_recs
+    WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM model_recs)
+    UNION
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM option_score_snapshots
+    WHERE as_of = (SELECT MAX(as_of) FROM option_score_snapshots)
+  `);
+  const list = (Array.isArray(res) ? res : (res as unknown as { rows?: { ticker: string }[] }).rows) ?? [];
+  return list.map((r) => String((r as { ticker: string }).ticker).toUpperCase());
+}
+
 /** Upsert live-fetched (FMP or Finnhub) rows into earnings_calendar (past + upcoming quarters). */
 export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuarter[]): Promise<void> {
   const upperTicker = ticker.toUpperCase();
@@ -305,13 +342,25 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
     logger.warn({ err }, "A114 repair skipped");
   });
 
-  const universe = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
-  const stale = await getStaleEarningsTickers(universe.map((r) => r.ticker));
+  const fmpUniverse = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
+  const poolTickers = await getModelListPoolTickers().catch((err) => {
+    logger.warn({ err }, "A240: getModelListPoolTickers failed — falling back to fmp_fundamentals-only universe");
+    return [] as string[];
+  });
+  const universeTickers = [...new Set([...fmpUniverse.map((r) => r.ticker.toUpperCase()), ...poolTickers])];
+
+  const [staleActuals, missingUpcoming] = await Promise.all([
+    getStaleEarningsTickers(universeTickers),
+    getTickersMissingUpcomingDate(universeTickers),
+  ]);
+  const stale = [...new Set([...staleActuals, ...missingUpcoming])];
   const morningish = /^(scheduled|morning|maintain)/i.test(trigger);
   let ordered = stale;
   if (morningish) {
     const [watch, window] = await Promise.all([getUnionWatchlistTickers(), earningsWindowTickers()]);
-    const pri = new Set([...watch, ...window].map((t) => t.toUpperCase()));
+    // A240: tickers with no forward date at all (missingUpcoming) go first — they're the ones
+    // showing as "no earnings date known" on the Model List, highest-value fetch under the cap.
+    const pri = new Set([...missingUpcoming, ...watch, ...window].map((t) => t.toUpperCase()));
     ordered = [...stale.filter((t) => pri.has(t.toUpperCase())), ...stale.filter((t) => !pri.has(t.toUpperCase()))];
   }
   const cap = morningish ? MAX_PER_RUN_MORNING : MAX_PER_RUN;
@@ -335,7 +384,7 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
   }
 
   logger.info(
-    { trigger, universeSize: universe.length, staleCount: stale.length, attempted: batch.length, written, empty, cap },
+    { trigger, universeSize: universeTickers.length, staleCount: stale.length, missingUpcoming: missingUpcoming.length, attempted: batch.length, written, empty, cap },
     "runEarningsHistoryBackfill complete",
   );
   return { attempted: batch.length, written, empty };
