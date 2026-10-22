@@ -544,20 +544,31 @@ export async function readPersistedScores(currentRegime: string | null): Promise
     .from(tickerFundamentals);
 
   if (rows.length === 0) return null;
-  if (rows.some(r => r.fundScoreComputedAt == null)) return null;
 
-  const oldest = rows.reduce((min, r) => {
+  // Unscored rows (e.g. ETF SCHD just added — no fund_score_computed_at) must not
+  // invalidate the whole board. Old all-null / any-null check forced a full
+  // computeAndPersist on every /fundamentals/rankings hit (~1s + 1.5MB).
+  const scored = rows.filter((r) => r.fundScoreComputedAt != null);
+  if (scored.length === 0) return null;
+
+  // Freshness = last successful batch (newest), not the oldest orphan row.
+  const newest = scored.reduce((max, r) => {
     const t = r.fundScoreComputedAt!.getTime();
-    return t < min ? t : min;
-  }, Infinity);
+    return t > max ? t : max;
+  }, 0);
   const staleMs = SCORE_STALE_HOURS * 60 * 60 * 1000;
-  if (Date.now() - oldest > staleMs) return null;
-  if (currentRegime && rows.some(r => r.regimeAtScore !== currentRegime)) return null;
+  if (Date.now() - newest > staleMs) return null;
+
+  // Serve the latest batch only (within 2h of newest) so stale orphans left after
+  // universe churn don't trip the regime check or pollute ranks.
+  const batchMs = 2 * 60 * 60 * 1000;
+  const batch = scored.filter((r) => newest - r.fundScoreComputedAt!.getTime() <= batchMs);
+  if (currentRegime && batch.some((r) => r.regimeAtScore !== currentRegime)) return null;
 
   const regRows = await db
     .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
     .from(tickerRegistry)
-    .where(inArray(tickerRegistry.ticker, rows.map(r => r.ticker)));
+    .where(inArray(tickerRegistry.ticker, batch.map(r => r.ticker)));
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
   const groupNameRows = uniqueGroupIds.length > 0
@@ -574,7 +585,7 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   const numOrNull = (v: string | null | undefined) => (v == null ? null : parseFloat(v));
   const emptyCov: FamilyCoverage = { value: 0, quality: 0, growth: 0, safety: 0, total: 0 };
 
-  return rows.map(r => ({
+  return batch.map(r => ({
     ticker: r.ticker,
     totalScore: numOrNull(r.fundTotalScore),
     companyScore: numOrNull(r.fundCompanyScore),

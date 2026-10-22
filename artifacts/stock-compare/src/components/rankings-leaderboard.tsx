@@ -11,6 +11,7 @@ import {
 } from "@/lib/fundamental-scoring-meta";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
 import { formatMdYy } from "@/lib/format";
+import { TickerLink } from "@/components/ticker-link";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -266,8 +267,8 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
         </td>
 
         <td className={cn(GRID_TD, "whitespace-nowrap")}>
-          <span className="font-mono font-bold text-white">{score.ticker}</span>
-          <span className="ml-1.5 text-white/40 text-[11px] inline-block max-w-[110px] align-middle truncate">{score.companyName}</span>
+          <TickerLink ticker={score.ticker} returnLabel="Rankings" />
+          <span className="ml-1.5 text-amber-100/50 text-[11px] inline-block max-w-[110px] align-middle truncate">{score.companyName}</span>
         </td>
 
         {FAMILY_ORDER.map(fam => {

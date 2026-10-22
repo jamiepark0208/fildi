@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth, readCachedUser } from "@/context/AuthContext";
 import { ScoringPreferencesProvider } from "@/context/ScoringPreferencesContext";
+import { StockNavProvider } from "@/context/StockNavContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { SchwabAuthBanner } from "@/components/schwab-auth-banner";
@@ -171,11 +172,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ScoringPreferencesProvider>
-        <TooltipProvider>
+        <TooltipProvider delayDuration={200} skipDelayDuration={0}>
           <LenisProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <SchwabAuthBanner />
-            <Router />
+            <StockNavProvider>
+              <SchwabAuthBanner />
+              <Router />
+            </StockNavProvider>
           </WouterRouter>
           <FeedbackWidget />
           <Toaster />

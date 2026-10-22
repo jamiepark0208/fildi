@@ -70,6 +70,8 @@ export type TradeOverlay = {
   earningsDaysOut: number | null;
   streetEventRisk: boolean;
   regime: string | null;
+  /** ticker_technicals.technicals_last_fetched — for hover provenance. */
+  techAsOf: string | null;
 };
 
 export async function buildScoreEvidence(
@@ -364,6 +366,7 @@ export async function buildTradeOverlay(
         earningsDaysOut: null,
         streetEventRisk: streetRisk,
         regime: null,
+        techAsOf: null,
       };
     }
     return {
@@ -374,6 +377,7 @@ export async function buildTradeOverlay(
       earningsDaysOut: row.earningsDaysOut,
       streetEventRisk: streetRisk,
       regime: row.regime,
+      techAsOf: row.technicalsLastFetched?.toISOString?.() ?? (row.technicalsLastFetched as unknown as string) ?? null,
     };
   } catch (err) {
     logger.warn({ err: String(err), ticker }, "trade overlay failed");
@@ -385,6 +389,7 @@ export async function buildTradeOverlay(
       earningsDaysOut: null,
       streetEventRisk: streetRisk,
       regime: null,
+      techAsOf: null,
     };
   }
 }

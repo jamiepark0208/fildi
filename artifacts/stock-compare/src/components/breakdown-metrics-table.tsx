@@ -1,14 +1,26 @@
 import { cn } from "@/lib/utils";
 import {
   ESTIMATE_FIELDS,
+  fieldSanityTip,
   freshnessBand,
   freshnessDotClass,
   formatProvenanceTip,
+  joinTips,
+  type MetricTipCtx,
   type ProvTipField,
 } from "@/lib/provenance-display";
+import { DataTip } from "./data-tip";
 
 /** Fund family scores are 0–100. Pass max={5} only for legacy displays. */
-export function ScoreBadge({ score, max = 100 }: { score: number | null | undefined; max?: number }) {
+export function ScoreBadge({
+  score,
+  max = 100,
+  tip,
+}: {
+  score: number | null | undefined;
+  max?: number;
+  tip?: string;
+}) {
   if (score == null || !Number.isFinite(score)) {
     return <span className="font-mono text-sm text-zinc-500">—</span>;
   }
@@ -16,9 +28,11 @@ export function ScoreBadge({ score, max = 100 }: { score: number | null | undefi
   const color =
     pct >= 70 ? "text-green-400" : pct >= 50 ? "text-yellow-400" : pct >= 35 ? "text-orange-400" : "text-red-400";
   return (
-    <span className={cn("font-bold font-mono tabular-nums text-sm", color)}>
-      {max === 100 ? score.toFixed(0) : `${score}/${max}`}
-    </span>
+    <DataTip tip={tip}>
+      <span className={cn("font-bold font-mono tabular-nums text-sm", color)}>
+        {max === 100 ? score.toFixed(0) : `${score}/${max}`}
+      </span>
+    </DataTip>
   );
 }
 
@@ -45,48 +59,57 @@ export interface MetricGroup {
 function MetricValue({
   row,
   prov,
+  metrics,
 }: {
   row: MetricRowData;
   prov: ProvTipField | undefined;
+  metrics?: MetricTipCtx | null;
 }) {
-  const tip = formatProvenanceTip(prov);
+  const provTip = formatProvenanceTip(prov);
+  const sanity = row.fieldKey ? fieldSanityTip(row.fieldKey, metrics ?? {}) : undefined;
   const estimate = row.isEstimate ?? (row.fieldKey != null && ESTIMATE_FIELDS.has(row.fieldKey));
+  const tip = joinTips(
+    row.tip,
+    provTip,
+    sanity,
+    estimate ? "Estimate / forward figure" : null,
+  );
   const band = freshnessBand(prov?.fetchedAt);
   const showDot = row.fieldKey != null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 text-[10px] font-mono font-semibold shrink-0",
-        row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
-      )}
-      title={tip}
-    >
-      {showDot && (
-        <span
-          className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", freshnessDotClass(band))}
-          aria-hidden
-        />
-      )}
-      {estimate && (
-        <span
-          className="text-[9px] font-bold text-sky-400/90 border border-sky-400/40 rounded px-0.5 leading-none"
-          title="Estimate / forward figure"
-        >
-          E
-        </span>
-      )}
-      {row.value}
-    </span>
+    <DataTip tip={tip}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-mono font-semibold shrink-0",
+          row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
+        )}
+      >
+        {showDot && (
+          <span
+            className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", freshnessDotClass(band))}
+            aria-hidden
+          />
+        )}
+        {estimate && (
+          <span className="text-[9px] font-bold text-sky-400/90 border border-sky-400/40 rounded px-0.5 leading-none">
+            E
+          </span>
+        )}
+        {row.value}
+      </span>
+    </DataTip>
   );
 }
 
 export function BreakdownMetricsTable({
   groups,
   byField,
+  metrics,
 }: {
   groups: MetricGroup[];
   byField?: Map<string, ProvTipField>;
+  metrics?: MetricTipCtx | null;
 }) {
   return (
     <div className="grid grid-cols-4 gap-2" id="bd-score-evidence">
@@ -100,21 +123,29 @@ export function BreakdownMetricsTable({
             <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">
               {group.title}
             </span>
-            <ScoreBadge score={group.score} max={100} />
+            <ScoreBadge
+              score={group.score}
+              max={100}
+              tip={`${group.title} family score · computed · peer-relative fund model`}
+            />
           </div>
           <div className="space-y-1">
             {group.rows.map((row, i) => {
               const provTip = row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined;
-              const labelTip = [row.tip, provTip].filter(Boolean).join("\n");
+              const sanity = row.fieldKey ? fieldSanityTip(row.fieldKey, metrics ?? {}) : undefined;
+              const labelTip = joinTips(row.tip, provTip, sanity);
               return (
                 <div key={i} className="flex justify-between items-center gap-1.5 min-w-0">
-                  <span
-                    className="text-[10px] text-amber-100/70 shrink min-w-0 whitespace-nowrap overflow-hidden text-ellipsis"
-                    title={labelTip || undefined}
-                  >
-                    {row.label}
-                  </span>
-                  <MetricValue row={row} prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined} />
+                  <DataTip tip={labelTip} className="min-w-0 shrink">
+                    <span className="text-[10px] text-amber-100/70 whitespace-nowrap overflow-hidden text-ellipsis block max-w-full">
+                      {row.label}
+                    </span>
+                  </DataTip>
+                  <MetricValue
+                    row={row}
+                    prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined}
+                    metrics={metrics}
+                  />
                 </div>
               );
             })}

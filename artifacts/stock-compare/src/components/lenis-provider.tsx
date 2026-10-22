@@ -12,11 +12,13 @@ export function LenisProvider({ children }: { children: ReactNode }) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const lenis = new Lenis({
-      // Auto-skip nodes with data-lenis-prevent (charts, dense tables).
-      prevent: (node) =>
-        node instanceof HTMLElement &&
-        (node.hasAttribute("data-lenis-prevent") ||
-          !!node.closest("[data-lenis-prevent]")),
+      // Skip charts / tables / canvases — wheel zoom + pan must not become page scroll.
+      prevent: (node: HTMLElement) => {
+        if (node.closest("[data-lenis-prevent]")) return true;
+        if (node.closest(".tv-lightweight-charts")) return true;
+        if (node.tagName === "CANVAS") return true;
+        return false;
+      },
     });
 
     let raf = 0;

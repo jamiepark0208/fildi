@@ -8,6 +8,13 @@ import type { ScoreHistoryPoint } from "../fund-score-history-chart";
 import type { StreetSynthesisData } from "../street-synthesis-card";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { DataTip } from "../data-tip";
+import {
+  BREAKDOWN_GC_MS,
+  BREAKDOWN_STALE_MS,
+  breakdownQueryKey,
+  fetchBreakdown,
+} from "@/lib/breakdown-query";
 
 export function scoreTone(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(score)) return "border-white/40 text-white/70 bg-zinc-800";
@@ -18,9 +25,8 @@ export function scoreTone(score: number | null | undefined): string {
 }
 
 export function PillarChip({ label, score, title }: { label: string; score: number | null | undefined; title?: string }) {
-  return (
+  const chip = (
     <span
-      title={title}
       className={cn(
         "inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border text-[11px] font-mono tabular-nums",
         scoreTone(score),
@@ -30,6 +36,7 @@ export function PillarChip({ label, score, title }: { label: string; score: numb
       <span className="font-bold">{score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}</span>
     </span>
   );
+  return title ? <DataTip tip={title}>{chip}</DataTip> : chip;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -60,7 +67,19 @@ export interface TradeOverlay {
   earningsDaysOut: number | null;
   streetEventRisk: boolean;
   regime: string | null;
+  techAsOf?: string | null;
 }
+
+export type EtfProfile = {
+  kind: "etf";
+  category: string | null;
+  family: string | null;
+  totalAssets: number | null;
+  yield: number | null;
+  ytdReturn: number | null;
+  trailingPe: number | null;
+  holdings: Array<{ symbol: string; holdingPercent: number | null }>;
+};
 
 export interface BreakdownData {
   metrics: any;
@@ -81,24 +100,22 @@ export interface BreakdownData {
   peers?: string[];
   peerIndustry?: string | null;
   peerSector?: string | null;
+  /** ETF / fund strip — set when Yahoo quoteType is ETF (stock fund model N/A). */
+  etfProfile?: EtfProfile | null;
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────────
 
 export function useBreakdown(ticker: string | null) {
+  const t = ticker?.trim().toUpperCase() || null;
   return useQuery<BreakdownData, Error>({
-    queryKey: ["breakdown", ticker],
-    queryFn: async () => {
-      const res = await fetch(`/api/stocks/breakdown?ticker=${encodeURIComponent(ticker!)}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error || `HTTP ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: !!ticker,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
+    queryKey: t ? breakdownQueryKey(t) : ["breakdown", null],
+    queryFn: () => fetchBreakdown(t!) as Promise<BreakdownData>,
+    enabled: !!t,
+    staleTime: BREAKDOWN_STALE_MS,
+    gcTime: BREAKDOWN_GC_MS,
+    // Revalidate when the view mounts if cache is stale (SWR). In-flight dedupe with prefetch.
+    refetchOnMount: true,
     retry: 1,
   });
 }
@@ -145,11 +162,13 @@ export const TAG_STYLES: Record<TagType, string> = {
 };
 
 export function TagBadge({
-  type, value, matches, onSelectTicker,
+  type, value, matches, onSelectTicker, title,
 }: {
   type: TagType; value: string;
   matches?: { ticker: string; companyName: string | null }[];
   onSelectTicker?: (t: string) => void;
+  /** Provenance / meaning tip (Radix DataTip). */
+  title?: string;
 }) {
   const badgeClass = cn(
     "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border transition-colors",
@@ -158,10 +177,14 @@ export function TagBadge({
   );
 
   if (!matches) {
-    return <button type="button" disabled className={badgeClass}>{value}</button>;
+    // Never `disabled` alone — drops pointer events. aria-disabled keeps tip hover.
+    const btn = (
+      <button type="button" aria-disabled className={badgeClass}>{value}</button>
+    );
+    return title ? <DataTip tip={title}>{btn}</DataTip> : btn;
   }
 
-  // Styled to match the Live Monitor intraday regime checkpoint popover (live.tsx).
+  // Tip on popover header only — don't nest TooltipTrigger inside PopoverTrigger.
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -172,8 +195,14 @@ export function TagBadge({
           <span className={cn("text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border shrink-0", TAG_STYLES[type])}>
             {value}
           </span>
-          <span className="text-amber-200/70 text-[11px]">
-            {matches.length} ticker{matches.length !== 1 ? "s" : ""} in your watchlist
+          <span className="text-amber-200/70 text-[11px] min-w-0">
+            {title ? (
+              <DataTip tip={title}>
+                <span className="block truncate">{matches.length} in watchlist</span>
+              </DataTip>
+            ) : (
+              <>{matches.length} ticker{matches.length !== 1 ? "s" : ""} in your watchlist</>
+            )}
           </span>
         </div>
         <div className="p-2 flex flex-col gap-0.5 max-h-72 overflow-y-auto">
@@ -198,14 +227,14 @@ export function TagBadge({
 }
 
 export type BreakdownPanelProps = {
-  title: string;
+  title: ReactNode;
   children?: ReactNode;
   empty?: string;
   /** Span both columns in the 2-col grid. */
   fullWidth?: boolean;
   /** Optional right-side action (e.g. Open dig). */
   action?: ReactNode;
-  /** Cap height + scroll only when content is long (charts). */
+  /** Cap height + scroll only when content is long (charts). Prefer max-h-* over fixed h-* to avoid empty black. */
   scrollMax?: string;
 };
 
@@ -213,13 +242,15 @@ export function BreakdownPanel({ title, children, empty, fullWidth, action, scro
   return (
     <div
       className={cn(
-        // h-auto by default — fixed h-full + sibling stretch left empty black in short Peers/Street.
+        // h-auto by default — fixed h-* + items-stretch left empty black under short peer lists.
         "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0",
         fullWidth && "col-span-2",
       )}
     >
-      <div className="flex items-center justify-between mb-1.5 gap-2 shrink-0">
-        <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">{title}</span>
+      <div className="flex items-center justify-between mb-1.5 gap-2 shrink-0 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 text-[11px] font-bold tracking-tight text-[#d4af37]">
+          {title}
+        </div>
         {action}
       </div>
       <div

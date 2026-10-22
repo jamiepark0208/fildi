@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
-import { StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
@@ -10,7 +9,6 @@ import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
 import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
-import { useWatchlist } from "@/hooks/use-watchlist";
 import { queryKeys } from "@/lib/query-keys";
 import { StructuresBoard } from "@/components/options-structures/StructuresBoard";
 import { StructureLab } from "@/components/options-structures/StructureLab";
@@ -19,7 +17,7 @@ const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies
   { id: "fundamental", label: "Fundamentals" },
   { id: "technical",   label: "Technicals" },
   { id: "options",     label: "Options" },
-  { id: "strategies",  label: "Strategies" },   // A192: every option structure, ≤ 5 names each
+  { id: "strategies",  label: "Structures" },   // A192: today's structure picks (≠ Track Record › Strategies)
 ];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
@@ -32,30 +30,12 @@ export default function Rankings() {
   // Options: Watchlist (live scanner) vs Overall (nightly premium-IV snapshots).
   const [optionsScope, setOptionsScope] = useSessionState<"watchlist" | "overall">("fildi_options_scope", "watchlist");
   const { weights } = useScoringPreferences();
-  const { tickers: watchlistTickers } = useWatchlist();
 
-  const tickerKey = useMemo(() => [...watchlistTickers].sort().join(","), [watchlistTickers]);
-
-  const quotesQuery = useQuery({
-    queryKey: ["stocks-quotes", tickerKey],
-    queryFn: async (): Promise<Record<string, StockMetrics | { error: string }>> => {
-      const res = await fetch(`/api/stocks/quotes?tickers=${encodeURIComponent(tickerKey)}`);
-      if (!res.ok) throw new Error("quotes fetch failed");
-      return res.json();
-    },
-    enabled: tickerKey.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const loadedStocks = useMemo((): StockMetrics[] => {
-    const data = quotesQuery.data;
-    if (!data) return [];
-    return Object.entries(data)
-      .filter((entry): entry is [string, StockMetrics] => !("error" in entry[1]))
-      .map(([, stock]) => stock);
-  }, [quotesQuery.data]);
-
-  const { data: serverRankings } = useQuery({
+  // Fundamentals tab used to also fan out /stocks/quotes for the whole watchlist
+  // (Yahoo × N) and always pull /technicals/all — that starved the main thread /
+  // Yahoo pool and made Fundamentals feel stuck. Names fall back to ticker;
+  // explain already has peerGroup on the score row.
+  const { data: serverRankings, isLoading: fundLoading } = useQuery({
     queryKey: queryKeys.fundamentalsRankings,
     queryFn: async () => {
       const res = await fetch("/api/fundamentals/rankings");
@@ -84,11 +64,11 @@ export default function Rankings() {
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: tab === "fundamental",
   });
 
   const fundamentalRankings = useMemo((): StockScore[] => {
     if (!serverRankings?.length) return [];
-    const stockByTicker = new Map(loadedStocks.map(s => [s.ticker, s]));
     return [...serverRankings]
       // Unranked tickers (coverage too thin) are dropped rather than shown at rank 0 —
       // this is what kept WTR at #1 of 558 off the strength of a single metric.
@@ -96,7 +76,7 @@ export default function Rankings() {
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
-        companyName:  stockByTicker.get(r.ticker)?.companyName ?? r.ticker,
+        companyName:  r.ticker,
         totalScore:   r.totalScore as number,
         maxPossible:  100,
         rank:         r.rank,
@@ -119,9 +99,9 @@ export default function Rankings() {
         sectorScore:   r.sectorScore ?? null,
         confidence:    r.confidence ?? null,
       }));
-  }, [serverRankings, loadedStocks]);
+  }, [serverRankings]);
 
-  const { data: allTechnicalsData } = useQuery({
+  const { data: allTechnicalsData, isLoading: techLoading } = useQuery({
     queryKey: queryKeys.technicalsAll,
     queryFn: async (): Promise<TechnicalRow[]> => {
       const res = await fetch("/api/technicals/all", { credentials: "include" });
@@ -131,6 +111,7 @@ export default function Rankings() {
     staleTime: 60 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: tab === "technical",
   });
 
   const technicalScores = useMemo(() => {
@@ -230,19 +211,22 @@ export default function Rankings() {
           </div>
 
           {tab === "fundamental" && (
-            fundamentalRankings.length >= 2 ? (
+            fundLoading ? (
+              <p className="text-sm text-muted-foreground animate-pulse">Loading fundamental rankings…</p>
+            ) : fundamentalRankings.length >= 2 ? (
               <RankingsLeaderboard
                 scores={fundamentalRankings}
-                stocks={loadedStocks}
                 scoredAsOf={serverRankings?.[0]?.computedAt ?? null}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see fundamental rankings.</p>
+              <p className="text-sm text-muted-foreground">No fundamental rankings yet — scores rebuild after nightly enrichment.</p>
             )
           )}
 
           {tab === "technical" && (
-            technicalScores.length >= 2 ? (
+            techLoading ? (
+              <p className="text-sm text-muted-foreground animate-pulse">Loading technical rankings…</p>
+            ) : technicalScores.length >= 2 ? (
               <TechnicalLeaderboard
                 scores={technicalScores}
                 rowMap={technicalRowMap}
@@ -250,7 +234,7 @@ export default function Rankings() {
                 scoredAsOf={technicalScoredAsOf}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">Add at least 2 tickers to your watchlist to see technical rankings.</p>
+              <p className="text-sm text-muted-foreground">No technical rankings yet — open Technical once scores are cached.</p>
             )
           )}
 

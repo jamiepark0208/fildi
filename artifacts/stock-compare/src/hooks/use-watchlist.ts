@@ -83,6 +83,13 @@ export function useWatchlist() {
       });
       return false;
     }
+    const body = await res.json().catch(() => ({})) as { warnings?: string[] };
+    if (body.warnings?.length) {
+      toast({
+        title: `${ticker.toUpperCase()} added`,
+        description: body.warnings[0],
+      });
+    }
     await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     return true;
   }, [queryClient, userId]);

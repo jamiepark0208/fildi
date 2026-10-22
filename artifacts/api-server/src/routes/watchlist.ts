@@ -3,8 +3,9 @@ import { eq, and, asc, sql } from "drizzle-orm";
 import { db, pool, watchlist, tickerRegistry, tickerFundamentals, peerGroupMembers, users } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { classifyTicker } from "../lib/peer-classifier.js";
-import { isExcludedEtf } from "../lib/etf-exclusions.js";
-import { enrichAndMergeTickers } from "../lib/enrich-and-merge.js";
+import { isExcludedEtf, isEtfQuoteType } from "../lib/etf-exclusions.js";
+import { yahooFinance } from "../lib/yahoo-client.js";
+import { warmWatchlistTicker } from "../lib/warm-watchlist-ticker.js";
 
 const router = Router();
 
@@ -307,13 +308,37 @@ router.post("/watchlist", async (req, res) => {
   // Registry upsert is best-effort: watchlist membership must not fail if registry
   // write hits a transient error (migration drift, lock). Enrichment peers the flag later.
   // ETFs may sit on a watchlist for price tracking but never enter stock peer scoring.
-  const etf = isExcludedEtf(normalized);
+  // Static deny-list + Yahoo quoteType (SCHD was ETF but missing from the list → stock enrich ran).
+  let etf = isExcludedEtf(normalized);
+  let etfName: string | null = null;
+  if (!etf) {
+    try {
+      const q = await (yahooFinance as any).quote(normalized, {}, { validateResult: false }) as {
+        quoteType?: string; typeDisp?: string; shortName?: string; longName?: string;
+      };
+      if (isEtfQuoteType(q?.quoteType) || isEtfQuoteType(q?.typeDisp)) {
+        etf = true;
+        etfName = q?.shortName ?? q?.longName ?? null;
+      }
+    } catch (err) {
+      console.warn(`[watchlist] Yahoo quoteType check failed for ${normalized}:`, err);
+    }
+  }
   try {
     await db.insert(tickerRegistry)
-      .values({ ticker: normalized, isActive: true, fetchFundamentals: !etf })
+      .values({
+        ticker: normalized,
+        isActive: true,
+        fetchFundamentals: !etf,
+        ...(etfName ? { name: etfName } : {}),
+      })
       .onConflictDoUpdate({
         target: tickerRegistry.ticker,
-        set: { fetchFundamentals: !etf },
+        set: {
+          fetchFundamentals: !etf,
+          ...(etfName ? { name: etfName } : {}),
+          ...(etf ? { peerTickers: null } : {}),
+        },
       });
   } catch (err) {
     console.warn(`[watchlist] ticker_registry upsert failed for ${normalized}:`, err);
@@ -358,20 +383,15 @@ router.post("/watchlist", async (req, res) => {
     peerGroup = { id: groups[0]!.groupId, confidence: "mapped" };
   }
 
-  // Kick off fundamentals for new names immediately (don't wait for 4d full nightly).
-  if (!etf) {
-    void enrichAndMergeTickers([normalized], { respectMutex: true })
-      .then((r) => {
-        if (r.skipped) console.warn(`[watchlist] enrich skipped for ${normalized}: ${r.reason}`);
-        else console.log(`[watchlist] enrich ${normalized}: fetched=${r.fetched} failed=${r.failed}`);
-      })
-      .catch((err) => console.warn(`[watchlist] enrich failed for ${normalized}:`, err));
-  }
+  // Warm chart bars + live quote immediately (stocks also get fund enrich). Don't wait for nightly.
+  void warmWatchlistTicker(normalized, { etf })
+    .catch((err) => console.warn(`[watchlist] warm failed for ${normalized}:`, err));
 
   return res.status(201).json({
     ticker: normalized,
     ...(peerGroup ? { peerGroup } : {}),
     ...(warnings.length > 0 ? { warnings } : {}),
+    warming: true,
   });
 });
 

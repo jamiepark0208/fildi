@@ -5,6 +5,8 @@
 export const ETF_EXCLUSIONS = new Set([
   // Broad / sector
   "SMH", "SOXX", "IWM", "QQQ", "SPY", "ARKG", "CANE",
+  // Dividend / Schwab core (watchlist price-track only — not stock peer scoring)
+  "SCHD", "SCHG", "SCHB", "SCHX", "VYM", "DGRO", "DVY", "SDY",
   // Credit / structured
   "BIZD", "JBBB",
   // Single-stock / thematic levered & wrappers
@@ -17,4 +19,10 @@ export const ETF_EXCLUSIONS = new Set([
 
 export function isExcludedEtf(ticker: string): boolean {
   return ETF_EXCLUSIONS.has(ticker.trim().toUpperCase());
+}
+
+/** Yahoo quoteType / typeDisp — catches ETFs not yet on the static deny-list. */
+export function isEtfQuoteType(quoteType: string | null | undefined): boolean {
+  const t = String(quoteType ?? "").trim().toUpperCase();
+  return t === "ETF" || t === "MUTUALFUND" || t === "INDEX" || t === "FUND";
 }

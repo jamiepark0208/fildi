@@ -5,23 +5,23 @@ import {
 } from "lucide-react";
 import { PriceChart, Period } from "./price-chart";
 import { TradingViewTechnicalWidget } from "./tradingview-technical-widget";
-import { CompetitorsSection } from "./competitors-section";
+import { CompetitorsSection, useCompetitors } from "./competitors-section";
 import { AnalystRatingsSection } from "./analyst-ratings-section";
-import { EarningsHistorySection } from "./earnings-history-section";
-import { MarketSentimentSection } from "./market-sentiment-section";
+import { EarningsHistorySection, earningsBeatAction } from "./earnings-history-section";
+import { DeskSentimentSection } from "./desk-sentiment-section";
 import { AccountingStatementsSection } from "./accounting-statements-section";
 import { NewsCard } from "./news-card";
 import { BreakdownMetricsTable } from "./breakdown-metrics-table";
 import { PegGrowthDistChart } from "./peg-growth-dist-chart";
 import { PeerGroupEditor } from "./settings/PeerGroupEditor";
 import { FundScoreHistoryChart } from "./fund-score-history-chart";
-import { StreetSynthesisCard } from "./street-synthesis-card";
+import { StreetHeaderBadges, StreetSynthesisCard } from "./street-synthesis-card";
 import { ScoreNoteForm } from "./score-note-form";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatGrowthYoY, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
@@ -32,10 +32,13 @@ import { FairValueBadge } from "@/components/fair-value-badge";
 import { LazyMount } from "@/components/lazy-mount";
 
 import {
-  useBreakdown, overviewBullets, TagBadge, BreakdownPanel,
+  useBreakdown, overviewBullets, TagBadge, BreakdownPanel, TAG_STYLES,
   type ClassificationTagType, type WatchlistTagEntry,
 } from "./breakdown/stock-breakdown-parts";
 import { MemoHeader } from "./breakdown/memo-header";
+import { BreakdownMetaProvider } from "./breakdown/breakdown-meta-context";
+import { formatDerivedTip, formatProvenanceTip } from "@/lib/provenance-display";
+import { DataTip } from "./data-tip";
 import { ShortInterestPanel } from "./breakdown/short-interest-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
@@ -129,7 +132,8 @@ export function StockBreakdown({
   const suggestions =
     dropdownOpen && (searchResults?.length ?? 0) > 0 ? searchResults! : [];
 
-  const { data, isLoading, error } = useBreakdown(activeTicker);
+  const { data, isLoading, isFetching, error } = useBreakdown(activeTicker);
+  const { data: peersMeta } = useCompetitors(activeTicker ?? "");
   const { byField: provByField } = useFundamentalsProvenance(activeTicker);
 
   const tagMatchesFor = useCallback((type: ClassificationTagType, value: string) => {
@@ -268,12 +272,19 @@ export function StockBreakdown({
         )}
 
         {/* Loading */}
-        {activeTicker && isLoading && (
+        {activeTicker && isLoading && !data && (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="w-8 h-8 animate-spin" />
               <span className="text-sm">Loading {activeTicker}…</span>
             </div>
+          </div>
+        )}
+
+        {/* SWR: cached body stays up; thin bar while a fresh fetch runs */}
+        {activeTicker && isFetching && !!data && (
+          <div className="sticky top-0 z-20 h-0.5 bg-[#d4af37]/30 overflow-hidden">
+            <div className="h-full w-1/3 bg-[#d4af37] animate-pulse" />
           </div>
         )}
 
@@ -289,6 +300,12 @@ export function StockBreakdown({
 
         {/* Main content */}
         {m && !isLoading && (
+          <BreakdownMetaProvider
+            byField={provByField}
+            score={data?.scoreEvidence}
+            trade={data?.tradeOverlay}
+            quote={{ source: m.priceSource ?? null, asOf: m.priceAsOf ?? null }}
+          >
           <div className="max-w-5xl mx-auto px-5 py-4 space-y-3 pb-8">
             {/* ── Header ── */}
             <div className="flex items-center justify-between gap-3 min-w-0">
@@ -343,25 +360,43 @@ export function StockBreakdown({
 
               <div className="text-right shrink-0">
                 <div className="flex items-baseline justify-end gap-2">
-                  <span className="text-2xl font-bold font-mono tracking-tight">
-                    {m.currentPrice != null ? `$${m.currentPrice.toFixed(2)}` : "—"}
-                  </span>
-                  {m.dayChange != null && m.dayChangePercent != null ? (
-                    <span
-                      className={cn(
-                        "flex items-center gap-1 text-sm font-mono font-semibold",
-                        dayUp ? "text-green-400" : "text-red-400",
-                      )}
-                    >
-                      {dayUp ? (
-                        <TrendingUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <TrendingDown className="w-3.5 h-3.5" />
-                      )}
-                      {dayUp ? "+" : ""}
-                      {m.dayChange.toFixed(2)} ({dayUp ? "+" : ""}
-                      {(m.dayChangePercent * 100).toFixed(2)}%)
+                  <DataTip
+                    tip={formatDerivedTip({
+                      label: "Last",
+                      kind: "sourced",
+                      source: m.priceSource ? `${m.priceSource} (live ≤60s)` : "Schwab→Yahoo live ≤60s",
+                      asOf: m.priceAsOf ?? null,
+                    })}
+                  >
+                    <span className="text-2xl font-bold font-mono tracking-tight">
+                      {m.currentPrice != null ? `$${m.currentPrice.toFixed(2)}` : "—"}
                     </span>
+                  </DataTip>
+                  {m.dayChange != null && m.dayChangePercent != null ? (
+                    <DataTip
+                      tip={formatDerivedTip({
+                        label: "Day chg",
+                        kind: "sourced",
+                        source: m.priceSource ? `${m.priceSource} (live ≤60s)` : "Schwab→Yahoo live ≤60s",
+                        asOf: m.priceAsOf ?? null,
+                      })}
+                    >
+                      <span
+                        className={cn(
+                          "flex items-center gap-1 text-sm font-mono font-semibold",
+                          dayUp ? "text-green-400" : "text-red-400",
+                        )}
+                      >
+                        {dayUp ? (
+                          <TrendingUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <TrendingDown className="w-3.5 h-3.5" />
+                        )}
+                        {dayUp ? "+" : ""}
+                        {m.dayChange.toFixed(2)} ({dayUp ? "+" : ""}
+                        {(m.dayChangePercent * 100).toFixed(2)}%)
+                      </span>
+                    </DataTip>
                   ) : (
                     <span className="text-sm font-mono text-muted-foreground">—</span>
                   )}
@@ -381,7 +416,12 @@ export function StockBreakdown({
                 <TagBadge type="stockType" value={m.stockType} matches={tagMatchesFor("stockType", m.stockType)} onSelectTicker={commitTicker} />
               )}
               {m.beta != null && (
-                <TagBadge type="beta" value={`Beta ${formatNumber(m.beta)}`} />
+                <TagBadge
+                  type="beta"
+                  value={`Beta ${formatNumber(m.beta)}`}
+                  title={formatProvenanceTip(provByField.get("beta"))
+                    ?? formatDerivedTip({ label: "Beta", kind: "sourced", source: "fundamentals merge", asOf: data?.scoreEvidence?.inputsAsOf })}
+                />
               )}
               {m.fairValueEstimate != null && (
                 <FairValueBadge
@@ -391,16 +431,22 @@ export function StockBreakdown({
                 />
               )}
               {m.marketCap != null && (
-                <TagBadge type="marketCap" value={`Mkt Cap ${formatLargeNumber(m.marketCap)}`} />
+                <TagBadge
+                  type="marketCap"
+                  value={`Mkt Cap ${formatLargeNumber(m.marketCap)}`}
+                  title={formatProvenanceTip(provByField.get("marketCap"))
+                    ?? formatDerivedTip({ label: "Market cap", kind: "sourced", source: "fundamentals / quote", asOf: data?.scoreEvidence?.inputsAsOf })}
+                />
               )}
             </div>
 
-            {/* ── Memo header: fund model + trade overlay ── */}
+            {/* ── Memo header: fund model + trade overlay (ETF → yield/AUM strip) ── */}
             <MemoHeader data={data} />
 
-            {/* ── Score evidence (model families) ── */}
-            <BreakdownMetricsTable
+            {/* ── Score evidence (model families) — skip for ETFs (empty stock pillars) ── */}
+            {!data?.etfProfile && <BreakdownMetricsTable
               byField={provByField}
+              metrics={m}
               groups={[
                 {
                   title: "Value",
@@ -432,7 +478,7 @@ export function StockBreakdown({
                   sectionId: "bd-family-growth",
                   score: data.scoreEvidence?.growth ?? null,
                   rows: [
-                    { label: "Rev YoY", tip: "Year-over-year revenue growth.", value: formatPercent(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined, fieldKey: "revenueGrowthYoY" },
+                    { label: "Rev YoY", tip: "Year-over-year revenue growth (fraction: 1.0 = 100%).", value: formatGrowthYoY(m.revenueGrowthYoY), good: m.revenueGrowthYoY != null ? m.revenueGrowthYoY > 0 : undefined, fieldKey: "revenueGrowthYoY" },
                     { label: "EPS Grow", tip: "Year-over-year EPS growth.", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined, fieldKey: "epsGrowth" },
                     {
                       label: "PEG z",
@@ -485,7 +531,7 @@ export function StockBreakdown({
                   ],
                 },
               ]}
-            />
+            />}
 
             {/* ── Price chart + Technicals dig (A182: defer mount / history fetch) ── */}
             <div className="space-y-1">
@@ -499,15 +545,15 @@ export function StockBreakdown({
                 </button>
               </div>
               <LazyMount
-                minHeight={340}
+                minHeight={380}
                 rootMargin="320px 0px"
                 fallback={
-                  <div className="h-[340px] w-full min-w-0 rounded-lg border border-[#d4af37]/15 bg-zinc-950/80 flex items-center justify-center text-[10px] text-amber-200/40">
+                  <div className="h-[380px] w-full min-w-0 rounded-lg border border-[#d4af37]/15 bg-zinc-950/80 flex items-center justify-center text-[10px] text-amber-200/40">
                     Chart · scroll to load
                   </div>
                 }
               >
-                <div className="h-[340px] w-full min-w-0">
+                <div className="h-[380px] w-full min-w-0 min-h-0 overflow-hidden">
                   <PriceChart
                     tickers={[m.ticker]}
                     loadedStocks={[m]}
@@ -532,22 +578,37 @@ export function StockBreakdown({
                 m.pegGrowthPeerStd != null &&
                 (m.pegGrowthPeerDisplay?.length ?? m.pegGrowthPeerMembers?.length ?? 0) >= 2;
               const hasAnalyst = !!data.recommendations;
-              const hasSentiment = !!data.recommendations;
+              const hasSentiment = !!activeTicker;
               const hasHistory = (data.scoreHistory?.length ?? 0) > 0;
 
               return (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2 items-start">
                     <BreakdownPanel
-                      title="Peers (relative scores)"
+                      title={
+                        <>
+                          <span className="shrink-0">Peers</span>
+                          {(peersMeta?.groupName || peersMeta?.industry) && (
+                            <span
+                              className={cn(
+                                "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border truncate max-w-[14rem]",
+                                TAG_STYLES.industry,
+                              )}
+                              title={peersMeta.groupName ?? peersMeta.industry ?? undefined}
+                            >
+                              {peersMeta.groupName ?? peersMeta.industry}
+                            </span>
+                          )}
+                        </>
+                      }
                       empty="No peer group data."
-                      scrollMax="max-h-[360px]"
+                      scrollMax="max-h-[288px]"
                       action={
                         isAdmin ? (
                           <button
                             type="button"
                             onClick={() => setPeerEditOpen((v) => !v)}
-                            className="text-[10px] text-amber-200/60 hover:text-[#d4af37]"
+                            className="text-[10px] text-amber-200/60 hover:text-[#d4af37] shrink-0"
                           >
                             {peerEditOpen ? "Close editor" : "Edit group"}
                           </button>
@@ -555,7 +616,7 @@ export function StockBreakdown({
                       }
                     >
                       {hasPeers ? (
-                        <div id="bd-peers" className="space-y-2">
+                        <div id="bd-peers" className="space-y-2 min-w-0">
                           <CompetitorsSection
                             ticker={activeTicker!}
                             compact
@@ -573,7 +634,8 @@ export function StockBreakdown({
                     <BreakdownPanel
                       title="Street"
                       empty="No Street synthesis yet."
-                      scrollMax="max-h-[360px] overflow-y-auto"
+                      scrollMax="max-h-[360px]"
+                      action={<StreetHeaderBadges street={data.street} />}
                     >
                       {activeTicker ? (
                         <div id="bd-street" className="min-h-0">
@@ -584,7 +646,7 @@ export function StockBreakdown({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <BreakdownPanel title="Analyst Ratings" empty="No analyst ratings yet." scrollMax="h-[280px]">
+                    <BreakdownPanel title="Analyst Ratings" empty="No analyst ratings yet." scrollMax="h-[280px] overflow-x-auto overflow-y-auto">
                       {hasAnalyst ? (
                         <AnalystRatingsSection
                           recs={data.recommendations!}
@@ -596,7 +658,12 @@ export function StockBreakdown({
                       ) : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Earnings" empty="No earnings history yet." scrollMax="h-[280px]">
+                    <BreakdownPanel
+                      title="Earnings"
+                      empty="No earnings history yet."
+                      scrollMax="min-h-0 max-h-[280px] overflow-y-auto"
+                      action={hasEarnings ? earningsBeatAction(data.earningsHistory) : undefined}
+                    >
                       {hasEarnings ? (
                         <EarningsHistorySection history={data.earningsHistory ?? []} compact />
                       ) : null}
@@ -618,9 +685,9 @@ export function StockBreakdown({
                       ) : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Sentiment" empty="No Wall St. consensus yet." scrollMax="max-h-[260px]">
+                    <BreakdownPanel title="Sentiment" empty="No desk sentiment yet." scrollMax="max-h-[260px]">
                       {hasSentiment ? (
-                        <MarketSentimentSection recs={data.recommendations} />
+                        <DeskSentimentSection ticker={activeTicker!} news={data.news} />
                       ) : null}
                     </BreakdownPanel>
 
@@ -732,6 +799,7 @@ export function StockBreakdown({
               </DialogContent>
             </Dialog>
           </div>
+          </BreakdownMetaProvider>
         )}
       </div>
 

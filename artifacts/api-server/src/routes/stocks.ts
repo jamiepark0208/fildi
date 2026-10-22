@@ -59,17 +59,41 @@ function safeNum(val: unknown): number | null {
   return isFinite(n) ? n : null;
 }
 
+/** Pretty label for fund-score style_bucket (preferred over the PEG heuristic). */
+function styleBucketLabel(bucket: string | null | undefined): string | null {
+  if (!bucket) return null;
+  const map: Record<string, string> = {
+    value: "Value",
+    growth: "Growth",
+    garp: "GARP",
+    blend: "Blend",
+    pre_revenue: "Pre-rev",
+    quality_defensive: "Quality",
+    financial: "Financial",
+  };
+  return map[bucket] ?? null;
+}
+
+/**
+ * Fallback style tag when fund style_bucket missing.
+ * Growth before Value — null PE + junk PEG used to mis-tag high-growth names (e.g. AAOI) as Value.
+ */
 function classifyStockType(
   peRatio: number | null,
   pegRatio: number | null,
   dividendYield: number | null,
   revenueGrowth: number | null
 ): string {
-  if (dividendYield !== null && dividendYield > 0.03) return "Dividend";
-  if (pegRatio !== null && pegRatio < 1.5 && (peRatio === null || peRatio < 20))
+  if (dividendYield != null && dividendYield > 0.03) return "Dividend";
+  if (revenueGrowth != null && revenueGrowth > 0.15) return "Growth";
+  if (peRatio != null && peRatio > 30) return "Growth";
+  // Value needs a real cheap PE — never treat missing PE as value.
+  if (
+    pegRatio != null && pegRatio > 0 && pegRatio < 1.5
+    && peRatio != null && peRatio > 0 && peRatio < 20
+  ) {
     return "Value";
-  if (revenueGrowth !== null && revenueGrowth > 0.15) return "Growth";
-  if (peRatio !== null && peRatio > 30) return "Growth";
+  }
   return "Blend";
 }
 
@@ -240,12 +264,18 @@ function fmpNum(v: string | null | undefined): number | null {
 }
 
 /** A180 — gold row present enough to skip Yahoo fund modules. */
+/**
+ * True when DB fund coverage is rich enough to skip Yahoo fund modules.
+ * PE alone is NOT gold (SCHD ETF: pe-only row → gold skipped summaryDetail → empty yield/AUM).
+ * Need PE plus at least one of growth/margin/ROE (stock shape).
+ */
 function hasGoldFundamentals(fmp: TickerFundamentalsRow | null | undefined): boolean {
   if (!fmp) return false;
-  return fmpNum(fmp.peRatio) != null
-    || fmpNum(fmp.revenueGrowthYoY) != null
+  const pe = fmpNum(fmp.peRatio) != null;
+  const depth = fmpNum(fmp.revenueGrowthYoY) != null
     || fmpNum(fmp.netMargin) != null
     || fmpNum(fmp.returnOnEquity) != null;
+  return pe && depth;
 }
 
 /**
@@ -272,6 +302,8 @@ function applyLivePriceFields<T extends {
   currentPrice: number | null;
   dayChange?: number | null;
   dayChangePercent?: number | null;
+  priceSource?: string | null;
+  priceAsOf?: string | null;
 }>(metrics: T, live: LivePrice | undefined): T {
   if (!live || live.price == null) return metrics;
   const pctPts = live.changePercent;
@@ -287,6 +319,8 @@ function applyLivePriceFields<T extends {
     currentPrice: live.price,
     dayChangePercent: frac ?? metrics.dayChangePercent ?? null,
     dayChange: dollar ?? metrics.dayChange ?? null,
+    priceSource: live.source ?? metrics.priceSource ?? null,
+    priceAsOf: live.asOf ?? metrics.priceAsOf ?? null,
   };
 }
 
@@ -318,7 +352,10 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     ?? (() => { const r = safeNum(quote.debtToEquity); return r !== null ? r / 100 : null; })();
   const leverageRatio = debtToEquity !== null ? debtToEquity + 1 : null;
 
-  const dividendYield = fmpNum(fmp?.dividendYield) ?? safeNum(quote.dividendYield);
+  // ETFs often expose trailing yield as `yield`, not `dividendYield` (Yahoo summaryDetail).
+  const dividendYield = fmpNum(fmp?.dividendYield)
+    ?? safeNum(quote.dividendYield)
+    ?? safeNum(quote.yield);
 
   const analystTargetPrice = fmpNum(fmp?.analystTargetPrice) ?? safeNum(quote.targetMeanPrice);
 
@@ -376,8 +413,10 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
   const beta            = fmpNum(fmp?.beta)            ?? safeNum(quote.beta);
 
   // ── Classification ─────────────────────────────────────────────────────────────
-  // Fair value is the nightly blended snapshot (lib/fair-value.ts), not computed per request.
-  const stockType  = classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
+  // Prefer fund-score style_bucket (peer-relative); fall back to PEG/growth heuristic.
+  const stockType =
+    styleBucketLabel(fmp?.styleBucket)
+    ?? classifyStockType(peRatio, pegRatio, dividendYield, revenueGrowthYoY);
 
   // ── Phase 4 value / acceleration fields — FMP only ──────────────────────────
   const forwardPe               = fmpNum(fmp?.forwardPe);
@@ -685,7 +724,12 @@ router.get("/stocks/history", async (req, res) => {
       period1: getPeriod1(period),
       interval: interval as any,
     });
-    const quotes = (result?.quotes ?? []).filter((q: any) => q.close != null);
+    const nowMs = Date.now() + 120_000; // allow forming bar; drop true future stamps
+    const quotes = (result?.quotes ?? []).filter((q: any) => {
+      if (q.close == null) return false;
+      const t = new Date(q.date).getTime();
+      return Number.isFinite(t) && t <= nowMs;
+    });
     const data = quotes.map((q: any) => ({
       date: new Date(q.date).toISOString(),
       close: q.close,
@@ -833,6 +877,17 @@ type BreakdownPayload = {
   peers?: string[];
   peerIndustry?: string | null;
   peerSector?: string | null;
+  /** Present when quoteType/instrument is ETF — usable strip without stock fund model. */
+  etfProfile?: {
+    kind: "etf";
+    category: string | null;
+    family: string | null;
+    totalAssets: number | null;
+    yield: number | null;
+    ytdReturn: number | null;
+    trailingPe: number | null;
+    holdings: Array<{ symbol: string; holdingPercent: number | null }>;
+  } | null;
 };
 
 function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
@@ -856,7 +911,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 15; // 15: A180 lighter Yahoo when gold; live day% overlay
+const BREAKDOWN_CACHE_VER = 17; // 17: ETF profile + gold needs PE+depth (not PE-only)
 
 // Overlays golden-source live last + day% onto cached breakdown metrics (list/header parity).
 async function overlayBreakdownPrice(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
@@ -898,9 +953,12 @@ router.get("/stocks/breakdown", async (req, res) => {
     const live = liveMap.get(upperTicker);
     const gold = hasGoldFundamentals(fmpRow);
     // Gold path: profile/rec/calendar only (no fund modules). Cold path without gold: full modules.
-    const modules = gold
-      ? ["price", "assetProfile", "recommendationTrend", "calendarEvents"]
+    // Always keep summaryDetail when PE-only / thin — ETFs need yield/AUM from Yahoo.
+    const modules: string[] = gold
+      ? ["price", "summaryDetail", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"]
       : ["price", "summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "recommendationTrend", "calendarEvents"];
+    // ETF modules (ignored for equities; Yahoo returns empty).
+    modules.push("fundProfile", "topHoldings");
     if (!analystFresh) modules.push("upgradeDowngradeHistory");
 
     const [summary, newsRes] = await Promise.all([
@@ -909,16 +967,37 @@ router.get("/stocks/breakdown", async (req, res) => {
     ]);
 
     // Live stub last so Schwab/Yahoo last+% aren't wiped by quoteSummary.price (often 0/missing).
-    const merged = gold
-      ? { ...summary.price, ...summary.assetProfile, ...quoteStubFromLive(live) }
-      : {
-          ...summary.price,
-          ...summary.summaryDetail,
-          ...summary.financialData,
-          ...summary.defaultKeyStatistics,
-          ...summary.assetProfile,
-          ...quoteStubFromLive(live),
-        };
+    // Always merge summaryDetail + defaultKeyStatistics (ETF yield/AUM live there).
+    const merged = {
+      ...summary.price,
+      ...summary.summaryDetail,
+      ...(gold ? {} : summary.financialData),
+      ...summary.defaultKeyStatistics,
+      ...summary.assetProfile,
+      ...quoteStubFromLive(live),
+    };
+    const quoteType = String((summary.price as any)?.quoteType ?? (merged as any).quoteType ?? "").toUpperCase();
+    const isEtf = quoteType === "ETF" || quoteType === "MUTUALFUND" || quoteType === "INDEX";
+    const fp = (summary as any).fundProfile;
+    const th = (summary as any).topHoldings;
+    const etfProfile = isEtf ? {
+      kind: "etf" as const,
+      category: fp?.categoryName ?? fp?.category ?? null,
+      family: fp?.family ?? null,
+      totalAssets: safeNum((summary as any).defaultKeyStatistics?.totalAssets),
+      yield: safeNum((summary as any).summaryDetail?.yield)
+        ?? safeNum((summary as any).summaryDetail?.dividendYield)
+        ?? safeNum((merged as any).yield),
+      ytdReturn: safeNum((summary as any).defaultKeyStatistics?.ytdReturn),
+      trailingPe: safeNum((summary as any).summaryDetail?.trailingPE)
+        ?? safeNum((summary as any).defaultKeyStatistics?.trailingPE),
+      holdings: Array.isArray(th?.holdings)
+        ? th.holdings.slice(0, 10).map((h: any) => ({
+          symbol: String(h.symbol ?? h.holdingName ?? "").toUpperCase(),
+          holdingPercent: safeNum(h.holdingPercent),
+        })).filter((h: { symbol: string }) => !!h.symbol)
+        : [],
+    } : null;
     const metrics = applyLivePriceFields(
       buildMetrics(merged, fmpRow, upperTicker, regRow, fv),
       live,
@@ -1111,6 +1190,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       peers: peersPayload.peers.slice(0, 8),
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,
+      etfProfile,
     });
     })) as BreakdownPayload;
     return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(payload)));

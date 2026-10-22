@@ -15,6 +15,7 @@ import { Search, Loader2, X, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown }
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
+import { DataTip } from "@/components/data-tip";
 
 // ── Tab button ────────────────────────────────────────────────────────────────
 
@@ -25,17 +26,31 @@ type ListQuote = {
   currentPrice?: number;
   dayChange?: number;
   dayChangePercent?: number;
+  source?: string;
+  asOf?: string;
 };
 
 function listQuoteFromLive(
-  live: { price: number | null; changePercent: number | null } | undefined,
+  live: { price: number | null; changePercent: number | null; source?: string; asOf?: string } | undefined,
 ): ListQuote | undefined {
   if (!live || live.price == null) return undefined;
   const pctPts = live.changePercent; // e.g. -6.83 = -6.83%
   const dayChangePercent = pctPts != null ? pctPts / 100 : undefined;
   const dayChange =
     pctPts != null ? live.price * (pctPts / 100) / (1 + pctPts / 100) : undefined;
-  return { currentPrice: live.price, dayChange, dayChangePercent };
+  return {
+    currentPrice: live.price,
+    dayChange,
+    dayChangePercent,
+    source: live.source,
+    asOf: live.asOf,
+  };
+}
+
+function quoteTip(q: ListQuote | undefined, label: string): string {
+  const src = q?.source ? `${q.source} (live ≤60s)` : "Schwab→Yahoo live ≤60s";
+  const asOf = q?.asOf ? ` · as of ${q.asOf.slice(11, 16)}Z` : "";
+  return `${label} · sourced · ${src}${asOf}`;
 }
 
 type SortField = "symbol" | "last" | "chg" | "chgPct" | "streetGap";
@@ -182,12 +197,24 @@ function WatchlistView() {
   // (~10–20s for a 50-name list) for fields My List never shows.
   const { data: livePrices } = useQuery({
     queryKey: ["live-prices", tickerKey],
-    queryFn: async (): Promise<Record<string, { price: number | null; changePercent: number | null }>> => {
+    queryFn: async (): Promise<Record<string, {
+      price: number | null;
+      changePercent: number | null;
+      source?: string;
+      asOf?: string;
+    }>> => {
       const res = await fetch(`/api/live/prices?tickers=${encodeURIComponent(tickerKey)}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("live/prices failed");
-      const body = await res.json() as { prices: Record<string, { price: number | null; changePercent: number | null }> };
+      const body = await res.json() as {
+        prices: Record<string, {
+          price: number | null;
+          changePercent: number | null;
+          source?: string;
+          asOf?: string;
+        }>;
+      };
       return body.prices ?? {};
     },
     enabled: tickerKey.length > 0,
@@ -200,7 +227,7 @@ function WatchlistView() {
     queryKey: ["watchlist-meta", tickerKey],
     queryFn: async (): Promise<Record<string, {
       companyName?: string | null; sector?: string | null; industry?: string | null;
-      stockType?: string | null; streetGapPct?: number | null;
+      stockType?: string | null; streetGapPct?: number | null; streetGapBasis?: "fv" | "price" | null;
     }>> => {
       const res = await fetch("/api/watchlist/meta", { credentials: "include" });
       if (!res.ok) throw new Error("watchlist meta failed");
@@ -275,7 +302,7 @@ function WatchlistView() {
   return (
     <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 overflow-hidden">
       {/* Left Panel — hug row content (Sym/Last/Chg/%); no ellipsis, minimal spare */}
-      <ResizablePanel defaultSize={18} minSize={14} maxSize={28} className="flex flex-col bg-zinc-950 min-w-[15rem]">
+      <ResizablePanel defaultSize={18} minSize={14} maxSize={28} className="flex flex-col bg-zinc-950 min-w-[15rem] min-h-0" data-lenis-prevent>
         <div className="flex border-b border-[#d4af37]/20 text-[11px] font-bold shrink-0">
           {([["mine", "My List"], ["model", "Model List"]] as const).map(([key, label]) => (
             <button
@@ -394,7 +421,8 @@ function WatchlistView() {
           <div />
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
+        {/* data-lenis-prevent: A127 Lenis owns document wheel; without this My List can't scroll */}
+        <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain" data-lenis-prevent>
           {visibleEntries.length === 0 ? (
             <div className="p-4 text-center text-xs text-amber-200/40 space-y-2">
               {entries.length === 0 ? (
@@ -444,28 +472,42 @@ function WatchlistView() {
                       <div className="font-mono font-bold whitespace-nowrap" style={{ color: entry.colorTag || "white" }}>
                         {entry.ticker}
                       </div>
-                      <div className="text-right font-mono tabular-nums text-white whitespace-nowrap">
-                        {quote?.currentPrice != null ? quote.currentPrice.toFixed(2) : "—"}
-                      </div>
-                      <div className={cn("text-right font-mono tabular-nums whitespace-nowrap", chgColor)}>
-                        {quote?.dayChange !== undefined ? `${chgSign}${dayChg.toFixed(2)}` : "—"}
-                      </div>
-                      <div className={cn("text-right font-mono tabular-nums whitespace-nowrap", chgColor)}>
-                        {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(1)}%` : "—"}
-                      </div>
+                      <DataTip tip={quoteTip(quote, "Last")} className="justify-end w-full">
+                        <div className="text-right font-mono tabular-nums text-white whitespace-nowrap w-full">
+                          {quote?.currentPrice != null ? quote.currentPrice.toFixed(2) : "—"}
+                        </div>
+                      </DataTip>
+                      <DataTip tip={quoteTip(quote, "Chg $")} className="justify-end w-full">
+                        <div className={cn("text-right font-mono tabular-nums whitespace-nowrap w-full", chgColor)}>
+                          {quote?.dayChange !== undefined ? `${chgSign}${dayChg.toFixed(2)}` : "—"}
+                        </div>
+                      </DataTip>
+                      <DataTip tip={quoteTip(quote, "Chg %")} className="justify-end w-full">
+                        <div className={cn("text-right font-mono tabular-nums whitespace-nowrap w-full", chgColor)}>
+                          {quote?.dayChangePercent !== undefined ? `${chgSign}${(dayChgPct * 100).toFixed(1)}%` : "—"}
+                        </div>
+                      </DataTip>
                       {(() => {
                         const g = watchlistMeta?.[entry.ticker]?.streetGapPct;
+                        const basis = watchlistMeta?.[entry.ticker]?.streetGapBasis;
                         const hot = g != null && Math.abs(g) >= 15;
+                        const tip = g == null
+                          ? "vsSt · derived · no street PT"
+                          : basis === "price"
+                            ? `vsSt · derived · price vs LSEG street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}% (no Fildi FV)`
+                            : `vsSt · derived · Fildi FV vs LSEG street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}%`;
                         return (
-                          <div
-                            title={g != null ? `FV vs street ${g >= 0 ? "+" : ""}${g.toFixed(0)}%` : "No street PT gap"}
-                            className={cn(
-                              "text-right font-mono tabular-nums whitespace-nowrap text-[10px]",
-                              g == null ? "text-amber-200/25" : hot ? "text-sky-300" : "text-amber-200/50",
-                            )}
-                          >
-                            {g == null ? "—" : `${g >= 0 ? "+" : ""}${g.toFixed(0)}`}
-                          </div>
+                          <DataTip tip={tip} className="justify-end w-full">
+                            <div
+                              className={cn(
+                                "text-right font-mono tabular-nums whitespace-nowrap text-[10px] w-full",
+                                g == null ? "text-amber-200/25" : hot ? "text-sky-300" : "text-amber-200/50",
+                                basis === "price" && g != null && "italic",
+                              )}
+                            >
+                              {g == null ? "—" : `${g >= 0 ? "+" : ""}${g.toFixed(0)}`}
+                            </div>
+                          </DataTip>
                         );
                       })()}
                       <button
