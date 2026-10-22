@@ -36,6 +36,7 @@ OUT = HERE.parent / "out" / "opt" / "S086.md"
 FLAGS = HERE.parent / "out" / "opt" / "S086_flags.json"
 TOPN = 10
 CARRY_DAYS = 21
+BUY_ALL, ANALOG_N = [None], [None]   # set in main(), read by write_flags()
 
 # S085 full-sample selection (its LOCO backtest: calls +67 % vs +33 % buy-all, t 3.7)
 REVISIONS = {"ibes_breadth": 1, "ibes_drift": 1, "ibes_drift_3m": 1,
@@ -160,6 +161,8 @@ def main():
     base = {s: [v for d in analog for t in panel.get(d, {}) if (v := opt(t, d, s)) is not None]
             for s in ("call", "put")}
     print(f"buy-all analog: call {np.mean(base['call']):+.1%} put {np.mean(base['put']):+.1%}", flush=True)
+    BUY_ALL[0] = {s: round(float(np.mean(v)), 5) for s, v in base.items()}
+    ANALOG_N[0] = len(analog)
 
     res, today_picks = [], {}
     for name in STRATS:
@@ -210,19 +213,57 @@ def write_flags(res, tp, row, px, pricer, today):
     exp = today + timedelta(days=e.DTE)
     exp += timedelta(days=(4 - exp.weekday()) % 7)        # next Friday
     days = (exp - today).days
+
+    def quote(t, side):
+        S, iv = row[t]["_spot"], px[t][row[t]["_i"]][4 if side == "call" else 3] or px[t][row[t]["_i"]][2]
+        if not iv:
+            return None
+        K = strike_for(S, iv, days / 365, e.DELTA, side)
+        m, sp = pricer.mid(side, S, K, iv, days, today)
+        debit = fill(m, sp, 1)
+        be = (K + debit) / S - 1 if side == "call" else 1 - (K - debit) / S
+        return {"spot": S, "strike": K, "debit": debit, "iv30": iv, "breakeven": be}
+
     entries = []
     for name in ok:
         for t in tp[name]["call"]:
-            S, iv = row[t]["_spot"], px[t][row[t]["_i"]][4] or px[t][row[t]["_i"]][2]
-            if not iv:
-                continue
-            K = strike_for(S, iv, days / 365, e.DELTA, "call")
-            m, sp = pricer.mid("call", S, K, iv, days, today)
-            entries.append({"arm": f"S086:{name}", "ticker": t, "date": str(today), "side": "call",
-                            "spot": S, "strike": K, "expiry": str(exp), "dte": days,
-                            "model_debit": fill(m, sp, 1), "iv30": iv})
+            q = quote(t, "call")
+            if q:
+                entries.append({"arm": f"S086:{name}", "ticker": t, "date": str(today), "side": "call",
+                                "spot": q["spot"], "strike": q["strike"], "expiry": str(exp), "dte": days,
+                                "model_debit": q["debit"], "iv30": q["iv30"]})
     FLAGS.write_text(json.dumps({"as_of": str(today), "arms": ok, "entries": entries}, indent=1))
     print(f"flags: {len(entries)} entries from {ok}")
+
+    # Rankings › Long options tab (GET /api/options/long-board)
+    sec = e.sectors(connect())
+    cnt = {s: Counter(t for n in tp for t in tp[n][s]) for s in ("call", "put")}
+    nn = lambda x: None if x != x else round(float(x), 5)  # noqa: E731
+    strategies = []
+    for r in res:
+        n = r["name"]
+        sides = {}
+        for s in ("call", "put"):
+            names = []
+            for t in tp[n][s]:
+                q = quote(t, s) or {}
+                names.append({"ticker": t, "sector": sec.get(t), "beta": nn(e.beta_at(px, t, today)),
+                              "overlap": cnt[s][t], "strike": nn(q.get("strike", float("nan"))),
+                              "debit": nn(q.get("debit", float("nan"))),
+                              "breakeven": nn(q.get("breakeven", float("nan"))), "spot": nn(row[t]["_spot"])})
+            sides[s] = {"edgeAnalog": [nn(v) for v in r[f"{s}_an"]], "edgeAll": [nn(v) for v in r[f"{s}_all"]],
+                        "option": [nn(r[f"{s}_opt"][0]), r[f"{s}_opt"][1]], "names": names}
+        strategies.append({"name": n, "ledger": n in ok, **sides})
+    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": ANALOG_N[0], "buyAll": BUY_ALL[0],
+               "strategies": strategies,
+               "overlap": {s: [[t, k] for t, k in cnt[s].most_common() if k > 1] for s in cnt}}
+    with connect() as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.long_option_board
+                     (as_of date PRIMARY KEY, payload jsonb NOT NULL, computed_at timestamptz DEFAULT now())""")
+        c.execute("""INSERT INTO watchlist_sync.long_option_board (as_of, payload) VALUES (%s, %s)
+                     ON CONFLICT (as_of) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()""",
+                  (today, json.dumps(payload)))
+    print("board → watchlist_sync.long_option_board")
 
 
 def write(res, tp, base, analog, today, tw, fw, row_today, px):

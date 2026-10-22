@@ -48,6 +48,7 @@ import researchLsegRouter from "./research-lseg";
 import researchOpsRouter from "./research-ops";
 import scoreOutliersRouter from "./score-outliers";
 import moverFactsRouter from "./mover-facts";
+import longOptionBoardRouter from "./long-option-board";
 import fundScoreNotesRouter from "./fund-score-notes";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
@@ -111,6 +112,7 @@ router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);
 router.use(indicatorsRouter);
+router.use(longOptionBoardRouter); // S086 Rankings › Long options; before optionsRouter (/options/:ticker)
 router.use(moverFactsRouter); // before optionsRouter: its /options/:ticker 400'd "mover-facts" as a bad ticker
 router.use(optionsRouter);
 // /technicals is not covered by the /technical prefix. No Python job calls these
