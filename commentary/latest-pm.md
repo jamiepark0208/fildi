@@ -1,49 +1,42 @@
-# Evening Market Recap — Tuesday, October 20, 2026 (post-close)
+# Evening Market Recap — Wednesday, October 21, 2026 (post-close)
 
-**Banner:** S&P 7,712.57 (+0.28%) · Dow 52,495.88 (+1.02%) · Nasdaq 26,424.82 (−0.02%) · 10Y 5.12% (−3bp) · Brent $108.79 (−0.7%) · VIX 17.31 (−6.1%)
+**Banner:** S&P 7,757.17 (+0.58%) · Dow 52,856.09 (+0.69%) · Nasdaq 26,702.86 (+1.05%) · 10Y 5.145% (+2.9 bps) · Brent ~$109.92 (+1.04%) · VIX 16.68 (−3.64%) (S1:3, S2:7, S5:3)
 
 **What moved today**
-- Rotation day, not a trend day: the average stock crushed the index — S&P 404 up / 99 down, Russell 3000 2,019 up / 541 down, RSP +1.15% vs SPX +0.28%; Russell 2000 +1.65% to 2,773.42; the typical stock +1.24% vs index +0.28%.
-- The oil reversal rescued the tape: Brent reversed from an overnight high of $111.99 to settle $108.79 (−0.7%) on Iran-talk hopes; expiring Nov WTI round-tripped from a $110.48 high to $101.79 (−1.8%); Dec WTI took the front month at $98.28 (−0.3%). Morning's unpriceable tail faded intraday.
-- AI debt scare stayed the sore spot: KOSPI −3.7% to 5,552.74 (lowest since April 7; SK Hynix −4.2%, Samsung −3.2%) on the Elice IPO fallout; Nikkei −1.3% (SoftBank −6% as its CDS hit a 4-year high); US chips still weak — SOX −0.29%, MU −1.0% to $895.95, though CoreWeave recovered to $62.13 (+1.6%) after a weak premarket.
-- Earnings rewarded clean beats and punished guide-cuts: 3M +5.8% led the Dow's 530-point gain; Equifax +11.3%; Hasbro +11.2% on 4.2× volume; GM −6.8% despite a $20B buyback; GE Aerospace −4.5% despite raising guidance.
-- Rates helped the broad market: 10Y −3bp to 5.12%, 30Y −5bp to 5.42%, 10Y TIPS down to 2.77% from 2.80%; DXY −0.26% to 101.71; record demand at the 20-yr JGB auction steadied the global long end.
-- After the bell, guidance drove everything: Netflix beat EPS ($0.87 vs $0.82) on in-line revenue but guided Q4 EPS $0.67 vs $0.73 and cut its 2026 ad forecast to ~$2.7B from $3B — shares fell ~5–7% AH. SpaceX: revenue +161% to $14.58B (vs $13B est) in its first profitable quarter, EPS $0.35 vs $0.16 — shares up in AH; Musk also disclosed SpaceX/Tesla special committees are discussing a merger. Super Micro +14% AH on a raised FQ1 revenue outlook ($18.5–19.5B vs prior $14.5–15.5B); Intuitive Surgical −7~10% AH; Capital One +4~5% AH; United −1~2% AH.
+- AI bid confirmed into the close: SPCX +7.79% to $159.31 on its first profitable quarter and Tesla merger committees; SMCI +9.55% on a raised revenue guide ($18.5–19.5B) and better gross margin; PHLX semis +1.97%, SOXX +2%, NVDA +2.5% (S1:7, S1:3)
+- Third straight day of S&P gains; index closed ~0.8% below its record high, Dow at a one-month high (S1:7, S1:3)
+- Oil whipsawed on headlines: tankers struck in the Strait of Hormuz; EIA printed bigger-than-expected draws (crude −3.1M vs ~−0.3M expected, gasoline −3.0M vs unch) but Brent faded to ~$109.92 (+1.04%) and WTI eased to $97.71; US Gulf Coast crude stocks fell to their lowest since January 2025 (S4:2, S4:3, S5:3)
+- Rates refused to cooperate: 10Y closed 5.145% (+2.9 bps), highest since Oct 14; the 20Y reopening tailed 0.9 bp (5.469%, BTC 2.73); ~85% priced for an Oct 28 FOMC hold, December hike odds 75–90%+ (S2:7, S2:6, S5:4)
+- Guide cuts were punished hard: T −6.45%, NFLX −5.31% intraday; communication services was the worst sector at −1.11% (S1:3)
 
 **Breadth and leadership**
-- Sector map: Health Care +2.37%, Real Estate +1.70%, Utilities +1.26%, Financials +1.20%, Consumer Discretionary +0.91%, Staples +0.62%, Materials +0.55%, Energy +0.25%, Comm Services +0.09%, Industrials +0.07%, Tech −0.28%.
-- NYSE advancers 1,614 vs decliners 559 — a sharp reversal from Monday's tape.
-- VIX −6.13% to 17.31; Oct VIX futures expire tomorrow.
-- Abroad: Euro Stoxx 50 −0.96% (4-month low); CAC 40 −0.38% with 10Y OATs near a 24-year high amid curfews — Moody's France review lands Friday; Hang Seng −1.32% (strong GDP dimmed stimulus hopes), Shanghai flat (PBoC held rates), ASX −0.33%.
-- Gold ~$4,140 little changed; Bitcoin ~$82.8–83.0k (+~1%), still below $84k; silver +2% to ~$58.10.
+- Narrow: NYSE advancers only 1.37:1; Nasdaq saw 216 new lows vs 53 new highs; equal-weight RSP +0.36% trailed the cap-weighted index (S1:3)
+- Leaders: tech +1.67%, industrials +0.91%, financials +0.57%; laggards: health care −0.49%, staples −0.73%, real estate −0.76%, comm services −1.11% (S1:3)
+- Vol kept bleeding: VIX 16.68 (−3.64%); equity put/call eased Tuesday (0.87 total); demand for Treasury downside protection continued Wednesday (S1:3, S2:8, S5:4)
 
 **What changed vs the morning thesis**
-- Morning thesis: AI debt scare back (CoreWeave 52-wk low, Elice IPO), oil at 5-month highs (+2.5%), Treasurys bid on safety, earnings rewarding clean beats only, NFLX/SPCX tonight, META/TSLA tomorrow AMC.
-- Got right: AI-credit stayed the sore spot (KOSPI rout, chips lagging, SOX red); rotation into defensives and the real economy; earnings punishing guide-cuts; the Netflix guidance-risk flag — the morning note made a post-print put-sale contingent on guidance holding, and guidance did not hold.
-- The big shift: oil reversed midday instead of extending — the session's macro headwind dissolved, letting the broad market recover from morning weakness into a +1.0% Dow / +1.65% Russell close vs flat-ish futures. Nasdaq went nowhere (−0.02%) as megacap tech lagged into earnings (META −1.6%, GOOGL −1.1%).
-- Fed repricing cooled: Kalshi 87% hold at the Oct 27–28 FOMC; CME hike odds 14.9%, down from 22.1% a week ago; December-hike odds eased to ~89% from ~92%.
+- Right: the AI bid was real — SPCX held its premarket gain into the close (+7.79%) and SMCI's guide landed; "guidance is the trade" played out exactly (NFLX and T cut guides and were dumped intraday); oil stayed bid on Hormuz/Iran tension; the Fed stayed silent in blackout (S1:3, S1:7, S3:2)
+- Wrong: 10Y did not drift lower — it closed at 5.145%, its highest since Oct 14; the morning thesis had yields steady-to-lower (S2:7)
+- Shift: the after-close verdict was split, not a clean AI-capex green light — META +3% after hours (revenue beat, Q4 guide raised, 2-for-1 split, but $135–145B more AI capex and a new non-voting share class to fund it); TSLA −2% (beat, but a battery shortage is holding up production); IBM −4.8% after a +11% early pop (beat, raised FCF); LRCX −6.3% despite beating and guiding above — a beat-and-raise was still sold (S3:0, S3:2, S3:5)
 
-**Book impact** *(Mac offline — no live snapshot; generic premium commentary)*
-- VIX 17.31 (−6.1%) is a theta tailwind for open short premium; Oct VIX futures expire tomorrow — watch tail-hedge repricing.
-- Netflix −5~7% AH on a guidance cut: the post-print vol-crush put-sale idea is off — guidance-cut gaps gap overnight; no entry until the tape stabilizes.
-- META/TSLA report tomorrow AMC: no new short-dated premium into these names; keep tech short-vol light, consistent with the morning stance.
-- The oil reversal lowers the geopolitical-tail cost of broad-market short puts; breadth (RSP +1.15%) and the 10Y easing (−3bp) support existing short-put exposure, especially rate-sensitive and quality underlyings.
-- DTE posture into tomorrow: per Robinhood's expiration-day rule, Thursday's close is the effective deadline for expiring-week short gamma — plan rolls/closes at tomorrow's close for this week's expirations, not Friday.
+**Book impact**
+- The after-close binaries are resolved — META, TSLA, IBM, LRCX, TXN all roll into post-print vol crush overnight; this is the premium-selling entry window the morning brief flagged, not a chase
+- Implied vs realized stayed honest on the index but dangerous on single names: LRCX sold off 6% after hours on a beat-and-raise — keep short-vol size small and strikes wide into tomorrow's PG/UNP/HON prints
+- VIX at 16.68 and bleeding means short-dated index premium is cheapening — DTE discipline matters more than ever with the Oct 27–28 FOMC and Friday flash PMIs ahead
+- Brent holding ~$110 with intraday headline whipsaw keeps the energy tail unpriceable — energy-underlier short vol stays small and wide
 
 **Risk/events for tomorrow (ET)**
-- Overnight: Asia reopens after the KOSPI rout; Europe opens on the France/Moody's watch.
-- BMO: Abbott Labs, Danaher earnings.
-- 10:30 AM — crude oil inventories; 1:00 PM — 20-yr bond reopening ($13B); 17-week T-bill auction.
-- AMC: Meta (EPS est $5.89), Tesla (EPS est $0.40), IBM — the week's biggest AI-spending test.
-- Thursday: jobless claims 8:30 AM (cons 200K), 5-yr TIPS auction ($26B), Freddie Mac mortgage survey; Friday: flash PMIs 9:45 AM, UoM sentiment 10:00 AM, Moody's France review.
+- 8:30 AM — initial jobless claims (week ended Oct 17; exp 200K vs 199K prior) (S6:5)
+- 10:00 AM — Conference Board Leading Index, Sep (exp 0.0%/−0.1% vs −0.1% Aug) (S6:5)
+- Earnings: BMO — PG ($1.88–1.89 EPS exp), UNP ($3.48 exp), HON, LMT, BX, CMCSA, NSC, VLO; AMC — WDC, NEM, DECK, VRSN, OMC (S6:1, S6:6)
+- Friday 9:45 AM — S&P Global flash PMIs; AXP, SLB earnings; next week Oct 27–28 FOMC (S6:5, S6:6)
 
 **Context**
-- 1-day: SPX +0.28%, Dow +1.02%, Nasdaq −0.02%, Russell +1.65%, VIX −6.1% to 17.31.
-- 1-week: Nasdaq snapped its first losing streak in 1+ months on Monday; SOX still repairing; 10Y 5.12% vs 5.33% touched last Wednesday on hot CPI.
-- 1-month: SPX monthly total return +1.37% (YCharts, per AM); KOSPI at its lowest since April 7; Brent settled $108.79 — off the $111.99 intraday spike but still near May highs.
+- 1-day: S&P 7,757.17 (+0.58%) · 10Y 5.145% (+2.9 bps) · Brent ~$109.92 (+1.04%) · gold $4,159.50 (+0.41%) · BTC ~$84.4K (+1.8%) (S1:3, S5:3, S2:7, S2:3)
+- 1-week: S&P has gained three straight days and sits ~0.8% under its record; VIX slid from 17.31 to 16.68; Kospi whipsawed −3.73% then +3.29%; crude swung on Hormuz headlines (S1:7, S5:3, S5:8)
+- 1-month: not fully re-verified — 10Y is down 14.7 bps month-to-date, sitting 16.5 bps off its Oct 5 52-week high of 5.310% (S2:7)
 
 **Systems:** Mac offline — unverified
 
 ---
-
-*Sources: edgeconsultancykw (closes), piggostradingdesk (closes/rotation), cappnotes (closes, breadth, geopolitics), Reuters (NFLX), stocktwits (AH movers, Anthropic, FAA, QCOM), medium MarketsOnDeck (AH tape), tipranks (SPCX/NFLX), ausecure (gold/Fed/housing), bankofvol (Asia premarket). Citation key: N:M†Lx-Ly = search session N, result M, lines x–y.*
+*Sources: Swingfolio, Investopedia, CappNotes, TradingKey, vistaP Global, Morningstar/Dow Jones Newswires, Binance/CNBC, ZeroHedge/Newsquawk, Zacks, Oilprice, WSJ via Morningstar, Newsquawk, Edge Consultancy, Deepscope, Quant500, CME. Citation key: Sx:N†Lx-Ly = search session x, result N, lines x–y. S1=US close search, S2=yields/commodities search, S3=after-close earnings search, S4=EIA search, S5=Asia/Europe search, S6=tomorrow's calendar search.*
