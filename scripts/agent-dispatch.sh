@@ -74,12 +74,9 @@ export FILDI_PARENT="${FROM}:${CHILD}"
 ARGS=(-p --trust --model "$MODEL")
 if [[ "$ASK" == "1" ]]; then ARGS+=(--mode ask); else ARGS+=(--force); fi   # headless -p without --force rejects every shell command
 
-set +e
-"$BIN" "${ARGS[@]}" < "$PROMPT_FILE"
-EC=$?
-set -e
-
-FROM="$FROM" TARGET="$TARGET" CHILD="$CHILD" EC="$EC" EVENTS="$EVENTS" \
+OUT="$(mktemp -t agent-dispatch)"
+end_event() {   # dispatch-end + Cursor-side token usage (from --output-format json) → Stage + token ledger
+FROM="$FROM" TARGET="$TARGET" CHILD="$CHILD" EC="$1" EVENTS="$EVENTS" OUT="$OUT" \
   node -e '
 const fs = require("fs");
 const row = {
@@ -90,7 +87,22 @@ const row = {
   child: process.env.CHILD,
   exit: Number(process.env.EC),
 };
+try {
+  const r = JSON.parse(fs.readFileSync(process.env.OUT, "utf8").trim().split("\n").pop());
+  if (r.usage) row.usage = r.usage;
+  if (r.duration_ms) row.ms = r.duration_ms;
+  if (r.result) process.stdout.write(r.result + "\n");
+} catch { process.stdout.write(fs.readFileSync(process.env.OUT, "utf8")); }
 fs.appendFileSync(process.env.EVENTS, JSON.stringify(row) + "\n");
 '
+}
+trap 'end_event 143; rm -f "$OUT"; exit 143' INT TERM   # killed runs still close their Stage beam
 
+ARGS+=(--output-format json)
+set +e
+"$BIN" "${ARGS[@]}" < "$PROMPT_FILE" > "$OUT"
+EC=$?
+set -e
+end_event "$EC"
+rm -f "$OUT"
 exit "$EC"
