@@ -68,7 +68,7 @@ function n(v: unknown): number | undefined {
 function debtToEquity(v: unknown): number | undefined {
   const num = n(v);
   if (num === undefined) return undefined;
-  return num > 20 ? num / 100 : num;
+  return num / 100;   // Yahoo always sends percent (AAOI 17.99 = 0.18×); the old "> 20" guess left low-debt names 100× too high
 }
 
 export async function fetchYahooFundamentals(ticker: string): Promise<YahooFundamentalsData> {
