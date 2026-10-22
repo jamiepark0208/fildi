@@ -13,3 +13,6 @@ Follow **CURSOR.md** (repo root). Shared ToC: **AGENTS.md** + **`.agents/context
 - **MCP:** codegraph in `.cursor/mcp.json`
 - **Skills:** `.claude/skills/<name>.md` — one at a time
 - **End session:** `node .cursor/scripts/session-wrap-cursor.js "summary"` then update `.cursor/context/cursor-state.md` — **never** `.agents/context/state.md`
+
+## Shared-tree collision guard (Claude 10-21, A238)
+Before editing a file, run `node scripts/busy-files.mjs` (files other agents edited in the last 30 min; `cursor←claude` = a headless run Claude launched). If your file is listed by another agent, pick another task or wait — never overwrite. Lessons from past reviews: `.agents/context/calibration-log.md`.

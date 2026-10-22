@@ -104,12 +104,7 @@ set +e
 FULL="$(mktemp -t agent-dispatch-prompt)"
 {
   echo "Read .agents/context/calibration-log.md first (lessons from past reviews)."
-  BUSY=$(EVENTS="$EVENTS" node -e '
-const fs=require("fs"); const cut=Date.now()-30*60e3; const s=new Set();
-for (const l of fs.readFileSync(process.env.EVENTS,"utf8").trim().split("\n").slice(-3000)) {
-  try { const e=JSON.parse(l); if (e.event==="tool" && /^(Write|Edit|MultiEdit|StrReplace|edit)$/.test(e.tool||"") && !e.parent && Date.parse(e.t)>cut && e.detail) s.add(e.agent+": "+e.detail); } catch {}
-}
-process.stdout.write([...s].slice(0,40).join("; "));' 2>/dev/null || true)
+  BUSY=$(node "$(dirname "$0")/busy-files.mjs" --one-line 2>/dev/null || true)
   [[ -n "$BUSY" ]] && echo "Busy files (another agent edited in the last 30 min — do not edit): $BUSY"
   echo
   cat "$PROMPT_FILE"
