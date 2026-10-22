@@ -982,7 +982,8 @@ async function main() {
       dataDone,
       dataFailed,
       done: dataDone && modelListDoneToday(modelList),
-      attempts: waitingForOpen && dataDone ? Math.max(0, (st.attempts || 1) - 1) : st.attempts,   // waiting ≠ failing
+      // waiting ≠ failing — refund even when a data step failed (10-22: stale-prices exit 2 burned all 3 pre-open → no list; A243)
+      attempts: waitingForOpen ? Math.max(0, (st.attempts || 1) - 1) : st.attempts,
       finishedAt: new Date().toISOString(),
     }));
   }
