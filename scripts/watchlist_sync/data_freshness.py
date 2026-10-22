@@ -93,11 +93,15 @@ def _missing_input_causes(conn, tickers: list[str], as_of: date) -> dict[str, li
     tech = {t for (t,) in conn.execute("""SELECT ticker FROM watchlist_sync.lab_tech
         WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.lab_tech WHERE as_of <= %s)
           AND v2->'comps'->>'trendContext' IS NOT NULL AND v2->'comps'->>'volumeConfirm' IS NOT NULL""", (as_of,)).fetchall()}
+    rics = {t for (t,) in conn.execute(
+        "SELECT ticker FROM research_common.security_map WHERE ticker = ANY(%s) AND ric IS NOT NULL", (tickers,)).fetchall()}
     out: dict[str, list[str]] = {}
     for t in tickers:
         b = bars.get(t)
-        if not b or b[0] < 61 or (as_of - b[1]).days > 7:
-            cause = "no LSEG history"
+        if t not in rics:
+            cause = "no RIC (outside LSEG map — sync_ids or drop from weekly puts)"
+        elif not b or b[0] < 61 or (as_of - b[1]).days > 7:
+            cause = "no/short LSEG history (sync_daily_history)"
         elif t not in tech:
             cause = "no lab_tech"
         elif b[2] < 40:

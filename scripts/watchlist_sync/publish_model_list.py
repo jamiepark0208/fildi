@@ -355,16 +355,17 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         for n, o in enumerate(puts, 1):
             o["contract"]["within_limits"] = n <= k
             first = "#1" if k == 1 else f"#1–#{k}"
-            o["why"] = ([f"✓ all {len(puts)} put ideas fit inside your limits together"] if k == len(puts) else
-                        [f"⚠ none fit inside your limits as they stand (existing positions): size down or skip"] if k == 0 else
-                        [f"✓ within your limits: take {first} in this order"] if n <= k else
-                        [f"⚠ over your limits if taken after {first}: optional, size down or skip"]) + o["why"]
+            # A243 / jamie-rules: free cash never warns, blocks, or sizes down — collateral is plain info.
+            o["why"] = ([f"collateral: all {len(puts)} put ideas fit current account capacity"] if k == len(puts) else
+                        [f"collateral: existing positions leave no room for these puts as sized (info)"] if k == 0 else
+                        [f"collateral: capacity covers {first} in this order"] if n <= k else
+                        [f"collateral: after {first}, later ideas need more capacity (info)"]) + o["why"]
     for c in held:
         # Jamie 10-19: a put that passed every check and is blocked only by cash is still the trade the model wants → show it in
         # Sell Puts with its funding cost (status "unfunded") instead of hiding it in Needs Review; other portfolio holds stay there
         if c["list_key"] == "sell_puts" and c["why_held"].startswith("can't fund"):
             out.append(item("sell_puts", c["f"], ticker=c["ticker"], score=c["score"], status="unfunded", contract=c["contract"],
-                            why=[f"NOT FUNDED: {c['why_held']}. Free up cash (or trim) to take it"] + c["why"]))
+                            why=[f"collateral needed: {c['why_held']} (info — idea stays listed)"] + c["why"]))
             continue
         out.append(item("review", c["f"], ticker=c["ticker"], score=c["score"], status="review", contract=c["contract"],
                         why=[f"{c['list_key'].replace('_', ' ')} idea held back by the portfolio: {c['why_held']}"] + c["why"]))

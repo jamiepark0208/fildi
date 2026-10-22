@@ -418,6 +418,12 @@ def build(show_rejected: bool) -> int:
             best: dict[str, dict] = {}
             # Evidence-backed panic puts (S049/S054) first; option_score alone has ~0 skill over IV (S014).
             for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: (not r.get("strategy"), -_edge_q(ctx, r), -(r["option_score"] or 0))):
+                # A243: weekly put lane needs put_edge (LSEG daily_history + lab_tech). ~66/180 candidates had no RIC in
+                # research_common.security_map → always "no put-edge inputs" and polluted the missing-input health check.
+                # Panic/strategy puts keep their own lane. When LSEG Workspace is up, expand RICs via sync_ids + sync_daily_history.
+                if (side == "put" and not rec.get("strategy") and not ctx.get("edge_demoted")
+                        and rec["ticker"] not in ctx.get("edge", {})):
+                    continue
                 checks, account = option_checks(rec, ctx)
                 ok = all(c["pass"] or c["severity"] == "warn" for c in checks)
                 prev = best.get(rec["ticker"])
