@@ -13,3 +13,6 @@
 - 10-21 · Priority queues with a cap: names that can never resolve (ETFs, empty vendor results) must back off, or they eat the cap daily.
 - 10-21 · Vendor fields: confirm units per source before ranking (Yahoo D/E is always percent; a "> 20 → /100" guess made low-debt names 100× too levered).
 - 10-21 · Shared tree: the IDE Cursor may be editing too → don't touch files listed under "Busy files" in your prompt.
+
+## Review stats
+- 2026-10-21 · auto · 1 reviewed · planned 0 / revise 1 / declined 0 / needs Jamie 0

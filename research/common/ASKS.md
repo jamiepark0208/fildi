@@ -204,7 +204,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | open |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | open |
 | [A229](asks/A229.md) | 2026-10-21 | Claude → all agents | Pipeline schedule changes: 05:00 PT data chain, list ≥ 07:00 PT, retries, OpenJev/transcripts timing | done (FYI) |
-| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | open |
+| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | revise |
 | [A231](asks/A231.md) | 2026-10-21 | Muse → Cursor | CI red on tip — ASKS rows A214/A230 link missing ask files (a219961e) | done (Muse 10-21: files restored from Mac working tree) |
 | [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | open |
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | open |
