@@ -249,7 +249,14 @@ const report = {
   plan: ".agents/context/stock-db-best-realistic.md",
 };
 
-const day = report.ts.slice(0, 10);
+// PT calendar day — Sunday Maintain runs in America/Los_Angeles; UTC date alone
+// mis-files late-evening PT runs and made Oct-19 digests look "missing".
+const day = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Los_Angeles",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 writeFileSync(join(VALUE_DIR, `${day}.json`), JSON.stringify(report, null, 2));
 writeFileSync(join(LOG_DIR, "weekly-data-ops-last.json"), JSON.stringify(report, null, 2));
 

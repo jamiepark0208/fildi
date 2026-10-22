@@ -541,6 +541,8 @@ function budgetSnapshot() {
   "`);
   // Blended fair value health (lib/fair-value-snapshots.ts; refreshed by post-merge-scores above).
   // withValue|universe|extremes(>3x or <1/3)|jumps(>30% move with <5% price move)|ageHours|prevWithValue
+  // Jumps ignore days whose market.riskFree/aaaYield look like the 2026-10-21 percent-as-decimal bug
+  // (≥0.5) — that recovery was ~195 false jumps, not a live break (see fair-value-snapshots loadMarket).
   const fairValue = sh(`psql "$DATABASE_URL" -tAc "
     WITH t AS (SELECT max(as_of) d FROM fair_value_snapshots),
          p AS (SELECT max(as_of) d FROM fair_value_snapshots WHERE as_of < (SELECT d FROM t)),
@@ -549,7 +551,11 @@ function budgetSnapshot() {
     SELECT COUNT(*) FILTER (WHERE c.fair_value IS NOT NULL) || '|' || COUNT(*) || '|' ||
            COUNT(*) FILTER (WHERE c.fair_value > 3 * c.price OR c.fair_value < c.price / 3) || '|' ||
            COUNT(*) FILTER (WHERE pv.fair_value > 0 AND c.fair_value > 0 AND pv.price > 0 AND c.price > 0
-                              AND abs(ln(c.fair_value / pv.fair_value)) > ln(1.3) AND abs(ln(c.price / pv.price)) < ln(1.05)) || '|' ||
+                              AND abs(ln(c.fair_value / pv.fair_value)) > ln(1.3) AND abs(ln(c.price / pv.price)) < ln(1.05)
+                              AND COALESCE((pv.market->>'riskFree')::float, 0) < 0.5
+                              AND COALESCE((pv.market->>'aaaYield')::float, 0) < 0.5
+                              AND COALESCE((c.market->>'riskFree')::float, 0) < 0.5
+                              AND COALESCE((c.market->>'aaaYield')::float, 0) < 0.5) || '|' ||
            COALESCE(round(extract(epoch FROM now() - max(c.computed_at)) / 3600), 9999) || '|' ||
            (SELECT COUNT(*) FILTER (WHERE fair_value IS NOT NULL) FROM prev)
     FROM cur c LEFT JOIN prev pv USING (ticker)
@@ -879,6 +885,16 @@ async function main() {
         { encoding: "utf8", cwd: ROOT, timeout: 10 * 60 * 1000, env: process.env },
       );
       actions.push(`ops_digest_exit_${dig.status ?? 1}`);
+      const digDay = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      if (!existsSync(join(LOG_DIR, "data-ops-value", `${digDay}.json`))) {
+        actions.push("ops_digest_missing_artifact");
+        console.warn("[maintain] ops digest exit ok but no PT-day artifact — check weekly-data-ops-check.mjs");
+      }
       if (dig.status !== 0) {
         console.warn("[maintain] ops digest warn:", (dig.stderr || dig.stdout || "").slice(-400));
       }

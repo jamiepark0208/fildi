@@ -132,6 +132,11 @@ def fetch_store(conn, t: str, quarter: str) -> str:
         return "error"
     av_count(conn)
     if isinstance(d, dict) and ("Information" in d or "Note" in d):
+        # AV free tier: "Note" = rate/day throttle; "Information" = premium/entitlement.
+        # Don't treat a single soft Note as end-of-day if our meter still has room — skip this
+        # ticker and keep going (hard stop only when the caller sees repeated limits).
+        msg = str(d.get("Note") or d.get("Information") or "")
+        print(f"  AV throttle {t} {quarter}: {msg[:120]}", flush=True)
         return "limit"
     segs = (d.get("transcript") or []) if isinstance(d, dict) else []
     sent = [float(x["sentiment"]) for x in segs if x.get("sentiment") not in (None, "")]
@@ -217,10 +222,14 @@ def main() -> None:
             status = fetch_store(conn, t, quarter)
             if status == "error":
                 continue
-            budget -= 1
             if status == "limit":
-                budget = 0
-                break
+                # One throttle: back off and try the next name; stop only if meter is empty.
+                budget = AV_DAILY_CAP - AV_RESERVE - av_used_today(conn)
+                if budget <= 0:
+                    break
+                time.sleep(12)
+                continue
+            budget -= 1
             fetched += 1
             time.sleep(1.5)
 
@@ -241,11 +250,16 @@ def main() -> None:
                     continue
                 status = fetch_store(conn, t, pq)
                 have.add((t, pq))
-                if status != "error":
-                    budget -= 1
+                if status == "error":
+                    continue
                 if status == "limit":
-                    budget = 0
-                if status in ("empty", "limit"):
+                    budget = AV_DAILY_CAP - AV_RESERVE - av_used_today(conn)
+                    if budget <= 0:
+                        break
+                    time.sleep(12)
+                    continue
+                budget -= 1
+                if status == "empty":
                     break
                 fetched += 1
                 time.sleep(1.5)
