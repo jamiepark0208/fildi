@@ -32,6 +32,7 @@ from build_plan import connect  # noqa: E402
 from forecast_ledger import UPSERT  # noqa: E402
 
 FLAGS_S083 = HERE / "out" / "opt" / "S083_flags.json"
+FLAGS_S086 = HERE / "out" / "opt" / "S086_flags.json"   # A244 strategy board: angles with analog t ≥ 2
 LOOKBACK = 10          # the screen rebuilds the last ~2 weeks; only the latest bar is logged
 SOURCES = ("S081", "S083")
 
@@ -70,15 +71,18 @@ def s081_flags(conn) -> list[dict]:
             for x in scr if x["d"] == last and x["signal"]]
 
 
-def s083_flags() -> list[dict]:
+def s083_flags(path: Path = FLAGS_S083, study: str = "S083") -> list[dict]:
     """Flags from any S083 arm that cleared its pre-registered bar. The file is written by every S083 run; an empty
-    `entries` list is the normal case while the stop rule holds."""
-    if not FLAGS_S083.exists():
+    `entries` list is the normal case while the stop rule holds. S086 writes the same format."""
+    if not path.exists():
         return []
-    blob = json.loads(FLAGS_S083.read_text())
+    blob = json.loads(path.read_text())
+    if study == "S086" and blob.get("as_of") != str(date.today()) and \
+            (date.today() - date.fromisoformat(blob["as_of"])).days > 3:
+        return []                                            # stale board: don't re-log old picks
     out = []
     for e in blob.get("entries", []):
-        out.append({"study": "S083", "arm": e.get("arm", "S083"), "ticker": e["ticker"],
+        out.append({"study": study, "arm": e.get("arm", study), "ticker": e["ticker"],
                     "date": date.fromisoformat(e["date"]), "side": e["side"], "spot": e["spot"],
                     "strike": e["strike"], "expiry": date.fromisoformat(e["expiry"]), "dte": e["dte"],
                     "debit": e["model_debit"], "iv30": e["iv30"]})
@@ -112,6 +116,7 @@ def main() -> int:
     except Exception as e:                                   # noqa: BLE001 — a screen failure must not break the daily run
         print(f"S081 screen unavailable: {e}")
     flags += s083_flags()
+    flags += s083_flags(FLAGS_S086, "S086")
 
     rows = rows_for(flags)
     by_arm: dict[str, int] = {}

@@ -15,6 +15,7 @@ Run: cd scripts/watchlist_sync && .venv/bin/python analysis/s086_strategy_board.
 """
 from __future__ import annotations
 
+import json
 import math
 import statistics
 import sys
@@ -32,6 +33,7 @@ import s085_regime_analog as e  # noqa: E402
 from build_plan import connect  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "S086.md"
+FLAGS = HERE.parent / "out" / "opt" / "S086_flags.json"
 TOPN = 10
 CARRY_DAYS = 21
 
@@ -87,6 +89,10 @@ STRATS = {
                                       {"iv_rv20": -1, "iv_chg5": -1, "ext50": 1}),
     # S082 swing extrema (calls: 2-day RSI washed out in a drawdown; puts: RSI pinned, stretched above 50d)
     "Swing low / high (S082)": ({"rsi2": -1, "dd60": -1}, {"rsi2": 1, "ext50": 1}),
+    # Jamie 10-22: are the worst names (put lists) actually the best calls? Laggards bounced in every all-week test.
+    "Laggard calls: weakest 12-1": ({"mom_12_1": -1}, {"mom_12_1": 1}),
+    "Laggard calls: furthest below 52w high": ({"prox_52w": -1}, {"prox_52w": 1}),
+    "Laggard + revisions up": ({"mom_12_1": -1, **REVISIONS}, None),
 }
 
 
@@ -192,7 +198,31 @@ def main():
               f"put an {r['put_an'][0]:+.2%} t{r['put_an'][1]:.1f} opt {r['put_opt'][0]:+.1%}", flush=True)
 
     write(res, today_picks, base, analog, today, tw, fw, panel[today], px)
+    write_flags(res, today_picks, panel[today], px, pricer, today)
     print(f"wrote {OUT}")
+
+
+def write_flags(res, tp, row, px, pricer, today):
+    """Forward paper ledger (long_option_ledger.py reads this, S083 format): call picks of every angle whose
+    analog-week stock edge has t ≥ 2 AND whose options beat buy-all. Graded at expiry, no product claim."""
+    from s076_structures_backtest import fill, strike_for
+    ok = [r["name"] for r in res if r["call_an"][1] >= 2 and r["call_opt"][0] > 0]
+    exp = today + timedelta(days=e.DTE)
+    exp += timedelta(days=(4 - exp.weekday()) % 7)        # next Friday
+    days = (exp - today).days
+    entries = []
+    for name in ok:
+        for t in tp[name]["call"]:
+            S, iv = row[t]["_spot"], px[t][row[t]["_i"]][4] or px[t][row[t]["_i"]][2]
+            if not iv:
+                continue
+            K = strike_for(S, iv, days / 365, e.DELTA, "call")
+            m, sp = pricer.mid("call", S, K, iv, days, today)
+            entries.append({"arm": f"S086:{name}", "ticker": t, "date": str(today), "side": "call",
+                            "spot": S, "strike": K, "expiry": str(exp), "dte": days,
+                            "model_debit": fill(m, sp, 1), "iv30": iv})
+    FLAGS.write_text(json.dumps({"as_of": str(today), "arms": ok, "entries": entries}, indent=1))
+    print(f"flags: {len(entries)} entries from {ok}")
 
 
 def write(res, tp, base, analog, today, tw, fw, row_today, px):
