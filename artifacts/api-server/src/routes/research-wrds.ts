@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { pool } from "@workspace/db";
-import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
   ibesRevBreadth,
   avgIbesSue,
@@ -100,7 +100,7 @@ async function schemaReady(): Promise<boolean> {
 }
 
 /** Batch signals for options scanner streetEventRisk. */
-router.get("/research/wrds/signals", requireAuth, async (req, res, next) => {
+router.get("/research/wrds/signals", requireAdmin, async (req, res, next) => {
   try {
     const raw = String(req.query.tickers || "");
     const tickers = [...new Set(
@@ -156,7 +156,7 @@ router.get("/research/wrds/signals", requireAuth, async (req, res, next) => {
   }
 });
 
-router.get("/research/wrds/:ticker", requireAuth, async (req, res, next) => {
+router.get("/research/wrds/:ticker", requireAdmin, async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker || "").trim().toUpperCase();
     if (!/^[A-Z.]{1,12}$/.test(ticker)) {

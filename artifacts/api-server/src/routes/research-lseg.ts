@@ -5,7 +5,6 @@
  */
 import { Router } from "express";
 import { pool } from "@workspace/db";
-import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { lsegPeerRelative } from "../lib/research-peer-rel.js";
 import { calendarDaysUntilYmd } from "../lib/date-util.js";
@@ -101,7 +100,7 @@ const ER_WINDOW_DAYS = 7;
  * Also reports earnings-date disagreement between LSEG events and the app's earnings_calendar,
  * so the ER haircut can use the EARLIER date when sources conflict.
  */
-router.get("/research/lseg/signals", requireAuth, async (req, res, next) => {
+router.get("/research/lseg/signals", requireAdmin, async (req, res, next) => {
   try {
     const tickers = String(req.query.tickers ?? "")
       .split(",")
@@ -166,7 +165,7 @@ router.get("/research/lseg/signals", requireAuth, async (req, res, next) => {
  * latest LSEG snapshot + local technicals (IV, IV/RV, RSI) + next earnings + your open position.
  * Scoring/wording happens client-side in lib/lseg-radar.ts. Registered before /:ticker on purpose.
  */
-router.get("/research/lseg/radar", requireAuth, async (_req, res, next) => {
+router.get("/research/lseg/radar", requireAdmin, async (_req, res, next) => {
   try {
     const ready = await pool.query<{ ok: boolean }>(`SELECT to_regclass('lseg_research.coverage') IS NOT NULL AS ok`);
     if (!ready.rows[0]?.ok) {
@@ -291,7 +290,7 @@ router.get("/research/lseg/radar", requireAuth, async (_req, res, next) => {
   }
 });
 
-router.get("/research/lseg/:ticker", requireAuth, async (req, res, next) => {
+router.get("/research/lseg/:ticker", requireAdmin, async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker || "").trim().toUpperCase();
     if (!/^[A-Z.]{1,12}$/.test(ticker)) {

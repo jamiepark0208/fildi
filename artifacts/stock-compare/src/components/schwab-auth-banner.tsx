@@ -50,7 +50,7 @@ function formatExpiry(iso: string | null): string | null {
 }
 
 export function SchwabAuthBanner() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const { data } = useQuery<SchwabStatus>({
     queryKey: ["schwab-status"],
@@ -130,16 +130,23 @@ export function SchwabAuthBanner() {
     >
       <span className="font-semibold uppercase tracking-wide text-[10px] opacity-80">Schwab</span>
       <span className="flex-1 min-w-[12rem]">{msg}</span>
-      <button
-        type="button"
-        disabled={startOAuth.isPending}
-        onClick={() => startOAuth.mutate()}
-        className="shrink-0 rounded border border-current/30 px-2 py-0.5 font-semibold hover:bg-white/10 disabled:opacity-50"
-      >
-        {startOAuth.isPending ? "Starting…" : "Re-auth Schwab"}
-      </button>
-      {startOAuth.isError && (
-        <span className="text-red-300">{(startOAuth.error as Error)?.message ?? "failed"}</span>
+      {/* A235: OAuth rebind is admin-only (single token file). Members see the outage tip only. */}
+      {isAdmin ? (
+        <>
+          <button
+            type="button"
+            disabled={startOAuth.isPending}
+            onClick={() => startOAuth.mutate()}
+            className="shrink-0 rounded border border-current/30 px-2 py-0.5 font-semibold hover:bg-white/10 disabled:opacity-50"
+          >
+            {startOAuth.isPending ? "Starting…" : "Re-auth Schwab"}
+          </button>
+          {startOAuth.isError && (
+            <span className="text-red-300">{(startOAuth.error as Error)?.message ?? "failed"}</span>
+          )}
+        </>
+      ) : (
+        <span className="shrink-0 text-[10px] opacity-70">Ask admin to re-auth</span>
       )}
     </div>
   );

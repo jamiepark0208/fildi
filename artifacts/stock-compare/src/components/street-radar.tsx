@@ -2,13 +2,15 @@
  * Street Radar (LSEG) — CSP opportunity rank for names you don't hold + risk flags on what you do.
  * Compact table; LSEG panel mounts only when a row is expanded.
  */
-import { lazy, Suspense, useMemo, useState } from "react";
+import { Fragment, lazy, Suspense, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Info, Loader2, Radar, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMdYy } from "@/lib/format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { positionRisks, rankOpportunities, type RadarRow } from "@/lib/lseg-radar";
 import type { Tone } from "@/lib/lseg-interpret";
+import { useAuth } from "@/context/AuthContext";
 
 const LsegStreetPanel = lazy(() =>
   import("./lseg-street-panel").then((m) => ({ default: m.LsegStreetPanel })),
@@ -36,23 +38,21 @@ const LABEL_CHIP: Record<string, { text: string; cls: string }> = {
 
 const FILTERS = ["all", "lookalike", "traded", "watchlist", "model", "book"] as const;
 
-const ROW =
-  "grid grid-cols-[1rem_1.25rem_2.75rem_4.5rem_minmax(0,1fr)_5.5rem] items-center gap-x-1.5 text-[10px] py-0.5";
-
 function ScoreBar({ score }: { score: number }) {
   const tone = score >= 65 ? "bg-green-500" : score >= 45 ? "bg-amber-400" : "bg-red-500";
   return (
-    <div className="flex items-center gap-1 w-[4.5rem] shrink-0">
-      <div className="relative h-1.5 flex-1 rounded-full bg-zinc-800 overflow-hidden">
+    <div className="flex items-center gap-1.5 min-w-[4.5rem]">
+      <div className="relative h-1.5 w-10 rounded-full bg-zinc-800 overflow-hidden">
         <div className={cn("absolute inset-y-0 left-0 rounded-full", tone)} style={{ width: `${score}%` }} />
       </div>
-      <span className="font-mono text-[9px] text-white w-5 text-right font-semibold">{score}</span>
+      <span className="font-mono text-[11px] text-white tabular-nums font-semibold">{score}</span>
     </div>
   );
 }
 
 
 export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
+  const { isAdmin } = useAuth();
   const [tab, setTab] = useState<"opps" | "held">("opps");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [open, setOpen] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
       if (!res.ok) throw new Error(`LSEG radar ${res.status}`);
       return res.json();
     },
+    enabled: !!isAdmin,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -75,6 +76,12 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
   const visible = showAll ? filtered : filtered.slice(0, 10);
   const byTicker = useMemo(() => new Map(rows.map((r) => [r.ticker, r])), [rows]);
   const flagged = risks.filter((r) => r.flags.length > 0).length;
+
+  if (!isAdmin) {
+    return (
+      <p className="text-[10px] text-amber-200/50 italic py-1">Street radar (LSEG) — admin only</p>
+    );
+  }
 
   return (
     <div className={cn(
@@ -107,14 +114,15 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
           ))}
         </div>
         {tab === "opps" && data?.available && (
-          <div className="flex gap-0.5 text-[9px] ml-auto">
+          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold ml-auto">
             {FILTERS.map((f) => (
               <button
                 key={f}
+                type="button"
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "px-1 py-0.5 rounded border",
-                  filter === f ? "border-[#d4af37]/50 text-white bg-amber-500/10" : "border-zinc-800 text-white/70 hover:text-white",
+                  "px-2 py-0.5 transition-colors whitespace-nowrap capitalize",
+                  filter === f ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/80 hover:text-[#d4af37]",
                 )}
               >
                 {f === "all" ? "all" : (LABEL_CHIP[f]?.text ?? f)}
@@ -122,7 +130,7 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
             ))}
           </div>
         )}
-        <span className="text-[9px] text-white/50 tabular-nums">{rows.length} names</span>
+        <span className="text-[10px] text-white/70 tabular-nums">{rows.length} names</span>
       </div>
 
       {isLoading && (
@@ -135,61 +143,76 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
 
       {data?.available && tab === "opps" && (
         <>
-          <div className="divide-y divide-zinc-800/60 border border-zinc-800/50 rounded overflow-hidden">
-            <div className={cn(ROW, "px-1.5 bg-zinc-900 text-[8px] uppercase tracking-wider text-white/80 font-semibold")}>
-              <span />
-              <span>#</span>
-              <span>Tkr</span>
-              <span>Score</span>
-              <span>Why</span>
-              <span className="text-right">IV · ER</span>
-            </div>
-            {visible.map((o, i) => {
-              const r = byTicker.get(o.ticker)!;
-              const isOpen = open === o.ticker;
-              const chip = LABEL_CHIP[o.label] ?? LABEL_CHIP.book;
-              const wt = (o.bullets.find((b) => b.text === o.why) ?? o.bullets[0])?.tone ?? "neutral";
-              return (
-                <div key={o.ticker} className="bg-zinc-900/40">
-                  <button onClick={() => setOpen(isOpen ? null : o.ticker)} className="w-full text-left px-1.5 hover:bg-amber-500/5">
-                    <div className={ROW}>
-                      {isOpen ? <ChevronDown className="w-3 h-3 text-white/70" /> : <ChevronRight className="w-3 h-3 text-white/70" />}
-                      <span className="text-white/60 font-mono">{i + 1}</span>
-                      <span className="font-mono font-bold text-white">{o.ticker}</span>
-                      <ScoreBar score={o.score} />
-                      <span className="truncate min-w-0">
-                        <span className={cn("mr-1 px-1 py-px rounded border text-[8px] font-semibold", chip.cls)}>{chip.text}</span>
-                        <span className={cn(TONE_TEXT[wt])}>{o.why}</span>
-                      </span>
-                      <span className="flex justify-end gap-1.5 font-mono text-[9px] text-white shrink-0">
-                        {r.tech.iv != null && <span className="text-sky-300">{r.tech.iv.toFixed(0)}%</span>}
-                        {r.nextEarnings && (
-                          <span className={r.nextEarnings.daysUntil <= 35 ? "text-amber-300 font-semibold" : "text-white/80"}>
-                            {formatMdYy(r.nextEarnings.date)}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div className="px-1.5 pb-1.5">
-                      <Suspense
-                        fallback={
-                          <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
-                            <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
-                          </div>
-                        }
+          <div className={GRID_WRAP}>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className={GRID_HEADER}>
+                  <th className={cn(GRID_TH, "w-6 text-center py-0.5")} />
+                  <th className={cn(GRID_TH, "w-8 text-center py-0.5")}>#</th>
+                  <th className={cn(GRID_TH, "text-left py-0.5")}>Tkr</th>
+                  <th className={cn(GRID_TH, "text-left py-0.5")}>Score</th>
+                  <th className={cn(GRID_TH, "text-left py-0.5")}>Why</th>
+                  <th className={cn(GRID_TH, "text-right py-0.5")}>IV · ER</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((o, i) => {
+                  const r = byTicker.get(o.ticker)!;
+                  const isOpen = open === o.ticker;
+                  const chip = LABEL_CHIP[o.label] ?? LABEL_CHIP.book;
+                  const wt = (o.bullets.find((b) => b.text === o.why) ?? o.bullets[0])?.tone ?? "neutral";
+                  return (
+                    <Fragment key={o.ticker}>
+                      <tr
+                        className={cn(gridRow(i), "cursor-pointer")}
+                        onClick={() => setOpen(isOpen ? null : o.ticker)}
                       >
-                        <LsegStreetPanel ticker={o.ticker} embedded />
-                      </Suspense>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                        <td className={cn(GRID_TD, "py-0.5 text-center")}>
+                          {isOpen
+                            ? <ChevronDown className="w-3 h-3 text-white/70 inline-block" />
+                            : <ChevronRight className="w-3 h-3 text-white/70 inline-block" />}
+                        </td>
+                        <td className={cn(GRID_TD, "py-0.5 text-center text-white/70 font-mono text-[11px]")}>{i + 1}</td>
+                        <td className={cn(GRID_TD, "py-0.5 font-mono font-bold text-white")}>{o.ticker}</td>
+                        <td className={cn(GRID_TD, "py-0.5")}><ScoreBar score={o.score} /></td>
+                        <td className={cn(GRID_TD, "py-0.5 text-[11px] max-w-0")}>
+                          <span className="truncate block">
+                            <span className={cn("mr-1 px-1 py-px rounded border text-[9px] font-semibold", chip.cls)}>{chip.text}</span>
+                            <span className={cn(TONE_TEXT[wt])}>{o.why}</span>
+                          </span>
+                        </td>
+                        <td className={cn(GRID_TD, "py-0.5 text-right font-mono text-[11px] whitespace-nowrap")}>
+                          {r.tech.iv != null && <span className="text-sky-300">{r.tech.iv.toFixed(0)}%</span>}
+                          {r.nextEarnings && (
+                            <span className={cn("ml-1.5", r.nextEarnings.daysUntil <= 35 ? "text-amber-300 font-semibold" : "text-white/80")}>
+                              {formatMdYy(r.nextEarnings.date)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="border-b border-[#d4af37]/10">
+                          <td colSpan={6} className="px-2 pb-2 pt-1 bg-black/40">
+                            <Suspense
+                              fallback={
+                                <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
+                                  <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
+                                </div>
+                              }
+                            >
+                              <LsegStreetPanel ticker={o.ticker} embedded />
+                            </Suspense>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
           {filtered.length > 10 && (
-            <button onClick={() => setShowAll(!showAll)} className="text-[9px] text-white/80 hover:text-white">
+            <button type="button" onClick={() => setShowAll(!showAll)} className="text-[10px] text-white/80 hover:text-white">
               {showAll ? "Show top 10" : `Show all ${filtered.length}`}
             </button>
           )}
@@ -197,41 +220,64 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {data?.available && tab === "held" && (
-        <div className="divide-y divide-zinc-800/60 border border-zinc-800/50 rounded overflow-hidden">
-          {risks.map((p) => {
-            const isOpen = open === p.ticker;
-            const Icon = TONE_ICON[p.tone];
-            return (
-              <div key={p.ticker} className="bg-zinc-900/40">
-                <button onClick={() => setOpen(isOpen ? null : p.ticker)} className="w-full text-left px-1.5 py-0.5 hover:bg-amber-500/5">
-                  <div className="grid grid-cols-[1rem_2.75rem_1rem_minmax(0,1fr)] items-center gap-x-1.5 text-[10px]">
-                    {isOpen ? <ChevronDown className="w-3 h-3 text-white/70" /> : <ChevronRight className="w-3 h-3 text-white/70" />}
-                    <span className="font-mono font-bold text-white">{p.ticker}</span>
-                    <Icon className={cn("w-3 h-3 shrink-0", TONE_TEXT[p.tone])} />
-                    <span className={cn("truncate", TONE_TEXT[p.tone])}>{p.verdict}</span>
-                  </div>
-                  {p.flags.length > 0 && (
-                    <div className="pl-8 text-[9px] text-white/80 truncate">
-                      {p.flags.slice(0, 2).map((f) => f.title).join(" · ")}
-                    </div>
-                  )}
-                </button>
-                {isOpen && (
-                  <div className="px-1.5 pb-1.5">
-                    <Suspense
-                      fallback={
-                        <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
-                          <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
-                        </div>
-                      }
+        <div className={GRID_WRAP}>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className={GRID_HEADER}>
+                <th className={cn(GRID_TH, "w-6 text-center py-0.5")} />
+                <th className={cn(GRID_TH, "text-left py-0.5")}>Tkr</th>
+                <th className={cn(GRID_TH, "text-left py-0.5")}>Flag</th>
+                <th className={cn(GRID_TH, "text-left py-0.5")}>Verdict</th>
+              </tr>
+            </thead>
+            <tbody>
+              {risks.map((p, i) => {
+                const isOpen = open === p.ticker;
+                const Icon = TONE_ICON[p.tone];
+                return (
+                  <Fragment key={p.ticker}>
+                    <tr
+                      className={cn(gridRow(i), "cursor-pointer")}
+                      onClick={() => setOpen(isOpen ? null : p.ticker)}
                     >
-                      <LsegStreetPanel ticker={p.ticker} embedded />
-                    </Suspense>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      <td className={cn(GRID_TD, "py-0.5 text-center")}>
+                        {isOpen
+                          ? <ChevronDown className="w-3 h-3 text-white/70 inline-block" />
+                          : <ChevronRight className="w-3 h-3 text-white/70 inline-block" />}
+                      </td>
+                      <td className={cn(GRID_TD, "py-0.5 font-mono font-bold text-white")}>{p.ticker}</td>
+                      <td className={cn(GRID_TD, "py-0.5")}>
+                        <Icon className={cn("w-3.5 h-3.5", TONE_TEXT[p.tone])} />
+                      </td>
+                      <td className={cn(GRID_TD, "py-0.5 text-[11px]")}>
+                        <span className={cn(TONE_TEXT[p.tone])}>{p.verdict}</span>
+                        {p.flags.length > 0 && (
+                          <span className="text-white/60 ml-1.5">
+                            · {p.flags.slice(0, 2).map((f) => f.title).join(" · ")}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="border-b border-[#d4af37]/10">
+                        <td colSpan={4} className="px-2 pb-2 pt-1 bg-black/40">
+                          <Suspense
+                            fallback={
+                              <div className="flex items-center gap-1.5 text-[10px] text-white py-1">
+                                <Loader2 className="w-3 h-3 animate-spin" /> LSEG…
+                              </div>
+                            }
+                          >
+                            <LsegStreetPanel ticker={p.ticker} embedded />
+                          </Suspense>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

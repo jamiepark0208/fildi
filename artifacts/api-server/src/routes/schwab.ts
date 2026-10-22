@@ -15,6 +15,7 @@ import {
   getSchwabOAuthCaptureStatus,
   completeSchwabOAuthFromRedirect,
 } from "../lib/schwab-oauth-capture.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 
 const LOCAL = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
 
@@ -22,14 +23,6 @@ const router = Router();
 
 /** Local Python jobs (verify_plan, intraday, daily_reflection) call these with no session cookie. */
 export const schwabMachineRouter = Router();
-
-function requireSession(req: { session?: { userId?: unknown } }, res: { status: (n: number) => { json: (b: unknown) => unknown } }, next: () => void) {
-  if (!req.session?.userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  next();
-}
 
 router.get("/schwab/status", async (_req, res) => {
   let s = getSchwabAuthStatus();
@@ -80,7 +73,8 @@ router.get("/schwab/status", async (_req, res) => {
   });
 });
 
-router.post("/schwab/oauth/start", requireSession, async (_req, res) => {
+// A235: single Schwab token file — members must not start/complete OAuth rebind.
+router.post("/schwab/oauth/start", requireAdmin, async (_req, res) => {
   try {
     const started = await startSchwabOAuthCapture();
     return res.json({ ok: true, ...started, ...getSchwabOAuthCaptureStatus() });
@@ -89,11 +83,11 @@ router.post("/schwab/oauth/start", requireSession, async (_req, res) => {
   }
 });
 
-router.get("/schwab/oauth/status", requireSession, (_req, res) => {
+router.get("/schwab/oauth/status", requireAdmin, (_req, res) => {
   return res.json(getSchwabOAuthCaptureStatus());
 });
 
-router.post("/schwab/oauth/complete", requireSession, async (req, res) => {
+router.post("/schwab/oauth/complete", requireAdmin, async (req, res) => {
   const pasted = typeof req.body?.redirectUrl === "string" ? req.body.redirectUrl
     : typeof req.body?.code === "string" ? req.body.code
     : "";

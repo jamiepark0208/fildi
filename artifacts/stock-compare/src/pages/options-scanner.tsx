@@ -175,8 +175,9 @@ export function OptionsScannerContent({
   // Nightly DB snapshots — both Overall and Watchlist seed scores from these
   // (watchlist = rankings ∩ watchlist). Chains load only on row expand.
   const rankingSide = isCallMode ? "call" : "put";
+  // DB snapshots only (livePrices=0) — board paints fast; day-% comes from /live/prices below.
   const { data: optionRankings, isLoading: optionRankingsLoading } = useQuery({
-    queryKey: queryKeys.optionsRankings(rankingSide),
+    queryKey: queryKeys.optionsRankingsLite(rankingSide),
     queryFn: async (): Promise<{
       rankings: Array<{
         ticker: string;
@@ -199,10 +200,9 @@ export function OptionsScannerContent({
       }>;
       asOf: string | null;
       computedAt: string | null;
-      /** Bundled live equity quotes — same as /live/prices (no second waterfall). */
       prices?: Record<string, { price: number | null; changePercent: number | null }>;
     }> => {
-      const res = await fetch(`/api/options/rankings?side=${rankingSide}`);
+      const res = await fetch(`/api/options/rankings?side=${rankingSide}&livePrices=0`);
       if (!res.ok) throw new Error("options rankings fetch failed");
       return res.json();
     },
@@ -277,7 +277,8 @@ export function OptionsScannerContent({
       if (!res.ok) return { signals: {} as Record<string, { streetEventRisk: boolean }> };
       return res.json() as Promise<{ signals: Record<string, { streetEventRisk: boolean }> }>;
     },
-    enabled: isLoaded && displayTickers.length > 0,
+    // A235: WRDS research is admin-only — skip for members (no 403 toast).
+    enabled: !!isAdmin && isLoaded && displayTickers.length > 0,
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -711,7 +712,7 @@ export function OptionsScannerContent({
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-  // Rankings-bundled prices first (same round-trip as scores); refresh overlays on top.
+  // Prices from /live/prices (parallel) — rankings are DB-only so the board isn't blocked on quotes.
   const livePrices = useMemo(() => ({
     ...(optionRankings?.prices ?? {}),
     ...(livePricesRefresh ?? {}),

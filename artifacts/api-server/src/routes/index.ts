@@ -50,6 +50,7 @@ import scoreOutliersRouter from "./score-outliers";
 import moverFactsRouter from "./mover-facts";
 import fundScoreNotesRouter from "./fund-score-notes";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { explainLimiter } from "../middleware/rateLimiter.js";
 
 const router: IRouter = Router();
@@ -95,6 +96,9 @@ router.use(scheduledTasksRouter);
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
 router.use(["/stocks", "/indicators", "/options", "/technical", "/technicals", "/explain", "/sdm", "/live", "/track-record", "/strategies", "/schwab", "/research"], requireAuth);
+// A235 P0: licensed research caches — admin only until entitlement registry (A233).
+// Do NOT use bare "/research" (would sweep research-ops). Path-scoped like bug/1.
+router.use(["/research/wrds", "/research/lseg"], requireAdmin);
 // explainLimiter reads req.session.userId, so it must be mounted after requireAuth
 // above (same path-scoped pattern — see bug/1 note) — caps per-user Haiku spend.
 router.use("/explain", explainLimiter);

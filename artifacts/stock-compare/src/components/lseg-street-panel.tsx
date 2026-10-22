@@ -2,6 +2,7 @@
  * LSEG Street — dense compact card + tabbed report with What/Why/So-what skim styling.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 import { AlertTriangle, CheckCircle2, Info, Loader2, TrendingDown } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -492,6 +493,7 @@ function LsegReport({
 }
 
 export function LsegStreetPanel({ ticker, embedded }: { ticker: string; embedded?: boolean }) {
+  const { isAdmin } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ["research-lseg", ticker],
     queryFn: async (): Promise<LsegPayload> => {
@@ -499,7 +501,7 @@ export function LsegStreetPanel({ ticker, embedded }: { ticker: string; embedded
       if (!res.ok) throw new Error(`LSEG research ${res.status}`);
       return res.json();
     },
-    enabled: !!ticker,
+    enabled: !!isAdmin && !!ticker,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -511,9 +513,13 @@ export function LsegStreetPanel({ ticker, embedded }: { ticker: string; embedded
       if (!res.ok) throw new Error(`WRDS research ${res.status}`);
       return res.json();
     },
-    enabled: !!ticker && !!data?.available,
+    enabled: !!isAdmin && !!ticker && !!data?.available,
     staleTime: 5 * 60 * 1000,
   });
+
+  if (!isAdmin) {
+    return <p className="text-[10px] text-amber-200/50 italic py-1">Street research (LSEG) — admin only</p>;
+  }
 
   if (isLoading) {
     return (

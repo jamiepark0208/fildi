@@ -2,6 +2,7 @@
  * WRDS Street — dense compact card + tabbed report with What/Why/So-what skim styling.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -328,6 +329,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
 }
 
 export function WrdsStreetPanel({ ticker, embedded }: { ticker: string; embedded?: boolean }) {
+  const { isAdmin } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ["research-wrds", ticker],
     queryFn: async (): Promise<WrdsPayload> => {
@@ -335,9 +337,13 @@ export function WrdsStreetPanel({ ticker, embedded }: { ticker: string; embedded
       if (!res.ok) throw new Error(`WRDS research ${res.status}`);
       return res.json();
     },
-    enabled: !!ticker,
+    enabled: !!isAdmin && !!ticker,
     staleTime: 5 * 60 * 1000,
   });
+
+  if (!isAdmin) {
+    return <p className="text-[10px] text-amber-200/50 italic py-1">Street research (WRDS) — admin only</p>;
+  }
 
   if (isLoading) {
     return (
