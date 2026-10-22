@@ -40,7 +40,7 @@
 import { spawn, spawnSync, execSync } from "node:child_process";
 import {
   existsSync, mkdirSync, readdirSync, statSync, renameSync,
-  createReadStream, createWriteStream, writeFileSync, readFileSync, unlinkSync,
+  createReadStream, createWriteStream, writeFileSync, readFileSync, unlinkSync, openSync,
 } from "node:fs";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
@@ -58,6 +58,17 @@ const RESEARCH_QUEUE = [
   ["s078_bars5m", "analysis/s078_orb_in_play.py", ["--fetch"], false],
   ["s077_implied_tail", "analysis/s077_implied_tail.py", ["--fetch", "--names=50"], true],
 ];
+/** Agentic plan reviews (Jamie 10-21): scripts/plan-review-queue.py at most every 6 h while awake, detached so the day's
+ *  chain and its lock never wait on it. No rows → no reviewer launch ($0). Stamp written before spawn = its own throttle. */
+const PLAN_REVIEW_STAMP = join(process.env.HOME || "/tmp", ".fildi/plan-review-last-run");
+function maybePlanReviews() {
+  try { if (Date.now() - statSync(PLAN_REVIEW_STAMP).mtimeMs < 6 * 3600_000) return; } catch { /* never ran */ }
+  try {
+    writeFileSync(PLAN_REVIEW_STAMP, new Date().toISOString());
+    const out = openSync(join(LOG_DIR, "plan-review.log"), "a");
+    spawn("python3", [join(ROOT, "scripts/plan-review-queue.py")], { cwd: ROOT, detached: true, stdio: ["ignore", out, out] }).unref();
+  } catch (e) { console.warn("[maintain] plan reviews not started:", e.message); }
+}
 function portOpen(port) {
   return spawnSync("/usr/bin/nc", ["-z", "-w", "2", "127.0.0.1", String(port)]).status === 0;
 }
@@ -588,6 +599,8 @@ async function main() {
   if (!process.env.DATABASE_URL) {
     process.env.DATABASE_URL = "postgresql://jamiepark@127.0.0.1:5432/tradedash";
   }
+
+  if (args.has("--once-per-day")) { mkdirSync(LOG_DIR, { recursive: true }); maybePlanReviews(); }
 
   // 10-21 run-on-wake queue: launchd fires every 30 min while the Mac is awake; the chain runs until it completes once per
   // ET day (max 3 attempts), never two at a time. Jamie is on battery at school → the 07:00 slot alone is unreliable.
