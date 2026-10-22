@@ -4,6 +4,7 @@
 #   to-agent: cursor | grok | grokbot
 #   --ask: read-only (--mode ask)
 set -euo pipefail
+export PATH="/opt/homebrew/bin:$HOME/.local/bin:/usr/local/bin:$PATH"   # launchd PATH has no node (10-22 plan-review failure)
 
 TO="${1:?usage: agent-dispatch.sh <to-agent> <model> <prompt-file> [--ask]}"
 MODEL="${2:?}"
