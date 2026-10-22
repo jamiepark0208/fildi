@@ -675,28 +675,22 @@ async function main() {
   // Field-fill snapshot before any enrich writes — used for Pipeline Health before→after.
   const fieldFillPctBefore = enrichIfDue ? (budgetSnapshot().fieldFillPct ?? null) : null;
 
-  if (enrichIfDue && !dataDoneToday) {
-    // (a) New watchlist / registry adds — don't wait for 4d full run.
+  // A236: Mac opens late (≥10:00 ET, no dataDone yet) → list-first (stale prices + earnings), then heavy work.
+  // Normal 05:00–09:xx path unchanged (full data → list at 10:00 ET).
+  const lateOpenListFirst = args.has("--once-per-day") && etHour() >= 10 && !dataDoneToday;
+  if (lateOpenListFirst) actions.push("late_open_list_first");
+
+  /** Heavy enrich/score work — skipped before the list on late-open; runs after the list instead. */
+  function runHeavyDataBeforeList() {
     enrichMissing = runApiTsx("src/scripts/enrich-missing-fundamentals.ts", ["--max=30"]);
     actions.push(`enrich_missing_exit_${enrichMissing.status}`);
 
-    // (a2) Active names with null fund_total_score — free sources only, shrink coverage/safety gaps.
     enrichUnscored = runApiTsx("src/scripts/enrich-unscored-fundamentals.ts", ["--max=20"]);
     actions.push(`enrich_unscored_exit_${enrichUnscored.status}`);
 
-    // (a3) Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
-    const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
-    actions.push(`backfill_stale_prices_exit_${stalePrices.status ?? stalePrices.signal ?? "spawn_error"}`);   // null exit = killed: name the signal
-
-    // (a3b) A96 market breadth — last 5 sessions A/D (Polygon) + MA% (prices_historical). Full 2y = backfill-market-breadth --days=500.
     const breadth = runApiTsx("src/scripts/backfill-market-breadth.ts", ["--days=5"]);
     actions.push(`backfill_market_breadth_exit_${breadth.status ?? breadth.signal ?? "spawn_error"}`);
 
-    // (b) Earnings-window stale refresh (bounded) — every weekday when due.
-    enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
-    actions.push(`enrich_earnings_exit_${enrichEarnings.status}`);
-
-    // Full nightly only if ≥4 days since last success/partial.
     const age = daysSinceEnrichment();
     if (age >= ENRICH_DUE_DAYS) {
       enrich = runEnrichmentCatchup();
@@ -706,9 +700,49 @@ async function main() {
     }
   }
 
+  function runListCriticalData() {
+    // Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
+    const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
+    actions.push(`backfill_stale_prices_exit_${stalePrices.status ?? stalePrices.signal ?? "spawn_error"}`);
+
+    // Earnings-window stale refresh (bounded) — Model List earnings re-strike reads this.
+    enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
+    actions.push(`enrich_earnings_exit_${enrichEarnings.status}`);
+  }
+
+  function runScoresAndPrecompute(drainMerged) {
+    peerHealth = runApiTsx("src/scripts/peer-health-check.ts");
+    actions.push(`peer_health_exit_${peerHealth.status}`);
+
+    const upstreamMerged =
+      drainMerged ||
+      ranEnrichMerge(enrichMissing) ||
+      ranEnrichMerge(enrichUnscored) ||
+      ranEnrichMerge(enrichEarnings) ||
+      (enrich != null && enrich.status === 0);
+    postMerge = runApiTsx("src/scripts/post-merge-scores.ts", ["--scores-only"]);
+    actions.push(
+      `post_merge_scores_exit_${postMerge.status}_scores_only` +
+        (upstreamMerged ? "" : "_no_upstream_write"),
+    );
+
+    if (finalFlags.processOk) {
+      const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
+      timings.morningPrecompute = pre.ms;
+      actions.push(`morning_precompute_exit_${pre.status}`);
+    } else {
+      actions.push("morning_precompute_skipped_process_down");
+    }
+  }
+
+  if (enrichIfDue && !dataDoneToday) {
+    runListCriticalData();
+    if (!lateOpenListFirst) runHeavyDataBeforeList();
+  }
+
   let drain = null;
   let drainMerged = false;
-  if (drainNr > 0 && !dataDoneToday) {
+  if (drainNr > 0 && !dataDoneToday && !lateOpenListFirst) {
     const rem = factsetRemaining();
     if (rem >= drainNr + 20) {
       drain = runDrainNr(drainNr);
@@ -720,53 +754,38 @@ async function main() {
   }
 
   if (enrichIfDue) {
-    if (!dataDoneToday) {   // data steps passed on an earlier fire today → straight to the Model List
-      // (d) Peer roster heal (ETF quarantine, primary membership, null primary classify).
-      peerHealth = runApiTsx("src/scripts/peer-health-check.ts");
-      actions.push(`peer_health_exit_${peerHealth.status}`);
-
-      // (e) Avoid double merge: enrichAndMergeTickers + drain + nightly already merge.
-      //     - If any of those wrote → --scores-only
-      //     - If nothing wrote → --scores-only anyway (peer primary may have changed; skip full merge)
-      //     - Full merge only if we have no upstream merge but still need gold rebuild (shouldn't happen daily)
-      const upstreamMerged =
-        drainMerged ||
-        ranEnrichMerge(enrichMissing) ||
-        ranEnrichMerge(enrichUnscored) ||
-        ranEnrichMerge(enrichEarnings) ||
-        (enrich != null && enrich.status === 0);
-      const scoreArgs = ["--scores-only"];
-      postMerge = runApiTsx("src/scripts/post-merge-scores.ts", scoreArgs);
-      actions.push(
-        `post_merge_scores_exit_${postMerge.status}_scores_only` +
-          (upstreamMerged ? "" : "_no_upstream_write"),
-      );
-
-      // (e2) Morning precompute: event bullets + earnings history (→ earnings_calendar, read by the Model List's earnings
-      //      re-strike) + FMP analyst feed (→ street PT). BEFORE the Model List (10-20: ran after it). Jobs already stamped
-      //      today (API fallback window) are skipped inside the script, so nothing runs twice.
-      if (finalFlags.processOk) {
-        const pre = runApiTsx("src/scripts/run-morning-precompute.ts");
-        timings.morningPrecompute = pre.ms;
-        actions.push(`morning_precompute_exit_${pre.status}`);
-      } else {
-        actions.push("morning_precompute_skipped_process_down");
-      }
+    if (!dataDoneToday && !lateOpenListFirst) {
+      // Normal path: scores + precompute before the list (earnings history / street PT for re-strike).
+      runScoresAndPrecompute(drainMerged);
     }
 
     // (f) Model List daily (user 2026-10-11): LSEG sync → fit model → plan → verify (Schwab live quotes unless the
     //      Robinhood export session already fetched RH quotes) → publish + grade + reflection. --if-needed = trading days
     //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
-    //      Runs AFTER earnings refresh + score rebuild (10-20: was before them → plans used yesterday's earnings dates,
-    //      which drive the earnings re-strike, and yesterday's tech/fund scores).
-    //      Not before 10:00 ET (the old 07:00 PT slot): opening-half-hour spreads fail L2. Data above refreshes from 05:00 PT;
-    //      the "market closed" skip text marks this fire as waiting, so the attempt is refunded.
+    //      Not before 10:00 ET: opening-half-hour spreads fail L2. Late-open (A236) builds the list on yesterday's
+    //      scores + fresh prices/earnings, then catches up heavy data below.
     modelList = etHour() >= 10 ? runModelListDaily()
       : { status: 0, stdoutTail: "skip: market closed — the list builds at 10:00 ET (opening spreads)", ms: 0 };
     timings.modelList = modelList.ms;
     actions.push(`model_list_exit_${modelList.status}`);
     if (modelList.status !== 0) {
       notifyMac("Fildi Model List not updated", (modelList.stdoutTail || modelList.stderrTail || "see maintain-last.json").slice(-180));
+    }
+
+    // Late-open catch-up: everything deferred so the list published first.
+    if (lateOpenListFirst && enrichIfDue) {
+      runHeavyDataBeforeList();
+      if (drainNr > 0) {
+        const rem = factsetRemaining();
+        if (rem >= drainNr + 20) {
+          drain = runDrainNr(drainNr);
+          actions.push(`drain_nr_${drainNr}_rem_${rem}_exit_${drain.status}`);
+          drainMerged = drain.status === 0;
+        } else {
+          actions.push(`drain_nr_skipped_rem_${rem}_need_${drainNr + 20}`);
+        }
+      }
+      runScoresAndPrecompute(drainMerged);
     }
 
     // Retention prune lives here too so it runs when API was down all day.
