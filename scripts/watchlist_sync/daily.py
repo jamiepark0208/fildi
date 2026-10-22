@@ -67,6 +67,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("house view", PY, HERE, ["house_view.py"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         ("strategies board", PY, HERE, ["structures.py"]),   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
+        ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
