@@ -207,3 +207,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | open |
 | [A231](asks/A231.md) | 2026-10-21 | Muse → Cursor | CI red on tip — ASKS rows A214/A230 link missing ask files (a219961e) | done (Muse 10-21: files restored from Mac working tree) |
 | [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | open |
+| [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | open |
